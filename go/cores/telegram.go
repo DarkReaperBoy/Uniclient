@@ -15847,17 +15847,30 @@ func (t *TelegramCore) StartBot(botID string, chatID string, startParam string) 
 }
 
 // GetBotCallbackAnswer sends a callback query to a bot and returns its answer.
-func (t *TelegramCore) GetBotCallbackAnswer(chatID string, msgID string, data []byte) (string, error) {
+func (t *TelegramCore) GetBotCallbackAnswer(chatID string, msgID string, data []byte, isGame bool) (BotCallbackResult, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
-	if err != nil { return "", err }
+	if err != nil { return BotCallbackResult{}, err }
 	defer unlock()
 	id, err := tgMsgID(msgID)
-	if err != nil { return "", err }
-	result, err := t.api.MessagesGetBotCallbackAnswer(t.ctx, &tg.MessagesGetBotCallbackAnswerRequest{
-		Peer: inputPeer, MsgID: id, Data: data,
-	})
-	if err != nil { return "", err }
-	return result.Message, nil
+	if err != nil { return BotCallbackResult{}, err }
+	req := &tg.MessagesGetBotCallbackAnswerRequest{
+		Peer:  inputPeer,
+		MsgID: id,
+	}
+	if isGame {
+		req.SetGame(true)
+	} else {
+		req.Data = data
+	}
+	result, err := t.api.MessagesGetBotCallbackAnswer(t.ctx, req)
+	if err != nil { return BotCallbackResult{}, err }
+	msg, _ := result.GetMessage()
+	url, _ := result.GetURL()
+	return BotCallbackResult{
+		Message:   msg,
+		URL:       url,
+		ShowAlert: result.Alert,
+	}, nil
 }
 
 // RequestURLAuth requests URL auth metadata for an inline keyboard button.

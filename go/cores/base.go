@@ -371,6 +371,12 @@ type CustomEmojiFile struct {
 	FileData   []byte `json:"file_data"`
 }
 
+type BotCallbackResult struct {
+	Message   string `json:"message"`
+	URL       string `json:"url"`
+	ShowAlert bool   `json:"show_alert"`
+}
+
 // StickerSetResult holds the structured result of a sticker set lookup.
 type StickerSetResult struct {
 	Title     string        `json:"title"`

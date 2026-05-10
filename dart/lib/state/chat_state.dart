@@ -1621,6 +1621,22 @@ class ChatState extends ChangeNotifier {
     return _engine.botCallback(chat.accountId, chat.chatId, msgId, data);
   }
 
+  Future<({String message, String url, bool showAlert})> botCallbackGame(String msgId) async {
+    final chat = _activeChat;
+    if (chat == null) return (message: '', url: '', showAlert: false);
+    return _engine.botCallbackFull(chat.accountId, chat.chatId, msgId, '__game');
+  }
+
+  Future<bool> votePoll(String msgId, List<int> optionIndices) async {
+    final chat = _activeChat;
+    if (chat == null) return false;
+    for (final idx in optionIndices) {
+      final ok = await _engine.votePoll(chat.accountId, chat.chatId, msgId, idx);
+      if (!ok) return false;
+    }
+    return true;
+  }
+
   Future<String> requestBotWebView(String botId) async {
     final chat = _activeChat;
     if (chat == null) return '';

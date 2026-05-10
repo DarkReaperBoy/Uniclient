@@ -3554,6 +3554,18 @@ class EngineService {
     return resp.message;
   }
 
+  Future<({String message, String url, bool showAlert})> botCallbackFull(String accountId, String chatId, String msgId, String data) async {
+    final req = epb.EngineBotCallbackRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId
+      ..data = data;
+    final respBytes = await _callAsync('__engine', 'BotCallback', req.writeToBuffer());
+    if (respBytes.isEmpty) return (message: '', url: '', showAlert: false);
+    final resp = epb.EngineBotCallbackResponse.fromBuffer(respBytes);
+    return (message: resp.message, url: resp.url, showAlert: resp.showAlert);
+  }
+
   Future<String> requestBotWebView(String accountId, String chatId, String botId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

@@ -1582,22 +1582,22 @@ func (e *Engine) GetAttachMenuBots(accountID string) ([]cores.AttachMenuBotInfo,
 }
 
 type BotCallbackAnswerer interface {
-	GetBotCallbackAnswer(chatID string, msgID string, data []byte) (string, error)
+	GetBotCallbackAnswer(chatID string, msgID string, data []byte, isGame bool) (cores.BotCallbackResult, error)
 }
 
-func (e *Engine) BotCallback(accountID, chatID, msgID, data string) (string, error) {
+func (e *Engine) BotCallback(accountID, chatID, msgID, data string, isGame bool) (cores.BotCallbackResult, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
-		return "", fmt.Errorf("account not found: %s", accountID)
+		return cores.BotCallbackResult{}, fmt.Errorf("account not found: %s", accountID)
 	}
 	if acc.Core == nil {
-		return "", fmt.Errorf("account not connected: %s", accountID)
+		return cores.BotCallbackResult{}, fmt.Errorf("account not connected: %s", accountID)
 	}
 	answerer, ok := acc.Core.(BotCallbackAnswerer)
 	if !ok {
-		return "", fmt.Errorf("platform does not support bot callbacks")
+		return cores.BotCallbackResult{}, fmt.Errorf("platform does not support bot callbacks")
 	}
-	return answerer.GetBotCallbackAnswer(chatID, msgID, []byte(data))
+	return answerer.GetBotCallbackAnswer(chatID, msgID, []byte(data), isGame)
 }
 
 type URLAuthRequester interface {

@@ -2591,11 +2591,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		msg, err := e.BotCallback(req.AccountId, req.ChatId, req.MsgId, req.Data)
+		isGame := req.Data == "__game"
+		data := req.Data
+		if isGame {
+			data = ""
+		}
+		result, err := e.BotCallback(req.AccountId, req.ChatId, req.MsgId, data, isGame)
 		if err != nil {
 			return nil, err
 		}
-		return proto.Marshal(&pb.EngineBotCallbackResponse{Message: msg})
+		return proto.Marshal(&pb.EngineBotCallbackResponse{
+			Message:   result.Message,
+			Url:       result.URL,
+			ShowAlert: result.ShowAlert,
+		})
 
 	case "RequestBotWebView":
 		var params struct {

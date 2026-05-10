@@ -32,7 +32,8 @@ import '../state/audio_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
-import 'chat_view.dart' show ChatThemeOverride;
+import 'chat_view.dart' show ChatThemeOverride, ChatView;
+import 'input_dialogs.dart' show showCreatePollBox, CreatePollResult;
 import 'forum_topic_icon.dart';
 import 'media_viewer.dart';
 import 'sticker_pack_viewer.dart';
@@ -4738,6 +4739,14 @@ class _LocationIndicatorState extends State<_LocationIndicator> {
     super.dispose();
   }
 
+  static String _staticMapUrl(double lat, double lng, int w, int h) {
+    final zoom = 15;
+    final tileX = ((lng + 180) / 360 * (1 << zoom)).floor();
+    final latRad = lat * math.pi / 180;
+    final tileY = ((1 - math.log(math.tan(latRad) + 1 / math.cos(latRad)) / math.pi) / 2 * (1 << zoom)).floor();
+    return 'https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png';
+  }
+
   void _openCoordinates() {
     final lat = message.geoLat;
     final lng = message.geoLong;
@@ -4785,13 +4794,26 @@ class _LocationIndicatorState extends State<_LocationIndicator> {
                     ? const BorderRadius.vertical(top: Radius.circular(8))
                     : BorderRadius.circular(8),
               ),
+              clipBehavior: Clip.antiAlias,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  CustomPaint(
-                    size: Size(mapW, mapH),
-                    painter: _MapGridPainter(isDark: isDark),
-                  ),
+                  if (lat != 0.0 || lng != 0.0)
+                    Image.network(
+                      _staticMapUrl(lat, lng, mapW.toInt(), mapH.toInt()),
+                      width: mapW,
+                      height: mapH,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => CustomPaint(
+                        size: Size(mapW, mapH),
+                        painter: _MapGridPainter(isDark: isDark),
+                      ),
+                    )
+                  else
+                    CustomPaint(
+                      size: Size(mapW, mapH),
+                      painter: _MapGridPainter(isDark: isDark),
+                    ),
                   Container(
                     width: 44,
                     height: 44,
@@ -5115,12 +5137,27 @@ class _ContactIndicator extends StatelessWidget {
             child: hasUser
                 ? Row(
                     children: [
-                      _actionButton('Send Message', accentColor),
+                      _actionButton('Send Message', accentColor, () {
+                        final chatState = context.read<ChatState>();
+                        chatState.openChatById(message.contactUserId.toString());
+                      }),
                       Container(width: 1, color: separatorColor),
-                      _actionButton('Add Contact', accentColor),
+                      _actionButton('Add Contact', accentColor, () {
+                        final engine = context.read<EngineService>();
+                        final appState = context.read<AppState>();
+                        final accountId = appState.activeAccountId;
+                        if (accountId.isNotEmpty) {
+                          engine.addContact(accountId, phone, firstName, lastName);
+                          showTelegramToast(context, 'Contact added');
+                        }
+                      }),
                     ],
                   )
-                : _actionButton('View Details', accentColor),
+                : _actionButton('View Details', accentColor, () {
+                    if (phone.isNotEmpty) {
+                      Process.run('xdg-open', ['tel:$phone']);
+                    }
+                  }),
           ),
         ],
       ),
@@ -5147,15 +5184,18 @@ class _ContactIndicator extends StatelessWidget {
     );
   }
 
-  Widget _actionButton(String label, Color color) {
+  Widget _actionButton(String label, Color color, VoidCallback onTap) {
     return Expanded(
-      child: Center(
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: color,
+      child: InkWell(
+        onTap: onTap,
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
           ),
         ),
       ),
@@ -6504,6 +6544,8 @@ class _SvgPathPreviewPainter extends CustomPainter {
     final tokens = _tokenize(d);
     var i = 0;
     var cx = 0.0, cy = 0.0;
+    var prevCubicX2 = 0.0, prevCubicY2 = 0.0;
+    var prevQuadX1 = 0.0, prevQuadY1 = 0.0;
     var cmd = '';
 
     double next() => i < tokens.length ? tokens[i++] : 0.0;
@@ -6521,67 +6563,120 @@ class _SvgPathPreviewPainter extends CustomPainter {
           cx = next(); cy = next();
           path.moveTo(cx, cy);
           cmd = 'L';
+          prevCubicX2 = cx; prevCubicY2 = cy;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 'm':
           cx += next(); cy += next();
           path.moveTo(cx, cy);
           cmd = 'l';
+          prevCubicX2 = cx; prevCubicY2 = cy;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 'L':
           cx = next(); cy = next();
           path.lineTo(cx, cy);
+          prevCubicX2 = cx; prevCubicY2 = cy;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 'l':
           cx += next(); cy += next();
           path.lineTo(cx, cy);
+          prevCubicX2 = cx; prevCubicY2 = cy;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 'H':
           cx = next();
           path.lineTo(cx, cy);
+          prevCubicX2 = cx; prevCubicY2 = cy;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 'h':
           cx += next();
           path.lineTo(cx, cy);
+          prevCubicX2 = cx; prevCubicY2 = cy;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 'V':
           cy = next();
           path.lineTo(cx, cy);
+          prevCubicX2 = cx; prevCubicY2 = cy;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 'v':
           cy += next();
           path.lineTo(cx, cy);
+          prevCubicX2 = cx; prevCubicY2 = cy;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 'C':
           final x1 = next(), y1 = next();
           final x2 = next(), y2 = next();
           cx = next(); cy = next();
           path.cubicTo(x1, y1, x2, y2, cx, cy);
+          prevCubicX2 = x2; prevCubicY2 = y2;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 'c':
           final x1 = cx + next(), y1 = cy + next();
           final x2 = cx + next(), y2 = cy + next();
           cx += next(); cy += next();
           path.cubicTo(x1, y1, x2, y2, cx, cy);
+          prevCubicX2 = x2; prevCubicY2 = y2;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 'S':
+          final rx1 = 2 * cx - prevCubicX2;
+          final ry1 = 2 * cy - prevCubicY2;
           final x2 = next(), y2 = next();
           cx = next(); cy = next();
-          path.cubicTo(cx, cy, x2, y2, cx, cy);
+          path.cubicTo(rx1, ry1, x2, y2, cx, cy);
+          prevCubicX2 = x2; prevCubicY2 = y2;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 's':
+          final rx1 = 2 * cx - prevCubicX2;
+          final ry1 = 2 * cy - prevCubicY2;
           final x2 = cx + next(), y2 = cy + next();
           cx += next(); cy += next();
-          path.cubicTo(cx, cy, x2, y2, cx, cy);
+          path.cubicTo(rx1, ry1, x2, y2, cx, cy);
+          prevCubicX2 = x2; prevCubicY2 = y2;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 'Q':
           final x1 = next(), y1 = next();
           cx = next(); cy = next();
           path.quadraticBezierTo(x1, y1, cx, cy);
+          prevQuadX1 = x1; prevQuadY1 = y1;
+          prevCubicX2 = cx; prevCubicY2 = cy;
         case 'q':
           final x1 = cx + next(), y1 = cy + next();
           cx += next(); cy += next();
           path.quadraticBezierTo(x1, y1, cx, cy);
+          prevQuadX1 = x1; prevQuadY1 = y1;
+          prevCubicX2 = cx; prevCubicY2 = cy;
         case 'T':
+          final rx1 = 2 * cx - prevQuadX1;
+          final ry1 = 2 * cy - prevQuadY1;
           cx = next(); cy = next();
-          path.quadraticBezierTo(cx, cy, cx, cy);
+          path.quadraticBezierTo(rx1, ry1, cx, cy);
+          prevQuadX1 = rx1; prevQuadY1 = ry1;
+          prevCubicX2 = cx; prevCubicY2 = cy;
         case 't':
+          final rx1 = 2 * cx - prevQuadX1;
+          final ry1 = 2 * cy - prevQuadY1;
           cx += next(); cy += next();
-          path.quadraticBezierTo(cx, cy, cx, cy);
+          path.quadraticBezierTo(rx1, ry1, cx, cy);
+          prevQuadX1 = rx1; prevQuadY1 = ry1;
+          prevCubicX2 = cx; prevCubicY2 = cy;
         case 'A':
-          for (var j = 0; j < 5; j++) next();
+          final rx = next(), ry = next();
+          final rotation = next() * math.pi / 180.0;
+          final largeArc = next() != 0;
+          final sweep = next() != 0;
           cx = next(); cy = next();
-          path.lineTo(cx, cy);
+          path.arcToPoint(
+            Offset(cx, cy),
+            radius: Radius.elliptical(rx, ry),
+            rotation: rotation,
+            largeArc: largeArc,
+            clockwise: sweep,
+          );
+          prevCubicX2 = cx; prevCubicY2 = cy;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         case 'Z': case 'z':
           path.close();
           cmd = '';
+          prevCubicX2 = cx; prevCubicY2 = cy;
+          prevQuadX1 = cx; prevQuadY1 = cy;
         default:
           cmd = '';
       }
@@ -7904,6 +7999,28 @@ class _PollWidgetState extends State<_PollWidget>
                 onTap: () => _onOptionTap(i),
               );
             }),
+          if (msg.pollMultiple && _selectedIndices.isNotEmpty && !_hasVoted)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: SizedBox(
+                width: double.infinity,
+                height: 34,
+                child: TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _hasVoted = true;
+                      _barAnim.forward();
+                    });
+                    _submitVote(_selectedIndices.toList());
+                  },
+                  style: TextButton.styleFrom(
+                    backgroundColor: context.palette.dialogsUnreadBg,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: const Text('Vote', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ),
           if (totalVoters > 0 || _hasVoted || msg.pollCloseDate > 0)
             _buildPollFooter(msg, totalVoters, isDark),
         ],
@@ -8029,6 +8146,7 @@ class _PollWidgetState extends State<_PollWidget>
   }
 
   void _onOptionTap(int index) {
+    if (_hasVoted && !widget.message.pollMultiple) return;
     setState(() {
       if (widget.message.pollMultiple) {
         if (_selectedIndices.contains(index)) {
@@ -8049,8 +8167,14 @@ class _PollWidgetState extends State<_PollWidget>
             _shakeAnim.forward(from: 0.0);
           }
         }
+        _submitVote([index]);
       }
     });
+  }
+
+  void _submitVote(List<int> indices) {
+    final chatState = context.read<ChatState>();
+    chatState.votePoll(widget.message.msgId, indices);
   }
 }
 
@@ -9370,13 +9494,47 @@ class _InlineButtonState extends State<_InlineButton>
           if (mounted) setState(() => _loading = false);
         }
       case 'switch_inline':
-        break;
+        final chatState = context.read<ChatState>();
+        final chat = chatState.activeChat;
+        final botUsername = chat?.title ?? '';
+        final query = btn.query;
+        final text = '@$botUsername $query';
+        ChatView.setComposeRequest?.call(text);
       case 'game':
-        if (btn.url.isNotEmpty) {
-          Process.run('xdg-open', [btn.url]);
+        if (_loading) return;
+        setState(() => _loading = true);
+        try {
+          final chatState = context.read<ChatState>();
+          final result = await chatState.botCallbackGame(widget.messageId);
+          if (!mounted) return;
+          if (result.url.isNotEmpty) {
+            Process.run('xdg-open', [result.url]);
+          } else if (result.message.isNotEmpty) {
+            showTelegramToast(context, result.message);
+          }
+        } catch (_) {
+        } finally {
+          if (mounted) setState(() => _loading = false);
         }
       case 'buy':
-        break;
+        final chatState = context.read<ChatState>();
+        final chat = chatState.activeChat;
+        if (chat != null) {
+          PaymentPanel.open(context, data: PaymentPanelData(
+            accountId: chat.accountId,
+            chatId: chat.chatId,
+            msgId: widget.messageId,
+            title: btn.text,
+            description: '',
+            currency: '',
+            totalAmount: 0,
+            isTest: false,
+            isReceipt: false,
+            receiptMsgId: 0,
+            photoUrl: '',
+            botName: chat.title ?? '',
+          ));
+        }
       case 'web_view':
       case 'simple_web_view':
         if (btn.url.isNotEmpty) {
@@ -9393,12 +9551,32 @@ class _InlineButtonState extends State<_InlineButton>
           );
         }
       case 'user_profile':
-        break;
+        final userId = btn.data;
+        if (userId.isNotEmpty) {
+          final chatState = context.read<ChatState>();
+          chatState.openChatById(userId);
+        }
       case 'request_phone':
+        final chatState = context.read<ChatState>();
+        final appState = context.read<AppState>();
+        final phone = appState.activeAccount?.phone ?? '';
+        if (phone.isNotEmpty) {
+          chatState.sendMessage(phone);
+        }
       case 'request_location':
+        showTelegramToast(context, 'Location sharing requires GPS access');
       case 'request_poll':
+        showCreatePollBox(context).then((result) {
+          if (result == null) return;
+          final chatState = context.read<ChatState>();
+          final chat = chatState.activeChat;
+          if (chat == null) return;
+          final engine = context.read<EngineService>();
+          engine.createPoll(chat.accountId, chat.chatId, result.question, result.options,
+              anonymous: result.anonymous, multipleChoice: result.multipleChoice, quiz: result.quiz);
+        });
       case 'request_peer':
-        break;
+        showTelegramToast(context, 'Peer selection requested');
       default:
         final chatState = context.read<ChatState>();
         chatState.sendMessage(btn.text);

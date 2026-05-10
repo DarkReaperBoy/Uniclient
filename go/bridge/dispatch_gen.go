@@ -19770,10 +19770,10 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 	case "GetBotCallbackAnswer":
 		var req pbcores.TelegramGetBotCallbackAnswerRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetBotCallbackAnswer(req.ChatId, req.MsgId, req.Data)
+		r1, err := c.GetBotCallbackAnswer(req.ChatId, req.MsgId, req.Data, false)
 		if err != nil { return nil, err }
 		resp := &pbcores.TelegramGetBotCallbackAnswerResponse{
-			Result_1: r1,
+			Result_1: r1.Message,
 		}
 		return proto.Marshal(resp)
 	case "GetBroadcastStats":
