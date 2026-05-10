@@ -2682,6 +2682,7 @@ class EngineAddContactRequest extends $pb.GeneratedMessage {
     $core.String? phone,
     $core.String? firstName,
     $core.String? lastName,
+    $core.String? note,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -2696,6 +2697,9 @@ class EngineAddContactRequest extends $pb.GeneratedMessage {
     if (lastName != null) {
       $result.lastName = lastName;
     }
+    if (note != null) {
+      $result.note = note;
+    }
     return $result;
   }
   EngineAddContactRequest._() : super();
@@ -2707,6 +2711,7 @@ class EngineAddContactRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'phone')
     ..aOS(3, _omitFieldNames ? '' : 'firstName')
     ..aOS(4, _omitFieldNames ? '' : 'lastName')
+    ..aOS(5, _omitFieldNames ? '' : 'note')
     ..hasRequiredFields = false
   ;
 
@@ -2766,6 +2771,15 @@ class EngineAddContactRequest extends $pb.GeneratedMessage {
   $core.bool hasLastName() => $_has(3);
   @$pb.TagNumber(4)
   void clearLastName() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get note => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set note($core.String v) { $_setString(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasNote() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearNote() => clearField(5);
 }
 
 class EngineGetForumTopicsRequest extends $pb.GeneratedMessage {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -129,6 +130,23 @@ class _ContactsBoxState extends State<_ContactsBox> {
                 ContactInfo(userId: result, username: username, displayName: '@$username'),
               ];
             });
+          }
+        }
+      } else {
+        final chats = engine.searchGlobalChats(account.id, query, limit: 10);
+        if (mounted && _searchQuery == query && chats.isNotEmpty) {
+          final existing = _contacts ?? [];
+          final results = <ContactInfo>[];
+          for (final chat in chats) {
+            if (chat.type == ChatType.dm && !existing.any((c) => c.userId == chat.chatId)) {
+              results.add(ContactInfo(
+                userId: chat.chatId,
+                displayName: chat.title,
+              ));
+            }
+          }
+          if (results.isNotEmpty) {
+            setState(() => _globalResults = results);
           }
         }
       }
@@ -533,8 +551,16 @@ class _ContactsBoxState extends State<_ContactsBox> {
     }
     if (dm != null) {
       chatState.openChat(dm);
-      Navigator.of(context).pop();
+    } else {
+      final syntheticDm = ChatInfo(
+        accountId: context.read<AppState>().activeAccountId ?? '',
+        chatId: contact.userId,
+        title: contact.displayName.isNotEmpty ? contact.displayName : contact.username,
+        type: ChatType.dm,
+      );
+      chatState.openChat(syntheticDm);
     }
+    Navigator.of(context).pop();
   }
 
   void _openStory(ContactInfo contact) {
@@ -592,8 +618,8 @@ class _SortToggleState extends State<_SortToggle> {
                   alignment: Alignment.center,
                   child: Icon(
                     widget.mode == _SortMode.online
-                        ? Icons.access_time
-                        : Icons.sort_by_alpha,
+                        ? Icons.sort_by_alpha
+                        : Icons.access_time,
                     size: 22,
                     color: iconColor,
                   ),
@@ -1107,7 +1133,8 @@ class _AddContactBoxState extends State<_AddContactBox> {
 
   bool _isValidPhone(String phone) {
     final digits = phone.replaceAll(RegExp(r'\D'), '');
-    if (digits == '333' || RegExp(r'^42\d\d$').hasMatch(digits)) return true;
+    if (digits == '333') return true;
+    if (digits.startsWith('42') && (digits.length == 2 || digits.length == 4 || digits.length == 5 || digits.length == 6)) return true;
     return digits.length >= 8;
   }
 
@@ -1917,7 +1944,8 @@ class _EditContactBoxState extends State<_EditContactBox> {
       final phone = widget.contact.phone.isNotEmpty
           ? widget.contact.phone
           : '+0';
-      await widget.engine.addContact(account.id, phone, firstName, lastName);
+      final note = _notesCtrl.text.trim();
+      await widget.engine.addContact(account.id, phone, firstName, lastName, note: note);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -1926,6 +1954,49 @@ class _EditContactBoxState extends State<_EditContactBox> {
           _error = e.toString().replaceFirst('Exception: ', '');
         });
       }
+    }
+  }
+
+  Future<void> _suggestPhoto() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.image);
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.single.path;
+    if (path == null) return;
+    final bytes = await File(path).readAsBytes();
+    final account = widget.appState.activeAccount;
+    if (account == null) return;
+    try {
+      await widget.engine.suggestContactPhoto(account.id, widget.contact.userId, bytes);
+      if (mounted) showTelegramToast(context, 'Photo suggestion sent');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed: ${e.toString().replaceFirst("Exception: ", "")}');
+    }
+  }
+
+  Future<void> _setPersonalPhoto() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.image);
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.single.path;
+    if (path == null) return;
+    final bytes = await File(path).readAsBytes();
+    final account = widget.appState.activeAccount;
+    if (account == null) return;
+    try {
+      await widget.engine.setPersonalContactPhoto(account.id, widget.contact.userId, bytes);
+      if (mounted) showTelegramToast(context, 'Personal photo set');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed: ${e.toString().replaceFirst("Exception: ", "")}');
+    }
+  }
+
+  Future<void> _clearPersonalPhoto() async {
+    final account = widget.appState.activeAccount;
+    if (account == null) return;
+    try {
+      await widget.engine.clearPersonalContactPhoto(account.id, widget.contact.userId);
+      if (mounted) showTelegramToast(context, 'Photo reset to default');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed: ${e.toString().replaceFirst("Exception: ", "")}');
     }
   }
 
@@ -2112,7 +2183,7 @@ class _EditContactBoxState extends State<_EditContactBox> {
               iconColor: buttonColor,
               textColor: textColor,
               hoverBg: settingsBtnBg,
-              onTap: () {},
+              onTap: _suggestPhoto,
             ),
             _SettingsButtonRow(
               icon: Icons.add_a_photo_outlined,
@@ -2120,7 +2191,7 @@ class _EditContactBoxState extends State<_EditContactBox> {
               iconColor: buttonColor,
               textColor: textColor,
               hoverBg: settingsBtnBg,
-              onTap: () {},
+              onTap: _setPersonalPhoto,
             ),
             _SettingsButtonRow(
               icon: Icons.refresh,
@@ -2128,7 +2199,7 @@ class _EditContactBoxState extends State<_EditContactBox> {
               iconColor: buttonColor,
               textColor: textColor,
               hoverBg: settingsBtnBg,
-              onTap: () {},
+              onTap: _clearPersonalPhoto,
             ),
             Divider(height: 1, color: dividerColor),
             // Delete contact
@@ -2396,6 +2467,7 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
     setState(() => _sending = true);
     final accountId = widget.appState.activeAccountId;
     if (accountId == null) return;
+    final comment = _commentController.text.trim();
     try {
       for (final chatId in _selected) {
         await widget.engine.sendContact(
@@ -2406,6 +2478,9 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
           widget.contactLastName,
           userId: widget.contactUserId,
         );
+        if (comment.isNotEmpty) {
+          await widget.engine.sendMessage(accountId, chatId, comment);
+        }
       }
       if (mounted) {
         Navigator.of(context).pop();

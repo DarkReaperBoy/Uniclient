@@ -447,13 +447,42 @@ class EngineService {
     return String.fromCharCodes(respBytes);
   }
 
-  Future<void> addContact(String accountId, String phone, String firstName, String lastName) async {
+  Future<void> addContact(String accountId, String phone, String firstName, String lastName, {String note = ''}) async {
     final req = epb.EngineAddContactRequest()
       ..accountId = accountId
       ..phone = phone
       ..firstName = firstName
       ..lastName = lastName;
+    if (note.isNotEmpty) {
+      req.note = note;
+    }
     await _callAsync('__engine', 'AddContact', req.writeToBuffer());
+  }
+
+  Future<void> suggestContactPhoto(String accountId, String userId, List<int> photoData) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'user_id': userId,
+      'photo_data': photoData,
+    }));
+    await _callAsync('__engine', 'SuggestContactPhoto', Uint8List.fromList(payload));
+  }
+
+  Future<void> setPersonalContactPhoto(String accountId, String userId, List<int> photoData) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'user_id': userId,
+      'photo_data': photoData,
+    }));
+    await _callAsync('__engine', 'SetPersonalContactPhoto', Uint8List.fromList(payload));
+  }
+
+  Future<void> clearPersonalContactPhoto(String accountId, String userId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'user_id': userId,
+    }));
+    await _callAsync('__engine', 'ClearPersonalContactPhoto', Uint8List.fromList(payload));
   }
 
   Future<void> deleteContact(String accountId, String userId) async {

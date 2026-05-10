@@ -410,7 +410,39 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.AddContact(req.AccountId, req.Phone, req.FirstName, req.LastName)
+		return nil, e.AddContact(req.AccountId, req.Phone, req.FirstName, req.LastName, req.GetNote())
+
+	case "SuggestContactPhoto":
+		var params struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+			PhotoData []byte `json:"photo_data"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SuggestContactPhoto(params.AccountID, params.UserID, params.PhotoData)
+
+	case "SetPersonalContactPhoto":
+		var params struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+			PhotoData []byte `json:"photo_data"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetPersonalContactPhoto(params.AccountID, params.UserID, params.PhotoData)
+
+	case "ClearPersonalContactPhoto":
+		var params struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ClearPersonalContactPhoto(params.AccountID, params.UserID)
 
 	case "DeleteContact":
 		var req pb.EngineDeleteContactRequest

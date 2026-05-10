@@ -866,13 +866,21 @@ func (e *Engine) GetLinkedChatId(accountID, chatID string) (string, error) {
 }
 
 // AddContact adds a contact via the core and updates local DB.
-func (e *Engine) AddContact(accountID, phone, firstName, lastName string) error {
+func (e *Engine) AddContact(accountID, phone, firstName, lastName, note string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return fmt.Errorf("account not found: %s", accountID)
 	}
 	if acc.Core == nil {
 		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type noteAdder interface {
+		AddContactWithNote(phone, firstName, lastName, note string) error
+	}
+	if note != "" {
+		if na, ok := acc.Core.(noteAdder); ok {
+			return na.AddContactWithNote(phone, firstName, lastName, note)
+		}
 	}
 	return acc.Core.AddContact(phone, firstName, lastName)
 }

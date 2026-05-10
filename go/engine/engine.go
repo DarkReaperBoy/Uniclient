@@ -1349,6 +1349,48 @@ func (e *Engine) DeleteChannelPhoto(accountID, chatID string) error {
 	return fmt.Errorf("platform does not support channel photo deletion")
 }
 
+func (e *Engine) SuggestContactPhoto(accountID, userID string, photoData []byte) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type suggestor interface {
+		SuggestContactPhoto(userID string, photoData []byte) error
+	}
+	if s, ok := acc.Core.(suggestor); ok {
+		return s.SuggestContactPhoto(userID, photoData)
+	}
+	return fmt.Errorf("platform does not support suggesting contact photos")
+}
+
+func (e *Engine) SetPersonalContactPhoto(accountID, userID string, photoData []byte) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type setter interface {
+		SetPersonalContactPhoto(userID string, photoData []byte) error
+	}
+	if s, ok := acc.Core.(setter); ok {
+		return s.SetPersonalContactPhoto(userID, photoData)
+	}
+	return fmt.Errorf("platform does not support setting personal contact photos")
+}
+
+func (e *Engine) ClearPersonalContactPhoto(accountID, userID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type clearer interface {
+		ClearPersonalContactPhoto(userID string) error
+	}
+	if c, ok := acc.Core.(clearer); ok {
+		return c.ClearPersonalContactPhoto(userID)
+	}
+	return fmt.Errorf("platform does not support clearing personal contact photos")
+}
+
 func (e *Engine) SetGroupStickerSet(accountID, chatID, shortName string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

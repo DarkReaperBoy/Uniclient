@@ -23325,6 +23325,92 @@ func (t *TelegramCore) AddContact(phone string, firstName string, lastName strin
 	return err
 }
 
+// AddContactWithNote adds a contact with a note field using contacts.addContact.
+func (t *TelegramCore) AddContactWithNote(phone, firstName, lastName, note string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	req := &tg.ContactsAddContactRequest{
+		ID:        &tg.InputUser{},
+		FirstName: firstName,
+		LastName:  lastName,
+		Phone:     phone,
+	}
+	req.SetNote(tg.TextWithEntities{Text: note})
+	_, err := t.api.ContactsAddContact(t.ctx, req)
+	return err
+}
+
+// SuggestContactPhoto suggests a profile photo for a contact.
+func (t *TelegramCore) SuggestContactPhoto(userID string, photoData []byte) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	uid, err := tgUserID(userID)
+	if err != nil {
+		return err
+	}
+	uhash := t.getCachedUserHash(uid)
+	u := uploader.NewUploader(t.api)
+	upload, err := u.Upload(t.ctx, uploader.NewUpload("photo.png", io.NopCloser(bytes.NewReader(photoData)), int64(len(photoData))))
+	if err != nil {
+		return fmt.Errorf("upload: %w", err)
+	}
+	_, err = t.api.PhotosUploadContactProfilePhoto(t.ctx, &tg.PhotosUploadContactProfilePhotoRequest{
+		Suggest: true,
+		UserID:  &tg.InputUser{UserID: uid, AccessHash: uhash},
+		File:    upload,
+	})
+	return err
+}
+
+// SetPersonalContactPhoto sets a personal profile photo for a contact (only visible to you).
+func (t *TelegramCore) SetPersonalContactPhoto(userID string, photoData []byte) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	uid, err := tgUserID(userID)
+	if err != nil {
+		return err
+	}
+	uhash := t.getCachedUserHash(uid)
+	u := uploader.NewUploader(t.api)
+	upload, err := u.Upload(t.ctx, uploader.NewUpload("photo.png", io.NopCloser(bytes.NewReader(photoData)), int64(len(photoData))))
+	if err != nil {
+		return fmt.Errorf("upload: %w", err)
+	}
+	_, err = t.api.PhotosUploadContactProfilePhoto(t.ctx, &tg.PhotosUploadContactProfilePhotoRequest{
+		UserID: &tg.InputUser{UserID: uid, AccessHash: uhash},
+		File:   upload,
+	})
+	return err
+}
+
+// ClearPersonalContactPhoto removes a previously set personal profile photo for a contact.
+func (t *TelegramCore) ClearPersonalContactPhoto(userID string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	uid, err := tgUserID(userID)
+	if err != nil {
+		return err
+	}
+	uhash := t.getCachedUserHash(uid)
+	_, err = t.api.PhotosUploadContactProfilePhoto(t.ctx, &tg.PhotosUploadContactProfilePhotoRequest{
+		Save:   true,
+		UserID: &tg.InputUser{UserID: uid, AccessHash: uhash},
+	})
+	return err
+}
+
 // DeleteContact removes a user from the contact list.
 func (t *TelegramCore) DeleteContact(userID string) error {
 	return t.DeleteContacts([]string{userID})
