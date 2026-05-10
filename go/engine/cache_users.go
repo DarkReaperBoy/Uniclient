@@ -1642,6 +1642,33 @@ func (e *Engine) GetBlockedUsers(accountID string) ([]cores.User, error) {
 	return acc.Core.GetBlockedUsers()
 }
 
+type blockedUsersPager interface {
+	GetBlockedUsersPaged(offset, limit int) ([]cores.User, int, error)
+}
+
+func (e *Engine) GetBlockedUsersPaged(accountID string, offset, limit int) ([]cores.User, int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, 0, fmt.Errorf("account not found")
+	}
+	if pager, ok := acc.Core.(blockedUsersPager); ok {
+		return pager.GetBlockedUsersPaged(offset, limit)
+	}
+	all, err := acc.Core.GetBlockedUsers()
+	if err != nil {
+		return nil, 0, err
+	}
+	total := len(all)
+	if offset >= total {
+		return nil, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return all[offset:end], total, nil
+}
+
 func (e *Engine) GetSessions(accountID string) ([]cores.Session, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

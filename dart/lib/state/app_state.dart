@@ -160,6 +160,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _downloadPathMode = 0; // 0=default, 1=temp, 2=custom
   String _customDownloadPath = '';
   bool _askDownloadPath = false;
+  Set<String> _noWarningExtensions = {};
   int _proxyMode = 0; // 0=disabled, 1=system, 2=custom
   String _selectedProxyType = ''; // e.g. 'SOCKS5', 'HTTP', 'MTPROTO'
   bool _proxyIpv6 = false;
@@ -464,6 +465,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int get downloadPathMode => _downloadPathMode;
   String get customDownloadPath => _customDownloadPath;
   bool get askDownloadPath => _askDownloadPath;
+  Set<String> get noWarningExtensions => Set.unmodifiable(_noWarningExtensions);
   int get proxyMode => _proxyMode;
   String get selectedProxyType => _selectedProxyType;
   bool get proxyIpv6 => _proxyIpv6;
@@ -1829,6 +1831,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
+  void setNoWarningExtensions(Set<String> exts) {
+    if (_setEquals(_noWarningExtensions, exts)) return;
+    _noWarningExtensions = exts;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  static bool _setEquals(Set<String> a, Set<String> b) {
+    if (a.length != b.length) return false;
+    return a.containsAll(b);
+  }
+
   void setProxyMode(int mode, [String proxyType = '']) {
     if (_proxyMode == mode && _selectedProxyType == proxyType) return;
     _proxyMode = mode;
@@ -2764,6 +2778,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _downloadPathMode = data['downloadPathMode'] as int? ?? 0;
       _customDownloadPath = data['customDownloadPath'] as String? ?? '';
       _askDownloadPath = data['askDownloadPath'] as bool? ?? false;
+      final nwExts = data['noWarningExtensions'] as List<dynamic>?;
+      if (nwExts != null) _noWarningExtensions = nwExts.cast<String>().toSet();
       _proxyMode = data['proxyMode'] as int? ?? 0;
       _selectedProxyType = data['selectedProxyType'] as String? ?? '';
       _proxyIpv6 = data['proxyIpv6'] as bool? ?? false;
@@ -3013,6 +3029,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'downloadPathMode': _downloadPathMode,
         'customDownloadPath': _customDownloadPath,
         'askDownloadPath': _askDownloadPath,
+        'noWarningExtensions': _noWarningExtensions.toList(),
         'proxyMode': _proxyMode,
         'selectedProxyType': _selectedProxyType,
         'proxyIpv6': _proxyIpv6,

@@ -23756,7 +23756,6 @@ func (t *TelegramCore) DeleteContact(userID string) error {
 
 // GetBlockedUsers returns the list of blocked users.
 func (t *TelegramCore) GetBlockedUsers() ([]User, error) {
-	// Delegate to existing method with default limit
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -23784,6 +23783,46 @@ func (t *TelegramCore) GetBlockedUsers() ([]User, error) {
 		}
 	}
 	return users, nil
+}
+
+// GetBlockedUsersPaged returns a paginated slice of blocked users and the total count.
+func (t *TelegramCore) GetBlockedUsersPaged(offset, limit int) ([]User, int, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, 0, ErrAuth
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	result, err := t.api.ContactsGetBlocked(t.ctx, &tg.ContactsGetBlockedRequest{
+		Offset: offset,
+		Limit:  limit,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("get blocked paged: %w", err)
+	}
+	var users []User
+	var total int
+	switch r := result.(type) {
+	case *tg.ContactsBlocked:
+		t.cacheEntities(r.Users, nil)
+		for _, u := range r.Users {
+			if user, ok := u.(*tg.User); ok {
+				users = append(users, *t.convertUser(user))
+			}
+		}
+		total = len(users) + offset
+	case *tg.ContactsBlockedSlice:
+		t.cacheEntities(r.Users, nil)
+		for _, u := range r.Users {
+			if user, ok := u.(*tg.User); ok {
+				users = append(users, *t.convertUser(user))
+			}
+		}
+		total = r.Count
+	}
+	return users, total, nil
 }
 
 // SearchMessages searches for messages in a chat matching a query.

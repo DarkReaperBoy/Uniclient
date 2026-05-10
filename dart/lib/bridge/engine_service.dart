@@ -4141,6 +4141,29 @@ class EngineService {
     }
   }
 
+  Future<({List<Map<String, dynamic>> users, int total})> getBlockedUsersPaged(
+    String accountId, {int offset = 0, int limit = 50}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'offset': offset,
+      'limit': limit,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetBlockedUsers', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return (users: <Map<String, dynamic>>[], total: 0);
+      final decoded = json.decode(utf8.decode(respBytes));
+      if (decoded is Map) {
+        final users = (decoded['users'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        final total = decoded['total'] as int? ?? users.length;
+        return (users: users, total: total);
+      }
+      return (users: <Map<String, dynamic>>[], total: 0);
+    } catch (e) {
+      Debug.error('ENGINE', 'getBlockedUsersPaged failed', e);
+      return (users: <Map<String, dynamic>>[], total: 0);
+    }
+  }
+
   // ── Sessions ──
 
   Future<int> getSessionsCount(String accountId) async {

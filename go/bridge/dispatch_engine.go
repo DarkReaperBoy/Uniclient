@@ -3611,9 +3611,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 	case "GetBlockedUsers":
 		var params struct {
 			AccountID string `json:"account_id"`
+			Offset    int    `json:"offset"`
+			Limit     int    `json:"limit"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
+		}
+		if params.Limit > 0 {
+			users, total, err := e.GetBlockedUsersPaged(params.AccountID, params.Offset, params.Limit)
+			if err != nil {
+				return nil, err
+			}
+			return json.Marshal(map[string]interface{}{
+				"users": users,
+				"total": total,
+			})
 		}
 		users, err := e.GetBlockedUsers(params.AccountID)
 		if err != nil {

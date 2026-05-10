@@ -688,7 +688,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                 textColor: textColor,
                 subtextColor: subtextColor,
                 hoverBg: hoverBg,
-                onTap: () {},
+                onTap: () => _showChangeLoginEmailDialog(),
               )
             : const SizedBox.shrink(),
       ),
@@ -1082,9 +1082,9 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   }
 
   void _openFileExtensionsDialog() {
-    final engine = context.read<EngineService>();
-    final accountId = context.read<AppState>().activeAccountId;
-    final controller = TextEditingController();
+    final appState = context.read<AppState>();
+    final currentExts = appState.noWarningExtensions.join(' ');
+    final controller = TextEditingController(text: currentExts);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
@@ -1127,11 +1127,126 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           ),
           TextButton(
             onPressed: () {
+              final text = controller.text.substring(0, controller.text.length.clamp(0, 10240));
+              final extsList = text.split(' ')
+                  .where((s) => s.isNotEmpty)
+                  .take(1024)
+                  .toSet();
+              appState.setNoWarningExtensions(extsList);
               Navigator.of(ctx).pop();
             },
             child: const Text('Save'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showChangeLoginEmailDialog() {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+
+    final passwordController = TextEditingController();
+    final emailController = TextEditingController();
+    var errorText = '';
+    var isBusy = false;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (stateCtx, setDialogState) => AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF17212B) : Colors.white,
+          title: Text('Change Login Email', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Current login email: $_loginEmailPattern',
+                  style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  style: TextStyle(fontSize: 14, color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'Current password',
+                    labelStyle: TextStyle(color: subtextColor),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  style: TextStyle(fontSize: 14, color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'New email',
+                    labelStyle: TextStyle(color: subtextColor),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+                if (errorText.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(errorText, style: const TextStyle(color: Color(0xFFE53935), fontSize: 13)),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isBusy ? null : () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: isBusy ? null : () async {
+                final password = passwordController.text.trim();
+                final email = emailController.text.trim();
+                if (password.isEmpty) {
+                  setDialogState(() => errorText = 'Please enter your current password.');
+                  return;
+                }
+                if (email.isEmpty || !email.contains('@')) {
+                  setDialogState(() => errorText = 'Please enter a valid email address.');
+                  return;
+                }
+                setDialogState(() { isBusy = true; errorText = ''; });
+                try {
+                  await engine.setCloudPasswordEmail(
+                    accountId,
+                    currentPassword: password,
+                    email: email,
+                  );
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                  _fetchPasswordState();
+                } catch (e) {
+                  final msg = e.toString();
+                  if (msg.contains('FLOOD')) {
+                    setDialogState(() { errorText = 'Too many attempts. Please try again later.'; isBusy = false; });
+                  } else if (msg.contains('PASSWORD_HASH_INVALID') || msg.contains('INVALID')) {
+                    setDialogState(() { errorText = 'Incorrect password.'; isBusy = false; });
+                  } else if (msg.contains('EMAIL_INVALID')) {
+                    setDialogState(() { errorText = 'Invalid email address.'; isBusy = false; });
+                  } else {
+                    setDialogState(() { errorText = 'Failed: ${e.toString().replaceAll('Exception: ', '')}'; isBusy = false; });
+                  }
+                }
+              },
+              child: isBusy
+                  ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: accentColor))
+                  : const Text('Save'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -6341,24 +6456,62 @@ class _BlockedUsersScreen extends StatefulWidget {
 }
 
 class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
-  List<Map<String, dynamic>>? _blockedUsers;
+  List<Map<String, dynamic>> _blockedUsers = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _allLoaded = false;
+  int _totalCount = 0;
+  static const _pageSize = 50;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _fetchBlockedUsers();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_allLoaded || _loadingMore) return;
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
   }
 
   Future<void> _fetchBlockedUsers() async {
     final engine = context.read<EngineService>();
     final accountId = context.read<AppState>().activeAccountId;
     if (accountId.isEmpty) return;
-    final users = await engine.getBlockedUsers(accountId);
+    final result = await engine.getBlockedUsersPaged(accountId, offset: 0, limit: _pageSize);
     if (!mounted) return;
     setState(() {
-      _blockedUsers = users;
+      _blockedUsers = result.users;
+      _totalCount = result.total;
+      _allLoaded = result.users.length >= result.total;
       _loading = false;
+    });
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || _allLoaded) return;
+    setState(() => _loadingMore = true);
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isEmpty) return;
+    final result = await engine.getBlockedUsersPaged(
+      accountId, offset: _blockedUsers.length, limit: _pageSize);
+    if (!mounted) return;
+    setState(() {
+      _blockedUsers.addAll(result.users);
+      _totalCount = result.total;
+      _allLoaded = _blockedUsers.length >= result.total || result.users.isEmpty;
+      _loadingMore = false;
     });
   }
 
@@ -6367,7 +6520,10 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
     final accountId = context.read<AppState>().activeAccountId;
     if (accountId.isEmpty) return;
     await engine.unblockUser(accountId, userId);
-    _fetchBlockedUsers();
+    setState(() {
+      _blockedUsers.removeWhere((u) => (u['id'] as String? ?? '') == userId);
+      _totalCount = (_totalCount - 1).clamp(0, _totalCount);
+    });
   }
 
   void _showBlockUserPicker() {
@@ -6381,7 +6537,7 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     final accountId = appState.activeAccountId;
-    final blockedIds = (_blockedUsers ?? []).map((u) => u['id'] as String? ?? '').toSet();
+    final blockedIds = _blockedUsers.map((u) => u['id'] as String? ?? '').toSet();
     var searchQuery = '';
 
     showDialog<void>(
@@ -6570,7 +6726,7 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : (_blockedUsers == null || _blockedUsers!.isEmpty)
+                : _blockedUsers.isEmpty
                     ? _buildEmptyState(textColor, subtextColor)
                     : _buildBlockedList(textColor, subtextColor, accentColor),
           ),
@@ -6614,10 +6770,18 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
   }
 
   Widget _buildBlockedList(Color textColor, Color subtextColor, Color accentColor) {
+    final itemCount = _blockedUsers.length + (_allLoaded ? 0 : 1);
     return ListView.builder(
-      itemCount: _blockedUsers!.length,
+      controller: _scrollController,
+      itemCount: itemCount,
       itemBuilder: (context, index) {
-        final user = _blockedUsers![index];
+        if (index >= _blockedUsers.length) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))),
+          );
+        }
+        final user = _blockedUsers[index];
         final name = user['display_name'] as String? ?? '';
         final username = user['username'] as String? ?? '';
         final phone = user['phone'] as String? ?? '';
