@@ -1438,11 +1438,44 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     if (peerType.isEmpty) return;
     try {
       final engine = context.read<EngineService>();
-      final settings = await engine.getDefaultNotifySettings(accountId, peerType: peerType);
-      if (mounted && settings.isNotEmpty) {
+      final results = await Future.wait([
+        engine.getDefaultNotifySettings(accountId, peerType: peerType),
+        engine.getSavedRingtones(accountId),
+      ]);
+      final settings = results[0] as Map<String, dynamic>;
+      final serverTones = results[1] as List<Map<String, dynamic>>;
+      if (mounted) {
         setState(() {
-          _enabled = settings['enabled'] as bool? ?? true;
-          _soundEnabled = settings['sound_enabled'] as bool? ?? true;
+          if (settings.isNotEmpty) {
+            _enabled = settings['enabled'] as bool? ?? true;
+            _soundEnabled = settings['sound_enabled'] as bool? ?? true;
+            final soundId = settings['sound_id'];
+            if (soundId != null) {
+              _selectedToneId = (soundId as num).toInt();
+              final soundName = settings['sound_name'] as String?;
+              if (_selectedToneId == -1) {
+                _toneName = 'Default';
+              } else if (_selectedToneId == -2) {
+                _toneName = 'No sound';
+              } else if (soundName != null && soundName.isNotEmpty) {
+                _toneName = soundName;
+              }
+            }
+          }
+          for (final tone in serverTones) {
+            final id = (tone['id'] as num?)?.toInt() ?? 0;
+            final name = tone['name'] as String? ?? 'Ringtone';
+            if (!_customTones.any((t) => t.id == id)) {
+              _customTones.add(_CustomTone(id: id, name: name));
+            }
+          }
+          if (_customTones.isNotEmpty) {
+            _nextToneId = _customTones.fold<int>(0, (m, t) => t.id > m ? t.id : m) + 1;
+          }
+          if (_selectedToneId > 0 && _toneName == 'Default') {
+            final match = _customTones.where((t) => t.id == _selectedToneId);
+            if (match.isNotEmpty) _toneName = match.first.name;
+          }
         });
       }
     } catch (_) {}

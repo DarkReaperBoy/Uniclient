@@ -24077,10 +24077,27 @@ func (t *TelegramCore) GetDefaultNotifySettings(peerType string) (map[string]int
 	enabled := s.MuteUntil == 0
 	soundEnabled := !s.Silent
 
-	return map[string]interface{}{
+	result := map[string]interface{}{
 		"enabled":       enabled,
 		"sound_enabled": soundEnabled,
-	}, nil
+	}
+
+	if sound, ok := s.GetOtherSound(); ok {
+		switch snd := sound.(type) {
+		case *tg.NotificationSoundDefault:
+			result["sound_id"] = int64(-1)
+			result["sound_name"] = "Default"
+		case *tg.NotificationSoundNone:
+			result["sound_id"] = int64(-2)
+			result["sound_name"] = "No sound"
+		case *tg.NotificationSoundRingtone:
+			result["sound_id"] = snd.ID
+		case *tg.NotificationSoundLocal:
+			result["sound_name"] = snd.Title
+		}
+	}
+
+	return result, nil
 }
 
 // GetReactionsNotifySettings returns reactions notification settings as a simple map.
