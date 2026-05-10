@@ -1049,6 +1049,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				ExcludeRead:     f.ExcludeRead,
 				ExcludeArchived: f.ExcludeArchived,
 				IsChatList:      f.IsChatList,
+				Emoticon:        f.Emoticon,
 			})
 		}
 		return proto.Marshal(resp)

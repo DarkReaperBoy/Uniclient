@@ -9734,6 +9734,7 @@ func (t *TelegramCore) GetFolders() ([]Folder, error) {
 
 		switch filter := f.(type) {
 		case *tg.DialogFilter:
+			emoticon, _ := filter.GetEmoticon()
 			folder = Folder{
 				ID:              strconv.Itoa(filter.ID),
 				Name:            filter.Title.Text,
@@ -9745,6 +9746,7 @@ func (t *TelegramCore) GetFolders() ([]Folder, error) {
 				ExcludeMuted:    filter.ExcludeMuted,
 				ExcludeRead:     filter.ExcludeRead,
 				ExcludeArchived: filter.ExcludeArchived,
+				Emoticon:        emoticon,
 			}
 			for _, p := range filter.IncludePeers {
 				folder.ChatIDs = append(folder.ChatIDs, inputPeerToID(p))

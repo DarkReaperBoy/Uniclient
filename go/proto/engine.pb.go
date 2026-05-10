@@ -6711,6 +6711,7 @@ type EngineFolderInfo struct {
 	ExcludeRead     bool                   `protobuf:"varint,12,opt,name=exclude_read,json=excludeRead,proto3" json:"exclude_read,omitempty"`
 	ExcludeArchived bool                   `protobuf:"varint,13,opt,name=exclude_archived,json=excludeArchived,proto3" json:"exclude_archived,omitempty"`
 	IsChatList      bool                   `protobuf:"varint,14,opt,name=is_chat_list,json=isChatList,proto3" json:"is_chat_list,omitempty"`
+	Emoticon        string                 `protobuf:"bytes,15,opt,name=emoticon,proto3" json:"emoticon,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -6841,6 +6842,13 @@ func (x *EngineFolderInfo) GetIsChatList() bool {
 		return x.IsChatList
 	}
 	return false
+}
+
+func (x *EngineFolderInfo) GetEmoticon() string {
+	if x != nil {
+		return x.Emoticon
+	}
+	return ""
 }
 
 type EngineGetFoldersRequest struct {
@@ -13377,14 +13385,15 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x18EngineUnblockUserRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x8a\x01\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x9e\x01\n" +
 	"\x17EngineAddContactRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x14\n" +
 	"\x05phone\x18\x02 \x01(\tR\x05phone\x12\x1d\n" +
 	"\n" +
 	"first_name\x18\x03 \x01(\tR\tfirstName\x12\x1b\n" +
-	"\tlast_name\x18\x04 \x01(\tR\blastName\"U\n" +
+	"\tlast_name\x18\x04 \x01(\tR\blastName\x12\x12\n" +
+	"\x04note\x18\x05 \x01(\tR\x04note\"U\n" +
 	"\x1bEngineGetForumTopicsRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -13822,7 +13831,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x12send_without_sound\x18\x1a \x01(\bR\x10sendWithoutSound\x123\n" +
 	"\x16has_send_without_sound\x18\x1b \x01(\bR\x13hasSendWithoutSound\x120\n" +
 	"\x14send_upload_progress\x18\x1c \x01(\bR\x12sendUploadProgress\x127\n" +
-	"\x18has_send_upload_progress\x18\x1d \x01(\bR\x15hasSendUploadProgress\"\xbf\x03\n" +
+	"\x18has_send_upload_progress\x18\x1d \x01(\bR\x15hasSendUploadProgress\"\xdb\x03\n" +
 	"\x10EngineFolderInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
@@ -13839,7 +13848,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\fexclude_read\x18\f \x01(\bR\vexcludeRead\x12)\n" +
 	"\x10exclude_archived\x18\r \x01(\bR\x0fexcludeArchived\x12 \n" +
 	"\fis_chat_list\x18\x0e \x01(\bR\n" +
-	"isChatList\"8\n" +
+	"isChatList\x12\x1a\n" +
+	"\bemoticon\x18\x0f \x01(\tR\bemoticon\"8\n" +
 	"\x17EngineGetFoldersRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"Q\n" +

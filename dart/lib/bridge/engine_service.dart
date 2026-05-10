@@ -4726,6 +4726,7 @@ class EngineService {
     excludeRead: p.excludeRead,
     excludeArchived: p.excludeArchived,
     isChatList: p.isChatList,
+    emoticon: _safeStr(p.emoticon),
   );
 
   static SharedMediaItem _sharedMediaItemFromProto(epb.EngineSharedMediaItem p) => SharedMediaItem(

@@ -507,6 +507,7 @@ type Folder struct {
 	ExcludeRead    bool     `json:"exclude_read,omitempty"`
 	ExcludeArchived bool    `json:"exclude_archived,omitempty"`
 	IsChatList      bool    `json:"is_chat_list,omitempty"`
+	Emoticon        string  `json:"emoticon,omitempty"`
 }
 
 type SuggestedFolder struct {

@@ -680,7 +680,7 @@ class _FolderRowState extends State<_FolderRow>
                       child: Row(
                         children: [
                           Icon(
-                            FilterColumn.folderIcon(widget.folder.name),
+                            FilterColumn.folderIconForInfo(widget.folder),
                             size: 24,
                             color: iconColor,
                           ),

@@ -1297,6 +1297,7 @@ class FolderInfo {
   final bool excludeArchived;
   final int colorIndex;
   final bool isChatList;
+  final String emoticon;
 
   bool get hasTypeFilters => contacts || nonContacts || groups || channels || bots;
   bool get hasTagColor => colorIndex >= 0 && colorIndex <= 7;
@@ -1319,6 +1320,7 @@ class FolderInfo {
     this.excludeArchived = false,
     this.colorIndex = -1,
     this.isChatList = false,
+    this.emoticon = '',
   });
 }
 

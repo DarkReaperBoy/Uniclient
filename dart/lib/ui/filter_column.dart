@@ -51,26 +51,75 @@ class FilterColumn extends StatefulWidget {
   @override
   State<FilterColumn> createState() => _FilterColumnState();
 
+  static const _emojiToIcon = <String, IconData>{
+    '\u{1F431}': Icons.pets_outlined,              // 🐱 Cat
+    '\u{1F4D5}': Icons.menu_book_outlined,          // 📕 Book
+    '\u{1F4B0}': Icons.attach_money,                // 💰 Money
+    '\u{1F3AE}': Icons.sports_esports_outlined,     // 🎮 Game
+    '\u{1F4A1}': Icons.lightbulb_outlined,          // 💡 Light
+    '\u{1F44C}': Icons.thumb_up_outlined,           // 👌 Like
+    '\u{1F3B5}': Icons.music_note_outlined,         // 🎵 Note
+    '\u{1F3A8}': Icons.palette_outlined,            // 🎨 Palette
+    '✈️': Icons.flight_outlined,          // ✈️ Travel
+    '✈': Icons.flight_outlined,                // ✈ Travel (no VS16)
+    '⚽️': Icons.sports_soccer_outlined,   // ⚽️ Sport
+    '⚽': Icons.sports_soccer_outlined,         // ⚽ Sport (no VS16)
+    '⭐': Icons.star_outline,                   // ⭐ Favorite
+    '\u{1F393}': Icons.school_outlined,             // 🎓 Study
+    '\u{1F6EB}': Icons.flight_takeoff_outlined,     // 🛫 Airplane
+    '\u{1F464}': Icons.person_outline,              // 👤 Private
+    '\u{1F465}': Icons.group_outlined,              // 👥 Groups
+    '\u{1F4AC}': Icons.chat_outlined,               // 💬 All
+    '✅': Icons.mark_chat_unread_outlined,      // ✅ Unread
+    '\u{1F916}': Icons.smart_toy_outlined,          // 🤖 Bots
+    '\u{1F451}': Icons.workspace_premium_outlined,  // 👑 Crown
+    '\u{1F339}': Icons.local_florist_outlined,      // 🌹 Flower
+    '\u{1F3E0}': Icons.home_outlined,               // 🏠 Home
+    '❤': Icons.favorite_outline,               // ❤ Love
+    '❤️': Icons.favorite_outline,         // ❤️ Love (with VS16)
+    '\u{1F3AD}': Icons.theater_comedy_outlined,     // 🎭 Mask
+    '\u{1F378}': Icons.local_bar_outlined,          // 🍸 Party
+    '\u{1F4C8}': Icons.trending_up,                 // 📈 Trade
+    '\u{1F4BC}': Icons.work_outline,                // 💼 Work
+    '\u{1F514}': Icons.notifications_active_outlined, // 🔔 Unmuted
+    '\u{1F4E2}': Icons.campaign_outlined,           // 📢 Channels
+    '\u{1F4C1}': Icons.folder_outlined,             // 📁 Custom
+    '\u{1F4CB}': Icons.assignment_outlined,         // 📋 Setup
+  };
+
+  /// Matches AyuGram's ComputeFilterIcon: emoji lookup then flag-based default.
   static IconData folderIconForInfo(FolderInfo folder) {
-    if (folder.bots && !folder.contacts && !folder.nonContacts && !folder.groups && !folder.channels) {
-      return Icons.smart_toy_outlined;
+    if (folder.emoticon.isNotEmpty) {
+      final icon = _emojiToIcon[folder.emoticon];
+      if (icon != null) return icon;
     }
-    if (folder.channels && !folder.contacts && !folder.nonContacts && !folder.groups && !folder.bots) {
-      return Icons.campaign_outlined;
-    }
-    if (folder.groups && !folder.contacts && !folder.nonContacts && !folder.channels && !folder.bots) {
-      return Icons.group_outlined;
-    }
-    if ((folder.contacts || folder.nonContacts) && !folder.groups && !folder.channels && !folder.bots) {
-      return Icons.person_outline;
-    }
-    if (folder.excludeRead) {
-      return Icons.mark_email_unread_outlined;
-    }
-    return Icons.folder_outlined;
+    return _computeDefaultFilterIcon(folder);
   }
 
-  static IconData folderIcon(String name) {
+  /// Matches AyuGram's ComputeDefaultFilterIcon (filter_icons.cpp:241-278).
+  static IconData _computeDefaultFilterIcon(FolderInfo folder) {
+    final hasAlways = folder.chatIds.isNotEmpty;
+    final hasNever = folder.excludeChatIds.isNotEmpty;
+    if (hasAlways || hasNever || !folder.hasTypeFilters) {
+      return Icons.folder_outlined;
+    }
+    final onlyContacts = (folder.contacts || folder.nonContacts)
+        && !folder.groups && !folder.channels && !folder.bots;
+    if (onlyContacts) return Icons.person_outline;
+    if (folder.groups && !folder.contacts && !folder.nonContacts
+        && !folder.channels && !folder.bots) {
+      return Icons.group_outlined;
+    }
+    if (folder.channels && !folder.contacts && !folder.nonContacts
+        && !folder.groups && !folder.bots) {
+      return Icons.campaign_outlined;
+    }
+    if (folder.bots && !folder.contacts && !folder.nonContacts
+        && !folder.groups && !folder.channels) {
+      return Icons.smart_toy_outlined;
+    }
+    if (folder.excludeRead) return Icons.mark_chat_unread_outlined;
+    if (folder.excludeMuted) return Icons.notifications_active_outlined;
     return Icons.folder_outlined;
   }
 }

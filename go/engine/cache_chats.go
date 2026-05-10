@@ -962,6 +962,7 @@ type FolderInfo struct {
 	ExcludeRead     bool
 	ExcludeArchived bool
 	IsChatList      bool
+	Emoticon        string
 }
 
 // GetFolders returns synced folders from the core, if the core supports them.
@@ -1004,6 +1005,7 @@ func (e *Engine) GetFolders(accountID string) ([]FolderInfo, error) {
 			ExcludeRead:     f.ExcludeRead,
 			ExcludeArchived: f.ExcludeArchived,
 			IsChatList:      f.IsChatList,
+			Emoticon:        f.Emoticon,
 		}
 	}
 	return result, nil

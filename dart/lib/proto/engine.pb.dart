@@ -9123,6 +9123,7 @@ class EngineFolderInfo extends $pb.GeneratedMessage {
     $core.bool? excludeRead,
     $core.bool? excludeArchived,
     $core.bool? isChatList,
+    $core.String? emoticon,
   }) {
     final $result = create();
     if (id != null) {
@@ -9167,6 +9168,9 @@ class EngineFolderInfo extends $pb.GeneratedMessage {
     if (isChatList != null) {
       $result.isChatList = isChatList;
     }
+    if (emoticon != null) {
+      $result.emoticon = emoticon;
+    }
     return $result;
   }
   EngineFolderInfo._() : super();
@@ -9188,6 +9192,7 @@ class EngineFolderInfo extends $pb.GeneratedMessage {
     ..aOB(12, _omitFieldNames ? '' : 'excludeRead')
     ..aOB(13, _omitFieldNames ? '' : 'excludeArchived')
     ..aOB(14, _omitFieldNames ? '' : 'isChatList')
+    ..aOS(15, _omitFieldNames ? '' : 'emoticon')
     ..hasRequiredFields = false
   ;
 
@@ -9319,6 +9324,15 @@ class EngineFolderInfo extends $pb.GeneratedMessage {
   $core.bool hasIsChatList() => $_has(13);
   @$pb.TagNumber(14)
   void clearIsChatList() => clearField(14);
+
+  @$pb.TagNumber(15)
+  $core.String get emoticon => $_getSZ(14);
+  @$pb.TagNumber(15)
+  set emoticon($core.String v) { $_setString(14, v); }
+  @$pb.TagNumber(15)
+  $core.bool hasEmoticon() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearEmoticon() => clearField(15);
 }
 
 class EngineGetFoldersRequest extends $pb.GeneratedMessage {
