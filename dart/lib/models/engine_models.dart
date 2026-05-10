@@ -1088,16 +1088,21 @@ class ReadDateResult {
 // ── Reactor info (who reacted with what emoji) ──
 class ReactorInfo {
   final String emoji;
+  final int documentId;
   final String peerId;
   final String peerName;
   final int date;
 
   const ReactorInfo({
     required this.emoji,
+    this.documentId = 0,
     required this.peerId,
     required this.peerName,
     this.date = 0,
   });
+
+  bool get isCustomEmoji => documentId != 0;
+  String get reactionKey => isCustomEmoji ? 'custom:$documentId' : emoji;
 }
 
 class ReactorsListResult {

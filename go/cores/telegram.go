@@ -16308,7 +16308,14 @@ func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit i
 		req.SetOffset(offset)
 	}
 	if reactionFilter != "" {
-		req.SetReaction(&tg.ReactionEmoji{Emoticon: reactionFilter})
+		if strings.HasPrefix(reactionFilter, "custom:") {
+			docID, _ := strconv.ParseInt(reactionFilter[7:], 10, 64)
+			if docID != 0 {
+				req.SetReaction(&tg.ReactionCustomEmoji{DocumentID: docID})
+			}
+		} else {
+			req.SetReaction(&tg.ReactionEmoji{Emoticon: reactionFilter})
+		}
 	}
 	result, err := t.api.MessagesGetMessageReactionsList(t.ctx, req)
 	if err != nil { return nil, "", err }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -18,6 +20,9 @@ String _formatCountDecimal(int n) {
   }
   return buf.toString();
 }
+
+String _reactionTabKey(MessageReaction r) =>
+    r.isCustomEmoji ? 'custom:${r.documentId}' : r.emoji;
 
 class ReactionsDetailPanel extends StatefulWidget {
   final CachedMessage message;
@@ -233,7 +238,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
     } else if (_selectedTab == _ReactionTabBar.kReadTab) {
       return [];
     } else {
-      base = _allReactors.where((r) => r.emoji == _selectedTab).toList();
+      base = _allReactors.where((r) => r.reactionKey == _selectedTab).toList();
     }
     if (_blockedIds.isEmpty) return base;
     return base.where((r) => !_blockedIds.contains(r.peerId)).toList();
@@ -349,6 +354,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
                               return _ReadParticipantRow(
                                 participant: p,
                                 palette: palette,
+                                accountId: widget.message.accountId,
                                 onTap: () {
                                   if (p.userId.isEmpty) return;
                                   Navigator.of(context).pop();
@@ -370,6 +376,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
                         _ReadPrivacyNotice(
                           privacyState: _privacyState,
                           palette: palette,
+                          accountId: widget.message.accountId,
                         ),
                     ],
                   ),
@@ -403,6 +410,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
                     reactor: _filteredReactors[i],
                     showEmoji: _selectedTab == null,
                     palette: palette,
+                    accountId: widget.message.accountId,
                     onTap: () => _onReactorTap(_filteredReactors[i]),
                   );
                 },
@@ -482,6 +490,8 @@ class _ReactionTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final totalCount = reactions.fold<int>(0, (s, r) => s + r.count);
+    final sorted = List<MessageReaction>.from(reactions)
+      ..sort((a, b) => b.count.compareTo(a.count));
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
@@ -498,19 +508,20 @@ class _ReactionTabBar extends StatelessWidget {
               onTap: () => onTabSelected(kReadTab),
             ),
           _TabPill(
-            iconData: Icons.favorite,
+            iconData: Icons.emoji_emotions,
             label: _formatCountDecimal(totalCount),
             isSelected: selectedTab == null,
             palette: palette,
             onTap: () => onTabSelected(null),
           ),
-          for (final r in reactions)
+          for (final r in sorted)
             _TabPill(
-              emoji: r.emoji,
+              emoji: r.isCustomEmoji ? null : r.emoji,
+              customEmojiDocId: r.isCustomEmoji ? r.documentId : null,
               label: _formatCountDecimal(r.count),
-              isSelected: selectedTab == r.emoji,
+              isSelected: selectedTab == _reactionTabKey(r),
               palette: palette,
-              onTap: () => onTabSelected(r.emoji),
+              onTap: () => onTabSelected(_reactionTabKey(r)),
             ),
         ],
       ),
@@ -520,6 +531,7 @@ class _ReactionTabBar extends StatelessWidget {
 
 class _TabPill extends StatefulWidget {
   final String? emoji;
+  final int? customEmojiDocId;
   final IconData? iconData;
   final String label;
   final bool isSelected;
@@ -528,6 +540,7 @@ class _TabPill extends StatefulWidget {
 
   const _TabPill({
     this.emoji,
+    this.customEmojiDocId,
     this.iconData,
     required this.label,
     required this.isSelected,
@@ -572,7 +585,7 @@ class _TabPillState extends State<_TabPill> with SingleTickerProviderStateMixin 
     super.dispose();
   }
 
-  bool get _hasLeadingVisual => widget.emoji != null || widget.iconData != null;
+  bool get _hasLeadingVisual => widget.emoji != null || widget.iconData != null || widget.customEmojiDocId != null;
 
   @override
   Widget build(BuildContext context) {
@@ -621,7 +634,9 @@ class _TabPillState extends State<_TabPill> with SingleTickerProviderStateMixin 
                             alignment: Alignment.centerLeft,
                             child: widget.emoji != null
                                 ? Text(widget.emoji!, style: const TextStyle(fontSize: 18))
-                                : Icon(widget.iconData!, color: fg, size: 18),
+                                : widget.customEmojiDocId != null
+                                    ? Icon(Icons.star, color: fg, size: 18)
+                                    : Icon(widget.iconData!, color: fg, size: 18),
                           ),
                         ),
                       ),
@@ -666,11 +681,13 @@ class _ReactorRow extends StatelessWidget {
   final bool showEmoji;
   final TelegramPalette palette;
   final VoidCallback? onTap;
+  final String accountId;
 
   const _ReactorRow({
     required this.reactor,
     required this.showEmoji,
     required this.palette,
+    required this.accountId,
     this.onTap,
   });
 
@@ -685,12 +702,17 @@ class _ReactorRow extends StatelessWidget {
             Positioned(
               left: 18,
               top: 6,
-              child: _ReactorAvatar(name: reactor.peerName, size: 46),
+              child: _ReactorAvatar(
+                name: reactor.peerName,
+                size: 46,
+                peerId: reactor.peerId,
+                accountId: accountId,
+              ),
             ),
             Positioned(
               left: 79,
               top: 11,
-              right: showEmoji && reactor.emoji.isNotEmpty ? 54 : 18,
+              right: showEmoji && (reactor.emoji.isNotEmpty || reactor.isCustomEmoji) ? 54 : 18,
               child: Text(
                 reactor.peerName.isNotEmpty ? reactor.peerName : 'User',
                 overflow: TextOverflow.ellipsis,
@@ -702,7 +724,7 @@ class _ReactorRow extends StatelessWidget {
                 ),
               ),
             ),
-            if (showEmoji && reactor.emoji.isNotEmpty)
+            if (showEmoji && (reactor.emoji.isNotEmpty || reactor.isCustomEmoji))
               Positioned(
                 right: 27,
                 top: 20,
@@ -710,10 +732,12 @@ class _ReactorRow extends StatelessWidget {
                   width: 18,
                   height: 18,
                   child: Center(
-                    child: Text(
-                      reactor.emoji,
-                      style: const TextStyle(fontSize: 16),
-                    ),
+                    child: reactor.isCustomEmoji
+                        ? Icon(Icons.star, size: 16, color: palette.windowFg)
+                        : Text(
+                            reactor.emoji,
+                            style: const TextStyle(fontSize: 16),
+                          ),
                   ),
                 ),
               ),
@@ -728,10 +752,12 @@ class _ReadParticipantRow extends StatelessWidget {
   final ReadParticipantInfo participant;
   final TelegramPalette palette;
   final VoidCallback? onTap;
+  final String accountId;
 
   const _ReadParticipantRow({
     required this.participant,
     required this.palette,
+    required this.accountId,
     this.onTap,
   });
 
@@ -750,7 +776,12 @@ class _ReadParticipantRow extends StatelessWidget {
           children: [
             Positioned(
               left: 18, top: 6,
-              child: _ReactorAvatar(name: name, size: 46),
+              child: _ReactorAvatar(
+                name: name,
+                size: 46,
+                peerId: participant.userId,
+                accountId: accountId,
+              ),
             ),
             Positioned(
               left: 79,
@@ -817,23 +848,81 @@ String formatReadDateLocal(int unixSeconds, {bool showSeconds = false}) {
   return '$mon ${dt.day}, ${dt.year}, $time';
 }
 
-class _ReactorAvatar extends StatelessWidget {
+class _ReactorAvatar extends StatefulWidget {
   final String name;
   final double size;
+  final String peerId;
+  final String accountId;
 
-  const _ReactorAvatar({required this.name, required this.size});
+  const _ReactorAvatar({
+    required this.name,
+    required this.size,
+    this.peerId = '',
+    this.accountId = '',
+  });
 
+  @override
+  State<_ReactorAvatar> createState() => _ReactorAvatarState();
+}
+
+class _ReactorAvatarState extends State<_ReactorAvatar> {
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+  static final _photoCache = <String, String?>{};
+
+  String? _photoPath;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPhoto();
+  }
+
+  Future<void> _loadPhoto() async {
+    if (widget.peerId.isEmpty || widget.accountId.isEmpty) {
+      _loaded = true;
+      return;
+    }
+    final cacheKey = '${widget.accountId}:${widget.peerId}';
+    if (_photoCache.containsKey(cacheKey)) {
+      if (mounted) setState(() { _photoPath = _photoCache[cacheKey]; _loaded = true; });
+      return;
+    }
+    try {
+      final engine = context.read<EngineService>();
+      final path = await engine.getUserPhotoAtIndex(widget.accountId, widget.peerId, 0);
+      _photoCache[cacheKey] = path;
+      if (mounted) setState(() { _photoPath = path; _loaded = true; });
+    } catch (_) {
+      if (mounted) setState(() => _loaded = true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : '?';
-    final color = palette.peerUserpicBg(_colorRemap[name.hashCode.abs() % 7]);
+    final initial = widget.name.isNotEmpty ? widget.name.characters.first.toUpperCase() : '?';
+    final color = palette.peerUserpicBg(_colorRemap[widget.name.hashCode.abs() % 7]);
 
+    if (_loaded && _photoPath != null && _photoPath!.isNotEmpty) {
+      return ClipOval(
+        child: Image.file(
+          File(_photoPath!),
+          width: widget.size,
+          height: widget.size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallback(initial, color),
+        ),
+      );
+    }
+
+    return _fallback(initial, color);
+  }
+
+  Widget _fallback(String initial, Color color) {
     return Container(
-      width: size,
-      height: size,
+      width: widget.size,
+      height: widget.size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color,
@@ -843,7 +932,7 @@ class _ReactorAvatar extends StatelessWidget {
         initial,
         style: TextStyle(
           color: Colors.white,
-          fontSize: size * 0.42,
+          fontSize: widget.size * 0.42,
           fontWeight: FontWeight.w500,
         ),
       ),
@@ -854,10 +943,12 @@ class _ReactorAvatar extends StatelessWidget {
 class _ReadPrivacyNotice extends StatelessWidget {
   final ReadPrivacyState privacyState;
   final TelegramPalette palette;
+  final String accountId;
 
   const _ReadPrivacyNotice({
     required this.privacyState,
     required this.palette,
+    required this.accountId,
   });
 
   @override
@@ -921,13 +1012,20 @@ class _ReadPrivacyNotice extends StatelessWidget {
                           style: TextStyle(color: palette.windowFg, fontWeight: FontWeight.w600),
                         ),
                         content: Text(
-                          'To see when others read your messages, disable hiding your own read time in Privacy settings.',
+                          'Others will also be able to see when you read their messages.',
                           style: TextStyle(color: palette.windowSubTextFg),
                         ),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.of(ctx).pop(),
-                            child: const Text('OK'),
+                            child: Text('Cancel', style: TextStyle(color: palette.windowSubTextFg)),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              context.read<EngineService>().setHideReadMarks(accountId, hide: false);
+                            },
+                            child: Text('Show My Read Time', style: TextStyle(color: palette.windowBgActive)),
                           ),
                         ],
                       ),

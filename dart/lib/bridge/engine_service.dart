@@ -2840,6 +2840,7 @@ class EngineService {
       final nextOffset = (data['next_offset'] as String?) ?? '';
       final reactors = reactorsList.map((e) => ReactorInfo(
         emoji: (e['emoji'] as String?) ?? '',
+        documentId: (e['document_id'] as num?)?.toInt() ?? 0,
         peerId: (e['peer_id'] as String?) ?? '',
         peerName: (e['peer_name'] as String?) ?? '',
         date: (e['date'] as num?)?.toInt() ?? 0,
