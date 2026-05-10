@@ -17,6 +17,7 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -14160,18 +14161,37 @@ func (t *TelegramCore) GetInstantViewPage(url string) ([]byte, error) {
 	page, ok := wp.GetCachedPage()
 	if !ok { return nil, fmt.Errorf("no instant view for this page") }
 
-	photoMap := make(map[int64]string)
+	photoMap := make(map[int64]ivPhotoInfo)
 	for _, p := range page.Photos {
 		if photo, ok := p.(*tg.Photo); ok {
-			if b64 := extractStrippedThumbB64(photo.Sizes); b64 != "" {
-				photoMap[photo.ID] = b64
+			info := ivPhotoInfo{
+				ThumbB64: extractStrippedThumbB64(photo.Sizes),
 			}
+			info.Extra = encodeFileExtra(photo.AccessHash, photo.FileReference)
+			t.cacheFileInfo(photo.ID, photo.AccessHash, photo.FileReference)
+			for _, sz := range photo.Sizes {
+				switch s := sz.(type) {
+				case *tg.PhotoSizeProgressive:
+					if s.W > info.Width { info.Width = s.W; info.Height = s.H }
+				case *tg.PhotoSize:
+					if s.W > info.Width { info.Width = s.W; info.Height = s.H }
+				}
+			}
+			photoMap[photo.ID] = info
+		}
+	}
+
+	docMap := make(map[int64]*tg.Document)
+	for _, d := range page.Documents {
+		if doc, ok := d.(*tg.Document); ok {
+			docMap[doc.ID] = doc
+			t.cacheFileInfo(doc.ID, doc.AccessHash, doc.FileReference)
 		}
 	}
 
 	blocks := make([]map[string]interface{}, 0, len(page.Blocks))
 	for _, b := range page.Blocks {
-		if m := ivBlockToMap(b, photoMap); m != nil {
+		if m := ivBlockToMap(b, photoMap, docMap); m != nil {
 			blocks = append(blocks, m)
 		}
 	}
@@ -14212,6 +14232,13 @@ func ivIgnoreType(t string) bool {
 		return true
 	}
 	return false
+}
+
+type ivPhotoInfo struct {
+	ThumbB64 string
+	Extra    string
+	Width    int
+	Height   int
 }
 
 func ivRichTextToMap(rt tg.RichTextClass) interface{} {
@@ -14264,7 +14291,7 @@ func ivCaptionToMap(c tg.PageCaption) interface{} {
 	return map[string]interface{}{"text": text, "credit": credit}
 }
 
-func ivBlockToMap(b tg.PageBlockClass, photoMap map[int64]string) map[string]interface{} {
+func ivBlockToMap(b tg.PageBlockClass, photoMap map[int64]ivPhotoInfo, docMap map[int64]*tg.Document) map[string]interface{} {
 	switch v := b.(type) {
 	case *tg.PageBlockTitle:
 		return map[string]interface{}{"type": "title", "text": ivRichTextToMap(v.Text)}
@@ -14299,7 +14326,7 @@ func ivBlockToMap(b tg.PageBlockClass, photoMap map[int64]string) map[string]int
 			case *tg.PageListItemBlocks:
 				blocks := make([]interface{}, 0, len(li.Blocks))
 				for _, ib := range li.Blocks {
-					if m := ivBlockToMap(ib, photoMap); m != nil { blocks = append(blocks, m) }
+					if m := ivBlockToMap(ib, photoMap, docMap); m != nil { blocks = append(blocks, m) }
 				}
 				items = append(items, map[string]interface{}{"blocks": blocks})
 			}
@@ -14311,14 +14338,19 @@ func ivBlockToMap(b tg.PageBlockClass, photoMap map[int64]string) map[string]int
 		return map[string]interface{}{"type": "pullquote", "text": ivRichTextToMap(v.Text), "caption": ivRichTextToMap(v.Caption)}
 	case *tg.PageBlockPhoto:
 		m := map[string]interface{}{"type": "photo", "photo_id": v.PhotoID, "caption": ivCaptionToMap(v.Caption)}
-		if b64, ok := photoMap[v.PhotoID]; ok { m["thumb"] = b64 }
+		if info, ok := photoMap[v.PhotoID]; ok {
+			m["thumb"] = info.ThumbB64
+			m["extra"] = info.Extra
+			m["w"] = info.Width
+			m["h"] = info.Height
+		}
 		if u, ok := v.GetURL(); ok { m["url"] = u }
 		return m
 	case *tg.PageBlockVideo:
 		m := map[string]interface{}{"type": "video", "video_id": v.VideoID, "autoplay": v.Autoplay, "loop": v.Loop, "caption": ivCaptionToMap(v.Caption)}
 		return m
 	case *tg.PageBlockCover:
-		if inner := ivBlockToMap(v.Cover, photoMap); inner != nil {
+		if inner := ivBlockToMap(v.Cover, photoMap, docMap); inner != nil {
 			return map[string]interface{}{"type": "cover", "cover": inner}
 		}
 		return nil
@@ -14331,26 +14363,26 @@ func ivBlockToMap(b tg.PageBlockClass, photoMap map[int64]string) map[string]int
 		m := map[string]interface{}{"type": "embed_post", "url": v.URL, "author": v.Author, "date": v.Date, "caption": ivCaptionToMap(v.Caption)}
 		blocks := make([]interface{}, 0, len(v.Blocks))
 		for _, ib := range v.Blocks {
-			if bm := ivBlockToMap(ib, photoMap); bm != nil { blocks = append(blocks, bm) }
+			if bm := ivBlockToMap(ib, photoMap, docMap); bm != nil { blocks = append(blocks, bm) }
 		}
 		m["blocks"] = blocks
 		return m
 	case *tg.PageBlockCollage:
 		items := make([]interface{}, 0, len(v.Items))
 		for _, ib := range v.Items {
-			if bm := ivBlockToMap(ib, photoMap); bm != nil { items = append(items, bm) }
+			if bm := ivBlockToMap(ib, photoMap, docMap); bm != nil { items = append(items, bm) }
 		}
 		return map[string]interface{}{"type": "collage", "items": items, "caption": ivCaptionToMap(v.Caption)}
 	case *tg.PageBlockSlideshow:
 		items := make([]interface{}, 0, len(v.Items))
 		for _, ib := range v.Items {
-			if bm := ivBlockToMap(ib, photoMap); bm != nil { items = append(items, bm) }
+			if bm := ivBlockToMap(ib, photoMap, docMap); bm != nil { items = append(items, bm) }
 		}
 		return map[string]interface{}{"type": "slideshow", "items": items, "caption": ivCaptionToMap(v.Caption)}
 	case *tg.PageBlockDetails:
 		blocks := make([]interface{}, 0, len(v.Blocks))
 		for _, ib := range v.Blocks {
-			if bm := ivBlockToMap(ib, photoMap); bm != nil { blocks = append(blocks, bm) }
+			if bm := ivBlockToMap(ib, photoMap, docMap); bm != nil { blocks = append(blocks, bm) }
 		}
 		return map[string]interface{}{"type": "details", "title": ivRichTextToMap(v.Title), "blocks": blocks, "open": v.Open}
 	case *tg.PageBlockRelatedArticles:
@@ -14387,14 +14419,61 @@ func ivBlockToMap(b tg.PageBlockClass, photoMap map[int64]string) map[string]int
 			case *tg.PageListOrderedItemBlocks:
 				blocks := make([]interface{}, 0, len(li.Blocks))
 				for _, ib := range li.Blocks {
-					if m := ivBlockToMap(ib, photoMap); m != nil { blocks = append(blocks, m) }
+					if m := ivBlockToMap(ib, photoMap, docMap); m != nil { blocks = append(blocks, m) }
 				}
 				items = append(items, map[string]interface{}{"num": li.Num, "blocks": blocks})
 			}
 		}
 		return map[string]interface{}{"type": "ordered_list", "items": items}
+	case *tg.PageBlockChannel:
+		m := map[string]interface{}{"type": "channel"}
+		if ch, ok := v.Channel.(*tg.Channel); ok {
+			m["title"] = ch.Title
+			if u, ok := ch.GetUsername(); ok { m["username"] = u }
+			m["id"] = ch.ID
+		}
+		return m
+	case *tg.PageBlockAudio:
+		m := map[string]interface{}{"type": "audio", "audio_id": v.AudioID, "caption": ivCaptionToMap(v.Caption)}
+		if doc, ok := docMap[v.AudioID]; ok {
+			m["extra"] = encodeFileExtra(doc.AccessHash, doc.FileReference)
+			m["mime"] = doc.MimeType
+			m["size"] = doc.Size
+			for _, attr := range doc.Attributes {
+				if a, ok := attr.(*tg.DocumentAttributeAudio); ok {
+					m["duration"] = a.Duration
+					if t, ok := a.GetTitle(); ok { m["title"] = t }
+					if p, ok := a.GetPerformer(); ok { m["performer"] = p }
+				}
+				if a, ok := attr.(*tg.DocumentAttributeFilename); ok {
+					m["filename"] = a.FileName
+				}
+			}
+		}
+		return m
+	case *tg.PageBlockMap:
+		geo := v.Geo
+		m := map[string]interface{}{"type": "map", "zoom": v.Zoom, "w": v.W, "h": v.H, "caption": ivCaptionToMap(v.Caption)}
+		if pt, ok := geo.(*tg.GeoPoint); ok {
+			m["lat"] = pt.Lat
+			m["lng"] = pt.Long
+		}
+		return m
 	}
 	return nil
+}
+
+// DownloadIVPhoto downloads an Instant View photo by its ID and returns the local file path.
+func (t *TelegramCore) DownloadIVPhoto(photoID int64, extra string) (string, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return "", ErrAuth }
+	dest := filepath.Join(os.TempDir(), fmt.Sprintf("iv_photo_%d.jpg", photoID))
+	if _, err := os.Stat(dest); err == nil { return dest, nil }
+	ref := FileRef{ID: strconv.FormatInt(photoID, 10), MimeType: "image/jpeg", Extra: extra}
+	if err := t.DownloadFile(ref, dest, nil); err != nil {
+		return "", fmt.Errorf("download IV photo %d: %w", photoID, err)
+	}
+	return dest, nil
 }
 
 // SetHistoryTTL sets the auto-delete timer for messages in a chat.

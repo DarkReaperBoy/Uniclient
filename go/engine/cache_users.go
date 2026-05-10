@@ -2,6 +2,7 @@ package engine
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -1306,6 +1307,26 @@ func (e *Engine) GetInstantViewPage(accountID, url string) ([]byte, error) {
 		return nil, fmt.Errorf("instant view not supported for this account type")
 	}
 	return fetcher.GetInstantViewPage(url)
+}
+
+func (e *Engine) DownloadIVPhoto(accountID string, photoID int64, extra string) ([]byte, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type ivPhotoDownloader interface {
+		DownloadIVPhoto(photoID int64, extra string) (string, error)
+	}
+	dl, ok := acc.Core.(ivPhotoDownloader)
+	if !ok {
+		return nil, fmt.Errorf("IV photo download not supported for this account type")
+	}
+	path, err := dl.DownloadIVPhoto(photoID, extra)
+	if err != nil { return nil, err }
+	return json.Marshal(map[string]string{"path": path})
 }
 
 // SendAsPeerInfo describes a peer the user can send messages as.

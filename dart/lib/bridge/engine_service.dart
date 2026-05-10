@@ -1040,6 +1040,23 @@ class EngineService {
     }
   }
 
+  Future<String?> downloadIVPhoto(String accountId, int photoId, String extra) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'photo_id': photoId,
+      'extra': extra,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'DownloadIVPhoto', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return resp['path'] as String?;
+    } catch (e) {
+      Debug.error('ENGINE', 'downloadIVPhoto failed', e);
+      return null;
+    }
+  }
+
   // ── Sticker sets ──
 
   Future<StickerSetInfo?> getStickerSetInfo(String accountId, {String shortName = '', int setId = 0, int accessHash = 0}) async {
