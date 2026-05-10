@@ -573,14 +573,6 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 # input_dialogs — Input Dialogs Audit
 
-## Edit Invite Link Box
-
-- [ ] [CRITICAL] Custom expiry date picker missing — The actual dialog is `_CreateEditLinkFormState` in `admin_tools.dart` (not input_dialogs.dart); its `_expireOptions` map at line 4840 has no Custom entry and no `_showCustomExpiry()` method — `admin_tools.dart:4840-4846` ← `AyuGram/ui/boxes/edit_invite_link.cpp:242-321`
-
-- [ ] [CRITICAL] Custom usage limit input missing — `_CreateEditLinkFormState._usageOptions` at `admin_tools.dart:4848` has no Custom entry and no custom number input — `admin_tools.dart:4848-4853` ← `AyuGram/ui/boxes/edit_invite_link.cpp:323-369`
-
-- [ ] [MAJOR] Default expiry is 30 days instead of Never — `_CreateEditLinkFormState` initialises `_expireOption = 2592000` (30 days) at `admin_tools.dart:4833`; AyuGram defaults to `kMaxLimit` (never expires) — `admin_tools.dart:4833` ← `AyuGram/ui/boxes/edit_invite_link.cpp:91`
-
 ## Create Poll Box
 
 - [x] [CRITICAL] Max options cap is 10 instead of 32 — Dart returns early at 10 options (`if (_optionCtrls.length >= 10) return`); AyuGram sets `kMaxOptionsCount = PollData::kMaxOptions = 32` — `input_dialogs.dart:1142` ← `AyuGram/boxes/create_poll_box.cpp:104` and `AyuGram/data/data_poll.h:121`
