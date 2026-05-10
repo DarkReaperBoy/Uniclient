@@ -585,87 +585,15 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 - [x] [CRITICAL] No option character limit — AyuGram enforces `kOptionLimit = 100` chars per option and warns at 30; Dart applies no limit — `input_dialogs.dart:1213-1216` ← `AyuGram/boxes/create_poll_box.cpp:105,372` (`_field->setMaxLength(kOptionLimit + kErrorLimit)`)
 
-# instant_view — Critical wiring and missing block gaps
-
-- [ ] [CRITICAL] `url` rich-text spans: `href` extracted at line 621 but immediately discarded — no `TapGestureRecognizer` attached, so every hyperlink in IV body is visually styled but completely non-interactive — `instant_view.dart:620-627` ← `iv_prepare.cpp:1074` (`<a href=...>` anchor tag)
-
-- [ ] [CRITICAL] `email` rich-text spans have no `TapGestureRecognizer` and no `mailto:` handler — email addresses render in accent color but tapping does nothing — `instant_view.dart:628-631` ← `iv_prepare.cpp:1080` (`href: "mailto:" + email`)
-
-- [ ] [CRITICAL] `phone` rich-text spans have no `TapGestureRecognizer` and no `tel:` handler — phone numbers render in accent color but tapping does nothing — `instant_view.dart:653-656` ← `iv_prepare.cpp:1090` (`href: "tel:" + phone`)
-
-- [ ] [CRITICAL] Photos display only a base64 minithumbnail (`block['thumb']`) — AyuGram fetches and displays full-resolution photos via `photoFullUrl()` served through the webview data handler; users see blurry low-resolution placeholders — `instant_view.dart:277-298` ← `iv_prepare.cpp:500,525` (`photoFullUrl` vs `minithumbnail`)
-
-- [ ] [CRITICAL] Six block types silently swallowed by `default: return SizedBox.shrink()`: `video`, `collage`, `slideshow`, `channel`, `audio`, `map` — videos, audio players, photo collages, slideshows, channel-join buttons, and map embeds are completely invisible in rendered IV pages — `instant_view.dart:231-233` ← `iv_prepare.cpp:115,121,122,123,124,131`
-
-- [ ] [CRITICAL] `embed` block not actually embedded — AyuGram renders embed blocks as real HTML/iframe content via `IV.initEmbedBlocks()` JavaScript; Dart shows only a tappable plain-text URL that opens in the browser — `instant_view.dart:496-519` ← `iv_controller.cpp:284` (`hasEmbeds ? "IV.initEmbedBlocks();" : ""`)
-
-- [ ] [MAJOR] Zoom control completely absent — AyuGram has Ctrl+/Ctrl−/Ctrl+0 keyboard shortcuts, a zoom menu item with +/− buttons and a percent readout (`ivZoomButtonsSize: 26px`, `ivResetZoom`), and persists zoom via `Delegate::ivSetZoom` — `instant_view.dart` (no zoom) ← `iv_controller.cpp:62-65,1103-1151` / `iv.style:30-58`
-
-- [ ] [MAJOR] Back/forward navigation absent — AyuGram shows animated back/forward icon buttons wired to `window.history.back()` / `window.history.forward()` in the webview — `instant_view.dart` (no navigation history) ← `iv_controller.cpp:478-514`
-
-- [ ] [MAJOR] Share functionality absent — AyuGram has a "Share" menu item that opens a share box overlay (`showShareMenu()`) — `instant_view.dart` (no share) ← `iv_controller.cpp:1140-1142,1194-1247`
-
-- [ ] [MAJOR] `_fallbackToBrowser` and all external-open calls use `Process.run('xdg-open', ...)` which silently fails on Windows and macOS; should use `url_launcher` or platform-conditional logic — `instant_view.dart:61,89,117,511,567` ← portability requirement
-
-- [ ] [MAJOR] Related articles fire `xdg-open` (external browser) instead of opening a new IV page inside the app — AyuGram fires `Event::Type::OpenPage` to reuse the IV controller — `instant_view.dart:566-567` ← `iv_controller.cpp:1051-1055`
-
-- [ ] [MAJOR] Title font is 15px; AyuGram specifies `ivSubtitleFont: font(16px semibold)` — `instant_view.dart:83` ← `iv.style:68`
-
-- [ ] [MAJOR] AppBar uses Flutter default height (~56 dp); AyuGram's subtitle bar is `ivSubtitleHeight: 48px` — `instant_view.dart:73` ← `iv.style:76`
-
-- [ ] [MAJOR] Preformatted code blocks show plain monospace text with no syntax highlighting — AyuGram initialises syntax highlighting via `IV.initPreBlocks()` — `instant_view.dart:257-274` ← `iv_controller.cpp:283`
-
-# keyboard_shortcuts — Shortcut system stubs, wrong handler implementations, missing commands
-
-- [ ] [CRITICAL] `recordVoice` handler always returns false — key binding fires but voice recording never starts — `keyboard_shortcuts.dart:1105-1107` ← `shortcuts.cpp:532` (`Command::RecordVoice` is a real command dispatched to compose controls in AyuGram)
-
-- [ ] [CRITICAL] `mediaPrevious` and `mediaNext` handlers check state but perform no action — both check `audio.currentMsgId.isNotEmpty` and return true/false without calling any skip/previous/next method on `AudioService` — `keyboard_shortcuts.dart:1227-1234` ← `shortcuts.cpp:47-54` (autoRepeatCommands includes MediaPrevious/Next, expected to advance track)
-
-- [ ] [CRITICAL] `chatSwitchOverlayReverse` calls the identical `showChatSwitchRequest` as forward with no direction argument — overlay switch cannot navigate backwards — `keyboard_shortcuts.dart:1077-1080` ← `shortcuts.cpp:933-961` (AyuGram fires `{.action = Qt::Key_Backtab}` for reverse vs `Qt::Key_Tab` for forward)
-
-- [ ] [CRITICAL] `isMediaViewerOpenCallback` uses `nav.canPop()` which is true whenever any dialog or route is pushed, not only when the media viewer is open — enables `mediaViewerVideoFullscreen` shortcut in wrong contexts (e.g. while settings dialog is open) — `keyboard_shortcuts.dart:1049-1056` ← `shortcuts.h:78` (`Command::MediaViewerFullscreen` scope should be gated on the media viewer overlay specifically)
-
-- [ ] [CRITICAL] All ten format commands (formatBold, formatItalic, formatUnderline, formatStrike, formatCode, formatBlockquote, formatSpoiler, formatClear, formatLink, formatDate) have default key bindings but zero `registerHandler` calls anywhere in the codebase — `ShortcutSystem.dispatch()` will return false for all of them; Ctrl+B/I/U/K and all formatting shortcuts are completely non-functional — `keyboard_shortcuts.dart:956-975` (bindings) vs `keyboard_shortcuts.dart:1058-1265` (no format handlers) ← `shortcuts.h:15-90` (these exist as commands that widgets subscribe to via `Shortcuts::Requests()`)
-
-- [ ] [CRITICAL] `openFilePicker` has a default binding (Ctrl+O, line 934) but no `registerHandler` ever registered — `ShortcutSystem.dispatch()` finds no handler, file picker never opens — `keyboard_shortcuts.dart:934-935` ← `shortcuts.cpp:525` (no default in AyuGram either, but the Dart code adds one without wiring it)
-
-- [ ] [MAJOR] `supportReloadTemplates` handler calls `chatState.loadChats()` (reloads the chat list) instead of reloading support reply templates — `keyboard_shortcuts.dart:1237-1239` ← `support_templates.cpp:452-461` (AyuGram calls `Templates::reload()` which re-reads the templates file from disk and shows a toast)
-
-- [ ] [MAJOR] `supportHistoryBack` and `supportHistoryForward` handlers call `ChatListPanel.requestNavigateChat(-1/1)` which moves through the chat list — AyuGram's handlers call `chatEntryHistoryMove(-1/1)` which navigates the support mode conversation history queue — `keyboard_shortcuts.dart:1254-1261` ← `window_session_controller.cpp:1966-1971`
-
-- [ ] [MAJOR] `pastePlainText` command is in the enum, scoped, and appears in the settings UI but has no `registerHandler` registered anywhere — if a user binds a key to it in shortcuts-custom.json, the dispatch fires but nothing handles it — `keyboard_shortcuts.dart:91,192,265` (defined) vs absence of handler ← `shortcuts.h:15-90`
-
-- [ ] [MAJOR] `RecordRound` command (video circle messages) is present in AyuGram but missing from the Dart `ShortcutCommand` enum entirely — cannot be bound or handled — absent from `keyboard_shortcuts.dart:22-99` ← `shortcuts.h:73` and `shortcuts.cpp:138`
-
-- [ ] [MAJOR] Custom file reader does not handle the `"removed": true` flag — AyuGram writes entries with `{..., "removed": true}` when a default binding is deleted; the Dart `_loadCustomFile()` ignores unknown keys and treats such entries as add-binding-without-command null removals — `keyboard_shortcuts.dart:526-554` ← `shortcuts.cpp:434-449` (AyuGram checks `removed->toBool()` and calls `remove(key, command)`)
-
-- [ ] [MAJOR] System media "search" and "find" key sequences (OS-level Search/Find keys on keyboards) are not mapped in `_keyNames` and therefore cannot be bound — AyuGram registers `"search"` and `"find"` as default bindings for `Command::Search` — absent from `keyboard_shortcuts.dart:279-324` ← `shortcuts.cpp:485-486`
-
-- [ ] [MAJOR] Ctrl+Shift+X is assigned as a default binding to BOTH `supportHistoryBack` (line 945) and `formatStrike` (line 963) — when support mode is active and compose is focused, `supportHistoryBack` is dispatched first (it appears earlier in `_bindings`) and consumes the event, making strikethrough unreachable — `keyboard_shortcuts.dart:945-946,962-963` ← `shortcuts.cpp:499` (AyuGram only assigns Ctrl+Shift+X to `SupportHistoryBack`; format shortcuts have no defaults in AyuGram)
-
 # language_box — Language box audit
 
 - [ ] [CRITICAL] Selecting a language does not call any engine method to switch the app language. `_selectLanguage` only calls `appState.addRecentLanguage()` and pops the dialog. AyuGram calls `Lang::CurrentCloudManager().switchToLanguage(language)` which downloads and applies the language pack from Telegram's servers. — `language_box.dart:86-90` ← `AyuGram/boxes/language_box.cpp:1379-1392`
 
 - [ ] [CRITICAL] Translation toggle settings (Show Translate Button, Translate Entire Chats) are never persisted. All callbacks go to `AppState` only; no engine calls are made from this file (only 1 engine call exists: `getLanguages`). AyuGram calls `Core::App().settings().setTranslateButtonEnabled()` + `saveSettingsDelayed()` and `setTranslateChatEnabled()` + `saveSettingsDelayed()`. — `language_box.dart:168,177` ← `AyuGram/boxes/language_box.cpp:1433-1470`
 
-- [ ] [CRITICAL] "Do Not Translate" editor (`_SkipLanguagesEditor`) shows ALL Telegram interface languages from `engine.getLanguages()`. AyuGram's `EditSkipTranslationLanguages()` uses `TranslationLanguagesList()` — a curated ~80-language list of Google Translate-supported languages. These lists are completely different: Telegram UI language packs ≠ translation-capable languages. — `language_box.dart:104-115,719-728` ← `AyuGram/boxes/translate_box.cpp:121-148` + `AyuGram/ui/boxes/choose_language_box.cpp:27-128`
-
 - [ ] [CRITICAL] Skip-translation language selection not persisted via engine. `appState.setSkipTranslationLanguages()` is in-memory only. AyuGram calls `Core::App().settings().setSkipTranslationLanguages()` + `Core::App().saveSettingsDelayed()`. — `language_box.dart:704` ← `AyuGram/boxes/translate_box.cpp:141-145`
 
 - [ ] [CRITICAL] Language removal/restore is not persisted to local storage. `appState.addRemovedLanguage()` and `appState.restoreRemovedLanguage()` are in-memory only. AyuGram calls `Local::removeRecentLanguage(row->data.id)` on delete and `Local::saveRecentLanguages(...)` on restore. — `language_box.dart:605-608` ← `AyuGram/boxes/language_box.cpp:520-534`
-
-- [ ] [MAJOR] Search uses substring matching (`contains(q)`) instead of AyuGram's prefix word matching. AyuGram uses `TextUtilities::PrepareSearchWords` + `item.startsWith(needle)` — only rows where every query word starts a keyword are shown. Searching "erm" would match "German" in Dart but not in AyuGram. — `language_box.dart:73-76` ← `AyuGram/boxes/language_box.cpp:662-700`
-
-- [ ] [MAJOR] Recent language list does not pin the current language first. AyuGram's `PrepareLists()` uses `stable_partition` to place the active language at index 0 in recent; if it's not in recent at all, a fake entry is generated and prepended. Dart just iterates `recentLanguageCodes` in insertion order. — `language_box.dart:299-306` ← `AyuGram/boxes/language_box.cpp:258-298`
-
-- [ ] [MAJOR] User can delete the currently selected language. AyuGram's `canRemove` returns false when `row->check->checked()` — the selected language is never removable. Dart shows the Delete option for any non-official language regardless of selection state. — `language_box.dart:404,581-587` ← `AyuGram/boxes/language_box.cpp:506-508`
-
-- [ ] [MAJOR] `canShare` does not exclude `#`-prefixed lang IDs (`#custom`, etc.). AyuGram: `return !_areOfficial && !row->data.id.startsWith('#')`. Dart: `!lang.official` only — would show a Share option for custom lang packs, producing an invalid `https://t.me/setlanguage/#custom` link. — `language_box.dart:404,570-575` ← `AyuGram/boxes/language_box.cpp:502-504`
-
-- [ ] [MAJOR] No keyboard navigation in the language list. AyuGram implements Up/Down/PageUp/PageDown/Home/End/Space/Return/Enter navigation through `LanguageBox::keyPressEvent` + `Rows::keyPressEvent` + `Rows::selectSkip`. Dart has no keyboard handling for the list. — `language_box.dart` (absent) ← `AyuGram/boxes/language_box.cpp:357-375,1504-1529`
-
-- [ ] [MAJOR] `passportRowSkip` between title and description is 4px in Dart but 2px per spec. AyuGram row height = `passportRowPadding.top + titleHeight + passportRowSkip(2px) + descHeight + passportRowPadding.bottom`. — `language_box.dart:437` ← `AyuGram/passport/passport.style:110`
 
 # emoji_data — Static emoji database vs. server-sourced
 
