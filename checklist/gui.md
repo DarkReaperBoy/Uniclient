@@ -649,10 +649,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 ---
 
-## passcode — no auto-trigger of system unlock on window focus
-
-- [ ] [MAJOR] AyuGram automatically suggests system unlock every time the window regains focus (`windowActiveValue() | rpl::skip(1) | rpl::filter([=](bool active) { return active && !_systemUnlockSuggested; })`). The Dart `didChangeAppLifecycleState` handler only re-focuses the text field on resume — it never calls `_triggerSystemUnlock`. Even if the stub were fixed, the auto-prompt on focus would still be missing. — `main.dart:2220` ← `AyuGram/SourceFiles/window/window_lock_widgets.cpp:163`
-
 ## passcode — submit button gap wrong (70px vs 40px spec)
 
 - [ ] [MAJOR] Error text and submit button are positioned starting at `inputY + 70`. AyuGram spec (`passcodeSubmitSkip: 40px`) places the submit button at `passcode.y() + passcode.height() + 40`. The Dart layout adds 70px below the input before the error zone begins, placing the submit button ~30px lower than spec. — `main.dart:2403` ← `AyuGram/SourceFiles/boxes/boxes.style:298` and `window_lock_widgets.cpp:302`
