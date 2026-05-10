@@ -16,6 +16,7 @@ import '../theme/theme.dart';
 import '../utils/country_data.dart';
 import 'confirm_box.dart';
 import 'input_dialogs.dart';
+import 'media_viewer.dart';
 import 'telegram_toast.dart';
 
 const double _boxWideWidth = 364;
@@ -563,8 +564,28 @@ class _ContactsBoxState extends State<_ContactsBox> {
     Navigator.of(context).pop();
   }
 
-  void _openStory(ContactInfo contact) {
-    _openChat(contact);
+  void _openStory(ContactInfo contact) async {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId == null || accountId.isEmpty) return;
+    try {
+      final stories = await engine.fetchPeerStories(accountId, contact.userId);
+      if (stories.isEmpty || !mounted) return;
+      final selfId = appState.activeAccount?.selfUserId ?? '';
+      Navigator.of(context).pop();
+      StoriesViewer.open(
+        context,
+        stories: stories,
+        peerName: contact.displayName.isNotEmpty
+            ? contact.displayName
+            : contact.username,
+        isOwnStory: selfId.isNotEmpty && contact.userId == selfId,
+        peerId: contact.userId,
+      );
+    } catch (e) {
+      debugPrint('Failed to load stories: $e');
+    }
   }
 }
 
