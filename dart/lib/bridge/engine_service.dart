@@ -1040,9 +1040,13 @@ class EngineService {
       return StickerSetInfo(
         title: resp.title,
         shortName: resp.shortName,
+        setId: setId,
+        accessHash: accessHash,
         count: resp.count,
         installed: resp.installed,
         archived: resp.archived,
+        animated: resp.animated,
+        video: resp.video,
         stickers: resp.stickers.map((s) => StickerInfoItem(
           emoji: s.emoji,
           thumbB64: s.thumbB64,
@@ -1348,6 +1352,21 @@ class EngineService {
       return true;
     } catch (e) {
       Debug.error('ENGINE', 'installStickerSet failed', e);
+      return false;
+    }
+  }
+
+  Future<bool> uninstallStickerSet(String accountId, int setId, int accessHash) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'set_id': setId,
+      'access_hash': accessHash,
+    }));
+    try {
+      await _callAsync('__engine', 'UninstallStickerSet', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'uninstallStickerSet failed', e);
       return false;
     }
   }

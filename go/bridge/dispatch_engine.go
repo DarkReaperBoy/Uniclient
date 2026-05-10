@@ -2351,6 +2351,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return []byte{}, nil
 
+	case "UninstallStickerSet":
+		var params struct {
+			AccountID  string `json:"account_id"`
+			SetID      int64  `json:"set_id"`
+			AccessHash int64  `json:"access_hash"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.UninstallStickerSet(params.AccountID, params.SetID, params.AccessHash); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	case "SaveGif":
 		var req pb.EngineSaveGifRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

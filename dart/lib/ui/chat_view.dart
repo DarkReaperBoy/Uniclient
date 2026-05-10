@@ -5278,6 +5278,20 @@ class _ChatViewState extends State<ChatView>
               richCtrl.insertCustomEmoji(documentId, altText);
             }
           },
+          onStickerSend: (stickerId) {
+            final chat = context.read<ChatState>().activeChat;
+            if (chat == null) return;
+            final engine = context.read<EngineService>();
+            engine.sendSticker(chat.accountId, chat.chatId, stickerId);
+            setState(() => _emojiPanelVisible = false);
+          },
+          onGifSend: (gifFileId) {
+            final chat = context.read<ChatState>().activeChat;
+            if (chat == null) return;
+            final engine = context.read<EngineService>();
+            engine.sendSticker(chat.accountId, chat.chatId, gifFileId);
+            setState(() => _emojiPanelVisible = false);
+          },
         ),
       ),
       // §23.8: Video processing tip toast (top-attached, 4000ms).

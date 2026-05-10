@@ -13627,6 +13627,16 @@ func (t *TelegramCore) InstallStickerSet(setID, accessHash int64) error {
 	return err
 }
 
+func (t *TelegramCore) UninstallStickerSet(setID, accessHash int64) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	_, err := t.api.MessagesUninstallStickerSet(t.ctx, &tg.InputStickerSetID{ID: setID, AccessHash: accessHash})
+	return err
+}
+
 // GetStarGifts returns the list of available star gifts for purchase.
 func (t *TelegramCore) GetStarGifts() (*StarGiftsResult, error) {
 	t.mu.RLock()

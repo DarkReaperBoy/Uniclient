@@ -2281,17 +2281,25 @@ class AttachMenuBotInfo {
 class StickerSetInfo {
   final String title;
   final String shortName;
+  final int setId;
+  final int accessHash;
   final int count;
   final bool installed;
   final bool archived;
+  final bool animated;
+  final bool video;
   final List<StickerInfoItem> stickers;
 
   const StickerSetInfo({
     this.title = '',
     this.shortName = '',
+    this.setId = 0,
+    this.accessHash = 0,
     this.count = 0,
     this.installed = false,
     this.archived = false,
+    this.animated = false,
+    this.video = false,
     this.stickers = const [],
   });
 }

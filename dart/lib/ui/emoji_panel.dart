@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,19 +16,52 @@ const double _kPanelMinHeight = 278.0;
 const double _kPanelMaxHeight = 640.0;
 const double _kPanelMargin = 10.0;
 const double _kPanelRadius = 8.0;
-const double _kHeightRatio = 0.55;
+const double _kHeightRatio = 0.75;
 const Duration _kShowDuration = Duration(milliseconds: 200);
 const Duration _kHideTimeout = Duration(milliseconds: 300);
 const Duration _kDelayedHideTimeout = Duration(milliseconds: 3000);
 
 const double _kEmojiCellSize = 40.0;
+const double _kSkinToneCellSize = 30.0;
 const double _kEmojiGridPadding = 8.0;
-const double _kCategoryBarHeight = 38.0;
+const double _kCategoryBarHeight = 36.0;
 const double _kEmojiColorsPadding = 8.0;
 const double _kEmojiColorsSep = 1.0;
 const double _kPopupPad = 4.0;
 
 Map<String, int> _skinTonePrefs = {};
+bool _emojiPrefsLoaded = false;
+String _emojiPrefsConfigDir = '';
+
+void _loadEmojiPrefs(String configDir) {
+  if (_emojiPrefsLoaded) return;
+  _emojiPrefsLoaded = true;
+  _emojiPrefsConfigDir = configDir;
+  if (configDir.isEmpty) return;
+  try {
+    final file = File('$configDir/emoji_prefs.json');
+    if (!file.existsSync()) return;
+    final data = json.decode(file.readAsStringSync()) as Map<String, dynamic>;
+    if (data['recentEmojis'] is List) {
+      _recentEmojis = (data['recentEmojis'] as List).cast<String>().toList();
+    }
+    if (data['skinTonePrefs'] is Map) {
+      _skinTonePrefs = (data['skinTonePrefs'] as Map).map(
+        (k, v) => MapEntry(k.toString(), v is int ? v : 0),
+      );
+    }
+  } catch (_) {}
+}
+
+void _saveEmojiPrefs() {
+  if (_emojiPrefsConfigDir.isEmpty) return;
+  try {
+    File('$_emojiPrefsConfigDir/emoji_prefs.json').writeAsStringSync(json.encode({
+      'recentEmojis': _recentEmojis,
+      'skinTonePrefs': _skinTonePrefs,
+    }));
+  } catch (_) {}
+}
 
 Uint8List _decodeStrippedThumbB64(String b64) {
   final stripped = base64Decode(b64);
@@ -205,6 +239,8 @@ class EmojiTabbedPanel extends StatefulWidget {
   final VoidCallback onHide;
   final ValueChanged<String>? onEmojiSelected;
   final void Function(int documentId, String altText)? onCustomEmojiSelected;
+  final void Function(String stickerId)? onStickerSend;
+  final void Function(String gifFileId)? onGifSend;
 
   const EmojiTabbedPanel({
     super.key,
@@ -212,6 +248,8 @@ class EmojiTabbedPanel extends StatefulWidget {
     required this.onHide,
     this.onEmojiSelected,
     this.onCustomEmojiSelected,
+    this.onStickerSend,
+    this.onGifSend,
   });
 
   @override
@@ -390,6 +428,8 @@ class _EmojiTabbedPanelState extends State<EmojiTabbedPanel>
                             onEmojiSelected: widget.onEmojiSelected,
                             onCustomEmojiSelected: widget.onCustomEmojiSelected,
                             onContextMenuToggle: _onContextMenuToggle,
+                            onStickerSend: widget.onStickerSend,
+                            onGifSend: widget.onGifSend,
                           ),
                         ),
                       ],
@@ -414,7 +454,11 @@ class _TabBar extends StatelessWidget {
     required this.onTabChanged,
   });
 
-  static const _tabs = ['Emoji', 'Stickers', 'GIFs'];
+  static const _tabIcons = [
+    Icons.emoji_emotions_outlined,
+    Icons.sticky_note_2_outlined,
+    Icons.gif_box_outlined,
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -440,7 +484,7 @@ class _TabBar extends StatelessWidget {
         ),
       ),
       child: Row(
-        children: List.generate(_tabs.length, (i) {
+        children: List.generate(_tabIcons.length, (i) {
           final isActive = i == activeTab;
           return Expanded(
             child: GestureDetector(
@@ -450,13 +494,10 @@ class _TabBar extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Spacer(),
-                  Text(
-                    _tabs[i],
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: isActive ? activeColor : inactiveColor,
-                    ),
+                  Icon(
+                    _tabIcons[i],
+                    size: 22,
+                    color: isActive ? activeColor : inactiveColor,
                   ),
                   const Spacer(),
                   AnimatedContainer(
@@ -481,6 +522,8 @@ class _TabContent extends StatelessWidget {
   final ValueChanged<String>? onEmojiSelected;
   final void Function(int documentId, String altText)? onCustomEmojiSelected;
   final ValueChanged<bool>? onContextMenuToggle;
+  final void Function(String stickerId)? onStickerSend;
+  final void Function(String gifFileId)? onGifSend;
 
   const _TabContent({
     required this.activeTab,
@@ -489,12 +532,14 @@ class _TabContent extends StatelessWidget {
     this.onEmojiSelected,
     this.onCustomEmojiSelected,
     this.onContextMenuToggle,
+    this.onStickerSend,
+    this.onGifSend,
   });
 
   Widget _buildTabWidget(int index, Color placeholderColor) {
     if (index == 0) return _EmojiTab(onEmojiSelected: onEmojiSelected, onCustomEmojiSelected: onCustomEmojiSelected);
-    if (index == 1) return _StickerTab(onStickerSelected: onEmojiSelected, onContextMenuToggle: onContextMenuToggle);
-    return _GifTab(onGifSelected: onEmojiSelected, onContextMenuToggle: onContextMenuToggle);
+    if (index == 1) return _StickerTab(onStickerSend: onStickerSend, onContextMenuToggle: onContextMenuToggle);
+    return _GifTab(onGifSend: onGifSend, onContextMenuToggle: onContextMenuToggle);
   }
 
   @override
@@ -783,7 +828,12 @@ class _EmojiTabState extends State<_EmojiTab> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchCustomPacks());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final configDir = context.read<AppState>().configDir;
+      _loadEmojiPrefs(configDir);
+      if (_recentEmojis.isNotEmpty && mounted) setState(() {});
+      _fetchCustomPacks();
+    });
   }
 
   @override
@@ -827,6 +877,7 @@ class _EmojiTabState extends State<_EmojiTab> {
     if (_recentEmojis.length > 50) {
       _recentEmojis = _recentEmojis.sublist(0, 50);
     }
+    _saveEmojiPrefs();
     widget.onEmojiSelected?.call(emoji);
   }
 
@@ -845,8 +896,35 @@ class _EmojiTabState extends State<_EmojiTab> {
 
   void _onSkinToneSelected(String emoji, int index) {
     _skinTonePrefs[_emojiPrefKey(_skinToneTarget!)] = index;
+    _saveEmojiPrefs();
     _dismissSkinTone();
     _onEmojiTap(emoji);
+  }
+
+  Future<void> _installEmojiPack(CustomEmojiSetSummary pack) async {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final acc = appState.activeAccount;
+    if (acc == null) return;
+    final success = await engine.installStickerSet(acc.id, pack.setId, pack.accessHash);
+    if (success && mounted) {
+      setState(() {
+        for (int i = 0; i < _customPacks.length; i++) {
+          if (_customPacks[i].setId == pack.setId) {
+            _customPacks[i] = CustomEmojiSetSummary(
+              setId: pack.setId,
+              accessHash: pack.accessHash,
+              title: pack.title,
+              shortName: pack.shortName,
+              count: pack.count,
+              installed: true,
+              premium: pack.premium,
+              stickers: pack.stickers,
+            );
+          }
+        }
+      });
+    }
   }
 
   void _togglePackExpanded(int setId) {
@@ -937,6 +1015,7 @@ class _EmojiTabState extends State<_EmojiTab> {
           installed: pack.installed,
           premium: pack.premium,
           isDark: isDark,
+          onInstall: () => _installEmojiPack(pack),
         ),
       ),
       SliverPadding(
@@ -989,7 +1068,7 @@ class _EmojiTabState extends State<_EmojiTab> {
       for (var i = 1; i <= 5; i++) _applySkinTone(base, i),
     ];
 
-    const cs = _kEmojiCellSize;
+    const cs = _kSkinToneCellSize;
     const sep = _kEmojiColorsSep;
     const gap = _kEmojiColorsPadding;
     const pad = _kPopupPad;
@@ -1047,12 +1126,14 @@ class _CustomPackHeader extends StatelessWidget {
   final bool installed;
   final bool premium;
   final bool isDark;
+  final VoidCallback? onInstall;
 
   const _CustomPackHeader({
     required this.title,
     required this.installed,
     required this.premium,
     required this.isDark,
+    this.onInstall,
   });
 
   @override
@@ -1080,7 +1161,7 @@ class _CustomPackHeader extends StatelessWidget {
           ),
           if (!installed)
             GestureDetector(
-              onTap: () {},
+              onTap: onInstall,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
@@ -1325,8 +1406,8 @@ class _PopupEmojiCellState extends State<_PopupEmojiCell> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: Container(
-          width: _kEmojiCellSize,
-          height: _kEmojiCellSize,
+          width: _kSkinToneCellSize,
+          height: _kSkinToneCellSize,
           decoration: BoxDecoration(
             color: _hovered ? hoverBg : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
@@ -1334,7 +1415,7 @@ class _PopupEmojiCellState extends State<_PopupEmojiCell> {
           alignment: Alignment.center,
           child: Text(
             widget.emoji,
-            style: const TextStyle(fontSize: 26),
+            style: const TextStyle(fontSize: 22),
           ),
         ),
       ),
@@ -1349,10 +1430,10 @@ const int _kVisibleIconsCount = 8;
 const Duration _kSearchDebounce = Duration(milliseconds: 400);
 
 class _StickerTab extends StatefulWidget {
-  final ValueChanged<String>? onStickerSelected;
+  final void Function(String stickerId)? onStickerSend;
   final ValueChanged<bool>? onContextMenuToggle;
 
-  const _StickerTab({this.onStickerSelected, this.onContextMenuToggle});
+  const _StickerTab({this.onStickerSend, this.onContextMenuToggle});
 
   @override
   State<_StickerTab> createState() => _StickerTabState();
@@ -1374,6 +1455,7 @@ class _StickerTabState extends State<_StickerTab> {
   final FocusNode _searchFocusNode = FocusNode();
   final List<GlobalKey> _sectionKeys = [];
   bool _programmaticScroll = false;
+  final Set<int> _viewedFeaturedPacks = {};
   Timer? _searchDebounce;
 
   @override
@@ -1550,10 +1632,11 @@ class _StickerTabState extends State<_StickerTab> {
     });
   }
 
-  void _showStickerContextMenu(BuildContext context, Offset position, StickerInfoItem sticker, {String? setShortName, bool isCustomEmojiSet = false}) {
+  void _showStickerContextMenu(BuildContext context, Offset position, StickerInfoItem sticker, {String? setShortName, bool isCustomEmojiSet = false, bool isRecentSection = false}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final menuBg = isDark ? const Color(0xFF1e2c3a) : Colors.white;
     final textColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    final dangerColor = isDark ? const Color(0xFFe53935) : const Color(0xFFdd4b39);
     final faveLabel = sticker.isFaved ? 'Unfave' : 'Fave';
     widget.onContextMenuToggle?.call(true);
     showMenu<String>(
@@ -1564,6 +1647,8 @@ class _StickerTabState extends State<_StickerTab> {
       items: [
         PopupMenuItem(value: 'fave', child: Text(faveLabel, style: TextStyle(fontSize: 13, color: textColor))),
         PopupMenuItem(value: 'view_set', child: Text('View Set', style: TextStyle(fontSize: 13, color: textColor))),
+        if (isRecentSection)
+          PopupMenuItem(value: 'remove_recent', child: Text('Remove from Recent', style: TextStyle(fontSize: 13, color: dangerColor))),
         if (isCustomEmojiSet && setShortName != null && setShortName.isNotEmpty)
           PopupMenuItem(value: 'copy_link', child: Text('Copy Link', style: TextStyle(fontSize: 13, color: textColor))),
       ],
@@ -1579,11 +1664,72 @@ class _StickerTabState extends State<_StickerTab> {
           engine.faveSticker(acc.id, id, unfave: willUnfave);
           setState(() { sticker.isFaved = !willUnfave; });
         }
+      } else if (value == 'view_set') {
+        _viewStickerSet(context, sticker, setShortName);
+      } else if (value == 'remove_recent') {
+        setState(() {
+          _recentStickers.removeWhere((s) => s.fileId == sticker.fileId);
+          _rebuildSectionKeys(_recentStickers, _packs);
+        });
       } else if (value == 'copy_link' && setShortName != null) {
         final prefix = isCustomEmojiSet ? 'addemoji' : 'addstickers';
         Clipboard.setData(ClipboardData(text: 'https://t.me/$prefix/$setShortName'));
       }
     });
+  }
+
+  void _viewStickerSet(BuildContext context, StickerInfoItem sticker, String? setShortName) async {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final acc = appState.activeAccount;
+    if (acc == null) return;
+    final setInfo = await engine.getStickerSetInfo(
+      acc.id,
+      shortName: setShortName ?? '',
+    );
+    if (setInfo == null || !mounted) return;
+    if (!context.mounted) return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => _StickerSetDialog(
+        setInfo: setInfo,
+        isDark: isDark,
+        onInstall: () {
+          _installPack(StickerPackSummary(
+            setId: setInfo.setId,
+            accessHash: setInfo.accessHash,
+            title: setInfo.title,
+            shortName: setInfo.shortName,
+            count: setInfo.count,
+            animated: setInfo.animated,
+            video: setInfo.video,
+            thumbB64: '',
+            stickers: setInfo.stickers,
+            installed: false,
+          ));
+          Navigator.of(ctx).pop();
+        },
+        onStickerTap: (fileId) {
+          widget.onStickerSend?.call(fileId);
+          Navigator.of(ctx).pop();
+        },
+      ),
+    );
+  }
+
+  Future<void> _uninstallPack(StickerPackSummary pack) async {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final activeAccount = appState.activeAccount;
+    if (activeAccount == null) return;
+    final success = await engine.uninstallStickerSet(activeAccount.id, pack.setId, pack.accessHash);
+    if (success && mounted) {
+      setState(() {
+        _packs.removeWhere((p) => p.setId == pack.setId);
+        _rebuildSectionKeys(_recentStickers, _packs);
+      });
+    }
   }
 
   @override
@@ -1675,11 +1821,18 @@ class _StickerTabState extends State<_StickerTab> {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       itemCount: packs.length,
-      itemBuilder: (context, index) => _FeaturedPackRow(
-        pack: packs[index],
-        isDark: isDark,
-        onAdd: () => _installPack(packs[index]),
-      ),
+      itemBuilder: (context, index) {
+        final p = packs[index];
+        return _FeaturedPackRow(
+          pack: p,
+          isDark: isDark,
+          onAdd: () {
+            _viewedFeaturedPacks.add(p.setId);
+            _installPack(p);
+          },
+          unread: !p.installed && !_viewedFeaturedPacks.contains(p.setId),
+        );
+      },
     );
   }
 
@@ -1689,11 +1842,18 @@ class _StickerTabState extends State<_StickerTab> {
         return ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           itemCount: _featuredPacks.length,
-          itemBuilder: (context, index) => _FeaturedPackRow(
-            pack: _featuredPacks[index],
-            isDark: isDark,
-            onAdd: () => _installPack(_featuredPacks[index]),
-          ),
+          itemBuilder: (context, index) {
+            final p = _featuredPacks[index];
+            return _FeaturedPackRow(
+              pack: p,
+              isDark: isDark,
+              onAdd: () {
+                _viewedFeaturedPacks.add(p.setId);
+                _installPack(p);
+              },
+              unread: !p.installed && !_viewedFeaturedPacks.contains(p.setId),
+            );
+          },
         );
       }
       final labelColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
@@ -1733,6 +1893,7 @@ class _StickerTabState extends State<_StickerTab> {
             cellSize: cellSize,
             isDark: isDark,
             setShortName: pack.shortName,
+            pack: pack,
           ));
           sectionIdx++;
         }
@@ -1755,8 +1916,10 @@ class _StickerTabState extends State<_StickerTab> {
     required bool isDark,
     String? setShortName,
     bool isCustomEmojiSet = false,
+    StickerPackSummary? pack,
   }) {
     final headerColor = isDark ? const Color(0xFF8899a6) : const Color(0xFF666666);
+    final removeColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
     final rows = <Widget>[];
     for (int i = 0; i < stickers.length; i += colCount) {
       final end = (i + colCount).clamp(0, stickers.length);
@@ -1770,9 +1933,9 @@ class _StickerTabState extends State<_StickerTab> {
               child: _StickerCell(
                 sticker: s,
                 onTap: () {
-                  widget.onStickerSelected?.call(s.emoji.isNotEmpty ? s.emoji : s.fileId);
+                  widget.onStickerSend?.call(s.fileId);
                 },
-                onContextMenu: (pos) => _showStickerContextMenu(context, pos, s, setShortName: setShortName, isCustomEmojiSet: isCustomEmojiSet),
+                onContextMenu: (pos) => _showStickerContextMenu(context, pos, s, setShortName: setShortName, isCustomEmojiSet: isCustomEmojiSet, isRecentSection: title == 'Recent'),
               ),
             ),
           if (rowStickers.length < colCount)
@@ -1787,9 +1950,23 @@ class _StickerTabState extends State<_StickerTab> {
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 8, bottom: 4, left: 2),
-          child: Text(
-            title,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: headerColor),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: headerColor),
+                ),
+              ),
+              if (pack != null)
+                GestureDetector(
+                  onTap: () => _uninstallPack(pack),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Icon(Icons.close, size: 16, color: removeColor),
+                  ),
+                ),
+            ],
           ),
         ),
         ...rows,
@@ -1802,8 +1979,9 @@ class _FeaturedPackRow extends StatefulWidget {
   final StickerPackSummary pack;
   final bool isDark;
   final VoidCallback onAdd;
+  final bool unread;
 
-  const _FeaturedPackRow({required this.pack, required this.isDark, required this.onAdd});
+  const _FeaturedPackRow({required this.pack, required this.isDark, required this.onAdd, this.unread = false});
 
   @override
   State<_FeaturedPackRow> createState() => _FeaturedPackRowState();
@@ -1895,17 +2073,32 @@ class _FeaturedPackRowState extends State<_FeaturedPackRow> {
                       alignment: Alignment.center,
                       child: Text('Added', style: TextStyle(fontSize: 12, color: subtitleColor)),
                     )
-                  : GestureDetector(
-                      onTap: widget.onAdd,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: accentColor,
-                          borderRadius: BorderRadius.circular(13),
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.unread)
+                          Container(
+                            width: 5,
+                            height: 5,
+                            margin: const EdgeInsets.only(right: 6),
+                            decoration: BoxDecoration(
+                              color: accentColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        GestureDetector(
+                          onTap: widget.onAdd,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: accentColor,
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                            alignment: Alignment.center,
+                            child: const Text('Add', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+                          ),
                         ),
-                        alignment: Alignment.center,
-                        child: const Text('Add', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
-                      ),
+                      ],
                     ),
             ),
           ],
@@ -2162,10 +2355,10 @@ const List<String> _kGifCategoryEmojis = [
 ];
 
 class _GifTab extends StatefulWidget {
-  final ValueChanged<String>? onGifSelected;
+  final void Function(String gifFileId)? onGifSend;
   final ValueChanged<bool>? onContextMenuToggle;
 
-  const _GifTab({this.onGifSelected, this.onContextMenuToggle});
+  const _GifTab({this.onGifSend, this.onContextMenuToggle});
 
   @override
   State<_GifTab> createState() => _GifTabState();
@@ -2188,7 +2381,10 @@ class _GifTabState extends State<_GifTab> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+      _resolveGifBot();
+    });
   }
 
   @override
@@ -2254,6 +2450,18 @@ class _GifTabState extends State<_GifTab> {
     _searchController.selection = TextSelection.collapsed(offset: emoji.length);
   }
 
+  Future<void> _resolveGifBot() async {
+    if (_gifBotId != null) return;
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final activeAccount = appState.activeAccount;
+    if (activeAccount == null) return;
+    final resolved = await engine.resolveUsername(activeAccount.id, 'gif');
+    if (resolved != null && mounted) {
+      _gifBotId = resolved;
+    }
+  }
+
   Future<void> _performSearch(String query) async {
     if (!mounted) return;
     final appState = context.read<AppState>();
@@ -2261,9 +2469,8 @@ class _GifTabState extends State<_GifTab> {
     final activeAccount = appState.activeAccount;
     if (activeAccount == null) return;
     if (_gifBotId == null) {
-      final resolved = await engine.resolveUsername(activeAccount.id, 'gif');
-      if (resolved == null || !mounted) return;
-      _gifBotId = resolved;
+      await _resolveGifBot();
+      if (_gifBotId == null || !mounted) return;
     }
     final results = await engine.getInlineBotResults(
       activeAccount.id, _gifBotId!, query,
@@ -2272,12 +2479,13 @@ class _GifTabState extends State<_GifTab> {
       setState(() {
         _searchQuery = query;
         _searchResults = results.results;
+        _searching = true;
       });
     }
   }
 
   void _onGifTap(String fileId) {
-    widget.onGifSelected?.call(fileId);
+    widget.onGifSend?.call(fileId);
   }
 
   void _onSavedGifContextMenu(GifInfoItem gif, Offset globalPos) async {
@@ -2719,4 +2927,90 @@ Widget _gifPlaceholder(bool isDark) {
       ),
     ),
   );
+}
+
+class _StickerSetDialog extends StatelessWidget {
+  final StickerSetInfo setInfo;
+  final bool isDark;
+  final VoidCallback onInstall;
+  final void Function(String fileId) onStickerTap;
+
+  const _StickerSetDialog({
+    required this.setInfo,
+    required this.isDark,
+    required this.onInstall,
+    required this.onStickerTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final titleColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    final subtitleColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+
+    return Dialog(
+      backgroundColor: bg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340, maxHeight: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(setInfo.title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: titleColor)),
+                        const SizedBox(height: 2),
+                        Text('${setInfo.count} sticker${setInfo.count != 1 ? 's' : ''}', style: TextStyle(fontSize: 12, color: subtitleColor)),
+                      ],
+                    ),
+                  ),
+                  if (!setInfo.installed)
+                    GestureDetector(
+                      onTap: onInstall,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(color: accentColor, borderRadius: BorderRadius.circular(14)),
+                        child: const Text('Add', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: GridView.builder(
+                padding: const EdgeInsets.all(8),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 5),
+                itemCount: setInfo.stickers.length,
+                itemBuilder: (context, index) {
+                  final s = setInfo.stickers[index];
+                  Widget child;
+                  if (s.thumbB64.isNotEmpty) {
+                    try {
+                      final bytes = _decodeStrippedThumbB64(s.thumbB64);
+                      child = Image.memory(bytes, fit: BoxFit.contain, gaplessPlayback: true);
+                    } catch (_) {
+                      child = Text(s.emoji.isNotEmpty ? s.emoji : '?', style: const TextStyle(fontSize: 28));
+                    }
+                  } else {
+                    child = Text(s.emoji.isNotEmpty ? s.emoji : '?', style: const TextStyle(fontSize: 28));
+                  }
+                  return GestureDetector(
+                    onTap: () => onStickerTap(s.fileId),
+                    child: Padding(padding: const EdgeInsets.all(4), child: child),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

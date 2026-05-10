@@ -1309,6 +1309,25 @@ func (e *Engine) InstallStickerSet(accountID string, setID, accessHash int64) er
 	return installer.InstallStickerSet(setID, accessHash)
 }
 
+type StickerSetUninstaller interface {
+	UninstallStickerSet(setID, accessHash int64) error
+}
+
+func (e *Engine) UninstallStickerSet(accountID string, setID, accessHash int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	uninstaller, ok := acc.Core.(StickerSetUninstaller)
+	if !ok {
+		return fmt.Errorf("platform does not support sticker set uninstall")
+	}
+	return uninstaller.UninstallStickerSet(setID, accessHash)
+}
+
 type GifSaver interface {
 	SaveGif(fileID int64, extra string, unsave bool) error
 }
