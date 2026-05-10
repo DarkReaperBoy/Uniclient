@@ -571,16 +571,6 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 # hamburger_drawer — Critical wiring errors, wrong LRead/SRead semantics, positional bugs
 
-- [ ] [CRITICAL] `_FooterSection._openUrl` calls `Process.run('xdg-open', [url])` which is Linux-only; on Windows, macOS, and Android the call silently fails, making all footer links (UniClient repo, releases, About) non-functional on those platforms — `hamburger_drawer.dart:1565` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_main_menu_helpers.cpp:41-53` (Qt handles cross-platform URL opening transparently)
-
-# info_panel — Audit Findings
-
-- [ ] [CRITICAL] `_MiniWaveformPainter` renders a static deterministic fake waveform using `rng = 42` constant and `(i * 42 + 17) % 13` — no actual audio waveform data from the message is used. Every voice message in shared media shows the same pattern. — `info_panel.dart:5001-5006` ← `AyuGram/info/media/info_media_list_widget.cpp` (renders real waveform bytes from message)
-
-- [ ] [MAJOR] Cover action buttons overflow fallback at line 840–843 is a stub: `// overflow popup placeholder — wired when call UI lands`. When more than 3 action buttons are needed the "More" button is shown but clicking it does nothing (empty callback). — `info_panel.dart:840-843`
-
-- [ ] [MAJOR] Public forwards list in `_MessageStatsPage` only shows the initial batch returned by `getMessageStats` — there is no infinite scroll / load-more. AyuGram's `PublicForwardsController::loadMoreRows` uses a paginated token API to load the full list. — `info_panel.dart:7267-7276` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:342-348`
-
 # input_dialogs — Input Dialogs Audit
 
 ## Username Box
