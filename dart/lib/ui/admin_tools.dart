@@ -4830,7 +4830,7 @@ class _CreateEditLinkForm extends StatefulWidget {
 
 class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
   late final TextEditingController _labelCtrl;
-  int _expireOption = 2592000;
+  int _expireOption = 0;
   int _usageLimitOption = 0;
   bool _requestApproval = false;
   bool _saving = false;
@@ -4843,6 +4843,7 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
     86400: '1 day',
     604800: '7 days',
     2592000: '30 days',
+    -1: 'Custom',
   };
 
   static const _usageOptions = <int, String>{
@@ -4850,7 +4851,16 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
     1: '1 use',
     10: '10 uses',
     100: '100 uses',
+    -1: 'Custom',
   };
+
+  int _customExpireSeconds = 0;
+  int _customUsageLimit = 0;
+
+  String _formatCustomExpiry() {
+    final target = DateTime.now().add(Duration(seconds: _customExpireSeconds));
+    return '${target.day}/${target.month}/${target.year} ${target.hour.toString().padLeft(2, '0')}:${target.minute.toString().padLeft(2, '0')}';
+  }
 
   @override
   void initState() {
@@ -4861,14 +4871,27 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
       _requestApproval = el.needApproval;
       if (el.expireDate > 0) {
         final dur = el.expireDate - (el.startDate > 0 ? el.startDate : el.date);
-        _expireOption = _expireOptions.keys.firstWhere(
-          (k) => k > 0 && (dur - k).abs() < k * 0.1,
-          orElse: () => 2592000,
+        final matched = _expireOptions.keys.where((k) => k > 0).cast<int?>().firstWhere(
+          (k) => (dur - k!).abs() < k * 0.1,
+          orElse: () => null,
         );
+        if (matched != null) {
+          _expireOption = matched;
+        } else {
+          _expireOption = -1;
+          _customExpireSeconds = dur;
+        }
       } else {
         _expireOption = 0;
       }
-      _usageLimitOption = _usageOptions.keys.contains(el.usageLimit) ? el.usageLimit : 0;
+      if (_usageOptions.keys.contains(el.usageLimit)) {
+        _usageLimitOption = el.usageLimit;
+      } else if (el.usageLimit > 0) {
+        _usageLimitOption = -1;
+        _customUsageLimit = el.usageLimit;
+      } else {
+        _usageLimitOption = 0;
+      }
     }
   }
 
@@ -4878,13 +4901,86 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
     super.dispose();
   }
 
+  Future<void> _showCustomExpiry() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: now.add(const Duration(days: 1)),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(now),
+    );
+    if (time == null || !mounted) return;
+    final chosen = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    final diffSeconds = chosen.difference(now).inSeconds;
+    if (diffSeconds > 0) {
+      setState(() {
+        _customExpireSeconds = diffSeconds;
+        _expireOption = -1;
+      });
+    }
+  }
+
+  Future<void> _showCustomUsageLimit() async {
+    final controller = TextEditingController();
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        final palette = PaletteProvider.of(ctx);
+        return AlertDialog(
+          backgroundColor: palette.boxBg,
+          title: Text('Custom Usage Limit', style: TextStyle(color: palette.windowFg)),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Enter number (1–200000)',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () {
+                final val = int.tryParse(controller.text.trim());
+                if (val != null && val >= 1 && val <= 200000) {
+                  Navigator.pop(ctx, val);
+                }
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (result != null && mounted) {
+      setState(() {
+        _customUsageLimit = result;
+        _usageLimitOption = -1;
+      });
+    }
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
     final engine = context.read<EngineService>();
     final label = _labelCtrl.text.trim();
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final expireDate = _expireOption > 0 ? now + _expireOption : 0;
-    final usageLimit = _requestApproval ? 0 : _usageLimitOption;
+    final int expireDate;
+    if (_expireOption == -1) {
+      expireDate = now + _customExpireSeconds;
+    } else if (_expireOption > 0) {
+      expireDate = now + _expireOption;
+    } else {
+      expireDate = 0;
+    }
+    final usageLimit = _requestApproval ? 0 : (_usageLimitOption == -1 ? _customUsageLimit : _usageLimitOption);
 
     try {
       if (_isEdit) {
@@ -4952,10 +5048,18 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
               Wrap(
                 spacing: 8, runSpacing: 6,
                 children: _expireOptions.entries.map((e) => ChoiceChip(
-                  label: Text(e.value, style: TextStyle(fontSize: 13, color: _expireOption == e.key ? Colors.white : textColor)),
+                  label: Text(e.key == -1 && _expireOption == -1 && _customExpireSeconds > 0
+                    ? _formatCustomExpiry()
+                    : e.value, style: TextStyle(fontSize: 13, color: _expireOption == e.key ? Colors.white : textColor)),
                   selected: _expireOption == e.key,
                   selectedColor: palette.windowBgActive,
-                  onSelected: (_) => setState(() => _expireOption = e.key),
+                  onSelected: (_) {
+                    if (e.key == -1) {
+                      _showCustomExpiry();
+                    } else {
+                      setState(() => _expireOption = e.key);
+                    }
+                  },
                 )).toList(),
               ),
               if (!_requestApproval) ...[
@@ -4965,10 +5069,18 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
                 Wrap(
                   spacing: 8, runSpacing: 6,
                   children: _usageOptions.entries.map((e) => ChoiceChip(
-                    label: Text(e.value, style: TextStyle(fontSize: 13, color: _usageLimitOption == e.key ? Colors.white : textColor)),
+                    label: Text(e.key == -1 && _usageLimitOption == -1 && _customUsageLimit > 0
+                      ? '$_customUsageLimit uses'
+                      : e.value, style: TextStyle(fontSize: 13, color: _usageLimitOption == e.key ? Colors.white : textColor)),
                     selected: _usageLimitOption == e.key,
                     selectedColor: palette.windowBgActive,
-                    onSelected: (_) => setState(() => _usageLimitOption = e.key),
+                    onSelected: (_) {
+                      if (e.key == -1) {
+                        _showCustomUsageLimit();
+                      } else {
+                        setState(() => _usageLimitOption = e.key);
+                      }
+                    },
                   )).toList(),
                 ),
               ],
