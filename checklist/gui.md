@@ -678,21 +678,7 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 # story_editor — Story Editor Layer
 
-- [ ] [CRITICAL] Privacy, duration, and posting settings not passed to engine — `_privacy`, `_durationHours`, `_saveToProfile`, `_allowSharing` are captured in UI state but `engine.sendStoryWithPhoto` only receives `accountId`, `caption`, and `photoData`; all four settings are silently discarded — `story_editor.dart:345-349` ← `engine_service.dart:946-951`
-
-- [ ] [CRITICAL] Sticker picker shows only 64 hardcoded emojis, never real Telegram sticker packs — AyuGram uses `ItemSticker(document, itemBaseData())` driven by `stickerChosen()` from the sticker panel controller which pulls live packs from the session; Dart renders a static `_emojis` const array with no engine call — `story_editor.dart:2164-2228` ← `editor_paint.cpp:146-152`
-
-- [ ] [MAJOR] Video duration hardcoded to 60 seconds — `_videoDuration` is set to `Duration(seconds: 60)` unconditionally on video pick; no video metadata is read; trim slider is calibrated against a wrong total duration — `story_editor.dart:241` ← `_VideoTrimSlider` widget uses this value for display
-
-- [ ] [MAJOR] Video trim thumbnails are fake coloured blocks — `_VideoTrimPainter` fills frame cells with HSL hue-shifted colours; no video frame extraction is attempted; the trim bar shows fictional rainbow tiles rather than actual video frames — `story_editor.dart:2104-2112` ← AyuGram generates real frame thumbnails for the trim control
-
-- [ ] [MAJOR] Upload progress is artificially simulated — two `Future.delayed` sleeps (100 ms, 150 ms) fake progress at 30 %, 60 %, 100 % rather than tracking real upload bytes; if the engine call takes longer the bar freezes at 60 % — `story_editor.dart:339-356`
-
-- [ ] [MAJOR] Privacy "Selected Contacts" option has no contact selection UI — selecting it in `_PrivacyDialog` saves the enum value but never opens a contact picker; the story would be posted with no allowed viewers if the engine honored the setting — `story_editor.dart:1824-1828`
-
 # telegram_toast — Toast widget audit
-
-- [ ] [CRITICAL] `_StickerToast` missing animated sticker/emoji preview: AyuGram renders a Lottie or custom-emoji animated preview widget in the toast's left padding area (`setupLottiePreview`/`setupEmojiPreview`, size = `font->height * 2`); Dart shows text only — `telegram_toast.dart:383-415` ← `AyuGram/SourceFiles/history/view/history_view_sticker_toast.cpp:216-225`
 
 
 # theme_confirm_overlay — Behavioral mismatch on removal animation
