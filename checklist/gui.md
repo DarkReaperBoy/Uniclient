@@ -665,10 +665,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 # send_files_box — Audit Findings
 
 
-## send_files_box — Slowmode: group-files checkbox not hidden when OnlyOne constraint active
-
-- [ ] [MAJOR] When `isSlowMode` is true, the "Group files" checkbox is hidden correctly (`if (_hasGroupOption && !widget.isSlowMode)`), but multi-file adds are not validated against the slowmode constraint. AyuGram's `addFile()` pops the file if `canBeSentInSlowmode()` fails when `SendFilesAllow::OnlyOne` is set, and shows a toast. The Dart version silently accepts extra files in slowmode chats. — `dart/lib/ui/send_files_box.dart:1337` ← `boxes/send_files_box.cpp:2146-2167`
-
 ## send_files_box — Caption autocomplete (mentions, commands) not set up
 
 - [ ] [MAJOR] AyuGram calls `setupCaptionAutocomplete()` which wires `FieldAutocomplete` for @mentions, #hashtags etc. into the caption field. The Dart `TextField` has no autocomplete at all. — `dart/lib/ui/send_files_box.dart:1278-1294` ← `boxes/send_files_box.cpp:1922-1970`
