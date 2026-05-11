@@ -3974,90 +3974,68 @@ class _SkeletonPainter extends CustomPainter {
     final nameRadius = nameBarHeight / 2;
     final statusRadius = statusBarHeight / 2;
 
-    // Glare: first half of cycle (0..0.5) is sweep, second half (0.5..1) is pause.
+    // AyuGram timing: first half (0..0.5) = sweep, second half = pause.
     final sweepPhase = progress < 0.5 ? progress / 0.5 : -1.0;
+
+    // AyuGram skeleton_animation.cpp:96-120: gradient IS the bar brush.
+    // Sweep: gradient [baseColor@0.5, centerColor@0.2, baseColor@0.5] — center dims.
+    // Pause: solid baseColor@0.5.
+    final Paint barPaint;
+    if (sweepPhase >= 0) {
+      final contentWidth = size.width;
+      final gradientStart = -contentWidth + sweepPhase * 2 * contentWidth;
+      final gradientRect = Rect.fromLTWH(
+        gradientStart, 0, contentWidth, size.height,
+      );
+      barPaint = Paint()
+        ..shader = LinearGradient(
+          colors: [baseColor, glareColor, baseColor],
+          stops: const [0.0, 0.5, 1.0],
+        ).createShader(gradientRect);
+    } else {
+      barPaint = Paint()..color = baseColor;
+    }
 
     for (var i = 0; i < _ChatListSkeletonState._rowCount; i++) {
       final rowTop = i * _ChatListSkeletonState._rowHeight;
 
-      // Avatar circle.
-      final avatarCenter = Offset(
-        _ChatListSkeletonState._avatarLeft + _ChatListSkeletonState._avatarSize / 2,
-        rowTop + _ChatListSkeletonState._avatarTop + _ChatListSkeletonState._avatarSize / 2,
-      );
+      // Avatar circle (own color — AyuGram SkeletonAnimation is text-only).
       canvas.drawCircle(
-        avatarCenter,
+        Offset(
+          _ChatListSkeletonState._avatarLeft + _ChatListSkeletonState._avatarSize / 2,
+          rowTop + _ChatListSkeletonState._avatarTop + _ChatListSkeletonState._avatarSize / 2,
+        ),
         _ChatListSkeletonState._avatarSize / 2,
         Paint()..color = avatarColor,
       );
 
       // Name bar.
-      final nameRect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          _ChatListSkeletonState._contentLeft,
-          rowTop + _ChatListSkeletonState._nameTop + (14 - nameBarHeight) / 2,
-          _ChatListSkeletonState._nameWidth,
-          nameBarHeight,
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            _ChatListSkeletonState._contentLeft,
+            rowTop + _ChatListSkeletonState._nameTop + (14 - nameBarHeight) / 2,
+            _ChatListSkeletonState._nameWidth,
+            nameBarHeight,
+          ),
+          Radius.circular(nameRadius),
         ),
-        Radius.circular(nameRadius),
+        barPaint,
       );
-      canvas.drawRRect(nameRect, Paint()..color = baseColor);
 
       // Status bar (randomized width per row).
-      final sw = statusWidths[i];
-      final statusRect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          _ChatListSkeletonState._contentLeft,
-          rowTop + _ChatListSkeletonState._statusTop + (13 - statusBarHeight) / 2,
-          sw,
-          statusBarHeight,
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            _ChatListSkeletonState._contentLeft,
+            rowTop + _ChatListSkeletonState._statusTop + (13 - statusBarHeight) / 2,
+            statusWidths[i],
+            statusBarHeight,
+          ),
+          Radius.circular(statusRadius),
         ),
-        Radius.circular(statusRadius),
+        barPaint,
       );
-      canvas.drawRRect(statusRect, Paint()..color = baseColor);
-
-      // Glare sweep overlay on bars.
-      if (sweepPhase >= 0) {
-        final glareX = sweepPhase * size.width;
-        final glareWidth = size.width * 0.4;
-        final gradient = LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [
-            glareColor.withValues(alpha: 0),
-            glareColor,
-            glareColor.withValues(alpha: 0),
-          ],
-        );
-        final glareRect = Rect.fromLTWH(
-          glareX - glareWidth / 2,
-          rowTop,
-          glareWidth,
-          _ChatListSkeletonState._rowHeight,
-        );
-        final glarePaint = Paint()
-          ..shader = gradient.createShader(glareRect);
-
-        canvas.save();
-        // Clip to name bar, draw glare.
-        canvas.clipRRect(nameRect);
-        canvas.drawRect(glareRect, glarePaint);
-        canvas.restore();
-
-        canvas.save();
-        canvas.clipRRect(statusRect);
-        canvas.drawRect(glareRect, glarePaint);
-        canvas.restore();
-
-        // Glare on avatar circle.
-        canvas.save();
-        canvas.clipPath(Path()..addOval(Rect.fromCircle(
-          center: avatarCenter,
-          radius: _ChatListSkeletonState._avatarSize / 2,
-        )));
-        canvas.drawRect(glareRect, glarePaint);
-        canvas.restore();
-      }
     }
   }
 

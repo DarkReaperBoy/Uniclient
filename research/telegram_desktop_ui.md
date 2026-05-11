@@ -16143,6 +16143,8 @@ No user-visible error text -- the viewer silently falls back to showing the down
 
 Glare gradient stops are derived in-code by `_glare.validate()` (no explicit hex stops in source); base color is the placeholder fill (`windowBgOver` at `kBaseAlpha = 0.5`), centre is brightened toward `windowSubTextFg` at `kGradientAlpha = 0.2` — matches the skeleton-animation behaviour of §35.33.
 
+**Dart implementation note (standalone architecture):** AyuGram has two separate skeleton systems: (1) `skeleton_animation.cpp` wraps a FlatLabel and intercepts QEvent::Paint to overlay skeleton bars matching real text layout — used for profile/credits loading labels. (2) `loading_element.cpp` draws standalone placeholder geometry (avatar circle + name/status bars) with no connection to real widgets — used for chat list loading rows. Our Flutter `_ChatListSkeleton` corresponds to approach (2): it is correctly a standalone decorative widget matching DialogRow geometry. In Flutter, skeleton/shimmer loading screens are standard standalone widgets displayed during data loading, swapped out once data arrives — there is no equivalent of Qt's paint-event interception pattern. The standalone approach is architecturally correct for this use case. The gradient math uses the `skeleton_animation.cpp` dim-at-center approach ([baseColor@0.5, centerColor@0.2, baseColor@0.5]) as the bar brush for visual fidelity.
+
 ---
 
 ### 35.35 Stories Empty State
