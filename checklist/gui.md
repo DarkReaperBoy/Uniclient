@@ -685,14 +685,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 ## Issues Found
 
-- [ ] [MAJOR] **Overlay doesn't animate out before removal** — When user confirms or reverts, the overlay is immediately removed from the widget tree without fade-out animation. AyuGram's `WarningWidget::hideAnimated()` (window_theme_warning.cpp:122-124) animates the overlay out using `startAnimation(true)` before removal. Dart version calls the callback and parent immediately hides it via `setState(() => _showThemeConfirm = false)` (chat_settings_screen.dart:414,418), which removes the widget from the tree instantly. The overlay only has fade-in animation (initState:43), no fade-out. **Expected:** ThemeConfirmOverlay should animate out over ~200ms before calling the callback, or parent should handle the animation.
-  - `theme_confirm_overlay.dart:29-30` (no hideAnimated/removal animation mechanism)
-  - `window_theme_warning.cpp:122-144` (hideAnimated calls startAnimation which animates out)
-  - `chat_settings_screen.dart:410-420` (parent immediately sets _showThemeConfirm = false on callback)
-
-- [ ] [MAJOR] **No localization for text strings** — Title and countdown text are hardcoded English strings. AyuGram uses `tr::lng_theme_sure_keep(tr::now)` and `tr::lng_theme_reverting(tr::now, lt_count, _secondsLeft)` for multi-language support (window_theme_warning.cpp:70,113). Dart version uses hardcoded strings: "Are you sure you want to keep this theme?" and "Theme will revert in $seconds seconds" (theme_confirm_overlay.dart:112,122). **Expected:** Text should use localization/i18n framework if app supports multiple languages.
-  - `theme_confirm_overlay.dart:112,122` (hardcoded strings)
-  - `window_theme_warning.cpp:70,113` (uses tr::lng_* translation keys)
 
 ## Non-Issues (design differences appropriate for Flutter/mobile)
 
