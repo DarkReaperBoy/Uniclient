@@ -344,6 +344,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
              _detectType(name) == _FileType.video),
       );
     }).toList();
+    if (widget.isSlowMode && _files.length > 1) {
+      _files = [_files.first];
+    }
     _loadImageDimensions();
   }
 
@@ -1290,7 +1293,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         }
       },
       onDragDone: (details) {
-        final wasPhotoZone = _dragHoveredZone == 2;
         setState(() {
           _isDragOver = false;
           _dragHoveredZone = 0;
@@ -1298,11 +1300,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         _dragOverlayAnimCtrl.reverse();
         final paths = details.files.map((f) => f.path).toList();
         if (paths.isNotEmpty) {
-          if (wasPhotoZone && _computeDragZoneMode() == _DragZoneMode.both) {
-            if (_sendAsDocuments) setState(() => _sendAsDocuments = false);
-          } else if (!wasPhotoZone && _hasMediaFiles) {
-            if (!_sendAsDocuments) setState(() => _sendAsDocuments = true);
-          }
           _addDroppedFiles(paths);
         }
       },
