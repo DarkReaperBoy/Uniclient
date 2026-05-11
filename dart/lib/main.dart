@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Directory, File, Platform, exit;
+import 'dart:math' show pi, sin;
 import 'dart:ui' as ui show Image;
 import 'dart:ui' show PointerChange, PointerDeviceKind, PointerData, PointerSignalKind;
 
@@ -2209,6 +2210,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
 
   late final AnimationController _anim;
   late final AnimationController _errorAnim;
+  late final AnimationController _shakeAnim;
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   bool _obscure = true;
@@ -2228,6 +2230,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     _focusPasscode = () => _focusNode.requestFocus();
     _anim = AnimationController(vsync: this, duration: _duration);
     _errorAnim = AnimationController(vsync: this, duration: _errorDuration);
+    _shakeAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
     _anim.addStatusListener(_onAnimStatus);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final locked = context.read<AppState>().passcodeLocked;
@@ -2305,6 +2308,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     _anim.removeStatusListener(_onAnimStatus);
     _anim.dispose();
     _errorAnim.dispose();
+    _shakeAnim.dispose();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -2318,7 +2322,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
       return;
     }
     if (!appState.passcodeCanTry()) {
-      _showError('Please try again later');
+      _showError('Too many tries. Please try again later.');
       return;
     }
     if (appState.checkPasscode(entered)) {
@@ -2330,6 +2334,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   void _showError(String msg) {
     setState(() => _error = msg);
     _errorAnim.forward(from: 0.0);
+    _shakeAnim.forward(from: 0.0);
     _controller.selection = TextSelection(
       baseOffset: 0,
       extentOffset: _controller.text.length,
@@ -2354,7 +2359,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
       case SystemUnlockResult.success:
         context.read<AppState>().unlockPasscode();
       case SystemUnlockResult.floodError:
-        _showError('Please try again later');
+        _showError('Too many tries. Please try again later.');
       case SystemUnlockResult.cancelled:
         break;
     }
@@ -2423,39 +2428,48 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                   child: SizedBox(
                     width: 225,
                     child: AnimatedBuilder(
-                      animation: _errorAnim,
-                      builder: (context, _) {
-                        final t = _errorAnim.value;
-                        final enabledColor = Color.lerp(subtextColor, errorColor, t)!;
-                        final focusedColor = Color.lerp(accentColor, errorColor, t)!;
-                        return TextField(
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          obscureText: _obscure,
-                          onChanged: (_) => _clearError(),
-                          onSubmitted: (_) => _submit(),
-                          decoration: InputDecoration(
-                            hintText: 'Your passcode',
-                            hintStyle: TextStyle(color: subtextColor),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscure ? Icons.visibility_off : Icons.visibility,
-                                color: subtextColor,
-                                size: 20,
-                              ),
-                              onPressed: () => setState(() => _obscure = !_obscure),
-                            ),
-                            enabledBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(color: enabledColor),
-                            ),
-                            focusedBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(color: focusedColor, width: 2),
-                            ),
-                            contentPadding: const EdgeInsets.fromLTRB(1, 27, 1, 6),
-                          ),
-                          style: TextStyle(fontSize: 16, color: textColor),
-                        );
+                      animation: _shakeAnim,
+                      builder: (context, child) {
+                        final dx = _shakeAnim.isAnimating
+                            ? sin(_shakeAnim.value * pi * 4) * 6 * (1 - _shakeAnim.value)
+                            : 0.0;
+                        return Transform.translate(offset: Offset(dx, 0), child: child);
                       },
+                      child: AnimatedBuilder(
+                        animation: _errorAnim,
+                        builder: (context, _) {
+                          final t = _errorAnim.value;
+                          final enabledColor = Color.lerp(subtextColor, errorColor, t)!;
+                          final focusedColor = Color.lerp(accentColor, errorColor, t)!;
+                          return TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            obscureText: _obscure,
+                            onChanged: (_) => _clearError(),
+                            onSubmitted: (_) => _submit(),
+                            decoration: InputDecoration(
+                              hintText: 'Your passcode',
+                              hintStyle: TextStyle(color: subtextColor),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscure ? Icons.visibility_off : Icons.visibility,
+                                  color: subtextColor,
+                                  size: 20,
+                                ),
+                                onPressed: () => setState(() => _obscure = !_obscure),
+                              ),
+                              enabledBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(color: enabledColor),
+                              ),
+                              focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(color: focusedColor, width: 2),
+                              ),
+                              contentPadding: const EdgeInsets.fromLTRB(1, 27, 1, 6),
+                            ),
+                            style: TextStyle(fontSize: 16, color: textColor),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
