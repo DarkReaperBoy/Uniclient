@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../theme/telegram_palette.dart';
 
@@ -108,7 +109,7 @@ class _WebAppPanelState extends State<WebAppPanel>
 
   WebAppButtonConfig _mainButton = const WebAppButtonConfig();
   WebAppButtonConfig _secondaryButton = const WebAppButtonConfig();
-  WebAppButtonPosition _secondaryPosition = WebAppButtonPosition.bottom;
+  WebAppButtonPosition _secondaryPosition = WebAppButtonPosition.left;
 
   late final AnimationController _progressFade;
   late final AnimationController _spinnerAnim;
@@ -116,6 +117,9 @@ class _WebAppPanelState extends State<WebAppPanel>
   Color? _headerColor;
   Color? _bgColor;
   Color? _bottomBarColor;
+
+  WebViewController? _webController;
+  bool _webViewAvailable = false;
 
   @override
   void initState() {
@@ -134,20 +138,283 @@ class _WebAppPanelState extends State<WebAppPanel>
       duration: const Duration(milliseconds: 1200),
     )..repeat();
 
-    _simulateLoading();
+    _initWebView();
   }
 
-  void _simulateLoading() {
-    setState(() => _loadingState = WebAppLoadingState.loading);
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (!mounted) return;
+  void _initWebView() {
+    if (widget.data.url.isEmpty) {
+      _loadingState = WebAppLoadingState.error;
+      return;
+    }
+
+    try {
+      final controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(Colors.transparent)
+        ..addJavaScriptChannel(
+          'TelegramWebviewProxy',
+          onMessageReceived: _onJsMessage,
+        )
+        ..setNavigationDelegate(NavigationDelegate(
+          onPageStarted: (url) {
+            if (mounted) {
+              setState(() => _loadingState = WebAppLoadingState.loading);
+            }
+          },
+          onPageFinished: (url) {
+            if (mounted) {
+              setState(() => _loadingState = WebAppLoadingState.ready);
+              _progressFade.animateTo(0.0,
+                  duration: _kProgressFadeDuration * 2);
+              _injectBridgeScript();
+            }
+          },
+          onWebResourceError: (error) {
+            if (mounted) {
+              setState(() => _loadingState = WebAppLoadingState.error);
+            }
+          },
+        ))
+        ..loadRequest(Uri.parse(widget.data.url));
+
+      _webController = controller;
+      _webViewAvailable = true;
+      _loadingState = WebAppLoadingState.loading;
+    } catch (e) {
+      _webViewAvailable = false;
+      _loadingState = WebAppLoadingState.ready;
       if (widget.data.url.isNotEmpty) {
-        setState(() => _loadingState = WebAppLoadingState.ready);
-        _progressFade.animateTo(0.0, duration: _kProgressFadeDuration * 2);
+        _launchUrl(widget.data.url);
+      }
+    }
+  }
+
+  void _injectBridgeScript() {
+    _webController?.runJavaScript('''
+(function(){
+  window.TelegramWebviewProxy = {
+    postEvent: function(eventType, eventData) {
+      TelegramWebviewProxy.postMessage(JSON.stringify({
+        event: eventType,
+        data: eventData || ''
+      }));
+    }
+  };
+})();
+''');
+  }
+
+  void _onJsMessage(JavaScriptMessage message) {
+    try {
+      final parsed = jsonDecode(message.message) as Map<String, dynamic>;
+      final event = parsed['event'] as String? ?? '';
+      final rawData = parsed['data'];
+      Map<String, dynamic> data;
+      if (rawData is Map<String, dynamic>) {
+        data = rawData;
+      } else if (rawData is String && rawData.isNotEmpty) {
+        final decoded = jsonDecode(rawData);
+        data = decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
       } else {
-        setState(() => _loadingState = WebAppLoadingState.error);
+        data = <String, dynamic>{};
+      }
+      _handleWebAppEvent(event, data);
+    } catch (_) {}
+  }
+
+  void _handleWebAppEvent(String event, Map<String, dynamic> data) {
+    switch (event) {
+      case 'web_app_close':
+        _close();
+      case 'web_app_ready':
+        break;
+      case 'web_app_setup_main_button':
+        _handleSetupButton(data, isMain: true);
+      case 'web_app_setup_secondary_button':
+        _handleSetupButton(data, isMain: false);
+      case 'web_app_setup_back_button':
+        setState(() => _backAllowed = data['is_visible'] as bool? ?? _backAllowed);
+      case 'web_app_setup_settings_button':
+        setState(
+            () => _hasSettingsButton = data['is_visible'] as bool? ?? _hasSettingsButton);
+      case 'web_app_setup_closing_behavior':
+        _closeNeedConfirmation =
+            data['need_confirmation'] as bool? ?? false;
+      case 'web_app_set_header_color':
+        final c = _parseColor(data['color'] ?? data['color_key']);
+        if (c != null && mounted) setState(() => _headerColor = c);
+      case 'web_app_set_background_color':
+        final c = _parseColor(data['color']);
+        if (c != null && mounted) setState(() => _bgColor = c);
+      case 'web_app_set_bottom_bar_color':
+        final c = _parseColor(data['color']);
+        if (c != null && mounted) setState(() => _bottomBarColor = c);
+      case 'web_app_request_theme':
+        _handleRequestTheme();
+      case 'web_app_request_viewport':
+        _handleRequestViewport();
+      case 'web_app_request_safe_area':
+        _postEventToWebView('safe_area_changed',
+            {'top': 0, 'bottom': 0, 'left': 0, 'right': 0});
+      case 'web_app_request_content_safe_area':
+        _postEventToWebView('content_safe_area_changed',
+            {'top': 0, 'bottom': 0, 'left': 0, 'right': 0});
+      case 'web_app_open_link':
+        final url = data['url'] as String? ?? '';
+        if (url.isNotEmpty) _launchUrl(url);
+      case 'web_app_open_tg_link':
+        final path = data['path_full'] as String? ?? '';
+        if (path.isNotEmpty) _launchUrl('https://t.me/$path');
+      case 'web_app_data_send':
+        _close();
+      case 'web_app_open_popup':
+        _handleOpenPopup(data);
+      case 'web_app_check_location':
+        _postEventToWebView('location_checked', {'available': false});
+      case 'web_app_request_location':
+        _postEventToWebView('location_requested', {'available': false});
+      case 'web_app_biometry_get_info':
+        _postEventToWebView('biometry_info_received', {'available': false});
+      case 'web_app_check_home_screen':
+        _postEventToWebView('home_screen_checked', {'status': 'unsupported'});
+      case 'web_app_start_accelerometer':
+        _postEventToWebView(
+            'accelerometer_failed', {'error': 'UNSUPPORTED'});
+      case 'web_app_start_device_orientation':
+        _postEventToWebView(
+            'device_orientation_failed', {'error': 'UNSUPPORTED'});
+      case 'web_app_start_gyroscope':
+        _postEventToWebView('gyroscope_failed', {'error': 'UNSUPPORTED'});
+    }
+  }
+
+  void _handleSetupButton(Map<String, dynamic> data, {required bool isMain}) {
+    setState(() {
+      final prev = isMain ? _mainButton : _secondaryButton;
+      final updated = WebAppButtonConfig(
+        visible: data['is_visible'] as bool? ?? prev.visible,
+        active: data['is_active'] as bool? ?? prev.active,
+        showProgress:
+            data['is_progress_visible'] as bool? ?? prev.showProgress,
+        text: data['text'] as String? ?? prev.text,
+        textColor: _parseColor(data['text_color']) ?? prev.textColor,
+        bgColor: _parseColor(data['color']) ?? prev.bgColor,
+      );
+      if (isMain) {
+        _mainButton = updated;
+      } else {
+        _secondaryButton = updated;
+        if (data.containsKey('position')) {
+          _secondaryPosition =
+              _parsePosition(data['position'] as String? ?? '');
+        }
       }
     });
+  }
+
+  WebAppButtonPosition _parsePosition(String position) {
+    return switch (position) {
+      'top' => WebAppButtonPosition.top,
+      'bottom' => WebAppButtonPosition.bottom,
+      'right' => WebAppButtonPosition.right,
+      _ => WebAppButtonPosition.left,
+    };
+  }
+
+  void _handleRequestTheme() {
+    if (!mounted) return;
+    final palette = context.palette;
+    _postEventToWebView('theme_changed', {
+      'theme_params': _buildThemeParams(palette),
+    });
+  }
+
+  void _handleRequestViewport() {
+    if (!mounted) return;
+    final size = MediaQuery.of(context).size;
+    _postEventToWebView('viewport_changed', {
+      'height': size.height.round(),
+      'width': size.width.round(),
+      'is_state_stable': _loadingState == WebAppLoadingState.ready,
+      'is_expanded': false,
+    });
+  }
+
+  void _handleOpenPopup(Map<String, dynamic> data) {
+    final title = data['title'] as String? ?? '';
+    final message = data['message'] as String? ?? '';
+    final buttons =
+        (data['buttons'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+
+    showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: title.isNotEmpty ? Text(title) : null,
+        content: Text(message),
+        actions: buttons.map((btn) {
+          final id = btn['id'] as String? ?? '';
+          final type = btn['type'] as String? ?? 'default';
+          final text = btn['text'] as String? ?? '';
+          return TextButton(
+            onPressed: () => Navigator.of(ctx).pop(id),
+            child: Text(text,
+                style: TextStyle(
+                  color: type == 'destructive' ? Colors.red : null,
+                  fontWeight: type == 'ok' ? FontWeight.w600 : null,
+                )),
+          );
+        }).toList(),
+      ),
+    ).then((buttonId) {
+      _postEventToWebView('popup_closed', {'button_id': buttonId ?? ''});
+    });
+  }
+
+  Map<String, String> _buildThemeParams(TelegramPalette palette) {
+    return {
+      'bg_color': _colorToHex(palette.windowBg),
+      'text_color': _colorToHex(palette.windowFg),
+      'hint_color': _colorToHex(palette.windowSubTextFg),
+      'link_color': _colorToHex(palette.windowActiveTextFg),
+      'button_color': _colorToHex(palette.windowBgActive),
+      'button_text_color': _colorToHex(palette.windowFgActive),
+      'secondary_bg_color': _colorToHex(palette.windowBgOver),
+      'header_bg_color': _colorToHex(_headerColor ?? palette.windowBg),
+      'accent_text_color': _colorToHex(palette.windowActiveTextFg),
+      'section_bg_color': _colorToHex(palette.windowBg),
+      'section_header_text_color': _colorToHex(palette.windowActiveTextFg),
+      'subtitle_text_color': _colorToHex(palette.windowSubTextFg),
+      'destructive_text_color': _colorToHex(palette.attentionButtonFg),
+    };
+  }
+
+  String _colorToHex(Color color) {
+    final r = (color.r * 255).round().toRadixString(16).padLeft(2, '0');
+    final g = (color.g * 255).round().toRadixString(16).padLeft(2, '0');
+    final b = (color.b * 255).round().toRadixString(16).padLeft(2, '0');
+    return '#$r$g$b';
+  }
+
+  Color? _parseColor(dynamic value) {
+    if (value == null) return null;
+    final str = value.toString();
+    if (str.startsWith('#') && str.length >= 7) {
+      final intVal = int.tryParse(str.substring(1, 7), radix: 16);
+      if (intVal != null) return Color(0xFF000000 | intVal);
+    }
+    return null;
+  }
+
+  void _postEventToWebView(String event, [Map<String, dynamic>? data]) {
+    final controller = _webController;
+    if (controller == null) return;
+    final jsonData = data != null ? jsonEncode(data) : '{}';
+    try {
+      controller.runJavaScript(
+        "if(window.Telegram&&window.Telegram.WebView)"
+        "{window.Telegram.WebView.receiveEvent('$event',$jsonData);}",
+      );
+    } catch (_) {}
   }
 
   @override
@@ -187,25 +454,31 @@ class _WebAppPanelState extends State<WebAppPanel>
     });
   }
 
-  void _onBack() {}
+  void _onBack() {
+    _postEventToWebView('back_button_pressed');
+  }
 
-  void _showMenu(BuildContext context) {
+  Future<void> _showMenu(BuildContext context) async {
     final palette = context.palette;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final menuBg = isDark ? const Color(0xFF17212b) : Colors.white;
     final menuFg = isDark ? Colors.white : Colors.black87;
 
     final RenderBox button = context.findRenderObject() as RenderBox;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
     final position = RelativeRect.fromRect(
       Rect.fromPoints(
-        button.localToGlobal(Offset(button.size.width - 8, _kHeaderHeight), ancestor: overlay),
-        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+        button.localToGlobal(
+            Offset(button.size.width - 8, _kHeaderHeight),
+            ancestor: overlay),
+        button.localToGlobal(button.size.bottomRight(Offset.zero),
+            ancestor: overlay),
       ),
       Offset.zero & overlay.size,
     );
 
-    showMenu<String>(
+    final result = await showMenu<String>(
       context: context,
       position: position,
       constraints: BoxConstraints(maxHeight: _kMenuMaxHeight),
@@ -217,7 +490,8 @@ class _WebAppPanelState extends State<WebAppPanel>
           child: Row(children: [
             Icon(Icons.smart_toy_outlined, size: 20, color: menuFg),
             const SizedBox(width: 12),
-            Text('Open Bot', style: TextStyle(color: menuFg, fontSize: 14)),
+            Text('Open Bot',
+                style: TextStyle(color: menuFg, fontSize: 14)),
           ]),
         ),
         if (_hasSettingsButton)
@@ -226,29 +500,81 @@ class _WebAppPanelState extends State<WebAppPanel>
             child: Row(children: [
               Icon(Icons.settings_outlined, size: 20, color: menuFg),
               const SizedBox(width: 12),
-              Text('Settings', style: TextStyle(color: menuFg, fontSize: 14)),
+              Text('Settings',
+                  style: TextStyle(color: menuFg, fontSize: 14)),
             ]),
           ),
+        PopupMenuItem<String>(
+          value: 'reload',
+          child: Row(children: [
+            Icon(Icons.refresh, size: 20, color: menuFg),
+            const SizedBox(width: 12),
+            Text('Reload Page',
+                style: TextStyle(color: menuFg, fontSize: 14)),
+          ]),
+        ),
+        PopupMenuItem<String>(
+          value: 'terms',
+          child: Row(children: [
+            Icon(Icons.description_outlined, size: 20, color: menuFg),
+            const SizedBox(width: 12),
+            Text('Terms of Use',
+                style: TextStyle(color: menuFg, fontSize: 14)),
+          ]),
+        ),
+        PopupMenuItem<String>(
+          value: 'privacy',
+          child: Row(children: [
+            Icon(Icons.privacy_tip_outlined, size: 20, color: menuFg),
+            const SizedBox(width: 12),
+            Text('Privacy Policy',
+                style: TextStyle(color: menuFg, fontSize: 14)),
+          ]),
+        ),
         PopupMenuItem<String>(
           value: 'remove_menu',
           child: Row(children: [
             Icon(Icons.delete_outline, size: 20, color: menuFg),
             const SizedBox(width: 12),
-            Text('Remove from Menu', style: TextStyle(color: menuFg, fontSize: 14)),
+            Text('Remove from Menu',
+                style: TextStyle(color: menuFg, fontSize: 14)),
           ]),
         ),
       ],
     );
+
+    if (result == null || !mounted) return;
+    switch (result) {
+      case 'settings':
+        _postEventToWebView('settings_button_pressed');
+      case 'reload':
+        _webController?.reload();
+      case 'terms':
+        _launchUrl('https://telegram.org/tos/mini-apps');
+      case 'privacy':
+        _launchUrl(
+            'https://telegram.org/privacy-miniapp#mini-apps-privacy-policy');
+      case 'remove_menu':
+        _close();
+    }
   }
 
   Color _buttonRippleColor(Color bg) {
     final hsv = HSVColor.fromColor(bg);
     if (hsv.value * 255 > 128) {
       return HSVColor.fromAHSV(hsv.alpha, hsv.hue, hsv.saturation,
-          (hsv.value - 32 / 255).clamp(0.0, 1.0)).toColor();
+              (hsv.value - 32 / 255).clamp(0.0, 1.0))
+          .toColor();
     }
     return HSVColor.fromAHSV(hsv.alpha, hsv.hue, hsv.saturation,
-        (hsv.value + 32 / 255).clamp(0.0, 1.0)).toColor();
+            (hsv.value + 32 / 255).clamp(0.0, 1.0))
+        .toColor();
+  }
+
+  void _launchUrl(String url) {
+    final uri = Uri.parse(url.startsWith('http') ? url : 'https://$url');
+    url_launcher.launchUrl(uri,
+        mode: url_launcher.LaunchMode.externalApplication);
   }
 
   @override
@@ -290,8 +616,10 @@ class _WebAppPanelState extends State<WebAppPanel>
             child: Column(
               children: [
                 _buildHeader(headerBg, palette, isDark),
-                Expanded(child: _buildContent(contentBg, palette, isDark)),
-                _buildBottomSection(bottomBg, defaultButtonBg, defaultButtonFg, palette, isDark),
+                Expanded(
+                    child: _buildContent(contentBg, palette, isDark)),
+                _buildBottomSection(bottomBg, defaultButtonBg,
+                    defaultButtonFg, palette, isDark),
               ],
             ),
           ),
@@ -302,7 +630,9 @@ class _WebAppPanelState extends State<WebAppPanel>
 
   Widget _buildHeader(Color bg, TelegramPalette palette, bool isDark) {
     final titleColor = _headerColor != null
-        ? (_headerColor!.computeLuminance() > 0.5 ? Colors.black : Colors.white)
+        ? (_headerColor!.computeLuminance() > 0.5
+            ? Colors.black
+            : Colors.white)
         : (isDark ? Colors.white : Colors.black);
     final iconColor = titleColor.withValues(alpha: 0.7);
 
@@ -340,7 +670,8 @@ class _WebAppPanelState extends State<WebAppPanel>
                   ),
                   if (widget.data.isVerified) ...[
                     const SizedBox(width: 4),
-                    Icon(Icons.verified, size: 16, color: palette.windowBgActive),
+                    Icon(Icons.verified,
+                        size: 16, color: palette.windowBgActive),
                   ],
                 ],
               ),
@@ -362,90 +693,70 @@ class _WebAppPanelState extends State<WebAppPanel>
   }
 
   Widget _buildContent(Color bg, TelegramPalette palette, bool isDark) {
-    switch (_loadingState) {
-      case WebAppLoadingState.preOpen:
-      case WebAppLoadingState.chromeOnly:
-      case WebAppLoadingState.loading:
-        return Container(
-          color: bg,
-          child: Center(
-            child: FadeTransition(
-              opacity: _progressFade,
-              child: _InfiniteRadialSpinner(
-                animation: _spinnerAnim,
-                size: _kProgressSize,
-                strokeWidth: _kProgressStroke,
-                color: (isDark ? Colors.white : palette.windowFg)
-                    .withValues(alpha: _kProgressOpacity),
+    if (_loadingState == WebAppLoadingState.error) {
+      return Container(
+        color: bg,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline,
+                  size: 48,
+                  color: palette.windowFg.withValues(alpha: 0.4)),
+              const SizedBox(height: 12),
+              Text('Failed to load Web App',
+                  style: TextStyle(
+                      fontSize: 14,
+                      color: palette.windowFg.withValues(alpha: 0.6))),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_webViewAvailable && _webController != null) {
+      return Stack(
+        children: [
+          WebViewWidget(controller: _webController!),
+          if (_loadingState != WebAppLoadingState.ready)
+            Container(
+              color: bg,
+              child: Center(
+                child: FadeTransition(
+                  opacity: _progressFade,
+                  child: _InfiniteRadialSpinner(
+                    animation: _spinnerAnim,
+                    size: _kProgressSize,
+                    strokeWidth: _kProgressStroke,
+                    color: (isDark ? Colors.white : palette.windowFg)
+                        .withValues(alpha: _kProgressOpacity),
+                  ),
+                ),
               ),
             ),
-          ),
-        );
-      case WebAppLoadingState.ready:
-        return Container(
-          color: bg,
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.language,
-                  size: 64,
-                  color: palette.windowFg.withValues(alpha: 0.3),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Web App opened externally',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: palette.windowFg.withValues(alpha: 0.5),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (widget.data.url.isNotEmpty)
-                  TextButton.icon(
-                    onPressed: () {
-                      _launchUrl(widget.data.url);
-                    },
-                    icon: const Icon(Icons.open_in_browser, size: 18),
-                    label: const Text('Open in Browser'),
-                  ),
-              ],
-            ),
-          ),
-        );
-      case WebAppLoadingState.error:
-        return Container(
-          color: bg,
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 48,
-                  color: palette.windowFg.withValues(alpha: 0.4),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Failed to load Web App',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: palette.windowFg.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
+        ],
+      );
     }
-  }
 
-  void _launchUrl(String url) {
-    try {
-      final uri = url.startsWith('http') ? url : 'https://$url';
-      Process.run('xdg-open', [uri]);
-    } catch (_) {}
+    // Platform fallback: webview not available, URL opened in browser
+    return Container(
+      color: bg,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.open_in_browser,
+                size: 48,
+                color: palette.windowFg.withValues(alpha: 0.4)),
+            const SizedBox(height: 12),
+            Text('Opened in browser',
+                style: TextStyle(
+                    fontSize: 14,
+                    color: palette.windowFg.withValues(alpha: 0.5))),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildBottomSection(
@@ -468,7 +779,7 @@ class _WebAppPanelState extends State<WebAppPanel>
             active: _mainButton.active,
             showProgress: _mainButton.showProgress,
             rippleColor: _buttonRippleColor(mainBg),
-            onPressed: () {},
+            onPressed: () => _postEventToWebView('main_button_pressed'),
           )
         : null;
 
@@ -480,7 +791,8 @@ class _WebAppPanelState extends State<WebAppPanel>
             active: _secondaryButton.active,
             showProgress: _secondaryButton.showProgress,
             rippleColor: _buttonRippleColor(secBg),
-            onPressed: () {},
+            onPressed: () =>
+                _postEventToWebView('secondary_button_pressed'),
           )
         : null;
 
@@ -624,13 +936,16 @@ class _WebAppButton extends StatelessWidget {
                     ),
                   )
                 : Padding(
-                    padding: const EdgeInsets.only(top: _kButtonTextTop - 8),
+                    padding:
+                        const EdgeInsets.only(top: _kButtonTextTop - 8),
                     child: Text(
                       text,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: active ? textColor : textColor.withValues(alpha: 0.5),
+                        color: active
+                            ? textColor
+                            : textColor.withValues(alpha: 0.5),
                       ),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
@@ -737,7 +1052,8 @@ void showWebAppDisclaimerDialog(
                 children: [
                   Checkbox(
                     value: accepted,
-                    onChanged: (v) => setDialogState(() => accepted = v ?? false),
+                    onChanged: (v) =>
+                        setDialogState(() => accepted = v ?? false),
                   ),
                   const SizedBox(width: 8),
                   const Expanded(

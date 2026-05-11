@@ -1,29 +1,21 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/telegram_palette.dart';
 
-/// Parsed window button layout from the desktop environment.
-/// Format: "left_buttons:right_buttons" where each side has comma-separated
-/// button names (minimize, maximize, close). Unknown tokens (appmenu, icon,
-/// spacer, menu) are ignored.
 class _ButtonLayout {
   final List<_ButtonType> left;
   final List<_ButtonType> right;
 
   const _ButtonLayout({this.left = const [], this.right = const []});
 
-  /// Default fallback: right-side [Minimize, Maximize, Close] (Windows/KDE style).
   static const fallback = _ButtonLayout(
     right: [_ButtonType.minimize, _ButtonType.maximize, _ButtonType.close],
   );
 
-  /// Parse a GTK decoration-layout string like "close,minimize,maximize:"
-  /// or "appmenu:close" or ":minimize,maximize,close".
   factory _ButtonLayout.parse(String layout) {
     final parts = layout.split(':');
     final leftStr = parts.isNotEmpty ? parts[0] : '';
@@ -32,6 +24,14 @@ class _ButtonLayout {
       left: _parseButtons(leftStr),
       right: _parseButtons(rightStr),
     );
+  }
+
+  _ButtonLayout get consolidated {
+    if (left.isEmpty || right.isEmpty) return this;
+    if (right.length >= left.length) {
+      return _ButtonLayout(left: const [], right: [...left, ...right]);
+    }
+    return _ButtonLayout(left: [...left, ...right], right: const []);
   }
 
   static List<_ButtonType> _parseButtons(String side) {
@@ -46,7 +46,6 @@ class _ButtonLayout {
           result.add(_ButtonType.maximize);
         case 'close':
           result.add(_ButtonType.close);
-        // appmenu, icon, spacer, menu → Unknown, render nothing (spec §1).
       }
     }
     return result;
@@ -56,14 +55,13 @@ class _ButtonLayout {
 enum _ButtonType { minimize, maximize, close }
 
 /// Custom client-side titlebar for Linux.
-/// Spec §1: custom titlebar by default, with window control buttons.
-/// Height: 28px. Buttons: 46x28px each. Button layout read from DE at runtime.
+/// Matches AyuGram Desktop: height 24px, button width 36px.
 class CustomTitlebar extends StatefulWidget {
   const CustomTitlebar({super.key});
 
   static const channel = MethodChannel('com.uniclient.app/window');
-  static const double height = 28.0;
-  static const double buttonWidth = 46.0;
+  static const double height = 24.0;
+  static const double buttonWidth = 36.0;
 
   @override
   State<CustomTitlebar> createState() => _CustomTitlebarState();
@@ -71,6 +69,8 @@ class CustomTitlebar extends StatefulWidget {
 
 class _CustomTitlebarState extends State<CustomTitlebar> {
   bool _isMaximized = false;
+  bool _isActive = true;
+  bool _oneSideControls = false;
   _ButtonLayout _layout = _ButtonLayout.fallback;
 
   @override
@@ -88,12 +88,20 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
   }
 
   Future<dynamic> _onNativeCall(MethodCall call) async {
-    if (call.method == 'maximizeChanged') {
-      if (mounted) setState(() => _isMaximized = call.arguments as bool);
-    } else if (call.method == 'buttonLayoutChanged') {
-      if (mounted) {
-        setState(() => _layout = _ButtonLayout.parse(call.arguments as String));
-      }
+    switch (call.method) {
+      case 'maximizeChanged':
+        if (mounted) setState(() => _isMaximized = call.arguments as bool);
+      case 'buttonLayoutChanged':
+        if (mounted) {
+          setState(
+              () => _layout = _ButtonLayout.parse(call.arguments as String));
+        }
+      case 'windowFocusChanged':
+        if (mounted) setState(() => _isActive = call.arguments as bool);
+      case 'oneSideControlsChanged':
+        if (mounted) {
+          setState(() => _oneSideControls = call.arguments as bool);
+        }
     }
   }
 
@@ -140,32 +148,53 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
     } catch (_) {}
   }
 
-  Widget _buildButton(_ButtonType type, Color iconColor, Color hoverBg) {
-    switch (type) {
-      case _ButtonType.minimize:
-        return _WinButton(
-          icon: Icons.remove,
-          onTap: _minimize,
-          hoverBg: hoverBg,
-          iconColor: iconColor,
-        );
-      case _ButtonType.maximize:
-        return _WinButton(
-          icon: _isMaximized ? Icons.filter_none : Icons.crop_square,
-          iconSize: _isMaximized ? 12 : 14,
-          onTap: _toggleMaximize,
-          hoverBg: hoverBg,
-          iconColor: iconColor,
-        );
-      case _ButtonType.close:
-        return _WinButton(
-          icon: Icons.close,
-          onTap: _close,
-          hoverBg: const Color(0xFFE81123),
-          hoverIconColor: Colors.white,
-          iconColor: iconColor,
-        );
+  Future<void> _showWindowMenu() async {
+    try {
+      await CustomTitlebar.channel.invokeMethod('showWindowMenu');
+    } catch (_) {}
+  }
+
+  Widget _buildButton(_ButtonType type, TelegramPalette palette) {
+    final isClose = type == _ButtonType.close;
+
+    final Color bg, bgOver, fg, fgOver;
+    if (isClose) {
+      bg = _isActive
+          ? palette.titleButtonCloseBgActive
+          : palette.titleButtonCloseBg;
+      bgOver = _isActive
+          ? palette.titleButtonCloseBgActiveOver
+          : palette.titleButtonCloseBgOver;
+      fg = _isActive
+          ? palette.titleButtonCloseFgActive
+          : palette.titleButtonCloseFg;
+      fgOver = _isActive
+          ? palette.titleButtonCloseFgActiveOver
+          : palette.titleButtonCloseFgOver;
+    } else {
+      bg = _isActive ? palette.titleButtonBgActive : palette.titleButtonBg;
+      bgOver = _isActive
+          ? palette.titleButtonBgActiveOver
+          : palette.titleButtonBgOver;
+      fg = _isActive ? palette.titleButtonFgActive : palette.titleButtonFg;
+      fgOver = _isActive
+          ? palette.titleButtonFgActiveOver
+          : palette.titleButtonFgOver;
     }
+
+    return _WinButton(
+      type: type,
+      isMaximized: type == _ButtonType.maximize && _isMaximized,
+      onTap: switch (type) {
+        _ButtonType.minimize => _minimize,
+        _ButtonType.maximize => _toggleMaximize,
+        _ButtonType.close => _close,
+      },
+      bgColor: bg,
+      bgOverColor: bgOver,
+      fgColor: fg,
+      fgOverColor: fgOver,
+    );
   }
 
   @override
@@ -173,18 +202,15 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
     if (kIsWeb || !Platform.isLinux) return const SizedBox.shrink();
 
     final palette = context.palette;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = palette.titleBg;
-    final iconColor = palette.titleFg;
+    final bgColor = _isActive ? palette.titleBgActive : palette.titleBg;
     final sepColor = palette.shadowFg;
 
-    final hoverBg = palette.windowBgOver;
-    final leftButtons = _layout.left
-        .map((t) => _buildButton(t, iconColor, hoverBg))
-        .toList();
-    final rightButtons = _layout.right
-        .map((t) => _buildButton(t, iconColor, hoverBg))
-        .toList();
+    final effectiveLayout =
+        _oneSideControls ? _layout.consolidated : _layout;
+    final leftButtons =
+        effectiveLayout.left.map((t) => _buildButton(t, palette)).toList();
+    final rightButtons =
+        effectiveLayout.right.map((t) => _buildButton(t, palette)).toList();
 
     return Container(
       height: CustomTitlebar.height,
@@ -195,11 +221,11 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
       child: Row(
         children: [
           ...leftButtons,
-          // Draggable area fills remaining space.
           Expanded(
             child: GestureDetector(
               onPanStart: (_) => _startDrag(),
               onDoubleTap: _toggleMaximize,
+              onSecondaryTapUp: (_) => _showWindowMenu(),
               behavior: HitTestBehavior.opaque,
               child: const SizedBox.expand(),
             ),
@@ -212,20 +238,22 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
 }
 
 class _WinButton extends StatefulWidget {
-  final IconData icon;
-  final double iconSize;
+  final _ButtonType type;
+  final bool isMaximized;
   final VoidCallback onTap;
-  final Color hoverBg;
-  final Color iconColor;
-  final Color? hoverIconColor;
+  final Color bgColor;
+  final Color bgOverColor;
+  final Color fgColor;
+  final Color fgOverColor;
 
   const _WinButton({
-    required this.icon,
-    this.iconSize = 14,
+    required this.type,
+    required this.isMaximized,
     required this.onTap,
-    required this.hoverBg,
-    required this.iconColor,
-    this.hoverIconColor,
+    required this.bgColor,
+    required this.bgOverColor,
+    required this.fgColor,
+    required this.fgOverColor,
   });
 
   @override
@@ -245,17 +273,68 @@ class _WinButtonState extends State<_WinButton> {
         child: Container(
           width: CustomTitlebar.buttonWidth,
           height: CustomTitlebar.height,
-          color: _hovered ? widget.hoverBg : Colors.transparent,
+          color: _hovered ? widget.bgOverColor : widget.bgColor,
           alignment: Alignment.center,
-          child: Icon(
-            widget.icon,
-            size: widget.iconSize,
-            color: _hovered && widget.hoverIconColor != null
-                ? widget.hoverIconColor
-                : widget.iconColor,
+          child: CustomPaint(
+            size: const Size(10, 10),
+            painter: _TitleButtonIconPainter(
+              type: widget.type,
+              isMaximized: widget.isMaximized,
+              color: _hovered ? widget.fgOverColor : widget.fgColor,
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+class _TitleButtonIconPainter extends CustomPainter {
+  final _ButtonType type;
+  final bool isMaximized;
+  final Color color;
+
+  _TitleButtonIconPainter({
+    required this.type,
+    required this.isMaximized,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    switch (type) {
+      case _ButtonType.minimize:
+        final y = size.height / 2;
+        canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+      case _ButtonType.maximize:
+        if (isMaximized) {
+          final d = 2.0;
+          canvas.drawRect(
+              Rect.fromLTWH(0, d, size.width - d, size.height - d), paint);
+          final backPath = Path()
+            ..moveTo(d, d)
+            ..lineTo(d, 0)
+            ..lineTo(size.width, 0)
+            ..lineTo(size.width, size.height - d)
+            ..lineTo(size.width - d, size.height - d);
+          canvas.drawPath(backPath, paint);
+        } else {
+          canvas.drawRect(
+              Rect.fromLTWH(0, 0, size.width, size.height), paint);
+        }
+      case _ButtonType.close:
+        canvas.drawLine(Offset.zero, Offset(size.width, size.height), paint);
+        canvas.drawLine(
+            Offset(size.width, 0), Offset(0, size.height), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TitleButtonIconPainter old) =>
+      type != old.type || isMaximized != old.isMaximized || color != old.color;
 }
