@@ -650,9 +650,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 ---
 
 
-## passcode — systemUnlock type discrimination missing Windows Hello icon
-
-- [ ] [MAJOR] On the system unlock button, Dart shows `Icons.fingerprint` for biometrics and `Icons.lock_open_outlined` for everything else. AyuGram uses three distinct icons: `passcodeSystemTouchID` (finger), `passcodeSystemAppleWatch` (watch), `passcodeSystemSystemPwd` (permissions) and on Windows always uses the WinHello icon unconditionally. The `UnlockType.companion` (Apple Watch) case maps to the generic `lock_open_outlined` instead of a watch icon. — `main.dart:2441` ← `AyuGram/SourceFiles/window/window_lock_widgets.cpp:176`
 
 ## passcode — FloodError not shown when canTry returns false
 
