@@ -656,7 +656,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 ## theme revert — Enter key keeps theme; Escape reverts (correct), but no paint-event title/body layout
 
-- [ ] [MAJOR] AyuGram's warning box draws a title line and a countdown text at `themeWarningTextTop: 60px` from the inner rect top using the custom style. The Dart overlay uses a Column with SizedBox(height:6) spacer (no fixed vertical position for the countdown text), so the `themeWarningTextTop` invariant is not respected. Not visually identical to spec. — `main.dart:2105` ← `AyuGram/SourceFiles/window/themes/window_theme_warning.cpp:69`
 
 # reactions_detail — Audit Findings
 
