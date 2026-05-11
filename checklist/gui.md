@@ -665,10 +665,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 # send_files_box — Audit Findings
 
 
-## send_files_box — "Send When Online" sends immediately, not when-online
-
-- [ ] [CRITICAL] The "Send When Online" menu item (value `'when_online'`) calls `_send()` with no arguments — it sends immediately like a normal send. It must pass a special scheduling token or `sendWhenOnline` flag to the engine. AyuGram routes this through `SendMenu::DefaultCallback` with `ActionType::WhenOnline`. — `dart/lib/ui/send_files_box.dart:1009-1010` ← `boxes/send_files_box.cpp:764-773`
-
 ## send_files_box — File context menu missing Rename, Replace, and Edit/Clear Cover
 
 - [ ] [CRITICAL] Right-clicking a file in the album or single media preview only shows "Spoiler effect". AyuGram's context menu includes: "Replace attachment", "Open in photo editor" (for photos), "Rename file" (for non-media), "Edit caption" (for non-media), "Edit cover" (for videos in channel/self-chat), "Clear cover". None of these exist in the Dart implementation. — `dart/lib/ui/send_files_box.dart:1599-1612` ← `boxes/send_files_box.cpp:1524-1638`
