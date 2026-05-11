@@ -264,7 +264,7 @@ class SettingsScreen extends StatelessWidget {
               );
             },
           ),
-          if (chatState.hasFolders || account?.platform == 'telegram')
+          if (chatState.hasFolders)
             _SettingsRow(
               icon: Icons.folder,
               iconBg: const Color(0xFF2196F3),
@@ -371,14 +371,13 @@ class SettingsScreen extends StatelessWidget {
               isDark: isDark,
               onTap: () => Process.run('xdg-open', ['https://t.me/business']),
             ),
-            if (account?.isPremium != true)
-              _PremiumRow(
-                icon: Icons.card_giftcard,
-                label: 'Send a Gift',
-                isDark: isDark,
-                showNewBadge: true,
-                onTap: () => Process.run('xdg-open', ['https://t.me/gifts']),
-              ),
+            _PremiumRow(
+              icon: Icons.card_giftcard,
+              label: 'Send a Gift',
+              isDark: isDark,
+              showNewBadge: true,
+              onTap: () => Process.run('xdg-open', ['https://t.me/gifts']),
+            ),
           ],
           // §14.8: skip+divider+skip before Help section.
           const SizedBox(height: 7),
