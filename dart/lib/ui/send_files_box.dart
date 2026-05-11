@@ -129,6 +129,32 @@ MimeDataState classifyMimeData(List<String> paths) {
   return MimeDataState.files;
 }
 
+class RecentHashtags {
+  static final List<String> _tags = [];
+
+  static void addTag(String tag) {
+    final lower = tag.toLowerCase();
+    _tags.removeWhere((t) => t.toLowerCase() == lower);
+    _tags.insert(0, tag);
+    if (_tags.length > 40) _tags.removeLast();
+  }
+
+  static void extractFromText(String text) {
+    for (final m in RegExp(r'#(\w+)').allMatches(text)) {
+      addTag(m.group(1)!);
+    }
+  }
+
+  static List<String> search(String query) {
+    final q = query.toLowerCase();
+    if (q.isEmpty) return _tags.take(5).toList();
+    return _tags
+        .where((t) => t.toLowerCase().startsWith(q))
+        .take(5)
+        .toList();
+  }
+}
+
 class _PreparedFile {
   final String path;
   final String name;
@@ -307,6 +333,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   List<MemberInfo> _acFilteredMembers = [];
   String _acMentionQuery = '';
   bool _showMentionPanel = false;
+  List<String> _acFilteredHashtags = [];
+  String _acHashtagQuery = '';
+  bool _showHashtagPanel = false;
 
   @override
   void initState() {
@@ -368,6 +397,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       setState(() => _charCount = len);
     }
     _detectMentionQuery();
+    _detectHashtagQuery();
   }
 
   void _detectMentionQuery() {
@@ -417,6 +447,48 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       selection: TextSelection.collapsed(offset: start + insertText.length),
     );
     setState(() => _showMentionPanel = false);
+  }
+
+  void _detectHashtagQuery() {
+    final sel = _captionController.selection;
+    if (!sel.isValid || !sel.isCollapsed) {
+      if (_showHashtagPanel) setState(() => _showHashtagPanel = false);
+      return;
+    }
+    final text = _captionController.text;
+    final cursor = sel.baseOffset;
+    final before = text.substring(0, cursor);
+    final match = RegExp(r'#(\w*)$').firstMatch(before);
+    if (match == null) {
+      if (_showHashtagPanel) setState(() => _showHashtagPanel = false);
+      return;
+    }
+    final query = match.group(1)!;
+    _acHashtagQuery = query;
+    final filtered = RecentHashtags.search(query);
+    setState(() {
+      _acFilteredHashtags = filtered;
+      _showHashtagPanel = filtered.isNotEmpty;
+    });
+  }
+
+  void _insertHashtag(String hashtag) {
+    final text = _captionController.text;
+    final cursor = _captionController.selection.baseOffset;
+    final before = text.substring(0, cursor);
+    final match = RegExp(r'#(\w*)$').firstMatch(before);
+    if (match == null) return;
+    final start = match.start;
+    final insertText = '#$hashtag ';
+    final after = text.substring(cursor);
+    final newText = '${text.substring(0, start)}$insertText$after';
+    if (newText.length > _kCaptionMaxLength) return;
+    _captionController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: start + insertText.length),
+    );
+    setState(() => _showHashtagPanel = false);
+    RecentHashtags.addTag(hashtag);
   }
 
   void _updateScrollShadows() {
@@ -1165,6 +1237,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
     _preservedCaption = '';
     final parsed = _captionController.getTextWithAppliedMarkdown();
+    RecentHashtags.extractFromText(parsed.text);
     final coverPaths = <int, String>{};
     for (var i = 0; i < _files.length; i++) {
       if (_files[i].videoCoverPath != null) {
@@ -1499,6 +1572,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                 members: _acFilteredMembers,
                 isDark: isDark,
                 onSelect: _insertMention,
+              ),
+            if (_showHashtagPanel && _acFilteredHashtags.isNotEmpty)
+              _HashtagAutocompletePanel(
+                hashtags: _acFilteredHashtags,
+                isDark: isDark,
+                onSelect: _insertHashtag,
               ),
             _CaptionFormattingToolbar(
               controller: _captionController,
@@ -3699,6 +3778,46 @@ class _MentionAutocompletePanel extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _HashtagAutocompletePanel extends StatelessWidget {
+  final List<String> hashtags;
+  final bool isDark;
+  final void Function(String) onSelect;
+
+  const _HashtagAutocompletePanel({
+    required this.hashtags,
+    required this.isDark,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? Colors.white : Colors.black87;
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 160),
+      color: bg,
+      child: ListView.builder(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: hashtags.length,
+        itemBuilder: (ctx, i) {
+          final tag = hashtags[i];
+          return InkWell(
+            onTap: () => onSelect(tag),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                '#$tag',
+                style: TextStyle(fontSize: 14, color: textColor),
               ),
             ),
           );

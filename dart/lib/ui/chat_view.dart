@@ -3880,6 +3880,7 @@ class _ChatViewState extends State<ChatView>
     final md = _composeController.getTextWithAppliedMarkdown();
     final text = md.text;
     if (text.isEmpty) return;
+    RecentHashtags.extractFromText(text);
     final entities = md.entitiesJson;
     final chatState = context.read<ChatState>();
     if (_editingMsgId != null) {
