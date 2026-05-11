@@ -665,10 +665,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 # send_files_box — Audit Findings
 
 
-## send_files_box — "Remember" checkbox has no persistence — setting is not saved
-
-- [ ] [MAJOR] The "Remember" checkbox sets `_wayRemember = true` in the result, but no code in the codebase reads `result.remember` to persist the send-way setting. AyuGram's `saveSendWaySettings()` writes to `Core::App().settings()` and calls `saveSettingsDelayed()`. — `dart/lib/ui/send_files_box.dart:961` ← `boxes/send_files_box.cpp:2328-2346`
-
 ## send_files_box — Slowmode: group-files checkbox not hidden when OnlyOne constraint active
 
 - [ ] [MAJOR] When `isSlowMode` is true, the "Group files" checkbox is hidden correctly (`if (_hasGroupOption && !widget.isSlowMode)`), but multi-file adds are not validated against the slowmode constraint. AyuGram's `addFile()` pops the file if `canBeSentInSlowmode()` fails when `SendFilesAllow::OnlyOne` is set, and shows a toast. The Dart version silently accepts extra files in slowmode chats. — `dart/lib/ui/send_files_box.dart:1337` ← `boxes/send_files_box.cpp:2146-2167`
