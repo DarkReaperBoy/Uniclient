@@ -546,6 +546,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       final result = await Process.run('wl-paste', ['--list-types']);
       final types = result.stdout.toString();
       if (types.contains('image/png') || types.contains('image/jpeg')) {
+        if (widget.isSlowMode && _files.isNotEmpty) {
+          showTelegramToast(context, 'Only one file can be sent in slow mode');
+          return;
+        }
         final tmpDir = Directory.systemTemp;
         final ext = types.contains('image/png') ? 'png' : 'jpg';
         final tmpFile = File('${tmpDir.path}/uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.$ext');
@@ -556,6 +560,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
           if (await tmpFile.exists() && await tmpFile.length() > 0) {
             setState(() {
               final name = tmpFile.uri.pathSegments.last;
+              if (widget.isSlowMode) {
+                _files.clear();
+              }
               _files.add(_PreparedFile(
                 path: tmpFile.path,
                 name: name,
@@ -1003,12 +1010,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     } catch (_) {}
   }
 
-  void _addDroppedFiles(List<String> paths) {
+  void _addDroppedFiles(List<String> paths, {int droppedZone = 0}) {
     if (paths.isEmpty) return;
     if (widget.isSlowMode && _files.isNotEmpty) {
       showTelegramToast(context, 'Only one file can be sent in slow mode');
       return;
     }
+    final wasBothMode = _computeDragZoneMode() == _DragZoneMode.both;
     final newFiles = paths.where((p) {
       final f = File(p);
       return f.existsSync() && !FileSystemEntity.isDirectorySync(p);
@@ -1029,7 +1037,16 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         ..clear()
         ..add(newFiles.first));
     } else {
-      setState(() => _files.addAll(newFiles));
+      setState(() {
+        _files.addAll(newFiles);
+        if (wasBothMode) {
+          if (droppedZone == 2) {
+            _sendAsDocuments = false;
+          } else if (droppedZone == 1 && newFiles.any((f) => f.isMediaType)) {
+            _sendAsDocuments = true;
+          }
+        }
+      });
     }
     _loadImageDimensions();
   }
@@ -1293,6 +1310,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         }
       },
       onDragDone: (details) {
+        final zone = _dragHoveredZone;
         setState(() {
           _isDragOver = false;
           _dragHoveredZone = 0;
@@ -1300,7 +1318,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         _dragOverlayAnimCtrl.reverse();
         final paths = details.files.map((f) => f.path).toList();
         if (paths.isNotEmpty) {
-          _addDroppedFiles(paths);
+          _addDroppedFiles(paths, droppedZone: zone);
         }
       },
       child: Dialog(
