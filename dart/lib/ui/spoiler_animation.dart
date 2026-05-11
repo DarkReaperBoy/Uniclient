@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -112,7 +113,13 @@ class SpoilerAnimationManager {
   }
 
   Future<void> _generateSheet(SpoilerType type) async {
-    final sheet = await _renderSpriteSheet(type);
+    final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
+    final expectedTileSize = (_kCanvasSize * dpr).roundToDouble();
+    final cached = await _loadSpoilerCache(type, expectedTileSize);
+    final sheet = cached ?? await _renderSpriteSheet(type);
+    if (cached == null) {
+      _saveSpoilerCache(type, sheet.image);
+    }
     if (type == SpoilerType.text) {
       _textSheet = sheet;
       for (final c in _textCompleters) {
@@ -127,6 +134,40 @@ class SpoilerAnimationManager {
       _imageCompleters.clear();
     }
   }
+}
+
+Future<SpoilerSpriteSheet?> _loadSpoilerCache(
+    SpoilerType type, double expectedTileSize) async {
+  try {
+    final name = type == SpoilerType.text ? 'text' : 'image';
+    final file = File('/tmp/uniclient_spoiler_cache/$name.png');
+    if (!file.existsSync()) return null;
+    final pngBytes = await file.readAsBytes();
+    final codec = await ui.instantiateImageCodec(pngBytes);
+    final frame = await codec.getNextFrame();
+    final image = frame.image;
+    final tileSize = image.width.toDouble() / _kFramesPerRow;
+    if ((tileSize - expectedTileSize).abs() > 0.5) {
+      image.dispose();
+      return null;
+    }
+    return SpoilerSpriteSheet(image, tileSize);
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<void> _saveSpoilerCache(SpoilerType type, ui.Image image) async {
+  try {
+    final dir = Directory('/tmp/uniclient_spoiler_cache');
+    if (!dir.existsSync()) dir.createSync(recursive: true);
+    final name = type == SpoilerType.text ? 'text' : 'image';
+    final file = File('${dir.path}/$name.png');
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData != null) {
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+    }
+  } catch (_) {}
 }
 
 Future<SpoilerSpriteSheet> _renderSpriteSheet(SpoilerType type) async {
@@ -151,16 +192,18 @@ Future<SpoilerSpriteSheet> _renderSpriteSheet(SpoilerType type) async {
   final speedRange = speedMax - speedMin;
   final sizeRange = _kParticleSizeMax - _kParticleSizeMin;
 
-  final particles = List<_Particle>.generate(count, (_) {
+  final particles = List<_Particle>.generate(count, (i) {
     final spd = rng.nextDouble() * speedRange + speedMin;
-    final angle = rng.nextDouble() * 2 * math.pi;
+    final xDir = rng.nextDouble() * 2.0 - 1.0;
+    final yDir = math.sqrt((1.0 - xDir * xDir).clamp(0.0, 1.0))
+        * (rng.nextBool() ? 1.0 : -1.0);
     return _Particle(
       rng.nextDouble() * tilePx,
       rng.nextDouble() * tilePx,
-      spd * math.cos(angle) * dpr * 0.033,
-      spd * math.sin(angle) * dpr * 0.033,
+      spd * xDir * dpr * 0.033,
+      spd * yDir * dpr * 0.033,
       (_kParticleSizeMin + rng.nextDouble() * sizeRange) * dpr,
-      rng.nextInt(_kFrameCount),
+      (i * _kFrameCount) ~/ count,
       rng.nextInt(_kSpriteVariants),
       fadeInFrames,
       shownFrames,
@@ -244,6 +287,7 @@ Future<SpoilerSpriteSheet> _renderSpriteSheet(SpoilerType type) async {
     }
 
     canvas.restore();
+    if (f % 10 == 9) await Future.delayed(Duration.zero);
   }
 
   final picture = recorder.endRecording();
@@ -300,7 +344,7 @@ class SpoilerTilePainter extends CustomPainter {
       );
     } else {
       paint.color = Color.fromRGBO(255, 255, 255, opacity * 0.85);
-      paint.blendMode = BlendMode.plus;
+      paint.blendMode = BlendMode.srcOver;
     }
 
     final fullTilesX = (size.width / tile).floor();
@@ -427,6 +471,7 @@ mixin SpoilerAnimationMixin<T extends StatefulWidget> on State<T> {
   bool spoilerRegistered = false;
   int _lastQueryMs = 0;
   bool _autoPaused = false;
+  AppState? _spoilerAppState;
 
   int get spoilerFrame {
     _lastQueryMs = DateTime.now().millisecondsSinceEpoch;
@@ -452,13 +497,26 @@ mixin SpoilerAnimationMixin<T extends StatefulWidget> on State<T> {
 
   void _syncPowerSaving() {
     try {
-      final appState = context.read<AppState>();
+      if (_spoilerAppState == null) {
+        _spoilerAppState = context.read<AppState>();
+        _spoilerAppState!.addListener(_onPowerSavingChanged);
+      }
       SpoilerAnimationManager.instance.powerSavingPaused =
-          appState.powerSaving(AppState.kPowerSavingChatSpoiler);
+          _spoilerAppState!.powerSaving(AppState.kPowerSavingChatSpoiler);
+    } catch (_) {}
+  }
+
+  void _onPowerSavingChanged() {
+    if (!mounted) return;
+    try {
+      SpoilerAnimationManager.instance.powerSavingPaused =
+          _spoilerAppState!.powerSaving(AppState.kPowerSavingChatSpoiler);
     } catch (_) {}
   }
 
   void disposeSpoiler() {
+    _spoilerAppState?.removeListener(_onPowerSavingChanged);
+    _spoilerAppState = null;
     if (spoilerRegistered) {
       SpoilerAnimationManager.instance.removeListener(_onSpoilerFrame);
       if (!_autoPaused) {
