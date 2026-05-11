@@ -508,7 +508,7 @@ class _ReactionTabBar extends StatelessWidget {
               onTap: () => onTabSelected(kReadTab),
             ),
           _TabPill(
-            iconData: Icons.emoji_emotions,
+            iconData: Icons.waving_hand,
             label: _formatCountDecimal(totalCount),
             isSelected: selectedTab == null,
             palette: palette,
