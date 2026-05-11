@@ -666,10 +666,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 
 
-## send_files_box — Title text does not distinguish image-only selections
-
-- [ ] [MAJOR] Title always shows "Send file" / "Send N files". AyuGram shows "Send image", "Send video", "Send N images selected", "Send N files selected" based on file types via `refreshTitleText()`. — `dart/lib/ui/send_files_box.dart:1121-1126` ← `boxes/send_files_box.cpp:2169-2191`
-
 ## send_files_box — Drag drop zones: dropped files in photo zone don't switch to compress mode
 
 - [ ] [MAJOR] When files are dropped in the photo zone (`wasPhotoZone == true`), the code sets `_sendAsDocuments = false`. But this is backwards: the photo zone should switch to *compressed* (not-as-documents) mode. The document zone (top) should force `_sendAsDocuments = true`. The logic at line 1094-1097 has top (zone 1) as document and bottom (zone 2) as photo, but the drop handler conditionally flips `_sendAsDocuments` based on `wasPhotoZone` in a way that is inverted: photo zone sets `sendAsDocuments = false` (correct), but document zone also shouldn't automatically set `sendAsDocuments = true` unless there are media files — the current code does this unconditionally. AyuGram tracks photo vs. file zone separately via `droppedCallback(compress)`. — `dart/lib/ui/send_files_box.dart:1085-1098` ← `boxes/send_files_box.cpp:869-876`
