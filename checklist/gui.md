@@ -651,9 +651,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 
 
-## passcode — FloodError not shown when canTry returns false
-
-- [ ] [MAJOR] When `passcodeCanTry()` is false, AyuGram shows `tr::lng_flood_error` and calls `showError()` on the input. Dart shows `'Please try again later'` (hardcoded English string, not a localised key) and does not select the existing text or give the input field's shake-error feedback. — `main.dart:2268` ← `AyuGram/SourceFiles/window/window_lock_widgets.cpp:264`
 
 ## theme revert — notification inline reply not wired to engine
 
