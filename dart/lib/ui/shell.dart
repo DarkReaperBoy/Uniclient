@@ -341,15 +341,26 @@ class _UniClientShellState extends State<UniClientShell>
           },
         );
       } else {
+        final accountId = chatState.activeChat?.accountId ?? '';
+        final selfMuted = groupCall!.participants.any((p) =>
+            p.userId == accountId && p.isMuted);
         callBar = MinimisedCallBar(
-          peerName: groupCall!.title.isNotEmpty
+          peerName: groupCall.title.isNotEmpty
               ? groupCall.title
               : chatState.activeChat?.title ?? 'Group Call',
           participants: groupCall.participants,
-          isSelfMuted: groupCall.participants.any((p) =>
-              p.userId == (chatState.activeChat?.accountId ?? '') && p.isMuted),
-          onHangup: () {},
-          onToggleMute: () {},
+          isSelfMuted: selfMuted,
+          onHangup: () {
+            if (accountId.isNotEmpty && groupCall.callId.isNotEmpty) {
+              context.read<EngineService>().endCall(accountId, groupCall.callId);
+            }
+          },
+          onToggleMute: () {
+            if (accountId.isNotEmpty && groupCall.callId.isNotEmpty) {
+              context.read<EngineService>().setCallMuted(
+                accountId, groupCall.callId, !selfMuted);
+            }
+          },
         );
       }
       layout = Column(
@@ -941,7 +952,8 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
   static const _showDelay = Duration(milliseconds: 1000);
   static const _animDuration = Duration(milliseconds: 150);
   static const _minWaitDuration = Duration(milliseconds: 4000);
-  static const _reconnectInterval = 30;
+  static const _reconnectIntervalBase = 5;
+  static const _reconnectIntervalMax = 30;
 
   late final AnimationController _fadeAnim;
   Timer? _showTimer;
@@ -951,6 +963,7 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
   bool _isHovered = false;
   bool _isWaiting = false;
   int _reconnectCountdown = 0;
+  int _reconnectAttempts = 0;
   ConnState? _lastState;
 
   @override
@@ -968,9 +981,14 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
     super.dispose();
   }
 
+  int get _currentReconnectInterval {
+    final interval = _reconnectIntervalBase * (1 << _reconnectAttempts);
+    return interval.clamp(_reconnectIntervalBase, _reconnectIntervalMax);
+  }
+
   void _startWaitCountdown() {
     _isWaiting = true;
-    _reconnectCountdown = _reconnectInterval;
+    _reconnectCountdown = _currentReconnectInterval;
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -994,6 +1012,7 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
 
   void _tryReconnect() {
     _cancelWait();
+    _reconnectAttempts++;
     try {
       final engine = context.read<EngineService>();
       engine.connectAccount(widget.accountId);
@@ -1018,6 +1037,7 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
       _showTimer?.cancel();
       _showTimer = null;
       _cancelWait();
+      _reconnectAttempts = 0;
       if (_shouldShow) {
         _shouldShow = false;
         _fadeAnim.reverse();
@@ -1062,9 +1082,7 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
   }
 
   Widget _buildPill(ConnState state, TelegramPalette p) {
-    final showText = _isHovered || _isWaiting ||
-        state == ConnState.disconnected ||
-        state == ConnState.unstable;
+    final showText = _isHovered || _isWaiting;
 
     final String text;
     if (_isWaiting && _reconnectCountdown > 0) {
