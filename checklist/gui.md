@@ -674,16 +674,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 # skeleton_animation — Visual & integration gaps vs AyuGram
 
-## Critical Issues
-
-- [ ] **[CRITICAL]** Glare shimmer effect is visually opposite: AyuGram gradient modulates shape opacity directly (center darker), but Dart overlay-blends glareColor over baseColor (center brighter) — `skeleton_animation.dart:59-122` ← `AyuGram/ui/effects/skeleton_animation.cpp:87-116`. Fix: Change gradient to use direct opacity modulation instead of overlay blend, or use `Color.lerp()` to match AyuGram's darkening effect.
-
-- [ ] **[CRITICAL]** Gradient sweep width differs: AyuGram uses full textWidth (100% of placeholder width), Dart uses fixed 40% (`size.width * 0.4`) — `skeleton_animation.dart:104` ← `AyuGram/ui/effects/skeleton_animation.cpp:99`. Fix: Change to `final glareWidth = size.width;` or match actual content width.
-
-- [ ] **[CRITICAL]** SkeletonTextPlaceholder and SkeletonMultiLinePlaceholder are standalone widgets, not integrated with FlatLabel like AyuGram's SkeletonAnimation class — `skeleton_animation.dart:20-208` ← `AyuGram/ui/effects/skeleton_animation.h:17-35, skeleton_animation.cpp:33`. These widgets exist but are never instantiated in the codebase (`grep -r SkeletonTextPlaceholder dart/ --include="*.dart"` returns no usage). Fix: Either integrate with actual FlatLabel/Text widgets, or remove if not needed.
-
-- [ ] **[CRITICAL]** SkeletonMultiLinePlaceholder generates random line widths instead of querying actual text layout — `skeleton_animation.dart:163-167` ← `AyuGram/ui/effects/skeleton_animation.cpp:67 (countLineWidths())`. Dart's random approach produces fake placeholders that don't match real text dimensions. Fix: Pass actual line widths from parent widget, or remove randomization.
-
 ## Major Issues
 
 - [ ] **[MAJOR]** No backend integration: skeleton widgets are purely decorative. They don't fetch or display real data, no engine calls, no state updates from server. Confirm if these are meant as standalone aesthetic elements or if they should bind to actual FlatLabel/chat widgets loading data.
