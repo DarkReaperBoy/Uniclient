@@ -3473,6 +3473,23 @@ class EngineService {
     await _callAsync('__engine', 'DeleteCloudTheme', Uint8List.fromList(payload));
   }
 
+  Future<Map<String, dynamic>?> createCloudTheme(String accountId, String title, String slug, Uint8List themeData) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'title': title,
+      'slug': slug,
+      'theme_data': base64.encode(themeData),
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'CreateCloudTheme', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'createCloudTheme failed', e);
+      rethrow;
+    }
+  }
+
   Future<void> uploadProfilePhoto(String accountId, String filePath) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

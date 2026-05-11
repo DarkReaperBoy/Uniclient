@@ -1246,6 +1246,25 @@ func (e *Engine) DeleteCloudTheme(accountID string, themeID int64) error {
 	return d.DeleteCloudTheme(themeID)
 }
 
+type cloudThemeCreator interface {
+	CreateCloudThemeWithData(title, slug string, themeData []byte) (*cores.CloudThemeInfo, error)
+}
+
+func (e *Engine) CreateCloudTheme(accountID, title, slug string, themeData []byte) (*cores.CloudThemeInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	c, ok := acc.Core.(cloudThemeCreator)
+	if !ok {
+		return nil, fmt.Errorf("core does not support cloud theme creation")
+	}
+	return c.CreateCloudThemeWithData(title, slug, themeData)
+}
+
 type chatThemesFetcher interface {
 	GetChatThemesList() ([]cores.ChatThemeInfo, error)
 }

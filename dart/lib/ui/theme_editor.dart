@@ -1,13 +1,19 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
+import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
+import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
 import '../theme/theme_file.dart';
+import 'color_picker_box.dart';
+import 'confirm_box.dart';
 import 'telegram_toast.dart';
 import '../theme/theme_name_generator.dart';
 import '../theme/theme_preview.dart';
@@ -33,58 +39,205 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   final _searchController = TextEditingController();
   String _filter = '';
   int _focusedIndex = -1;
-  int? _editingIndex;
   final _scrollController = ScrollController();
   final _listFocusNode = FocusNode();
   bool _showPreview = false;
+  bool _isDirty = false;
+  late Map<String, Color> _originalColorMap;
+  Set<String> _explicitTokens = {};
+  bool _sortedByAccent = false;
+  String? _themeFilePath;
 
   @override
   void initState() {
     super.initState();
     _currentPalette = widget.palette;
     _colorMap = paletteToMap(_currentPalette);
-    _searchController.addListener(() {
-      setState(() => _filter = _searchController.text.toLowerCase());
-    });
+    _originalColorMap = Map.of(_colorMap);
+    _explicitTokens = _colorMap.keys.toSet();
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _scrollController.dispose();
     _listFocusNode.dispose();
     super.dispose();
   }
 
-  List<MapEntry<String, Color>> get _filteredEntries {
+  void _onSearchChanged() {
+    final text = _searchController.text;
+    if (text == ':sort-for-accent') {
+      _sortByAccentDistance();
+      _searchController.clear();
+      return;
+    }
+    setState(() => _filter = text.toLowerCase());
+  }
+
+  void _sortByAccentDistance() {
+    final accent = HSLColor.fromColor(_currentPalette.windowBgActive);
     final entries = _colorMap.entries.toList();
-    if (_filter.isEmpty) return entries;
-    return entries.where((e) => e.key.toLowerCase().contains(_filter)).toList();
+    entries.sort((a, b) {
+      final da = _hslDistance(accent, HSLColor.fromColor(a.value));
+      final db = _hslDistance(accent, HSLColor.fromColor(b.value));
+      return da.compareTo(db);
+    });
+    final newMap = <String, Color>{};
+    for (final e in entries) {
+      newMap[e.key] = e.value;
+    }
+    setState(() {
+      _colorMap = newMap;
+      _sortedByAccent = true;
+    });
+  }
+
+  double _hslDistance(HSLColor a, HSLColor b) {
+    final dh = (a.hue - b.hue).abs();
+    final minDh = dh < 180 ? dh : 360 - dh;
+    final ds = (a.saturation - b.saturation).abs();
+    final dl = (a.lightness - b.lightness).abs();
+    return minDh / 360.0 + ds + dl;
+  }
+
+  List<_ListItem> get _listItems {
+    final allEntries = _colorMap.entries.toList();
+    final existing = <MapEntry<String, Color>>[];
+    final newTokens = <MapEntry<String, Color>>[];
+
+    for (final entry in allEntries) {
+      if (_filter.isNotEmpty && !entry.key.toLowerCase().contains(_filter)) {
+        continue;
+      }
+      if (_explicitTokens.contains(entry.key)) {
+        existing.add(entry);
+      } else {
+        newTokens.add(entry);
+      }
+    }
+
+    final items = <_ListItem>[];
+    if (existing.isNotEmpty) {
+      items.add(_ListItem.header('Existing'));
+      for (final e in existing) {
+        items.add(_ListItem.entry(e));
+      }
+    }
+    if (newTokens.isNotEmpty) {
+      items.add(_ListItem.header('New color scheme keys'));
+      for (final e in newTokens) {
+        items.add(_ListItem.entry(e));
+      }
+    }
+    return items;
   }
 
   void _updateColor(String token, Color color) {
     setState(() {
       _colorMap[token] = color;
       _currentPalette = paletteFromMap(_colorMap, widget.palette);
+      _isDirty = true;
+      _explicitTokens.add(token);
     });
     widget.onPaletteChanged(_currentPalette);
   }
 
+  void _openColorPicker(String token, Color currentColor) async {
+    final result = await showColorPickerBox(
+      context: context,
+      initialColor: currentColor,
+      title: token,
+      showOpacity: true,
+    );
+    if (result != null && mounted) {
+      _updateColor(token, result);
+    }
+  }
+
+  void _handleClose() async {
+    if (!_isDirty) {
+      Navigator.of(context).pop();
+      return;
+    }
+    showConfirmBox(
+      context,
+      text: 'Are you sure? Unsaved changes will be discarded.',
+      confirmText: 'Close',
+      onConfirm: () {
+        if (mounted) Navigator.of(context).pop();
+      },
+    );
+  }
+
   void _handleExport() async {
-    final result = await showDialog<ThemeFileData>(
+    final result = await showDialog<_ExportResult>(
       context: context,
       builder: (ctx) => _SaveThemeBox(palette: _currentPalette),
     );
     if (result == null || !mounted) return;
 
-    final bytes = exportThemeFile(result);
+    final bytes = exportThemeFile(result.data);
     final dir = await FilePicker.platform.getDirectoryPath();
     if (dir == null) return;
-    final safeName = result.cloudMeta != null ? 'custom' : 'custom';
-    final path = '$dir/$safeName.tdesktop-theme';
+    final safeName = result.title
+        .replaceAll(RegExp(r'[^\w\-. ]'), '')
+        .replaceAll(' ', '_')
+        .toLowerCase();
+    final fileName = safeName.isNotEmpty ? safeName : 'theme';
+    final path = '$dir/$fileName.tdesktop-theme';
     await File(path).writeAsBytes(bytes);
     if (mounted) {
+      setState(() {
+        _isDirty = false;
+        _themeFilePath = path;
+      });
       showTelegramToast(context, 'Saved to $path');
+    }
+  }
+
+  void _handleSaveToCloud() async {
+    final result = await showDialog<_CloudSaveResult>(
+      context: context,
+      builder: (ctx) => _SaveThemeBox(
+        palette: _currentPalette,
+        cloudSave: true,
+      ),
+    );
+    if (result == null || !mounted) return;
+
+    try {
+      final engine = context.read<EngineService>();
+      final appState = context.read<AppState>();
+      final accountId = appState.activeAccountId;
+      if (accountId.isEmpty) {
+        showTelegramToast(context, 'No active account');
+        return;
+      }
+
+      final themeBytes = exportThemeFile(ThemeFileData(
+        palette: _currentPalette,
+        backgroundImage: result.backgroundImage,
+        backgroundTiled: result.backgroundTiled,
+        cloudMeta: result.cloudMeta,
+      ));
+
+      await engine.createCloudTheme(
+        accountId,
+        result.title,
+        result.slug,
+        themeBytes,
+      );
+      if (mounted) {
+        setState(() => _isDirty = false);
+        showTelegramToast(context, 'Theme uploaded to cloud');
+      }
+    } catch (e) {
+      if (mounted) {
+        showTelegramToast(context, 'Upload failed: $e');
+      }
     }
   }
 
@@ -109,7 +262,12 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
       _currentPalette = parsed.palette;
       _colorMap = paletteToMap(_currentPalette);
       _referenceChain = parsed.referenceChain;
-      _editingIndex = null;
+      _explicitTokens = parsed.explicitTokens.isNotEmpty
+          ? parsed.explicitTokens
+          : _colorMap.keys.toSet();
+      _isDirty = true;
+      _sortedByAccent = false;
+      if (file.path != null) _themeFilePath = file.path;
     });
     widget.onPaletteChanged(_currentPalette);
   }
@@ -118,34 +276,62 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     final isDark = _currentPalette.isDark;
     final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
     final textColor = isDark ? const Color(0xFFF5F5F5) : Colors.black;
-    final accentColor = _currentPalette.windowBgActive;
 
     showDialog(
       context: context,
       builder: (ctx) => SimpleDialog(
         backgroundColor: bgColor,
-        title: Text('Theme Options', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+        title: Text('Theme Options',
+            style: TextStyle(
+                color: textColor,
+                fontSize: 17,
+                fontWeight: FontWeight.w600)),
         children: [
           SimpleDialogOption(
-            onPressed: () { Navigator.pop(ctx); _handleExport(); },
+            onPressed: () {
+              Navigator.pop(ctx);
+              _handleExport();
+            },
             child: Text('Export Theme', style: TextStyle(color: textColor)),
-          ),
-          SimpleDialogOption(
-            onPressed: () { Navigator.pop(ctx); _handleImport(); },
-            child: Text('Import Theme', style: TextStyle(color: textColor)),
           ),
           SimpleDialogOption(
             onPressed: () {
               Navigator.pop(ctx);
-              final text = _generatePalettePreview();
-              Clipboard.setData(ClipboardData(text: text));
-              showTelegramToast(context, 'Palette copied to clipboard');
+              _handleImport();
             },
-            child: Text('Copy Palette Text', style: TextStyle(color: textColor)),
+            child: Text('Import Theme', style: TextStyle(color: textColor)),
+          ),
+          SimpleDialogOption(
+            onPressed: _themeFilePath != null
+                ? () {
+                    Navigator.pop(ctx);
+                    _showInFolder();
+                  }
+                : null,
+            child: Text(
+              'Show in Folder',
+              style: TextStyle(
+                color: _themeFilePath != null
+                    ? textColor
+                    : textColor.withAlpha(100),
+              ),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  void _showInFolder() {
+    if (_themeFilePath == null) return;
+    final dir = File(_themeFilePath!).parent.path;
+    if (Platform.isLinux) {
+      Process.run('xdg-open', [dir]);
+    } else if (Platform.isMacOS) {
+      Process.run('open', ['-R', _themeFilePath!]);
+    } else if (Platform.isWindows) {
+      Process.run('explorer', ['/select,', _themeFilePath!]);
+    }
   }
 
   String _generatePalettePreview() {
@@ -158,91 +344,96 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
 
   void _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) return;
-    final entries = _filteredEntries;
-    if (entries.isEmpty) return;
+    final items = _listItems;
+    final entryItems =
+        items.where((i) => i.type == _ListItemType.entry).toList();
+    if (entryItems.isEmpty) return;
 
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       setState(() {
-        _focusedIndex = (_focusedIndex + 1).clamp(0, entries.length - 1);
-        _editingIndex = null;
+        _focusedIndex = (_focusedIndex + 1).clamp(0, entryItems.length - 1);
       });
       _ensureVisible(_focusedIndex);
     } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       setState(() {
-        _focusedIndex = (_focusedIndex - 1).clamp(0, entries.length - 1);
-        _editingIndex = null;
+        _focusedIndex = (_focusedIndex - 1).clamp(0, entryItems.length - 1);
       });
       _ensureVisible(_focusedIndex);
     } else if (event.logicalKey == LogicalKeyboardKey.pageDown) {
       setState(() {
-        _focusedIndex = (_focusedIndex + 10).clamp(0, entries.length - 1);
-        _editingIndex = null;
+        _focusedIndex =
+            (_focusedIndex + 10).clamp(0, entryItems.length - 1);
       });
       _ensureVisible(_focusedIndex);
     } else if (event.logicalKey == LogicalKeyboardKey.pageUp) {
       setState(() {
-        _focusedIndex = (_focusedIndex - 10).clamp(0, entries.length - 1);
-        _editingIndex = null;
+        _focusedIndex =
+            (_focusedIndex - 10).clamp(0, entryItems.length - 1);
       });
       _ensureVisible(_focusedIndex);
     } else if (event.logicalKey == LogicalKeyboardKey.enter) {
-      if (_focusedIndex >= 0 && _focusedIndex < entries.length) {
-        setState(() => _editingIndex = _focusedIndex);
-      }
-    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
-      if (_editingIndex != null) {
-        setState(() => _editingIndex = null);
+      if (_focusedIndex >= 0 && _focusedIndex < entryItems.length) {
+        final entry = entryItems[_focusedIndex].entry!;
+        _openColorPicker(entry.key, entry.value);
       }
     }
   }
 
   void _ensureVisible(int index) {
-    const rowHeight = 60.0;
-    final offset = index * rowHeight;
+    const estimatedRowHeight = 71.0;
+    final offset = index * estimatedRowHeight;
     final viewportExtent = _scrollController.position.viewportDimension;
     final current = _scrollController.offset;
     if (offset < current) {
-      _scrollController.animateTo(offset, duration: const Duration(milliseconds: 100), curve: Curves.easeOut);
-    } else if (offset + rowHeight > current + viewportExtent) {
-      _scrollController.animateTo(offset + rowHeight - viewportExtent, duration: const Duration(milliseconds: 100), curve: Curves.easeOut);
+      _scrollController.animateTo(offset,
+          duration: const Duration(milliseconds: 100), curve: Curves.easeOut);
+    } else if (offset + estimatedRowHeight > current + viewportExtent) {
+      _scrollController.animateTo(
+          offset + estimatedRowHeight - viewportExtent,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = _currentPalette.isDark;
     final bgColor = _currentPalette.dialogsBg;
     final bgOver = _currentPalette.dialogsBgOver;
     final textColor = _currentPalette.windowBoldFg;
     final subtextColor = _currentPalette.windowSubTextFg;
     final accentColor = _currentPalette.windowBgActive;
     final shadowColor = _currentPalette.shadowFg;
-    final entries = _filteredEntries;
+    final items = _listItems;
+
+    int entryIndex = -1;
 
     return Scaffold(
       backgroundColor: bgColor,
       body: Column(
         children: [
-          // Header bar
           Container(
             height: 54,
             decoration: BoxDecoration(
               color: _currentPalette.topBarBg,
-              border: Border(bottom: BorderSide(color: shadowColor, width: 1)),
+              border:
+                  Border(bottom: BorderSide(color: shadowColor, width: 1)),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               children: [
                 IconButton(
                   icon: Icon(Icons.close, color: textColor, size: 22),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: _handleClose,
                   tooltip: 'Close',
                 ),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     'Theme Editor',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                    style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: textColor),
                   ),
                 ),
                 IconButton(
@@ -251,7 +442,8 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                     color: _showPreview ? accentColor : textColor,
                     size: 22,
                   ),
-                  onPressed: () => setState(() => _showPreview = !_showPreview),
+                  onPressed: () =>
+                      setState(() => _showPreview = !_showPreview),
                   tooltip: _showPreview ? 'Hide Preview' : 'Show Preview',
                 ),
                 IconButton(
@@ -259,35 +451,36 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                   onPressed: _showMenuDialog,
                   tooltip: 'Options',
                 ),
-                TextButton(
-                  onPressed: _handleExport,
-                  child: Text('Save', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
-                ),
               ],
             ),
           ),
-          // Search bar
           Container(
             decoration: BoxDecoration(
               color: _currentPalette.topBarBg,
-              border: Border(bottom: BorderSide(color: shadowColor, width: 1)),
+              border:
+                  Border(bottom: BorderSide(color: shadowColor, width: 1)),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: TextField(
               controller: _searchController,
               style: TextStyle(color: textColor, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Search tokens...',
                 hintStyle: TextStyle(color: subtextColor, fontSize: 14),
-                prefixIcon: Icon(Icons.search, color: subtextColor, size: 20),
+                prefixIcon:
+                    Icon(Icons.search, color: subtextColor, size: 20),
                 suffixIcon: _filter.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear, color: subtextColor, size: 18),
+                        icon: Icon(Icons.clear,
+                            color: subtextColor, size: 18),
                         onPressed: () => _searchController.clear(),
                       )
                     : null,
                 filled: true,
-                fillColor: isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F3F5),
+                fillColor: _currentPalette.isDark
+                    ? const Color(0xFF242F3D)
+                    : const Color(0xFFF1F3F5),
                 contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
@@ -296,12 +489,12 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
               ),
             ),
           ),
-          // Theme preview panel
           if (_showPreview)
             Container(
               decoration: BoxDecoration(
                 color: _currentPalette.windowBg,
-                border: Border(bottom: BorderSide(color: shadowColor, width: 1)),
+                border: Border(
+                    bottom: BorderSide(color: shadowColor, width: 1)),
               ),
               padding: const EdgeInsets.all(8),
               child: Center(
@@ -314,46 +507,77 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                 ),
               ),
             ),
-          // Palette entries list
           Expanded(
             child: KeyboardListener(
               focusNode: _listFocusNode,
               onKeyEvent: _handleKeyEvent,
               child: ListView.builder(
                 controller: _scrollController,
-                itemCount: entries.length,
-                itemExtent: 60,
+                itemCount: items.length,
                 itemBuilder: (context, index) {
-                  final entry = entries[index];
-                  final isFocused = index == _focusedIndex;
-                  final isEditing = index == _editingIndex;
-                  final rowBg = isEditing
-                      ? _currentPalette.dialogsBgActive
-                      : isFocused
-                          ? bgOver
-                          : bgColor;
+                  final item = items[index];
+                  if (item.type == _ListItemType.header) {
+                    return _SectionHeader(
+                      title: item.headerTitle!,
+                      palette: _currentPalette,
+                    );
+                  }
+                  entryIndex++;
+                  final entry = item.entry!;
+                  final isFocused = entryIndex == _focusedIndex;
+                  final desc = _tokenDescription(entry.key);
 
                   return _PaletteEntryRow(
                     token: entry.key,
                     color: entry.value,
                     referenceName: _referenceChain[entry.key],
-                    backgroundColor: rowBg,
-                    textColor: isEditing ? _currentPalette.dialogsNameFgActive : textColor,
-                    subtextColor: isEditing ? _currentPalette.dialogsTextFgActive : subtextColor,
+                    description: desc,
+                    backgroundColor:
+                        isFocused ? bgOver : bgColor,
+                    textColor: textColor,
+                    subtextColor: subtextColor,
                     hoverColor: bgOver,
-                    isEditing: isEditing,
-                    onTap: () {
-                      setState(() {
-                        _focusedIndex = index;
-                        _editingIndex = index;
-                      });
-                      _listFocusNode.requestFocus();
-                    },
-                    onColorChanged: (c) => _updateColor(entry.key, c),
-                    onEditDone: () => setState(() => _editingIndex = null),
                     accentColor: accentColor,
+                    onTap: () {
+                      final idx = entryIndex;
+                      setState(() => _focusedIndex = idx);
+                      _listFocusNode.requestFocus();
+                      _openColorPicker(entry.key, entry.value);
+                    },
                   );
                 },
+              ),
+            ),
+          ),
+          // Full-width save bar at bottom
+          Container(
+            decoration: BoxDecoration(
+              color: accentColor,
+              boxShadow: [
+                BoxShadow(
+                  color: shadowColor.withAlpha(80),
+                  blurRadius: 4,
+                  offset: const Offset(0, -1),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _handleSaveToCloud,
+                child: Container(
+                  height: 44,
+                  alignment: Alignment.center,
+                  child: Text(
+                    'SAVE THEME',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: _currentPalette.activeButtonFg,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -362,6 +586,60 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     );
   }
 }
+
+// ── List item model ──
+
+enum _ListItemType { header, entry }
+
+class _ListItem {
+  final _ListItemType type;
+  final MapEntry<String, Color>? entry;
+  final String? headerTitle;
+
+  _ListItem.header(this.headerTitle)
+      : type = _ListItemType.header,
+        entry = null;
+  _ListItem.entry(this.entry)
+      : type = _ListItemType.entry,
+        headerTitle = null;
+}
+
+// ── Section header ──
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final TelegramPalette palette;
+
+  const _SectionHeader({required this.title, required this.palette});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.fromLTRB(17, 14, 17, 6),
+      color: palette.windowBg,
+      alignment: Alignment.centerLeft,
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: palette.windowActiveTextFg,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Palette entry row ──
+
+const double _kSwatchWidth = 90;
+const double _kSwatchHeight = 51;
+const double _kRowMarginLeft = 17;
+const double _kRowMarginRight = 17;
+const double _kRowMarginTop = 10;
+const double _kRowMarginBottom = 10;
+const double _kDescriptionSkip = 10;
 
 class _PaletteEntryRow extends StatefulWidget {
   final String token;
@@ -372,10 +650,8 @@ class _PaletteEntryRow extends StatefulWidget {
   final Color hoverColor;
   final Color accentColor;
   final String? referenceName;
-  final bool isEditing;
+  final String? description;
   final VoidCallback onTap;
-  final void Function(Color) onColorChanged;
-  final VoidCallback onEditDone;
 
   const _PaletteEntryRow({
     required this.token,
@@ -384,12 +660,10 @@ class _PaletteEntryRow extends StatefulWidget {
     required this.textColor,
     required this.subtextColor,
     required this.hoverColor,
-    required this.isEditing,
-    required this.onTap,
-    required this.onColorChanged,
-    required this.onEditDone,
     required this.accentColor,
+    required this.onTap,
     this.referenceName,
+    this.description,
   });
 
   @override
@@ -398,178 +672,92 @@ class _PaletteEntryRow extends StatefulWidget {
 
 class _PaletteEntryRowState extends State<_PaletteEntryRow> {
   bool _hovered = false;
-  late TextEditingController _hexController;
-  String? _hexError;
-
-  @override
-  void initState() {
-    super.initState();
-    _hexController = TextEditingController(text: _colorToHexString(widget.color));
-  }
-
-  @override
-  void didUpdateWidget(_PaletteEntryRow old) {
-    super.didUpdateWidget(old);
-    if (!widget.isEditing && old.isEditing) {
-      _hexError = null;
-    }
-    if (widget.isEditing && !old.isEditing) {
-      _hexController.text = _colorToHexString(widget.color);
-      _hexError = null;
-    }
-  }
-
-  @override
-  void dispose() {
-    _hexController.dispose();
-    super.dispose();
-  }
-
-  void _submitHex() {
-    final text = _hexController.text.trim();
-    final color = _parseHex(text);
-    if (color != null) {
-      widget.onColorChanged(color);
-      widget.onEditDone();
-    } else {
-      setState(() => _hexError = 'Invalid hex color');
-    }
-  }
-
-  Color? _parseHex(String text) {
-    var hex = text.replaceFirst('#', '');
-    if (hex.length == 6) {
-      final v = int.tryParse(hex, radix: 16);
-      if (v == null) return null;
-      return Color((0xFF << 24) | v);
-    } else if (hex.length == 8) {
-      final v = int.tryParse(hex, radix: 16);
-      if (v == null) return null;
-      final r = (v >> 24) & 0xFF;
-      final g = (v >> 16) & 0xFF;
-      final b = (v >> 8) & 0xFF;
-      final a = v & 0xFF;
-      return Color((a << 24) | (r << 16) | (g << 8) | b);
-    }
-    return null;
-  }
-
-  void _onHexChanged(String text) {
-    final color = _parseHex(text.trim());
-    if (color != null) {
-      setState(() => _hexError = null);
-      widget.onColorChanged(color);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final bg = _hovered && !widget.isEditing ? widget.hoverColor : widget.backgroundColor;
+    final bg =
+        _hovered ? widget.hoverColor : widget.backgroundColor;
+    final hasDescription =
+        widget.description != null && widget.description!.isNotEmpty;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          height: 60,
-          color: bg,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: widget.isEditing
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            widget.token,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: widget.textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          SizedBox(
-                            height: 26,
-                            child: TextField(
-                              controller: _hexController,
-                              autofocus: true,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: widget.textColor,
-                                fontFamily: 'monospace',
-                              ),
-                              decoration: InputDecoration(
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: BorderSide(
-                                    color: _hexError != null ? Colors.red : widget.accentColor,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: BorderSide(color: widget.accentColor, width: 1.5),
-                                ),
-                                errorText: _hexError,
-                                errorStyle: const TextStyle(fontSize: 0, height: 0),
-                              ),
-                              onChanged: _onHexChanged,
-                              onSubmitted: (_) => _submitHex(),
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(RegExp(r'[#0-9a-fA-F]')),
-                                LengthLimitingTextInputFormatter(9),
-                              ],
-                            ),
-                          ),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            widget.token,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: widget.textColor,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (widget.referenceName != null) ...[
-                            const SizedBox(height: 1),
-                            Text(
-                              '= ${widget.referenceName}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: widget.subtextColor.withAlpha(180),
-                                fontFamily: 'monospace',
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                          const SizedBox(height: 2),
-                          Text(
-                            _colorToHexString(widget.color),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: widget.subtextColor,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
-                        ],
+      child: Material(
+        color: bg,
+        child: InkWell(
+          onTap: widget.onTap,
+          splashColor: widget.accentColor.withAlpha(40),
+          highlightColor: widget.accentColor.withAlpha(20),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              _kRowMarginLeft,
+              _kRowMarginTop,
+              _kRowMarginRight,
+              _kRowMarginBottom,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.token,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: widget.textColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-              ),
-              const SizedBox(width: 12),
-              _ColorSwatch(color: widget.color, size: 32),
-            ],
+                      if (widget.referenceName != null) ...[
+                        const SizedBox(height: 1),
+                        Text(
+                          '= ${widget.referenceName}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: widget.subtextColor.withAlpha(180),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 2),
+                      Text(
+                        _colorToHexString(widget.color),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: widget.subtextColor,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                      if (hasDescription) ...[
+                        SizedBox(height: _kDescriptionSkip),
+                        Text(
+                          widget.description!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: widget.subtextColor.withAlpha(150),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _ColorSwatch(
+                    color: widget.color,
+                    width: _kSwatchWidth,
+                    height: _kSwatchHeight),
+              ],
+            ),
           ),
         ),
       ),
@@ -577,28 +765,35 @@ class _PaletteEntryRowState extends State<_PaletteEntryRow> {
   }
 }
 
+// ── Color swatch ──
+
 class _ColorSwatch extends StatelessWidget {
   final Color color;
-  final double size;
+  final double width;
+  final double height;
 
-  const _ColorSwatch({required this.color, required this.size});
+  const _ColorSwatch(
+      {required this.color, required this.width, required this.height});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size,
-      height: size,
+      width: width,
+      height: height,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(6),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 3, offset: const Offset(0, 1)),
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 3,
+              offset: const Offset(0, 1)),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(6),
         child: CustomPaint(
           painter: _SwatchPainter(color),
-          size: Size(size, size),
+          size: Size(width, height),
         ),
       ),
     );
@@ -611,14 +806,14 @@ class _SwatchPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Checkerboard for transparency
     if (color.a < 1.0) {
       const checkerSize = 4.0;
       final lightPaint = Paint()..color = const Color(0xFFCCCCCC);
       final darkPaint = Paint()..color = const Color(0xFF999999);
       for (double y = 0; y < size.height; y += checkerSize) {
         for (double x = 0; x < size.width; x += checkerSize) {
-          final isLight = ((x ~/ checkerSize) + (y ~/ checkerSize)) % 2 == 0;
+          final isLight =
+              ((x ~/ checkerSize) + (y ~/ checkerSize)) % 2 == 0;
           canvas.drawRect(
             Rect.fromLTWH(x, y, checkerSize, checkerSize),
             isLight ? lightPaint : darkPaint,
@@ -636,6 +831,43 @@ class _SwatchPainter extends CustomPainter {
   bool shouldRepaint(_SwatchPainter old) => color != old.color;
 }
 
+// ── Token description helper ──
+
+String? _tokenDescription(String token) {
+  final parts = <String>[];
+  final buf = StringBuffer();
+  for (int i = 0; i < token.length; i++) {
+    final ch = token[i];
+    if (ch.toUpperCase() == ch && ch.toLowerCase() != ch && buf.isNotEmpty) {
+      parts.add(buf.toString());
+      buf.clear();
+    }
+    buf.write(ch.toLowerCase());
+  }
+  if (buf.isNotEmpty) parts.add(buf.toString());
+
+  if (parts.length <= 1) return null;
+
+  const abbrevs = {
+    'bg': 'background',
+    'fg': 'foreground',
+    'btn': 'button',
+    'msg': 'message',
+    'dlg': 'dialog',
+    'rpl': 'reply',
+    'fwd': 'forward',
+    'sel': 'selection',
+    'st': 'status',
+    'txt': 'text',
+    'wp': 'webpage',
+    'sb': 'scrollbar',
+    'ct': 'contact',
+  };
+  final expanded = parts.map((p) => abbrevs[p] ?? p).toList();
+  final desc = expanded.join(' ');
+  return desc[0].toUpperCase() + desc.substring(1);
+}
+
 String _colorToHexString(Color c) {
   final r = (c.r * 255).round();
   final g = (c.g * 255).round();
@@ -650,6 +882,48 @@ String _colorToHexString(Color c) {
       '${g.toRadixString(16).padLeft(2, '0')}'
       '${b.toRadixString(16).padLeft(2, '0')}'
       '${a.toRadixString(16).padLeft(2, '0')}';
+}
+
+// ── Random slug generation ──
+
+String _generateSlug() {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  const alphanumeric =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const length = 16;
+  final rng = Random.secure();
+  final buf = StringBuffer();
+  buf.write(letters[rng.nextInt(letters.length)]);
+  for (int i = 1; i < length; i++) {
+    buf.write(alphanumeric[rng.nextInt(alphanumeric.length)]);
+  }
+  return buf.toString();
+}
+
+// ── Export result (local save) ──
+
+class _ExportResult {
+  final ThemeFileData data;
+  final String title;
+  _ExportResult(this.data, this.title);
+}
+
+// ── Cloud save result ──
+
+class _CloudSaveResult {
+  final String title;
+  final String slug;
+  final Uint8List? backgroundImage;
+  final bool backgroundTiled;
+  final CloudThemeMeta? cloudMeta;
+
+  _CloudSaveResult({
+    required this.title,
+    required this.slug,
+    this.backgroundImage,
+    this.backgroundTiled = false,
+    this.cloudMeta,
+  });
 }
 
 // ── SaveThemeBox Dialog (spec §25.6.5) ──
@@ -671,12 +945,14 @@ class _SaveThemeBox extends StatefulWidget {
   final Uint8List? existingBackground;
   final bool existingTiled;
   final CloudThemeMeta? cloudMeta;
+  final bool cloudSave;
 
   const _SaveThemeBox({
     required this.palette,
     this.existingBackground,
     this.existingTiled = false,
     this.cloudMeta,
+    this.cloudSave = false,
   });
 
   @override
@@ -698,7 +974,7 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
         ? ''
         : generateThemeName(widget.palette.windowBgActive);
     _nameController = TextEditingController(text: defaultName);
-    _slugController = TextEditingController();
+    _slugController = TextEditingController(text: _generateSlug());
     _backgroundImage = widget.existingBackground;
     _tiled = widget.existingTiled;
   }
@@ -711,7 +987,10 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
   }
 
   bool _validateSlug(String slug) {
-    if (slug.isEmpty) return true;
+    if (slug.isEmpty) {
+      setState(() => _slugError = 'Link is required');
+      return false;
+    }
     if (slug.length < _kMinSlugSize) {
       setState(() => _slugError = 'At least $_kMinSlugSize characters');
       return false;
@@ -755,20 +1034,30 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
     setState(() => _nameError = null);
 
     final slug = _slugController.text.trim();
-    if (slug.isNotEmpty && !_validateSlug(slug)) return;
+    if (!_validateSlug(slug)) return;
 
     Uint8List? bgBytes;
     if (_backgroundImage != null) {
       bgBytes = _encodeAsJpeg87(_backgroundImage!);
     }
 
-    final data = ThemeFileData(
-      palette: widget.palette,
-      backgroundImage: bgBytes,
-      backgroundTiled: _tiled,
-      cloudMeta: widget.cloudMeta,
-    );
-    Navigator.of(context).pop(data);
+    if (widget.cloudSave) {
+      Navigator.of(context).pop(_CloudSaveResult(
+        title: name,
+        slug: slug,
+        backgroundImage: bgBytes,
+        backgroundTiled: _tiled,
+        cloudMeta: widget.cloudMeta,
+      ));
+    } else {
+      final data = ThemeFileData(
+        palette: widget.palette,
+        backgroundImage: bgBytes,
+        backgroundTiled: _tiled,
+        cloudMeta: widget.cloudMeta,
+      );
+      Navigator.of(context).pop(_ExportResult(data, name));
+    }
   }
 
   @override
@@ -780,13 +1069,15 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
     final subFg = widget.palette.windowSubTextFg;
     final accent = widget.palette.windowBgActive;
     final errorFg = widget.palette.boxTextFgError;
-    final inputBg = isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F3F5);
+    final inputBg =
+        isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F3F5);
 
     final thumbSize = _computeThumbnailSize(context);
 
     return Dialog(
       backgroundColor: boxBg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: SizedBox(
         width: _kBoxWideWidth,
         child: Padding(
@@ -795,11 +1086,14 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Title bar
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 17, 22, 0),
                 child: Text(
-                  widget.cloudMeta != null ? 'Save Theme' : 'Create a new theme',
+                  widget.cloudSave
+                      ? 'Upload Theme'
+                      : widget.cloudMeta != null
+                          ? 'Save Theme'
+                          : 'Create a new theme',
                   style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w600,
@@ -808,7 +1102,6 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                 ),
               ),
               const SizedBox(height: 16),
-              // Name field
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: TextField(
@@ -821,23 +1114,26 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                     errorStyle: TextStyle(color: errorFg, fontSize: 12),
                     filled: true,
                     fillColor: inputBg,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(6),
                       borderSide: BorderSide.none,
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide(color: accent, width: 1.5),
+                      borderSide:
+                          BorderSide(color: accent, width: 1.5),
                     ),
                   ),
                   onChanged: (_) {
-                    if (_nameError != null) setState(() => _nameError = null);
+                    if (_nameError != null) {
+                      setState(() => _nameError = null);
+                    }
                   },
                 ),
               ),
               const SizedBox(height: 10),
-              // Link/slug field
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: TextField(
@@ -852,18 +1148,21 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                     errorStyle: TextStyle(color: errorFg, fontSize: 12),
                     filled: true,
                     fillColor: inputBg,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(6),
                       borderSide: BorderSide.none,
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide(color: accent, width: 1.5),
+                      borderSide:
+                          BorderSide(color: accent, width: 1.5),
                     ),
                   ),
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
+                    FilteringTextInputFormatter.allow(
+                        RegExp(r'[a-zA-Z0-9_]')),
                     LengthLimitingTextInputFormatter(_kMaxSlugSize),
                   ],
                   onChanged: (v) {
@@ -872,7 +1171,6 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                 ),
               ),
               const SizedBox(height: 16),
-              // "Background image" subsection header
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
                 child: Text(
@@ -884,7 +1182,6 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                   ),
                 ),
               ),
-              // Background section: thumbnail + controls
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: SizedBox(
@@ -892,7 +1189,6 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Thumbnail
                       ClipRRect(
                         borderRadius: BorderRadius.circular(6),
                         child: SizedBox(
@@ -902,7 +1198,8 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                               ? Image.memory(
                                   _backgroundImage!,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => _PlaceholderThumb(
+                                  errorBuilder: (_, __, ___) =>
+                                      _PlaceholderThumb(
                                     size: thumbSize,
                                     color: widget.palette.dialogsBg,
                                   ),
@@ -914,14 +1211,17 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      // Controls column
                       Expanded(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _backgroundImage != null ? 'Image selected' : 'No image',
-                              style: TextStyle(color: textFg, fontSize: 13),
+                              _backgroundImage != null
+                                  ? 'Image selected'
+                                  : 'No image',
+                              style: TextStyle(
+                                  color: textFg, fontSize: 13),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -929,13 +1229,17 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                             TextButton(
                               onPressed: _pickBackground,
                               style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
                                 minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                tapTargetSize:
+                                    MaterialTapTargetSize
+                                        .shrinkWrap,
                               ),
                               child: Text(
                                 'Choose from file',
-                                style: TextStyle(color: accent, fontSize: 13),
+                                style: TextStyle(
+                                    color: accent, fontSize: 13),
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -946,17 +1250,24 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                                   height: 20,
                                   child: Checkbox(
                                     value: _tiled,
-                                    onChanged: (v) => setState(() => _tiled = v ?? false),
+                                    onChanged: (v) => setState(
+                                        () =>
+                                            _tiled = v ?? false),
                                     activeColor: accent,
-                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize
+                                            .shrinkWrap,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 GestureDetector(
-                                  onTap: () => setState(() => _tiled = !_tiled),
+                                  onTap: () => setState(
+                                      () => _tiled = !_tiled),
                                   child: Text(
                                     'Tile background',
-                                    style: TextStyle(color: textFg, fontSize: 13),
+                                    style: TextStyle(
+                                        color: textFg,
+                                        fontSize: 13),
                                   ),
                                 ),
                               ],
@@ -969,7 +1280,6 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                 ),
               ),
               const SizedBox(height: 20),
-              // Buttons
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 0, 22, 17),
                 child: Row(
@@ -979,7 +1289,8 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                       onPressed: () => Navigator.of(context).pop(),
                       child: Text(
                         'Cancel',
-                        style: TextStyle(color: accent, fontSize: 14),
+                        style:
+                            TextStyle(color: accent, fontSize: 14),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -987,12 +1298,16 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                       onPressed: _save,
                       style: FilledButton.styleFrom(
                         backgroundColor: accent,
-                        foregroundColor: widget.palette.activeButtonFg,
+                        foregroundColor:
+                            widget.palette.activeButtonFg,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(6),
                         ),
                       ),
-                      child: const Text('Save', style: TextStyle(fontSize: 14)),
+                      child: Text(
+                        widget.cloudSave ? 'Upload' : 'Save',
+                        style: const TextStyle(fontSize: 14),
+                      ),
                     ),
                   ],
                 ),
@@ -1029,7 +1344,8 @@ class _PlaceholderThumb extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
       ),
-      child: Icon(Icons.image_outlined, color: Colors.grey.withValues(alpha: 0.5), size: size * 0.4),
+      child: Icon(Icons.image_outlined,
+          color: Colors.grey.withValues(alpha: 0.5), size: size * 0.4),
     );
   }
 }

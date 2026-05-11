@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -3029,6 +3030,26 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return json.Marshal(map[string]bool{"ok": true})
+
+	case "CreateCloudTheme":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Title     string `json:"title"`
+			Slug      string `json:"slug"`
+			ThemeData string `json:"theme_data"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		themeBytes, err := base64.StdEncoding.DecodeString(params.ThemeData)
+		if err != nil {
+			return nil, fmt.Errorf("decode theme data: %w", err)
+		}
+		info, err := e.CreateCloudTheme(params.AccountID, params.Title, params.Slug, themeBytes)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(info)
 
 	case "GetChatThemes":
 		var params struct {

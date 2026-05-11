@@ -14,6 +14,7 @@ class ThemeFileData {
   final bool backgroundTiled;
   final CloudThemeMeta? cloudMeta;
   final Map<String, String> referenceChain;
+  final Set<String> explicitTokens;
 
   const ThemeFileData({
     required this.palette,
@@ -21,6 +22,7 @@ class ThemeFileData {
     this.backgroundTiled = false,
     this.cloudMeta,
     this.referenceChain = const {},
+    this.explicitTokens = const {},
   });
 }
 
@@ -45,17 +47,19 @@ ThemeFileData? parseThemeFile(
   if (text.length > _maxPaletteFileSize) return null;
   final result = parsePaletteText(text, fallback: fallback);
   if (result == null) return null;
-  return ThemeFileData(palette: result.palette, cloudMeta: result.cloudMeta, referenceChain: result.referenceChain);
+  return ThemeFileData(palette: result.palette, cloudMeta: result.cloudMeta, referenceChain: result.referenceChain, explicitTokens: result.explicitTokens);
 }
 
 class PaletteParseResult {
   final TelegramPalette palette;
   final CloudThemeMeta? cloudMeta;
   final Map<String, String> referenceChain;
+  final Set<String> explicitTokens;
   const PaletteParseResult({
     required this.palette,
     this.cloudMeta,
     this.referenceChain = const {},
+    this.explicitTokens = const {},
   });
 }
 
@@ -142,6 +146,7 @@ PaletteParseResult? parsePaletteText(
     palette: palette,
     cloudMeta: cloudMeta,
     referenceChain: references,
+    explicitTokens: parsed.keys.toSet(),
   );
 }
 
@@ -247,6 +252,7 @@ ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
     backgroundTiled: tiled,
     cloudMeta: result.cloudMeta,
     referenceChain: result.referenceChain,
+    explicitTokens: result.explicitTokens,
   );
 }
 
