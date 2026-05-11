@@ -664,10 +664,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 # send_files_box — Audit Findings
 
-## send_files_box — SendFilesResult fields ignored at call site
-
-- [ ] [CRITICAL] `chat_view.dart` ignores almost all `SendFilesResult` fields: `silent`, `scheduledDate`, `spoilers`, `sendAsDocuments`, `groupFiles`, `remember`, `sendLargePhotos`, `captionAbove`, `perFileCaptions`, `ctrlShiftEnter`, `sendAsSticker` — only `caption` is forwarded to `uploadFile()`. The entire send-options UI is cosmetic and has no effect on the actual send. — `dart/lib/ui/chat_view.dart:3827-3830` ← `boxes/send_files_box.cpp:2387-2450`
-
 ## send_files_box — Photo editor does not feed back edited image
 
 - [ ] [CRITICAL] `_openEditor()` calls `PhotoCropEditor.open()` without an `onDone` callback, so the edited/cropped image is never written back into `_files`. The edit opens, closes, and the send box still contains the original unmodified image. — `dart/lib/ui/send_files_box.dart:1806-1814` ← `boxes/send_files_box.cpp:1361-1379` (editor result is applied via `refreshAllAfterChanges`)
