@@ -665,10 +665,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 # send_files_box — Audit Findings
 
 
-## send_files_box — File context menu missing Rename, Replace, and Edit/Clear Cover
-
-- [ ] [CRITICAL] Right-clicking a file in the album or single media preview only shows "Spoiler effect". AyuGram's context menu includes: "Replace attachment", "Open in photo editor" (for photos), "Rename file" (for non-media), "Edit caption" (for non-media), "Edit cover" (for videos in channel/self-chat), "Clear cover". None of these exist in the Dart implementation. — `dart/lib/ui/send_files_box.dart:1599-1612` ← `boxes/send_files_box.cpp:1524-1638`
-
 ## send_files_box — Emoji panel is a static hardcoded 30-emoji grid
 
 - [ ] [MAJOR] `_EmojiQuickPanel` shows a fixed static list of 30 emojis hardcoded in the source. AyuGram uses a full `TabbedSelector` panel showing the user's actual recent emojis from the session. Emojis shown never change and don't reflect user history. — `dart/lib/ui/send_files_box.dart:2875-2882` ← `boxes/send_files_box.cpp:2003-2058`
