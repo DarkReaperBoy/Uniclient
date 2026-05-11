@@ -672,21 +672,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 ## settings_screen — Main Settings Screen
 
 
-
-# spoiler_animation — Particle generation, caching, and threading gaps
-
-- [ ] [CRITICAL] `_renderSpriteSheet` runs all 60-frame × 9000-particle draw operations synchronously on the main Dart isolate — the `async` keyword yields only at `await picture.toImage()`, so the entire particle rendering loop (~540k draw calls) blocks the UI thread and causes severe jank when spoilers first appear — `spoiler_animation.dart:132-253` ← `spoiler_mess.cpp:260` (`crl::async([=, &spoiler] { ... GenerateSpoilerMess ... })` runs the whole generation on a background thread)
-
-- [ ] [MAJOR] No disk caching of generated sprite sheets — every app launch regenerates the full particle sheet from scratch — `spoiler_animation.dart:114-130` (no serialize/deserialize path) ← `spoiler_mess.cpp:196-226` (`ReadDefaultMask`/`WriteDefaultMask` persist the sheet to `emojiCacheFolder()/spoiler/{text,image}` and reload on subsequent launches via `SpoilerMessCached::FromSerialized`)
-
-- [ ] [MAJOR] Particle birth frames use `rng.nextInt(_kFrameCount)` (uniform random), but C++ distributes them evenly across the animation timeline: `start = index * framesCount * frameDuration / particlesCount` — with 9000 particles over 1980ms each particle starts ~0.22ms apart, guaranteeing uniform density at every frame; Dart's random assignment can produce frame-to-frame density variance — `spoiler_animation.dart:163` ← `spoiler_mess.cpp:154-157`
-
-- [ ] [MAJOR] Particle velocity direction uses uniform angular distribution (`angle = rng.nextDouble() * 2π`, then `cos`/`sin`) — C++ uses `x = RandomIndex(2*max+1) / max` (x uniform in [-1,1]) and `y = sqrt(1-x²) * sign`, which biases particle motion toward vertical directions and produces a visually distinct motion pattern — `spoiler_animation.dart:155-161` ← `spoiler_mess.cpp:124-145`
-
-- [ ] [MAJOR] Text spoiler overlay falls back to `BlendMode.plus` (additive brightening) when `tintColor` is null, but C++ `FillSpoilerRect` uses default `CompositionMode_SourceOver` alpha compositing — additive blending progressively over-brightens layered content and diverges visually from the reference — `spoiler_animation.dart:304` ← `spoiler_mess.cpp:431-508` (plain `p.drawImage` with no explicit composition mode override)
-
-- [ ] [MAJOR] `powerSavingPaused` is sampled once at `initSpoiler` via a `try/catch` and never refreshed — if the user toggles the power-saving setting while a spoiler widget is alive the animation continues (or stays frozen) incorrectly; C++ polls `anim::Disabled()` on every `SpoilerAnimation::index()` call so pausing/resuming is instantaneous — `spoiler_animation.dart:453-459` ← `spoiler_mess.cpp:796` (`if (anim::Disabled()) { paused = true; }` inside `index()`)
-
 # stats_chart — Audit findings
 
 ## stats_chart — statistics chart widget
