@@ -665,9 +665,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 # send_files_box — Audit Findings
 
 
-## send_files_box — Caption autocomplete (mentions, commands) not set up
-
-- [ ] [MAJOR] AyuGram calls `setupCaptionAutocomplete()` which wires `FieldAutocomplete` for @mentions, #hashtags etc. into the caption field. The Dart `TextField` has no autocomplete at all. — `dart/lib/ui/send_files_box.dart:1278-1294` ← `boxes/send_files_box.cpp:1922-1970`
 
 ## send_files_box — Title text does not distinguish image-only selections
 
