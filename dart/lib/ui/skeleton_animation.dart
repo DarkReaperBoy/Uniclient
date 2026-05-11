@@ -1,15 +1,13 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
-/// Spec §35.33: Reusable skeleton loading animation system.
+/// Skeleton loading animation matching AyuGram Desktop's SkeletonAnimation.
 ///
-/// Provides a horizontal glare sweep over placeholder shapes (rounded rects,
-/// circles) with the following cycle: [kSlideDuration] ms sweep left-to-right,
-/// then [kWaitDuration] ms pause, repeating.
+/// A horizontal gradient sweeps across placeholder shapes (rounded rects)
+/// with [kSlideDuration] ms sweep left-to-right, then [kWaitDuration] ms pause.
 ///
-/// Used for FlatLabel loading placeholders (chat list loading, profile info
-/// loading, credits loading, etc.).
+/// AyuGram ref: ui/effects/skeleton_animation.cpp
+/// The gradient modulates opacity directly: edges at kBaseAlpha (more visible),
+/// center at kGradientAlpha (less visible = darker center effect).
 
 const int kSlideDuration = 1000;
 const int kWaitDuration = 1000;
@@ -56,8 +54,6 @@ class _SkeletonTextPlaceholderState extends State<SkeletonTextPlaceholder>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final subTextFg = theme.textTheme.bodySmall?.color ?? Colors.grey;
-    final baseColor = subTextFg.withValues(alpha: kBaseAlpha);
-    final glareColor = subTextFg.withValues(alpha: kGradientAlpha);
     final radius = widget.borderRadius ?? widget.height / 2;
 
     return AnimatedBuilder(
@@ -66,8 +62,7 @@ class _SkeletonTextPlaceholderState extends State<SkeletonTextPlaceholder>
         return CustomPaint(
           painter: _SkeletonBarPainter(
             progress: _controller.value,
-            baseColor: baseColor,
-            glareColor: glareColor,
+            subTextFg: subTextFg,
             borderRadius: radius,
           ),
           size: Size(widget.width, widget.height),
@@ -79,14 +74,12 @@ class _SkeletonTextPlaceholderState extends State<SkeletonTextPlaceholder>
 
 class _SkeletonBarPainter extends CustomPainter {
   final double progress;
-  final Color baseColor;
-  final Color glareColor;
+  final Color subTextFg;
   final double borderRadius;
 
   _SkeletonBarPainter({
     required this.progress,
-    required this.baseColor,
-    required this.glareColor,
+    required this.subTextFg,
     required this.borderRadius,
   });
 
@@ -96,31 +89,35 @@ class _SkeletonBarPainter extends CustomPainter {
       Offset.zero & size,
       Radius.circular(borderRadius),
     );
-    canvas.drawRRect(rrect, Paint()..color = baseColor);
+    final baseColor = subTextFg.withValues(alpha: subTextFg.a * kBaseAlpha);
 
-    final sweepPhase = progress < 0.5 ? progress / 0.5 : -1.0;
-    if (sweepPhase >= 0) {
-      final glareX = sweepPhase * size.width;
-      final glareWidth = size.width * 0.4;
+    // AyuGram: gradient active during first half (slide), plain fill during second half (wait).
+    final period = progress * kFullDuration;
+    final gradientActive = period < kSlideDuration;
+
+    final paint = Paint();
+    if (gradientActive) {
+      final sweepProgress = period / kSlideDuration;
+      // AyuGram: gradient spans full textWidth, sweeps from (left - width) to (left + width).
+      final gradientWidth = size.width;
+      final gradientStart = -gradientWidth + sweepProgress * (size.width + gradientWidth);
+      final centerColor = subTextFg.withValues(alpha: subTextFg.a * kGradientAlpha);
       final gradient = LinearGradient(
         begin: Alignment.centerLeft,
         end: Alignment.centerRight,
-        colors: [
-          glareColor.withValues(alpha: 0),
-          glareColor,
-          glareColor.withValues(alpha: 0),
-        ],
+        colors: [baseColor, centerColor, baseColor],
+        stops: const [0.0, 0.5, 1.0],
       );
-      final glareRect = Rect.fromLTWH(
-        glareX - glareWidth / 2,
-        0,
-        glareWidth,
-        size.height,
-      );
+      final gradientRect = Rect.fromLTWH(gradientStart, 0, gradientWidth, size.height);
       canvas.save();
       canvas.clipRRect(rrect);
-      canvas.drawRect(glareRect, Paint()..shader = gradient.createShader(glareRect));
+      canvas.drawRect(
+        Offset.zero & size,
+        paint..shader = gradient.createShader(gradientRect),
+      );
       canvas.restore();
+    } else {
+      canvas.drawRRect(rrect, paint..color = baseColor);
     }
   }
 
@@ -128,12 +125,18 @@ class _SkeletonBarPainter extends CustomPainter {
   bool shouldRepaint(_SkeletonBarPainter old) => old.progress != progress;
 }
 
+/// Multi-line skeleton placeholder.
+///
+/// AyuGram's SkeletonAnimation uses _label->countLineWidths() to get real text
+/// layout widths. In Flutter, pass explicit [lineWidths] from the parent widget
+/// that knows the expected text layout. When [lineWidths] is null, uses
+/// proportional fallback widths (last line shorter).
 class SkeletonMultiLinePlaceholder extends StatefulWidget {
   final int lineCount;
   final double lineHeight;
   final double lineSpacing;
   final double maxWidth;
-  final int? seed;
+  final List<double>? lineWidths;
 
   const SkeletonMultiLinePlaceholder({
     super.key,
@@ -141,7 +144,7 @@ class SkeletonMultiLinePlaceholder extends StatefulWidget {
     this.lineHeight = 10,
     this.lineSpacing = 8,
     this.maxWidth = 200,
-    this.seed,
+    this.lineWidths,
   });
 
   @override
@@ -151,7 +154,6 @@ class SkeletonMultiLinePlaceholder extends StatefulWidget {
 class _SkeletonMultiLinePlaceholderState extends State<SkeletonMultiLinePlaceholder>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late final List<double> _lineWidths;
 
   @override
   void initState() {
@@ -160,11 +162,6 @@ class _SkeletonMultiLinePlaceholderState extends State<SkeletonMultiLinePlacehol
       vsync: this,
       duration: const Duration(milliseconds: kFullDuration),
     )..repeat();
-    final rng = math.Random(widget.seed);
-    _lineWidths = List.generate(
-      widget.lineCount,
-      (_) => widget.maxWidth / 4 + rng.nextDouble() * (widget.maxWidth / 2),
-    );
   }
 
   @override
@@ -173,13 +170,20 @@ class _SkeletonMultiLinePlaceholderState extends State<SkeletonMultiLinePlacehol
     super.dispose();
   }
 
+  List<double> get _effectiveWidths {
+    if (widget.lineWidths != null) return widget.lineWidths!;
+    return List.generate(widget.lineCount, (i) {
+      if (i == widget.lineCount - 1) return widget.maxWidth * 0.6;
+      return widget.maxWidth;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final subTextFg = theme.textTheme.bodySmall?.color ?? Colors.grey;
-    final baseColor = subTextFg.withValues(alpha: kBaseAlpha);
-    final glareColor = subTextFg.withValues(alpha: kGradientAlpha);
     final radius = widget.lineHeight / 2;
+    final widths = _effectiveWidths;
 
     return AnimatedBuilder(
       animation: _controller,
@@ -188,16 +192,15 @@ class _SkeletonMultiLinePlaceholderState extends State<SkeletonMultiLinePlacehol
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (var i = 0; i < widget.lineCount; i++) ...[
+            for (var i = 0; i < widths.length; i++) ...[
               if (i > 0) SizedBox(height: widget.lineSpacing),
               CustomPaint(
                 painter: _SkeletonBarPainter(
                   progress: _controller.value,
-                  baseColor: baseColor,
-                  glareColor: glareColor,
+                  subTextFg: subTextFg,
                   borderRadius: radius,
                 ),
-                size: Size(_lineWidths[i], widget.lineHeight),
+                size: Size(widths[i], widget.lineHeight),
               ),
             ],
           ],
