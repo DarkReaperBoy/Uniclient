@@ -676,46 +676,11 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 ## stats_chart — statistics chart widget
 
-
-# sticker_pack_viewer — Missing install handler, wrong grid layout for emoji sets, incorrect padding
-
-- [ ] [CRITICAL] Add button is disabled (onPressed: null) and doesn't call installStickerSet when clicked — `sticker_pack_viewer.dart:155` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/sticker_set_box.cpp:996`
-
-- [ ] [MAJOR] Grid always uses 5 columns for all sticker types, but should use 8 columns for emoji sets — `sticker_pack_viewer.dart:181` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/sticker_set_box.cpp:1270` (kEmojiPerRow = 8 vs kStickersPerRow = 5)
-
-- [ ] [MAJOR] Padding is hardcoded to 8px for all types, should use emojiSetPadding (12px,0px,12px,0px) for emoji and stickersPadding (19px,13px,19px,13px) for stickers — `sticker_pack_viewer.dart:179` ← research/telegram_desktop_ui.md (emojiSetPadding, stickersPadding)
-
-- [ ] [MAJOR] Button text doesn't differentiate between sticker types: always shows "Add Stickers" but AyuGram shows "Add Pack", "Add Masks", or "Add Emoji" based on type — `sticker_pack_viewer.dart:164` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/sticker_set_box.cpp:991-995`
-
-# engine_models — Data model DTO audit
-
-File implements: Dart model classes mirroring Go engine types (AccountInfo, ChatInfo, CachedMessage, events, forum topics, scheduled messages, etc.) — pure data / serialization layer, no UI.
-
----
-
-- [ ] [CRITICAL] `CachedMessage.fromJson` is called by `MsgReceivedEvent.fromJson` on every real-time incoming message event (`engine_service.dart:3746`), but it does **not** decode `content_raw` — so all fields labeled "extracted from contentRaw extra fields" (`pollQuestion`, `pollOptions`, `geoLat`/`geoLong`, `contactFirstName`/`contactPhone`, `wpUrl`/`wpTitle`/`wpDescription`, `gameTitle`, `invoiceTitle`, `audioTitle`/`audioPerformer`, `repliesCount`, `replyKeyboard`, `inlineKeyboard`, `views`, `forwards`, `topicId`, `ttlSeconds`, `altQualities`, `mediaUnread`, `stickerSetShortName`, `viaBotName`) always default to `''`/`0`/`[]` for every real-time received message. The message is immediately inserted into `_messages` (`chat_state.dart:2089`) and rendered. A received poll renders with no question and no options; a location message renders with `geoLat = 0.0 / geoLong = 0.0`; a voice message has no waveform bar; a contact card is blank. AyuGram always has full data before rendering — poll question is read from `PollData::question` (populated on receive, never deferred) and voice waveform is decoded from the full document immediately on receive — `engine_models.dart:696` ← `AyuGram/data/data_poll.cpp:65`, `AyuGram/data/data_document.cpp:441`
-
-- [ ] [CRITICAL] `CachedMessage.fromJson:728` attempts to parse `j['media_waveform']` from top-level JSON, but the Go `CachedMessage` struct (`engine/cache_msgs.go:24-71`) has no `MediaWaveform` field — this key is never present in the JSON event payload, so `mediaWaveform` is always `const []` for every message received via the real-time event path. Voice messages arriving in real-time show no waveform visualization. AyuGram decodes waveform from the document's `VoiceData::waveform` field (`data_document.cpp:441-445`) which is populated during the same receive pass — `engine_models.dart:728` ← `AyuGram/data/data_document.cpp:1333`
-
-- [ ] [MAJOR] `StickerInfoItem.isFaved` (line 2111) is a non-final mutable field on a plain data class. Mutating `isFaved` directly (`item.isFaved = true`) produces no `notifyListeners`, no stream event, and no widget rebuild — the sticker grid will silently show the wrong fav state after toggling. AyuGram's sticker fav state is tracked in a session-level `Data::Stickers` store that emits updates via `Notify::PeerUpdated` / `session().changes()`, never by mutating a data field — `engine_models.dart:2111` ← `AyuGram/data/data_stickers.cpp` (sticker fav/unfav via `addedToSet`/`removedFromSet` triggers `session().changes().peerUpdated.fire`)
-
-- [ ] [MAJOR] `AuthStateData.fromJson` (lines 148–167) does not parse `qrData` (line 118) or `avatarB64` (line 121). These fields remain `const []` / `''` for any `AuthStateData` constructed via `fromJson`. Tests `widget_comprehensive_test.dart:1267` and `widget_comprehensive_test.dart:1301` use this factory for QR-auth coverage, so QR-code rendering and avatar display in auth flow are untested. (Production code uses `_authStateFromProto` which correctly populates both fields — `engine_service.dart:3825-3828`; the `fromJson` factory is test-only but its gaps mean zero test coverage of QR data flow.) AyuGram's QR login always passes full link bytes through from the API response — `engine_models.dart:148` ← `AyuGram/ui/auth/auth_form_qr.cpp` (QR bytes come in full from `MTP::AuthImportLoginToken`)
-
-- [ ] [MAJOR] `ScheduledMessages.isScheduledMsgId` (line 2647) uses `_kServerMaxMsgId = 0x3FFFFFFF` (1,073,741,823). AyuGram's `ServerMaxMsgId = 1LL << 56` (72,057,594,037,927,936 — `data_msg_id.h:80`). If this method is ever called with actual Telegram message IDs, it will return `true` for any ID > 1 billion (most channel post IDs and media IDs), misidentifying normal messages as scheduled. The method is currently unreferenced from UI code (dead code), but the wrong constant creates a latent critical bug if wired up — `engine_models.dart:2647` ← `AyuGram/data/data_msg_id.h:80`
-
 # story_editor — Story Editor Layer
-
-- [ ] [CRITICAL] Video file never sent to engine — `_postStory()` always falls into `_renderCanvasToBytes()` when `_videoFile != null` (because `_imageFile` is null), which renders only the gradient background and sends that as a photo; the actual video file is completely ignored and there is no `sendStoryWithVideo` call — `story_editor.dart:329-349` ← `editor_paint.cpp:1` (video story requires separate video upload API)
 
 - [ ] [CRITICAL] Privacy, duration, and posting settings not passed to engine — `_privacy`, `_durationHours`, `_saveToProfile`, `_allowSharing` are captured in UI state but `engine.sendStoryWithPhoto` only receives `accountId`, `caption`, and `photoData`; all four settings are silently discarded — `story_editor.dart:345-349` ← `engine_service.dart:946-951`
 
-- [ ] [CRITICAL] `_renderCanvasToBytes()` excludes paint strokes and scene items from exported image — the canvas renderer draws only the background image or gradient, never iterating over `_strokes` or `_sceneItems`; any drawn strokes, text overlays, or emoji are absent from the uploaded story — `story_editor.dart:366-391` ← `editor_paint.cpp:276-281` (AyuGram's `saveScene()` serialises the full scene including canvas items)
-
 - [ ] [CRITICAL] Sticker picker shows only 64 hardcoded emojis, never real Telegram sticker packs — AyuGram uses `ItemSticker(document, itemBaseData())` driven by `stickerChosen()` from the sticker panel controller which pulls live packs from the session; Dart renders a static `_emojis` const array with no engine call — `story_editor.dart:2164-2228` ← `editor_paint.cpp:146-152`
-
-- [ ] [CRITICAL] Eraser `BlendMode.clear` has no effect without `saveLayer` — the paint layer is a `CustomPaint` placed directly in a `Stack`; `BlendMode.clear` on a `Canvas` that is not inside a `saveLayer` composite clears to transparent, revealing black background rather than erasing underlying strokes; needs `canvas.saveLayer(Rect.largest, Paint())` wrapper — `story_editor.dart:1634-1637` ← `scene_item_canvas.cpp:131-141` (AyuGram uses `CompositionMode_Source` on an isolated per-canvas pixmap)
-
-- [ ] [CRITICAL] Stroke path uses `lineTo` only — AyuGram renders each stroke segment as `path.quadTo(p0, ctrl)` with a midpoint control, preceded by two passes of Catmull-Rom smoothing via `smoothStroke()`; Dart draws a raw polyline (`path.lineTo`) producing jagged, faceted strokes instead of smooth curves — `story_editor.dart:1641-1645` ← `scene_item_canvas.cpp:162-177` (quadTo) and `scene_item_canvas.cpp:218-231` (double-pass smoothing)
 
 - [ ] [MAJOR] Video duration hardcoded to 60 seconds — `_videoDuration` is set to `Duration(seconds: 60)` unconditionally on video pick; no video metadata is read; trim slider is calibrated against a wrong total duration — `story_editor.dart:241` ← `_VideoTrimSlider` widget uses this value for display
 
@@ -723,45 +688,11 @@ File implements: Dart model classes mirroring Go engine types (AccountInfo, Chat
 
 - [ ] [MAJOR] Upload progress is artificially simulated — two `Future.delayed` sleeps (100 ms, 150 ms) fake progress at 30 %, 60 %, 100 % rather than tracking real upload bytes; if the engine call takes longer the bar freezes at 60 % — `story_editor.dart:339-356`
 
-- [ ] [MAJOR] "Stickers" tab label in picker panel exists but is non-functional — `_StickerPickerPanel._tabs` declares `['Emoji', 'Stickers']` and renders both labels, but no tab switch logic, no sticker grid, and no engine call back the "Stickers" label; tapping it does nothing — `story_editor.dart:2162-2200`
-
 - [ ] [MAJOR] Privacy "Selected Contacts" option has no contact selection UI — selecting it in `_PrivacyDialog` saves the enum value but never opens a contact picker; the story would be posted with no allowed viewers if the engine honored the setting — `story_editor.dart:1824-1828`
-
-- [ ] [MAJOR] Arrow arrowhead direction uses adjacent point instead of minimum-distance lookback — AyuGram walks backward through stroke history to find a point at `size × 1.5` distance from the tip before computing angle; Dart always uses `points[length-2]` which is often the immediately preceding sample, producing wildly inaccurate arrowhead angles on slow strokes — `story_editor.dart:1649-1651` ← `scene_item_canvas.cpp:234-248`
-
-- [ ] [MAJOR] `FocusNode` created in `build()` without reference or disposal — `story_editor.dart:421` creates `FocusNode()..requestFocus()` inline; this allocates a new `FocusNode` on every rebuild, leaking the previous one since it is never stored in state or disposed in `dispose()` — `story_editor.dart:421`
-
-- [ ] [MAJOR] `_StrokePainter.shouldRepaint` returns unconditional `true` — every `setState` call during stroke drawing (fired on every pointer-move event) repaints the entire strokes canvas from scratch; with hundreds of strokes this is O(n) work per pointer sample; AyuGram uses incremental dirty-rect updates via `_rectToUpdate` — `story_editor.dart:1670` ← `scene_item_canvas.cpp:204`
-
-- [ ] [MAJOR] `_continueStroke` calls `setState` on every `onPointerMove` event — this triggers a full rebuild of the entire `_StoryEditorLayerState` widget tree on each pointer sample (typically 120 times/second at high refresh rates); strokes and scene items should be driven by a `ValueNotifier`/`ChangeNotifier` to isolate repaints — `story_editor.dart:551-555`
-
-- [ ] [MAJOR] Color button diameter is 28 px vs spec 24 px — `_buildColorButton()` sizes the circle at `width: 28, height: 28`; AyuGram specifies `photoEditorColorButtonSize: 24px` — `story_editor.dart:888-889` ← `editor.style:126`
 
 # telegram_toast — Toast widget audit
 
-- [ ] [CRITICAL] Wrong background color: Dart uses pure black at ~70% opacity (`Color(0xB2000000)`) but AyuGram `toastBg` is dark charcoal gray at ~90% opacity (`#2c3033e5` → Flutter `Color(0xE52C3033)`); both hue and alpha are wrong — `telegram_toast.dart:34` ← `AyuGram/lib_ui/ui/colors.palette:444`
-
 - [ ] [CRITICAL] `_StickerToast` missing animated sticker/emoji preview: AyuGram renders a Lottie or custom-emoji animated preview widget in the toast's left padding area (`setupLottiePreview`/`setupEmojiPreview`, size = `font->height * 2`); Dart shows text only — `telegram_toast.dart:383-415` ← `AyuGram/SourceFiles/history/view/history_view_sticker_toast.cpp:216-225`
-
-- [ ] [MAJOR] Default (no-attach) toast anchored at bottom (`bottom: 52px`) instead of vertically centered: AyuGram positions `RectPart::None` toasts at `middle = QPoint((w-tw)/2, (h-th)/2)` — exact screen center; Dart uses `bottom: _kMargin * 4` which keeps the toast near the bottom — `telegram_toast.dart:217` ← `AyuGram/lib_ui/ui/toast/toast_widget.cpp:483`
-
-- [ ] [MAJOR] Slide-attached toasts incorrectly add opacity fade: AyuGram slide toasts keep `opacity = 1.0` throughout (only position animates); Dart wraps `FractionalTranslation` in `Opacity(opacity: _fadeIn/fadeOut.value)` causing unwanted simultaneous fade — `telegram_toast.dart:163-169` ← `AyuGram/lib_ui/ui/toast/toast_widget.cpp:571-573`
-
-- [ ] [MAJOR] `_StickerToast` display duration is 1500ms instead of 3000ms: AyuGram uses `kPremiumToastDuration = 3 * crl::time(1000)` for sticker toasts; Dart hardcodes `Timer(const Duration(milliseconds: 1500), _startHide)` — `telegram_toast.dart:303` ← `AyuGram/SourceFiles/history/view/history_view_sticker_toast.cpp:31`
-
-- [ ] [MAJOR] `_StickerToast` text layout wrong: AyuGram renders `tr::bold(title)` on line 1 + newline + pack-specific body text (`tr::lng_animated_emoji_text` / `tr::lng_sticker_premium_text`); Dart renders a flat inline sentence with no bold title and no two-line structure — `telegram_toast.dart:322-380` ← `AyuGram/SourceFiles/history/view/history_view_sticker_toast.cpp:148-156`
-
-- [ ] [MAJOR] `_StickerToast` uses wrong `maxWidth` (480px vs 380px): the sticker toast style `historyPremiumToast` sets `maxWidth: 380px`; Dart uses the default `_kMaxWidth = 480px` — `telegram_toast.dart:385` ← `AyuGram/SourceFiles/ui/chat/chat.style:258`
-
-- [ ] [MAJOR] `_StickerToast` missing right-click to dismiss: AyuGram creates a `clickableBackground` `AbstractButton` over the toast that calls `hideAnimated()` on right-click; Dart has no such handler — `telegram_toast.dart:397-413` ← `AyuGram/SourceFiles/history/view/history_view_sticker_toast.cpp:190-198`
-
-# telegram_tooltip — Color not wired to palette + tooltip delay mismatch
-
-- [ ] [CRITICAL] `showImportantTooltip()` hardcodes text color as `Colors.white` instead of using `palette.importantTooltipFg` from PaletteProvider — `telegram_tooltip.dart:494` ← `telegram_palette.dart:importantTooltipFg` / `widgets.style:defaultImportantTooltipLabel`
-
-- [ ] [MAJOR] `TelegramTooltip` shows with 1000ms delay (`_kShowDelay`) vs AyuGram's 500ms (`kTooltipShowTimeoutMs`) — `telegram_tooltip.dart:12` ← `calls_emoji_fingerprint.cpp:19`
-
-- [ ] [MAJOR] Missing `hideAfter()` support on `ImportantTooltip` — AyuGram's `ImportantTooltip::hideAfter()` allows auto-dismiss after timeout, Dart version only supports manual dismissal via callback — `telegram_tooltip.dart:208-226` ← `lib_ui/ui/widgets/tooltip.h:102`
 
 
 # theme_confirm_overlay — Behavioral mismatch on removal animation
