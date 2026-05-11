@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
@@ -19,14 +21,6 @@ const double _kParticleSizeMax = 2.0;
 const int _kAutoPauseTimeoutMs = 1000;
 const int _kColorCacheCapacity = 24;
 const double kSpoilerHiddenOpacity = 0.5;
-
-class _Particle {
-  final double x, y, vx, vy, size;
-  final int birthFrame, shape;
-  final int fadeIn, shown, fadeOut;
-  _Particle(this.x, this.y, this.vx, this.vy, this.size, this.birthFrame,
-      this.shape, this.fadeIn, this.shown, this.fadeOut);
-}
 
 enum SpoilerType { text, image }
 
@@ -170,47 +164,101 @@ Future<void> _saveSpoilerCache(SpoilerType type, ui.Image image) async {
   } catch (_) {}
 }
 
-Future<SpoilerSpriteSheet> _renderSpriteSheet(SpoilerType type) async {
-  final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
-  final tilePx = (_kCanvasSize * dpr).roundToDouble();
-  final sheetW = (tilePx * _kFramesPerRow).toInt();
-  final sheetH = (tilePx * _kRows).toInt();
+class _ParticleParams {
+  final double tilePx, dpr;
+  final bool isText;
+  const _ParticleParams(this.tilePx, this.dpr, this.isText);
+}
 
-  final isText = type == SpoilerType.text;
+List<Float64List> _computeParticleFrameData(_ParticleParams params) {
+  final tilePx = params.tilePx;
+  final dpr = params.dpr;
+  final isText = params.isText;
+
   final count = isText ? 9000 : 3000;
   final speedMin = isText ? 4.0 : 10.0;
   final speedMax = isText ? 8.0 : 20.0;
-  final fadeInMs = isText ? 200 : 300;
-  final shownMs = isText ? 200 : 0;
-  final fadeOutMs = isText ? 200 : 300;
-  final fadeInFrames = (fadeInMs / 33).round();
-  final shownFrames = (shownMs / 33).round();
-  final fadeOutFrames = (fadeOutMs / 33).round();
+  final fadeInFrames = ((isText ? 200 : 300) / 33).round();
+  final shownFrames = ((isText ? 200 : 0) / 33).round();
+  final fadeOutFrames = ((isText ? 200 : 300) / 33).round();
   final totalLifetimeFrames = fadeInFrames + shownFrames + fadeOutFrames;
 
   final rng = math.Random(42);
   final speedRange = speedMax - speedMin;
   final sizeRange = _kParticleSizeMax - _kParticleSizeMin;
 
-  final particles = List<_Particle>.generate(count, (i) {
+  final px = Float64List(count);
+  final py = Float64List(count);
+  final pvx = Float64List(count);
+  final pvy = Float64List(count);
+  final psize = Float64List(count);
+  final pbirth = Int32List(count);
+  final pshape = Int32List(count);
+
+  for (int i = 0; i < count; i++) {
     final spd = rng.nextDouble() * speedRange + speedMin;
     final xDir = rng.nextDouble() * 2.0 - 1.0;
-    final yDir = math.sqrt((1.0 - xDir * xDir).clamp(0.0, 1.0))
-        * (rng.nextBool() ? 1.0 : -1.0);
-    return _Particle(
-      rng.nextDouble() * tilePx,
-      rng.nextDouble() * tilePx,
-      spd * xDir * dpr * 0.033,
-      spd * yDir * dpr * 0.033,
-      (_kParticleSizeMin + rng.nextDouble() * sizeRange) * dpr,
-      (i * _kFrameCount) ~/ count,
-      rng.nextInt(_kSpriteVariants),
-      fadeInFrames,
-      shownFrames,
-      fadeOutFrames,
-    );
-  });
+    final yDir = math.sqrt((1.0 - xDir * xDir).clamp(0.0, 1.0)) *
+        (rng.nextBool() ? 1.0 : -1.0);
+    px[i] = rng.nextDouble() * tilePx;
+    py[i] = rng.nextDouble() * tilePx;
+    pvx[i] = spd * xDir * dpr * 0.033;
+    pvy[i] = spd * yDir * dpr * 0.033;
+    psize[i] = (_kParticleSizeMin + rng.nextDouble() * sizeRange) * dpr;
+    pbirth[i] = (i * _kFrameCount) ~/ count;
+    pshape[i] = rng.nextInt(_kSpriteVariants);
+  }
 
+  return List<Float64List>.generate(_kFrameCount, (f) {
+    final cmds = <double>[];
+    for (int i = 0; i < count; i++) {
+      int age = (f - pbirth[i]) % _kFrameCount;
+      if (age < 0) age += _kFrameCount;
+      if (age >= totalLifetimeFrames) continue;
+
+      double alpha;
+      if (age < fadeInFrames) {
+        alpha = fadeInFrames > 0 ? age / fadeInFrames : 1.0;
+      } else if (age < fadeInFrames + shownFrames) {
+        alpha = 1.0;
+      } else {
+        final fadeAge = age - fadeInFrames - shownFrames;
+        alpha = fadeOutFrames > 0 ? 1.0 - fadeAge / fadeOutFrames : 0.0;
+      }
+      if (alpha <= 0) continue;
+
+      double ppx = (px[i] + pvx[i] * age) % tilePx;
+      double ppy = (py[i] + pvy[i] * age) % tilePx;
+      if (ppx < 0) ppx += tilePx;
+      if (ppy < 0) ppy += tilePx;
+
+      cmds.addAll([ppx, ppy, alpha, pshape[i].toDouble()]);
+      if (ppx + psize[i] > tilePx) {
+        cmds.addAll([ppx - tilePx, ppy, alpha, pshape[i].toDouble()]);
+      }
+      if (ppy + psize[i] > tilePx) {
+        cmds.addAll([ppx, ppy - tilePx, alpha, pshape[i].toDouble()]);
+      }
+      if (ppx + psize[i] > tilePx && ppy + psize[i] > tilePx) {
+        cmds.addAll([ppx - tilePx, ppy - tilePx, alpha, pshape[i].toDouble()]);
+      }
+    }
+    return Float64List.fromList(cmds);
+  });
+}
+
+Future<SpoilerSpriteSheet> _renderSpriteSheet(SpoilerType type) async {
+  final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
+  final tilePx = (_kCanvasSize * dpr).roundToDouble();
+  final sheetW = (tilePx * _kFramesPerRow).toInt();
+  final sheetH = (tilePx * _kRows).toInt();
+
+  final frameData = await compute(
+    _computeParticleFrameData,
+    _ParticleParams(tilePx, dpr, type == SpoilerType.text),
+  );
+
+  final sizeRange = _kParticleSizeMax - _kParticleSizeMin;
   final cornerR = _kParticleSizeMin * dpr / 2;
   final spriteRects = <RRect>[];
   for (int i = 0; i < _kSpriteVariants; i++) {
@@ -247,47 +295,17 @@ Future<SpoilerSpriteSheet> _renderSpriteSheet(SpoilerType type) async {
     canvas.save();
     canvas.clipRect(Rect.fromLTWH(ox, oy, tilePx, tilePx));
 
-    for (final p in particles) {
-      int age = (f - p.birthFrame) % _kFrameCount;
-      if (age < 0) age += _kFrameCount;
-      if (age >= totalLifetimeFrames) continue;
-
-      double alpha;
-      if (age < p.fadeIn) {
-        alpha = p.fadeIn > 0 ? age / p.fadeIn : 1.0;
-      } else if (age < p.fadeIn + p.shown) {
-        alpha = 1.0;
-      } else {
-        final fadeAge = age - p.fadeIn - p.shown;
-        alpha = p.fadeOut > 0 ? 1.0 - fadeAge / p.fadeOut : 0.0;
-      }
-      if (alpha <= 0) continue;
-
-      double px = (p.x + p.vx * age) % tilePx;
-      double py = (p.y + p.vy * age) % tilePx;
-      if (px < 0) px += tilePx;
-      if (py < 0) py += tilePx;
-
-      paint.color = Color.fromRGBO(255, 255, 255, alpha);
-      final sprite = spriteRects[p.shape];
-
-      void drawAt(double dx, double dy) {
-        canvas.save();
-        canvas.translate(ox + dx, oy + dy);
-        canvas.drawRRect(sprite, paint);
-        canvas.restore();
-      }
-
-      drawAt(px, py);
-      if (px + p.size > tilePx) drawAt(px - tilePx, py);
-      if (py + p.size > tilePx) drawAt(px, py - tilePx);
-      if (px + p.size > tilePx && py + p.size > tilePx) {
-        drawAt(px - tilePx, py - tilePx);
-      }
+    final cmds = frameData[f];
+    for (int j = 0; j < cmds.length; j += 4) {
+      paint.color = Color.fromRGBO(255, 255, 255, cmds[j + 2]);
+      canvas.drawRRect(
+        spriteRects[cmds[j + 3].toInt()].shift(Offset(ox + cmds[j], oy + cmds[j + 1])),
+        paint,
+      );
     }
 
     canvas.restore();
-    if (f % 10 == 9) await Future.delayed(Duration.zero);
+    await Future.delayed(Duration.zero);
   }
 
   final picture = recorder.endRecording();
