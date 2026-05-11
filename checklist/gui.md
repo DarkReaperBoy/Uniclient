@@ -676,33 +676,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 ## stats_chart — statistics chart widget
 
-- [ ] [CRITICAL] `isFooterHidden` parsed from wrong JSON field: Dart reads `parsed['isFooterHidden']` (top-level) but AyuGram reads `root["subchart"]["show"]` (nested). Footer will be shown/hidden incorrectly — `stats_chart.dart:130` ← `AyuGram/statistics/statistics_data_deserialize.cpp:109-115`
-
-- [ ] [CRITICAL] `weekFormat` detection uses wrong signal: Dart infers week format from timestamp delta between first two data points (`>= 6 * 24 * 3600 * 1000`); AyuGram reads `xTooltipFormatter` field from JSON (checks for `"'week'"` substring). These diverge whenever the field is explicitly set but timestamps don't match the delta heuristic — `stats_chart.dart:135-140` ← `AyuGram/statistics/statistics_data_deserialize.cpp:146-151`
-
-- [ ] [CRITICAL] `defaultZoomXIndex` parsed from wrong field with wrong type: Dart reads `parsed['defaultZoomXIndex']` as `int?`; AyuGram reads `subchart.defaultZoom` as an array of two timestamps and resolves them to x-indices. Zoom entry point will be wrong or null when it should be set — `stats_chart.dart:131` ← `AyuGram/statistics/statistics_data_deserialize.cpp:116-135`
-
-- [ ] [CRITICAL] Shake animation missing when user attempts to hide the last visible filter line: Dart silently returns (`return`) with no feedback; AyuGram calls `raw->shake()` which plays a horizontal shake animation on the checkbox — `stats_chart.dart:1163` ← `AyuGram/statistics/widgets/chart_lines_filter_widget.cpp:200-215`
-
-- [ ] [CRITICAL] Line color key theming not implemented: AyuGram calls `FillLineColorsByKey()` on palette change to remap named keys ("BLUE", "GREEN", "RED", etc.) to current theme colors via `st::statisticsChartLineBlue` etc. Dart stores only the raw hex color from JSON and never updates on theme change — `stats_chart.dart:116-120` ← `AyuGram/statistics/chart_widget.cpp:41-65`
-
-- [ ] [MAJOR] Footer gap (11px `statisticsChartFooterSkip`) missing between chart area and footer: AyuGram adds `statisticsChartFooterSkip: 11px` to the footer area total height, creating visible separation. Dart places `_kChartHeight` SizedBox and `_kFooterHeight` SizedBox back-to-back with zero gap — `stats_chart.dart:820-845` ← `AyuGram/statistics/statistics.style:28` and `chart_widget.cpp:873`
-
-- [ ] [MAJOR] Filter button inactive background hardcoded: Dart uses `Color(0xFF1A2633)` (dark) / `Color(0xFFEEEEEE)` (light). AyuGram uses `st::boxBg` (theme-aware background color from `FlatCheckbox` constructor at `_inactiveColor(st::boxBg->c)`). Will be wrong on non-standard themes — `stats_chart.dart:1242-1243` ← `AyuGram/statistics/widgets/chart_lines_filter_widget.cpp:59`
-
-- [ ] [MAJOR] Footer dim overlay colors hardcoded: Dart uses `Color(0x88000000)` / `Color(0x44AAAAAA)` for the inactive regions flanking the selection handle. AyuGram uses `st::statisticsChartInactive` (palette-bound). Will look wrong on light/non-default themes — `stats_chart.dart:1778-1779` ← `AyuGram/statistics/chart_widget.cpp:449`
-
-- [ ] [MAJOR] Line name em dash substitution missing: AyuGram replaces `-` characters in line names with em dash `QChar(8212)` during deserialization. Dart passes names through unmodified. Filter button labels and tooltip line names will show hyphens where em dashes should appear — `stats_chart.dart:119` ← `AyuGram/statistics/statistics_data_deserialize.cpp:169`
-
-- [ ] [MAJOR] DoubleLinear chart has no dual Y-axis rulers: Dart's `_drawRulerSet` draws a single shared Y-axis for all lines. AyuGram's `ChartRulersView` renders left and right Y-axis rulers in the line colors of the two respective lines. The right-side scale is completely absent in Dart — `stats_chart.dart:1395-1431` ← `AyuGram/statistics/view/chart_rulers_view.cpp:63-78`
-
-- [ ] [MAJOR] Date label crossfade system is simplified: AyuGram maintains a queue of `BottomCaptionLineData` entries (up to 2) with independent step/alpha levels that fade across, using `restartBottomLineAlpha()` and a 200ms alpha animation per density change. Dart uses a single `_dateLabelAlpha` that fades all labels uniformly — `stats_chart.dart:1452-1455` ← `AyuGram/statistics/chart_widget.cpp:1015-1082`
-
-- [ ] [MAJOR] Currency ruler labels (USD conversion) not displayed: AyuGram's `ChartRulersView` shows a right-side ruler with USD-converted values when `currencyRate` is present, using `Info::ChannelEarn::ToUsd`. Dart shows only raw values in the single ruler regardless of currency — `stats_chart.dart:1395-1431` ← `AyuGram/statistics/view/chart_rulers_view.cpp:46-62`
-
-- [ ] [MAJOR] Tooltip zoom arrow uses wrong icon: Dart shows `Icons.chevron_right` (14px Material icon). AyuGram renders a custom two-segment arrow drawn at `statisticsDetailsArrowShift: 3px` / `statisticsDetailsArrowStroke: 1.5` in the exact foreground color. Visual mismatch — `stats_chart.dart:928-930` ← `AyuGram/statistics/widgets/point_details_widget.cpp:143-148` and `statistics.style:21-22`
-
-- [ ] [MAJOR] `_updateRulerRange()` and `_updateFooterYRange()` called inside `build()`: These functions iterate over all visible data points (O(n)) and may call `_ensureTickerRunning()` → start ticker → `setState` → `build()` again. On every animation frame the ticker fires `setState`, which invokes `build()`, which recomputes Y ranges unnecessarily. These calls belong in `_onChartTick` and `_toggleLine`/`_onFooterPanUpdate`, not in the build method — `stats_chart.dart:642-643` ← `AyuGram/statistics/chart_widget.cpp:531-625` (animation controller handles Y recompute only on X/filter changes)
 
 # sticker_pack_viewer — Missing install handler, wrong grid layout for emoji sets, incorrect padding
 
