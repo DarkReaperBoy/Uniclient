@@ -671,53 +671,9 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 ## settings_screen — Main Settings Screen
 
-- [ ] [CRITICAL] `_showAvatarMenu` discards result of `showMenu<String>()` — no `.then()` handler, no engine calls for photo upload, emoji avatar, or photo removal; tapping any menu item does nothing — `settings_screen.dart:685` ← `settings_main.cpp:210-225`
-
-- [ ] [CRITICAL] QR code dialog shows `Icons.qr_code_2` Material icon placeholder instead of a real generated QR code; AyuGram calls `Ui::DefaultShowFillPeerQrBoxCallback(show, _user)` which renders the actual QR image — `settings_screen.dart:928` ← `settings_main.cpp:248-249`
-
-- [ ] [CRITICAL] Language row trailing text hardcoded as `'English'`; AyuGram uses `Lang::GetInstance().nativeName()` as a live reactive value that updates when language changes — `settings_screen.dart:307` ← `settings_main.cpp:486-490`
-
-- [ ] [CRITICAL] Stars balance hardcoded as `'0'`; AyuGram uses `session->credits().balanceValue()` piped through `FormatCreditsAmountToShort()` — `settings_screen.dart:345` ← `settings_main.cpp:547-554`
-
-- [ ] [CRITICAL] TON Currency balance hardcoded as `'0'`; AyuGram uses `session->credits().tonBalanceValue()` — `settings_screen.dart:360` ← `settings_main.cpp:568-571`
-
-- [ ] [CRITICAL] TON Currency row always visible; AyuGram shows it only when `tonBalanceValue` is non-empty (`.shown = session->credits().tonBalanceValue() | rpl::map([](CreditsAmount c) { return !c.empty(); })`) — `settings_screen.dart:355-369` ← `settings_main.cpp:576-578`
-
-- [ ] [CRITICAL] Profile cover shows `account?.phone` at the `settingsPhoneTop` position; AyuGram's Cover replaces the phone field with `IDString(_user)` (numeric user ID) at that same position — `settings_screen.dart:629` ← `settings_main.cpp:285-290`
-
 - [ ] [CRITICAL] Emoji status panel shows hardcoded list of 24 text emoji characters in a grid; AyuGram uses `Info::Profile::EmojiStatusPanel` which loads animated custom emoji sticker packs from Telegram's servers — `settings_screen.dart:796-800` ← `settings_main.cpp:126-127,227-231`
 
-- [ ] [MAJOR] Avatar size 88×88px; AyuGram uses `st::infoProfileCover.photo.size` which resolves to `infoProfilePhotoInnerSize = 72px` (22% too large) — `settings_screen.dart:543-544` ← `info.style:527-530`
-
-- [ ] [MAJOR] Profile header height `SizedBox(height: 112)`; AyuGram computes `st::settingsPhotoTop(8) + photo.size.height()(72) + st::settingsPhotoBottom(16) = 96px` (~17% taller than spec) — `settings_screen.dart:529` ← `settings_main.cpp:143-147`
-
-- [ ] [MAJOR] Gap between avatar and text column is 2px (`SizedBox(width: 2)`) based on wrong 88px avatar assumption; with correct 72px avatar, gap = `settingsNameLeft(112) - settingsPhotoLeft(22) - 72 = 18px` — `settings_screen.dart:587` ← `settings_main.cpp:316-318`
-
-- [ ] [MAJOR] Entire premium section (Premium/Stars/TON/Business/Gift) always rendered; AyuGram skips it entirely when `!session->premiumPossible()` — `settings_screen.dart:334` ← `settings_main.cpp:528-529`
-
-- [ ] [MAJOR] "Send a Gift" row always shown; AyuGram conditions on `session->premiumCanBuy()` — `settings_screen.dart:377-383` ← `settings_main.cpp:589-597`
-
-- [ ] [MAJOR] Folders row always shown; AyuGram conditionally shows based on `chatsFilters().has() || dialogsFiltersEnabled()`, preloads filter suggestions when shown — `settings_screen.dart:247-257` ← `settings_main.cpp:428-444`
-
-- [ ] [MAJOR] Interface scale slider range hardcoded `_kMin=100, _kMax=300`; AyuGram uses `style::kScaleMin=50` to `style::MaxScaleForRatio(devicePixelRatio)`, making the range device-DPI-aware — `settings_screen.dart:1135-1137` ← `settings_main.cpp:1064-1077, style_core_scale.h:20`
-
 - [ ] [MAJOR] Scale preview while dragging is a fake in-page mockup with hardcoded colored circles and gray bars; AyuGram calls `SetupScalePreview` which renders a floating window showing the actual UI at the selected scale — `settings_screen.dart:1275-1350` ← `settings_main.cpp:1157-1178`
-
-# shell — Audit Findings
-
-- [ ] [CRITICAL] Group call `onHangup` is an empty no-op: pressing the hang-up button in the minimised group-call bar does nothing — no engine call, no state change, call never ends — `shell.dart:346` ← `window_session_controller.cpp` (groups calls must call leave/discard; engine_service.dart has no `leaveGroupCall` method at all)
-
-- [ ] [CRITICAL] Group call `onToggleMute` is an empty no-op: the mute-toggle button in the minimised group-call bar does nothing — `shell.dart:347` ← `call_screen.dart:292` dispatches real mute action; engine_service.dart has no `muteGroupCall` method, so the wiring cannot be completed until the engine method is added
-
-- [ ] [MAJOR] Reconnect countdown is hardcoded to 30 s regardless of what the server says: `_reconnectInterval = 30` is a made-up constant — `shell.dart:939` ← `window_connecting_widget.cpp:325` derives `wait = ((-state) / 1000) + 1` from the actual MTP `dcstate()` value; the Dart ignores the engine's `waitTillRetry` and always counts down from 30 s
-
-- [ ] [MAJOR] Connecting pill text shown without hover for `disconnected` and `unstable` states: `showText = _isHovered || _isWaiting || state == ConnState.disconnected || state == ConnState.unstable` always expands the pill to show "Connecting…" text for those states — `shell.dart:1060-1063` ← `window_connecting_widget.cpp:451-455` only emits non-empty text for Connecting when `underCursor` (hover); for the Waiting state text is always shown, but there is no AyuGram equivalent of an always-text `unstable` state
-
-# shortcuts_settings_screen — Audit findings
-
-- [ ] [CRITICAL] `RecordRound` command is completely absent from both `keyboard_shortcuts.dart` and the settings screen — AyuGram defines `Command::RecordRound` and lists it in the settings as a customizable shortcut between RecordVoice and the admin log separator — `shortcuts_settings_screen.dart:85` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_shortcuts.cpp:114` + `AyuGramDesktop/Telegram/SourceFiles/core/shortcuts.h:73`
-
-- [ ] [MAJOR] `showArchive` and `showContacts` are grouped under "Chat Nav" (group 3) instead of the Folders group — AyuGram places `ShowArchive` and `ShowContacts` after `FolderPrevious` in the folders block, not in the chat navigation block — `shortcuts_settings_screen.dart:33-34` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_shortcuts.cpp:99-101`
 
 # skeleton_animation — Visual & integration gaps vs AyuGram
 
