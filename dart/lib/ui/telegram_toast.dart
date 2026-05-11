@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -245,6 +247,7 @@ void showStickerToast(
   int packCount = 0,
   bool isReaction = false,
   String stickerEmoji = '',
+  String stickerThumbB64 = '',
   VoidCallback? onOpenPack,
 }) {
   final overlay = Overlay.of(context, rootOverlay: true);
@@ -255,6 +258,7 @@ void showStickerToast(
       packCount: packCount,
       isReaction: isReaction,
       stickerEmoji: stickerEmoji,
+      stickerThumbB64: stickerThumbB64,
       onOpenPack: onOpenPack,
       onDone: () {
         entry.remove();
@@ -269,6 +273,7 @@ class _StickerToast extends StatefulWidget {
   final int packCount;
   final bool isReaction;
   final String stickerEmoji;
+  final String stickerThumbB64;
   final VoidCallback? onOpenPack;
   final VoidCallback onDone;
 
@@ -277,6 +282,7 @@ class _StickerToast extends StatefulWidget {
     required this.packCount,
     required this.isReaction,
     this.stickerEmoji = '',
+    this.stickerThumbB64 = '',
     this.onOpenPack,
     required this.onDone,
   });
@@ -286,8 +292,9 @@ class _StickerToast extends StatefulWidget {
 }
 
 class _StickerToastState extends State<_StickerToast>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _ctrl;
+  late final AnimationController _emojiAnimCtrl;
   Timer? _holdTimer;
   bool _hiding = false;
 
@@ -299,6 +306,10 @@ class _StickerToastState extends State<_StickerToast>
       duration: const Duration(milliseconds: _kFadeInMs),
       reverseDuration: const Duration(milliseconds: _kFadeOutMs),
     );
+    _emojiAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
     _ctrl.forward().then((_) {
       if (!mounted) return;
       _holdTimer = Timer(const Duration(milliseconds: 3000), _startHide);
@@ -317,6 +328,7 @@ class _StickerToastState extends State<_StickerToast>
   void dispose() {
     _holdTimer?.cancel();
     _ctrl.dispose();
+    _emojiAnimCtrl.dispose();
     super.dispose();
   }
 
@@ -375,6 +387,56 @@ class _StickerToastState extends State<_StickerToast>
     ];
   }
 
+  Widget _buildAnimatedPreview() {
+    const previewSize = 36.0;
+
+    if (widget.stickerThumbB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(widget.stickerThumbB64);
+        return AnimatedBuilder(
+          animation: _emojiAnimCtrl,
+          builder: (context, child) {
+            final scale = 0.9 + 0.1 * _emojiAnimCtrl.value;
+            return Transform.scale(scale: scale, child: child);
+          },
+          child: Image.memory(
+            Uint8List.fromList(bytes),
+            width: previewSize,
+            height: previewSize,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => _buildAnimatedEmoji(previewSize),
+          ),
+        );
+      } catch (_) {
+        return _buildAnimatedEmoji(previewSize);
+      }
+    }
+    return _buildAnimatedEmoji(previewSize);
+  }
+
+  Widget _buildAnimatedEmoji(double size) {
+    final emoji = widget.stickerEmoji.isNotEmpty
+        ? widget.stickerEmoji
+        : (widget.isReaction ? '✨' : '😀');
+    return AnimatedBuilder(
+      animation: _emojiAnimCtrl,
+      builder: (context, child) {
+        final scale = 0.85 + 0.15 * _emojiAnimCtrl.value;
+        return Transform.scale(scale: scale, child: child);
+      },
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Center(
+          child: Text(
+            emoji,
+            style: TextStyle(fontSize: size * 0.72, decoration: TextDecoration.none),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const stickerMaxWidth = 380.0;
@@ -390,12 +452,7 @@ class _StickerToastState extends State<_StickerToast>
         children: [
           Padding(
             padding: const EdgeInsets.only(right: 10),
-            child: Text(
-              widget.stickerEmoji.isNotEmpty
-                  ? widget.stickerEmoji
-                  : (widget.isReaction ? '✨' : '😀'),
-              style: const TextStyle(fontSize: 26, decoration: TextDecoration.none),
-            ),
+            child: _buildAnimatedPreview(),
           ),
           Flexible(
             child: Text.rich(

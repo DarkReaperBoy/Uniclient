@@ -3131,14 +3131,30 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "SendStoryWithPhoto":
 		var params struct {
-			AccountID string `json:"account_id"`
-			Caption   string `json:"caption"`
-			PhotoData []byte `json:"photo_data"`
+			AccountID          string   `json:"account_id"`
+			Caption            string   `json:"caption"`
+			PhotoData          []byte   `json:"photo_data"`
+			Privacy            string   `json:"privacy"`
+			DurationHours      int      `json:"duration_hours"`
+			SaveToProfile      bool     `json:"save_to_profile"`
+			AllowSharing       bool     `json:"allow_sharing"`
+			SelectedContactIDs []string `json:"selected_contact_ids"`
+			TrimStart          float64  `json:"trim_start"`
+			TrimEnd            float64  `json:"trim_end"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		storyID, err := e.SendStoryWithPhoto(params.AccountID, params.Caption, params.PhotoData)
+		opts := cores.StoryPostOptions{
+			Privacy:            params.Privacy,
+			DurationHours:      params.DurationHours,
+			SaveToProfile:      params.SaveToProfile,
+			AllowSharing:       params.AllowSharing,
+			SelectedContactIDs: params.SelectedContactIDs,
+			TrimStart:          params.TrimStart,
+			TrimEnd:            params.TrimEnd,
+		}
+		storyID, err := e.SendStoryWithPhoto(params.AccountID, params.Caption, params.PhotoData, opts)
 		if err != nil {
 			return nil, err
 		}

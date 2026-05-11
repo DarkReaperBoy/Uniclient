@@ -21382,7 +21382,7 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 	case "SendStoryWithPhoto":
 		var req pbcores.TelegramSendStoryWithPhotoRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SendStoryWithPhoto(req.Text, req.PhotoData)
+		r1, err := c.SendStoryWithPhoto(req.Text, req.PhotoData, cores.StoryPostOptions{})
 		if err != nil { return nil, err }
 		resp := &pbcores.TelegramSendStoryWithPhotoResponse{
 			Result_1: int64(r1),

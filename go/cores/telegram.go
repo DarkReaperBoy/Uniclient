@@ -18399,7 +18399,7 @@ func (t *TelegramCore) SendInlineBotResult(chatID string, queryID int64, resultI
 }
 
 // SendStoryWithPhoto uploads a photo and posts it as a story.
-func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte) (int, error) {
+func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte, opts StoryPostOptions) (int, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return 0, ErrAuth }
 	u := uploader.NewUploader(t.api)
@@ -18408,13 +18408,45 @@ func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte) (int, e
 	rb := make([]byte, 8)
 	if _, err := rand.Read(rb); err != nil { return 0, err }
 	randomID := int64(binary.LittleEndian.Uint64(rb))
+
+	var privacyRules []tg.InputPrivacyRuleClass
+	switch opts.Privacy {
+	case "contacts":
+		privacyRules = []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowContacts{}}
+	case "closeFriends":
+		privacyRules = []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowCloseFriends{}}
+	case "selectedContacts":
+		if len(opts.SelectedContactIDs) > 0 {
+			users := make([]tg.InputUserClass, 0, len(opts.SelectedContactIDs))
+			for _, uid := range opts.SelectedContactIDs {
+				id, parseErr := strconv.ParseInt(uid, 10, 64)
+				if parseErr != nil { continue }
+				users = append(users, &tg.InputUser{UserID: id})
+			}
+			privacyRules = []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowUsers{Users: users}}
+		} else {
+			privacyRules = []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowContacts{}}
+		}
+	default:
+		privacyRules = []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowAll{}}
+	}
+
 	req := &tg.StoriesSendStoryRequest{
 		Peer: &tg.InputPeerSelf{},
 		Media: &tg.InputMediaUploadedPhoto{File: upload},
 		RandomID: randomID,
-		PrivacyRules: []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowAll{}},
+		PrivacyRules: privacyRules,
 	}
 	if text != "" { req.SetCaption(text) }
+	if opts.DurationHours > 0 {
+		req.SetPeriod(opts.DurationHours * 3600)
+	}
+	if opts.SaveToProfile {
+		req.SetPinned(true)
+	}
+	if !opts.AllowSharing {
+		req.SetNoforwards(true)
+	}
 	result, err := t.api.StoriesSendStory(t.ctx, req)
 	if err != nil { return 0, err }
 	switch v := result.(type) {

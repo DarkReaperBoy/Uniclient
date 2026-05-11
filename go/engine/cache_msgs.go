@@ -1926,10 +1926,10 @@ func (e *Engine) ReorderStoryAlbums(accountID string, albumIDs []int64) error {
 }
 
 type StorySender interface {
-	SendStoryWithPhoto(text string, photoData []byte) (int, error)
+	SendStoryWithPhoto(text string, photoData []byte, opts cores.StoryPostOptions) (int, error)
 }
 
-func (e *Engine) SendStoryWithPhoto(accountID, text string, photoData []byte) (int, error) {
+func (e *Engine) SendStoryWithPhoto(accountID, text string, photoData []byte, opts cores.StoryPostOptions) (int, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return 0, fmt.Errorf("account not found: %s", accountID)
@@ -1941,7 +1941,7 @@ func (e *Engine) SendStoryWithPhoto(accountID, text string, photoData []byte) (i
 	if !ok {
 		return 0, fmt.Errorf("platform does not support sending stories")
 	}
-	return sender.SendStoryWithPhoto(text, photoData)
+	return sender.SendStoryWithPhoto(text, photoData, opts)
 }
 
 type EditRevision struct {

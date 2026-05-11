@@ -1147,11 +1147,29 @@ class EngineService {
     }
   }
 
-  Future<int> sendStoryWithPhoto(String accountId, String caption, Uint8List photoData) async {
+  Future<int> sendStoryWithPhoto(
+    String accountId,
+    String caption,
+    Uint8List photoData, {
+    String privacy = 'everyone',
+    int durationHours = 24,
+    bool saveToProfile = true,
+    bool allowSharing = true,
+    List<String> selectedContactIds = const [],
+    double trimStart = 0.0,
+    double trimEnd = 1.0,
+  }) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'caption': caption,
       'photo_data': photoData.toList(),
+      'privacy': privacy,
+      'duration_hours': durationHours,
+      'save_to_profile': saveToProfile,
+      'allow_sharing': allowSharing,
+      'selected_contact_ids': selectedContactIds,
+      'trim_start': trimStart,
+      'trim_end': trimEnd,
     }));
     try {
       final resp = await _callAsync('__engine', 'SendStoryWithPhoto', Uint8List.fromList(payload));

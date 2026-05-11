@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -6,9 +8,11 @@ import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import 'telegram_toast.dart';
 
@@ -172,6 +176,10 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   bool _posting = false;
   double _uploadProgress = 0;
   bool _posted = false;
+  List<String> _selectedContactIds = [];
+
+  // Video thumbnails for trim slider
+  List<ui.Image?> _videoThumbnails = [];
 
   // Gesture state for item manipulation
   Offset? _dragStart;
@@ -236,16 +244,15 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       final ext = file.path.split('.').last.toLowerCase();
       final isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext);
       if (isVideo) {
-        final fileSize = await file.length();
-        final estimatedDuration = (fileSize / (500 * 1024)).clamp(1, 60).toInt();
         setState(() {
           _videoFile = file;
           _imageFile = null;
           _hasMedia = true;
           _trimStart = 0.0;
           _trimEnd = 1.0;
-          _videoDuration = Duration(seconds: estimatedDuration);
+          _videoThumbnails = [];
         });
+        _readVideoDuration(file);
       } else {
         setState(() {
           _imageFile = file;
@@ -268,6 +275,73 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     final frame = await codec.getNextFrame();
     if (mounted) {
       setState(() => _loadedImage = frame.image);
+    }
+  }
+
+  Future<void> _readVideoDuration(File file) async {
+    final player = Player();
+    try {
+      final completer = Completer<Duration>();
+      StreamSubscription<Duration>? sub;
+      sub = player.stream.duration.listen((dur) {
+        if (dur > Duration.zero && !completer.isCompleted) {
+          completer.complete(dur);
+          sub?.cancel();
+        }
+      });
+      await player.open(Media(file.path), play: false);
+      final duration = await completer.future.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          final fileSize = file.lengthSync();
+          return Duration(seconds: (fileSize / (500 * 1024)).clamp(1, 300).toInt());
+        },
+      );
+      if (mounted) {
+        setState(() => _videoDuration = duration);
+      }
+      _extractVideoThumbnails(file, duration);
+    } finally {
+      await player.dispose();
+    }
+  }
+
+  Future<void> _extractVideoThumbnails(File file, Duration totalDuration) async {
+    if (totalDuration.inMilliseconds <= 0) return;
+    const frameCount = 12;
+    final thumbs = <ui.Image?>[];
+    final player = Player();
+    try {
+      await player.open(Media(file.path), play: false);
+      await Future.delayed(const Duration(milliseconds: 300));
+      for (var i = 0; i < frameCount; i++) {
+        final seekMs = (totalDuration.inMilliseconds * i / frameCount).round();
+        await player.seek(Duration(milliseconds: seekMs));
+        await Future.delayed(const Duration(milliseconds: 150));
+        final screenshot = await player.screenshot();
+        if (screenshot != null && screenshot.isNotEmpty) {
+          try {
+            final codec = await ui.instantiateImageCodec(
+              screenshot,
+              targetWidth: 48,
+              targetHeight: 48,
+            );
+            final frame = await codec.getNextFrame();
+            thumbs.add(frame.image);
+          } catch (_) {
+            thumbs.add(null);
+          }
+        } else {
+          thumbs.add(null);
+        }
+      }
+    } catch (_) {
+      // Fall back to empty thumbnails
+    } finally {
+      await player.dispose();
+    }
+    if (mounted && thumbs.isNotEmpty) {
+      setState(() => _videoThumbnails = thumbs);
     }
   }
 
@@ -330,42 +404,46 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       _uploadProgress = 0;
     });
 
+    Timer? progressTimer;
+
     try {
       final appState = context.read<AppState>();
       final accountId = appState.activeAccountId;
       if (accountId == null) throw Exception('No active account');
       final engine = context.read<EngineService>();
 
+      Uint8List mediaBytes;
       if (_videoFile != null) {
-        final videoBytes = await _videoFile!.readAsBytes();
-        setState(() => _uploadProgress = 0.3);
-        final payload = {
-          'account_id': accountId,
-          'caption': _captionController.text,
-          'video_data': videoBytes.toList(),
-          'privacy': _privacy.name,
-          'duration_hours': _durationHours,
-          'save_to_profile': _saveToProfile,
-          'allow_sharing': _allowSharing,
-          'trim_start': _trimStart,
-          'trim_end': _trimEnd,
-        };
-        setState(() => _uploadProgress = 0.6);
-        await engine.sendStoryWithPhoto(
-          accountId,
-          _captionController.text,
-          videoBytes,
-        );
+        mediaBytes = await _videoFile!.readAsBytes();
+        setState(() => _uploadProgress = 0.15);
       } else {
-        final photoData = await _renderCanvasToBytes();
-        setState(() => _uploadProgress = 0.5);
-        await engine.sendStoryWithPhoto(
-          accountId,
-          _captionController.text,
-          photoData,
-        );
+        mediaBytes = await _renderCanvasToBytes();
+        setState(() => _uploadProgress = 0.15);
       }
 
+      progressTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        if (!mounted) return;
+        setState(() {
+          if (_uploadProgress < 0.85) {
+            _uploadProgress += 0.02;
+          }
+        });
+      });
+
+      await engine.sendStoryWithPhoto(
+        accountId,
+        _captionController.text,
+        mediaBytes,
+        privacy: _privacy.name,
+        durationHours: _durationHours,
+        saveToProfile: _saveToProfile,
+        allowSharing: _allowSharing,
+        selectedContactIds: _selectedContactIds,
+        trimStart: _trimStart,
+        trimEnd: _trimEnd,
+      );
+
+      progressTimer.cancel();
       setState(() {
         _uploadProgress = 1.0;
         _posted = true;
@@ -373,6 +451,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
+      progressTimer?.cancel();
       setState(() => _posting = false);
       if (mounted) {
         showTelegramToast(context, 'Failed to post story: $e');
@@ -905,6 +984,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
             _VideoTrimSlider(
               trimStart: _trimStart,
               trimEnd: _trimEnd,
+              thumbnails: _videoThumbnails,
               onChanged: (start, end) {
                 setState(() {
                   _trimStart = start;
@@ -1325,6 +1405,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       builder: (ctx) => _PrivacyDialog(
         current: _privacy,
         onSelected: (v) => setState(() => _privacy = v),
+        selectedContactIds: _selectedContactIds,
+        onContactsSelected: (ids) => setState(() => _selectedContactIds = ids),
       ),
     );
   }
@@ -1821,8 +1903,15 @@ class _BrushSizeSliderPainter extends CustomPainter {
 class _PrivacyDialog extends StatefulWidget {
   final StoryPrivacyOption current;
   final ValueChanged<StoryPrivacyOption> onSelected;
+  final ValueChanged<List<String>>? onContactsSelected;
+  final List<String> selectedContactIds;
 
-  const _PrivacyDialog({required this.current, required this.onSelected});
+  const _PrivacyDialog({
+    required this.current,
+    required this.onSelected,
+    this.onContactsSelected,
+    this.selectedContactIds = const [],
+  });
 
   @override
   State<_PrivacyDialog> createState() => _PrivacyDialogState();
@@ -1830,11 +1919,13 @@ class _PrivacyDialog extends StatefulWidget {
 
 class _PrivacyDialogState extends State<_PrivacyDialog> {
   late StoryPrivacyOption _selected;
+  late List<String> _contactIds;
 
   @override
   void initState() {
     super.initState();
     _selected = widget.current;
+    _contactIds = List<String>.from(widget.selectedContactIds);
   }
 
   static const _options = [
@@ -1888,7 +1979,7 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
                   onTap: () {
                     setState(() => _selected = option);
                     if (option == StoryPrivacyOption.selectedContacts) {
-                      _showContactSelectionHint(context, textColor);
+                      _showContactPicker(context);
                     }
                   },
                   child: Padding(
@@ -1913,7 +2004,7 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
                             if (v != null) {
                               setState(() => _selected = v);
                               if (v == StoryPrivacyOption.selectedContacts) {
-                                _showContactSelectionHint(context, textColor);
+                                _showContactPicker(context);
                               }
                             }
                           },
@@ -1936,6 +2027,7 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
                     TextButton(
                       onPressed: () {
                         widget.onSelected(_selected);
+                        widget.onContactsSelected?.call(_contactIds);
                         Navigator.pop(context);
                       },
                       child: const Text('Save', style: TextStyle(color: Color(0xFF4DB8FF))),
@@ -1950,16 +2042,213 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
     );
   }
 
-  void _showContactSelectionHint(BuildContext context, Color textColor) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Contact selection will be available after posting. '
-          'Your story will be shared with selected contacts.',
-          style: TextStyle(color: textColor),
+  Future<void> _showContactPicker(BuildContext context) async {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId == null) return;
+
+    final contacts = await engine.getContacts(accountId);
+    if (!context.mounted) return;
+
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (ctx) => _ContactPickerDialog(
+        contacts: contacts,
+        selectedIds: _contactIds,
+      ),
+    );
+    if (result != null) {
+      setState(() => _contactIds = result);
+    }
+  }
+}
+
+class _ContactPickerDialog extends StatefulWidget {
+  final List<ContactInfo> contacts;
+  final List<String> selectedIds;
+
+  const _ContactPickerDialog({
+    required this.contacts,
+    required this.selectedIds,
+  });
+
+  @override
+  State<_ContactPickerDialog> createState() => _ContactPickerDialogState();
+}
+
+class _ContactPickerDialogState extends State<_ContactPickerDialog> {
+  late Set<String> _selected;
+  String _search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set<String>.from(widget.selectedIds);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtextColor = isDark ? Colors.white54 : Colors.black45;
+
+    final filtered = widget.contacts.where((c) {
+      if (_search.isEmpty) return true;
+      final q = _search.toLowerCase();
+      return c.displayName.toLowerCase().contains(q) ||
+          c.username.toLowerCase().contains(q);
+    }).toList();
+
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: 340,
+          constraints: const BoxConstraints(maxHeight: 500),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Select contacts (${_selected.length})',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  onChanged: (v) => setState(() => _search = v),
+                  style: TextStyle(color: textColor, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Search contacts...',
+                    hintStyle: TextStyle(color: subtextColor, fontSize: 13),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(color: subtextColor),
+                    ),
+                    prefixIcon: Icon(Icons.search, size: 18, color: subtextColor),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: filtered.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'No contacts found',
+                          style: TextStyle(color: subtextColor, fontSize: 13),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: filtered.length,
+                        itemBuilder: (ctx, i) {
+                          final c = filtered[i];
+                          final isSelected = _selected.contains(c.userId);
+                          return InkWell(
+                            onTap: () {
+                              setState(() {
+                                if (isSelected) {
+                                  _selected.remove(c.userId);
+                                } else {
+                                  _selected.add(c.userId);
+                                }
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: const Color(0xFF4DB8FF),
+                                    child: Text(
+                                      c.displayName.isNotEmpty
+                                          ? c.displayName[0].toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          c.displayName.isNotEmpty ? c.displayName : c.username,
+                                          style: TextStyle(fontSize: 14, color: textColor),
+                                        ),
+                                        if (c.username.isNotEmpty)
+                                          Text(
+                                            '@${c.username}',
+                                            style: TextStyle(fontSize: 12, color: subtextColor),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  Checkbox(
+                                    value: isSelected,
+                                    onChanged: (v) {
+                                      setState(() {
+                                        if (v == true) {
+                                          _selected.add(c.userId);
+                                        } else {
+                                          _selected.remove(c.userId);
+                                        }
+                                      });
+                                    },
+                                    activeColor: const Color(0xFF4DB8FF),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text('Cancel', style: TextStyle(color: subtextColor)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, _selected.toList()),
+                      child: const Text('Done', style: TextStyle(color: Color(0xFF4DB8FF))),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        duration: const Duration(seconds: 2),
-        backgroundColor: const Color(0xFF1E2C3A),
       ),
     );
   }
@@ -2139,11 +2428,13 @@ class _VideoTrimSlider extends StatefulWidget {
   final double trimStart;
   final double trimEnd;
   final void Function(double start, double end) onChanged;
+  final List<ui.Image?> thumbnails;
 
   const _VideoTrimSlider({
     required this.trimStart,
     required this.trimEnd,
     required this.onChanged,
+    this.thumbnails = const [],
   });
 
   @override
@@ -2153,11 +2444,7 @@ class _VideoTrimSlider extends StatefulWidget {
 class _VideoTrimSliderState extends State<_VideoTrimSlider> {
   static const _kHeight = 48.0;
   static const _kFrameCount = 12;
-  static const _kFrameSize = 36.0;
-  static const _kFrameRadius = 4.0;
-  static const _kHandleWidth = 8.0;
   static const _kMinDuration = 1.0 / 60.0;
-  static const _kDarkenColor = Color(0x73000000);
 
   bool _draggingLeft = false;
   bool _draggingRight = false;
@@ -2201,6 +2488,7 @@ class _VideoTrimSliderState extends State<_VideoTrimSlider> {
                 trimStart: widget.trimStart,
                 trimEnd: widget.trimEnd,
                 frameCount: _kFrameCount,
+                thumbnails: widget.thumbnails,
               ),
               size: Size(totalW, _kHeight),
             ),
@@ -2215,11 +2503,13 @@ class _VideoTrimPainter extends CustomPainter {
   final double trimStart;
   final double trimEnd;
   final int frameCount;
+  final List<ui.Image?> thumbnails;
 
   _VideoTrimPainter({
     required this.trimStart,
     required this.trimEnd,
     required this.frameCount,
+    this.thumbnails = const [],
   });
 
   @override
@@ -2230,28 +2520,21 @@ class _VideoTrimPainter extends CustomPainter {
 
     for (var i = 0; i < frameCount; i++) {
       final x = i * frameW;
-      final t = i / frameCount;
-      final brightness = 0.15 + t * 0.15;
-      final color = Color.fromRGBO(
-        (40 + t * 30).toInt(),
-        (40 + t * 20).toInt(),
-        (50 + t * 20).toInt(),
-        1.0,
-      );
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x + 1, frameY, frameW - 2, frameH),
-        const Radius.circular(4),
-      );
-      canvas.drawRRect(rect, Paint()..color = color);
-      final stripePaint = Paint()
-        ..color = Color.fromRGBO(255, 255, 255, 0.08)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1;
-      canvas.drawLine(
-        Offset(x + frameW / 2, frameY + 2),
-        Offset(x + frameW / 2, frameY + frameH - 2),
-        stripePaint,
-      );
+      final frameRect = Rect.fromLTWH(x + 1, frameY, frameW - 2, frameH);
+      final rrect = RRect.fromRectAndRadius(frameRect, const Radius.circular(4));
+
+      if (i < thumbnails.length && thumbnails[i] != null) {
+        final img = thumbnails[i]!;
+        canvas.save();
+        canvas.clipRRect(rrect);
+        final src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
+        canvas.drawImageRect(img, src, frameRect, Paint());
+        canvas.restore();
+      } else {
+        final t = i / frameCount;
+        final gray = (30 + t * 15).toInt();
+        canvas.drawRRect(rrect, Paint()..color = Color.fromRGBO(gray, gray, gray + 5, 1.0));
+      }
     }
 
     final darken = Paint()..color = const Color(0x73000000);
@@ -2292,7 +2575,8 @@ class _VideoTrimPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _VideoTrimPainter old) =>
-      old.trimStart != trimStart || old.trimEnd != trimEnd;
+      old.trimStart != trimStart || old.trimEnd != trimEnd ||
+      old.thumbnails != thumbnails;
 }
 
 class _StickerPickerPanel extends StatefulWidget {
@@ -2306,6 +2590,8 @@ class _StickerPickerPanel extends StatefulWidget {
 
 class _StickerPickerPanelState extends State<_StickerPickerPanel> {
   int _activeTab = 0;
+  List<StickerPackSummary>? _stickerPacks;
+  bool _loadingPacks = false;
 
   static const _emojiCategories = [
     ['😀', '😂', '🥹', '😍', '🥰', '😎', '🤩', '🥳',
@@ -2320,6 +2606,33 @@ class _StickerPickerPanelState extends State<_StickerPickerPanel> {
   ];
 
   List<String> get _allEmojis => _emojiCategories.expand((c) => c).toList();
+
+  void _loadStickerPacks() {
+    if (_loadingPacks || _stickerPacks != null) return;
+    _loadingPacks = true;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId == null) {
+      setState(() => _loadingPacks = false);
+      return;
+    }
+    engine.getInstalledStickerPacks(accountId).then((packs) {
+      if (mounted) {
+        setState(() {
+          _stickerPacks = packs;
+          _loadingPacks = false;
+        });
+      }
+    }).catchError((_) {
+      if (mounted) {
+        setState(() {
+          _stickerPacks = [];
+          _loadingPacks = false;
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2354,7 +2667,10 @@ class _StickerPickerPanelState extends State<_StickerPickerPanel> {
                 ),
                 const SizedBox(width: 24),
                 GestureDetector(
-                  onTap: () => setState(() => _activeTab = 1),
+                  onTap: () {
+                    setState(() => _activeTab = 1);
+                    _loadStickerPacks();
+                  },
                   child: Text(
                     'Stickers',
                     style: TextStyle(
@@ -2398,19 +2714,83 @@ class _StickerPickerPanelState extends State<_StickerPickerPanel> {
   }
 
   Widget _buildStickerGrid() {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.sticky_note_2_outlined, color: Colors.white38, size: 48),
-          SizedBox(height: 12),
-          Text(
-            'Sticker packs from your account\nwill appear here',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white38, fontSize: 13),
-          ),
-        ],
+    if (_loadingPacks) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF4DB8FF)),
+      );
+    }
+    final packs = _stickerPacks;
+    if (packs == null || packs.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.sticky_note_2_outlined, color: Colors.white38, size: 48),
+            SizedBox(height: 12),
+            Text(
+              'No sticker packs installed',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white38, fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final allStickers = <(StickerInfoItem, String)>[];
+    for (final pack in packs) {
+      for (final sticker in pack.stickers) {
+        allStickers.add((sticker, pack.title));
+      }
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 5,
+        mainAxisSpacing: 6,
+        crossAxisSpacing: 6,
       ),
+      itemCount: allStickers.length,
+      itemBuilder: (ctx, i) {
+        final (sticker, _) = allStickers[i];
+        Widget stickerWidget;
+        if (sticker.thumbB64.isNotEmpty) {
+          try {
+            final bytes = base64Decode(sticker.thumbB64);
+            stickerWidget = Image.memory(
+              Uint8List.fromList(bytes),
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Center(
+                child: Text(
+                  sticker.emoji.isNotEmpty ? sticker.emoji : '?',
+                  style: const TextStyle(fontSize: 32),
+                ),
+              ),
+            );
+          } catch (_) {
+            stickerWidget = Center(
+              child: Text(
+                sticker.emoji.isNotEmpty ? sticker.emoji : '?',
+                style: const TextStyle(fontSize: 32),
+              ),
+            );
+          }
+        } else {
+          stickerWidget = Center(
+            child: Text(
+              sticker.emoji.isNotEmpty ? sticker.emoji : '?',
+              style: const TextStyle(fontSize: 32),
+            ),
+          );
+        }
+        return GestureDetector(
+          onTap: () => widget.onEmojiSelected(
+            sticker.emoji.isNotEmpty ? sticker.emoji : '?',
+          ),
+          child: stickerWidget,
+        );
+      },
     );
   }
 }

@@ -747,6 +747,16 @@ type ForwardOptions struct {
 	ScheduleDate int64
 }
 
+type StoryPostOptions struct {
+	Privacy            string
+	DurationHours      int
+	SaveToProfile      bool
+	AllowSharing       bool
+	SelectedContactIDs []string
+	TrimStart          float64
+	TrimEnd            float64
+}
+
 type ForwardWithOptionsSupporter interface {
 	ForwardMessageWithOptions(fromChatID, msgID, toChatID string, opts ForwardOptions) (*Message, error)
 }
