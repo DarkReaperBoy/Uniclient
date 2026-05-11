@@ -877,24 +877,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
   }
 
-  Future<void> _replaceFile(int idx, _PreparedFile replacement) async {
+  void _replaceFile(int idx, _PreparedFile replacement) {
     if (idx < 0 || idx >= _files.length) return;
-    try {
-      final result = await FilePicker.platform.pickFiles();
-      if (result == null || result.files.isEmpty || result.files.first.path == null) return;
-      final newPath = result.files.first.path!;
-      final f = File(newPath);
-      if (!f.existsSync()) return;
-      final name = f.uri.pathSegments.last;
-      final newFile = _PreparedFile(
-        path: newPath,
-        name: name,
-        size: f.lengthSync(),
-        type: _detectType(name),
-      );
-      setState(() => _files[idx] = newFile);
-      _loadImageDimensions();
-    } catch (_) {}
+    setState(() => _files[idx] = replacement);
+    _loadImageDimensions();
   }
 
   void _renameFile(int idx, String newName) {
