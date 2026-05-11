@@ -2135,42 +2135,42 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
         child: Stack(
           children: [
             Positioned(
-              left: 22,
-              top: 17,
-              right: 22,
+              left: 24,
+              top: 13,
+              right: 24,
               child: Text(
                 'Keep this theme?',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: p.boxTitleFg,
                 ),
               ),
             ),
             Positioned(
-              left: 22,
+              left: 24,
               top: 60,
-              right: 22,
+              right: 24,
               child: Text(
                 'Theme will revert in $seconds second${seconds == 1 ? '' : 's'}',
-                style: TextStyle(fontSize: 13, color: p.boxTitleAdditionalFg),
+                style: TextStyle(fontSize: 14, color: p.boxTextFg),
               ),
             ),
             Positioned(
-              right: 12,
-              bottom: 12,
+              right: 10,
+              bottom: 10,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextButton(
                     onPressed: _revert,
                     style: TextButton.styleFrom(
-                      foregroundColor: p.boxTitleAdditionalFg,
+                      foregroundColor: p.boxTextFg,
                       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                     ),
                     child: const Text('Revert'),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   TextButton(
                     onPressed: _keep,
                     style: TextButton.styleFrom(
