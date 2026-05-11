@@ -1145,23 +1145,20 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       _files.where((f) => f.isMediaType).every((f) => f.spoiler);
 
   String get _titleText {
-    if (_files.length == 1) {
-      final f = _files.first;
-      if (_sendAsDocuments) return 'Send file';
-      return switch (f.type) {
-        _FileType.photo => f.isGif ? 'Send GIF' : 'Send image',
-        _FileType.video => 'Send video',
-        _FileType.music => 'Send audio',
-        _FileType.file => 'Send file',
-      };
+    final count = _files.length;
+    if (count > 1) {
+      final imagesCount =
+          _files.where((f) => f.type == _FileType.photo).length;
+      return (imagesCount == count)
+          ? 'Send $count images selected'
+          : 'Send $count files selected';
     }
-    if (_sendAsDocuments) return 'Send ${_files.length} files';
-    final photos = _files.where((f) => f.type == _FileType.photo && !f.isGif).length;
-    final videos = _files.where((f) => f.type == _FileType.video).length;
-    if (photos == _files.length) return 'Send $photos images selected';
-    if (videos == _files.length) return 'Send $videos videos selected';
-    if (photos + videos == _files.length) return 'Send ${_files.length} media selected';
-    return 'Send ${_files.length} files selected';
+    final type = _files.isEmpty ? _FileType.file : _files.first.type;
+    return switch (type) {
+      _FileType.photo => 'Send image',
+      _FileType.video => 'Send video',
+      _ => 'Send file',
+    };
   }
 
   bool get _anySpoilered =>
