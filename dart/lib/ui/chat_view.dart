@@ -3962,12 +3962,14 @@ class _ChatViewState extends State<ChatView>
       starsPerMessage: chat?.starsToSend ?? 0,
       isSlowMode: (chat?.slowmodeSeconds ?? 0) > 0,
       overrideSendAsDocuments: overrideSendAsDocuments ?? appState.rememberedSendAsDocuments,
+      overrideGroupFiles: appState.rememberedGroupFiles,
       members: _acMembers,
       isBroadcast: chat?.type == ChatType.channel,
     );
     if (result == null || result.paths.isEmpty) return;
     if (result.remember) {
       appState.rememberedSendAsDocuments = result.sendAsDocuments;
+      appState.rememberedGroupFiles = result.groupFiles;
     }
     final scheduleDate = result.scheduledDate != null
         ? result.scheduledDate!.millisecondsSinceEpoch ~/ 1000

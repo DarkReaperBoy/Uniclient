@@ -207,6 +207,7 @@ Future<SendFilesResult?> showSendFilesBox(
   int starsPerMessage = 0,
   bool isSlowMode = false,
   bool? overrideSendAsDocuments,
+  bool? overrideGroupFiles,
   List<MemberInfo> members = const [],
   bool isBroadcast = false,
 }) {
@@ -240,6 +241,7 @@ Future<SendFilesResult?> showSendFilesBox(
       starsPerMessage: starsPerMessage,
       isSlowMode: isSlowMode,
       overrideSendAsDocuments: overrideSendAsDocuments,
+      overrideGroupFiles: overrideGroupFiles,
       members: members,
       isBroadcast: isBroadcast,
     ),
@@ -253,6 +255,7 @@ class _SendFilesBoxDialog extends StatefulWidget {
   final int starsPerMessage;
   final bool isSlowMode;
   final bool? overrideSendAsDocuments;
+  final bool? overrideGroupFiles;
   final List<MemberInfo> members;
   final bool isBroadcast;
 
@@ -263,6 +266,7 @@ class _SendFilesBoxDialog extends StatefulWidget {
     this.starsPerMessage = 0,
     this.isSlowMode = false,
     this.overrideSendAsDocuments,
+    this.overrideGroupFiles,
     this.members = const [],
     this.isBroadcast = false,
   });
@@ -328,7 +332,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       _preservedCaption = '';
     }
     _sendAsDocuments = widget.overrideSendAsDocuments ?? false;
-    _groupFiles = true;
+    _groupFiles = widget.overrideGroupFiles ?? true;
     _initialSendAsDocuments = _sendAsDocuments;
     _initialGroupFiles = _groupFiles;
     _files = widget.filePaths.map((p) {

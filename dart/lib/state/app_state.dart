@@ -196,6 +196,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String _sendBy = 'enter';
 
   bool? _rememberedSendAsDocuments;
+  bool? _rememberedGroupFiles;
 
   /// Spec §7.3: When true, empty-field send button shows Round (camera) instead of Record (mic).
   bool _recordVideoMessages = false;
@@ -2051,6 +2052,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  bool? get rememberedGroupFiles => _rememberedGroupFiles;
+  set rememberedGroupFiles(bool? value) {
+    if (_rememberedGroupFiles != value) {
+      _rememberedGroupFiles = value;
+      _saveWindowPrefs();
+      notifyListeners();
+    }
+  }
+
   // §15: Notification settings getters/setters
   bool get notifDesktopNotify => _notifDesktopNotify;
   set notifDesktopNotify(bool v) { if (_notifDesktopNotify != v) { _notifDesktopNotify = v; _saveWindowPrefs(); notifyListeners(); } }
@@ -2771,6 +2781,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _systemDarkMode = data['systemDarkMode'] as bool? ?? false;
       _sendBy = data['sendBy'] as String? ?? 'enter';
       _rememberedSendAsDocuments = data['rememberedSendAsDocuments'] as bool?;
+      _rememberedGroupFiles = data['rememberedGroupFiles'] as bool?;
       _recordVideoMessages = data['recordVideoMessages'] as bool? ?? false;
       _powerSavingFlags = data['powerSavingFlags'] as int? ?? 0;
       _autoPowerSaving = data['autoPowerSaving'] as bool? ?? false;
@@ -3022,6 +3033,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'systemDarkMode': _systemDarkMode,
         'sendBy': _sendBy,
         if (_rememberedSendAsDocuments != null) 'rememberedSendAsDocuments': _rememberedSendAsDocuments,
+        if (_rememberedGroupFiles != null) 'rememberedGroupFiles': _rememberedGroupFiles,
         'recordVideoMessages': _recordVideoMessages,
         'powerSavingFlags': _powerSavingFlags,
         'autoPowerSaving': _autoPowerSaving,
