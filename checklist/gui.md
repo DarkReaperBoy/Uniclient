@@ -697,41 +697,7 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 - Auto-revert on timeout: Both auto-revert when countdown reaches 0 ✓
 - Backend wiring: onKeep → `appState.keepAppliedTheme()`, onRevert → `appState.revertTheme()` ✓
 
-# titlebar — Active state, dimensions, right-click menu missing
+# titlebar — Verified ✅ (all 7 items fixed: dimensions, active state, icons, right-click, oneSideControls)
 
-- [ ] [CRITICAL] Titlebar height is 28px and button width is 46px but AyuGram spec is 24px / 36px — 17% height deviation and 28% button width deviation — `titlebar.dart:65-66` ← `AyuGram/lib_ui/ui/widgets/widgets.style:1576-1577`
-
-- [ ] [CRITICAL] Missing active/inactive window focus state: titlebar background never switches between `titleBg` (inactive) and `titleBgActive` (active); AyuGram `paintEvent` uses `active ? st->bgActive : st->bg` — `titlebar.dart:177` ← `AyuGram/lib_ui/ui/platform/ui_platform_window_title.cpp:462-467`
-
-- [ ] [CRITICAL] Missing active/inactive button state update: AyuGram tracks `_activeState` and calls `updateButtonsState()` to switch button icons between inactive (`minimizeIcon`) and active (`minimizeIconActive`) variants on window focus change; Dart `_WinButton` has no such state change — `titlebar.dart:235-260` ← `AyuGram/lib_ui/ui/platform/ui_platform_window_title.cpp:80-125`
-
-- [ ] [CRITICAL] Missing right-click context menu on drag area: AyuGram `mousePressEvent` calls `ShowWindowMenu(window(), e->windowPos().toPoint())` on right-click; Dart `GestureDetector` has no `onSecondaryTap`/`onSecondaryLongPress` handler — `titlebar.dart:200-205` ← `AyuGram/lib_ui/ui/platform/ui_platform_window_title.cpp:473-478`
-
-- [ ] [MAJOR] Material icon substitutes used instead of custom title button sprite icons: Dart uses `Icons.remove`, `Icons.filter_none`, `Icons.crop_square`, `Icons.close`; AyuGram uses `title_button_minimize`, `title_button_maximize`, `title_button_restore`, `title_button_close` icon sprites — `titlebar.dart:147,154,162` ← `AyuGram/lib_ui/ui/widgets/widgets.style:1600-1667`
-
-- [ ] [MAJOR] Missing `oneSideControls` consolidation: AyuGram `updateControlsPosition()` moves all buttons to one side when `oneSideControls` is set or layout dictates it; Dart always renders left buttons on left and right buttons on right with no consolidation — `titlebar.dart:195-208` ← `AyuGram/lib_ui/ui/platform/ui_platform_window_title.cpp:325-339`
-
-- [ ] [MAJOR] `isDark` variable computed but never used — suggests active/inactive coloring logic was started but abandoned; dead code indicating incomplete implementation — `titlebar.dart:176` ← `AyuGram/lib_ui/ui/colors.palette:101` (`titleBgActive` color)
-
-# web_app_panel — Web App Panel Audit
-
-- [ ] [CRITICAL] No actual webview embedded — "ready" state shows static placeholder "Web App opened externally" with open-in-browser fallback instead of embedded webview content — `web_app_panel.dart:384-416` ← `AyuGramDesktop/SourceFiles/ui/chat/attach/attach_bot_webview.cpp:173` (`createWebview()`)
-
-- [ ] [CRITICAL] `_simulateLoading()` fakes loading with a hardcoded 800ms delay — no real webview initialization, no actual page load events — `web_app_panel.dart:140-151` ← `AyuGramDesktop/SourceFiles/ui/chat/attach/attach_bot_webview.cpp:493-500` (real webview init with `showWebview()`)
-
-- [ ] [CRITICAL] `_onBack()` is an empty stub — back button press never dispatches `"back_button_pressed"` event to the mini app JS — `web_app_panel.dart:190` ← `AyuGramDesktop/SourceFiles/ui/chat/attach/attach_bot_webview.cpp:472-475` (`postEvent("back_button_pressed")`)
-
-- [ ] [CRITICAL] Main button `onPressed: () {}` is a dead callback — click never sends `"main_button_pressed"` event to the webview — `web_app_panel.dart:471` ← `AyuGramDesktop/SourceFiles/ui/chat/attach/attach_bot_webview.cpp:1907-1909` (main button click dispatches event)
-
-- [ ] [CRITICAL] Secondary button `onPressed: () {}` is a dead callback — click never sends `"secondary_button_pressed"` event to the webview — `web_app_panel.dart:483` ← `AyuGramDesktop/SourceFiles/ui/chat/attach/attach_bot_webview.cpp:1909` (secondary button click dispatches event)
-
-- [ ] [CRITICAL] `_showMenu` discards `showMenu<String>()` return value — menu item selections ("Open Bot", "Settings", "Remove from Menu") are never handled; no delegate callbacks fire on tap — `web_app_panel.dart:208-241` ← `AyuGramDesktop/SourceFiles/ui/chat/attach/attach_bot_webview.cpp:780-822` (each item calls `_delegate->botHandleMenuButton(...)`)
-
-- [ ] [CRITICAL] No webview message handler — panel never processes any `web_app_*` JS commands (web_app_setup_main_button, web_app_setup_back_button, web_app_setup_settings_button, web_app_request_theme, web_app_request_viewport, web_app_close, web_app_data_send, etc.) so the mini app JS cannot control the panel at all — `web_app_panel.dart:102-557` (no message handler exists) ← `AyuGramDesktop/SourceFiles/ui/chat/attach/attach_bot_webview.cpp:953-1100` (`setMessageHandler` handling 30+ commands)
-
-- [ ] [MAJOR] Secondary button position defaults to `WebAppButtonPosition.bottom` — AyuGram's `ParsePosition()` returns `RectPart::Left` as default (side-by-side layout), meaning unspecified position should default to left — `web_app_panel.dart:111` ← `AyuGramDesktop/SourceFiles/ui/chat/attach/attach_bot_webview.cpp:70-81`
-
-- [ ] [MAJOR] Menu is missing required items — AyuGram always shows "Reload page" (reloads webview), "Terms" (opens mini apps ToS URL), and "Privacy" (calls `botOpenPrivacyPolicy()`); none of these exist in the Dart menu — `web_app_panel.dart:214-239` ← `AyuGramDesktop/SourceFiles/ui/chat/attach/attach_bot_webview.cpp:785-806`
-
-- [ ] [MAJOR] "Settings" menu item never fires `"settings_button_pressed"` to the webview even when menu selection is handled — AyuGram calls `postEvent("settings_button_pressed")` when settings is tapped — `web_app_panel.dart:224-231` ← `AyuGramDesktop/SourceFiles/ui/chat/attach/attach_bot_webview.cpp:776-778`
+# web_app_panel — Verified ✅ (all 10 items fixed: webview, JS bridge, button events, menu)
 
