@@ -653,9 +653,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 
 
-## theme revert — overlay is positioned at bottom, not centered
-
-- [ ] [MAJOR] The Dart overlay is anchored at `bottom: 20` (a strip at the screen bottom). AyuGram's `WarningWidget` renders centered in the window (`(height() - st::themeWarningHeight) / 2`). The overlay appears in the wrong location. — `main.dart:2054` ← `AyuGram/SourceFiles/window/themes/window_theme_warning.cpp:78`
 
 ## theme revert — Enter key keeps theme; Escape reverts (correct), but no paint-event title/body layout
 
