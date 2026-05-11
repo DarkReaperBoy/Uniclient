@@ -160,6 +160,7 @@ class _WebDropZoneState extends State<_WebDropZone> {
       }
     }
     if (results.isNotEmpty) {
+      if (!mounted) return;
       widget.onDrop?.call(results);
     }
   }

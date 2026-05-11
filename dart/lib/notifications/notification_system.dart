@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../l10n/strings.dart';
 import '../utils/debug.dart';
 import 'notification_manager.dart';
 import 'notification_manager_default.dart';
@@ -101,8 +102,9 @@ class NotificationSystem {
   static const _kMinimalAlertDelay = Duration(milliseconds: 500);
   static const _kWaitingForAllGroupedDelay = Duration(milliseconds: 1000);
   static const _kReactionNotificationEach = Duration(hours: 1);
-  static const _kNotifyCloudDelay = Duration(seconds: 30);
-  static const _kNotifyDefaultDelay = Duration(milliseconds: 1500);
+  Duration _cloudDelay = const Duration(seconds: 30);
+  Duration _defaultDelay = const Duration(milliseconds: 1500);
+  int _onlineCloudTimeoutSec = 300;
 
   // §37.6.3 dedup: threadKey → { (messageId, type) → lastTime }
   final Map<String, Map<_NotificationKey, DateTime>> _whenMaps = {};
@@ -114,11 +116,14 @@ class NotificationSystem {
   Timer? _groupedTimer;
   final List<NotificationData> _groupedBuffer = [];
 
+  // Pending dispatch timers (cancellable on dispose)
+  final List<Timer> _pendingTimers = [];
+
   // Per-account session state for cross-device dedup
   final Map<String, _AccountSessionState> _accountStates = {};
 
-  // Notifications waiting for mute state resolution
-  final List<NotificationData> _settingWaiters = [];
+  // Notifications waiting for mute state resolution, keyed by 'accountId:chatId'
+  final Map<String, NotificationData> _settingWaiters = {};
 
   NotificationManager get manager => _manager;
   ManagerType get activeManagerType => _manager.type;
@@ -154,6 +159,16 @@ class NotificationSystem {
 
   void updateAll() {
     _manager.updateAll();
+  }
+
+  void setServerConfig({
+    int? cloudDelayMs,
+    int? defaultDelayMs,
+    int? onlineCloudTimeoutSec,
+  }) {
+    if (cloudDelayMs != null) _cloudDelay = Duration(milliseconds: cloudDelayMs);
+    if (defaultDelayMs != null) _defaultDelay = Duration(milliseconds: defaultDelayMs);
+    if (onlineCloudTimeoutSec != null) _onlineCloudTimeoutSec = onlineCloudTimeoutSec;
   }
 
   void updateSessionState({
@@ -205,6 +220,7 @@ class NotificationSystem {
 
   void onNewMessage(NotificationData data) {
     if (!_settings.desktopNotify) return;
+    if (data.isHidden) return;
     if (data.isOutgoing && !data.isScheduled) return;
 
     if (!_shouldNotifyForType(data)) return;
@@ -230,7 +246,11 @@ class NotificationSystem {
 
     // Buffer notifications with unknown mute state for later processing
     if (effectiveData.muteStateUnknown) {
-      _settingWaiters.add(effectiveData);
+      final key = '${effectiveData.accountId}:${effectiveData.chatId}';
+      final existing = _settingWaiters[key];
+      if (existing == null || effectiveData.timestamp < existing.timestamp) {
+        _settingWaiters[key] = effectiveData;
+      }
       return;
     }
 
@@ -309,18 +329,17 @@ class NotificationSystem {
       final state = _accountStates[data.accountId];
       if (state != null) {
         final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-        final onlineCloudTimeoutSec = 300;
         final otherNotOld =
-            state.otherOnlineAt + onlineCloudTimeoutSec > nowSec;
+            state.otherOnlineAt + _onlineCloudTimeoutSec > nowSec;
         final otherLaterThanMe = state.otherOnlineAt * 1000 +
                 (DateTime.now().millisecondsSinceEpoch -
                     state.lastSetOnlineAt) >
             nowSec * 1000;
 
         if (!state.isOnline && otherNotOld && otherLaterThanMe) {
-          delay = _kNotifyCloudDelay;
+          delay = _cloudDelay;
         } else if (state.otherOnlineAt >= nowSec) {
-          delay = _kNotifyDefaultDelay;
+          delay = _defaultDelay;
         }
       }
     }
@@ -342,9 +361,10 @@ class NotificationSystem {
     }
     late final Timer timer;
     timer = Timer(delay, () {
+      _pendingTimers.remove(timer);
       _dispatch(data);
     });
-    // No list accumulation — timer is self-contained and GC'd after firing
+    _pendingTimers.add(timer);
   }
 
   bool _isSameGroup(NotificationData a, NotificationData b) {
@@ -409,7 +429,7 @@ class NotificationSystem {
         if (group.length == 1) {
           _dispatch(group.first);
         } else {
-          _dispatch(group.last);
+          _dispatch(group.last.copyWith(text: TrStrings.lngInDlgAlbum()));
         }
       }
 
@@ -418,7 +438,7 @@ class NotificationSystem {
           _dispatch(group.first);
         } else {
           _dispatch(group.first.copyWith(
-            text: '${group.length} forwarded messages',
+            text: TrStrings.lngForwardMessages(group.length),
             forwardCount: group.length,
           ));
         }
@@ -485,12 +505,17 @@ class NotificationSystem {
     if (_settingWaiters.isEmpty) return;
 
     final promoted = <NotificationData>[];
-    _settingWaiters.removeWhere((data) {
-      if (data.muteStateUnknown) return false;
-      if (data.isMuted && data.isSenderMuted) return true;
+    final toRemove = <String>[];
+    for (final entry in _settingWaiters.entries) {
+      final data = entry.value;
+      if (data.muteStateUnknown) continue;
+      toRemove.add(entry.key);
+      if (data.isMuted && data.isSenderMuted) continue;
       promoted.add(data);
-      return true;
-    });
+    }
+    for (final key in toRemove) {
+      _settingWaiters.remove(key);
+    }
 
     for (final data in promoted) {
       if (_isGroupable(data)) {
@@ -508,15 +533,14 @@ class NotificationSystem {
     required bool isMuted,
     bool isSenderMuted = true,
   }) {
-    for (var i = 0; i < _settingWaiters.length; i++) {
-      final data = _settingWaiters[i];
-      if (data.accountId == accountId && data.chatId == chatId) {
-        _settingWaiters[i] = data.copyWith(
-          muteStateUnknown: false,
-          isMuted: isMuted,
-          isSenderMuted: isSenderMuted,
-        );
-      }
+    final key = '$accountId:$chatId';
+    final data = _settingWaiters[key];
+    if (data != null) {
+      _settingWaiters[key] = data.copyWith(
+        muteStateUnknown: false,
+        isMuted: isMuted,
+        isSenderMuted: isSenderMuted,
+      );
     }
     checkDelayed();
   }
@@ -557,6 +581,10 @@ class NotificationSystem {
   }
 
   void dispose() {
+    for (final t in _pendingTimers) {
+      t.cancel();
+    }
+    _pendingTimers.clear();
     _groupedTimer?.cancel();
     _groupedBuffer.clear();
     _settingWaiters.clear();

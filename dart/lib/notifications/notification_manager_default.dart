@@ -39,6 +39,7 @@ class DefaultManager extends NotificationManager {
   int _nextId = 0;
   int _maxVisible = 3;
   NotificationCorner _corner = NotificationCorner.bottomRight;
+  bool _lastInputTimeSupported = false;
 
   NotificationTapCallback? onTap;
   NotificationDisplayCallback? onShow;
@@ -56,6 +57,7 @@ class DefaultManager extends NotificationManager {
   NotificationCorner get corner => _corner;
 
   void onUserInput() {
+    _lastInputTimeSupported = true;
     _lastUserInputTime = DateTime.now();
   }
 
@@ -71,26 +73,12 @@ class DefaultManager extends NotificationManager {
     );
 
     if (_active.length >= _maxVisible) {
-      final evictable = _findEvictableItem();
-      if (evictable != null) {
-        dismiss(evictable.id);
-        _displayItem(item);
-      } else {
-        _queue.addLast(item);
-        onHideAllChanged?.call();
-      }
+      _queue.addLast(item);
+      onHideAllChanged?.call();
       return;
     }
 
     _displayItem(item);
-  }
-
-  DefaultNotificationItem? _findEvictableItem() {
-    for (final item in _active) {
-      if (isStickyCheck != null && isStickyCheck!(item.id)) continue;
-      return item;
-    }
-    return null;
   }
 
   void _displayItem(DefaultNotificationItem item) {
@@ -101,10 +89,21 @@ class DefaultManager extends NotificationManager {
   }
 
   void _checkLastInput() {
-    var anyWaiting = false;
     final hasReplying =
         _active.any((n) => isStickyCheck != null && isStickyCheck!(n.id));
 
+    if (!_lastInputTimeSupported) {
+      for (final item in _active) {
+        if (!item.waitingForInput) continue;
+        item.waitingForInput = false;
+        if (!hasReplying) {
+          _startDismissTimer(item.id);
+        }
+      }
+      return;
+    }
+
+    var anyWaiting = false;
     for (final item in _active) {
       if (!item.waitingForInput) continue;
       if (_lastUserInputTime.isAfter(item.shownAt)) {
@@ -157,11 +156,18 @@ class DefaultManager extends NotificationManager {
         _active.any((n) => isStickyCheck != null && isStickyCheck!(n.id));
     if (hasReplying) return;
     for (final item in _active) {
-      if (item.waitingForInput) continue;
       if (!_dismissTimers.containsKey(item.id)) {
         _startDismissTimer(item.id);
       }
     }
+  }
+
+  void stopAllHiding() {
+    for (final t in _dismissTimers.values) {
+      t.cancel();
+    }
+    _dismissTimers.clear();
+    _inputCheckTimer?.cancel();
   }
 
   void hideAll() {
@@ -269,6 +275,15 @@ class DefaultManager extends NotificationManager {
   void updateSettings(NotificationSettings settings) {
     _maxVisible = settings.maxNotificationCount.clamp(1, 5);
     _corner = settings.corner;
+
+    while (_active.length > _maxVisible) {
+      final excess = _active.last;
+      dismiss(excess.id);
+    }
+
+    for (final item in _active) {
+      onShow?.call(item);
+    }
   }
 
   @override

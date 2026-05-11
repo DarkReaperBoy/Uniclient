@@ -10,4 +10,9 @@ class TrStrings {
       'Theme will revert in $count second${count == 1 ? '' : 's'}';
   static String lngThemeKeepChanges() => 'Keep Changes';
   static String lngThemeRevert() => 'Revert';
+
+  // Notification grouping (notifications_manager.cpp)
+  static String lngForwardMessages(int count) =>
+      '$count forwarded message${count == 1 ? '' : 's'}';
+  static String lngInDlgAlbum() => 'Album';
 }

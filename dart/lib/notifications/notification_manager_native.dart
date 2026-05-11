@@ -158,13 +158,16 @@ class NativeManager extends NotificationManager {
   DBusRemoteObject? _notifProxy;
   Set<String> _capabilities = {};
   bool _inhibited = false;
-  String _imageDataKey = 'image-data';
+  String _imageDataKey = 'icon_data';
   bool _ready = false;
 
   StreamSubscription<DBusSignal>? _actionSub;
   StreamSubscription<DBusSignal>? _closedSub;
   StreamSubscription<DBusSignal>? _replySub;
   StreamSubscription<DBusSignal>? _activationTokenSub;
+  StreamSubscription<DBusSignal>? _serviceWatcherSub;
+  bool _isFlatpak = false;
+  String _desktopEntry = 'uniclient';
 
   NativeManager() {
     if (!kIsWeb && Platform.isLinux) {
@@ -172,9 +175,50 @@ class NativeManager extends NotificationManager {
     }
   }
 
+  String _resolveDesktopEntry() {
+    final fromEnv = Platform.environment['GIO_LAUNCHED_DESKTOP_FILE'];
+    if (fromEnv != null && fromEnv.isNotEmpty) {
+      final basename = p.basenameWithoutExtension(fromEnv);
+      if (basename.isNotEmpty) return basename;
+    }
+    return p.basenameWithoutExtension(Platform.resolvedExecutable);
+  }
+
+  Future<String?> _generatePlaceholderUserpic(String title) async {
+    try {
+      final cacheDir = p.join(Directory.systemTemp.path, 'uniclient_userpics');
+      await Directory(cacheDir).create(recursive: true);
+
+      final hash = title.hashCode;
+      const palette = [
+        [0xE1, 0x73, 0x73],
+        [0xE0, 0x80, 0x2B],
+        [0xE5, 0xAE, 0x40],
+        [0x4F, 0xAD, 0x2F],
+        [0x46, 0xAC, 0xC2],
+        [0x59, 0x8D, 0xCF],
+        [0x88, 0x70, 0xC3],
+        [0xCD, 0x60, 0x9A],
+      ];
+      final c = palette[hash.abs() % palette.length];
+      final image = img.Image(width: 64, height: 64);
+      img.fill(image, color: img.ColorRgba8(c[0], c[1], c[2], 255));
+
+      final outPath = p.join(cacheDir, 'placeholder_${hash.toRadixString(16)}.png');
+      await File(outPath).writeAsBytes(Uint8List.fromList(img.encodePng(image)));
+      return outPath;
+    } catch (e) {
+      Debug.log('NOTIF', 'Placeholder userpic generation failed: $e');
+      return null;
+    }
+  }
+
   Future<void> _initLinuxDBus() async {
     try {
-      _dbus = DBusClient.session();
+      _isFlatpak = File('/.flatpak-info').existsSync() ||
+          Platform.environment.containsKey('FLATPAK_ID');
+      _desktopEntry = _resolveDesktopEntry();
+      _dbus ??= DBusClient.session();
       _notifProxy = DBusRemoteObject(
         _dbus!,
         name: 'org.freedesktop.Notifications',
@@ -264,6 +308,14 @@ class NativeManager extends NotificationManager {
         path: notifPath,
       ).listen(_onActivationToken);
 
+      _serviceWatcherSub = DBusSignalStream(
+        _dbus!,
+        sender: 'org.freedesktop.DBus',
+        interface: 'org.freedesktop.DBus',
+        name: 'NameOwnerChanged',
+        path: DBusObjectPath('/org/freedesktop/DBus'),
+      ).listen(_onServiceOwnerChanged);
+
       _ready = true;
       Debug.log('NOTIF', 'Linux DBus backend initialized');
     } catch (e) {
@@ -324,6 +376,30 @@ class NativeManager extends NotificationManager {
     }
   }
 
+  void _onServiceOwnerChanged(DBusSignal signal) {
+    if (signal.values.length < 3) return;
+    final name = signal.values[0].asString();
+    if (name != 'org.freedesktop.Notifications') return;
+    final newOwner = signal.values[2].asString();
+    if (newOwner.isNotEmpty) {
+      Debug.log('NOTIF', 'Notification service restarted, reconnecting');
+      _reconnect();
+    }
+  }
+
+  Future<void> _reconnect() async {
+    _actionSub?.cancel();
+    _closedSub?.cancel();
+    _replySub?.cancel();
+    _activationTokenSub?.cancel();
+    _serviceWatcherSub?.cancel();
+    _notifications.clear();
+    _nativeIdToData.clear();
+    _ready = false;
+    _notifProxy = null;
+    await _initLinuxDBus();
+  }
+
   void _removeNativeId(int nativeId) {
     _nativeIdToData.remove(nativeId);
     for (final contextMap in _notifications.values) {
@@ -341,7 +417,21 @@ class NativeManager extends NotificationManager {
 
   Future<void> _showLinuxDBusNotification(
       NotificationData data, NotificationSettings settings) async {
-    if (!_ready || _notifProxy == null) return;
+    if (!_ready || _notifProxy == null) {
+      if (_isFlatpak) {
+        await _showFlatpakPortalNotification(data, settings);
+      }
+      return;
+    }
+
+    try {
+      final v = await _notifProxy!.getProperty(
+        'org.freedesktop.Notifications',
+        'Inhibited',
+        signature: DBusSignature('b'),
+      );
+      _inhibited = v.asBoolean();
+    } catch (_) {}
 
     final contextKey = '${data.accountId}:${data.chatId}';
 
@@ -381,15 +471,22 @@ class NativeManager extends NotificationManager {
     }
 
     hints[DBusString('desktop-entry')] =
-        DBusVariant(DBusString('uniclient'));
+        DBusVariant(DBusString(_desktopEntry));
 
     final forceHideDetails = !settings.previewName && !settings.previewText;
-    if (!forceHideDetails && data.avatarPath.isNotEmpty) {
-      final cachedPath = await _userpicCache.get(data.avatarPath);
-      final imgPath = cachedPath ?? data.avatarPath;
-      final imageHint = await _buildImageHint(imgPath);
-      if (imageHint != null) {
-        hints[DBusString(_imageDataKey)] = DBusVariant(imageHint);
+    if (!forceHideDetails) {
+      String? imgPath;
+      if (data.avatarPath.isNotEmpty) {
+        imgPath = await _userpicCache.get(data.avatarPath) ?? data.avatarPath;
+      } else {
+        final title = data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName;
+        imgPath = await _generatePlaceholderUserpic(title);
+      }
+      if (imgPath != null) {
+        final imageHint = await _buildImageHint(imgPath);
+        if (imageHint != null) {
+          hints[DBusString(_imageDataKey)] = DBusVariant(imageHint);
+        }
       }
     }
 
@@ -463,7 +560,8 @@ class NativeManager extends NotificationManager {
     return text
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;');
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
   }
 
   Future<DBusStruct?> _buildImageHint(String avatarPath) async {
@@ -474,7 +572,9 @@ class NativeManager extends NotificationManager {
       final image = img.decodeImage(bytes);
       if (image == null) return null;
 
-      final resized = img.copyResize(image, width: 64, height: 64);
+      final resized = (image.width == 64 && image.height == 64)
+          ? image
+          : img.copyResize(image, width: 64, height: 64);
       final width = resized.width;
       final height = resized.height;
       final rowstride = width * 4;
@@ -502,6 +602,36 @@ class NativeManager extends NotificationManager {
     } catch (e) {
       Debug.log('NOTIF', 'Image hint build failed: $e');
       return null;
+    }
+  }
+
+  Future<void> _showFlatpakPortalNotification(
+      NotificationData data, NotificationSettings settings) async {
+    try {
+      final dbus = _dbus ?? DBusClient.session();
+      if (_dbus == null) _dbus = dbus;
+      final portalProxy = DBusRemoteObject(
+        dbus,
+        name: 'org.freedesktop.portal.Desktop',
+        path: DBusObjectPath('/org/freedesktop/portal/desktop'),
+      );
+      final notifId = '${data.accountId}_${data.chatId}_${data.messageId}';
+      final title = data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName;
+      await portalProxy.callMethod(
+        'org.freedesktop.portal.Notification',
+        'AddNotification',
+        [
+          DBusString(notifId),
+          DBusDict(DBusSignature('s'), DBusSignature('v'), {
+            DBusString('title'): DBusVariant(DBusString(title)),
+            DBusString('body'): DBusVariant(DBusString(data.text)),
+            DBusString('priority'): DBusVariant(DBusString('normal')),
+          }),
+        ],
+      );
+      Debug.log('NOTIF', 'Flatpak portal notification sent: $title');
+    } catch (e) {
+      Debug.log('NOTIF', 'Flatpak portal notification failed: $e');
     }
   }
 
@@ -622,6 +752,7 @@ class NativeManager extends NotificationManager {
     _closedSub?.cancel();
     _replySub?.cancel();
     _activationTokenSub?.cancel();
+    _serviceWatcherSub?.cancel();
     clearAll();
     _userpicCache.dispose();
     _dbus?.close();

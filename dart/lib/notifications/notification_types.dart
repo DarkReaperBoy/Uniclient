@@ -63,6 +63,7 @@ class NotificationData {
   final bool muteStateUnknown;
   final String pollVoteOption;
   final bool isReactorPeer;
+  final bool isHidden;
 
   const NotificationData({
     required this.accountId,
@@ -116,6 +117,7 @@ class NotificationData {
     this.muteStateUnknown = false,
     this.pollVoteOption = '',
     this.isReactorPeer = false,
+    this.isHidden = false,
   });
 
   NotificationData copyWith({
@@ -170,6 +172,7 @@ class NotificationData {
     bool? muteStateUnknown,
     String? pollVoteOption,
     bool? isReactorPeer,
+    bool? isHidden,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -223,6 +226,7 @@ class NotificationData {
       muteStateUnknown: muteStateUnknown ?? this.muteStateUnknown,
       pollVoteOption: pollVoteOption ?? this.pollVoteOption,
       isReactorPeer: isReactorPeer ?? this.isReactorPeer,
+      isHidden: isHidden ?? this.isHidden,
     );
   }
 }
