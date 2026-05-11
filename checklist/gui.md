@@ -649,9 +649,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 ---
 
-## passcode — submit button gap wrong (70px vs 40px spec)
-
-- [ ] [MAJOR] Error text and submit button are positioned starting at `inputY + 70`. AyuGram spec (`passcodeSubmitSkip: 40px`) places the submit button at `passcode.y() + passcode.height() + 40`. The Dart layout adds 70px below the input before the error zone begins, placing the submit button ~30px lower than spec. — `main.dart:2403` ← `AyuGram/SourceFiles/boxes/boxes.style:298` and `window_lock_widgets.cpp:302`
 
 ## passcode — systemUnlock type discrimination missing Windows Hello icon
 
