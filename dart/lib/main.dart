@@ -46,6 +46,7 @@ import 'ui/notification_popup.dart';
 import 'ui/compose_entities.dart';
 import 'ui/custom_emoji_cache.dart';
 import 'data/emoji_data.dart';
+import 'l10n/strings.dart';
 import 'package:media_kit/media_kit.dart';
 
 /// §51.7: `-ghost` CLI flag — forces Ghost Mode on at startup.
@@ -2026,11 +2027,13 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
   static const _totalMs = 15999;
   static const _boxWidth = 364.0;
   static const _boxRadius = 12.0;
+  static const _animDuration = Duration(milliseconds: 200);
 
   final _escapeFocus = FocusNode();
   Timer? _countdownTimer;
   int _remainingMs = _totalMs;
   bool _visible = false;
+  bool _mounted = false;
 
   @override
   void didChangeDependencies() {
@@ -2045,6 +2048,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
 
   void _startCountdown() {
     _visible = true;
+    _mounted = true;
     _remainingMs = _totalMs;
     _escapeFocus.requestFocus();
     _countdownTimer?.cancel();
@@ -2063,6 +2067,12 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
     _countdownTimer?.cancel();
     _countdownTimer = null;
     setState(() {});
+  }
+
+  void _onFadeEnd() {
+    if (!_visible && _mounted) {
+      setState(() => _mounted = false);
+    }
   }
 
   void _keep() {
@@ -2085,14 +2095,15 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
   @override
   Widget build(BuildContext context) {
     final testing = context.watch<AppState>().isTestingTheme;
-    if (!testing && !_visible) return const SizedBox.shrink();
+    if (!testing && !_mounted) return const SizedBox.shrink();
 
     return Positioned.fill(
       child: IgnorePointer(
         ignoring: !_visible,
         child: AnimatedOpacity(
           opacity: _visible ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 200),
+          duration: _animDuration,
+          onEnd: _onFadeEnd,
           child: Center(
             child: KeyboardListener(
               focusNode: _escapeFocus,
@@ -2140,7 +2151,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
               top: 13,
               right: 24,
               child: Text(
-                'Keep this theme?',
+                TrStrings.lngThemeSureKeep(),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -2153,7 +2164,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
               top: 60,
               right: 24,
               child: Text(
-                'Theme will revert in $seconds second${seconds == 1 ? '' : 's'}',
+                TrStrings.lngThemeReverting(seconds),
                 style: TextStyle(fontSize: 14, color: p.boxTextFg),
               ),
             ),
@@ -2169,7 +2180,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
                       foregroundColor: p.boxTextFg,
                       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                     ),
-                    child: const Text('Revert'),
+                    child: Text(TrStrings.lngThemeRevert()),
                   ),
                   const SizedBox(width: 6),
                   TextButton(
@@ -2178,7 +2189,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
                       foregroundColor: accentColor,
                       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                     ),
-                    child: const Text('Keep Changes'),
+                    child: Text(TrStrings.lngThemeKeepChanges()),
                   ),
                 ],
               ),
