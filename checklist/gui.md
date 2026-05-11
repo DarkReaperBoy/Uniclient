@@ -671,9 +671,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 ## settings_screen — Main Settings Screen
 
-- [ ] [CRITICAL] Emoji status panel shows hardcoded list of 24 text emoji characters in a grid; AyuGram uses `Info::Profile::EmojiStatusPanel` which loads animated custom emoji sticker packs from Telegram's servers — `settings_screen.dart:796-800` ← `settings_main.cpp:126-127,227-231`
-
-- [ ] [MAJOR] Scale preview while dragging is a fake in-page mockup with hardcoded colored circles and gray bars; AyuGram calls `SetupScalePreview` which renders a floating window showing the actual UI at the selected scale — `settings_screen.dart:1275-1350` ← `settings_main.cpp:1157-1178`
 
 # skeleton_animation — Visual & integration gaps vs AyuGram
 
