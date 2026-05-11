@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -834,28 +836,24 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     };
 
     int selectedDuration = 0;
-    List<String> emojiList = [];
+    List<StickerInfoItem> stickerItems = [];
     bool loading = true;
 
-    Future<List<String>> loadEmojis() async {
+    Future<List<StickerInfoItem>> loadEmojiStickers() async {
       try {
         final sets = await engine.getInstalledEmojiSets(accountId);
-        final emojis = <String>{};
+        final items = <StickerInfoItem>[];
+        final seenIds = <String>{};
         for (final s in sets) {
           for (final sticker in s.stickers) {
-            if (sticker.emoji.isNotEmpty) emojis.add(sticker.emoji);
+            if (seenIds.add(sticker.fileId) && sticker.fileId.isNotEmpty) {
+              items.add(sticker);
+            }
           }
         }
-        if (emojis.isNotEmpty) return emojis.take(64).toList();
+        if (items.isNotEmpty) return items.take(64).toList();
       } catch (_) {}
-      return const [
-        '😊', '😎', '🤔', '😴', '🎮', '💻', '📚', '🎵',
-        '🏃', '✈️', '🎉', '❤️', '🔥', '⭐', '🌙', '☕',
-        '🍕', '🎬', '📱', '💤', '🏠', '💼', '🎯', '✨',
-        '😂', '🥰', '😤', '🤩', '😇', '🤗', '🫡', '🫠',
-        '🎨', '🎪', '🎭', '🏆', '💎', '🦋', '🌈', '🌺',
-        '🍿', '🧩', '🎧', '📸', '🌍', '🚀', '⚡', '💫',
-      ];
+      return [];
     }
 
     showDialog(
@@ -863,10 +861,10 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
           if (loading) {
-            loadEmojis().then((emojis) {
+            loadEmojiStickers().then((items) {
               if (ctx.mounted) {
                 setDialogState(() {
-                  emojiList = emojis;
+                  stickerItems = items;
                   loading = false;
                 });
               }
@@ -897,6 +895,16 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                       padding: EdgeInsets.symmetric(vertical: 32),
                       child: Center(child: CircularProgressIndicator()),
                     )
+                  else if (stickerItems.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Center(
+                        child: Text(
+                          'No custom emoji packs installed.',
+                          style: TextStyle(fontSize: 14, color: subtextColor),
+                        ),
+                      ),
+                    )
                   else
                   Flexible(
                     child: GridView.builder(
@@ -906,22 +914,23 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                         mainAxisSpacing: 4,
                         crossAxisSpacing: 4,
                       ),
-                      itemCount: emojiList.length,
-                      itemBuilder: (_, i) => InkWell(
-                        onTap: () {
-                          engine.setEmojiStatus(accountId, emojiList[i], selectedDuration);
-                          Navigator.of(ctx).pop();
-                          showTelegramToast(context, 'Status set to ${emojiList[i]}');
-                        },
-                        hoverColor: hoverBg,
-                        borderRadius: BorderRadius.circular(6),
-                        child: Center(
-                          child: Text(
-                            emojiList[i],
-                            style: const TextStyle(fontSize: 22),
+                      itemCount: stickerItems.length,
+                      itemBuilder: (_, i) {
+                        final item = stickerItems[i];
+                        return InkWell(
+                          onTap: () {
+                            engine.setEmojiStatus(accountId, item.fileId, selectedDuration);
+                            Navigator.of(ctx).pop();
+                            showTelegramToast(context, 'Emoji status set');
+                          },
+                          hoverColor: hoverBg,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: _buildStickerThumb(item),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -966,6 +975,110 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
       ),
     );
   }
+
+  Widget _buildStickerThumb(StickerInfoItem item) {
+    if (item.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _decodeStrippedThumb(item.thumbB64);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => _emojiTextFallback(item.emoji),
+        );
+      } catch (_) {
+        return _emojiTextFallback(item.emoji);
+      }
+    }
+    return _emojiTextFallback(item.emoji);
+  }
+
+  Widget _emojiTextFallback(String emoji) {
+    return Center(
+      child: Text(
+        emoji.isNotEmpty ? emoji : '?',
+        style: const TextStyle(fontSize: 22),
+      ),
+    );
+  }
+
+  static Uint8List _decodeStrippedThumb(String b64) {
+    final stripped = base64Decode(b64);
+    if (stripped.length < 3 || stripped[0] != 0x01) {
+      return stripped;
+    }
+    final w = stripped[1];
+    final h = stripped[2];
+    final header = _jpegHeader(w, h);
+    const footer = _jpegFooter;
+    final buf = Uint8List(header.length + stripped.length - 3 + footer.length);
+    buf.setAll(0, header);
+    buf.setAll(header.length, stripped.sublist(3));
+    buf.setAll(header.length + stripped.length - 3, footer);
+    return buf;
+  }
+
+  static Uint8List _jpegHeader(int w, int h) {
+    final tmpl = Uint8List.fromList(const [
+      0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+      0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43,
+      0x00, 0x28, 0x1C, 0x1E, 0x23, 0x1E, 0x19, 0x28, 0x23, 0x21, 0x23, 0x2D,
+      0x2B, 0x28, 0x30, 0x3C, 0x64, 0x41, 0x3C, 0x37, 0x37, 0x3C, 0x7B, 0x58,
+      0x5D, 0x49, 0x64, 0x91, 0x80, 0x99, 0x96, 0x8F, 0x80, 0x8C, 0x8A, 0xA0,
+      0xB4, 0xE6, 0xC3, 0xA0, 0xAA, 0xDA, 0xAD, 0x8A, 0x8C, 0xC8, 0xFF, 0xCB,
+      0xDA, 0xEE, 0xF5, 0xFF, 0xFF, 0xFF, 0x9B, 0xC1, 0xFF, 0xFF, 0xFF, 0xFA,
+      0xFF, 0xE6, 0xFD, 0xFF, 0xF8, 0xFF, 0xDB, 0x00, 0x43, 0x01, 0x2B, 0x2D,
+      0x2D, 0x3C, 0x35, 0x3C, 0x76, 0x41, 0x41, 0x76, 0xF8, 0xA5, 0x8C, 0xA5,
+      0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+      0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+      0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+      0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+      0xF8, 0xF8, 0xF8, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x00, 0x00, 0x00,
+      0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01, 0xFF, 0xC4,
+      0x00, 0x1F, 0x00, 0x00, 0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04,
+      0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF, 0xC4, 0x00, 0xB5, 0x10,
+      0x00, 0x02, 0x01, 0x03, 0x03, 0x02, 0x04, 0x03, 0x05, 0x05, 0x04, 0x04,
+      0x00, 0x00, 0x01, 0x7D, 0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12,
+      0x21, 0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07, 0x22, 0x71, 0x14, 0x32,
+      0x81, 0x91, 0xA1, 0x08, 0x23, 0x42, 0xB1, 0xC1, 0x15, 0x52, 0xD1, 0xF0,
+      0x24, 0x33, 0x62, 0x72, 0x82, 0x09, 0x0A, 0x16, 0x17, 0x18, 0x19, 0x1A,
+      0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39,
+      0x3A, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x53, 0x54, 0x55,
+      0x56, 0x57, 0x58, 0x59, 0x5A, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69,
+      0x6A, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x83, 0x84, 0x85,
+      0x86, 0x87, 0x88, 0x89, 0x8A, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98,
+      0x99, 0x9A, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xB2,
+      0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xC2, 0xC3, 0xC4, 0xC5,
+      0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8,
+      0xD9, 0xDA, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA,
+      0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFF, 0xC4,
+      0x00, 0x1F, 0x01, 0x00, 0x03, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+      0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04,
+      0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF, 0xC4, 0x00, 0xB5, 0x11,
+      0x00, 0x02, 0x01, 0x02, 0x04, 0x04, 0x03, 0x04, 0x07, 0x05, 0x04, 0x04,
+      0x00, 0x01, 0x02, 0x77, 0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21,
+      0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71, 0x13, 0x22, 0x32, 0x81,
+      0x08, 0x14, 0x42, 0x91, 0xA1, 0xB1, 0xC1, 0x09, 0x23, 0x33, 0x52, 0xF0,
+      0x15, 0x62, 0x72, 0xD1, 0x0A, 0x16, 0x24, 0x34, 0xE1, 0x25, 0xF1, 0x17,
+      0x18, 0x19, 0x1A, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x35, 0x36, 0x37, 0x38,
+      0x39, 0x3A, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x53, 0x54,
+      0x55, 0x56, 0x57, 0x58, 0x59, 0x5A, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68,
+      0x69, 0x6A, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x82, 0x83,
+      0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8A, 0x92, 0x93, 0x94, 0x95, 0x96,
+      0x97, 0x98, 0x99, 0x9A, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9,
+      0xAA, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xC2, 0xC3,
+      0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6,
+      0xD7, 0xD8, 0xD9, 0xDA, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9,
+      0xEA, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFF, 0xDA,
+      0x00, 0x0C, 0x03, 0x01, 0x00, 0x02, 0x11, 0x03, 0x11, 0x00, 0x3F, 0x00,
+    ]);
+    tmpl[164] = h;
+    tmpl[166] = w;
+    return tmpl;
+  }
+
+  static const _jpegFooter = [0xFF, 0xD9];
 
   void _showQrDialog(BuildContext context, String username) {
     final isDark = widget.isDark;
@@ -1204,15 +1317,19 @@ class _InterfaceScaleSection extends StatefulWidget {
   State<_InterfaceScaleSection> createState() => _InterfaceScaleSectionState();
 }
 
-class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
+class _InterfaceScaleSectionState extends State<_InterfaceScaleSection>
+    with SingleTickerProviderStateMixin {
   late bool _useDefault;
   late double _scalePercent;
   late double _committedScale;
-  bool _isDragging = false;
 
   static const double _kMin = 50;
   static const double _kStep = 5;
   double _kMax = 300;
+
+  OverlayEntry? _previewOverlay;
+  late AnimationController _previewAnim;
+  final GlobalKey _sliderKey = GlobalKey();
 
   double _snap(double v) => (v / _kStep).round() * _kStep;
 
@@ -1223,6 +1340,18 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
     _committedScale = saved;
     _scalePercent = saved;
     _useDefault = (saved - 100.0).abs() < 0.01;
+    _previewAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+  }
+
+  @override
+  void dispose() {
+    _previewOverlay?.remove();
+    _previewOverlay = null;
+    _previewAnim.dispose();
+    super.dispose();
   }
 
   @override
@@ -1230,6 +1359,228 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
     super.didChangeDependencies();
     final dpr = MediaQuery.of(context).devicePixelRatio;
     _kMax = _snap((300 / dpr).clamp(100, 400));
+  }
+
+  void _showPreviewOverlay() {
+    _removePreviewOverlay(animate: false);
+    _previewOverlay = OverlayEntry(builder: (_) => _buildFloatingPreview());
+    Overlay.of(context).insert(_previewOverlay!);
+    _previewAnim.forward();
+  }
+
+  void _updatePreviewOverlay() {
+    _previewOverlay?.markNeedsBuild();
+  }
+
+  void _removePreviewOverlay({bool animate = true}) {
+    if (_previewOverlay == null) return;
+    if (animate) {
+      final entry = _previewOverlay;
+      _previewOverlay = null;
+      _previewAnim.reverse().then((_) {
+        entry?.remove();
+      });
+    } else {
+      _previewOverlay?.remove();
+      _previewOverlay = null;
+    }
+  }
+
+  Widget _buildFloatingPreview() {
+    final isDark = widget.isDark;
+    final bubbleBg = isDark ? const Color(0xFF182533) : const Color(0xFFEFFFDE);
+    final incomingBg = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final nameFg = isDark ? const Color(0xFF569CD6) : const Color(0xFF3A8EC8);
+    final textFg = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final timeFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF8E8E93);
+    final replyBar = isDark ? const Color(0xFF569CD6) : const Color(0xFF3A8EC8);
+    final replyBg = isDark ? const Color(0xFF1A2D3E) : const Color(0xFFE8F0F8);
+    final shadowCol = isDark ? const Color(0xFF0E1621) : const Color(0xFFB0B0B0);
+    final scaleFactor = _scalePercent / 100;
+
+    RenderBox? sliderBox;
+    Offset sliderPos = Offset.zero;
+    if (_sliderKey.currentContext != null) {
+      sliderBox = _sliderKey.currentContext!.findRenderObject() as RenderBox?;
+      if (sliderBox != null && sliderBox.hasSize) {
+        sliderPos = sliderBox.localToGlobal(Offset.zero);
+      }
+    }
+    final previewWidth = 280.0;
+    final centerX = sliderPos.dx + (sliderBox?.size.width ?? 200) / 2;
+    final left = (centerX - previewWidth / 2).clamp(8.0, double.infinity);
+    final top = (sliderPos.dy - 16).clamp(40.0, double.infinity);
+
+    return AnimatedBuilder(
+      animation: _previewAnim,
+      builder: (context, child) {
+        final t = _previewAnim.value;
+        final scale = 0.3 + t * 0.7;
+        return Positioned(
+          left: left,
+          bottom: MediaQuery.of(context).size.height - top,
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: t,
+              child: Transform.scale(
+                scale: scale,
+                alignment: Alignment.bottomCenter,
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
+      child: Container(
+        width: previewWidth,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0E1621) : const Color(0xFFCDD8E1),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: shadowCol.withValues(alpha: 0.4),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Transform.scale(
+          scale: scaleFactor,
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: previewWidth / scaleFactor - 24 / scaleFactor,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: nameFg.withValues(alpha: 0.7),
+                      ),
+                      child: Center(
+                        child: Text('A',
+                          style: TextStyle(
+                            fontSize: 15, color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+                        decoration: BoxDecoration(
+                          color: incomingBg,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(2),
+                            topRight: Radius.circular(12),
+                            bottomLeft: Radius.circular(12),
+                            bottomRight: Radius.circular(12),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Alice',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: nameFg,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                              decoration: BoxDecoration(
+                                color: replyBg,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border(
+                                  left: BorderSide(color: replyBar, width: 2),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Bob',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: nameFg,
+                                    ),
+                                  ),
+                                  Text('Sure, sounds good!',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: textFg.withValues(alpha: 0.7),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Let me know when you\'re free tomorrow',
+                              style: TextStyle(fontSize: 13, color: textFg),
+                            ),
+                            const SizedBox(height: 2),
+                            Align(
+                              alignment: Alignment.bottomRight,
+                              child: Text('12:42',
+                                style: TextStyle(fontSize: 11, color: timeFg),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+                    constraints: BoxConstraints(
+                      maxWidth: (previewWidth / scaleFactor - 24 / scaleFactor) * 0.75,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bubbleBg,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(12),
+                        topRight: Radius.circular(2),
+                        bottomLeft: Radius.circular(12),
+                        bottomRight: Radius.circular(12),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Sounds great, see you then!',
+                          style: TextStyle(fontSize: 13, color: textFg),
+                        ),
+                        const SizedBox(height: 2),
+                        Text('12:43',
+                          style: TextStyle(fontSize: 11, color: timeFg),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -1301,6 +1652,7 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
           child: _useDefault
               ? const SizedBox.shrink()
               : Padding(
+                  key: _sliderKey,
                   padding: const EdgeInsets.fromLTRB(60, 7, 22, 4),
                   child: Row(
                     children: [
@@ -1324,16 +1676,19 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
                             min: _kMin,
                             max: _kMax,
                             divisions: ((_kMax - _kMin) / _kStep).round(),
-                            onChangeStart: (_) =>
-                                setState(() => _isDragging = true),
-                            onChanged: (v) =>
-                                setState(() => _scalePercent = _snap(v)),
+                            onChangeStart: (_) {
+                              _showPreviewOverlay();
+                            },
+                            onChanged: (v) {
+                              setState(() => _scalePercent = _snap(v));
+                              _updatePreviewOverlay();
+                            },
                             onChangeEnd: (v) {
                               final snapped = _snap(v);
                               setState(() {
-                                _isDragging = false;
                                 _scalePercent = snapped;
                               });
+                              _removePreviewOverlay();
                               if (snapped != _committedScale) {
                                 _showRestartDialog(snapped);
                               }
@@ -1357,58 +1712,6 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
                   ),
                 ),
         ),
-        if (_isDragging && !_useDefault)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(60, 0, 22, 8),
-            child: Container(
-              width: 200,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF2B3A4A)
-                    : const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 6,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Transform.scale(
-                scale: _scalePercent / 100,
-                alignment: Alignment.topLeft,
-                child: SizedBox(
-                  width: 200 / (_scalePercent / 100),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Scale: ${_scalePercent.round()}%',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: accentColor,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'This is how text will look',
-                        style: TextStyle(fontSize: 13, color: textColor),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Smaller text example',
-                        style: TextStyle(fontSize: 11, color: textColor.withValues(alpha: 0.5)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
