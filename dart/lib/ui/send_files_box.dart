@@ -8,10 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../models/engine_models.dart' show ChatType, ScheduledMessages;
+import '../models/engine_models.dart' show ChatType, MemberInfo, ScheduledMessages;
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
-import 'emoji_panel.dart' show getRecentEmojisList;
+import 'compose_entities.dart';
+import 'emoji_panel.dart' show addRecentEmoji, getRecentEmojisList;
 import 'popup_menu.dart';
 import 'choose_datetime_box.dart';
 import 'photo_crop_editor.dart';
@@ -65,6 +66,7 @@ const Set<String> _kStickerMimes = {'tgs'};
 class SendFilesResult {
   final List<String> paths;
   final String caption;
+  final String captionEntitiesJson;
   final bool silent;
   final DateTime? scheduledDate;
   final List<bool> spoilers;
@@ -80,6 +82,7 @@ class SendFilesResult {
   const SendFilesResult({
     required this.paths,
     this.caption = '',
+    this.captionEntitiesJson = '',
     this.silent = false,
     this.scheduledDate,
     this.spoilers = const [],
@@ -201,6 +204,8 @@ Future<SendFilesResult?> showSendFilesBox(
   int starsPerMessage = 0,
   bool isSlowMode = false,
   bool? overrideSendAsDocuments,
+  List<MemberInfo> members = const [],
+  bool isBroadcast = false,
 }) {
   return showGeneralDialog<SendFilesResult>(
     context: context,
@@ -232,6 +237,8 @@ Future<SendFilesResult?> showSendFilesBox(
       starsPerMessage: starsPerMessage,
       isSlowMode: isSlowMode,
       overrideSendAsDocuments: overrideSendAsDocuments,
+      members: members,
+      isBroadcast: isBroadcast,
     ),
   );
 }
@@ -243,6 +250,8 @@ class _SendFilesBoxDialog extends StatefulWidget {
   final int starsPerMessage;
   final bool isSlowMode;
   final bool? overrideSendAsDocuments;
+  final List<MemberInfo> members;
+  final bool isBroadcast;
 
   const _SendFilesBoxDialog({
     required this.filePaths,
@@ -251,6 +260,8 @@ class _SendFilesBoxDialog extends StatefulWidget {
     this.starsPerMessage = 0,
     this.isSlowMode = false,
     this.overrideSendAsDocuments,
+    this.members = const [],
+    this.isBroadcast = false,
   });
 
   @override
@@ -262,7 +273,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   static String _preservedCaption = '';
 
   late List<_PreparedFile> _files;
-  final TextEditingController _captionController = TextEditingController();
+  final RichTextEditingController _captionController = RichTextEditingController();
   late final FocusNode _captionFocus;
   late final FocusNode _dialogFocus;
   late bool _sendAsDocuments;
@@ -287,6 +298,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   bool _showTopShadow = false;
   bool _showBottomShadow = false;
   bool _captionDialogOpen = false;
+  List<MemberInfo> _acFilteredMembers = [];
+  String _acMentionQuery = '';
+  bool _showMentionPanel = false;
 
   @override
   void initState() {
@@ -349,6 +363,56 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     if (len != _charCount) {
       setState(() => _charCount = len);
     }
+    _detectMentionQuery();
+  }
+
+  void _detectMentionQuery() {
+    if (widget.members.isEmpty) {
+      if (_showMentionPanel) setState(() => _showMentionPanel = false);
+      return;
+    }
+    final sel = _captionController.selection;
+    if (!sel.isValid || !sel.isCollapsed) {
+      if (_showMentionPanel) setState(() => _showMentionPanel = false);
+      return;
+    }
+    final text = _captionController.text;
+    final cursor = sel.baseOffset;
+    final before = text.substring(0, cursor);
+    final match = RegExp(r'@(\w*)$').firstMatch(before);
+    if (match == null) {
+      if (_showMentionPanel) setState(() => _showMentionPanel = false);
+      return;
+    }
+    final query = match.group(1)!.toLowerCase();
+    _acMentionQuery = query;
+    final filtered = widget.members.where((m) {
+      final name = m.displayName.toLowerCase();
+      final uname = m.username.toLowerCase();
+      return name.contains(query) || uname.contains(query);
+    }).take(5).toList();
+    setState(() {
+      _acFilteredMembers = filtered;
+      _showMentionPanel = filtered.isNotEmpty;
+    });
+  }
+
+  void _insertMention(MemberInfo member) {
+    final text = _captionController.text;
+    final cursor = _captionController.selection.baseOffset;
+    final before = text.substring(0, cursor);
+    final match = RegExp(r'@(\w*)$').firstMatch(before);
+    if (match == null) return;
+    final start = match.start;
+    final insertText = '@${member.username.isNotEmpty ? member.username : member.displayName} ';
+    final after = text.substring(cursor);
+    final newText = '${text.substring(0, start)}$insertText$after';
+    if (newText.length > _kCaptionMaxLength) return;
+    _captionController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: start + insertText.length),
+    );
+    setState(() => _showMentionPanel = false);
   }
 
   void _updateScrollShadows() {
@@ -419,44 +483,33 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
 
     if (ctrl && !shift && event.logicalKey == LogicalKeyboardKey.keyB) {
-      _wrapSelection('**', '**');
+      _captionController.toggleFormat(FormatType.bold);
       return KeyEventResult.handled;
     }
     if (ctrl && !shift && event.logicalKey == LogicalKeyboardKey.keyI) {
-      _wrapSelection('__', '__');
+      _captionController.toggleFormat(FormatType.italic);
       return KeyEventResult.handled;
     }
     if (ctrl && !shift && event.logicalKey == LogicalKeyboardKey.keyU) {
-      _wrapSelection('\u{0332}', '');
+      _captionController.toggleFormat(FormatType.underline);
       return KeyEventResult.handled;
     }
     if (ctrl && shift && event.logicalKey == LogicalKeyboardKey.keyM) {
-      _wrapSelection('`', '`');
+      _captionController.toggleFormat(FormatType.code);
       return KeyEventResult.handled;
     }
     if (ctrl && shift && event.logicalKey == LogicalKeyboardKey.keyK) {
-      _wrapSelection('~~', '~~');
+      _captionController.toggleFormat(FormatType.strike);
+      return KeyEventResult.handled;
+    }
+    if (ctrl && shift && event.logicalKey == LogicalKeyboardKey.keyP) {
+      _captionController.toggleFormat(FormatType.spoiler);
       return KeyEventResult.handled;
     }
 
     return KeyEventResult.ignored;
   }
 
-  void _wrapSelection(String prefix, String suffix) {
-    final sel = _captionController.selection;
-    if (!sel.isValid) return;
-    final text = _captionController.text;
-    final selected = text.substring(sel.start, sel.end);
-    final newText = text.replaceRange(sel.start, sel.end, '$prefix$selected$suffix');
-    if (newText.length > _kCaptionMaxLength) return;
-    _captionController.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection(
-        baseOffset: sel.start + prefix.length,
-        extentOffset: sel.start + prefix.length + selected.length,
-      ),
-    );
-  }
 
   KeyEventResult _onDialogKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
@@ -863,6 +916,47 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     });
   }
 
+  void _editFileCaption(int idx) {
+    if (idx < 0 || idx >= _files.length) return;
+    final existing = _perFileCaptions[idx] ?? '';
+    final ctrl = TextEditingController(text: existing);
+    _captionDialogOpen = true;
+    showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit caption'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: _kCaptionMaxLength,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'Add a caption for this file...',
+            counterText: '',
+          ),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(ctrl.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ).then((newCaption) {
+      _captionDialogOpen = false;
+      if (newCaption == null) return;
+      setState(() {
+        if (newCaption.isEmpty) {
+          _perFileCaptions.remove(idx);
+        } else {
+          _perFileCaptions[idx] = newCaption;
+        }
+      });
+    });
+  }
+
   static _FileType _detectType(String name) {
     final ext = name.split('.').last.toLowerCase();
     if (ext == 'gif') return _FileType.file;
@@ -1068,9 +1162,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       return;
     }
     _preservedCaption = '';
+    final parsed = _captionController.getTextWithAppliedMarkdown();
     Navigator.of(context).pop(SendFilesResult(
       paths: _resultPaths,
-      caption: _captionController.text,
+      caption: parsed.text,
+      captionEntitiesJson: parsed.entitiesJson,
       silent: silent,
       scheduledDate: scheduledDate,
       spoilers: _files.map((f) => f.spoiler).toList(),
@@ -1293,8 +1389,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                         onReorder: _reorderMediaFiles,
                         onReplace: _replaceFile,
                         onRename: _renameFile,
+                        onEditCaption: _editFileCaption,
                         canSpoiler: _canSpoiler,
                         sendLargePhotos: _sendLargePhotos,
+                        isBroadcast: widget.isBroadcast,
+                        isSelfChat: widget.isSelfChat,
                       ),
                     if (showMediaPreview && mediaFiles.isNotEmpty &&
                         (gifFiles.isNotEmpty || docFiles.isNotEmpty))
@@ -1391,8 +1490,19 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
               ),
             ),
             Divider(height: 1, color: dividerColor),
+            if (_showMentionPanel && _acFilteredMembers.isNotEmpty)
+              _MentionAutocompletePanel(
+                members: _acFilteredMembers,
+                isDark: isDark,
+                onSelect: _insertMention,
+              ),
+            _CaptionFormattingToolbar(
+              controller: _captionController,
+              accentColor: accentFg,
+              subColor: subFg,
+            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 8, 0),
+              padding: const EdgeInsets.fromLTRB(20, 4, 8, 0),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -1449,6 +1559,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                       selection: TextSelection.collapsed(offset: sel.start + emoji.length),
                     );
                   }
+                  addRecentEmoji(emoji);
                   _captionFocus.requestFocus();
                 },
               ),
@@ -1606,8 +1717,11 @@ class _MediaPreview extends StatelessWidget {
   final void Function(int, int) onReorder;
   final void Function(int index, _PreparedFile replacement)? onReplace;
   final void Function(int index, String newName)? onRename;
+  final void Function(int index)? onEditCaption;
   final bool canSpoiler;
   final bool sendLargePhotos;
+  final bool isBroadcast;
+  final bool isSelfChat;
 
   const _MediaPreview({
     required this.files,
@@ -1617,8 +1731,11 @@ class _MediaPreview extends StatelessWidget {
     required this.onReorder,
     this.onReplace,
     this.onRename,
+    this.onEditCaption,
     required this.canSpoiler,
     required this.sendLargePhotos,
+    this.isBroadcast = false,
+    this.isSelfChat = false,
   });
 
   @override
@@ -1633,7 +1750,10 @@ class _MediaPreview extends StatelessWidget {
         sendLargePhotos: sendLargePhotos,
         onReplace: onReplace,
         onRename: onRename,
+        onEditCaption: onEditCaption,
         fileIndex: allFiles.indexOf(files.first),
+        isBroadcast: isBroadcast,
+        isSelfChat: isSelfChat,
       );
     }
     return _AlbumPreview(
@@ -1644,6 +1764,7 @@ class _MediaPreview extends StatelessWidget {
       onReorder: onReorder,
       onReplace: onReplace,
       onRename: onRename,
+      onEditCaption: onEditCaption,
       canSpoiler: canSpoiler,
       sendLargePhotos: sendLargePhotos,
     );
@@ -1659,7 +1780,10 @@ class _SingleMediaPreview extends StatelessWidget {
   final bool sendLargePhotos;
   final void Function(int index, _PreparedFile replacement)? onReplace;
   final void Function(int index, String newName)? onRename;
+  final void Function(int index)? onEditCaption;
   final int fileIndex;
+  final bool isBroadcast;
+  final bool isSelfChat;
 
   const _SingleMediaPreview({
     required this.file,
@@ -1670,6 +1794,9 @@ class _SingleMediaPreview extends StatelessWidget {
     required this.sendLargePhotos,
     this.onReplace,
     this.onRename,
+    this.onEditCaption,
+    this.isBroadcast = false,
+    this.isSelfChat = false,
     this.fileIndex = 0,
   });
 
@@ -1757,6 +1884,12 @@ class _SingleMediaPreview extends StatelessWidget {
             icon: Icon(Icons.drive_file_rename_outline),
             label: 'Rename file',
           ),
+        if (!file.isMediaType)
+          const TelegramMenuItem(
+            value: 'editcaption',
+            icon: Icon(Icons.text_fields),
+            label: 'Edit caption',
+          ),
         if (canSpoiler && file.isMediaType)
           TelegramMenuItem(
             value: 'spoiler',
@@ -1775,6 +1908,8 @@ class _SingleMediaPreview extends StatelessWidget {
           _doEdit(context);
         case 'rename':
           _doRename(context);
+        case 'editcaption':
+          onEditCaption?.call(fileIndex);
       }
     });
   }
@@ -1925,6 +2060,7 @@ class _AlbumPreview extends StatefulWidget {
   final void Function(int fromIndex, int toIndex) onReorder;
   final void Function(int index, _PreparedFile replacement)? onReplace;
   final void Function(int index, String newName)? onRename;
+  final void Function(int index)? onEditCaption;
   final bool canSpoiler;
   final bool sendLargePhotos;
 
@@ -1936,6 +2072,7 @@ class _AlbumPreview extends StatefulWidget {
     required this.onReorder,
     this.onReplace,
     this.onRename,
+    this.onEditCaption,
     required this.canSpoiler,
     required this.sendLargePhotos,
   });
@@ -2049,6 +2186,12 @@ class _AlbumPreviewState extends State<_AlbumPreview>
             icon: Icon(Icons.drive_file_rename_outline),
             label: 'Rename file',
           ),
+        if (!file.isMediaType)
+          const TelegramMenuItem(
+            value: 'editcaption',
+            icon: Icon(Icons.text_fields),
+            label: 'Edit caption',
+          ),
         if (widget.canSpoiler && file.isMediaType)
           TelegramMenuItem(
             value: 'spoiler',
@@ -2073,6 +2216,8 @@ class _AlbumPreviewState extends State<_AlbumPreview>
           _openEditor(file);
         case 'rename':
           _renameFile(allIdx, file);
+        case 'editcaption':
+          widget.onEditCaption?.call(allIdx);
         case 'remove':
           widget.onRemove(file);
       }
@@ -3379,6 +3524,135 @@ class _SendFilesDragCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CaptionFormattingToolbar extends StatelessWidget {
+  final RichTextEditingController controller;
+  final Color accentColor;
+  final Color subColor;
+
+  const _CaptionFormattingToolbar({
+    required this.controller,
+    required this.accentColor,
+    required this.subColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final hasSel = controller.selection.isValid && !controller.selection.isCollapsed;
+        if (!hasSel) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _fmtBtn(Icons.format_bold, FormatType.bold),
+              _fmtBtn(Icons.format_italic, FormatType.italic),
+              _fmtBtn(Icons.format_underlined, FormatType.underline),
+              _fmtBtn(Icons.format_strikethrough, FormatType.strike),
+              _fmtBtn(Icons.code, FormatType.code),
+              _fmtBtn(Icons.blur_on, FormatType.spoiler),
+              const SizedBox(width: 4),
+              _iconBtn(Icons.format_clear, () => controller.clearFormatting()),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _fmtBtn(IconData icon, FormatType type) {
+    final active = controller.hasFormat(type);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 1),
+      child: SizedBox(
+        width: 28, height: 28,
+        child: IconButton(
+          padding: EdgeInsets.zero,
+          iconSize: 18,
+          icon: Icon(icon, color: active ? accentColor : subColor),
+          onPressed: () => controller.toggleFormat(type),
+        ),
+      ),
+    );
+  }
+
+  Widget _iconBtn(IconData icon, VoidCallback onPressed) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 1),
+      child: SizedBox(
+        width: 28, height: 28,
+        child: IconButton(
+          padding: EdgeInsets.zero,
+          iconSize: 18,
+          icon: Icon(icon, color: subColor),
+          onPressed: onPressed,
+        ),
+      ),
+    );
+  }
+}
+
+class _MentionAutocompletePanel extends StatelessWidget {
+  final List<MemberInfo> members;
+  final bool isDark;
+  final void Function(MemberInfo) onSelect;
+
+  const _MentionAutocompletePanel({
+    required this.members,
+    required this.isDark,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 160),
+      color: bg,
+      child: ListView.builder(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: members.length,
+        itemBuilder: (ctx, i) {
+          final m = members[i];
+          return InkWell(
+            onTap: () => onSelect(m),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: isDark ? const Color(0xFF3E546A) : const Color(0xFFDDE4EB),
+                    child: Text(
+                      m.displayName.isNotEmpty ? m.displayName[0].toUpperCase() : '?',
+                      style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(m.displayName, style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87)),
+                        if (m.username.isNotEmpty)
+                          Text('@${m.username}', style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black45)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

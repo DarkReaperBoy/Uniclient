@@ -806,6 +806,15 @@ List<String> _recentEmojis = [];
 
 List<String> getRecentEmojisList() => List.unmodifiable(_recentEmojis);
 
+void addRecentEmoji(String emoji) {
+  _recentEmojis.remove(emoji);
+  _recentEmojis.insert(0, emoji);
+  if (_recentEmojis.length > 50) {
+    _recentEmojis = _recentEmojis.sublist(0, 50);
+  }
+  _saveEmojiPrefs();
+}
+
 class _EmojiTab extends StatefulWidget {
   final ValueChanged<String>? onEmojiSelected;
   final void Function(int documentId, String altText)? onCustomEmojiSelected;

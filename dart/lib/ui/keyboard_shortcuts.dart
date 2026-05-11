@@ -11,6 +11,7 @@ import 'admin_tools.dart' show showAdminLogScreen;
 import 'chat_list_panel.dart';
 import 'chat_list_row.dart';
 import 'chat_view.dart';
+import 'compose_entities.dart';
 import 'contacts_screen.dart';
 import 'media_viewer.dart';
 import 'shell.dart';
