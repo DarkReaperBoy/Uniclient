@@ -652,10 +652,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 
 
-## theme revert — notification inline reply not wired to engine
-
-- [ ] [CRITICAL] `onReplySend` callback in the `NotificationPopupOverlay` is an explicit `// TODO: wire to engine sendMessage` stub — the callback body is empty. Users who expand a notification and type a reply and press Send will get no message sent. — `main.dart:1954` ← (no AyuGram counterpart; this is a backend-wiring gap)
-
 ## theme revert — overlay width wrong (320px vs 364px spec)
 
 - [ ] [MAJOR] `_ThemeRevertOverlay` uses `_boxWidth = 320.0`. AyuGram sets `themeWarningWidth: boxWideWidth` where `boxWideWidth: 364px`. The overlay is 44px narrower than spec. — `main.dart:1990` ← `AyuGram/SourceFiles/boxes/boxes.style:347` and `lib_ui/ui/layers/layers.style:118`
