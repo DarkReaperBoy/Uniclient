@@ -17,7 +17,6 @@ import 'popup_menu.dart';
 import 'settings_style.dart';
 import 'shortcuts_settings_screen.dart';
 import 'telegram_toast.dart';
-import 'theme_confirm_overlay.dart';
 import 'theme_editor.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
@@ -40,7 +39,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   bool _sensitiveEnabled = false;
   bool _sensitiveCanChange = false;
   bool _sensitiveLoaded = false;
-  bool _showThemeConfirm = false;
+
 
   @override
   void initState() {
@@ -227,9 +226,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          ListView(
+      body: ListView(
         primary: true,
         padding: EdgeInsets.zero,
         children: [
@@ -240,7 +237,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             accentColor: currentAccent,
             onThemeSelected: (themeId) {
               appState.applyTestingTheme(themeId);
-              setState(() => _showThemeConfirm = true);
             },
           ),
           const SizedBox(height: 8),
@@ -301,7 +297,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   ? '#${(theme.accentColor & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}'
                   : null;
               appState.applyTestingTheme(targetTheme, accentColor: accentHex);
-              setState(() => _showThemeConfirm = true);
             },
             onEditTheme: null,
           ),
@@ -443,19 +438,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           _ShortcutsArchiveSection(isDark: isDark, accentColor: currentAccent),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
-        ],
-      ),
-          if (_showThemeConfirm)
-            ThemeConfirmOverlay(
-              onKeep: () {
-                appState.keepAppliedTheme();
-                setState(() => _showThemeConfirm = false);
-              },
-              onRevert: () {
-                appState.revertTheme();
-                setState(() => _showThemeConfirm = false);
-              },
-            ),
         ],
       ),
     );
