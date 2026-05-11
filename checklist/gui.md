@@ -672,24 +672,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 ## settings_screen — Main Settings Screen
 
 
-# skeleton_animation — Visual & integration gaps vs AyuGram
-
-## Major Issues
-
-- [ ] **[MAJOR]** No backend integration: skeleton widgets are purely decorative. They don't fetch or display real data, no engine calls, no state updates from server. Confirm if these are meant as standalone aesthetic elements or if they should bind to actual FlatLabel/chat widgets loading data.
-
-- [ ] **[MAJOR]** Transparency math differs: Dart applies `glareColor.withValues(alpha: 0)` at gradient edges, which becomes fully transparent when drawn, then blends over baseColor (srcOver blend produces higher final alpha in center). AyuGram applies direct opacity to entire gradient (center is inherently less opaque). Fix: Match AyuGram by using a gradient that directly sets opacity (e.g., gradient with opacities [0.5, 0.2, 0.5] instead of [transparent, glareColor, transparent]).
-
----
-
-## Checklist
-
-- [ ] Read `research/telegram_desktop_ui.md` § skeleton animation (if present) before fixing
-- [ ] Test both desktop (1024x768) and mobile (400x720) sizes to verify gradient sweep is visible
-- [ ] Compare visual output of Dart shimmer vs AyuGram's darker-center effect
-- [ ] If standalone widgets are intentional, document in `research/` why they diverge from AyuGram
-- [ ] If FlatLabel integration is needed, implement SkeletonAnimation class wrapping FlatLabel
-- [ ] Remove unused widgets if audit determines they're not part of the final UI
 
 # spoiler_animation — Particle generation, caching, and threading gaps
 
