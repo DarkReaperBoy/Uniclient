@@ -665,10 +665,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 # send_files_box — Audit Findings
 
 
-## send_files_box — Emoji panel is a static hardcoded 30-emoji grid
-
-- [ ] [MAJOR] `_EmojiQuickPanel` shows a fixed static list of 30 emojis hardcoded in the source. AyuGram uses a full `TabbedSelector` panel showing the user's actual recent emojis from the session. Emojis shown never change and don't reflect user history. — `dart/lib/ui/send_files_box.dart:2875-2882` ← `boxes/send_files_box.cpp:2003-2058`
-
 ## send_files_box — Caption field does not support text entities / markup
 
 - [ ] [MAJOR] The caption field is a plain `TextField` with no entity/markup support. AyuGram's caption field is an `InputField` with `TextWithTags` supporting bold, italic, code, strikethrough, mentions, etc. via `InitMessageFieldHandlers`. Formatted captions cannot be created. — `dart/lib/ui/send_files_box.dart:1278-1294` ← `boxes/send_files_box.cpp:1837-1920`
