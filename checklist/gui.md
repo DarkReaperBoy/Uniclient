@@ -652,9 +652,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 
 
-## theme revert — double overlay: ThemeConfirmOverlay + _ThemeRevertOverlay both appear
-
-- [ ] [MAJOR] When switching themes, BOTH `_ThemeRevertOverlay` (main.dart, centered) AND `ThemeConfirmOverlay` (ui/theme_confirm_overlay.dart, bottom-center) appear simultaneously. AyuGram shows only one `WarningWidget`. The `ThemeConfirmOverlay` is a duplicate that was not removed when `_ThemeRevertOverlay` was added; it is rendered via `_showThemeConfirm` flag in `chat_settings_screen.dart:449`. Additionally, `ThemeConfirmOverlay` still uses `_kWidth = 320.0` (not 364px). Fix: remove `ThemeConfirmOverlay` usage from `chat_settings_screen.dart` entirely (it's superseded by `_ThemeRevertOverlay`). — `chat_settings_screen.dart:449`, `ui/theme_confirm_overlay.dart:8`
 
 ## theme revert — overlay is positioned at bottom, not centered
 
