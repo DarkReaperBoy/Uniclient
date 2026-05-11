@@ -6572,6 +6572,8 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     $core.bool? spoiler,
     $core.bool? sendAsDocument,
     $core.bool? captionAbove,
+    $core.String? captionEntities,
+    $core.String? videoCoverPath,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -6601,6 +6603,12 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     if (captionAbove != null) {
       $result.captionAbove = captionAbove;
     }
+    if (captionEntities != null) {
+      $result.captionEntities = captionEntities;
+    }
+    if (videoCoverPath != null) {
+      $result.videoCoverPath = videoCoverPath;
+    }
     return $result;
   }
   EngineUploadFileRequest._() : super();
@@ -6617,6 +6625,8 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     ..aOB(7, _omitFieldNames ? '' : 'spoiler')
     ..aOB(8, _omitFieldNames ? '' : 'sendAsDocument')
     ..aOB(9, _omitFieldNames ? '' : 'captionAbove')
+    ..aOS(10, _omitFieldNames ? '' : 'captionEntities')
+    ..aOS(11, _omitFieldNames ? '' : 'videoCoverPath')
     ..hasRequiredFields = false
   ;
 
@@ -6721,6 +6731,24 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
   $core.bool hasCaptionAbove() => $_has(8);
   @$pb.TagNumber(9)
   void clearCaptionAbove() => clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.String get captionEntities => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set captionEntities($core.String v) { $_setString(9, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasCaptionEntities() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearCaptionEntities() => clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.String get videoCoverPath => $_getSZ(10);
+  @$pb.TagNumber(11)
+  set videoCoverPath($core.String v) { $_setString(10, v); }
+  @$pb.TagNumber(11)
+  $core.bool hasVideoCoverPath() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearVideoCoverPath() => clearField(11);
 }
 
 class EngineUploadFileResponse extends $pb.GeneratedMessage {

@@ -4822,18 +4822,20 @@ func (x *EnginePinMessageRequest) GetPinned() bool {
 }
 
 type EngineUploadFileRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	AccountId      string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	ChatId         string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
-	FilePath       string                 `protobuf:"bytes,3,opt,name=file_path,json=filePath,proto3" json:"file_path,omitempty"`
-	Caption        string                 `protobuf:"bytes,4,opt,name=caption,proto3" json:"caption,omitempty"`
-	Silent         bool                   `protobuf:"varint,5,opt,name=silent,proto3" json:"silent,omitempty"`
-	ScheduleDate   int32                  `protobuf:"varint,6,opt,name=schedule_date,json=scheduleDate,proto3" json:"schedule_date,omitempty"`
-	Spoiler        bool                   `protobuf:"varint,7,opt,name=spoiler,proto3" json:"spoiler,omitempty"`
-	SendAsDocument bool                   `protobuf:"varint,8,opt,name=send_as_document,json=sendAsDocument,proto3" json:"send_as_document,omitempty"`
-	CaptionAbove   bool                   `protobuf:"varint,9,opt,name=caption_above,json=captionAbove,proto3" json:"caption_above,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	AccountId       string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId          string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	FilePath        string                 `protobuf:"bytes,3,opt,name=file_path,json=filePath,proto3" json:"file_path,omitempty"`
+	Caption         string                 `protobuf:"bytes,4,opt,name=caption,proto3" json:"caption,omitempty"`
+	Silent          bool                   `protobuf:"varint,5,opt,name=silent,proto3" json:"silent,omitempty"`
+	ScheduleDate    int32                  `protobuf:"varint,6,opt,name=schedule_date,json=scheduleDate,proto3" json:"schedule_date,omitempty"`
+	Spoiler         bool                   `protobuf:"varint,7,opt,name=spoiler,proto3" json:"spoiler,omitempty"`
+	SendAsDocument  bool                   `protobuf:"varint,8,opt,name=send_as_document,json=sendAsDocument,proto3" json:"send_as_document,omitempty"`
+	CaptionAbove    bool                   `protobuf:"varint,9,opt,name=caption_above,json=captionAbove,proto3" json:"caption_above,omitempty"`
+	CaptionEntities string                 `protobuf:"bytes,10,opt,name=caption_entities,json=captionEntities,proto3" json:"caption_entities,omitempty"`
+	VideoCoverPath  string                 `protobuf:"bytes,11,opt,name=video_cover_path,json=videoCoverPath,proto3" json:"video_cover_path,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *EngineUploadFileRequest) Reset() {
@@ -4927,6 +4929,20 @@ func (x *EngineUploadFileRequest) GetCaptionAbove() bool {
 		return x.CaptionAbove
 	}
 	return false
+}
+
+func (x *EngineUploadFileRequest) GetCaptionEntities() string {
+	if x != nil {
+		return x.CaptionEntities
+	}
+	return ""
+}
+
+func (x *EngineUploadFileRequest) GetVideoCoverPath() string {
+	if x != nil {
+		return x.VideoCoverPath
+	}
+	return ""
 }
 
 type EngineUploadFileResponse struct {
@@ -13706,7 +13722,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
 	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x16\n" +
-	"\x06pinned\x18\x04 \x01(\bR\x06pinned\"\xae\x02\n" +
+	"\x06pinned\x18\x04 \x01(\bR\x06pinned\"\x83\x03\n" +
 	"\x17EngineUploadFileRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -13717,7 +13733,10 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\rschedule_date\x18\x06 \x01(\x05R\fscheduleDate\x12\x18\n" +
 	"\aspoiler\x18\a \x01(\bR\aspoiler\x12(\n" +
 	"\x10send_as_document\x18\b \x01(\bR\x0esendAsDocument\x12#\n" +
-	"\rcaption_above\x18\t \x01(\bR\fcaptionAbove\"1\n" +
+	"\rcaption_above\x18\t \x01(\bR\fcaptionAbove\x12)\n" +
+	"\x10caption_entities\x18\n" +
+	" \x01(\tR\x0fcaptionEntities\x12(\n" +
+	"\x10video_cover_path\x18\v \x01(\tR\x0evideoCoverPath\"1\n" +
 	"\x18EngineUploadFileResponse\x12\x15\n" +
 	"\x06msg_id\x18\x01 \x01(\tR\x05msgId\"6\n" +
 	"\x19EngineRetryPendingRequest\x12\x19\n" +

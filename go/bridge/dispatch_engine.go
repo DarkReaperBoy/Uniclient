@@ -783,12 +783,14 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		msgID, err := e.UploadFileEx(req.AccountId, req.ChatId, req.FilePath, cores.UploadOptions{
-			Caption:        req.Caption,
-			Silent:         req.Silent,
-			ScheduleDate:   int64(req.ScheduleDate),
-			Spoiler:        req.Spoiler,
-			SendAsDocument: req.SendAsDocument,
-			CaptionAbove:   req.CaptionAbove,
+			Caption:         req.Caption,
+			CaptionEntities: req.CaptionEntities,
+			Silent:          req.Silent,
+			ScheduleDate:    int64(req.ScheduleDate),
+			Spoiler:         req.Spoiler,
+			SendAsDocument:  req.SendAsDocument,
+			CaptionAbove:    req.CaptionAbove,
+			VideoCoverPath:  req.VideoCoverPath,
 		})
 		if err != nil {
 			return nil, err

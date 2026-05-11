@@ -18,6 +18,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1840,9 +1841,23 @@ func (t *TelegramCore) UploadFileWithOptions(chatID string, file FileUpload, opt
 		return nil, err
 	}
 
-	var caption []styling.StyledTextOption
-	if opts.Caption != "" {
-		caption = []styling.StyledTextOption{styling.Plain(opts.Caption)}
+	caption := t.buildStyledCaption(opts.Caption, opts.CaptionEntities)
+
+	var thumbUpload tg.InputFileClass
+	if opts.VideoCoverPath != "" {
+		coverFile, err := os.Open(opts.VideoCoverPath)
+		if err == nil {
+			info, _ := coverFile.Stat()
+			coverName := info.Name()
+			coverSize := info.Size()
+			thumbUpload, err = u.Upload(t.ctx, uploader.NewUpload(coverName, coverFile, coverSize))
+			if err != nil {
+				coverFile.Close()
+				thumbUpload = nil
+			} else {
+				coverFile.Close()
+			}
+		}
 	}
 
 	var media message.MediaOption
@@ -1862,7 +1877,11 @@ func (t *TelegramCore) UploadFileWithOptions(chatID string, file FileUpload, opt
 	case strings.HasPrefix(file.MimeType, "image/"):
 		media = message.UploadedPhoto(upload, caption...)
 	case strings.HasPrefix(file.MimeType, "video/"):
-		media = message.UploadedDocument(upload, caption...).MIME(file.MimeType).Filename(file.Name).Video()
+		doc := message.UploadedDocument(upload, caption...).MIME(file.MimeType).Filename(file.Name)
+		if thumbUpload != nil {
+			doc = doc.Thumb(thumbUpload)
+		}
+		media = doc.Video()
 	case file.MimeType == "audio/ogg" || file.MimeType == "audio/opus":
 		media = message.UploadedDocument(upload, caption...).MIME("audio/ogg").Filename(file.Name).Voice()
 	case strings.HasPrefix(file.MimeType, "audio/"):
@@ -1884,6 +1903,68 @@ func (t *TelegramCore) UploadFileWithOptions(chatID string, file FileUpload, opt
 		return nil, fmt.Errorf("send file: %w", err)
 	}
 	return t.extractMessageFromUpdates(result, chatID), nil
+}
+
+func (t *TelegramCore) buildStyledCaption(text, entitiesJSON string) []styling.StyledTextOption {
+	if text == "" {
+		return nil
+	}
+	if entitiesJSON == "" {
+		return []styling.StyledTextOption{styling.Plain(text)}
+	}
+	var entities []TextEntity
+	if err := json.Unmarshal([]byte(entitiesJSON), &entities); err != nil {
+		return []styling.StyledTextOption{styling.Plain(text)}
+	}
+	if len(entities) == 0 {
+		return []styling.StyledTextOption{styling.Plain(text)}
+	}
+	sort.Slice(entities, func(i, j int) bool { return entities[i].Offset < entities[j].Offset })
+	runes := []rune(text)
+	var opts []styling.StyledTextOption
+	pos := 0
+	for _, e := range entities {
+		end := e.Offset + e.Length
+		if end > len(runes) {
+			end = len(runes)
+		}
+		if e.Offset < pos || e.Offset >= len(runes) {
+			continue
+		}
+		if e.Offset > pos {
+			opts = append(opts, styling.Plain(string(runes[pos:e.Offset])))
+		}
+		substr := string(runes[e.Offset:end])
+		switch e.Type {
+		case "bold":
+			opts = append(opts, styling.Bold(substr))
+		case "italic":
+			opts = append(opts, styling.Italic(substr))
+		case "underline":
+			opts = append(opts, styling.Underline(substr))
+		case "strike":
+			opts = append(opts, styling.Strike(substr))
+		case "code":
+			opts = append(opts, styling.Code(substr))
+		case "pre":
+			opts = append(opts, styling.Pre(substr, e.Language))
+		case "spoiler":
+			opts = append(opts, styling.Spoiler(substr))
+		case "text_url":
+			opts = append(opts, styling.TextURL(substr, e.URL))
+		case "blockquote":
+			opts = append(opts, styling.Blockquote(substr, false))
+		case "custom_emoji":
+			opts = append(opts, styling.CustomEmoji(substr, e.DocumentID))
+		default:
+			opts = append(opts, styling.Plain(substr))
+		}
+		pos = end
+	}
+	if pos < len(runes) {
+		opts = append(opts, styling.Plain(string(runes[pos:])))
+	}
+	return opts
 }
 
 // SendMediaAlbum sends multiple media items as a single album (grouped message).

@@ -78,6 +78,7 @@ class SendFilesResult {
   final Map<int, String> perFileCaptions;
   final bool ctrlShiftEnter;
   final bool sendAsSticker;
+  final Map<int, String> videoCoverPaths;
 
   const SendFilesResult({
     required this.paths,
@@ -94,6 +95,7 @@ class SendFilesResult {
     this.perFileCaptions = const {},
     this.ctrlShiftEnter = false,
     this.sendAsSticker = false,
+    this.videoCoverPaths = const {},
   });
 }
 
@@ -138,6 +140,7 @@ class _PreparedFile {
   bool hasThumb;
   String? audioTitle;
   String? audioPerformer;
+  String? videoCoverPath;
 
   _PreparedFile({
     required this.path,
@@ -1149,6 +1152,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
     _preservedCaption = '';
     final parsed = _captionController.getTextWithAppliedMarkdown();
+    final coverPaths = <int, String>{};
+    for (var i = 0; i < _files.length; i++) {
+      if (_files[i].videoCoverPath != null) {
+        coverPaths[i] = _files[i].videoCoverPath!;
+      }
+    }
     Navigator.of(context).pop(SendFilesResult(
       paths: _resultPaths,
       caption: parsed.text,
@@ -1164,6 +1173,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       perFileCaptions: Map.from(_perFileCaptions),
       ctrlShiftEnter: ctrlShiftEnter,
       sendAsSticker: asSticker,
+      videoCoverPaths: coverPaths,
     ));
   }
 
@@ -1753,6 +1763,8 @@ class _MediaPreview extends StatelessWidget {
       onEditCaption: onEditCaption,
       canSpoiler: canSpoiler,
       sendLargePhotos: sendLargePhotos,
+      isBroadcast: isBroadcast,
+      isSelfChat: isSelfChat,
     );
   }
 }
@@ -1882,6 +1894,18 @@ class _SingleMediaPreview extends StatelessWidget {
             icon: Icon(file.spoiler ? Icons.check : Icons.blur_on),
             label: 'Spoiler effect',
           ),
+        if (file.type == _FileType.video && (isBroadcast || isSelfChat))
+          const TelegramMenuItem(
+            value: 'editcover',
+            icon: Icon(Icons.image_outlined),
+            label: 'Edit cover',
+          ),
+        if (file.type == _FileType.video && (isBroadcast || isSelfChat) && file.videoCoverPath != null)
+          const TelegramMenuItem(
+            value: 'clearcover',
+            icon: Icon(Icons.cancel_outlined),
+            label: 'Clear cover',
+          ),
       ],
     ).then((value) {
       if (value == null) return;
@@ -1896,6 +1920,10 @@ class _SingleMediaPreview extends StatelessWidget {
           _doRename(context);
         case 'editcaption':
           onEditCaption?.call(fileIndex);
+        case 'editcover':
+          _doEditCover(context);
+        case 'clearcover':
+          _doClearCover();
       }
     });
   }
@@ -1966,6 +1994,39 @@ class _SingleMediaPreview extends StatelessWidget {
         onRename?.call(fileIndex, newName);
       }
     });
+  }
+
+  Future<void> _doEditCover(BuildContext context) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+      );
+      if (result == null || result.files.isEmpty || result.files.first.path == null) return;
+      final pickedPath = result.files.first.path!;
+      final pickedFile = File(pickedPath);
+      if (!pickedFile.existsSync()) return;
+      final ext = pickedPath.split('.').last.toLowerCase();
+      if (!_kPhotoExts.contains(ext)) {
+        if (context.mounted) {
+          showTelegramToast(context, 'Please select an image file for the cover');
+        }
+        return;
+      }
+      if (!context.mounted) return;
+      PhotoCropEditor.open(
+        context,
+        imageFile: pickedFile,
+        shape: PhotoCropShape.rect,
+        purpose: PhotoEditorPurpose.edit,
+        onDone: (croppedFile) async {
+          file.videoCoverPath = croppedFile.path;
+        },
+      );
+    } catch (_) {}
+  }
+
+  void _doClearCover() {
+    file.videoCoverPath = null;
   }
 }
 
@@ -2049,6 +2110,8 @@ class _AlbumPreview extends StatefulWidget {
   final void Function(int index)? onEditCaption;
   final bool canSpoiler;
   final bool sendLargePhotos;
+  final bool isBroadcast;
+  final bool isSelfChat;
 
   const _AlbumPreview({
     required this.files,
@@ -2061,6 +2124,8 @@ class _AlbumPreview extends StatefulWidget {
     this.onEditCaption,
     required this.canSpoiler,
     required this.sendLargePhotos,
+    this.isBroadcast = false,
+    this.isSelfChat = false,
   });
 
   @override
@@ -2184,6 +2249,18 @@ class _AlbumPreviewState extends State<_AlbumPreview>
             icon: Icon(file.spoiler ? Icons.check : Icons.blur_on),
             label: 'Spoiler effect',
           ),
+        if (file.type == _FileType.video && (widget.isBroadcast || widget.isSelfChat))
+          const TelegramMenuItem(
+            value: 'editcover',
+            icon: Icon(Icons.image_outlined),
+            label: 'Edit cover',
+          ),
+        if (file.type == _FileType.video && (widget.isBroadcast || widget.isSelfChat) && file.videoCoverPath != null)
+          const TelegramMenuItem(
+            value: 'clearcover',
+            icon: Icon(Icons.cancel_outlined),
+            label: 'Clear cover',
+          ),
         if (widget.allFiles.length > 1)
           const TelegramMenuItem(
             value: 'remove',
@@ -2204,6 +2281,10 @@ class _AlbumPreviewState extends State<_AlbumPreview>
           _renameFile(allIdx, file);
         case 'editcaption':
           widget.onEditCaption?.call(allIdx);
+        case 'editcover':
+          _editCover(context, file, allIdx);
+        case 'clearcover':
+          file.videoCoverPath = null;
         case 'remove':
           widget.onRemove(file);
       }
@@ -2280,6 +2361,35 @@ class _AlbumPreviewState extends State<_AlbumPreview>
         widget.onReplace?.call(allIdx, replacement);
       },
     );
+  }
+
+  Future<void> _editCover(BuildContext context, _PreparedFile file, int allIdx) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+      );
+      if (result == null || result.files.isEmpty || result.files.first.path == null) return;
+      final pickedPath = result.files.first.path!;
+      final pickedFile = File(pickedPath);
+      if (!pickedFile.existsSync()) return;
+      final ext = pickedPath.split('.').last.toLowerCase();
+      if (!_kPhotoExts.contains(ext)) {
+        if (context.mounted) {
+          showTelegramToast(context, 'Please select an image file for the cover');
+        }
+        return;
+      }
+      if (!context.mounted) return;
+      PhotoCropEditor.open(
+        context,
+        imageFile: pickedFile,
+        shape: PhotoCropShape.rect,
+        purpose: PhotoEditorPurpose.edit,
+        onDone: (croppedFile) async {
+          file.videoCoverPath = croppedFile.path;
+        },
+      );
+    } catch (_) {}
   }
 
   @override

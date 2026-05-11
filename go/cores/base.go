@@ -751,17 +751,19 @@ type ForwardWithOptionsSupporter interface {
 
 // UploadOptions provides extra control over media uploads for the resend pipeline.
 type UploadOptions struct {
-	Caption        string
-	Silent         bool
-	ScheduleDate   int64
-	IsVoice        bool
-	IsVideoNote    bool
-	Width          int
-	Height         int
-	Duration       int
-	Spoiler        bool
-	SendAsDocument bool
-	CaptionAbove   bool
+	Caption         string
+	CaptionEntities string
+	Silent          bool
+	ScheduleDate    int64
+	IsVoice         bool
+	IsVideoNote     bool
+	Width           int
+	Height          int
+	Duration        int
+	Spoiler         bool
+	SendAsDocument  bool
+	CaptionAbove    bool
+	VideoCoverPath  string
 }
 
 // UploadWithOptionsSupporter allows uploading files with extra metadata.

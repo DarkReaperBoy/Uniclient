@@ -3986,6 +3986,7 @@ class _ChatViewState extends State<ChatView>
         spoiler: hasSpoiler,
         sendAsDocument: result.sendAsDocuments,
         captionAbove: result.captionAbove,
+        videoCoverPath: result.videoCoverPaths[i] ?? '',
       );
     }
   }
