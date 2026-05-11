@@ -113,11 +113,16 @@ class StatsChartData {
         } else {
           final values =
               list.skip(1).map((v) => (v as num).toDouble()).toList();
-          final colorHex = colors[id] as String? ?? '#3DC23F';
+          final colorStr = colors[id] as String? ?? '#3DC23F';
+          final colorKeyMatch = RegExp(r'(.*)(#.*)').firstMatch(colorStr);
+          final colorKey = colorKeyMatch?.group(1) ?? '';
+          final colorHex = colorKeyMatch?.group(2) ?? colorStr;
+          final lineName = (names[id] as String? ?? id).replaceAll('-', '—');
           lines.add(ChartLine(
             id: id,
-            name: names[id] as String? ?? id,
+            name: lineName,
             color: _parseColor(colorHex),
+            colorKey: colorKey,
             values: values,
             isHiddenOnStart: hiddenSet.contains(id),
           ));
@@ -127,18 +132,26 @@ class StatsChartData {
       if (timestamps.isEmpty || lines.isEmpty) return null;
 
       final percentage = parsed['percentage'] as bool? ?? false;
-      final footerHidden = parsed['isFooterHidden'] as bool? ?? false;
-      final defaultZoom = parsed['defaultZoomXIndex'] as int?;
       final dayStrWidth = (parsed['dayStringMaxWidth'] as num?)?.toDouble();
 
-      bool weekFmt = false;
-      if (timestamps.length >= 2) {
-        final ms0 =
-            timestamps[0].abs() > 1e12 ? timestamps[0] : timestamps[0] * 1000;
-        final ms1 =
-            timestamps[1].abs() > 1e12 ? timestamps[1] : timestamps[1] * 1000;
-        weekFmt = (ms1 - ms0).abs() >= 6 * 24 * 3600 * 1000;
+      final subchart = (parsed['subchart'] as Map<String, dynamic>?) ?? {};
+      final subchartShow = subchart['show'];
+      final footerHidden = subchartShow is bool ? !subchartShow : false;
+
+      int? defaultZoom;
+      final defaultZoomArr = subchart['defaultZoom'];
+      if (defaultZoomArr is List && defaultZoomArr.isNotEmpty) {
+        final minTs = (defaultZoomArr.first as num).toDouble();
+        for (int i = 0; i < timestamps.length; i++) {
+          if (timestamps[i].toDouble() == minTs) {
+            defaultZoom = i;
+            break;
+          }
+        }
       }
+
+      final tooltipFormatter = parsed['xTooltipFormatter'] as String?;
+      final weekFmt = tooltipFormatter != null && tooltipFormatter.contains("'week'");
 
       return StatsChartData(
         title: title,
@@ -170,6 +183,7 @@ class ChartLine {
   final String id;
   final String name;
   final Color color;
+  final String colorKey;
   final List<double> values;
   final bool isHiddenOnStart;
 
@@ -177,9 +191,31 @@ class ChartLine {
     required this.id,
     required this.name,
     required this.color,
+    this.colorKey = '',
     required this.values,
     this.isHiddenOnStart = false,
   });
+}
+
+const _kThemeLineColors = <String, Color>{
+  'BLUE': Color(0xFF327FE5),
+  'GREEN': Color(0xFF61C752),
+  'RED': Color(0xFFE05356),
+  'GOLDEN': Color(0xFFEBA52D),
+  'LIGHTBLUE': Color(0xFF58A8ED),
+  'LIGHTGREEN': Color(0xFF8FCF39),
+  'ORANGE': Color(0xFFF28C39),
+  'INDIGO': Color(0xFF7F79F3),
+  'PURPLE': Color(0xFF9F79E8),
+  'CYAN': Color(0xFF40D0CA),
+};
+
+Color _resolveLineColor(ChartLine line) {
+  if (line.colorKey.isNotEmpty) {
+    final themed = _kThemeLineColors[line.colorKey];
+    if (themed != null) return themed;
+  }
+  return line.color;
 }
 
 const _kHeaderHeight = 36.0;
@@ -258,10 +294,14 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
 
   double _dateLabelAlpha = 1.0;
   double _dateLabelProgress = 1.0;
+  int _prevDateStep = 1;
+  int _curDateStep = 1;
 
   late AnimationController _pieAnimController;
   int? _pieDataIndex;
   int _pieHoverSlice = -1;
+
+  late AnimationController _shakeController;
 
   StatsChartData? _serverZoomedData;
   bool _serverZoomLoading = false;
@@ -290,6 +330,9 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
           _rangeStart = _animFromStart + (_animToStart - _animFromStart) * t;
           _rangeEnd = _animFromEnd + (_animToEnd - _animFromEnd) * t;
         });
+        _updateRulerRange();
+        _updateFooterYRange();
+        _updateDateStep();
       });
     _chartTicker = createTicker(_onChartTick);
     _pieAnimController = AnimationController(
@@ -300,6 +343,12 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
       vsync: this,
       duration: const Duration(milliseconds: 200),
     )..addListener(() => setState(() {}));
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    )..addListener(() => setState(() {}));
+    _updateRulerRange();
+    _updateFooterYRange();
   }
 
   @override
@@ -393,6 +442,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     _chartTicker.dispose();
     _pieAnimController.dispose();
     _serverZoomAnim.dispose();
+    _shakeController.dispose();
     for (final c in _lineAlphaControllers.values) {
       c.dispose();
     }
@@ -539,6 +589,31 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     }
   }
 
+  int _computeDateStep() {
+    final n = widget.data.timestamps.length;
+    if (n < 2) return 1;
+    final span = _rangeEnd - _rangeStart;
+    if (span <= 0) return 1;
+    final pxPerPoint = 400.0 / (span * (n - 1));
+    final minSpacing = 70.0;
+    int step = 1;
+    while (step * pxPerPoint < minSpacing && step < n) {
+      step *= 2;
+    }
+    return step;
+  }
+
+  void _updateDateStep() {
+    final newStep = _computeDateStep();
+    if (newStep != _curDateStep) {
+      _prevDateStep = _curDateStep;
+      _curDateStep = newStep;
+      _dateLabelProgress = 0.0;
+      _dateLabelAlpha = 0.0;
+      _ensureTickerRunning();
+    }
+  }
+
   void _onChartTick(Duration elapsed) {
     if (_prevTickDuration == Duration.zero) {
       _prevTickDuration = elapsed;
@@ -639,8 +714,6 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
 
   @override
   Widget build(BuildContext context) {
-    _updateRulerRange();
-    _updateFooterYRange();
     final isDark = widget.theme.brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final subtitleColor = isDark ? Colors.white60 : Colors.black54;
@@ -784,6 +857,8 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
                         animatedYMn: _animatedYMn,
                         animatedYMx: _animatedYMx,
                         dateLabelAlpha: _dateLabelAlpha,
+                        prevDateStep: _prevDateStep,
+                        curDateStep: _curDateStep,
                       ),
                     ),
                   ),
@@ -817,7 +892,8 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
             );
           }),
         ),
-        if (!widget.data.isFooterHidden)
+        if (!widget.data.isFooterHidden) ...[
+          const SizedBox(height: 11),
           SizedBox(
             height: _kFooterHeight,
             child: LayoutBuilder(builder: (ctx, box) {
@@ -844,20 +920,27 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
               );
             }),
           ),
+        ],
         if (widget.data.lines.length > 1)
           Padding(
             padding: const EdgeInsets.only(top: 12, bottom: 8),
             child: Wrap(
-              children: widget.data.lines
-                  .map((line) => _FilterButton(
-                        label: line.name,
-                        color: line.color,
-                        active: _lineVisible[line.id] ?? true,
-                        isDark: isDark,
-                        onTap: () => _toggleLine(line.id),
-                        onLongPress: () => _longPressLine(line.id),
-                      ))
-                  .toList(),
+              children: widget.data.lines.map((line) {
+                    final isShaking = _shakeLineId == line.id &&
+                        _shakeController.isAnimating;
+                    final shakeOff = isShaking
+                        ? math.sin(_shakeController.value * math.pi * 4) * 6
+                        : 0.0;
+                    return _FilterButton(
+                      label: line.name,
+                      color: _resolveLineColor(line),
+                      active: _lineVisible[line.id] ?? true,
+                      isDark: isDark,
+                      onTap: () => _toggleLine(line.id),
+                      onLongPress: () => _longPressLine(line.id),
+                      shakeOffset: shakeOff,
+                    );
+                  }).toList(),
             ),
           ),
       ],
@@ -926,7 +1009,10 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
               if (zoomEnabled)
                 Padding(
                   padding: const EdgeInsets.only(left: 3),
-                  child: Icon(Icons.chevron_right, size: 14, color: subColor),
+                  child: CustomPaint(
+                    size: const Size(7, 10),
+                    painter: _ZoomArrowPainter(color: subColor),
+                  ),
                 ),
             ],
           ),
@@ -954,7 +1040,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: allLines[i].color),
+                              color: _resolveLineColor(allLines[i])),
                         ),
                         Text(
                           '≈ \$${_formatValue((idx < allLines[i].values.length ? allLines[i].values[idx] : 0) * widget.data.currencyRate!)}',
@@ -970,7 +1056,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
                       style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: allLines[i].color),
+                          color: _resolveLineColor(allLines[i])),
                     ),
                     if (widget.data.hasPercentages && totalAtIdx > 0) ...[
                       const SizedBox(width: 4),
@@ -1088,6 +1174,9 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
           break;
       }
     });
+    _updateRulerRange();
+    _updateFooterYRange();
+    _updateDateStep();
   }
 
   void _onFooterTap(TapUpDetails details, double width) {
@@ -1157,10 +1246,16 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     setState(() => _pieHoverSlice = -1);
   }
 
+  String? _shakeLineId;
+
   void _toggleLine(String lineId) {
     final current = _lineVisible[lineId] ?? true;
     if (current) {
-      if (_lineVisible.values.where((v) => v).length <= 1) return;
+      if (_lineVisible.values.where((v) => v).length <= 1) {
+        _shakeLineId = lineId;
+        _shakeController.forward(from: 0);
+        return;
+      }
       setState(() => _lineVisible[lineId] = false);
       _lineAlphaControllers[lineId]?.reverse();
     } else {
@@ -1215,6 +1310,7 @@ class _FilterButton extends StatelessWidget {
   final bool isDark;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final double shakeOffset;
 
   const _FilterButton({
     required this.label,
@@ -1223,56 +1319,58 @@ class _FilterButton extends StatelessWidget {
     required this.isDark,
     required this.onTap,
     required this.onLongPress,
+    this.shakeOffset = 0,
   });
 
   @override
   Widget build(BuildContext context) {
+    final inactiveBg = Theme.of(context).colorScheme.surfaceContainerHighest;
+    Widget btn = AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.fromLTRB(8, 5, 10, 5),
+      decoration: BoxDecoration(
+        color: active ? color : inactiveBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: active ? 14 : 0,
+            clipBehavior: Clip.hardEdge,
+            decoration: const BoxDecoration(),
+            child: CustomPaint(
+              size: const Size(10, 10),
+              painter: _CheckMarkPainter(
+                strokeWidth: 3,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          if (active) const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: active
+                  ? Colors.white
+                  : (isDark ? Colors.white70 : Colors.black87),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (shakeOffset != 0) {
+      btn = Transform.translate(offset: Offset(shakeOffset, 0), child: btn);
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 3, 4, 5),
       child: GestureDetector(
         onTap: onTap,
         onLongPress: onLongPress,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.fromLTRB(8, 5, 10, 5),
-          decoration: BoxDecoration(
-            color: active
-                ? color
-                : (isDark
-                    ? const Color(0xFF1A2633)
-                    : const Color(0xFFEEEEEE)),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: active ? 14 : 0,
-                clipBehavior: Clip.hardEdge,
-                decoration: const BoxDecoration(),
-                child: CustomPaint(
-                  size: const Size(10, 10),
-                  painter: _CheckMarkPainter(
-                    strokeWidth: 3,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              if (active) const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: active
-                      ? Colors.white
-                      : (isDark ? Colors.white70 : Colors.black87),
-                ),
-              ),
-            ],
-          ),
-        ),
+        child: btn,
       ),
     );
   }
@@ -1304,6 +1402,28 @@ class _CheckMarkPainter extends CustomPainter {
       strokeWidth != old.strokeWidth || color != old.color;
 }
 
+class _ZoomArrowPainter extends CustomPainter {
+  final Color color;
+  _ZoomArrowPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const shift = 3.0;
+    const stroke = 1.5;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = stroke
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final midY = size.height / 2;
+    canvas.drawLine(Offset(0, 0), Offset(shift, midY), paint);
+    canvas.drawLine(Offset(0, size.height), Offset(shift, midY), paint);
+  }
+
+  @override
+  bool shouldRepaint(_ZoomArrowPainter old) => color != old.color;
+}
+
 class _ChartAreaPainter extends CustomPainter {
   final StatsChartData data;
   final bool isDark;
@@ -1318,6 +1438,8 @@ class _ChartAreaPainter extends CustomPainter {
   final double animatedYMn;
   final double animatedYMx;
   final double dateLabelAlpha;
+  final int prevDateStep;
+  final int curDateStep;
 
   _ChartAreaPainter({
     required this.data,
@@ -1333,6 +1455,8 @@ class _ChartAreaPainter extends CustomPainter {
     this.animatedYMn = 0,
     this.animatedYMx = 1,
     this.dateLabelAlpha = 1.0,
+    this.prevDateStep = 1,
+    this.curDateStep = 1,
   });
 
   static const _months = [
@@ -1394,27 +1518,33 @@ class _ChartAreaPainter extends CustomPainter {
 
   void _paintRulers(
       Canvas canvas, Size size, double top, double chartH, double mn,
-      double mx) {
+      double mx, {double? currencyRate, String? currency}) {
     if (rulerCrossfade < 1.0 &&
         (prevRulerMn != mn || prevRulerMx != mx)) {
       _drawRulerSet(canvas, size, top, chartH, prevRulerMn, prevRulerMx,
-          1.0 - rulerCrossfade);
+          1.0 - rulerCrossfade, currencyRate: currencyRate, currency: currency);
     }
     final alpha = rulerCrossfade < 1.0 ? rulerCrossfade : 1.0;
-    _drawRulerSet(canvas, size, top, chartH, mn, mx, alpha);
+    _drawRulerSet(canvas, size, top, chartH, mn, mx, alpha,
+        currencyRate: currencyRate, currency: currency);
   }
 
   void _drawRulerSet(Canvas canvas, Size size, double top, double chartH,
-      double mn, double mx, double alpha) {
+      double mn, double mx, double alpha,
+      {Color? leftColor, Color? rightColor, double? rightMn, double? rightMx,
+      double? currencyRate, String? currency}) {
     final gridColor = isDark
         ? Colors.white.withValues(alpha: 0.06 * alpha)
         : Colors.black.withValues(alpha: 0.06 * alpha);
-    final labelColor = isDark
+    final defaultLabelColor = isDark
         ? Colors.white.withValues(alpha: 0.6 * alpha)
         : Colors.black.withValues(alpha: 0.6 * alpha);
     final gridPaint = Paint()
       ..color = gridColor
       ..strokeWidth = 0.5;
+
+    final leftLabelColor = leftColor?.withValues(alpha: alpha) ?? defaultLabelColor;
+    final rightLabelColor = rightColor?.withValues(alpha: alpha) ?? defaultLabelColor;
 
     const rulerCount = 5;
     for (int i = 0; i <= rulerCount; i++) {
@@ -1424,10 +1554,31 @@ class _ChartAreaPainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(
             text: _formatShort(val),
-            style: TextStyle(fontSize: 10, color: labelColor)),
+            style: TextStyle(fontSize: 10, color: leftLabelColor)),
         textDirection: TextDirection.ltr,
       )..layout();
       tp.paint(canvas, Offset(0, y - tp.height - 4));
+
+      if (rightMn != null && rightMx != null) {
+        final rVal = rightMn + (rightMx - rightMn) * i / rulerCount;
+        final rTp = TextPainter(
+          text: TextSpan(
+              text: _formatShort(rVal),
+              style: TextStyle(fontSize: 10, color: rightLabelColor)),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        rTp.paint(canvas, Offset(size.width - rTp.width, y - rTp.height - 4));
+      } else if (currencyRate != null && currencyRate > 0) {
+        final cVal = val * currencyRate;
+        final cText = '\$${_formatShort(cVal)}';
+        final cTp = TextPainter(
+          text: TextSpan(
+              text: cText,
+              style: TextStyle(fontSize: 10, color: rightLabelColor)),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        cTp.paint(canvas, Offset(size.width - cTp.width, y - cTp.height - 4));
+      }
     }
   }
 
@@ -1454,17 +1605,28 @@ class _ChartAreaPainter extends CustomPainter {
       step *= 2;
     }
 
+    if (prevDateStep != curDateStep && dateLabelAlpha < 1.0) {
+      _paintDateLabelsAtStep(canvas, size, prevDateStep, 1.0 - dateLabelAlpha);
+      _paintDateLabelsAtStep(canvas, size, curDateStep, dateLabelAlpha);
+    } else {
+      _paintDateLabelsAtStep(canvas, size, step, dateLabelAlpha);
+    }
+  }
+
+  void _paintDateLabelsAtStep(Canvas canvas, Size size, int step, double baseAlpha) {
+    final n = data.timestamps.length;
+    if (n < 2 || step < 1) return;
+    const edgeFade = 30.0;
+    final y = size.height - _kBottomCaptionHeight;
     final si = (rangeStart * (n - 1)).floor().clamp(0, n - 1);
     final ei = (rangeEnd * (n - 1)).ceil().clamp(0, n - 1);
     final firstLabel = ((si + step - 1) ~/ step) * step;
-    const edgeFade = 30.0;
-    final y = size.height - _kBottomCaptionHeight;
 
     for (int idx = firstLabel; idx <= ei; idx += step) {
       final x = _dataXToPixel(idx, n, size.width);
       if (x < -50 || x > size.width + 50) continue;
 
-      double alpha = dateLabelAlpha;
+      double alpha = baseAlpha;
       if (x < edgeFade) alpha *= (x / edgeFade).clamp(0.0, 1.0);
       if (x > size.width - edgeFade) {
         alpha *= ((size.width - x) / edgeFade).clamp(0.0, 1.0);
@@ -1506,12 +1668,11 @@ class _ChartAreaPainter extends CustomPainter {
       if (selectedIndex! >= line.values.length) continue;
       final yNorm = (line.values[selectedIndex!] - mn) / (mx - mn);
       final y = top + chartH * (1 - yNorm);
-      canvas.drawCircle(
-          Offset(x, y), _kDotRadius, Paint()..color = line.color);
+      final c = _resolveLineColor(line);
+      canvas.drawCircle(Offset(x, y), _kDotRadius, Paint()..color = c);
       canvas.drawCircle(
           Offset(x, y), _kDotRadius - 1.5, Paint()..color = bgColor);
-      canvas.drawCircle(
-          Offset(x, y), _kDotRadius - 2.5, Paint()..color = line.color);
+      canvas.drawCircle(Offset(x, y), _kDotRadius - 2.5, Paint()..color = c);
     }
   }
 
@@ -1526,14 +1687,27 @@ class _ChartAreaPainter extends CustomPainter {
     final n = data.timestamps.length;
     final (targetMn, targetMx) = _visibleYRange(visLines);
 
-    _paintRulers(canvas, size, topPad, chartH, targetMn, targetMx);
+    final isDouble = data.chartType == 'DoubleLinear' && visLines.length == 2;
+    if (isDouble) {
+      final l0 = visLines[0], l1 = visLines[1];
+      final l0Mn = l0.values.reduce(math.min);
+      final l0Mx = l0.values.reduce(math.max) == l0Mn ? l0Mn + 1 : l0.values.reduce(math.max);
+      final l1Mn = l1.values.reduce(math.min);
+      final l1Mx = l1.values.reduce(math.max) == l1Mn ? l1Mn + 1 : l1.values.reduce(math.max);
+      _drawRulerSet(canvas, size, topPad, chartH, l0Mn, l0Mx, 1.0,
+          leftColor: _resolveLineColor(l0), rightColor: _resolveLineColor(l1),
+          rightMn: l1Mn, rightMx: l1Mx);
+    } else {
+      _paintRulers(canvas, size, topPad, chartH, targetMn, targetMx,
+          currencyRate: data.currencyRate, currency: data.currency);
+    }
 
     final renderMn = animatedYMn;
     final renderMx = animatedYMx;
 
     for (final (line, alpha) in rLines) {
       double lineMn = renderMn, lineMx = renderMx;
-      if (data.chartType == 'DoubleLinear' && visLines.length == 2) {
+      if (isDouble) {
         lineMn = line.values.reduce(math.min);
         lineMx = line.values.reduce(math.max);
         if (lineMx == lineMn) lineMx = lineMn + 1;
@@ -1542,7 +1716,7 @@ class _ChartAreaPainter extends CustomPainter {
       if (range == 0) continue;
 
       final paint = Paint()
-        ..color = line.color.withValues(alpha: alpha)
+        ..color = _resolveLineColor(line).withValues(alpha: alpha)
         ..strokeWidth = _kLineWidth
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
@@ -1614,7 +1788,7 @@ class _ChartAreaPainter extends CustomPainter {
           RRect.fromRectAndRadius(rect, const Radius.circular(2)),
           Paint()
             ..color =
-                line.color.withValues(alpha: selAlpha * lineAlpha),
+                _resolveLineColor(line).withValues(alpha: selAlpha * lineAlpha),
         );
       }
     }
@@ -1664,7 +1838,7 @@ class _ChartAreaPainter extends CustomPainter {
         final rect = Rect.fromLTWH(cx - barWidth / 2 + 0.5,
             topPad + chartH - curH, barWidth - 1, curH - prevH);
         canvas.drawRect(
-            rect, Paint()..color = line.color.withValues(alpha: alpha));
+            rect, Paint()..color = _resolveLineColor(line).withValues(alpha: alpha));
       }
     }
 
@@ -1709,7 +1883,7 @@ class _ChartAreaPainter extends CustomPainter {
       }
       path.close();
       canvas.drawPath(
-          path, Paint()..color = line.color.withValues(alpha: alpha));
+          path, Paint()..color = _resolveLineColor(line).withValues(alpha: alpha));
       prevY = curY;
     }
 
@@ -1737,7 +1911,9 @@ class _ChartAreaPainter extends CustomPainter {
       rulerCrossfade != old.rulerCrossfade ||
       animatedYMn != old.animatedYMn ||
       animatedYMx != old.animatedYMx ||
-      dateLabelAlpha != old.dateLabelAlpha;
+      dateLabelAlpha != old.dateLabelAlpha ||
+      prevDateStep != old.prevDateStep ||
+      curDateStep != old.curDateStep;
 }
 
 class _FooterPainter extends CustomPainter {
@@ -1775,8 +1951,8 @@ class _FooterPainter extends CustomPainter {
     final leftX = rangeStart * w;
     final rightX = rangeEnd * w;
     final dimColor = isDark
-        ? const Color(0x88000000)
-        : const Color(0x44AAAAAA);
+        ? const Color(0x99182633)
+        : const Color(0x99E2EEF9);
 
     if (leftX > 0) {
       canvas.drawRect(
@@ -1856,7 +2032,7 @@ class _FooterPainter extends CustomPainter {
           canvas.drawPath(
               path,
               Paint()
-                ..color = line.color.withValues(alpha: alpha)
+                ..color = _resolveLineColor(line).withValues(alpha: alpha)
                 ..strokeWidth = 1
                 ..style = PaintingStyle.stroke);
         }
@@ -1881,7 +2057,7 @@ class _FooterPainter extends CustomPainter {
             canvas.drawRect(
               Rect.fromLTWH(
                   w * i / n + barWidth * j, h - barH, barWidth, barH),
-              Paint()..color = lines[j].color.withValues(alpha: alpha),
+              Paint()..color = _resolveLineColor(lines[j]).withValues(alpha: alpha),
             );
           }
         }
@@ -1909,7 +2085,7 @@ class _FooterPainter extends CustomPainter {
             final cur = cum / mx * h;
             canvas.drawRect(
               Rect.fromLTWH(barWidth * i, h - cur, barWidth, cur - prev),
-              Paint()..color = l.color.withValues(alpha: alpha),
+              Paint()..color = _resolveLineColor(l).withValues(alpha: alpha),
             );
           }
         }
@@ -1944,7 +2120,7 @@ class _FooterPainter extends CustomPainter {
           }
           path.close();
           canvas.drawPath(
-              path, Paint()..color = l.color.withValues(alpha: alpha));
+              path, Paint()..color = _resolveLineColor(l).withValues(alpha: alpha));
           prevY = curY;
         }
     }
@@ -2015,7 +2191,7 @@ class _PieChartPainter extends CustomPainter {
         center: Offset(cx + offsetX, cy + offsetY),
         radius: radius,
       );
-      canvas.drawArc(rect, startAngle, sweep, true, Paint()..color = lines[i].color);
+      canvas.drawArc(rect, startAngle, sweep, true, Paint()..color = _resolveLineColor(lines[i]));
 
       if (animProgress > 0.5) {
         final pct = (val / total * 100).round();
