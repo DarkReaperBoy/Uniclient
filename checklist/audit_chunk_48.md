@@ -1,0 +1,13 @@
+# chat_view — Stubs, Missing Wiring, Wrong Behavior
+
+- [ ] [CRITICAL] Star gift purchase is a placeholder stub — button shows toast "Gift purchase requires the official Telegram app." and pops the sheet instead of calling the engine — `chat_view.dart:18129` ← `AyuGram/SourceFiles/boxes/star_gift_box.cpp:3055` (`MTPpayments_SendStarGiftOffer`)
+
+- [ ] [CRITICAL] Bot reply-keyboard `request_location` button shows a toast "Location sharing requires GPS access." instead of sending a geo point — `chat_view.dart:5300` ← `AyuGram/SourceFiles/export/data/export_data_types.cpp:179` (RequestLocation type handled by real geo picker in AyuGram)
+
+- [ ] [CRITICAL] AI Editor Fix and Style modes both call `translateFreeText()` — identical to the Translate mode call with the same `_targetLang` arg, so grammar-fix and restyle both silently translate instead — `chat_view.dart:20697-20718` ← `AyuGram/SourceFiles/` (no `translateFreeText` equivalent for grammar/style exists there; these need separate engine methods)
+
+- [ ] [CRITICAL] Poll-votes corner button is permanently invisible and non-functional: `_showPollVotesBtn` is declared at line 284 but is only ever set to `false` (lines 694, 4553) — never set to `true` anywhere in the file, so the animation controller stays dismissed; additionally the button has `count: 0` hardcoded and uses `_scrollToBottom` as callback instead of scroll-to-first-unread-poll; and the `unreadPollVoteCount` field does not exist anywhere in the Dart model or state — `chat_view.dart:284,694,5004-5007` ← `AyuGram/SourceFiles/history/view/history_view_corner_buttons.cpp:78,154,304-309` (AyuGram reads `thread->unreadPollVotes().loadedCount()` and scrolls to `minLoaded()`)
+
+- [ ] [MAJOR] Bot reply-keyboard `web_view`/`simple_web_view` button opens URLs with `Process.run('xdg-open', [url])` — Linux-only; will silently fail on macOS and Windows where `xdg-open` does not exist — `chat_view.dart:5315` ← `AyuGram/SourceFiles/history/history_item_reply_markup.cpp:13` (uses `bot_attach_web_view.h` / `InlineBotsManager` for cross-platform web-app launch)
+
+- [ ] [MAJOR] Add-contact dialog in `_ContactStatusBar._showAddContactDialog` passes `''` as the phone number to `chatState.addContact()` with a comment "phone unknown from DM context" — the Telegram API `contacts.addContact` requires a valid phone or the `add_phone_privacy_exception` flag, and without a phone the contact is silently saved with no number — `chat_view.dart:9319-9323` ← `AyuGram/SourceFiles/boxes/add_contact_box.cpp:285-330` (AyuGram always presents a phone input field and validates it before calling the API)
