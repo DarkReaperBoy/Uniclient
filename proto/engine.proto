@@ -552,12 +552,15 @@ message EnginePinMessageRequest {
 }
 
 message EngineUploadFileRequest {
-  string account_id    = 1;
-  string chat_id       = 2;
-  string file_path     = 3;
-  string caption       = 4;
-  bool   silent        = 5;
-  int32  schedule_date = 6;
+  string account_id      = 1;
+  string chat_id         = 2;
+  string file_path       = 3;
+  string caption         = 4;
+  bool   silent          = 5;
+  int32  schedule_date   = 6;
+  bool   spoiler         = 7;
+  bool   send_as_document = 8;
+  bool   caption_above   = 9;
 }
 
 message EngineUploadFileResponse {

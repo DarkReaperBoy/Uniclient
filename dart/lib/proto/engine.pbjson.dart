@@ -523,6 +523,7 @@ const EngineAddContactRequest$json = {
     {'1': 'phone', '3': 2, '4': 1, '5': 9, '10': 'phone'},
     {'1': 'first_name', '3': 3, '4': 1, '5': 9, '10': 'firstName'},
     {'1': 'last_name', '3': 4, '4': 1, '5': 9, '10': 'lastName'},
+    {'1': 'note', '3': 5, '4': 1, '5': 9, '10': 'note'},
   ],
 };
 
@@ -530,7 +531,7 @@ const EngineAddContactRequest$json = {
 final $typed_data.Uint8List engineAddContactRequestDescriptor = $convert.base64Decode(
     'ChdFbmdpbmVBZGRDb250YWN0UmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW50SW'
     'QSFAoFcGhvbmUYAiABKAlSBXBob25lEh0KCmZpcnN0X25hbWUYAyABKAlSCWZpcnN0TmFtZRIb'
-    'CglsYXN0X25hbWUYBCABKAlSCGxhc3ROYW1l');
+    'CglsYXN0X25hbWUYBCABKAlSCGxhc3ROYW1lEhIKBG5vdGUYBSABKAlSBG5vdGU=');
 
 @$core.Deprecated('Use engineGetForumTopicsRequestDescriptor instead')
 const EngineGetForumTopicsRequest$json = {
@@ -1219,6 +1220,11 @@ const EngineUploadFileRequest$json = {
     {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
     {'1': 'file_path', '3': 3, '4': 1, '5': 9, '10': 'filePath'},
     {'1': 'caption', '3': 4, '4': 1, '5': 9, '10': 'caption'},
+    {'1': 'silent', '3': 5, '4': 1, '5': 8, '10': 'silent'},
+    {'1': 'schedule_date', '3': 6, '4': 1, '5': 5, '10': 'scheduleDate'},
+    {'1': 'spoiler', '3': 7, '4': 1, '5': 8, '10': 'spoiler'},
+    {'1': 'send_as_document', '3': 8, '4': 1, '5': 8, '10': 'sendAsDocument'},
+    {'1': 'caption_above', '3': 9, '4': 1, '5': 8, '10': 'captionAbove'},
   ],
 };
 
@@ -1226,7 +1232,10 @@ const EngineUploadFileRequest$json = {
 final $typed_data.Uint8List engineUploadFileRequestDescriptor = $convert.base64Decode(
     'ChdFbmdpbmVVcGxvYWRGaWxlUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW50SW'
     'QSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhsKCWZpbGVfcGF0aBgDIAEoCVIIZmlsZVBhdGgS'
-    'GAoHY2FwdGlvbhgEIAEoCVIHY2FwdGlvbg==');
+    'GAoHY2FwdGlvbhgEIAEoCVIHY2FwdGlvbhIWCgZzaWxlbnQYBSABKAhSBnNpbGVudBIjCg1zY2'
+    'hlZHVsZV9kYXRlGAYgASgFUgxzY2hlZHVsZURhdGUSGAoHc3BvaWxlchgHIAEoCFIHc3BvaWxl'
+    'chIoChBzZW5kX2FzX2RvY3VtZW50GAggASgIUg5zZW5kQXNEb2N1bWVudBIjCg1jYXB0aW9uX2'
+    'Fib3ZlGAkgASgIUgxjYXB0aW9uQWJvdmU=');
 
 @$core.Deprecated('Use engineUploadFileResponseDescriptor instead')
 const EngineUploadFileResponse$json = {
@@ -1515,6 +1524,7 @@ const EngineSharedMediaItem$json = {
     {'1': 'width', '3': 9, '4': 1, '5': 5, '10': 'width'},
     {'1': 'height', '3': 10, '4': 1, '5': 5, '10': 'height'},
     {'1': 'duration', '3': 11, '4': 1, '5': 5, '10': 'duration'},
+    {'1': 'waveform', '3': 12, '4': 1, '5': 12, '10': 'waveform'},
   ],
 };
 
@@ -1525,7 +1535,8 @@ final $typed_data.Uint8List engineSharedMediaItemDescriptor = $convert.base64Dec
     'ZmlsZV9uYW1lGAQgASgJUghmaWxlTmFtZRIbCgltaW1lX3R5cGUYBSABKAlSCG1pbWVUeXBlEh'
     'sKCWZpbGVfc2l6ZRgGIAEoA1IIZmlsZVNpemUSGwoJdGh1bWJfYjY0GAcgASgJUgh0aHVtYkI2'
     'NBIdCgpsb2NhbF9wYXRoGAggASgJUglsb2NhbFBhdGgSFAoFd2lkdGgYCSABKAVSBXdpZHRoEh'
-    'YKBmhlaWdodBgKIAEoBVIGaGVpZ2h0EhoKCGR1cmF0aW9uGAsgASgFUghkdXJhdGlvbg==');
+    'YKBmhlaWdodBgKIAEoBVIGaGVpZ2h0EhoKCGR1cmF0aW9uGAsgASgFUghkdXJhdGlvbhIaCgh3'
+    'YXZlZm9ybRgMIAEoDFIId2F2ZWZvcm0=');
 
 @$core.Deprecated('Use engineGetSharedMediaResponseDescriptor instead')
 const EngineGetSharedMediaResponse$json = {
@@ -1703,6 +1714,7 @@ const EngineFolderInfo$json = {
     {'1': 'exclude_read', '3': 12, '4': 1, '5': 8, '10': 'excludeRead'},
     {'1': 'exclude_archived', '3': 13, '4': 1, '5': 8, '10': 'excludeArchived'},
     {'1': 'is_chat_list', '3': 14, '4': 1, '5': 8, '10': 'isChatList'},
+    {'1': 'emoticon', '3': 15, '4': 1, '5': 9, '10': 'emoticon'},
   ],
 };
 
@@ -1716,7 +1728,7 @@ final $typed_data.Uint8List engineFolderInfoDescriptor = $convert.base64Decode(
     'MSEgoEYm90cxgKIAEoCFIEYm90cxIjCg1leGNsdWRlX211dGVkGAsgASgIUgxleGNsdWRlTXV0'
     'ZWQSIQoMZXhjbHVkZV9yZWFkGAwgASgIUgtleGNsdWRlUmVhZBIpChBleGNsdWRlX2FyY2hpdm'
     'VkGA0gASgIUg9leGNsdWRlQXJjaGl2ZWQSIAoMaXNfY2hhdF9saXN0GA4gASgIUgppc0NoYXRM'
-    'aXN0');
+    'aXN0EhoKCGVtb3RpY29uGA8gASgJUghlbW90aWNvbg==');
 
 @$core.Deprecated('Use engineGetFoldersRequestDescriptor instead')
 const EngineGetFoldersRequest$json = {

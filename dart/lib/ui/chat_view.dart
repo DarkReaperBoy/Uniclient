@@ -3971,11 +3971,15 @@ class _ChatViewState extends State<ChatView>
     for (var i = 0; i < result.paths.length; i++) {
       final caption = result.perFileCaptions[i] ??
           (i == 0 ? result.caption : '');
+      final hasSpoiler = i < result.spoilers.length && result.spoilers[i];
       chatState.uploadFile(
         result.paths[i],
         caption: caption,
         silent: result.silent,
         scheduleDate: scheduleDate,
+        spoiler: hasSpoiler,
+        sendAsDocument: result.sendAsDocuments,
+        captionAbove: result.captionAbove,
       );
     }
   }

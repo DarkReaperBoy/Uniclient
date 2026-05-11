@@ -256,6 +256,11 @@ func (e *Engine) SendContact(accountID, toChatID, phone, firstName, lastName, us
 
 // UploadFile sends a file from the local filesystem to a chat.
 func (e *Engine) UploadFile(accountID, chatID, filePath, caption string) (string, error) {
+	return e.UploadFileEx(accountID, chatID, filePath, cores.UploadOptions{Caption: caption})
+}
+
+// UploadFileEx sends a file with extended options (spoiler, sendAsDocument, etc.).
+func (e *Engine) UploadFileEx(accountID, chatID, filePath string, opts cores.UploadOptions) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return "", fmt.Errorf("account %q not found", accountID)
@@ -282,12 +287,16 @@ func (e *Engine) UploadFile(accountID, chatID, filePath, caption string) (string
 		Reader:   f,
 	}
 
-	msg, err := acc.Core.UploadFile(chatID, upload, nil)
+	var msg *cores.Message
+	if sup, ok := acc.Core.(cores.UploadWithOptionsSupporter); ok {
+		msg, err = sup.UploadFileWithOptions(chatID, upload, opts, nil)
+	} else {
+		msg, err = acc.Core.UploadFile(chatID, upload, nil)
+	}
 	if err != nil {
 		return "", err
 	}
 
-	// Cache the sent message.
 	if msg != nil {
 		cached := e.cacheMessage(accountID, chatID, msg)
 		e.emitEvent(EventMsgReceived, accountID, MsgReceivedEvent{

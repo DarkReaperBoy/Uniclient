@@ -6569,6 +6569,9 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     $core.String? caption,
     $core.bool? silent,
     $core.int? scheduleDate,
+    $core.bool? spoiler,
+    $core.bool? sendAsDocument,
+    $core.bool? captionAbove,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -6589,6 +6592,15 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     if (scheduleDate != null) {
       $result.scheduleDate = scheduleDate;
     }
+    if (spoiler != null) {
+      $result.spoiler = spoiler;
+    }
+    if (sendAsDocument != null) {
+      $result.sendAsDocument = sendAsDocument;
+    }
+    if (captionAbove != null) {
+      $result.captionAbove = captionAbove;
+    }
     return $result;
   }
   EngineUploadFileRequest._() : super();
@@ -6602,6 +6614,9 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     ..aOS(4, _omitFieldNames ? '' : 'caption')
     ..aOB(5, _omitFieldNames ? '' : 'silent')
     ..a<$core.int>(6, _omitFieldNames ? '' : 'scheduleDate', $pb.PbFieldType.O3)
+    ..aOB(7, _omitFieldNames ? '' : 'spoiler')
+    ..aOB(8, _omitFieldNames ? '' : 'sendAsDocument')
+    ..aOB(9, _omitFieldNames ? '' : 'captionAbove')
     ..hasRequiredFields = false
   ;
 
@@ -6679,6 +6694,33 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
   $core.bool hasScheduleDate() => $_has(5);
   @$pb.TagNumber(6)
   void clearScheduleDate() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get spoiler => $_getBF(6);
+  @$pb.TagNumber(7)
+  set spoiler($core.bool v) { $_setBool(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasSpoiler() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearSpoiler() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.bool get sendAsDocument => $_getBF(7);
+  @$pb.TagNumber(8)
+  set sendAsDocument($core.bool v) { $_setBool(7, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasSendAsDocument() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearSendAsDocument() => clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.bool get captionAbove => $_getBF(8);
+  @$pb.TagNumber(9)
+  set captionAbove($core.bool v) { $_setBool(8, v); }
+  @$pb.TagNumber(9)
+  $core.bool hasCaptionAbove() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearCaptionAbove() => clearField(9);
 }
 
 class EngineUploadFileResponse extends $pb.GeneratedMessage {

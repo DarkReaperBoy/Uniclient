@@ -782,7 +782,14 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		msgID, err := e.UploadFile(req.AccountId, req.ChatId, req.FilePath, req.Caption)
+		msgID, err := e.UploadFileEx(req.AccountId, req.ChatId, req.FilePath, cores.UploadOptions{
+			Caption:        req.Caption,
+			Silent:         req.Silent,
+			ScheduleDate:   int64(req.ScheduleDate),
+			Spoiler:        req.Spoiler,
+			SendAsDocument: req.SendAsDocument,
+			CaptionAbove:   req.CaptionAbove,
+		})
 		if err != nil {
 			return nil, err
 		}

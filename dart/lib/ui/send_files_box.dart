@@ -1631,6 +1631,9 @@ class _MediaPreview extends StatelessWidget {
         onToggleSpoiler: () => onToggleSpoiler(files.first),
         canSpoiler: canSpoiler,
         sendLargePhotos: sendLargePhotos,
+        onReplace: onReplace,
+        onRename: onRename,
+        fileIndex: allFiles.indexOf(files.first),
       );
     }
     return _AlbumPreview(
@@ -1654,6 +1657,9 @@ class _SingleMediaPreview extends StatelessWidget {
   final VoidCallback onToggleSpoiler;
   final bool canSpoiler;
   final bool sendLargePhotos;
+  final void Function(int index, _PreparedFile replacement)? onReplace;
+  final void Function(int index, String newName)? onRename;
+  final int fileIndex;
 
   const _SingleMediaPreview({
     required this.file,
@@ -1662,20 +1668,23 @@ class _SingleMediaPreview extends StatelessWidget {
     required this.onToggleSpoiler,
     required this.canSpoiler,
     required this.sendLargePhotos,
+    this.onReplace,
+    this.onRename,
+    this.fileIndex = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     final showHdBadge = sendLargePhotos && file.type == _FileType.photo;
     return GestureDetector(
-      onSecondaryTapUp: canSpoiler ? (details) {
-        _showThumbContextMenu(context, details.globalPosition);
-      } : null,
-      onLongPress: canSpoiler ? () {
+      onSecondaryTapUp: (details) {
+        _showFullContextMenu(context, details.globalPosition);
+      },
+      onLongPress: () {
         final box = context.findRenderObject() as RenderBox;
         final center = box.localToGlobal(box.size.center(Offset.zero));
-        _showThumbContextMenu(context, center);
-      } : null,
+        _showFullContextMenu(context, center);
+      },
       child: ClipRRect(
         borderRadius: BorderRadius.circular(_thumbCornerRadius),
         child: ConstrainedBox(
@@ -1726,19 +1735,115 @@ class _SingleMediaPreview extends StatelessWidget {
     );
   }
 
-  void _showThumbContextMenu(BuildContext context, Offset position) {
+  void _showFullContextMenu(BuildContext context, Offset position) {
     showTelegramMenu<String>(
       context: context,
       position: position,
       items: [
-        TelegramMenuItem(
-          value: 'spoiler',
-          icon: Icon(file.spoiler ? Icons.check : Icons.blur_on),
-          label: 'Spoiler effect',
+        const TelegramMenuItem(
+          value: 'replace',
+          icon: Icon(Icons.swap_horiz),
+          label: 'Replace attachment',
         ),
+        if (file.type == _FileType.photo)
+          const TelegramMenuItem(
+            value: 'edit',
+            icon: Icon(Icons.edit_outlined),
+            label: 'Open in photo editor',
+          ),
+        if (!file.isMediaType)
+          const TelegramMenuItem(
+            value: 'rename',
+            icon: Icon(Icons.drive_file_rename_outline),
+            label: 'Rename file',
+          ),
+        if (canSpoiler && file.isMediaType)
+          TelegramMenuItem(
+            value: 'spoiler',
+            icon: Icon(file.spoiler ? Icons.check : Icons.blur_on),
+            label: 'Spoiler effect',
+          ),
       ],
     ).then((value) {
-      if (value == 'spoiler') onToggleSpoiler();
+      if (value == null) return;
+      switch (value) {
+        case 'spoiler':
+          onToggleSpoiler();
+        case 'replace':
+          _doReplace();
+        case 'edit':
+          _doEdit(context);
+        case 'rename':
+          _doRename(context);
+      }
+    });
+  }
+
+  Future<void> _doReplace() async {
+    try {
+      final result = await FilePicker.platform.pickFiles();
+      if (result == null || result.files.isEmpty || result.files.first.path == null) return;
+      final newPath = result.files.first.path!;
+      final f = File(newPath);
+      if (!f.existsSync()) return;
+      final name = f.uri.pathSegments.last;
+      onReplace?.call(fileIndex, _PreparedFile(
+        path: newPath,
+        name: name,
+        size: f.lengthSync(),
+        type: _SendFilesBoxDialogState._detectType(name),
+      ));
+    } catch (_) {}
+  }
+
+  void _doEdit(BuildContext context) {
+    if (file.type != _FileType.photo) return;
+    PhotoCropEditor.open(
+      context,
+      imageFile: File(file.path),
+      shape: PhotoCropShape.rect,
+      purpose: PhotoEditorPurpose.edit,
+      onDone: (croppedFile) async {
+        final codec = await ui.instantiateImageCodec(await croppedFile.readAsBytes());
+        final frame = await codec.getNextFrame();
+        final replacement = _PreparedFile(
+          path: croppedFile.path,
+          name: file.name,
+          size: croppedFile.lengthSync(),
+          type: _FileType.photo,
+          spoiler: file.spoiler,
+        )
+          ..imageWidth = frame.image.width.toDouble()
+          ..imageHeight = frame.image.height.toDouble()
+          ..hasThumb = true;
+        onReplace?.call(fileIndex, replacement);
+      },
+    );
+  }
+
+  void _doRename(BuildContext context) {
+    final ctrl = TextEditingController(text: file.name);
+    showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename file'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(ctrl.text),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    ).then((newName) {
+      if (newName != null && newName.isNotEmpty && newName != file.name) {
+        onRename?.call(fileIndex, newName);
+      }
     });
   }
 }
