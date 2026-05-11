@@ -661,15 +661,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 ## reactions_detail — Reactions detail panel (who reacted / who read)
 
-- [ ] [CRITICAL] Custom emoji reactions fully broken: `ReactorInfo` has no `documentId` field (`engine_service.dart:2253` maps only `emoji`, `peerId`, `peerName`, `date`), so custom emoji reactors arrive with `emoji = ''`. All custom emoji tabs then get `selectedTab = ''` simultaneously (all appear selected at once via `isSelected: selectedTab == r.emoji`), tapping any custom emoji tab calls `onTabSelected('')` which fires `getMessageReactorsList` with empty filter (= all reactions), and `_filteredReactors` filters to `r.emoji == ''` showing all custom emoji reactors mixed together instead of the one tapped. — `reactions_detail.dart:509,236` ← `history_view_reactions_tabs.cpp:37-58` (custom emoji rendered via `CustomEmojiFactory` keyed on `DocumentId`, not emoji string)
-
-- [ ] [CRITICAL] No real user profile photos: `_ReactorAvatar` renders a colored circle with text initials only (`reactions_detail.dart:820-852`). Neither `ReactorInfo` nor `ReadParticipantInfo` carry photo data, and the engine has no `GetUserPhoto` method, so actual profile photos are never shown for any reactor or read-participant row. AyuGram's `PeerListRow` loads and caches real peer avatars. — `reactions_detail.dart:820` ← `history_view_reactions_list.cpp:152-167` (`Row` extends `PeerListRow` with live userpic loading)
-
-- [ ] [MAJOR] "All reactions" tab uses wrong icon: Dart uses `Icons.favorite` (`reactions_detail.dart:501`) instead of the `reactionsTabAll` icon (`menu/read_reactions`). AyuGram uses `st::reactionsTabAll` / `st::reactionsTabAllSelected` for the empty-reaction-id (all) tab. — `reactions_detail.dart:501` ← `chat.style:862-863` (`reactionsTabAll: icon {{ "menu/read_reactions", windowFg }}`)
-
-- [ ] [MAJOR] Individual reaction tabs not sorted by count descending: `_ReactionTabBar` iterates `reactions` in their original order (`reactions_detail.dart:507`). AyuGram's `CreateTabs` explicitly sorts individual reactions by count descending (`sorted` vector, `ranges::sort`) before appending tabs. High-count reactions should appear first after the "all" tab. — `reactions_detail.dart:507` ← `history_view_reactions_tabs.cpp:152-159` (`ranges::sort(sorted, std::greater<>(), &Entry::first)`)
-
-- [ ] [MAJOR] `ReadPrivacyState.myHidden` "Show" button is non-functional: it opens an `AlertDialog` with only an "OK" dismiss button (`reactions_detail.dart:914-931`) and does not call the engine to disable the "hide read time" privacy setting. AyuGram's equivalent calls `api->globalPrivacy().updateHideReadTime({})` to actually reveal read times, or opens the Premium upsell. The user gets no actionable path to fix their privacy setting. — `reactions_detail.dart:914` ← `history_view_context_menu.cpp:2025-2036` (`showOrPremium` → `updateHideReadTime({})`)
 
 # send_files_box — Audit Findings
 
