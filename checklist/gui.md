@@ -33,17 +33,6 @@
 
 No auditable issues found. Code quality is high.
 
-# system_tray — Audit findings
-
-- [ ] [CRITICAL] `onWindowHidden` callback declared but never assigned — when native side fires `onWindowHidden` (user closes window to tray), Dart receives the call and logs it but nothing handles it; app state never learns the window is hidden, so tray menu "minimize/open" label stays wrong — `system_tray.dart:43` ← `tray.cpp:192-206` (`hideToTrayRequests` drives window hide; the Dart side must update app visibility state in response)
-
-- [ ] [MAJOR] `updateBadge()` called without `muted` parameter — `main.dart:362,366` call `_tray.updateBadge(badge)` leaving `muted` at default `false` always; AyuGram passes `Core::App().unreadBadgeMuted()` to select `st::trayCounterBgMute` vs `st::trayCounterBg` for badge color; muted-only unread chats render with the wrong badge color — `system_tray.dart:119` ← `tray_linux.cpp:206-212`
-
-- [ ] [MAJOR] Notification tray toggle drops sound/flashBounce state — `main.dart:345-350` only flips `desktopNotify`; AyuGram's `toggleSoundNotifications()` also saves `soundNotify` to `rememberedSoundNotifyFromTray` and `flashBounceNotify` to `rememberedFlashBounceNotifyFromTray` when disabling, then restores both when re-enabling; toggling from the Dart tray menu permanently silences sound/flash notifications — `system_tray.dart:237` ← `tray.cpp:209-252`
-
-- [ ] [MAJOR] Tooltip text includes unread count — `system_tray.dart:98` sets tooltip to `'UniClient ($count unread)'` when count > 0; AyuGram always sets the tooltip to the bare app name (`AppName.utf16()`) once on icon creation and never updates it; the unread count is communicated via the icon badge only, not via tooltip text — `system_tray.dart:98-100` ← `tray_linux.cpp:295`
-
-- [ ] [MAJOR] Tray accounts menu absent — AyuGram adds per-account entries via `TrayAccountsMenu::Fill(_tray)` (`tray.cpp:166`) when multiple accounts are logged in, allowing switching accounts directly from the tray; the Dart implementation has no equivalent; multi-account tray switching is completely missing — `system_tray.dart:11-256` ← `tray.cpp:166`, `tray_accounts_menu.cpp:42-50`
 
 # web_drop_web — Web drag-and-drop zone (web platform implementation)
 
