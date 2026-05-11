@@ -30,8 +30,6 @@ const _commandGroups = <List<(ShortcutCommand, String)>>[
     (ShortcutCommand.chatFirst, 'First Chat'),
     (ShortcutCommand.chatLast, 'Last Chat'),
     (ShortcutCommand.selfChat, 'Saved Messages'),
-    (ShortcutCommand.showArchive, 'Archive'),
-    (ShortcutCommand.showContacts, 'Contacts'),
   ],
   // 4. Pinned Chats
   [
@@ -65,6 +63,8 @@ const _commandGroups = <List<(ShortcutCommand, String)>>[
     (ShortcutCommand.lastFolder, 'Last Folder'),
     (ShortcutCommand.nextFolder, 'Next Folder'),
     (ShortcutCommand.previousFolder, 'Previous Folder'),
+    (ShortcutCommand.showArchive, 'Archive'),
+    (ShortcutCommand.showContacts, 'Contacts'),
   ],
   // 7. Chat Actions
   [
@@ -83,6 +83,7 @@ const _commandGroups = <List<(ShortcutCommand, String)>>[
   // 9. Format & Edit
   [
     (ShortcutCommand.recordVoice, 'Record Voice'),
+    (ShortcutCommand.recordRound, 'Record Video Message'),
     (ShortcutCommand.formatBold, 'Bold'),
     (ShortcutCommand.formatItalic, 'Italic'),
     (ShortcutCommand.formatUnderline, 'Underline'),
