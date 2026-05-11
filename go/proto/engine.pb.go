@@ -8565,6 +8565,8 @@ type EngineGetStickerSetInfoResponse struct {
 	Animated      bool                   `protobuf:"varint,6,opt,name=animated,proto3" json:"animated,omitempty"`
 	Video         bool                   `protobuf:"varint,7,opt,name=video,proto3" json:"video,omitempty"`
 	Stickers      []*EngineStickerInfo   `protobuf:"bytes,8,rep,name=stickers,proto3" json:"stickers,omitempty"`
+	Masks         bool                   `protobuf:"varint,9,opt,name=masks,proto3" json:"masks,omitempty"`
+	Emojis        bool                   `protobuf:"varint,10,opt,name=emojis,proto3" json:"emojis,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8653,6 +8655,20 @@ func (x *EngineGetStickerSetInfoResponse) GetStickers() []*EngineStickerInfo {
 		return x.Stickers
 	}
 	return nil
+}
+
+func (x *EngineGetStickerSetInfoResponse) GetMasks() bool {
+	if x != nil {
+		return x.Masks
+	}
+	return false
+}
+
+func (x *EngineGetStickerSetInfoResponse) GetEmojis() bool {
+	if x != nil {
+		return x.Emojis
+	}
+	return false
 }
 
 type EngineTranscribeAudioRequest struct {
@@ -14055,7 +14071,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x05width\x18\x03 \x01(\x05R\x05width\x12\x16\n" +
 	"\x06height\x18\x04 \x01(\x05R\x06height\x12\x1b\n" +
 	"\tmime_type\x18\x05 \x01(\tR\bmimeType\x12\x17\n" +
-	"\afile_id\x18\x06 \x01(\tR\x06fileId\"\x92\x02\n" +
+	"\afile_id\x18\x06 \x01(\tR\x06fileId\"\xc0\x02\n" +
 	"\x1fEngineGetStickerSetInfoResponse\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12\x1d\n" +
 	"\n" +
@@ -14065,7 +14081,10 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\barchived\x18\x05 \x01(\bR\barchived\x12\x1a\n" +
 	"\banimated\x18\x06 \x01(\bR\banimated\x12\x14\n" +
 	"\x05video\x18\a \x01(\bR\x05video\x128\n" +
-	"\bstickers\x18\b \x03(\v2\x1c.uniclient.EngineStickerInfoR\bstickers\"m\n" +
+	"\bstickers\x18\b \x03(\v2\x1c.uniclient.EngineStickerInfoR\bstickers\x12\x14\n" +
+	"\x05masks\x18\t \x01(\bR\x05masks\x12\x16\n" +
+	"\x06emojis\x18\n" +
+	" \x01(\bR\x06emojis\"m\n" +
 	"\x1cEngineTranscribeAudioRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +

@@ -2130,6 +2130,8 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			Archived:  info.Archived,
 			Animated:  info.Animated,
 			Video:     info.Video,
+			Masks:     info.Masks,
+			Emojis:    info.Emojis,
 		}
 		for _, s := range info.Stickers {
 			resp.Stickers = append(resp.Stickers, &pb.EngineStickerInfo{

@@ -11523,6 +11523,8 @@ class EngineGetStickerSetInfoResponse extends $pb.GeneratedMessage {
     $core.bool? animated,
     $core.bool? video,
     $core.Iterable<EngineStickerInfo>? stickers,
+    $core.bool? masks,
+    $core.bool? emojis,
   }) {
     final $result = create();
     if (title != null) {
@@ -11549,6 +11551,12 @@ class EngineGetStickerSetInfoResponse extends $pb.GeneratedMessage {
     if (stickers != null) {
       $result.stickers.addAll(stickers);
     }
+    if (masks != null) {
+      $result.masks = masks;
+    }
+    if (emojis != null) {
+      $result.emojis = emojis;
+    }
     return $result;
   }
   EngineGetStickerSetInfoResponse._() : super();
@@ -11564,6 +11572,8 @@ class EngineGetStickerSetInfoResponse extends $pb.GeneratedMessage {
     ..aOB(6, _omitFieldNames ? '' : 'animated')
     ..aOB(7, _omitFieldNames ? '' : 'video')
     ..pc<EngineStickerInfo>(8, _omitFieldNames ? '' : 'stickers', $pb.PbFieldType.PM, subBuilder: EngineStickerInfo.create)
+    ..aOB(9, _omitFieldNames ? '' : 'masks')
+    ..aOB(10, _omitFieldNames ? '' : 'emojis')
     ..hasRequiredFields = false
   ;
 
@@ -11653,6 +11663,24 @@ class EngineGetStickerSetInfoResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(8)
   $core.List<EngineStickerInfo> get stickers => $_getList(7);
+
+  @$pb.TagNumber(9)
+  $core.bool get masks => $_getBF(8);
+  @$pb.TagNumber(9)
+  set masks($core.bool v) { $_setBool(8, v); }
+  @$pb.TagNumber(9)
+  $core.bool hasMasks() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearMasks() => clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.bool get emojis => $_getBF(9);
+  @$pb.TagNumber(10)
+  set emojis($core.bool v) { $_setBool(9, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasEmojis() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearEmojis() => clearField(10);
 }
 
 class EngineTranscribeAudioRequest extends $pb.GeneratedMessage {

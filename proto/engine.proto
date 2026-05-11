@@ -1008,6 +1008,8 @@ message EngineGetStickerSetInfoResponse {
   bool   animated   = 6;
   bool   video      = 7;
   repeated EngineStickerInfo stickers = 8;
+  bool   masks      = 9;
+  bool   emojis     = 10;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

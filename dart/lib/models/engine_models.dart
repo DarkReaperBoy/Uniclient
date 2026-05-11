@@ -2312,6 +2312,8 @@ class StickerSetInfo {
   final bool archived;
   final bool animated;
   final bool video;
+  final bool masks;
+  final bool emojis;
   final List<StickerInfoItem> stickers;
 
   const StickerSetInfo({
@@ -2324,6 +2326,8 @@ class StickerSetInfo {
     this.archived = false,
     this.animated = false,
     this.video = false,
+    this.masks = false,
+    this.emojis = false,
     this.stickers = const [],
   });
 }

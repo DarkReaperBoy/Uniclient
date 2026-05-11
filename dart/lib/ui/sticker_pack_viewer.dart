@@ -33,6 +33,7 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
   StickerSetInfo? _setInfo;
   bool _loading = true;
   String? _error;
+  bool _installing = false;
 
   @override
   void initState() {
@@ -117,6 +118,55 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
     );
   }
 
+  String get _addButtonText {
+    final info = _setInfo;
+    if (info == null) return 'Add Pack';
+    if (info.installed) return 'Added';
+    if (info.emojis) return 'Add Emoji';
+    if (info.masks) return 'Add Masks';
+    return 'Add Pack';
+  }
+
+  String get _countLabel {
+    final info = _setInfo;
+    if (info == null) return '';
+    final n = info.count;
+    if (info.emojis) return '$n emoji';
+    if (info.masks) return '$n masks';
+    return '$n stickers';
+  }
+
+  Future<void> _toggleInstall() async {
+    final info = _setInfo;
+    if (info == null || _installing) return;
+    setState(() => _installing = true);
+    try {
+      final accountId = widget.message.accountId;
+      final success = info.installed
+          ? await widget.engine.uninstallStickerSet(accountId, info.setId, info.accessHash)
+          : await widget.engine.installStickerSet(accountId, info.setId, info.accessHash);
+      if (success && mounted) {
+        setState(() {
+          _setInfo = StickerSetInfo(
+            title: info.title,
+            shortName: info.shortName,
+            setId: info.setId,
+            accessHash: info.accessHash,
+            count: info.count,
+            installed: !info.installed,
+            archived: info.archived,
+            animated: info.animated,
+            video: info.video,
+            masks: info.masks,
+            emojis: info.emojis,
+            stickers: info.stickers,
+          );
+        });
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _installing = false);
+  }
+
   Widget _buildHeader(Color textColor, bool isDark) {
     final info = _setInfo;
     final title = info?.title ?? 'Sticker Pack';
@@ -141,7 +191,7 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
                 ),
                 if (count > 0)
                   Text(
-                    '$count stickers',
+                    _countLabel,
                     style: TextStyle(
                       fontSize: 13,
                       color: textColor.withValues(alpha: 0.6),
@@ -152,7 +202,7 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
           ),
           if (info != null && !_loading)
             TextButton(
-              onPressed: null,
+              onPressed: _installing ? null : _toggleInstall,
               style: TextButton.styleFrom(
                 backgroundColor: installed
                     ? (isDark ? const Color(0xFF2B5278) : const Color(0xFFE3F2FD))
@@ -161,7 +211,9 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              child: Text(installed ? 'Added' : 'Add Stickers'),
+              child: _installing
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(_addButtonText),
             ),
         ],
       ),
@@ -169,16 +221,23 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
   }
 
   Widget _buildGrid(ScrollController scrollController) {
-    final stickers = _setInfo?.stickers ?? [];
+    final info = _setInfo;
+    final stickers = info?.stickers ?? [];
     if (stickers.isEmpty) {
       return const Center(child: Text('No stickers'));
     }
 
+    final isEmoji = info?.emojis ?? false;
+    final crossAxisCount = isEmoji ? 8 : 5;
+    final padding = isEmoji
+        ? const EdgeInsets.fromLTRB(12, 0, 12, 0)
+        : const EdgeInsets.fromLTRB(19, 13, 19, 13);
+
     return GridView.builder(
       controller: scrollController,
-      padding: const EdgeInsets.all(8),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
+      padding: padding,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
         mainAxisSpacing: 4,
         crossAxisSpacing: 4,
       ),

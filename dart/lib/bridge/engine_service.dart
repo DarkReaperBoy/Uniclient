@@ -1079,6 +1079,8 @@ class EngineService {
         archived: resp.archived,
         animated: resp.animated,
         video: resp.video,
+        masks: resp.masks,
+        emojis: resp.emojis,
         stickers: resp.stickers.map((s) => StickerInfoItem(
           emoji: s.emoji,
           thumbB64: s.thumbB64,

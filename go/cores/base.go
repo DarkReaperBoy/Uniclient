@@ -387,6 +387,8 @@ type StickerSetResult struct {
 	Archived  bool          `json:"archived"`
 	Animated  bool          `json:"animated"`
 	Video     bool          `json:"video"`
+	Masks     bool          `json:"masks"`
+	Emojis    bool          `json:"emojis"`
 	Stickers  []StickerInfo `json:"stickers"`
 }
 

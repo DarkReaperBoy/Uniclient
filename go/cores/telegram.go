@@ -13011,6 +13011,8 @@ func (t *TelegramCore) GetStickerSetInfo(shortName string, setID int64, accessHa
 		Count:     stickerSet.Set.Count,
 		Installed: installed,
 		Archived:  stickerSet.Set.Archived,
+		Masks:     stickerSet.Set.Masks,
+		Emojis:    stickerSet.Set.Emojis,
 	}
 
 	for _, doc := range stickerSet.Documents {
