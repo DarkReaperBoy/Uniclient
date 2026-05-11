@@ -718,6 +718,19 @@ class ChatState extends ChangeNotifier {
     return chatsForFolder(folderId).fold(0, (sum, c) => sum + c.unreadCount);
   }
 
+  /// Whether ALL unreads are from muted chats (badge should use muted color).
+  /// Matches AyuGram's Domain::unreadBadgeMuted() — starts true, set false
+  /// if any account has non-muted unreads.
+  bool badgeUnreadMuted({bool includeMuted = true}) {
+    final eligible = _chats.where((c) {
+      if (c.unreadCount <= 0) return false;
+      if (!includeMuted && c.isMuted) return false;
+      return true;
+    });
+    if (eligible.isEmpty) return true;
+    return eligible.every((c) => c.isMuted);
+  }
+
   /// Whether ALL unreads in a folder are from muted chats.
   /// Returns true if every chat with unreads is muted (badge should be gray).
   /// Returns false if any chat with unreads is unmuted (badge should be blue).

@@ -128,8 +128,11 @@ class _UniClientAppState extends State<UniClientApp>
   VoidCallback? _unreadListener;
   VoidCallback? _streamerSyncListener;
   VoidCallback? _ghostSyncListener;
+  VoidCallback? _accountsSyncListener;
   AppState? _appStateRef;
   ChatState? _chatStateRef;
+  bool _rememberedSoundNotifyFromTray = false;
+  bool _rememberedFlashBounceNotifyFromTray = false;
   Timer? _debugCmdTimer;
   final _navigatorKey = GlobalKey<NavigatorState>();
 
@@ -312,6 +315,11 @@ class _UniClientAppState extends State<UniClientApp>
       await _tray.init();
       _tray.onQuit = () => exit(0);
 
+      // Fix: wire onWindowHidden so Dart tracks visibility state.
+      _tray.onWindowHidden = () {
+        Debug.log('TRAY', 'window hidden — updating visibility state');
+      };
+
       // §50.3: Streamer Mode tray toggle — sync item visibility + state.
       _appStateRef = appState;
       _tray.onStreamerToggle = () {
@@ -341,11 +349,54 @@ class _UniClientAppState extends State<UniClientApp>
       _tray.updateGhostItem(
           appState.showGhostToggleInTray, appState.ghostModeEnabled);
 
-      // Notifications toggle from tray menu.
+      // Tray accounts menu — populate with logged-in accounts for switching.
+      // Matches AyuGram's TrayAccountsMenu::Fill: only shown when >1 account.
+      _tray.onAccountSwitch = (accountId) {
+        appState.setActiveAccountId(accountId);
+        chatState.switchAccount(accountId);
+      };
+      _accountsSyncListener = () {
+        _syncTrayAccounts(appState);
+      };
+      appState.addListener(_accountsSyncListener!);
+      _syncTrayAccounts(appState);
+
+      // Notifications toggle from tray menu — matches AyuGram's
+      // toggleSoundNotifications(): saves sound+flash state when disabling,
+      // restores when re-enabling.
       _tray.onNotificationsToggle = () {
         final current = _notifSystem.settings;
         final toggled = !current.desktopNotify;
-        _notifSystem.updateSettings(current.copyWith(desktopNotify: toggled));
+        bool? newSound;
+        bool? newFlash;
+        if (toggled) {
+          if (_rememberedSoundNotifyFromTray && !current.allowSound) {
+            newSound = true;
+            _rememberedSoundNotifyFromTray = false;
+          }
+          if (_rememberedFlashBounceNotifyFromTray && !current.flashBounce) {
+            newFlash = true;
+            _rememberedFlashBounceNotifyFromTray = false;
+          }
+        } else {
+          if (current.allowSound) {
+            newSound = false;
+            _rememberedSoundNotifyFromTray = true;
+          } else {
+            _rememberedSoundNotifyFromTray = false;
+          }
+          if (current.flashBounce) {
+            newFlash = false;
+            _rememberedFlashBounceNotifyFromTray = true;
+          } else {
+            _rememberedFlashBounceNotifyFromTray = false;
+          }
+        }
+        _notifSystem.updateSettings(current.copyWith(
+          desktopNotify: toggled,
+          allowSound: newSound,
+          flashBounce: newFlash,
+        ));
         _tray.updateNotificationsItem(enabled: toggled);
       };
 
@@ -358,12 +409,17 @@ class _UniClientAppState extends State<UniClientApp>
             includeMuted: settings.includeMutedChats,
             countMessages: settings.countUnreadMessages,
           );
+          final muted = chatState.badgeUnreadMuted(
+            includeMuted: settings.includeMutedChats,
+          );
           _tray.updateUnread(badge);
-          _tray.updateBadge(badge);
+          _tray.updateBadge(badge, muted: muted);
         };
         chatState.addListener(_unreadListener!);
-        _tray.updateUnread(chatState.badgeUnreadCount());
-        _tray.updateBadge(chatState.badgeUnreadCount());
+        final initBadge = chatState.badgeUnreadCount();
+        final initMuted = chatState.badgeUnreadMuted();
+        _tray.updateUnread(initBadge);
+        _tray.updateBadge(initBadge, muted: initMuted);
       }
     }
 
@@ -426,6 +482,26 @@ class _UniClientAppState extends State<UniClientApp>
         _pollDebugCommand(chatState);
       });
     }
+  }
+
+  void _syncTrayAccounts(AppState appState) {
+    final accounts = appState.accounts;
+    if (accounts.length <= 1) {
+      _tray.updateAccountsMenu([]);
+      return;
+    }
+    const kMaxNameLength = 30;
+    _tray.updateAccountsMenu(accounts.map((a) {
+      var name = a.displayName.isNotEmpty ? a.displayName : a.username;
+      if (name.length > kMaxNameLength) {
+        name = '${name.substring(0, kMaxNameLength)}…';
+      }
+      return {
+        'id': a.id,
+        'name': name,
+        'avatarPath': a.avatarPath,
+      };
+    }).toList());
   }
 
   void _onNotifTap(String accountId, String chatId) {
@@ -1840,6 +1916,9 @@ class _UniClientAppState extends State<UniClientApp>
     }
     if (_ghostSyncListener != null && _appStateRef != null) {
       _appStateRef!.removeListener(_ghostSyncListener!);
+    }
+    if (_accountsSyncListener != null && _appStateRef != null) {
+      _appStateRef!.removeListener(_accountsSyncListener!);
     }
     if (_chatStateRef != null) _chatStateRef!.onNotification = null;
     // Persist emoji keywords state (recent emojis, variant prefs).

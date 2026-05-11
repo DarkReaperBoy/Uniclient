@@ -31,9 +31,13 @@ class SystemTray {
 
   bool _available = false;
   int _lastUnread = -1;
+  bool _windowVisible = true;
 
   /// Whether the native tray icon is active.
   bool get isAvailable => _available;
+
+  /// Whether the main window is currently visible (not hidden to tray).
+  bool get windowVisible => _windowVisible;
 
   /// Callback invoked when the user chooses "Quit" from the tray menu.
   void Function()? onQuit;
@@ -50,6 +54,9 @@ class SystemTray {
 
   /// Callback invoked when the user clicks the Notifications tray item.
   void Function()? onNotificationsToggle;
+
+  /// Callback invoked when the user switches accounts from the tray menu.
+  void Function(String accountId)? onAccountSwitch;
 
   /// Initialize the tray.  Call once after the engine is running.
   /// No-op on Flutter Web — native tray is desktop-only (§13.5).
@@ -91,13 +98,13 @@ class SystemTray {
     }
   }
 
-  /// Update the tray tooltip / label with the current unread count.
+  /// Update the tray tooltip. Always uses the bare app name — unread count
+  /// is communicated via the icon badge only, matching AyuGram behavior.
   Future<void> updateUnread(int count) async {
     if (!_available || count == _lastUnread) return;
     _lastUnread = count;
-    final label = count > 0 ? 'UniClient ($count unread)' : 'UniClient';
     try {
-      await _channel.invokeMethod<void>('setTooltip', label);
+      await _channel.invokeMethod<void>('setTooltip', 'UniClient');
     } catch (e) {
       Debug.log('TRAY', 'setTooltip failed: $e');
     }
@@ -159,6 +166,7 @@ class SystemTray {
     if (!_available) return;
     try {
       await _channel.invokeMethod<void>('showWindow');
+      _windowVisible = true;
     } catch (e) {
       Debug.log('TRAY', 'showWindow failed: $e');
     }
@@ -169,6 +177,7 @@ class SystemTray {
     if (!_available) return;
     try {
       await _channel.invokeMethod<void>('hideWindow');
+      _windowVisible = false;
       Debug.log('TRAY', 'hideWindow dispatched');
     } catch (e) {
       Debug.log('TRAY', 'hideWindow failed: $e');
@@ -212,8 +221,25 @@ class SystemTray {
     if (!_available) return;
     try {
       await _channel.invokeMethod<void>('toggleVisibility');
+      _windowVisible = !_windowVisible;
     } catch (e) {
       Debug.log('TRAY', 'toggleVisibility failed: $e');
+    }
+  }
+
+  /// Populate the tray context menu with per-account entries for switching.
+  /// Only shown when multiple accounts are logged in, matching AyuGram's
+  /// TrayAccountsMenu::Fill behavior.
+  Future<void> updateAccountsMenu(List<Map<String, String>> accounts) async {
+    if (!_available) return;
+    try {
+      await _channel.invokeMethod<void>('setAccountsMenu', {
+        'accounts': accounts,
+      });
+    } on MissingPluginException {
+      // Native side doesn't implement it yet.
+    } catch (e) {
+      Debug.log('TRAY', 'setAccountsMenu failed: $e');
     }
   }
 
@@ -225,7 +251,11 @@ class SystemTray {
         onQuit?.call();
       case 'onWindowHidden':
         Debug.log('TRAY', 'window hidden (minimized to tray)');
+        _windowVisible = false;
         onWindowHidden?.call();
+      case 'onWindowShown':
+        Debug.log('TRAY', 'window shown from tray');
+        _windowVisible = true;
       case 'onStreamerToggle':
         Debug.log('TRAY', 'streamer toggle requested from tray menu');
         onStreamerToggle?.call();
@@ -235,6 +265,10 @@ class SystemTray {
       case 'onNotificationsToggle':
         Debug.log('TRAY', 'notifications toggle requested from tray menu');
         onNotificationsToggle?.call();
+      case 'onAccountSwitch':
+        final accountId = call.arguments as String?;
+        Debug.log('TRAY', 'account switch requested: $accountId');
+        if (accountId != null) onAccountSwitch?.call(accountId);
       default:
         Debug.log('TRAY', 'unknown native call: ${call.method}');
     }
