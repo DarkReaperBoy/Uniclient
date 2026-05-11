@@ -12,7 +12,7 @@ import '../models/engine_models.dart' show ChatType, MemberInfo, ScheduledMessag
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
 import 'compose_entities.dart';
-import 'emoji_panel.dart' show addRecentEmoji, getRecentEmojisList;
+import 'emoji_panel.dart' show EmojiTabbedPanel, addRecentEmoji;
 import 'popup_menu.dart';
 import 'choose_datetime_box.dart';
 import 'photo_crop_editor.dart';
@@ -300,7 +300,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   bool _isDragOver = false;
   int _dragHoveredZone = 0; // 0=none, 1=document(top), 2=photo(bottom)
   late final AnimationController _dragOverlayAnimCtrl;
-  late final AnimationController _emojiPanelAnimCtrl;
   final ScrollController _scrollController = ScrollController();
   bool _showTopShadow = false;
   bool _showBottomShadow = false;
@@ -315,10 +314,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     _dragOverlayAnimCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
-    );
-    _emojiPanelAnimCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 150),
     );
     _scrollController.addListener(_updateScrollShadows);
     _captionFocus = FocusNode(onKeyEvent: _onCaptionKey);
@@ -355,7 +350,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   @override
   void dispose() {
     _dragOverlayAnimCtrl.dispose();
-    _emojiPanelAnimCtrl.dispose();
     _scrollController.removeListener(_updateScrollShadows);
     _scrollController.dispose();
     _captionController.removeListener(_onCaptionChanged);
@@ -437,11 +431,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   void _toggleEmojiPanel() {
     setState(() => _showEmojiPanel = !_showEmojiPanel);
-    if (_showEmojiPanel) {
-      _emojiPanelAnimCtrl.forward();
-    } else {
-      _emojiPanelAnimCtrl.reverse();
-    }
   }
 
   bool _shouldSendOnEnter(bool ctrl, bool shift) {
@@ -1541,28 +1530,28 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                 max: _kCaptionMaxLength,
                 accentColor: accentFg,
               ),
-            SizeTransition(
-              sizeFactor: CurvedAnimation(
-                parent: _emojiPanelAnimCtrl,
-                curve: Curves.easeOutCubic,
-              ),
-              axisAlignment: 1.0,
-              child: _EmojiQuickPanel(
-                isDark: isDark,
-                onPick: (emoji) {
-                  final sel = _captionController.selection;
-                  final text = _captionController.text;
-                  final newText = text.replaceRange(sel.start, sel.end, emoji);
-                  if (newText.length <= _kCaptionMaxLength) {
-                    _captionController.value = TextEditingValue(
-                      text: newText,
-                      selection: TextSelection.collapsed(offset: sel.start + emoji.length),
-                    );
-                  }
-                  addRecentEmoji(emoji);
-                  _captionFocus.requestFocus();
-                },
-              ),
+            EmojiTabbedPanel(
+              visible: _showEmojiPanel,
+              onHide: () => setState(() => _showEmojiPanel = false),
+              onEmojiSelected: (emoji) {
+                final sel = _captionController.selection;
+                final text = _captionController.text;
+                final start = sel.isValid ? sel.start : text.length;
+                final end = sel.isValid ? sel.end : text.length;
+                final newText = text.replaceRange(start, end, emoji);
+                if (newText.length <= _kCaptionMaxLength) {
+                  _captionController.value = TextEditingValue(
+                    text: newText,
+                    selection: TextSelection.collapsed(offset: start + emoji.length),
+                  );
+                }
+                addRecentEmoji(emoji);
+                _captionFocus.requestFocus();
+              },
+              onCustomEmojiSelected: (documentId, altText) {
+                _captionController.insertCustomEmoji(documentId, altText);
+                _captionFocus.requestFocus();
+              },
             ),
             if (_hasMediaFiles || _hasGroupOption || _canMoveCaption)
               Padding(
@@ -3446,60 +3435,6 @@ class _CharactersLimitLabel extends StatelessWidget {
   }
 }
 
-class _EmojiQuickPanel extends StatelessWidget {
-  final bool isDark;
-  final void Function(String emoji) onPick;
-
-  const _EmojiQuickPanel({
-    required this.isDark,
-    required this.onPick,
-  });
-
-  static const _defaultEmojis = [
-    '\u{1F600}', '\u{1F602}', '\u{1F60D}', '\u{1F622}', '\u{1F44D}',
-    '\u{1F44F}', '\u{1F525}', '\u{2764}', '\u{1F389}', '\u{1F60E}',
-    '\u{1F914}', '\u{1F631}', '\u{1F4AF}', '\u{1F60A}', '\u{1F642}',
-    '\u{1F609}', '\u{1F618}', '\u{1F60B}', '\u{1F61C}', '\u{1F60F}',
-    '\u{1F44C}', '\u{270C}', '\u{1F4AA}', '\u{1F64F}', '\u{1F680}',
-    '\u{1F31F}', '\u{1F381}', '\u{1F3B6}', '\u{1F48E}', '\u{1F319}',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final recent = getRecentEmojisList();
-    final emojis = recent.isNotEmpty ? recent.take(30).toList() : _defaultEmojis;
-    final bg = isDark ? const Color(0xFF1E2C38) : const Color(0xFFF5F5F5);
-    return Container(
-      height: 120,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: GridView.builder(
-        padding: const EdgeInsets.all(8),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 8,
-          mainAxisSpacing: 4,
-          crossAxisSpacing: 4,
-        ),
-        itemCount: emojis.length,
-        itemBuilder: (ctx, i) {
-          return GestureDetector(
-            onTap: () => onPick(emojis[i]),
-            behavior: HitTestBehavior.opaque,
-            child: Center(
-              child: Text(
-                emojis[i],
-                style: const TextStyle(fontSize: 22),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
 
 class _SendFilesDragOverlay extends StatelessWidget {
   final _DragZoneMode mode;
