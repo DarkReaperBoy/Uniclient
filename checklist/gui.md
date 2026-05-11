@@ -665,10 +665,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 # send_files_box — Audit Findings
 
 
-## send_files_box — Caption field does not support text entities / markup
-
-- [ ] [MAJOR] The caption field is a plain `TextField` with no entity/markup support. AyuGram's caption field is an `InputField` with `TextWithTags` supporting bold, italic, code, strikethrough, mentions, etc. via `InitMessageFieldHandlers`. Formatted captions cannot be created. — `dart/lib/ui/send_files_box.dart:1278-1294` ← `boxes/send_files_box.cpp:1837-1920`
-
 ## send_files_box — "Remember" checkbox has no persistence — setting is not saved
 
 - [ ] [MAJOR] The "Remember" checkbox sets `_wayRemember = true` in the result, but no code in the codebase reads `result.remember` to persist the send-way setting. AyuGram's `saveSendWaySettings()` writes to `Core::App().settings()` and calls `saveSettingsDelayed()`. — `dart/lib/ui/send_files_box.dart:961` ← `boxes/send_files_box.cpp:2328-2346`
