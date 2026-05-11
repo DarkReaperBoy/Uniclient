@@ -1673,7 +1673,6 @@ class _StickerTabState extends State<_StickerTab> {
           final id = int.tryParse(sticker.fileId) ?? 0;
           final willUnfave = sticker.isFaved;
           engine.faveSticker(acc.id, id, unfave: willUnfave);
-          setState(() { sticker.isFaved = !willUnfave; });
         }
       } else if (value == 'view_set') {
         _viewStickerSet(context, sticker, setShortName);

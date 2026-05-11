@@ -180,6 +180,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
 
   late AnimationController _barAnimController;
   late Animation<double> _barAnim;
+  final FocusNode _keyboardFocusNode = FocusNode();
+  final ValueNotifier<List<_PaintStroke>> _strokesNotifier = ValueNotifier([]);
 
   static const _fonts = [
     'sans-serif',
@@ -215,6 +217,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     _barAnimController.dispose();
     _textEditController.dispose();
     _captionController.dispose();
+    _keyboardFocusNode.dispose();
+    _strokesNotifier.dispose();
     super.dispose();
   }
 
@@ -232,13 +236,15 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       final ext = file.path.split('.').last.toLowerCase();
       final isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext);
       if (isVideo) {
+        final fileSize = await file.length();
+        final estimatedDuration = (fileSize / (500 * 1024)).clamp(1, 60).toInt();
         setState(() {
           _videoFile = file;
           _imageFile = null;
           _hasMedia = true;
           _trimStart = 0.0;
           _trimEnd = 1.0;
-          _videoDuration = const Duration(seconds: 60);
+          _videoDuration = Duration(seconds: estimatedDuration);
         });
       } else {
         setState(() {
@@ -325,35 +331,46 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     });
 
     try {
-      Uint8List photoData;
-      if (_imageFile != null) {
-        photoData = await _imageFile!.readAsBytes();
-      } else {
-        photoData = await _renderCanvasToBytes();
-      }
-
       final appState = context.read<AppState>();
       final accountId = appState.activeAccountId;
       if (accountId == null) throw Exception('No active account');
-
-      setState(() => _uploadProgress = 0.3);
-      await Future.delayed(const Duration(milliseconds: 100));
-
       final engine = context.read<EngineService>();
-      setState(() => _uploadProgress = 0.6);
 
-      await engine.sendStoryWithPhoto(
-        accountId,
-        _captionController.text,
-        photoData,
-      );
+      if (_videoFile != null) {
+        final videoBytes = await _videoFile!.readAsBytes();
+        setState(() => _uploadProgress = 0.3);
+        final payload = {
+          'account_id': accountId,
+          'caption': _captionController.text,
+          'video_data': videoBytes.toList(),
+          'privacy': _privacy.name,
+          'duration_hours': _durationHours,
+          'save_to_profile': _saveToProfile,
+          'allow_sharing': _allowSharing,
+          'trim_start': _trimStart,
+          'trim_end': _trimEnd,
+        };
+        setState(() => _uploadProgress = 0.6);
+        await engine.sendStoryWithPhoto(
+          accountId,
+          _captionController.text,
+          videoBytes,
+        );
+      } else {
+        final photoData = await _renderCanvasToBytes();
+        setState(() => _uploadProgress = 0.5);
+        await engine.sendStoryWithPhoto(
+          accountId,
+          _captionController.text,
+          photoData,
+        );
+      }
 
       setState(() {
         _uploadProgress = 1.0;
         _posted = true;
       });
 
-      await Future.delayed(const Duration(milliseconds: 150));
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       setState(() => _posting = false);
@@ -382,6 +399,46 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
         Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight),
         Paint()..shader = gradient.createShader(Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight)),
       );
+    }
+
+    canvas.saveLayer(Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight), Paint());
+    for (final stroke in _strokes) {
+      _StrokePainter.paintStroke(canvas, stroke.points, stroke.color, stroke.width, stroke.tool, 1.0);
+    }
+    canvas.restore();
+
+    for (final item in _sceneItems) {
+      canvas.save();
+      canvas.translate(
+        item.position.dx * _canvasWidth,
+        item.position.dy * _canvasHeight,
+      );
+      canvas.scale(item.scale);
+      canvas.rotate(item.rotation);
+      if (item.isText && item.text.isNotEmpty) {
+        final tp = TextPainter(
+          text: TextSpan(
+            text: item.text,
+            style: TextStyle(
+              color: item.color,
+              fontSize: item.fontSize,
+              fontFamily: item.fontFamily,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: _canvasWidth * 0.8);
+        tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+      } else if (!item.isText && item.text.isNotEmpty) {
+        final tp = TextPainter(
+          text: TextSpan(
+            text: item.text,
+            style: TextStyle(fontSize: item.fontSize),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+      }
+      canvas.restore();
     }
 
     final picture = recorder.endRecording();
@@ -418,7 +475,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     return Scaffold(
       backgroundColor: Colors.black,
       body: KeyboardListener(
-        focusNode: FocusNode()..requestFocus(),
+        focusNode: _keyboardFocusNode..requestFocus(),
         onKeyEvent: _handleKeyEvent,
         child: Stack(
           fit: StackFit.expand,
@@ -527,16 +584,19 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       onPointerMove: (e) => _continueStroke(e.localPosition, scale),
       onPointerUp: (_) => _endStroke(),
       behavior: HitTestBehavior.translucent,
-      child: CustomPaint(
-        painter: _StrokePainter(
-          strokes: _strokes,
-          currentPoints: _currentStrokePoints,
-          currentColor: _brushColor,
-          currentWidth: _effectiveBrushWidth,
-          currentTool: _currentBrush,
-          scale: scale,
+      child: ValueListenableBuilder<List<_PaintStroke>>(
+        valueListenable: _strokesNotifier,
+        builder: (_, __, ___) => CustomPaint(
+          painter: _StrokePainter(
+            strokes: _strokes,
+            currentPoints: _currentStrokePoints,
+            currentColor: _brushColor,
+            currentWidth: _effectiveBrushWidth,
+            currentTool: _currentBrush,
+            scale: scale,
+          ),
+          size: Size.infinite,
         ),
-        size: Size.infinite,
       ),
     );
   }
@@ -550,9 +610,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
 
   void _continueStroke(Offset pos, double scale) {
     if (_currentStrokePoints != null) {
-      setState(() {
-        _currentStrokePoints!.add(pos / scale);
-      });
+      _currentStrokePoints!.add(pos / scale);
+      _strokesNotifier.value = List.from(_strokesNotifier.value);
     }
   }
 
@@ -886,8 +945,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     return GestureDetector(
       onTap: () => setState(() => _showColorPalette = !_showColorPalette),
       child: Container(
-        width: 28,
-        height: 28,
+        width: 24,
+        height: 24,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
@@ -1603,15 +1662,17 @@ class _StrokePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.saveLayer(Offset.zero & size, Paint());
     for (final stroke in strokes) {
-      _drawStroke(canvas, stroke.points, stroke.color, stroke.width, stroke.tool);
+      paintStroke(canvas, stroke.points, stroke.color, stroke.width, stroke.tool, scale);
     }
     if (currentPoints != null && currentPoints!.isNotEmpty) {
-      _drawStroke(canvas, currentPoints!, currentColor, currentWidth, currentTool);
+      paintStroke(canvas, currentPoints!, currentColor, currentWidth, currentTool, scale);
     }
+    canvas.restore();
   }
 
-  void _drawStroke(Canvas canvas, List<Offset> points, Color color, double width, _BrushTool tool) {
+  static void paintStroke(Canvas canvas, List<Offset> points, Color color, double width, _BrushTool tool, double scale) {
     if (points.length < 2) return;
     final paint = Paint()
       ..strokeCap = StrokeCap.round
@@ -1632,22 +1693,45 @@ class _StrokePainter extends CustomPainter {
         paint.maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
         break;
       case _BrushTool.eraser:
-        paint.color = Colors.white24;
+        paint.color = Colors.transparent;
         paint.blendMode = BlendMode.clear;
         break;
     }
 
+    final smoothed = _smoothPoints(points);
     final path = Path();
-    path.moveTo(points[0].dx * scale, points[0].dy * scale);
-    for (int i = 1; i < points.length; i++) {
-      path.lineTo(points[i].dx * scale, points[i].dy * scale);
+    if (smoothed.length < 2) {
+      if (smoothed.isNotEmpty) {
+        path.moveTo(smoothed[0].dx * scale, smoothed[0].dy * scale);
+        path.lineTo(smoothed[0].dx * scale, smoothed[0].dy * scale);
+      }
+    } else {
+      path.moveTo(smoothed[0].dx * scale, smoothed[0].dy * scale);
+      for (int i = 1; i < smoothed.length; i++) {
+        final p0 = smoothed[i - 1] * scale;
+        final p1 = smoothed[i] * scale;
+        final mid = Offset((p0.dx + p1.dx) / 2, (p0.dy + p1.dy) / 2);
+        path.quadraticBezierTo(p0.dx, p0.dy, mid.dx, mid.dy);
+      }
+      final last = smoothed.last * scale;
+      path.lineTo(last.dx, last.dy);
     }
     canvas.drawPath(path, paint);
 
     if (tool == _BrushTool.arrow && points.length >= 2) {
       final last = points.last * scale;
-      final prev = points[points.length - 2] * scale;
-      final angle = math.atan2(last.dy - prev.dy, last.dx - prev.dx);
+      final minDist = width * scale * 1.5;
+      var lookback = points[points.length - 2] * scale;
+      for (int i = points.length - 2; i >= 0; i--) {
+        final candidate = points[i] * scale;
+        final dx = last.dx - candidate.dx;
+        final dy = last.dy - candidate.dy;
+        if (math.sqrt(dx * dx + dy * dy) >= minDist) {
+          lookback = candidate;
+          break;
+        }
+      }
+      final angle = math.atan2(last.dy - lookback.dy, last.dx - lookback.dx);
       final headLen = width * scale * 2.5;
       const arrowAngle = 26 * math.pi / 180;
       final p1 = Offset(
@@ -1666,8 +1750,27 @@ class _StrokePainter extends CustomPainter {
     }
   }
 
+  static List<Offset> _smoothPoints(List<Offset> raw) {
+    if (raw.length < 3) return raw;
+    var pts = List<Offset>.from(raw);
+    for (int pass = 0; pass < 2; pass++) {
+      final smoothed = <Offset>[pts.first];
+      for (int i = 1; i < pts.length - 1; i++) {
+        smoothed.add(Offset(
+          (pts[i - 1].dx + pts[i].dx + pts[i + 1].dx) / 3,
+          (pts[i - 1].dy + pts[i].dy + pts[i + 1].dy) / 3,
+        ));
+      }
+      smoothed.add(pts.last);
+      pts = smoothed;
+    }
+    return pts;
+  }
+
   @override
-  bool shouldRepaint(covariant _StrokePainter old) => true;
+  bool shouldRepaint(covariant _StrokePainter old) =>
+      old.strokes != strokes ||
+      old.currentPoints != currentPoints;
 }
 
 class _BrushSizeSliderPainter extends CustomPainter {
@@ -1782,7 +1885,12 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
               ),
               for (final (option, icon, label, subtitle) in _options)
                 InkWell(
-                  onTap: () => setState(() => _selected = option),
+                  onTap: () {
+                    setState(() => _selected = option);
+                    if (option == StoryPrivacyOption.selectedContacts) {
+                      _showContactSelectionHint(context, textColor);
+                    }
+                  },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     child: Row(
@@ -1802,7 +1910,12 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
                           value: option,
                           groupValue: _selected,
                           onChanged: (v) {
-                            if (v != null) setState(() => _selected = v);
+                            if (v != null) {
+                              setState(() => _selected = v);
+                              if (v == StoryPrivacyOption.selectedContacts) {
+                                _showContactSelectionHint(context, textColor);
+                              }
+                            }
                           },
                           activeColor: const Color(0xFF4DB8FF),
                         ),
@@ -1833,6 +1946,20 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showContactSelectionHint(BuildContext context, Color textColor) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Contact selection will be available after posting. '
+          'Your story will be shared with selected contacts.',
+          style: TextStyle(color: textColor),
+        ),
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF1E2C3A),
       ),
     );
   }
@@ -2103,13 +2230,28 @@ class _VideoTrimPainter extends CustomPainter {
 
     for (var i = 0; i < frameCount; i++) {
       final x = i * frameW;
-      final hue = (i / frameCount) * 360;
-      final color = HSLColor.fromAHSL(1, hue, 0.3, 0.25).toColor();
+      final t = i / frameCount;
+      final brightness = 0.15 + t * 0.15;
+      final color = Color.fromRGBO(
+        (40 + t * 30).toInt(),
+        (40 + t * 20).toInt(),
+        (50 + t * 20).toInt(),
+        1.0,
+      );
       final rect = RRect.fromRectAndRadius(
         Rect.fromLTWH(x + 1, frameY, frameW - 2, frameH),
         const Radius.circular(4),
       );
       canvas.drawRRect(rect, Paint()..color = color);
+      final stripePaint = Paint()
+        ..color = Color.fromRGBO(255, 255, 255, 0.08)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1;
+      canvas.drawLine(
+        Offset(x + frameW / 2, frameY + 2),
+        Offset(x + frameW / 2, frameY + frameH - 2),
+        stripePaint,
+      );
     }
 
     final darken = Paint()..color = const Color(0x73000000);
@@ -2153,24 +2295,31 @@ class _VideoTrimPainter extends CustomPainter {
       old.trimStart != trimStart || old.trimEnd != trimEnd;
 }
 
-// §32.15.4: Sticker/emoji picker panel
-class _StickerPickerPanel extends StatelessWidget {
+class _StickerPickerPanel extends StatefulWidget {
   final ValueChanged<String> onEmojiSelected;
 
   const _StickerPickerPanel({required this.onEmojiSelected});
 
-  static const _tabs = ['Emoji', 'Stickers'];
+  @override
+  State<_StickerPickerPanel> createState() => _StickerPickerPanelState();
+}
 
-  static const _emojis = [
-    '😀', '😂', '🥹', '😍', '🥰', '😎', '🤩', '🥳',
-    '😇', '🤔', '😏', '😴', '🤯', '😱', '🥺', '😭',
-    '🤗', '😤', '🫡', '🫶', '💀', '👻', '🤖', '👽',
-    '🐱', '🐶', '🦊', '🐻', '🐼', '🐸', '🦁', '🐧',
-    '🌸', '🌺', '🌻', '🌹', '🍀', '🍁', '🌈', '⭐',
-    '🔥', '💥', '❤️', '💜', '💙', '💚', '💛', '🖤',
-    '👍', '👎', '✌️', '🤞', '👏', '🙌', '💪', '🫰',
-    '🎉', '🎊', '🎁', '🏆', '🎯', '🎸', '🎵', '🎨',
+class _StickerPickerPanelState extends State<_StickerPickerPanel> {
+  int _activeTab = 0;
+
+  static const _emojiCategories = [
+    ['😀', '😂', '🥹', '😍', '🥰', '😎', '🤩', '🥳',
+     '😇', '🤔', '😏', '😴', '🤯', '😱', '🥺', '😭',
+     '🤗', '😤', '🫡', '🫶', '💀', '👻', '🤖', '👽'],
+    ['🐱', '🐶', '🦊', '🐻', '🐼', '🐸', '🦁', '🐧',
+     '🌸', '🌺', '🌻', '🌹', '🍀', '🍁', '🌈', '⭐'],
+    ['🔥', '💥', '❤️', '💜', '💙', '💚', '💛', '🖤',
+     '👍', '👎', '✌️', '🤞', '👏', '🙌', '💪', '🫰'],
+    ['🎉', '🎊', '🎁', '🏆', '🎯', '🎸', '🎵', '🎨',
+     '🚀', '💡', '🔔', '📌', '✅', '❌', '⚡', '🌟'],
   ];
+
+  List<String> get _allEmojis => _emojiCategories.expand((c) => c).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -2188,38 +2337,77 @@ class _StickerPickerPanel extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                Text('Emoji', style: TextStyle(color: Color(0xFF4DB8FF), fontSize: 14, fontWeight: FontWeight.w600)),
-                SizedBox(width: 24),
-                Text('Stickers', style: TextStyle(color: Colors.white38, fontSize: 14, fontWeight: FontWeight.w600)),
+                GestureDetector(
+                  onTap: () => setState(() => _activeTab = 0),
+                  child: Text(
+                    'Emoji',
+                    style: TextStyle(
+                      color: _activeTab == 0 ? const Color(0xFF4DB8FF) : Colors.white38,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 24),
+                GestureDetector(
+                  onTap: () => setState(() => _activeTab = 1),
+                  child: Text(
+                    'Stickers',
+                    style: TextStyle(
+                      color: _activeTab == 1 ? const Color(0xFF4DB8FF) : Colors.white38,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 8,
-                mainAxisSpacing: 4,
-                crossAxisSpacing: 4,
-              ),
-              itemCount: _emojis.length,
-              itemBuilder: (ctx, i) {
-                return GestureDetector(
-                  onTap: () => onEmojiSelected(_emojis[i]),
-                  child: Center(
-                    child: Text(
-                      _emojis[i],
-                      style: const TextStyle(fontSize: 28),
-                    ),
-                  ),
-                );
-              },
-            ),
+            child: _activeTab == 0 ? _buildEmojiGrid() : _buildStickerGrid(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmojiGrid() {
+    final emojis = _allEmojis;
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 8,
+        mainAxisSpacing: 4,
+        crossAxisSpacing: 4,
+      ),
+      itemCount: emojis.length,
+      itemBuilder: (ctx, i) {
+        return GestureDetector(
+          onTap: () => widget.onEmojiSelected(emojis[i]),
+          child: Center(
+            child: Text(emojis[i], style: const TextStyle(fontSize: 28)),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStickerGrid() {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.sticky_note_2_outlined, color: Colors.white38, size: 48),
+          SizedBox(height: 12),
+          Text(
+            'Sticker packs from your account\nwill appear here',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white38, fontSize: 13),
           ),
         ],
       ),

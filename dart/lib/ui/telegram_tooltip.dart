@@ -9,7 +9,7 @@ import '../theme/telegram_palette.dart';
 const double _kMaxWidth = 800.0;
 const int _kMaxLines = 12;
 const double _kCornerRadius = 6.0;
-const Duration _kShowDelay = Duration(milliseconds: 1000);
+const Duration _kShowDelay = Duration(milliseconds: 500);
 const Duration _kHideDelay = Duration(milliseconds: 10);
 const EdgeInsets _kPadding = EdgeInsets.fromLTRB(5, 2, 5, 2);
 const Offset _kShift = Offset(-20, 20);
@@ -211,6 +211,7 @@ class ImportantTooltip extends StatefulWidget {
   final TooltipSide preferredSide;
   final bool visible;
   final VoidCallback? onDismiss;
+  final Duration? hideAfter;
 
   const ImportantTooltip({
     super.key,
@@ -219,6 +220,7 @@ class ImportantTooltip extends StatefulWidget {
     this.preferredSide = TooltipSide.bottom,
     this.visible = true,
     this.onDismiss,
+    this.hideAfter,
   });
 
   @override
@@ -228,6 +230,7 @@ class ImportantTooltip extends StatefulWidget {
 class _ImportantTooltipState extends State<ImportantTooltip>
     with SingleTickerProviderStateMixin {
   late final AnimationController _anim;
+  Timer? _hideTimer;
 
   @override
   void initState() {
@@ -236,7 +239,23 @@ class _ImportantTooltipState extends State<ImportantTooltip>
       vsync: this,
       duration: _kImportantDuration,
     );
-    if (widget.visible) _anim.forward();
+    if (widget.visible) {
+      _anim.forward();
+      _scheduleHideAfter();
+    }
+  }
+
+  void _scheduleHideAfter() {
+    if (widget.hideAfter != null) {
+      _hideTimer?.cancel();
+      _hideTimer = Timer(widget.hideAfter!, () {
+        if (mounted) {
+          _anim.reverse().then((_) {
+            widget.onDismiss?.call();
+          });
+        }
+      });
+    }
   }
 
   @override
@@ -253,6 +272,7 @@ class _ImportantTooltipState extends State<ImportantTooltip>
 
   @override
   void dispose() {
+    _hideTimer?.cancel();
     _anim.dispose();
     super.dispose();
   }
@@ -487,11 +507,13 @@ void showImportantTooltip({
           ImportantTooltip(
             targetRect: targetRect,
             preferredSide: preferredSide,
+            hideAfter: hideAfter,
+            onDismiss: remove,
             child: Text(
               message,
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.white,
+                color: palette.importantTooltipFg,
                 height: 1.3,
               ),
             ),

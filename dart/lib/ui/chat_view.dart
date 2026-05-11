@@ -17418,7 +17418,6 @@ class _StickerSuggestionPanel extends StatelessWidget {
           final id = int.tryParse(sticker.fileId) ?? 0;
           final willUnfave = sticker.isFaved;
           engine.faveSticker(acc.id, id, unfave: willUnfave);
-          sticker.isFaved = !willUnfave;
         }
       }
     });

@@ -31,7 +31,7 @@ void showTelegramToast(
 const _kFadeInMs = 200;
 const _kFadeOutMs = 1000;
 const _kSlideMs = 160;
-const _kToastBg = Color(0xB2000000);
+const _kToastBg = Color(0xE52C3033);
 const _kToastFg = Color(0xFFFFFFFF);
 const _kRadius = 6.0;
 const _kMaxWidth = 480.0;
@@ -161,12 +161,9 @@ class _TelegramToastState extends State<_TelegramToast>
         animation: _ctrl,
         builder: (_, child) {
           final slide = _hiding ? _slideOut.value : _slideIn.value;
-          final opacity = _hiding
-              ? _fadeOut.value.clamp(0.0, 1.0)
-              : _fadeIn.value.clamp(0.0, 1.0);
           return FractionalTranslation(
             translation: slide,
-            child: Opacity(opacity: opacity, child: child),
+            child: child,
           );
         },
         child: toastChild,
@@ -214,7 +211,7 @@ class _ToastPosition {
 _ToastPosition _positionForAttach(ToastAttach attach) {
   switch (attach) {
     case ToastAttach.none:
-      return const _ToastPosition(left: 0, right: 0, bottom: _kMargin * 4);
+      return const _ToastPosition(left: 0, right: 0, top: 0, bottom: 0);
     case ToastAttach.bottom:
       return const _ToastPosition(
           left: _kMargin, right: _kMargin, bottom: _kMargin);
@@ -247,6 +244,7 @@ void showStickerToast(
   required String packName,
   int packCount = 0,
   bool isReaction = false,
+  String stickerEmoji = '',
   VoidCallback? onOpenPack,
 }) {
   final overlay = Overlay.of(context, rootOverlay: true);
@@ -256,6 +254,7 @@ void showStickerToast(
       packName: packName,
       packCount: packCount,
       isReaction: isReaction,
+      stickerEmoji: stickerEmoji,
       onOpenPack: onOpenPack,
       onDone: () {
         entry.remove();
@@ -269,6 +268,7 @@ class _StickerToast extends StatefulWidget {
   final String packName;
   final int packCount;
   final bool isReaction;
+  final String stickerEmoji;
   final VoidCallback? onOpenPack;
   final VoidCallback onDone;
 
@@ -276,6 +276,7 @@ class _StickerToast extends StatefulWidget {
     required this.packName,
     required this.packCount,
     required this.isReaction,
+    this.stickerEmoji = '',
     this.onOpenPack,
     required this.onDone,
   });
@@ -300,7 +301,7 @@ class _StickerToastState extends State<_StickerToast>
     );
     _ctrl.forward().then((_) {
       if (!mounted) return;
-      _holdTimer = Timer(const Duration(milliseconds: 1500), _startHide);
+      _holdTimer = Timer(const Duration(milliseconds: 3000), _startHide);
     });
   }
 
@@ -319,7 +320,7 @@ class _StickerToastState extends State<_StickerToast>
     super.dispose();
   }
 
-  TextSpan _buildMessage() {
+  List<InlineSpan> _buildMessage() {
     const normal = TextStyle(
       color: _kToastFg,
       fontSize: 13,
@@ -327,80 +328,93 @@ class _StickerToastState extends State<_StickerToast>
       decoration: TextDecoration.none,
       height: 1.3,
     );
+    final bold = normal.copyWith(fontWeight: FontWeight.w600);
     final link = normal.copyWith(
       fontWeight: FontWeight.w600,
       decoration: TextDecoration.underline,
     );
 
     if (widget.isReaction) {
-      return TextSpan(
-        style: normal,
-        children: [
-          const TextSpan(text: 'This reaction is from the '),
-          TextSpan(
-            text: widget.packName,
-            style: link,
-            recognizer: TapGestureRecognizer()
-              ..onTap = widget.onOpenPack,
-          ),
-          const TextSpan(text: ' pack.'),
-        ],
-      );
+      return [
+        TextSpan(text: widget.packName, style: bold),
+        const TextSpan(text: '\n', style: normal),
+        const TextSpan(text: 'This reaction is from the ', style: normal),
+        TextSpan(
+          text: widget.packName,
+          style: link,
+          recognizer: TapGestureRecognizer()..onTap = widget.onOpenPack,
+        ),
+        const TextSpan(text: ' pack.', style: normal),
+      ];
     }
 
     if (widget.packCount > 1) {
-      return TextSpan(
-        style: normal,
-        children: [
-          const TextSpan(text: 'This message contains emoji from '),
-          TextSpan(
-            text: '${widget.packCount} packs',
-            style: link,
-            recognizer: TapGestureRecognizer()
-              ..onTap = widget.onOpenPack,
-          ),
-          const TextSpan(text: '.'),
-        ],
-      );
+      return [
+        TextSpan(text: 'Animated Emoji', style: bold),
+        const TextSpan(text: '\n', style: normal),
+        const TextSpan(text: 'This message contains emoji from ', style: normal),
+        TextSpan(
+          text: '${widget.packCount} packs',
+          style: link,
+          recognizer: TapGestureRecognizer()..onTap = widget.onOpenPack,
+        ),
+        const TextSpan(text: '.', style: normal),
+      ];
     }
 
-    return TextSpan(
-      style: normal,
-      children: [
-        const TextSpan(text: 'This message contains emoji from '),
-        TextSpan(
-          text: '${widget.packName} pack',
-          style: link,
-          recognizer: TapGestureRecognizer()
-            ..onTap = widget.onOpenPack,
-        ),
-        const TextSpan(text: '.'),
-      ],
-    );
+    return [
+      TextSpan(text: 'Animated Emoji', style: bold),
+      const TextSpan(text: '\n', style: normal),
+      const TextSpan(text: 'This message contains emoji from the ', style: normal),
+      TextSpan(
+        text: '${widget.packName} pack',
+        style: link,
+        recognizer: TapGestureRecognizer()..onTap = widget.onOpenPack,
+      ),
+      const TextSpan(text: '.', style: normal),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
+    const stickerMaxWidth = 380.0;
     final toastChild = Container(
-      constraints: const BoxConstraints(maxWidth: _kMaxWidth),
+      constraints: const BoxConstraints(maxWidth: stickerMaxWidth),
       padding: _kPadding,
       decoration: BoxDecoration(
         color: _kToastBg,
         borderRadius: BorderRadius.circular(_kRadius),
       ),
-      child: Text.rich(
-        _buildMessage(),
-        textAlign: TextAlign.center,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: Text(
+              widget.stickerEmoji.isNotEmpty
+                  ? widget.stickerEmoji
+                  : (widget.isReaction ? '✨' : '😀'),
+              style: const TextStyle(fontSize: 26, decoration: TextDecoration.none),
+            ),
+          ),
+          Flexible(
+            child: Text.rich(
+              TextSpan(children: _buildMessage()),
+              textAlign: TextAlign.left,
+            ),
+          ),
+        ],
       ),
     );
 
     return Positioned(
       left: 0,
       right: 0,
-      bottom: _kMargin * 4,
-      child: IgnorePointer(
-        ignoring: false,
-        child: Center(
+      top: 0,
+      bottom: 0,
+      child: Center(
+        child: GestureDetector(
+          onSecondaryTap: _startHide,
           child: FadeTransition(
             opacity: _hiding
                 ? Tween<double>(begin: 1, end: 0).animate(CurvedAnimation(

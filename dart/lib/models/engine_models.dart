@@ -3,6 +3,7 @@
 /// These are used by the EngineService for typed event dispatch and API responses.
 library;
 
+import 'dart:convert';
 import 'dart:typed_data';
 
 import '../utils/safe_string.dart';
@@ -158,7 +159,10 @@ class AuthStateData {
     timeoutSecs: j['timeout_secs'] as int? ?? 0,
     canResend: j['can_resend'] as bool? ?? false,
     hasRecovery: j['has_recovery'] as bool? ?? false,
+    qrData: (j['qr_data'] as List<dynamic>?)?.cast<int>() ?? const [],
+    qrExpiresIn: j['qr_expires_in'] as int? ?? 0,
     displayName: j['display_name'] as String? ?? '',
+    avatarB64: j['avatar_b64'] as String? ?? '',
     message: j['message'] as String? ?? '',
     recoverable: j['recoverable'] as bool? ?? false,
     options: (j['options'] as List<dynamic>?)
@@ -707,52 +711,201 @@ class CachedMessage {
     this.scheduleRepeatPeriod = 0,
   });
 
-  factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
-    accountId: j['account_id'] as String? ?? '',
-    chatId: j['chat_id'] as String? ?? '',
-    msgId: j['msg_id'] as String? ?? '',
-    localId: j['local_id'] as String? ?? '',
-    senderId: j['sender_id'] as String? ?? '',
-    senderName: safeStr(j['sender_name'] as String? ?? ''),
-    senderRank: j['sender_rank'] as String? ?? '',
-    senderColorId: j['sender_color_id'] as int? ?? 0,
-    contentText: safeStr(j['content_text'] as String? ?? ''),
-    contentRaw: safeStr(j['content_raw'] as String? ?? ''),
-    contentRich: safeStr(j['content_rich'] as String? ?? ''),
-    timestamp: j['timestamp'] as int? ?? 0,
-    editedAt: j['edited_at'] as int? ?? 0,
-    status: MsgStatus.fromInt(j['status'] as int? ?? 0),
-    replyToId: j['reply_to_id'] as String? ?? '',
-    replyPreview: safeStr(j['reply_preview'] as String? ?? ''),
-    forwardFrom: safeStr(j['forward_from'] as String? ?? ''),
-    isPinned: j['is_pinned'] as bool? ?? false,
-    isOutgoing: j['is_outgoing'] as bool? ?? false,
-    isService: j['is_service'] as bool? ?? false,
-    hasMedia: j['has_media'] as bool? ?? false,
-    mediaType: j['media_type'] as int? ?? 0,
-    mediaFileName: j['media_file_name'] as String? ?? '',
-    mediaMimeType: j['media_mime_type'] as String? ?? '',
-    mediaFileSize: j['media_file_size'] as int? ?? 0,
-    mediaThumbB64: j['media_thumb_b64'] as String? ?? '',
-    mediaLocalPath: j['media_local_path'] as String? ?? '',
-    mediaWidth: j['media_width'] as int? ?? 0,
-    mediaHeight: j['media_height'] as int? ?? 0,
-    mediaDuration: j['media_duration'] as int? ?? 0,
-    mediaDownloadState: j['media_download_state'] as int? ?? 0,
-    mediaWaveform: (j['media_waveform'] as List<dynamic>?)?.cast<int>() ?? const [],
-    isDeleted: j['is_deleted'] as bool? ?? false,
-    deletedAt: j['deleted_at'] as int? ?? 0,
-    mediaSpoiler: j['media_spoiler'] as bool? ?? false,
-    noForwards: j['no_forwards'] as bool? ?? false,
-    groupedId: j['grouped_id'] as String? ?? '',
-    reactions: (j['reactions'] as List<dynamic>?)
-        ?.map((r) => MessageReaction.fromJson(r as Map<String, dynamic>))
-        .toList() ?? const [],
-    dcId: j['dc_id'] as int? ?? 0,
-    scheduleDate: j['schedule_date'] as int? ?? 0,
-    isSilent: j['is_silent'] as bool? ?? false,
-    scheduleRepeatPeriod: j['schedule_repeat_period'] as int? ?? 0,
-  );
+  factory CachedMessage.fromJson(Map<String, dynamic> j) {
+    final rawStr = j['content_raw'] as String? ?? '';
+    final extra = _decodeContentRawExtra(rawStr);
+    final rawMsg = _decodeContentRawTop(rawStr);
+    final waveform = _decodeWaveform(extra['waveform'] as String?);
+
+    return CachedMessage(
+      accountId: j['account_id'] as String? ?? '',
+      chatId: j['chat_id'] as String? ?? '',
+      msgId: j['msg_id'] as String? ?? '',
+      localId: j['local_id'] as String? ?? '',
+      senderId: j['sender_id'] as String? ?? '',
+      senderName: safeStr(j['sender_name'] as String? ?? ''),
+      senderRank: j['sender_rank'] as String? ?? '',
+      senderColorId: j['sender_color_id'] as int? ?? 0,
+      contentText: safeStr(j['content_text'] as String? ?? ''),
+      contentRaw: safeStr(rawStr),
+      contentRich: safeStr(j['content_rich'] as String? ?? ''),
+      timestamp: j['timestamp'] as int? ?? 0,
+      editedAt: j['edited_at'] as int? ?? 0,
+      status: MsgStatus.fromInt(j['status'] as int? ?? 0),
+      replyToId: j['reply_to_id'] as String? ?? '',
+      replyPreview: safeStr(j['reply_preview'] as String? ?? ''),
+      forwardFrom: safeStr(j['forward_from'] as String? ?? ''),
+      isPinned: j['is_pinned'] as bool? ?? false,
+      isOutgoing: j['is_outgoing'] as bool? ?? false,
+      isService: j['is_service'] as bool? ?? false,
+      hasMedia: j['has_media'] as bool? ?? false,
+      mediaType: j['media_type'] as int? ?? 0,
+      mediaFileName: j['media_file_name'] as String? ?? '',
+      mediaMimeType: j['media_mime_type'] as String? ?? '',
+      mediaFileSize: j['media_file_size'] as int? ?? 0,
+      mediaThumbB64: j['media_thumb_b64'] as String? ?? '',
+      mediaLocalPath: j['media_local_path'] as String? ?? '',
+      mediaWidth: j['media_width'] as int? ?? 0,
+      mediaHeight: j['media_height'] as int? ?? 0,
+      mediaDuration: j['media_duration'] as int? ?? 0,
+      mediaDownloadState: j['media_download_state'] as int? ?? 0,
+      mediaWaveform: waveform,
+      isDeleted: j['is_deleted'] as bool? ?? false,
+      deletedAt: j['deleted_at'] as int? ?? 0,
+      mediaSpoiler: j['media_spoiler'] as bool? ?? (extra['media_spoiler'] as bool? ?? false),
+      noForwards: j['no_forwards'] as bool? ?? (extra['no_forwards'] as bool? ?? false),
+      groupedId: j['grouped_id'] as String? ?? '',
+      reactions: (j['reactions'] as List<dynamic>?)
+          ?.map((r) => MessageReaction.fromJson(r as Map<String, dynamic>))
+          .toList() ?? const [],
+      dcId: j['dc_id'] as int? ?? 0,
+      scheduleDate: j['schedule_date'] as int? ?? 0,
+      isSilent: j['is_silent'] as bool? ?? (extra['is_silent'] as bool? ?? false),
+      scheduleRepeatPeriod: j['schedule_repeat_period'] as int? ?? (extra['schedule_repeat_period'] as int? ?? 0),
+      pollQuestion: extra['poll_question'] as String? ?? '',
+      pollOptions: _decodePollOptions(extra['poll_options']),
+      pollQuiz: extra['poll_quiz'] as bool? ?? false,
+      pollMultiple: extra['poll_multiple'] as bool? ?? false,
+      pollClosed: extra['poll_closed'] as bool? ?? false,
+      pollPublic: extra['poll_public'] as bool? ?? false,
+      pollTotalVoters: _safeInt(extra['poll_total_voters']),
+      pollCloseDate: _safeInt(extra['poll_close_date']),
+      pollClosePeriod: _safeInt(extra['poll_close_period']),
+      pollRecentVoters: (extra['poll_recent_voters'] as List<dynamic>?)?.cast<String>() ?? const [],
+      geoLat: _safeDouble(extra['geo_lat']),
+      geoLong: _safeDouble(extra['geo_long']),
+      geoLive: extra['geo_live'] as bool? ?? false,
+      geoPeriod: _safeInt(extra['geo_period']),
+      venueTitle: extra['venue_title'] as String? ?? '',
+      venueAddress: extra['venue_address'] as String? ?? '',
+      contactFirstName: extra['contact_first_name'] as String? ?? '',
+      contactLastName: extra['contact_last_name'] as String? ?? '',
+      contactPhone: extra['contact_phone'] as String? ?? '',
+      contactUserId: _safeInt(extra['contact_user_id']),
+      wpUrl: extra['wp_url'] as String? ?? '',
+      wpSiteName: extra['wp_site_name'] as String? ?? '',
+      wpTitle: extra['wp_title'] as String? ?? '',
+      wpDescription: extra['wp_description'] as String? ?? '',
+      wpType: extra['wp_type'] as String? ?? '',
+      wpThumbB64: extra['wp_thumb_b64'] as String? ?? '',
+      wpForceLargeMedia: extra['wp_force_large_media'] as bool? ?? false,
+      wpForceSmallMedia: extra['wp_force_small_media'] as bool? ?? false,
+      wpHasLargeMedia: extra['wp_has_large_media'] as bool? ?? false,
+      wpHasIv: extra['wp_has_iv'] as bool? ?? false,
+      wpPhotoW: _safeInt(extra['wp_photo_w']),
+      wpPhotoH: _safeInt(extra['wp_photo_h']),
+      wpDuration: _safeInt(extra['wp_duration']),
+      gameTitle: extra['game_title'] as String? ?? '',
+      gameDescription: extra['game_description'] as String? ?? '',
+      gameShortName: extra['game_short_name'] as String? ?? '',
+      gameThumbB64: extra['game_thumb_b64'] as String? ?? '',
+      gamePhotoW: _safeInt(extra['game_photo_w']),
+      gamePhotoH: _safeInt(extra['game_photo_h']),
+      invoiceTitle: extra['invoice_title'] as String? ?? '',
+      invoiceDescription: extra['invoice_description'] as String? ?? '',
+      invoiceCurrency: extra['invoice_currency'] as String? ?? '',
+      invoiceTotalAmount: _safeInt(extra['invoice_total_amount']),
+      invoiceTest: extra['invoice_test'] as bool? ?? false,
+      invoiceReceiptMsgId: _safeInt(extra['invoice_receipt_msg_id']),
+      invoicePhotoUrl: extra['invoice_photo_url'] as String? ?? '',
+      invoiceShippingRequested: extra['invoice_shipping_requested'] as bool? ?? false,
+      audioTitle: extra['audio_title'] as String? ?? '',
+      audioPerformer: extra['audio_performer'] as String? ?? '',
+      repliesCount: _safeInt(extra['replies_count']),
+      repliesChannelId: extra['replies_channel_id'] as String? ?? '',
+      repliesIsComments: extra['replies_is_comments'] as bool? ?? false,
+      topicId: extra['topic_id'] as String? ?? '',
+      topicName: extra['topic_name'] as String? ?? '',
+      topicColorId: _safeInt(extra['topic_color']),
+      viaBotName: extra['via_bot_name'] as String? ?? '',
+      stickerSetShortName: extra['sticker_set_short_name'] as String? ?? '',
+      stickerSetId: _safeInt(extra['sticker_set_id']),
+      stickerSetAccessHash: _safeInt(extra['sticker_set_access_hash']),
+      stickerPremium: extra['sticker_premium'] as bool? ?? false,
+      mediaUnread: extra['media_unread'] as bool? ?? false,
+      ttlSeconds: _safeInt(extra['ttl_seconds']),
+      views: _safeInt(rawMsg['views']),
+      forwards: _safeInt(rawMsg['forwards']),
+    );
+  }
+
+  static Map<String, dynamic> _decodeContentRawExtra(String rawStr) {
+    if (rawStr.isEmpty) return const {};
+    try {
+      final bytes = base64Decode(rawStr);
+      final parsed = json.decode(utf8.decode(bytes)) as Map<String, dynamic>;
+      return parsed['extra'] as Map<String, dynamic>? ?? const {};
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  static Map<String, dynamic> _decodeContentRawTop(String rawStr) {
+    if (rawStr.isEmpty) return const {};
+    try {
+      final bytes = base64Decode(rawStr);
+      return json.decode(utf8.decode(bytes)) as Map<String, dynamic>;
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  static List<PollOption> _decodePollOptions(dynamic raw) {
+    if (raw is! List) return const [];
+    final result = <PollOption>[];
+    for (final o in raw) {
+      if (o is Map<String, dynamic>) {
+        result.add(PollOption(
+          text: o['text'] as String? ?? '',
+          optionB64: o['option'] as String? ?? '',
+          chosen: o['chosen'] as bool? ?? false,
+          correct: o['correct'] as bool? ?? false,
+          voters: _safeInt(o['voters']),
+        ));
+      }
+    }
+    return result;
+  }
+
+  static List<int> _decodeWaveform(String? b64) {
+    if (b64 == null || b64.isEmpty) return const [];
+    try {
+      final bytes = base64Decode(b64);
+      final samples = <int>[];
+      int bitPos = 0;
+      while (bitPos + 5 <= bytes.length * 8) {
+        final byteIdx = bitPos ~/ 8;
+        final bitOff = bitPos % 8;
+        int val;
+        if (bitOff <= 3) {
+          val = (bytes[byteIdx] >> bitOff) & 0x1F;
+        } else {
+          val = bytes[byteIdx] >> bitOff;
+          if (byteIdx + 1 < bytes.length) {
+            val |= (bytes[byteIdx + 1] << (8 - bitOff));
+          }
+          val &= 0x1F;
+        }
+        samples.add(val);
+        bitPos += 5;
+      }
+      return samples;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static int _safeInt(dynamic v) {
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    return 0;
+  }
+
+  static double _safeDouble(dynamic v) {
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    return 0.0;
+  }
 
   DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
   bool get isEdited => editedAt > 0;
@@ -2247,9 +2400,9 @@ class StickerInfoItem {
   final int height;
   final String mimeType;
   final String fileId;
-  bool isFaved;
+  final bool isFaved;
 
-  StickerInfoItem({
+  const StickerInfoItem({
     this.emoji = '',
     this.thumbB64 = '',
     this.width = 0,
@@ -2258,6 +2411,16 @@ class StickerInfoItem {
     this.fileId = '',
     this.isFaved = false,
   });
+
+  StickerInfoItem copyWith({bool? isFaved}) => StickerInfoItem(
+    emoji: emoji,
+    thumbB64: thumbB64,
+    width: width,
+    height: height,
+    mimeType: mimeType,
+    fileId: fileId,
+    isFaved: isFaved ?? this.isFaved,
+  );
 }
 
 class GifInfoItem {
@@ -2797,7 +2960,7 @@ class ScheduledMessages {
 
   static bool isScheduledMsgId(int id) => id > _kServerMaxMsgId;
 
-  static const int _kServerMaxMsgId = 0x3FFFFFFF;
+  static const int _kServerMaxMsgId = 1 << 56;
 
   static bool canScheduleUntilOnline(ChatInfo peer) {
     return peer.type == ChatType.dm;
