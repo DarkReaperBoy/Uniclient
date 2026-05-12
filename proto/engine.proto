@@ -1562,3 +1562,15 @@ message EngineGetForumTopicsWithOffsetRequest {
   int32  offset_id    = 4;
   int32  offset_topic = 5;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Music Listen Reporting
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineReportMusicListenRequest {
+  string account_id   = 1;
+  int64  doc_id       = 2;
+  int64  access_hash  = 3;
+  bytes  file_ref     = 4;
+  int32  duration_sec = 5;
+}

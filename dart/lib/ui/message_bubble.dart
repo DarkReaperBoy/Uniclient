@@ -4105,7 +4105,14 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
     }
     if (msg.mediaLocalPath.isEmpty) return;
 
-    audio.playVoice(msg.mediaLocalPath, msg.msgId, msgTimestamp: msg.timestamp);
+    audio.playVoice(msg.mediaLocalPath, msg.msgId,
+      chatId: msg.chatId,
+      performer: msg.senderName,
+      msgTimestamp: msg.timestamp,
+      accountId: msg.accountId,
+      docId: msg.mediaRemoteRef,
+      mediaExtra: msg.mediaExtra,
+    );
   }
 
   void _onWaveformTap(double localX, double totalWidth) {
@@ -4115,7 +4122,14 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
 
     if (!audio.isActiveMsg(msg.msgId)) {
       if (msg.mediaLocalPath.isEmpty) return;
-      audio.playVoice(msg.mediaLocalPath, msg.msgId, msgTimestamp: msg.timestamp).then((_) {
+      audio.playVoice(msg.mediaLocalPath, msg.msgId,
+        chatId: msg.chatId,
+        performer: msg.senderName,
+        msgTimestamp: msg.timestamp,
+        accountId: msg.accountId,
+        docId: msg.mediaRemoteRef,
+        mediaExtra: msg.mediaExtra,
+      ).then((_) {
         Future.delayed(const Duration(milliseconds: 100), () {
           audio.seek(localX / totalWidth);
         });
@@ -4504,7 +4518,15 @@ class _AudioIndicatorState extends State<_AudioIndicator> {
       return;
     }
     if (message.mediaLocalPath.isEmpty) return;
-    audio.playVoice(message.mediaLocalPath, message.msgId, msgTimestamp: message.timestamp);
+    audio.playVoice(message.mediaLocalPath, message.msgId,
+      chatId: message.chatId,
+      performer: message.audioPerformer,
+      title: message.audioTitle,
+      msgTimestamp: message.timestamp,
+      accountId: message.accountId,
+      docId: message.mediaRemoteRef,
+      mediaExtra: message.mediaExtra,
+    );
   }
 
   void _onDownloadCancel() {

@@ -557,6 +557,16 @@ class EngineService {
     _callRaw('__engine', 'ReadMessageContents', req.writeToBuffer());
   }
 
+  void reportMusicListen(String accountId, int docId, int accessHash, List<int> fileRef, int durationSec) {
+    final req = epb.EngineReportMusicListenRequest()
+      ..accountId = accountId
+      ..docId = Int64(docId)
+      ..accessHash = Int64(accessHash)
+      ..fileRef = fileRef
+      ..durationSec = durationSec;
+    _callRaw('__engine', 'ReportMusicListen', req.writeToBuffer());
+  }
+
   /// Fetch forum topics for a chat. Returns empty list if the platform
   /// doesn't support forum topics. Topics are cached in the engine DB.
   Future<List<ForumTopic>> getForumTopics(String accountId, String chatId) async {

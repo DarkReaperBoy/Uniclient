@@ -17457,5 +17457,111 @@ class EngineGetForumTopicsWithOffsetRequest extends $pb.GeneratedMessage {
 }
 
 
+class EngineReportMusicListenRequest extends $pb.GeneratedMessage {
+  factory EngineReportMusicListenRequest({
+    $core.String? accountId,
+    $fixnum.Int64? docId,
+    $fixnum.Int64? accessHash,
+    $core.List<$core.int>? fileRef,
+    $core.int? durationSec,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (docId != null) {
+      $result.docId = docId;
+    }
+    if (accessHash != null) {
+      $result.accessHash = accessHash;
+    }
+    if (fileRef != null) {
+      $result.fileRef = fileRef;
+    }
+    if (durationSec != null) {
+      $result.durationSec = durationSec;
+    }
+    return $result;
+  }
+  EngineReportMusicListenRequest._() : super();
+  factory EngineReportMusicListenRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineReportMusicListenRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineReportMusicListenRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aInt64(2, _omitFieldNames ? '' : 'docId')
+    ..aInt64(3, _omitFieldNames ? '' : 'accessHash')
+    ..a<$core.List<$core.int>>(4, _omitFieldNames ? '' : 'fileRef', $pb.PbFieldType.OY)
+    ..a<$core.int>(5, _omitFieldNames ? '' : 'durationSec', $pb.PbFieldType.O3)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineReportMusicListenRequest clone() => EngineReportMusicListenRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineReportMusicListenRequest copyWith(void Function(EngineReportMusicListenRequest) updates) => super.copyWith((message) => updates(message as EngineReportMusicListenRequest)) as EngineReportMusicListenRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineReportMusicListenRequest create() => EngineReportMusicListenRequest._();
+  EngineReportMusicListenRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineReportMusicListenRequest> createRepeated() => $pb.PbList<EngineReportMusicListenRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineReportMusicListenRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineReportMusicListenRequest>(create);
+  static EngineReportMusicListenRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get docId => $_getI64(1);
+  @$pb.TagNumber(2)
+  set docId($fixnum.Int64 v) { $_setInt64(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasDocId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDocId() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get accessHash => $_getI64(2);
+  @$pb.TagNumber(3)
+  set accessHash($fixnum.Int64 v) { $_setInt64(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasAccessHash() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAccessHash() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.List<$core.int> get fileRef => $_getN(3);
+  @$pb.TagNumber(4)
+  set fileRef($core.List<$core.int> v) { $_setBytes(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasFileRef() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearFileRef() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.int get durationSec => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set durationSec($core.int v) { $_setSignedInt32(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasDurationSec() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearDurationSec() => clearField(5);
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

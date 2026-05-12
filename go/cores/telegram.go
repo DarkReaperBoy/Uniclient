@@ -21846,6 +21846,20 @@ func (t *TelegramCore) MessagesReportMusicListen(request *tg.MessagesReportMusic
 	return t.api.MessagesReportMusicListen(t.ctx, request)
 }
 
+func (t *TelegramCore) ReportMusicListen(docID int64, accessHash int64, fileRef []byte, durationSec int) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.MessagesReportMusicListen(t.ctx, &tg.MessagesReportMusicListenRequest{
+		ID: &tg.InputDocument{
+			ID:            docID,
+			AccessHash:    accessHash,
+			FileReference: fileRef,
+		},
+		ListenedDuration: durationSec,
+	})
+	return err
+}
+
 // MessagesReportReaction reports an inappropriate reaction.
 func (t *TelegramCore) MessagesReportReaction(request *tg.MessagesReportReactionRequest) (bool, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

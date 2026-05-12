@@ -13272,6 +13272,82 @@ func (x *EngineGetForumTopicsWithOffsetRequest) GetOffsetTopic() int32 {
 	return 0
 }
 
+type EngineReportMusicListenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	DocId         int64                  `protobuf:"varint,2,opt,name=doc_id,json=docId,proto3" json:"doc_id,omitempty"`
+	AccessHash    int64                  `protobuf:"varint,3,opt,name=access_hash,json=accessHash,proto3" json:"access_hash,omitempty"`
+	FileRef       []byte                 `protobuf:"bytes,4,opt,name=file_ref,json=fileRef,proto3" json:"file_ref,omitempty"`
+	DurationSec   int32                  `protobuf:"varint,5,opt,name=duration_sec,json=durationSec,proto3" json:"duration_sec,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineReportMusicListenRequest) Reset() {
+	*x = EngineReportMusicListenRequest{}
+	mi := &file_proto_engine_proto_msgTypes[202]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineReportMusicListenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineReportMusicListenRequest) ProtoMessage() {}
+
+func (x *EngineReportMusicListenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[202]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineReportMusicListenRequest.ProtoReflect.Descriptor instead.
+func (*EngineReportMusicListenRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{202}
+}
+
+func (x *EngineReportMusicListenRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineReportMusicListenRequest) GetDocId() int64 {
+	if x != nil {
+		return x.DocId
+	}
+	return 0
+}
+
+func (x *EngineReportMusicListenRequest) GetAccessHash() int64 {
+	if x != nil {
+		return x.AccessHash
+	}
+	return 0
+}
+
+func (x *EngineReportMusicListenRequest) GetFileRef() []byte {
+	if x != nil {
+		return x.FileRef
+	}
+	return nil
+}
+
+func (x *EngineReportMusicListenRequest) GetDurationSec() int32 {
+	if x != nil {
+		return x.DurationSec
+	}
+	return 0
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -14450,7 +14526,15 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\voffset_date\x18\x03 \x01(\x05R\n" +
 	"offsetDate\x12\x1b\n" +
 	"\toffset_id\x18\x04 \x01(\x05R\boffsetId\x12!\n" +
-	"\foffset_topic\x18\x05 \x01(\x05R\voffsetTopicB\x11Z\x0funiclient/protob\x06proto3"
+	"\foffset_topic\x18\x05 \x01(\x05R\voffsetTopic\"\xb5\x01\n" +
+	"\x1eEngineReportMusicListenRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x15\n" +
+	"\x06doc_id\x18\x02 \x01(\x03R\x05docId\x12\x1f\n" +
+	"\vaccess_hash\x18\x03 \x01(\x03R\n" +
+	"accessHash\x12\x19\n" +
+	"\bfile_ref\x18\x04 \x01(\fR\afileRef\x12!\n" +
+	"\fduration_sec\x18\x05 \x01(\x05R\vdurationSecB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -14464,7 +14548,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 202)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 203)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                            // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                            // 1: uniclient.AccountInfo
@@ -14668,6 +14752,7 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineReorderPinnedDialogsRequest)(nil),      // 199: uniclient.EngineReorderPinnedDialogsRequest
 	(*EngineReorderDialogFiltersRequest)(nil),      // 200: uniclient.EngineReorderDialogFiltersRequest
 	(*EngineGetForumTopicsWithOffsetRequest)(nil),  // 201: uniclient.EngineGetForumTopicsWithOffsetRequest
+	(*EngineReportMusicListenRequest)(nil),         // 202: uniclient.EngineReportMusicListenRequest
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -14726,7 +14811,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   202,
+			NumMessages:   203,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

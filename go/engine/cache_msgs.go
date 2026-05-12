@@ -1442,6 +1442,25 @@ type MessageEditorWithEntities interface {
 	EditMessageWithEntities(chatID string, msgID string, text string, entitiesJSON string) (*cores.Message, error)
 }
 
+type MusicListenReporter interface {
+	ReportMusicListen(docID int64, accessHash int64, fileRef []byte, durationSec int) error
+}
+
+func (e *Engine) ReportMusicListen(accountID string, docID int64, accessHash int64, fileRef []byte, durationSec int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	reporter, ok := acc.Core.(MusicListenReporter)
+	if !ok {
+		return nil
+	}
+	return reporter.ReportMusicListen(docID, accessHash, fileRef, durationSec)
+}
+
 func (e *Engine) ReadMessageContents(accountID, chatID, msgID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

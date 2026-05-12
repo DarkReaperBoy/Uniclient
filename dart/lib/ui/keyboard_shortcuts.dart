@@ -1215,19 +1215,19 @@ class _ShortcutListenerState extends State<ShortcutListener>
     sys.registerHandler(ShortcutCommand.mediaPlay, () {
       final audio = context.read<AudioService>();
       if (audio.currentMsgId.isEmpty) return false;
-      if (!audio.playing) audio.playVoice('', audio.currentMsgId);
+      if (!audio.playing) audio.togglePlayback();
       return true;
     });
     sys.registerHandler(ShortcutCommand.mediaPause, () {
       final audio = context.read<AudioService>();
       if (audio.currentMsgId.isEmpty) return false;
-      if (audio.playing) audio.playVoice('', audio.currentMsgId);
+      if (audio.playing) audio.togglePlayback();
       return true;
     });
     sys.registerHandler(ShortcutCommand.mediaPlayPause, () {
       final audio = context.read<AudioService>();
       if (audio.currentMsgId.isEmpty) return false;
-      audio.playVoice('', audio.currentMsgId);
+      audio.togglePlayback();
       return true;
     });
     sys.registerHandler(ShortcutCommand.mediaStop, () {

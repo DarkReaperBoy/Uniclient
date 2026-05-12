@@ -97,7 +97,7 @@ void main() {
         ChangeNotifierProvider.value(value: appState),
         ChangeNotifierProvider(create: (_) => ChatState(engineService, appState)),
         ChangeNotifierProvider(create: (_) => AuthState(engineService)),
-        ChangeNotifierProvider(create: (_) => AudioService()),
+        ChangeNotifierProvider(create: (_) => AudioService(engineService)),
       ],
       child: const UniClientApp(),
     ),

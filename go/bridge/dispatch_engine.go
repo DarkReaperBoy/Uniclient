@@ -466,6 +466,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ReadMessageContents(req.AccountId, req.ChatId, req.MsgId)
 
+	case "ReportMusicListen":
+		var req pb.EngineReportMusicListenRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ReportMusicListen(req.AccountId, req.DocId, req.AccessHash, req.FileRef, int(req.DurationSec))
+
 	case "SetUserNoForwardsFlags":
 		var req pb.EngineSetUserNoForwardsFlagsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
