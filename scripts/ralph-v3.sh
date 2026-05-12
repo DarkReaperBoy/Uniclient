@@ -527,34 +527,21 @@ check_and_wait_rate_limit() {
   log ""
   log "  ⏰ RATE LIMITED detected."
 
-  # Try to extract reset time like "resets 9:30pm (Asia/Muscat)"
-  # The text may be JSON-wrapped: {"type":"text","text":"...resets 9:30pm..."}
-  local reset_str
-  reset_str=$(grep -oP 'resets?\s+\K[0-9]{1,2}:[0-9]{2}\s*(am|pm|AM|PM)' "$output_file" 2>/dev/null | head -1 || true)
-  # If not found, try extracting from JSON string values
-  if [[ -z "$reset_str" ]]; then
-    reset_str=$(jq -r 'select(.type=="result" or .type=="system" or .type=="assistant") | .. | strings' "$output_file" 2>/dev/null \
-      | grep -oP 'resets?\s+\K[0-9]{1,2}:[0-9]{2}\s*(am|pm|AM|PM)' 2>/dev/null | head -1 || true)
-  fi
-  # Last resort: brute-force search for time pattern near "reset"
-  if [[ -z "$reset_str" ]]; then
-    reset_str=$(cat "$output_file" | tr '\\' '\n' | grep -oP 'resets?\s+\K[0-9]{1,2}:[0-9]{2}\s*(am|pm|AM|PM)' 2>/dev/null | head -1 || true)
-  fi
+  # Extract reset time — Claude CLI outputs JSON with "resetsAt" as Unix epoch
+  local reset_epoch
+  reset_epoch=$(grep -oP '"resetsAt"\s*:\s*\K[0-9]+' "$output_file" 2>/dev/null | head -1 || true)
 
-  if [[ -n "$reset_str" ]]; then
-    # Parse the time and compute seconds to wait
-    local reset_epoch
-    reset_epoch=$(date -d "$reset_str" +%s 2>/dev/null || true)
+  if [[ -n "$reset_epoch" && "$reset_epoch" -gt 0 ]]; then
     local now_epoch
     now_epoch=$(date +%s)
+    local wait_secs=$(( reset_epoch - now_epoch + 30 ))  # +30s buffer
 
-    if [[ -n "$reset_epoch" && "$reset_epoch" -gt "$now_epoch" ]]; then
-      local wait_secs=$(( reset_epoch - now_epoch + 60 ))  # +60s buffer
+    if [[ $wait_secs -gt 0 && $wait_secs -lt 36000 ]]; then  # sanity: max 10 hours
       local wait_mins=$(( wait_secs / 60 ))
-      log "  ⏰ Rate limit resets at $reset_str. Waiting ${wait_mins} minutes (${wait_secs}s)..."
-      log "     Sleeping until $(date -d "+${wait_secs} seconds" '+%H:%M:%S')..."
+      local reset_time
+      reset_time=$(date -d "@$reset_epoch" '+%H:%M:%S' 2>/dev/null || echo "unknown")
+      log "  ⏰ Rate limit resets at $reset_time. Waiting ${wait_mins} minutes..."
 
-      # Sleep in chunks so Ctrl+C works and we can show progress
       local slept=0
       while [[ $slept -lt $wait_secs ]]; do
         sleep 30
@@ -565,14 +552,29 @@ check_and_wait_rate_limit() {
         fi
       done
     else
-      # Reset time in the past or unparseable — default 30 min wait
-      log "  ⏰ Could not parse reset time '$reset_str'. Waiting 30 minutes..."
-      sleep 1800
+      log "  ⏰ Reset time is in the past or too far out. Waiting 10 minutes..."
+      sleep 600
     fi
   else
-    # No reset time found — default 30 min wait
-    log "  ⏰ No reset time found in output. Waiting 30 minutes..."
-    sleep 1800
+    # No epoch found — try human-readable fallback
+    local reset_str
+    reset_str=$(grep -oP 'resets?\s+\K[0-9]{1,2}:[0-9]{2}\s*(am|pm|AM|PM)' "$output_file" 2>/dev/null | head -1 || true)
+    if [[ -n "$reset_str" ]]; then
+      reset_epoch=$(date -d "$reset_str" +%s 2>/dev/null || true)
+      local now_epoch
+      now_epoch=$(date +%s)
+      if [[ -n "$reset_epoch" && "$reset_epoch" -gt "$now_epoch" ]]; then
+        local wait_secs=$(( reset_epoch - now_epoch + 30 ))
+        log "  ⏰ Rate limit resets at $reset_str. Waiting $(( wait_secs / 60 )) minutes..."
+        sleep "$wait_secs"
+      else
+        log "  ⏰ Could not parse '$reset_str'. Waiting 10 minutes..."
+        sleep 600
+      fi
+    else
+      log "  ⏰ No reset time found. Waiting 10 minutes..."
+      sleep 600
+    fi
   fi
 
   # Reset circuit breaker after rate limit wait (the API should be available now)
