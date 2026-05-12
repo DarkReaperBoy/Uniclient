@@ -14,7 +14,7 @@ import '../theme/telegram_palette.dart';
 const double kBoxWidth = 320;
 const double kBoxWideWidth = 364;
 const EdgeInsets kBoxPadding = EdgeInsets.fromLTRB(24, 14, 24, 8);
-const double kBoxRadius = 8;
+const double kBoxRadius = 6;
 const double kBoxTitleHeight = 48;
 const double kBoxMaxListHeight = 492;
 const double kBoxMediumSkip = 20;
@@ -249,7 +249,7 @@ class _TelegramBoxState extends State<TelegramBox> {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      padding: const EdgeInsets.fromLTRB(6, 10, 10, 10),
       child: Row(
         children: [
           for (final b in left) ...[btn(b), const SizedBox(width: 4)],
@@ -394,6 +394,7 @@ class DeleteConfirmResult {
   final bool reportSpam;
   final bool deleteAll;
   final bool rememberRevoke;
+  final bool openAutoDelete;
 
   const DeleteConfirmResult({
     this.confirmed = false,
@@ -402,6 +403,7 @@ class DeleteConfirmResult {
     this.reportSpam = false,
     this.deleteAll = false,
     this.rememberRevoke = false,
+    this.openAutoDelete = false,
   });
 }
 
@@ -572,8 +574,11 @@ class _DeleteContentState extends State<_DeleteContent> {
     final checkClr = p.windowBgActive;
     final linkFg = p.windowActiveTextFg;
 
+    final blockEnter = widget.mode == DeleteBoxMode.clearHistory ||
+        widget.mode == DeleteBoxMode.leaveChat;
+
     return TelegramBox(
-      onConfirm: _confirm,
+      onConfirm: blockEnter ? null : _confirm,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -611,11 +616,8 @@ class _DeleteContentState extends State<_DeleteContent> {
                 (v) => setState(() => _revoke = v ?? false), checkClr, textFg),
             if (_revoke != _revokeDefault) ...[
               const SizedBox(height: kBoxLittleSkip),
-              Padding(
-                padding: const EdgeInsets.only(left: 28),
-                child: _checkbox('Remember this choice', _revokeRemember,
-                    (v) => setState(() => _revokeRemember = v ?? false), checkClr, textFg),
-              ),
+              _checkbox('Remember this choice', _revokeRemember,
+                  (v) => setState(() => _revokeRemember = v ?? false), checkClr, textFg),
             ],
           ],
           if (_showAutoDeleteLink) ...[
@@ -624,7 +626,9 @@ class _DeleteContentState extends State<_DeleteContent> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: GestureDetector(
                 onTap: () {
-                  Navigator.of(context).pop(const DeleteConfirmResult());
+                  Navigator.of(context).pop(
+                    const DeleteConfirmResult(openAutoDelete: true),
+                  );
                 },
                 child: Text(
                   'Enable auto-delete',
@@ -815,7 +819,7 @@ class _RadioRowState extends State<_RadioRow> {
         onTap: widget.onTap,
         child: Container(
           color: _hovering ? widget.hoverColor : null,
-          padding: const EdgeInsets.fromLTRB(24, 6, 24, 6),
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           child: Row(
             children: [
               SizedBox(
@@ -1299,15 +1303,15 @@ class _ReportReasonBox extends StatelessWidget {
   const _ReportReasonBox({required this.title, required this.target});
 
   static const _allReasons = [
-    ('Spam', 'spam', Icons.report_gmailerrorred_outlined),
-    ('Fake Account', 'fake', Icons.person_off_outlined),
-    ('Violence', 'violence', Icons.gavel_outlined),
-    ('Child Abuse', 'child_abuse', Icons.shield_outlined),
-    ('Pornography', 'pornography', Icons.visibility_off_outlined),
+    ('Spam', 'spam', Icons.delete_outline),
+    ('Fake Account', 'fake', Icons.no_accounts_outlined),
+    ('Violence', 'violence', Icons.front_hand_outlined),
+    ('Child Abuse', 'child_abuse', Icons.block),
+    ('Pornography', 'pornography', Icons.eighteen_up_rating_outlined),
     ('Copyright', 'copyright', Icons.copyright_outlined),
     ('Illegal Drugs', 'illegal_drugs', Icons.medication_outlined),
     ('Personal Details', 'personal_details', Icons.badge_outlined),
-    ('Other', 'other', Icons.more_horiz),
+    ('Other', 'other', Icons.flag_outlined),
   ];
 
   List<(String, String, IconData)> get _filteredReasons {
@@ -1393,21 +1397,30 @@ class _ReportDetailsBox extends StatefulWidget {
 
 class _ReportDetailsBoxState extends State<_ReportDetailsBox> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  String? _errorText;
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
   void _submit() {
-    if (!widget.optional && _controller.text.trim().isEmpty) return;
+    if (!widget.optional && _controller.text.trim().isEmpty) {
+      setState(() => _errorText = 'This field is required');
+      _focusNode.requestFocus();
+      return;
+    }
     Navigator.of(context).pop(_controller.text);
   }
 
   @override
   Widget build(BuildContext context) {
-    final textFg = context.palette.boxTextFg;
+    final p = context.palette;
+    final textFg = p.boxTextFg;
+    final iconFg = p.windowActiveTextFg;
 
     return TelegramBox(
       title: 'Report',
@@ -1418,6 +1431,12 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 16),
+                child: Icon(Icons.report_outlined, size: 72, color: iconFg),
+              ),
+            ),
             Text(
               'Please enter any additional details relevant to your report.',
               style: TextStyle(fontSize: 14, color: textFg),
@@ -1425,12 +1444,17 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox> {
             const SizedBox(height: 16),
             TextField(
               controller: _controller,
+              focusNode: _focusNode,
               maxLines: 3,
               autofocus: true,
+              onChanged: (_) {
+                if (_errorText != null) setState(() => _errorText = null);
+              },
               decoration: InputDecoration(
                 hintText: widget.optional
                     ? 'Add Comment (Optional)'
                     : 'Add Comment',
+                errorText: _errorText,
                 border: const OutlineInputBorder(),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
