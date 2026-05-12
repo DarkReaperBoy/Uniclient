@@ -365,18 +365,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // §50.9: Per-peer typing exclusions. Key: "accountId:chatId", value: 0=default, 1=neverType, 2=alwaysType.
   Map<String, int> _typingExclusions = {};
 
-  // Spec §17.7.1: PowerSaving bitfield (matches tdesktop bit positions).
-  static const kPowerSavingStickersPanel = 1 << 0;
-  static const kPowerSavingStickersChat  = 1 << 1;
-  static const kPowerSavingEmojiPanel    = 1 << 3;
+  // Spec §17.7.1: PowerSaving bitfield (matches tdesktop power_saving.h).
+  static const kPowerSavingAnimations     = 1 << 0;
+  static const kPowerSavingStickersPanel  = 1 << 1;
+  static const kPowerSavingStickersChat   = 1 << 2;
+  static const kPowerSavingEmojiPanel     = 1 << 3;
   static const kPowerSavingEmojiReactions = 1 << 4;
-  static const kPowerSavingEmojiChat     = 1 << 5;
-  static const kPowerSavingEmojiStatus   = 1 << 9;
+  static const kPowerSavingEmojiChat      = 1 << 5;
   static const kPowerSavingChatBackground = 1 << 6;
-  static const kPowerSavingChatSpoiler   = 1 << 7;
-  static const kPowerSavingChatEffects   = 1 << 8;
-  static const kPowerSavingCalls         = 1 << 10;
-  static const kPowerSavingAnimations    = 1 << 11;
+  static const kPowerSavingChatSpoiler    = 1 << 7;
+  static const kPowerSavingCalls          = 1 << 8;
+  static const kPowerSavingEmojiStatus    = 1 << 9;
+  static const kPowerSavingChatEffects    = 1 << 10;
+  static const kPowerSavingAll            = (1 << 11) - 1;
   int _powerSavingFlags = 0;
   bool _autoPowerSaving = false;
 
@@ -403,6 +404,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   VoidCallback? onShowArchiveRequested;
 
   Timer? _cmdPollTimer;
+  Timer? _saveDebounceTimer;
 
   /// File path for CLI automation: add accounts without GUI interaction.
   ///   {"action": "add", "platform": "irc"}
@@ -1343,6 +1345,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _ghostModeSettings.remove(userId);
     _useGlobalGhostMode = true;
     _saveWindowPrefs();
+    notifyListeners();
   }
 
   // §50.7: Per-peer read exclusion. 0=default, 1=neverRead, 2=alwaysRead.
@@ -2030,6 +2033,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   set swipeAction(String value) {
     if (_swipeAction != value) {
       _swipeAction = value;
+      _saveWindowPrefs();
       notifyListeners();
     }
   }
@@ -2075,11 +2079,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get notifPreviewText => _notifPreviewText;
   set notifPreviewText(bool v) { if (_notifPreviewText != v) { _notifPreviewText = v; _saveWindowPrefs(); notifyListeners(); } }
   bool get notifPrivateChats => _notifPrivateChats;
-  set notifPrivateChats(bool v) { if (_notifPrivateChats != v) { _notifPrivateChats = v; _saveWindowPrefs(); notifyListeners(); } }
+  set notifPrivateChats(bool v) { if (_notifPrivateChats != v) { _notifPrivateChats = v; _engine.updateConfig(notifyDms: v); _saveWindowPrefs(); notifyListeners(); } }
   bool get notifGroups => _notifGroups;
-  set notifGroups(bool v) { if (_notifGroups != v) { _notifGroups = v; _saveWindowPrefs(); notifyListeners(); } }
+  set notifGroups(bool v) { if (_notifGroups != v) { _notifGroups = v; _engine.updateConfig(notifyGroups: v); _saveWindowPrefs(); notifyListeners(); } }
   bool get notifChannels => _notifChannels;
-  set notifChannels(bool v) { if (_notifChannels != v) { _notifChannels = v; _saveWindowPrefs(); notifyListeners(); } }
+  set notifChannels(bool v) { if (_notifChannels != v) { _notifChannels = v; _engine.updateDefaultNotifySettings(_activeAccountId, peerType: 'channel', enabled: v); _saveWindowPrefs(); notifyListeners(); } }
   bool get notifReactions => _notifReactions;
   set notifReactions(bool v) { if (_notifReactions != v) { _notifReactions = v; _saveWindowPrefs(); notifyListeners(); } }
   bool get notifUseNative => _notifUseNative;
@@ -2341,7 +2345,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _config = _engine.getConfig();
       _ensureActiveAccount();
       // Load window prefs (native frame toggle) before marking initialized.
-      _loadWindowPrefs();
+      await _loadWindowPrefs();
       // §51.1 Sync ghost mode toggles to engine on startup.
       _syncGhostToEngine();
       // §52.2 Sync anti-recall settings to engine on startup.
@@ -2769,17 +2773,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String get _windowPrefsPath =>
       _configDir.isEmpty ? '' : '$_configDir/window_prefs.json';
 
-  void _loadWindowPrefs() {
+  Future<void> _loadWindowPrefs() async {
     final path = _windowPrefsPath;
     if (path.isEmpty) return;
     try {
       final file = File(path);
-      if (!file.existsSync()) return;
-      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      if (!await file.exists()) return;
+      final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       _nativeWindowFrame = data['nativeWindowFrame'] as bool? ?? false;
       _mainMenuAccountsShown = data['mainMenuAccountsShown'] as bool? ?? false;
       _systemDarkMode = data['systemDarkMode'] as bool? ?? false;
       _sendBy = data['sendBy'] as String? ?? 'enter';
+      _swipeAction = data['swipeAction'] as String? ?? 'archive';
       _rememberedSendAsDocuments = data['rememberedSendAsDocuments'] as bool?;
       _rememberedGroupFiles = data['rememberedGroupFiles'] as bool?;
       _recordVideoMessages = data['recordVideoMessages'] as bool? ?? false;
@@ -3024,14 +3029,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _saveWindowPrefs() {
+    _saveDebounceTimer?.cancel();
+    _saveDebounceTimer = Timer(const Duration(milliseconds: 500), _flushWindowPrefs);
+  }
+
+  Future<void> _flushWindowPrefs() async {
     final path = _windowPrefsPath;
     if (path.isEmpty) return;
     try {
-      File(path).writeAsStringSync(jsonEncode({
+      await File(path).writeAsString(jsonEncode({
         'nativeWindowFrame': _nativeWindowFrame,
         'mainMenuAccountsShown': _mainMenuAccountsShown,
         'systemDarkMode': _systemDarkMode,
         'sendBy': _sendBy,
+        'swipeAction': _swipeAction,
         if (_rememberedSendAsDocuments != null) 'rememberedSendAsDocuments': _rememberedSendAsDocuments,
         if (_rememberedGroupFiles != null) 'rememberedGroupFiles': _rememberedGroupFiles,
         'recordVideoMessages': _recordVideoMessages,
@@ -3318,6 +3329,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _cmdPollTimer?.cancel();
     _autoLockTimer?.cancel();
+    if (_saveDebounceTimer?.isActive ?? false) {
+      _saveDebounceTimer!.cancel();
+      _flushWindowPrefs();
+    }
     for (final sub in _subs) {
       sub.cancel();
     }
