@@ -368,7 +368,6 @@ These are the files to audit for backend connectivity and feature wiring.
 
 # advanced_settings_screen — Audit Findings
 
-- [ ] [MAJOR] Power saving flags `kPowerSavingStickersPanel`, `kPowerSavingStickersChat`, `kPowerSavingEmojiReactions`, `kPowerSavingChatBackground`, `kPowerSavingChatEffects`, `kPowerSavingCalls`, `kPowerSavingAnimations` are saved to state but never read by any widget — toggling them has no effect — `advanced_settings_screen.dart:2200-2209` ← `settings_power_saving.cpp:59-63` (AyuGram applies flags to `PowerSaving::Current()` which actually controls rendering)
 
 # Audit: Dart Flutter auth_screen.dart vs AyuGram Desktop C++ intro widgets
 
