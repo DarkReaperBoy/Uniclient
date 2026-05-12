@@ -115,9 +115,6 @@ The most critical issues are:
 
 # audio_service — Backend Wiring & Metadata Issues
 
-## Audio Metadata Dead Code
-
-- [ ] [MAJOR] Audio metadata parameters never populated by callers — `audio_service.dart:34-39` accepts optional `performer`, `title`, `chatId` parameters and stores them in fields `_currentPerformer` (line 12), `_currentTitle` (line 13), `_currentChatId` (line 11); getters exist (lines 22-24) but are never called in any UI code. Meanwhile, callers in `message_bubble.dart:4108,4118,4497` pass only `filePath`, `msgId`, `msgTimestamp` — never populate the optional metadata fields even though `Message` class has `audioPerformer`, `audioTitle`, `senderName` fields. Dead code pattern: metadata accepted, stored, but never displayed or used. `audio_service.dart:12-14` ← `message_bubble.dart:4108`
 
 ## No Error Handling for File Open
 
