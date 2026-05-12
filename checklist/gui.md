@@ -1048,57 +1048,11 @@ The implementation is complete, accurate, and ready for use. No changes needed.
 
 # call_screen — Group Call Panel + Minimised Call Bar
 
-- [ ] [CRITICAL] "End for all" button calls identical `onLeave()` as "Leave" — no engine discard call; AyuGram calls `MTPphone_DiscardGroupCall` for end-for-all vs `MTPphone_LeaveGroupCall` for leave — `call_screen.dart:1211-1215` ← `calls_group_call.cpp:2180,2247`
-
-- [ ] [CRITICAL] All three group call menu items (Sound, Invite members, Settings) are stubs that only call `Navigator.pop(ctx)` with no real action; AyuGram menu opens JoinAs selector, recording toggle, `Box(SettingsBox, strong)`, and a real screen-share toggle — `call_screen.dart:1163-1179` ← `calls_group_menu.cpp:519-620`
-
-- [ ] [CRITICAL] `toggleCamera` always passes hardcoded `true`, never toggles off; AyuGram calls `toggleCameraSharing(!_call->isSharingCamera())` deriving the new state from current state — `call_screen.dart:1122` ← `calls_panel.cpp:423`
-
-- [ ] [CRITICAL] `toggleScreenSharing` discards the selected source ID and `_shareAudio` flag, calls `engine.toggleScreenSharing(accountId, callId, true)` with no capture source; AyuGram's `GroupCall::toggleScreenSharing(std::optional<QString> uniqueId, bool withAudio)` requires the actual source device ID and audio flag to wire the capture pipeline — `call_screen.dart:1127-1133` ← `calls_group_call.cpp:920-936`
-
-- [ ] [CRITICAL] KDE window enumeration calls `org.kde.KWin.queryWindowInfo` which does not exist in KWin's D-Bus interface; the call always throws, is swallowed by `catch (_) {}`, and returns an empty list — the "Windows" tab in the screen-share chooser is permanently empty; AyuGram uses `tgcalls::DesktopCaptureSource` from the tgcalls library — `call_screen.dart:2133` ← `desktop_capture_choose_source.cpp`
-
-- [ ] [CRITICAL] Default panel width is `720.0` (RTMP width) for all calls; AyuGram sets `groupCallWidth: 380px` for standard group calls and only uses `groupCallWidthRtmp: 720px` when `isRtmp` — the dialog opens >89% wider than spec for normal calls — `call_screen.dart:57` ← `calls.style:groupCallWidth` + `calls_group_panel.cpp:1788-1797`
-
 - [ ] [MAJOR] `_ScreenSourceThumb` shows a generic `Icons.monitor` / `Icons.web_asset` placeholder instead of a real live preview of the window/screen; AyuGram renders actual capture thumbnails via `tgcalls::DesktopCaptureSource::captureImage()` — `call_screen.dart:2504-2510` ← `desktop_capture_choose_source.cpp`
-
-- [ ] [MAJOR] `_LinearBlobsPainter.shouldRepaint` unconditionally returns `true`, forcing a full canvas repaint every animation frame (60 fps) regardless of whether `blobRadii` or `level` changed — `call_screen.dart:1632` ← `calls_top_bar.cpp` (LinearBlobs animation)
-
-- [ ] [MAJOR] `_SpeakerBlobAvatarState._onTick` and `_BigMuteButtonState._onTick` both call `setState(() {})` on every animation tick, rebuilding the full widget subtree at 60 fps; the animated region should be isolated behind a `RepaintBoundary` with the painter's own `shouldRepaint` gating canvas work — `call_screen.dart:500,790` ← `calls_group_panel.cpp` (blob tick pattern)
-
-- [ ] [MAJOR] `_shareAudio` checkbox value is captured in the screen-share chooser UI but never forwarded when starting screen sharing; `engine.toggleScreenSharing` is called without it, so audio capture is always disabled regardless of user choice; AyuGram passes `withAudio` as the second parameter — `call_screen.dart:2095,1132` ← `calls_group_call.cpp:921`
 
 # calls_screen — Call History, Conference Call, Active Group Calls, Call Settings
 
-- [ ] [CRITICAL] `_createCall()` creates a conference call but never invites the selected users — `engine.createConferenceCall(accountId)` takes no invitees, and there is no `inviteToConferenceCall` engine method. In AyuGram, `selected = raw->requests(box->collectSelectedRows())` is passed as `invite = std::move(selected)` to `startOrJoinConferenceCall`. Selected contacts are silently dropped; the call is created empty and must be joined via link only. — `calls_screen.dart:989` ← `AyuGram/calls/group/calls_group_invite_controller.cpp:1160`
-
-- [ ] [MAJOR] `_loadActiveGroupCalls()` only scans the first 20 chats in the chat list for active group calls. AyuGram uses `GroupCalls::ListController` which subscribes to all active group call state changes across the entire account. Group calls in chats ranked below position 20 are never shown in the Active Group Calls section. — `calls_screen.dart:174` ← `AyuGram/calls/calls_box_controller.cpp:807` (uses `groupCallsController` backed by `ListController::prepare()`)
-
-- [ ] [MAJOR] `_enumerateDevices()` only runs on Linux (`Platform.isLinux` check with no else-branch). On macOS and Windows, `_outputDevices`, `_inputDevices`, and `_cameraDevices` stay at `['Default']` with no real enumeration. AyuGram enumerates audio devices on all desktop platforms via the VoIP controller interface (`setAudioInputDevice`, `setAudioOutputDevice`). — `calls_screen.dart:2169` ← `AyuGram/calls/calls_controller.h:setAudioInputDevice`
-
-- [ ] [MAJOR] Device selection in `_CallSettingsScreen` (output, input, camera) only calls `appState.setCallOutputDevice()` / `setCallInputDevice()` / `setCallCameraDevice()`. There is no engine call to propagate the selected device to the call engine. The preference is stored in local state but never applied to an active or future call session. — `calls_screen.dart:2282` ← `AyuGram/calls/calls_controller.h:setAudioOutputDevice`
-
-- [ ] [MAJOR] `showCallsBox()` takes no `highlightStartCall` parameter, so `_CreateCallButton(highlightOnShow: ...)` always receives `false`. The pulse-highlight animation is fully implemented but dead — it can never fire. AyuGram's `ShowCallsBox` takes `bool highlightStartCall` and calls `Settings::HighlightWidget(button)` when true. — `calls_screen.dart:36` / `calls_screen.dart:301` ← `AyuGram/calls/calls_box_controller.cpp:900`
-
-- [ ] [MAJOR] `_startRedial()` passes `video: group.isVideo` to `engine.startCall`, preserving the prior call's video flag. AyuGram's `rowRightActionClicked` always calls `startOutgoingCall(user, {})` with `video = false` (default). Redial should always start a voice call; the video type is not carried over. — `calls_screen.dart:1947` ← `AyuGram/calls/calls_box_controller.cpp:614`
-
-# chat_export — Export Panel (Settings, Progress, Completion, Top Bar)
-
-- [ ] [CRITICAL] `_bringPanelToFront()` recreates the entire overlay (close + show) which disposes the active `_ExportPanelDialog`, cancels all engine subscriptions via `dispose()`, and calls `stopExportBar()` — tapping the export top bar during an active export kills the live panel and shows a fresh settings screen — `chat_export.dart:872` ← `AyuGramDesktop/export/view/export_view_panel_controller.cpp:163` (`activatePanel()` only calls `showAndActivate()` on the existing panel)
-
-- [ ] [CRITICAL] Date range filter values (`_fromDate`, `_tillDate`, `_fromTimeSeconds`, `_tillTimeSeconds`) are never included in the `engine.startExport()` call — per-chat date filtering UI is fully built but the values are silently dropped and the engine always exports without a date range — `chat_export.dart:767` ← `AyuGramDesktop/export/view/export_view_panel_controller.cpp:206` (passes full `*_settings` including `singlePeerFrom`/`singlePeerTill`)
-
-- [ ] [CRITICAL] After `takeout_invalid` and `takeout_delay` errors, `_cleanupExportSubscriptions()` is called but `_phase` stays at `ExportPhase.processing` — the user is left staring at a dead progress screen with a live "Stop" button and no running export — `chat_export.dart:950` ← `AyuGramDesktop/export/view/export_view_panel_controller.cpp:281` (AyuGram hides the entire panel after the info box is dismissed via `_panel->hideGetDuration()`)
-
-- [ ] [MAJOR] Export top bar progress bar is 3 px thick but AyuGram uses `st::mediaPlayerPlayback.fullWidth = 8px` — `chat_export.dart:107` ← `AyuGramDesktop/media/player/media_player.style:289` + `AyuGramDesktop/export/view/export_view_top_bar.cpp:103`
-
-- [ ] [MAJOR] Progress view row padding uses `EdgeInsets.fromLTRB(22, 5, 22, 5)` (5 px top/bottom) but AyuGram specifies `exportProgressRowPadding: margins(22px, 10px, 22px, 10px)` — `chat_export.dart:2083` ← `AyuGramDesktop/export/view/export.style:51`
-
-- [ ] [MAJOR] No inter-row spacer between progress rows — AyuGram inserts a `FixedHeightWidget` of `exportProgressRowSkip: 10px` between every row — `chat_export.dart:2078` (bare `for` loop, no gaps) ← `AyuGramDesktop/export/view/export_view_progress.cpp:322` + `AyuGramDesktop/export/view/export.style:52`
-
-- [ ] [MAJOR] Per-chat settings (`_buildPerChatSettings`) includes a "Media" section header at line 1714, but AyuGram skips the header entirely for single-peer mode (`_singlePeerId != 0`) calling `addMediaOptions` directly without `addHeader` — `chat_export.dart:1714` ← `AyuGramDesktop/export/view/export_view_settings.cpp:220`
-
-- [ ] [MAJOR] Completed view (`_buildCompletedPlaceholder`) replaces the entire panel content with three synthetic rows ("Data exported successfully.", "Total files:", "Total size:") each with a fully-filled progress bar below them — AyuGram reuses the existing progress rows as-is, only changes the about-label text and swaps the Stop button for Show-My-Data — `chat_export.dart:2235` ← `AyuGramDesktop/export/view/export_view_progress.cpp:355`
+- [ ] [MAJOR] Device selection in `_CallSettingsScreen` (output, input, camera) only calls `appState.setCallOutputDevice()` / `setCallInputDevice()` / `setCallCameraDevice()`. Camera device has no engine call; output/input engine calls exist in Dart but `SetCallAudioDevice` dispatch is missing from Go bridge — device preferences are never applied to the call engine. — `calls_screen.dart:2282` ← `AyuGram/calls/calls_controller.h:setAudioOutputDevice`
 
 ## chat_list_panel — full panel audit (search, story bar, folder tabs, archived row, forum topics, saved sublists, drag behaviors)
 
