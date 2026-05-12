@@ -116,9 +116,6 @@ The most critical issues are:
 # audio_service — Backend Wiring & Metadata Issues
 
 
-## No Error Handling for File Open
-
-- [ ] [MAJOR] File open has no error handling — `audio_service.dart:84` `await player.open(Media(filePath));` has no try-catch, no error callback, no fallback. If file doesn't exist, is corrupted, or fails to load (e.g. format unsupported), there is no user feedback or recovery. AyuGram's player wraps open() with error checks and UI feedback. The Dart code will silently fail and leave the player in an undefined state — `audio_service.dart:84` ← (AyuGram does error handling but no specific single file to cite; see `media_player_instance.cpp` for patterns)
 
 ## Confusing Toggle Pattern in Keyboard Shortcuts
 
