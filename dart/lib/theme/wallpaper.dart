@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:provider/provider.dart';
+import '../state/app_state.dart';
 
 enum WallpaperType { solid, gradient, pattern, image }
 
@@ -332,6 +334,12 @@ class _MultiColorGradientState extends State<_MultiColorGradient>
 
   @override
   Widget build(BuildContext context) {
+    final powerSaving = context.watch<AppState>().powerSaving(AppState.kPowerSavingChatBackground);
+    if (powerSaving && _ctrl.isAnimating) {
+      _ctrl.stop();
+    } else if (!powerSaving && !_ctrl.isAnimating) {
+      _ctrl.repeat();
+    }
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (context, _) {

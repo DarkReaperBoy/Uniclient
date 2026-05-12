@@ -2757,10 +2757,16 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
 
   @override
   Widget build(BuildContext context) {
+    final powerSaving = context.read<AppState>().powerSaving(AppState.kPowerSavingCalls);
+    if (powerSaving && _controller.isAnimating) {
+      _controller.stop();
+    } else if (!powerSaving && _capturing && !_controller.isAnimating) {
+      _controller.repeat();
+    }
     return CustomPaint(
       size: const Size(double.infinity, 18),
       painter: _LevelMeterPainter(
-        level: _capturing ? _currentLevel : 0.0,
+        level: (_capturing && !powerSaving) ? _currentLevel : 0.0,
         activeColor: widget.accentColor,
         inactiveColor: widget.isDark
             ? const Color(0xFF3B4654)

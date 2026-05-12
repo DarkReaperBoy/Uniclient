@@ -2136,6 +2136,7 @@ class _StickerCellState extends State<_StickerCell> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFf0f0f0);
+    final stickerPanelPowerSave = context.read<AppState>().powerSaving(AppState.kPowerSavingStickersPanel);
 
     Widget child;
     if (widget.sticker.thumbB64.isNotEmpty) {
@@ -2155,6 +2156,8 @@ class _StickerCellState extends State<_StickerCell> {
       child = _stickerFallback();
     }
 
+    final hoverDuration = stickerPanelPowerSave ? Duration.zero : const Duration(milliseconds: 100);
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -2167,7 +2170,7 @@ class _StickerCellState extends State<_StickerCell> {
             ? (details) => widget.onContextMenu!(details.globalPosition)
             : null,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
+          duration: hoverDuration,
           decoration: BoxDecoration(
             color: _hovered ? hoverBg : Colors.transparent,
             borderRadius: BorderRadius.circular(6),

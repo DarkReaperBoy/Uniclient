@@ -1519,6 +1519,11 @@ class _ReactionStripState extends State<_ReactionStrip>
   }
 
   void _triggerFlyUp(int index) {
+    final noAnim = context.read<AppState>().powerSaving(AppState.kPowerSavingEmojiReactions);
+    if (noAnim) {
+      widget.onReactionTap(_reactions[index]);
+      return;
+    }
     _flyController?.dispose();
     _flyController = AnimationController(
       vsync: this,
@@ -3304,9 +3309,11 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
     // §6.6: Premium sticker effect bounding box = stickerSize × 1.49.
     // kPremiumMultiplier = 1 + 0.245 * 2 = 1.49
     final isPremiumSticker = message.mediaType == 6 && message.stickerPremium;
+    final effectsPowerSave = context.read<AppState>().powerSaving(AppState.kPowerSavingChatEffects);
     const kPremiumMultiplier = 1.49;
-    final effectWidth = isPremiumSticker ? displayWidth * kPremiumMultiplier : displayWidth;
-    final effectHeight = isPremiumSticker ? displayHeight * kPremiumMultiplier : displayHeight;
+    final showEffect = isPremiumSticker && !effectsPowerSave;
+    final effectWidth = showEffect ? displayWidth * kPremiumMultiplier : displayWidth;
+    final effectHeight = showEffect ? displayHeight * kPremiumMultiplier : displayHeight;
 
     final hasFullImage = message.mediaLocalPath.isNotEmpty;
     final hasThumb = _thumbBytes != null;
@@ -3353,7 +3360,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
         height: effectHeight,
         child: Center(
         child: Transform.flip(
-        flipX: isPremiumSticker && !widget.isOutgoing,
+        flipX: showEffect && !widget.isOutgoing,
         child: _clipForMediaType(
         message.mediaType,
         child: SizedBox(
@@ -3992,6 +3999,12 @@ class _TgsStickerPlayerState extends State<_TgsStickerPlayer>
     if (_composition == null || _animController == null) {
       return const SizedBox.shrink();
     }
+    final powerSaving = context.read<AppState>().powerSaving(AppState.kPowerSavingStickersChat);
+    if (powerSaving && _animController!.isAnimating) {
+      _animController!.stop();
+    } else if (!powerSaving && !_animController!.isAnimating) {
+      _animController!.repeat();
+    }
     return Lottie(
       composition: _composition!,
       controller: _animController,
@@ -4069,6 +4082,12 @@ class _WebmStickerPlayerState extends State<_WebmStickerPlayer> {
   @override
   Widget build(BuildContext context) {
     if (_controller == null) return const SizedBox.shrink();
+    final powerSaving = context.read<AppState>().powerSaving(AppState.kPowerSavingStickersChat);
+    if (powerSaving && _player != null) {
+      _player!.pause();
+    } else if (!powerSaving && _player != null && !_player!.state.playing) {
+      _player!.play();
+    }
     return Video(
       controller: _controller!,
       width: widget.width,

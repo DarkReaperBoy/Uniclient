@@ -2138,6 +2138,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int get powerSavingFlags => _powerSavingFlags;
   bool powerSaving(int flag) => _powerSavingFlags & flag != 0;
   bool get animationsEnabled => !powerSaving(kPowerSavingAnimations);
+  bool get stickersPanelAnimEnabled => !powerSaving(kPowerSavingStickersPanel);
+  bool get stickersChatAnimEnabled => !powerSaving(kPowerSavingStickersChat);
+  bool get emojiReactionsAnimEnabled => !powerSaving(kPowerSavingEmojiReactions);
+  bool get chatBackgroundAnimEnabled => !powerSaving(kPowerSavingChatBackground);
+  bool get chatEffectsAnimEnabled => !powerSaving(kPowerSavingChatEffects);
+  bool get callsAnimEnabled => !powerSaving(kPowerSavingCalls);
   Duration animDuration(Duration normal) =>
       animationsEnabled ? normal : Duration.zero;
   bool get autoPowerSaving => _autoPowerSaving;
