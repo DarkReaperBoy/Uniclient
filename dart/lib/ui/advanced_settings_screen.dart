@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import 'chat_export.dart';
 import 'settings_style.dart';
@@ -28,6 +29,51 @@ enum _UpdateState { idle, checking, latest, available, failed }
 class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   _UpdateState _updateState = _UpdateState.idle;
   String _latestVersion = '';
+  bool _screenReaderDetected = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _detectScreenReader();
+  }
+
+  Future<void> _detectScreenReader() async {
+    if (kIsWeb) return;
+    var detected = false;
+    if (Platform.isLinux) {
+      try {
+        final result = await Process.run('pgrep', ['-x', 'orca']);
+        if (result.exitCode == 0) detected = true;
+      } catch (_) {}
+      if (!detected) {
+        try {
+          final result = await Process.run('gdbus', [
+            'call', '--session',
+            '--dest', 'org.a11y.Bus',
+            '--object-path', '/org/a11y/bus',
+            '--method', 'org.freedesktop.DBus.Properties.Get',
+            'org.a11y.Status', 'IsEnabled',
+          ]);
+          final out = (result.stdout as String).trim();
+          if (out.contains('true')) detected = true;
+        } catch (_) {}
+      }
+    } else if (Platform.isMacOS) {
+      try {
+        final result = await Process.run('defaults', ['read', 'com.apple.universalaccess', 'voiceOverOnOffKey']);
+        if ((result.stdout as String).trim() == '1') detected = true;
+      } catch (_) {}
+    } else if (Platform.isWindows) {
+      try {
+        final result = await Process.run('powershell', ['-Command',
+          '(Get-ItemProperty HKCU:\\Software\\Microsoft\\Narrator\\NoRoam -Name RunningState -ErrorAction SilentlyContinue).RunningState']);
+        if ((result.stdout as String).trim() == '1') detected = true;
+      } catch (_) {}
+    }
+    if (mounted && detected != _screenReaderDetected) {
+      setState(() => _screenReaderDetected = detected);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,16 +145,42 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     );
   }
 
+  static void _openWithSystem(String pathOrUrl) {
+    if (Platform.isMacOS) {
+      Process.run('open', [pathOrUrl]);
+    } else if (Platform.isWindows) {
+      Process.run('cmd', ['/c', 'start', '', pathOrUrl]);
+    } else {
+      Process.run('xdg-open', [pathOrUrl]);
+    }
+  }
+
   static const _appVersion =
       String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
 
   String _connectionTypeLabel(AppState appState) {
-    return switch (appState.proxyMode) {
-      1 => 'Using system proxy',
-      2 => appState.selectedProxyType.isNotEmpty
-          ? 'Proxy: ${appState.selectedProxyType}'
-          : 'Connected via proxy',
-      _ => 'Using TCP',
+    final activeId = appState.activeAccountId;
+    final connState = appState.connStateFor(activeId);
+    if (appState.proxyMode == 1) {
+      return connState == ConnState.connected
+          ? 'Connected via system proxy'
+          : 'Using system proxy';
+    }
+    if (appState.proxyMode == 2) {
+      final type = appState.selectedProxyType;
+      if (connState == ConnState.connected) {
+        return type.isNotEmpty ? 'Connected via $type proxy' : 'Connected via proxy';
+      }
+      if (connState == ConnState.connecting) {
+        return type.isNotEmpty ? 'Connecting via $type proxy...' : 'Connecting via proxy...';
+      }
+      return type.isNotEmpty ? 'Proxy: $type' : 'Using proxy';
+    }
+    return switch (connState) {
+      ConnState.connected => 'Connected via TCP',
+      ConnState.connecting => 'Connecting...',
+      ConnState.unstable => 'Connection unstable',
+      ConnState.disconnected => 'Waiting for network...',
     };
   }
 
@@ -257,7 +329,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Process.run('xdg-open', ['https://github.com/DarkReaperBoy/uniclient/releases/tag/v$_latestVersion']);
+                          _openWithSystem('https://github.com/DarkReaperBoy/uniclient/releases/tag/v$_latestVersion');
                           Navigator.of(ctx).pop();
                         },
                         child: const Text('Download Update'),
@@ -515,7 +587,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         hoverBg: hoverBg,
       ),
       AnimatedSize(
-        duration: const Duration(milliseconds: 200),
+        duration: appState.animDuration(const Duration(milliseconds: 200)),
         curve: Curves.easeOutCubic,
         alignment: Alignment.topCenter,
         child: multiAccount
@@ -537,6 +609,15 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         accentColor: accentColor,
         hoverBg: hoverBg,
       ),
+      if (Platform.isLinux)
+        _AdvancedToggleRow(
+          label: 'Use system window frame',
+          value: appState.nativeWindowFrame,
+          onChanged: (v) => appState.setNativeWindowFrame(v),
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
     ];
   }
 
@@ -580,15 +661,6 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final startMinimizedDisabled = hasPasscode;
 
     return [
-      if (Platform.isLinux)
-        _AdvancedToggleRow(
-          label: 'Use system window frame',
-          value: appState.nativeWindowFrame,
-          onChanged: (v) => appState.setNativeWindowFrame(v),
-          textColor: textColor,
-          accentColor: accentColor,
-          hoverBg: hoverBg,
-        ),
       _AdvancedCheckboxRow(
         label: 'Show tray icon',
         value: appState.showTrayIcon,
@@ -614,7 +686,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         hoverBg: hoverBg,
       ),
       AnimatedSize(
-        duration: const Duration(milliseconds: 200),
+        duration: appState.animDuration(const Duration(milliseconds: 200)),
         curve: Curves.easeOutCubic,
         alignment: Alignment.topCenter,
         child: appState.showTrayIcon
@@ -637,7 +709,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         hoverBg: hoverBg,
       ),
       AnimatedSize(
-        duration: const Duration(milliseconds: 200),
+        duration: appState.animDuration(const Duration(milliseconds: 200)),
         curve: Curves.easeOutCubic,
         alignment: Alignment.topCenter,
         child: appState.launchAtStartup
@@ -815,7 +887,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
                     ),
                     const SizedBox(width: 8),
                     TextButton(
-                      onPressed: () => exit(0),
+                      onPressed: () => _restartApp(),
                       child: Text('Restart',
                           style: TextStyle(color: accentColor, fontSize: 14)),
                     ),
@@ -827,6 +899,16 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         ),
       ),
     );
+  }
+
+  void _restartApp() {
+    final exe = Platform.resolvedExecutable;
+    final args = Platform.executableArguments;
+    Process.start(exe, args, mode: ProcessStartMode.detached).then((_) {
+      exit(0);
+    }).catchError((_) {
+      exit(0);
+    });
   }
 
   void _showAngleBackendDialog(BuildContext context, AppState appState, bool isDark) {
@@ -951,18 +1033,18 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
+    final isSystem = Platform.isLinux || Platform.isMacOS;
+
     return [
       _AdvancedToggleRow(
-        label: Platform.isLinux || Platform.isMacOS
-            ? 'Use system spellchecker'
-            : 'Enable spellchecker',
+        label: isSystem ? 'Use system spellchecker' : 'Enable spellchecker',
         value: appState.spellcheckerEnabled,
         onChanged: (v) => appState.setSpellcheckerEnabled(v),
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
       ),
-      if (appState.spellcheckerEnabled) ...[
+      if (appState.spellcheckerEnabled && !isSystem) ...[
         _AdvancedToggleRow(
           label: 'Auto-download dictionaries',
           value: appState.spellcheckerAutoDownload,
@@ -1002,61 +1084,16 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   void _showManageDictionariesDialog(BuildContext context, bool isDark) {
-    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = context.palette.windowBgActive;
-
     showDialog(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: bgColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Manage Dictionaries',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Spellchecker dictionaries are provided by the system. '
-                  'Install language packs through your operating system settings.',
-                  style: TextStyle(fontSize: 14, color: subtextColor),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text('Close',
-                          style: TextStyle(color: accentColor, fontSize: 14)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      builder: (_) => _ManageDictionariesBox(isDark: isDark),
     );
   }
 
   List<Widget> _buildScreenReader(bool isDark) {
+    if (!_screenReaderDetected) return const [];
     final appState = context.read<AppState>();
+    if (appState.screenReaderOptimized) return const [];
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor = context.palette.windowBgActive;
@@ -2013,6 +2050,174 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
   }
 }
 
+class _ManageDictionariesBox extends StatefulWidget {
+  final bool isDark;
+  const _ManageDictionariesBox({required this.isDark});
+
+  @override
+  State<_ManageDictionariesBox> createState() => _ManageDictionariesBoxState();
+}
+
+class _ManageDictionariesBoxState extends State<_ManageDictionariesBox> {
+  List<_DictEntry> _dicts = [];
+  bool _scanning = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scanDictionaries();
+  }
+
+  Future<void> _scanDictionaries() async {
+    final entries = <_DictEntry>[];
+    if (Platform.isLinux) {
+      for (final dir in const ['/usr/share/hunspell', '/usr/share/myspell/dicts']) {
+        try {
+          final d = Directory(dir);
+          if (!d.existsSync()) continue;
+          for (final f in d.listSync()) {
+            if (f.path.endsWith('.dic')) {
+              final name = f.path.split('/').last.replaceAll('.dic', '');
+              final affPath = f.path.replaceAll('.dic', '.aff');
+              final hasAff = File(affPath).existsSync();
+              if (!entries.any((e) => e.code == name)) {
+                entries.add(_DictEntry(
+                  code: name,
+                  label: _langLabel(name),
+                  hasAff: hasAff,
+                  path: f.path,
+                ));
+              }
+            }
+          }
+        } catch (_) {}
+      }
+      entries.sort((a, b) => a.label.compareTo(b.label));
+    }
+    if (mounted) setState(() { _dicts = entries; _scanning = false; });
+  }
+
+  static String _langLabel(String code) {
+    const labels = {
+      'en_US': 'English (US)', 'en_GB': 'English (UK)', 'en_AU': 'English (AU)',
+      'de_DE': 'German', 'de_AT': 'German (Austria)', 'de_CH': 'German (Swiss)',
+      'fr_FR': 'French', 'es_ES': 'Spanish', 'it_IT': 'Italian',
+      'pt_BR': 'Portuguese (Brazil)', 'pt_PT': 'Portuguese',
+      'ru_RU': 'Russian', 'uk_UA': 'Ukrainian', 'pl_PL': 'Polish',
+      'nl_NL': 'Dutch', 'cs_CZ': 'Czech', 'sv_SE': 'Swedish',
+      'da_DK': 'Danish', 'nb_NO': 'Norwegian', 'fi_FI': 'Finnish',
+      'hu_HU': 'Hungarian', 'ro_RO': 'Romanian', 'tr_TR': 'Turkish',
+      'ar': 'Arabic', 'he_IL': 'Hebrew', 'fa_IR': 'Persian',
+      'ja_JP': 'Japanese', 'ko_KR': 'Korean', 'zh_CN': 'Chinese (Simplified)',
+    };
+    return labels[code] ?? code.replaceAll('_', ' ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380, maxHeight: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 4),
+              child: Text(
+                'Manage Dictionaries',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+              ),
+            ),
+            if (_scanning)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+              )
+            else if (_dicts.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 12, 22, 8),
+                child: Text(
+                  Platform.isLinux
+                      ? 'No hunspell dictionaries found.\n'
+                        'Install them via your package manager, e.g.:\n'
+                        'sudo apt install hunspell-en-us'
+                      : 'Spellchecker dictionaries are managed by the operating system.',
+                  style: TextStyle(fontSize: 14, color: subtextColor),
+                ),
+              )
+            else ...[
+              Divider(height: 1, color: dividerColor),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: _dicts.length,
+                  itemBuilder: (_, i) {
+                    final d = _dicts[i];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+                      child: Row(
+                        children: [
+                          Icon(
+                            d.hasAff ? Icons.check_circle : Icons.warning_amber,
+                            size: 18,
+                            color: d.hasAff ? accentColor : subtextColor,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(d.label, style: TextStyle(fontSize: 14, color: textColor)),
+                                Text(d.code, style: TextStyle(fontSize: 12, color: subtextColor)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+            Divider(height: 1, color: dividerColor),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 22),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Close', style: TextStyle(color: accentColor, fontSize: 14)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DictEntry {
+  final String code;
+  final String label;
+  final bool hasAff;
+  final String path;
+  const _DictEntry({required this.code, required this.label, required this.hasAff, required this.path});
+}
+
 class PowerSavingBox extends StatefulWidget {
   const PowerSavingBox();
 
@@ -2603,7 +2808,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
 
             // "Use proxy for calls" toggle (conditional)
             AnimatedSize(
-              duration: const Duration(milliseconds: 200),
+              duration: context.read<AppState>().animDuration(const Duration(milliseconds: 200)),
               curve: Curves.easeOutCubic,
               child: showCallsToggle
                   ? InkWell(
@@ -3546,7 +3751,7 @@ class _RecentDownloadsBox extends StatelessWidget {
                     return InkWell(
                       hoverColor: hoverBg,
                       onTap: () {
-                        Process.run('xdg-open', [path]);
+                        _AdvancedSettingsScreenState._openWithSystem(path);
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(

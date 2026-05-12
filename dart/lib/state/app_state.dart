@@ -2137,6 +2137,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   int get powerSavingFlags => _powerSavingFlags;
   bool powerSaving(int flag) => _powerSavingFlags & flag != 0;
+  bool get animationsEnabled => !powerSaving(kPowerSavingAnimations);
+  Duration animDuration(Duration normal) =>
+      animationsEnabled ? normal : Duration.zero;
   bool get autoPowerSaving => _autoPowerSaving;
 
   void setAutoPowerSaving(bool v) {
@@ -2340,6 +2343,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
             case ConnState.connecting:
               break; // No toast for transient connecting state.
           }
+        }
+      }));
+      _subs.add(_engine.onDownloadComplete.listen((event) {
+        if (event.localPath.isNotEmpty) {
+          final name = event.localPath.split('/').last.split('\\').last;
+          int size = 0;
+          try { size = File(event.localPath).lengthSync(); } catch (_) {}
+          addRecentDownload(name, event.localPath, size);
         }
       }));
 
