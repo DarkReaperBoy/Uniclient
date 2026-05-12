@@ -4934,6 +4934,8 @@ func forumTopicToProto(ft *cores.ForumTopic) *pb.EngineForumTopic {
 		CanDelete:       ft.CanDelete,
 		CanToggleClosed: ft.CanToggleClosed,
 		CanTogglePinned: ft.CanTogglePinned,
+		LastMsgText:     sanitizeUTF8(ft.LastMsgText),
+		LastMsgDate:     ft.LastMsgDate,
 	}
 }
 

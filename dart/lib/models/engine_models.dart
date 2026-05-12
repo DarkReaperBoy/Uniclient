@@ -372,6 +372,8 @@ class ForumTopic {
   final bool canDelete;
   final bool canToggleClosed;
   final bool canTogglePinned;
+  final String lastMsgText;
+  final int lastMsgDate;
 
   const ForumTopic({
     required this.id,
@@ -395,6 +397,8 @@ class ForumTopic {
     this.canDelete = false,
     this.canToggleClosed = false,
     this.canTogglePinned = false,
+    this.lastMsgText = '',
+    this.lastMsgDate = 0,
   });
 
   bool get isGeneral => id == '1';
@@ -403,6 +407,11 @@ class ForumTopic {
 
   DateTime get creationDateTime =>
       DateTime.fromMillisecondsSinceEpoch(creationDate * 1000);
+
+  DateTime get lastMsgDateTime =>
+      lastMsgDate > 0
+          ? DateTime.fromMillisecondsSinceEpoch(lastMsgDate * 1000)
+          : creationDateTime;
 
   static const Map<int, String> colorNames = {
     0x6FB9F0: 'blue',

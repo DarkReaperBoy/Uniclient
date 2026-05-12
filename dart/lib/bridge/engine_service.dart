@@ -619,6 +619,8 @@ class EngineService {
     canDelete: p.canDelete,
     canToggleClosed: p.canToggleClosed,
     canTogglePinned: p.canTogglePinned,
+    lastMsgText: p.lastMsgText,
+    lastMsgDate: p.lastMsgDate.toInt(),
   );
 
   Future<int> createForumTopic(String accountId, String chatId, String title, int colorId, int iconEmojiId) async {

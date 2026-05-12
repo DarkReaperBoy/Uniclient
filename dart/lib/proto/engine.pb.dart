@@ -2869,6 +2869,8 @@ class EngineForumTopic extends $pb.GeneratedMessage {
     $core.bool? canDelete,
     $core.bool? canToggleClosed,
     $core.bool? canTogglePinned,
+    $core.String? lastMsgText,
+    $fixnum.Int64? lastMsgDate,
   }) {
     final $result = create();
     if (id != null) {
@@ -2934,6 +2936,12 @@ class EngineForumTopic extends $pb.GeneratedMessage {
     if (canTogglePinned != null) {
       $result.canTogglePinned = canTogglePinned;
     }
+    if (lastMsgText != null) {
+      $result.lastMsgText = lastMsgText;
+    }
+    if (lastMsgDate != null) {
+      $result.lastMsgDate = lastMsgDate;
+    }
     return $result;
   }
   EngineForumTopic._() : super();
@@ -2962,6 +2970,8 @@ class EngineForumTopic extends $pb.GeneratedMessage {
     ..aOB(19, _omitFieldNames ? '' : 'canDelete')
     ..aOB(20, _omitFieldNames ? '' : 'canToggleClosed')
     ..aOB(21, _omitFieldNames ? '' : 'canTogglePinned')
+    ..aOS(22, _omitFieldNames ? '' : 'lastMsgText')
+    ..aInt64(23, _omitFieldNames ? '' : 'lastMsgDate')
     ..hasRequiredFields = false
   ;
 
@@ -3174,6 +3184,24 @@ class EngineForumTopic extends $pb.GeneratedMessage {
   $core.bool hasCanTogglePinned() => $_has(20);
   @$pb.TagNumber(21)
   void clearCanTogglePinned() => clearField(21);
+
+  @$pb.TagNumber(22)
+  $core.String get lastMsgText => $_getSZ(21);
+  @$pb.TagNumber(22)
+  set lastMsgText($core.String v) { $_setString(21, v); }
+  @$pb.TagNumber(22)
+  $core.bool hasLastMsgText() => $_has(21);
+  @$pb.TagNumber(22)
+  void clearLastMsgText() => clearField(22);
+
+  @$pb.TagNumber(23)
+  $fixnum.Int64 get lastMsgDate => $_getI64(22);
+  @$pb.TagNumber(23)
+  set lastMsgDate($fixnum.Int64 v) { $_setInt64(22, v); }
+  @$pb.TagNumber(23)
+  $core.bool hasLastMsgDate() => $_has(22);
+  @$pb.TagNumber(23)
+  void clearLastMsgDate() => clearField(23);
 }
 
 class EngineGetForumTopicsResponse extends $pb.GeneratedMessage {

@@ -15550,64 +15550,7 @@ func (t *TelegramCore) GetForumTopics(chatID string, limit int) ([]ForumTopic, e
 	})
 	if err != nil { return nil, err }
 
-	var canManageTopics, canDeleteMessages bool
-	for _, c := range result.Chats {
-		if ch, ok := c.(*tg.Channel); ok {
-			if rights, ok := ch.GetAdminRights(); ok {
-				canManageTopics = rights.ManageTopics
-				canDeleteMessages = rights.DeleteMessages
-			}
-			break
-		}
-	}
-
-	var topics []ForumTopic
-	for _, topic := range result.Topics {
-		ft, ok := topic.(*tg.ForumTopic)
-		if !ok {
-			continue
-		}
-		t.cacheForumTopic(chatID, ft.ID, ft.Title, ft.IconColor)
-
-		creatorID := ""
-		if ft.FromID != nil {
-			switch p := ft.FromID.(type) {
-			case *tg.PeerUser:
-				creatorID = strconv.FormatInt(p.UserID, 10)
-			case *tg.PeerChannel:
-				creatorID = strconv.FormatInt(p.ChannelID, 10)
-			case *tg.PeerChat:
-				creatorID = strconv.FormatInt(p.ChatID, 10)
-			}
-		}
-
-		isGeneral := ft.ID == 1
-		canEdit := ft.My || canManageTopics
-		topics = append(topics, ForumTopic{
-			ID:              strconv.Itoa(ft.ID),
-			Title:           ft.Title,
-			ColorID:         ft.IconColor,
-			IconEmojiID:     ft.IconEmojiID,
-			CreatorID:       creatorID,
-			CreationDate:    int64(ft.Date),
-			IsClosed:        ft.Closed,
-			IsHidden:        ft.Hidden,
-			IsMy:            ft.My,
-			IsPinned:        ft.Pinned,
-			UnreadCount:     ft.UnreadCount,
-			UnreadMentions:  ft.UnreadMentionsCount,
-			UnreadReactions: ft.UnreadReactionsCount,
-			TopMessageID:    strconv.Itoa(ft.TopMessage),
-			ReadInboxMaxID:  ft.ReadInboxMaxID,
-			ReadOutboxMaxID: ft.ReadOutboxMaxID,
-			ParentID:        chatID,
-			CanEdit:         canEdit,
-			CanDelete:       !isGeneral && (canDeleteMessages || ft.My),
-			CanToggleClosed: canEdit,
-			CanTogglePinned: canManageTopics,
-		})
-	}
-	return topics, nil
+	return t.parseForumTopicsResult(chatID, result), nil
 }
 
 // GetForumTopicsWithOffset fetches forum topics with pagination offset parameters.
@@ -15624,6 +15567,10 @@ func (t *TelegramCore) GetForumTopicsWithOffset(chatID string, limit, offsetDate
 	})
 	if err != nil { return nil, err }
 
+	return t.parseForumTopicsResult(chatID, result), nil
+}
+
+func (t *TelegramCore) parseForumTopicsResult(chatID string, result *tg.MessagesForumTopics) []ForumTopic {
 	var canManageTopics, canDeleteMessages bool
 	for _, c := range result.Chats {
 		if ch, ok := c.(*tg.Channel); ok {
@@ -15632,6 +15579,16 @@ func (t *TelegramCore) GetForumTopicsWithOffset(chatID string, limit, offsetDate
 				canDeleteMessages = rights.DeleteMessages
 			}
 			break
+		}
+	}
+
+	msgMap := make(map[int]tg.MessageClass, len(result.Messages))
+	for _, m := range result.Messages {
+		switch msg := m.(type) {
+		case *tg.Message:
+			msgMap[msg.ID] = msg
+		case *tg.MessageService:
+			msgMap[msg.ID] = msg
 		}
 	}
 
@@ -15652,6 +15609,18 @@ func (t *TelegramCore) GetForumTopicsWithOffset(chatID string, limit, offsetDate
 				creatorID = strconv.FormatInt(p.ChannelID, 10)
 			case *tg.PeerChat:
 				creatorID = strconv.FormatInt(p.ChatID, 10)
+			}
+		}
+
+		var lastMsgText string
+		var lastMsgDate int64
+		if mc, ok := msgMap[ft.TopMessage]; ok {
+			switch msg := mc.(type) {
+			case *tg.Message:
+				lastMsgText = msg.Message
+				lastMsgDate = int64(msg.Date)
+			case *tg.MessageService:
+				lastMsgDate = int64(msg.Date)
 			}
 		}
 
@@ -15679,9 +15648,11 @@ func (t *TelegramCore) GetForumTopicsWithOffset(chatID string, limit, offsetDate
 			CanDelete:       !isGeneral && (canDeleteMessages || ft.My),
 			CanToggleClosed: canEdit,
 			CanTogglePinned: canManageTopics,
+			LastMsgText:     lastMsgText,
+			LastMsgDate:     lastMsgDate,
 		})
 	}
-	return topics, nil
+	return topics
 }
 
 // ToggleForum enables or disables forum mode for a supergroup.

@@ -281,6 +281,8 @@ message EngineForumTopic {
   bool   can_delete         = 19;
   bool   can_toggle_closed  = 20;
   bool   can_toggle_pinned  = 21;
+  string last_msg_text      = 22;
+  int64  last_msg_date      = 23;
 }
 
 message EngineGetForumTopicsResponse {

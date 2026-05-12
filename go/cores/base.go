@@ -229,6 +229,8 @@ type ForumTopic struct {
 	CanDelete       bool   `json:"can_delete"`
 	CanToggleClosed bool   `json:"can_toggle_closed"`
 	CanTogglePinned bool   `json:"can_toggle_pinned"`
+	LastMsgText     string `json:"last_msg_text"`
+	LastMsgDate     int64  `json:"last_msg_date"`
 }
 
 // IsGeneral returns true if this is the General topic (ID "1").

@@ -2155,6 +2155,8 @@ type EngineForumTopic struct {
 	CanDelete       bool                   `protobuf:"varint,19,opt,name=can_delete,json=canDelete,proto3" json:"can_delete,omitempty"`
 	CanToggleClosed bool                   `protobuf:"varint,20,opt,name=can_toggle_closed,json=canToggleClosed,proto3" json:"can_toggle_closed,omitempty"`
 	CanTogglePinned bool                   `protobuf:"varint,21,opt,name=can_toggle_pinned,json=canTogglePinned,proto3" json:"can_toggle_pinned,omitempty"`
+	LastMsgText     string                 `protobuf:"bytes,22,opt,name=last_msg_text,json=lastMsgText,proto3" json:"last_msg_text,omitempty"`
+	LastMsgDate     int64                  `protobuf:"varint,23,opt,name=last_msg_date,json=lastMsgDate,proto3" json:"last_msg_date,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -2334,6 +2336,20 @@ func (x *EngineForumTopic) GetCanTogglePinned() bool {
 		return x.CanTogglePinned
 	}
 	return false
+}
+
+func (x *EngineForumTopic) GetLastMsgText() string {
+	if x != nil {
+		return x.LastMsgText
+	}
+	return ""
+}
+
+func (x *EngineForumTopic) GetLastMsgDate() int64 {
+	if x != nil {
+		return x.LastMsgDate
+	}
+	return 0
 }
 
 type EngineGetForumTopicsResponse struct {

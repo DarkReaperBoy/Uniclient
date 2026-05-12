@@ -13,6 +13,7 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart';
+import 'chat_view.dart' show formatChatLastSeen;
 import 'filter_column.dart';
 import 'forum_topic_icon.dart';
 import 'media_viewer.dart';
@@ -135,6 +136,8 @@ class _ChatListPanelState extends State<ChatListPanel>
   bool _showArchived = false;
   List<ChatInfo> _loadedArchivedChats = []; // on-demand archived chats
   List<ChatInfo>? _searchResults;
+  List<ChatInfo>? _lastDisplayChats;
+  List<ChatInfo> _cachedSorted = [];
   _SearchTab _activeSearchTab = _SearchTab.myMessages;
   _MyMsgSubFilter _myMsgSubFilter = _MyMsgSubFilter.all;
   late final AnimationController _archiveAnimCtrl;
@@ -213,11 +216,11 @@ class _ChatListPanelState extends State<ChatListPanel>
     final pos = _chatListScrollCtrl.position;
     if (pos.pixels <= 0 && pos.outOfRange) {
       final overscrollRatio = pos.pixels.abs() / pos.viewportDimension;
-      if (overscrollRatio > 0.72 && !bar._expanded) {
-        bar._setExpanded(true);
+      if (overscrollRatio > 0.72 && !bar.isExpanded) {
+        bar.setExpanded(true);
       }
-    } else if (pos.pixels > 50 && bar._expanded) {
-      bar._setExpanded(false);
+    } else if (pos.pixels > 50 && bar.isExpanded) {
+      bar.setExpanded(false);
     }
   }
 
@@ -498,8 +501,9 @@ class _ChatListPanelState extends State<ChatListPanel>
           appState.activeAccountId,
           _searchController.text,
         );
-        if (globalResults.isNotEmpty) return globalResults;
-        return results.where((c) => c.type == ChatType.channel).toList();
+        return globalResults.isNotEmpty
+            ? globalResults.where((c) => c.type == ChatType.channel).toList()
+            : results.where((c) => c.type == ChatType.channel).toList();
       case _SearchTab.thisPeer:
         // Only results matching the currently active chat.
         final active = chatState.activeChat;
@@ -595,12 +599,15 @@ class _ChatListPanelState extends State<ChatListPanel>
     // Use search results if searching.
     final displayChats = _searchResults ?? chats;
 
-    // Sort: pinned first, then by lastMsgTime descending.
-    final sorted = List<ChatInfo>.from(displayChats)
-      ..sort((a, b) {
-        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
-        return b.lastMsgTime.compareTo(a.lastMsgTime);
-      });
+    if (!identical(displayChats, _lastDisplayChats)) {
+      _lastDisplayChats = displayChats;
+      _cachedSorted = List<ChatInfo>.from(displayChats)
+        ..sort((a, b) {
+          if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+          return b.lastMsgTime.compareTo(a.lastMsgTime);
+        });
+    }
+    final sorted = _cachedSorted;
 
     // Separate archived chats — use on-demand loaded list if inline is empty.
     var archived = sorted.where((c) => c.isArchived).toList();
@@ -857,18 +864,6 @@ class _ChatListPanelState extends State<ChatListPanel>
                                   _forwardHoverTimer?.cancel();
                                   setState(() =>
                                       _forwardHoveredChatId = chat.chatId);
-                                  // §48.11: ChoosePeerByDragTimeout — open
-                                  // target chat after 1s forward-drag hover.
-                                  _forwardHoverTimer = Timer(
-                                    const Duration(milliseconds: 1000),
-                                    () {
-                                      if (mounted &&
-                                          _forwardHoveredChatId ==
-                                              chat.chatId) {
-                                        chatState.openChat(chat);
-                                      }
-                                    },
-                                  );
                                 }
                               },
                               onLeave: (_) {
@@ -2280,9 +2275,7 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
                     }
 
                     return AnimatedContainer(
-                      duration: _dragActive
-                          ? const Duration(milliseconds: 150)
-                          : Duration.zero,
+                      duration: const Duration(milliseconds: 150),
                       transform: Matrix4.translationValues(
                         isDragged ? _dragOffset : shiftX, 0,
                         isDragged ? 1 : 0,
@@ -2458,8 +2451,8 @@ class _TopPeersStrip extends StatelessWidget {
   const _TopPeersStrip({required this.chats, required this.onTap});
 
   static const _avatarSize = 46.0;
-  static const _itemWidth = 66.0; // avatar + horizontal spacing
-  static const _stripHeight = 90.0; // avatar + name + padding
+  static const _itemWidth = 66.0;
+  static const _stripHeight = 84.0;
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
@@ -2484,7 +2477,26 @@ class _TopPeersStrip extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final nameColor = isDark ? const Color(0xFF8A8A8A) : const Color(0xFF999999);
 
-    return SizedBox(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 28,
+          width: double.infinity,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.only(left: 14),
+          child: Text(
+            'FREQUENT CONTACTS',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+              color: palette.dialogsTextFg,
+            ),
+          ),
+        ),
+        SizedBox(
       height: _stripHeight,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
@@ -2543,6 +2555,8 @@ class _TopPeersStrip extends StatelessWidget {
           );
         },
       ),
+    ),
+      ],
     );
   }
 
@@ -2615,6 +2629,8 @@ class _StoriesBarState extends State<_StoriesBar>
   static const _readOpacity = 0.6;
 
   bool _expanded = true;
+  bool get isExpanded => _expanded;
+  void setExpanded(bool v) => _setExpanded(v);
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
 
@@ -2667,6 +2683,9 @@ class _StoriesBarState extends State<_StoriesBar>
   Widget build(BuildContext context) {
     final peers = _storyPeers;
 
+    final collapsed = _buildCollapsed(peers);
+    final expanded = _buildExpanded(peers);
+
     return AnimatedBuilder(
       animation: _expandAnimation,
       builder: (context, child) {
@@ -2675,11 +2694,93 @@ class _StoriesBarState extends State<_StoriesBar>
             _collapsedHeight + (_expandedHeight - _collapsedHeight) * t;
         return SizedBox(
           height: height,
-          child: t < 0.5
-              ? _buildCollapsed(peers)
-              : _buildExpanded(peers),
+          child: Stack(
+            children: [
+              Opacity(
+                opacity: (1.0 - t).clamp(0.0, 1.0),
+                child: collapsed,
+              ),
+              Opacity(
+                opacity: t.clamp(0.0, 1.0),
+                child: expanded,
+              ),
+            ],
+          ),
         );
       },
+    );
+  }
+
+  Widget _buildOwnStoryThumb() {
+    final appState = context.read<AppState>();
+    final ownChat = widget.chats.where((c) =>
+      c.type == ChatType.dm &&
+      c.title == 'Saved Messages' &&
+      !c.isArchived
+    ).firstOrNull;
+    final hasOwnStory = ownChat != null && ownChat.storyCount > 0;
+
+    if (hasOwnStory) {
+      return _StoryAvatar(
+        chat: ownChat,
+        size: _smallPhoto,
+        ringWidth: ownChat.hasUnreadStory ? _unreadLineSmall : 0,
+        hasUnread: ownChat.hasUnreadStory,
+        isDark: widget.isDark,
+        onTap: () => widget.onStoryTap(ownChat),
+      );
+    }
+
+    final avatarPath = appState.activeAccount?.avatarPath ?? '';
+    return SizedBox(
+      width: _smallPhoto,
+      height: _smallPhoto,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          if (avatarPath.isNotEmpty)
+            ClipOval(
+              child: Image.file(
+                File(avatarPath),
+                width: _smallPhoto,
+                height: _smallPhoto,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _ownAvatarFallback(),
+              ),
+            )
+          else
+            _ownAvatarFallback(),
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: widget.isDark
+                    ? const Color(0xFF2B5278)
+                    : const Color(0xFF419FD9),
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ownAvatarFallback() {
+    return Container(
+      width: _smallPhoto,
+      height: _smallPhoto,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: widget.isDark
+            ? const Color(0xFF2B5278)
+            : const Color(0xFF419FD9),
+      ),
+      child: const Icon(Icons.add, color: Colors.white, size: 12),
     );
   }
 
@@ -2698,17 +2799,7 @@ class _StoriesBarState extends State<_StoriesBar>
             Positioned(
               left: 4,
               top: 4,
-              child: Container(
-                width: _smallPhoto,
-                height: _smallPhoto,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: widget.isDark
-                      ? const Color(0xFF2B5278)
-                      : const Color(0xFF419FD9),
-                ),
-                child: const Icon(Icons.add, color: Colors.white, size: 12),
-              ),
+              child: _buildOwnStoryThumb(),
             ),
             for (var i = shown.length - 1; i >= 0; i--)
               Positioned(
@@ -2872,9 +2963,11 @@ class _StoryAvatar extends StatelessWidget {
           painter: _StoriesBarRingPainter(
             storyCount: chat.storyCount,
             hasUnread: hasUnread,
-            isDark: isDark,
             photoRadius: size / 2,
             lineWidth: ringWidth,
+            unreadColor1: palette.premiumButtonBg1,
+            unreadColor2: palette.premiumButtonBg2,
+            readColor: isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb),
           ),
           child: Center(
             child: SizedBox(
@@ -2937,16 +3030,20 @@ class _StoryAvatar extends StatelessWidget {
 class _StoriesBarRingPainter extends CustomPainter {
   final int storyCount;
   final bool hasUnread;
-  final bool isDark;
   final double photoRadius;
   final double lineWidth;
+  final Color unreadColor1;
+  final Color unreadColor2;
+  final Color readColor;
 
   _StoriesBarRingPainter({
     required this.storyCount,
     required this.hasUnread,
-    required this.isDark,
     required this.photoRadius,
     required this.lineWidth,
+    required this.unreadColor1,
+    required this.unreadColor2,
+    required this.readColor,
   });
 
   @override
@@ -2962,15 +3059,13 @@ class _StoriesBarRingPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     if (hasUnread) {
-      paint.shader = const LinearGradient(
+      paint.shader = LinearGradient(
         begin: Alignment.topRight,
         end: Alignment.bottomLeft,
-        colors: [Color(0xFF0dcc39), Color(0xFF0992ef)],
+        colors: [unreadColor1, unreadColor2],
       ).createShader(Rect.fromCircle(center: center, radius: ringRadius));
     } else {
-      paint.color = isDark
-          ? const Color(0xFF3e546a)
-          : const Color(0xFFbbbbbb);
+      paint.color = readColor;
     }
 
     if (storyCount == 1) {
@@ -2996,9 +3091,11 @@ class _StoriesBarRingPainter extends CustomPainter {
   bool shouldRepaint(_StoriesBarRingPainter old) =>
       storyCount != old.storyCount ||
       hasUnread != old.hasUnread ||
-      isDark != old.isDark ||
       photoRadius != old.photoRadius ||
-      lineWidth != old.lineWidth;
+      lineWidth != old.lineWidth ||
+      unreadColor1 != old.unreadColor1 ||
+      unreadColor2 != old.unreadColor2 ||
+      readColor != old.readColor;
 }
 
 /// Recent Contacts list: vertical list of recent DM contacts shown below the
@@ -3048,11 +3145,16 @@ class _RecentContactsList extends StatelessWidget {
               final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
               final initials = _initials(chat.title);
               final isOnline = chatState.isChatOnline(chat);
+              final lastSeen = chatState.chatLastSeen(chat);
+              final statusText = isOnline
+                  ? 'online'
+                  : formatChatLastSeen(lastSeen);
               return _RecentContactRow(
                 chat: chat,
                 avatarColor: color,
                 initials: initials,
                 isOnline: isOnline,
+                statusText: statusText.isNotEmpty ? statusText : 'last seen recently',
                 nameFg: nameFg,
                 statusFg: statusFg,
                 hoverBg: hoverBg,
@@ -3134,6 +3236,7 @@ class _RecentContactRow extends StatefulWidget {
   final Color avatarColor;
   final String initials;
   final bool isOnline;
+  final String statusText;
   final Color nameFg;
   final Color statusFg;
   final Color hoverBg;
@@ -3144,6 +3247,7 @@ class _RecentContactRow extends StatefulWidget {
     required this.avatarColor,
     required this.initials,
     required this.isOnline,
+    required this.statusText,
     required this.nameFg,
     required this.statusFg,
     required this.hoverBg,
@@ -3170,9 +3274,8 @@ class _RecentContactRowState extends State<_RecentContactRow> {
           color: _hovered ? widget.hoverBg : Colors.transparent,
           child: Stack(
             children: [
-              // Avatar at (16, 7)
               Positioned(
-                left: 16,
+                left: 10,
                 top: 7,
                 child: SizedBox(
                   width: _RecentContactsList._avatarSize,
@@ -3215,9 +3318,8 @@ class _RecentContactRowState extends State<_RecentContactRow> {
                   ),
                 ),
               ),
-              // Name at (74, 9)
               Positioned(
-                left: 74,
+                left: 64,
                 top: 9,
                 right: 16,
                 child: Text(
@@ -3231,13 +3333,12 @@ class _RecentContactRowState extends State<_RecentContactRow> {
                   ),
                 ),
               ),
-              // Status at (74, 30)
               Positioned(
-                left: 74,
+                left: 64,
                 top: 30,
                 right: 16,
                 child: Text(
-                  widget.isOnline ? 'online' : 'last seen recently',
+                  widget.statusText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -3530,19 +3631,11 @@ class _SearchSubFilterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Spec: normalFont color for the label.
-    final labelColor =
-        isDark ? const Color(0xFFCCCCCC) : const Color(0xFF555555);
-    // Spec: dropdown arrow color.
-    final arrowColor =
-        isDark ? const Color(0xFF8A8A8A) : const Color(0xFF999999);
-    // Spec: divider bar background.
-    final dividerBg =
-        isDark ? const Color(0xFF1D2A36) : const Color(0xFFF1F1F1);
-    // Spec: hover bg = windowBgOver.
-    final hoverBg =
-        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final palette = context.palette;
+    final labelColor = palette.windowSubTextFg;
+    final arrowColor = palette.windowSubTextFg;
+    final dividerBg = palette.windowBgOver;
+    final hoverBg = palette.dialogsBgOver;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -3576,16 +3669,19 @@ class _SearchSubFilterRow extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Photo placeholder / icon (spec: photo 28px, vertically centered).
                     Padding(
-                      padding: const EdgeInsets.only(top: 5), // (38 - 28) / 2
-                      child: SizedBox(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Container(
                         width: 28,
                         height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: palette.windowBgActive,
+                        ),
                         child: Icon(
                           _activeIcon,
-                          size: 20,
-                          color: labelColor,
+                          size: 16,
+                          color: palette.windowFgActive,
                         ),
                       ),
                     ),
@@ -3701,12 +3797,26 @@ class _ArchivedChatsRowState extends State<_ArchivedChatsRow> {
     );
   }
 
-  /// Wide mode: "Archived Chats" text at 18px left pad, semibold 14px.
   Widget _buildWide(Color nameFg, Color mutedBadgeBg) {
+    final palette = context.palette;
     return Padding(
-      padding: const EdgeInsets.only(left: 18, right: 10),
+      padding: const EdgeInsets.only(left: 10, right: 10),
       child: Row(
         children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: palette.dialogsBgOver,
+            ),
+            child: Icon(
+              Icons.archive_outlined,
+              size: 22,
+              color: palette.historyPeerUserpicFg,
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               'Archived Chats',
@@ -3902,20 +4012,25 @@ class _ChatListSkeletonState extends State<_ChatListSkeleton>
   static const _nameTop = 10.0;
   static const _nameWidth = 60.0;
   static const _statusTop = 34.0;
-  static const _rowCount = 2;
   static const _cycleDuration = Duration(milliseconds: 2000);
 
   late final AnimationController _controller;
-  late final List<double> _statusWidths;
+  List<double> _statusWidths = [];
+  int _rowCount = 0;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(vsync: this, duration: _cycleDuration)
       ..repeat();
+  }
+
+  void _ensureWidths(int count) {
+    if (_rowCount == count) return;
+    _rowCount = count;
     final rng = math.Random();
     _statusWidths = List.generate(
-      _rowCount,
+      count,
       (_) => 100.0 / 4 + rng.nextDouble() * (100.0 / 2),
     );
   }
@@ -3929,19 +4044,25 @@ class _ChatListSkeletonState extends State<_ChatListSkeleton>
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        return CustomPaint(
-          painter: _SkeletonPainter(
-            progress: _controller.value,
-            statusWidths: _statusWidths,
-            avatarColor: p.windowBgOver,
-            baseColor: p.windowSubTextFg.withValues(alpha: 0.5),
-            glareColor: p.windowSubTextFg.withValues(alpha: 0.2),
-            bgColor: p.dialogsBg,
-          ),
-          size: const Size(double.infinity, _rowHeight * _rowCount),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final rows = (constraints.maxHeight / _rowHeight).ceil().clamp(2, 20);
+        _ensureWidths(rows);
+        return AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            return CustomPaint(
+              painter: _SkeletonPainter(
+                progress: _controller.value,
+                statusWidths: _statusWidths,
+                avatarColor: p.windowBgOver,
+                baseColor: p.windowSubTextFg.withValues(alpha: 0.5),
+                glareColor: p.windowSubTextFg.withValues(alpha: 0.2),
+                bgColor: p.dialogsBg,
+              ),
+              size: Size(double.infinity, _rowHeight * rows),
+            );
+          },
         );
       },
     );
@@ -3996,7 +4117,7 @@ class _SkeletonPainter extends CustomPainter {
       barPaint = Paint()..color = baseColor;
     }
 
-    for (var i = 0; i < _ChatListSkeletonState._rowCount; i++) {
+    for (var i = 0; i < statusWidths.length; i++) {
       final rowTop = i * _ChatListSkeletonState._rowHeight;
 
       // Avatar circle (own color — AyuGram SkeletonAnimation is text-only).
@@ -4097,7 +4218,7 @@ class _EmptyState extends StatelessWidget {
   final _SearchTab activeSearchTab;
   final VoidCallback? onSearchAll;
 
-  static const _kQueryPreviewLimit = 18;
+  static const _kQueryPreviewLimit = 32;
 
   const _EmptyState({
     required this.searching,
@@ -4959,11 +5080,6 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
       context: ctx,
       position: position,
       items: [
-        const TelegramMenuItem(
-          value: 'new_window',
-          icon: Icon(Icons.open_in_new, size: 20),
-          label: 'New Window',
-        ),
         if (topic.canTogglePinned)
           TelegramMenuItem(
             value: 'pin',
@@ -5025,8 +5141,6 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
     );
     if (value == null || !ctx.mounted) return;
     switch (value) {
-      case 'new_window':
-        showTelegramToast(ctx, 'Multi-window is not yet supported');
       case 'pin':
         try {
           await widget.chatState.pinForumTopic(widget.accountId, widget.chatId, topicId, !topic.isPinned);
@@ -5041,6 +5155,8 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
       case 'mark_read':
         if (hasUnread) {
           widget.chatState.markChatRead(widget.accountId, topic.id);
+        } else {
+          widget.chatState.markChatUnread(widget.accountId, topic.id);
         }
       case 'mute':
         _showMuteSubmenu(ctx, position);
@@ -5187,21 +5303,20 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
   String _formatDate(ForumTopic topic) {
     final msgId = int.tryParse(topic.topMessageId) ?? 0;
     if (msgId == 0) return '';
-    final created = topic.creationDateTime;
+    final dt = topic.lastMsgDateTime;
     final now = DateTime.now();
-    if (now.year == created.year &&
-        now.month == created.month &&
-        now.day == created.day) {
-      final h = created.hour.toString().padLeft(2, '0');
-      final m = created.minute.toString().padLeft(2, '0');
+    if (now.year == dt.year && now.month == dt.month && now.day == dt.day) {
+      final h = dt.hour.toString().padLeft(2, '0');
+      final m = dt.minute.toString().padLeft(2, '0');
       return '$h:$m';
     }
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${months[created.month - 1]} ${created.day}';
+    return '${months[dt.month - 1]} ${dt.day}';
   }
 
   String _previewText(ForumTopic topic) {
+    if (topic.lastMsgText.isNotEmpty) return topic.lastMsgText;
     if (topic.isGeneral) return 'General topic';
     return '';
   }
@@ -5681,7 +5796,6 @@ class _SavedSublistsViewState extends State<_SavedSublistsView> {
                           return _SavedSublistRow(
                             sublist: sub,
                             isDark: isDark,
-                            tags: chatState.savedReactionTags,
                             onTap: () {
                               chatState.openSavedSublist(sub);
                             },
