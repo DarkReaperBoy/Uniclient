@@ -4866,6 +4866,7 @@ type EngineUploadFileRequest struct {
 	CaptionAbove    bool                   `protobuf:"varint,9,opt,name=caption_above,json=captionAbove,proto3" json:"caption_above,omitempty"`
 	CaptionEntities string                 `protobuf:"bytes,10,opt,name=caption_entities,json=captionEntities,proto3" json:"caption_entities,omitempty"`
 	VideoCoverPath  string                 `protobuf:"bytes,11,opt,name=video_cover_path,json=videoCoverPath,proto3" json:"video_cover_path,omitempty"`
+	Duration        int32                  `protobuf:"varint,12,opt,name=duration,proto3" json:"duration,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -4975,6 +4976,13 @@ func (x *EngineUploadFileRequest) GetVideoCoverPath() string {
 		return x.VideoCoverPath
 	}
 	return ""
+}
+
+func (x *EngineUploadFileRequest) GetDuration() int32 {
+	if x != nil {
+		return x.Duration
+	}
+	return 0
 }
 
 type EngineUploadFileResponse struct {
@@ -6534,26 +6542,27 @@ type EngineUpdateConfigRequest struct {
 	SendTyping          bool `protobuf:"varint,8,opt,name=send_typing,json=sendTyping,proto3" json:"send_typing,omitempty"`
 	HasSendTyping       bool `protobuf:"varint,9,opt,name=has_send_typing,json=hasSendTyping,proto3" json:"has_send_typing,omitempty"`
 	// Notifications
-	NotifyDms                 bool `protobuf:"varint,10,opt,name=notify_dms,json=notifyDms,proto3" json:"notify_dms,omitempty"`
-	HasNotifyDms              bool `protobuf:"varint,11,opt,name=has_notify_dms,json=hasNotifyDms,proto3" json:"has_notify_dms,omitempty"`
-	NotifyGroups              bool `protobuf:"varint,12,opt,name=notify_groups,json=notifyGroups,proto3" json:"notify_groups,omitempty"`
-	HasNotifyGroups           bool `protobuf:"varint,13,opt,name=has_notify_groups,json=hasNotifyGroups,proto3" json:"has_notify_groups,omitempty"`
-	NotifyMentionsOnly        bool `protobuf:"varint,14,opt,name=notify_mentions_only,json=notifyMentionsOnly,proto3" json:"notify_mentions_only,omitempty"`
-	HasNotifyMentionsOnly     bool `protobuf:"varint,15,opt,name=has_notify_mentions_only,json=hasNotifyMentionsOnly,proto3" json:"has_notify_mentions_only,omitempty"`
-	SendReadStories           bool `protobuf:"varint,16,opt,name=send_read_stories,json=sendReadStories,proto3" json:"send_read_stories,omitempty"`
-	HasSendReadStories        bool `protobuf:"varint,17,opt,name=has_send_read_stories,json=hasSendReadStories,proto3" json:"has_send_read_stories,omitempty"`
-	SendOnlinePackets         bool `protobuf:"varint,18,opt,name=send_online_packets,json=sendOnlinePackets,proto3" json:"send_online_packets,omitempty"`
-	HasSendOnlinePackets      bool `protobuf:"varint,19,opt,name=has_send_online_packets,json=hasSendOnlinePackets,proto3" json:"has_send_online_packets,omitempty"`
-	SendOfflineAfterOnline    bool `protobuf:"varint,20,opt,name=send_offline_after_online,json=sendOfflineAfterOnline,proto3" json:"send_offline_after_online,omitempty"`
-	HasSendOfflineAfterOnline bool `protobuf:"varint,21,opt,name=has_send_offline_after_online,json=hasSendOfflineAfterOnline,proto3" json:"has_send_offline_after_online,omitempty"`
-	MarkReadAfterAction       bool `protobuf:"varint,22,opt,name=mark_read_after_action,json=markReadAfterAction,proto3" json:"mark_read_after_action,omitempty"`
-	HasMarkReadAfterAction    bool `protobuf:"varint,23,opt,name=has_mark_read_after_action,json=hasMarkReadAfterAction,proto3" json:"has_mark_read_after_action,omitempty"`
-	UseScheduledMessages      bool `protobuf:"varint,24,opt,name=use_scheduled_messages,json=useScheduledMessages,proto3" json:"use_scheduled_messages,omitempty"`
-	HasUseScheduledMessages   bool `protobuf:"varint,25,opt,name=has_use_scheduled_messages,json=hasUseScheduledMessages,proto3" json:"has_use_scheduled_messages,omitempty"`
-	SendWithoutSound          bool `protobuf:"varint,26,opt,name=send_without_sound,json=sendWithoutSound,proto3" json:"send_without_sound,omitempty"`
-	HasSendWithoutSound       bool `protobuf:"varint,27,opt,name=has_send_without_sound,json=hasSendWithoutSound,proto3" json:"has_send_without_sound,omitempty"`
-	SendUploadProgress        bool `protobuf:"varint,28,opt,name=send_upload_progress,json=sendUploadProgress,proto3" json:"send_upload_progress,omitempty"`
-	HasSendUploadProgress     bool `protobuf:"varint,29,opt,name=has_send_upload_progress,json=hasSendUploadProgress,proto3" json:"has_send_upload_progress,omitempty"`
+	NotifyDms                 bool   `protobuf:"varint,10,opt,name=notify_dms,json=notifyDms,proto3" json:"notify_dms,omitempty"`
+	HasNotifyDms              bool   `protobuf:"varint,11,opt,name=has_notify_dms,json=hasNotifyDms,proto3" json:"has_notify_dms,omitempty"`
+	NotifyGroups              bool   `protobuf:"varint,12,opt,name=notify_groups,json=notifyGroups,proto3" json:"notify_groups,omitempty"`
+	HasNotifyGroups           bool   `protobuf:"varint,13,opt,name=has_notify_groups,json=hasNotifyGroups,proto3" json:"has_notify_groups,omitempty"`
+	NotifyMentionsOnly        bool   `protobuf:"varint,14,opt,name=notify_mentions_only,json=notifyMentionsOnly,proto3" json:"notify_mentions_only,omitempty"`
+	HasNotifyMentionsOnly     bool   `protobuf:"varint,15,opt,name=has_notify_mentions_only,json=hasNotifyMentionsOnly,proto3" json:"has_notify_mentions_only,omitempty"`
+	SendReadStories           bool   `protobuf:"varint,16,opt,name=send_read_stories,json=sendReadStories,proto3" json:"send_read_stories,omitempty"`
+	HasSendReadStories        bool   `protobuf:"varint,17,opt,name=has_send_read_stories,json=hasSendReadStories,proto3" json:"has_send_read_stories,omitempty"`
+	SendOnlinePackets         bool   `protobuf:"varint,18,opt,name=send_online_packets,json=sendOnlinePackets,proto3" json:"send_online_packets,omitempty"`
+	HasSendOnlinePackets      bool   `protobuf:"varint,19,opt,name=has_send_online_packets,json=hasSendOnlinePackets,proto3" json:"has_send_online_packets,omitempty"`
+	SendOfflineAfterOnline    bool   `protobuf:"varint,20,opt,name=send_offline_after_online,json=sendOfflineAfterOnline,proto3" json:"send_offline_after_online,omitempty"`
+	HasSendOfflineAfterOnline bool   `protobuf:"varint,21,opt,name=has_send_offline_after_online,json=hasSendOfflineAfterOnline,proto3" json:"has_send_offline_after_online,omitempty"`
+	MarkReadAfterAction       bool   `protobuf:"varint,22,opt,name=mark_read_after_action,json=markReadAfterAction,proto3" json:"mark_read_after_action,omitempty"`
+	HasMarkReadAfterAction    bool   `protobuf:"varint,23,opt,name=has_mark_read_after_action,json=hasMarkReadAfterAction,proto3" json:"has_mark_read_after_action,omitempty"`
+	UseScheduledMessages      bool   `protobuf:"varint,24,opt,name=use_scheduled_messages,json=useScheduledMessages,proto3" json:"use_scheduled_messages,omitempty"`
+	HasUseScheduledMessages   bool   `protobuf:"varint,25,opt,name=has_use_scheduled_messages,json=hasUseScheduledMessages,proto3" json:"has_use_scheduled_messages,omitempty"`
+	SendWithoutSound          bool   `protobuf:"varint,26,opt,name=send_without_sound,json=sendWithoutSound,proto3" json:"send_without_sound,omitempty"`
+	HasSendWithoutSound       bool   `protobuf:"varint,27,opt,name=has_send_without_sound,json=hasSendWithoutSound,proto3" json:"has_send_without_sound,omitempty"`
+	SendUploadProgress        bool   `protobuf:"varint,28,opt,name=send_upload_progress,json=sendUploadProgress,proto3" json:"send_upload_progress,omitempty"`
+	HasSendUploadProgress     bool   `protobuf:"varint,29,opt,name=has_send_upload_progress,json=hasSendUploadProgress,proto3" json:"has_send_upload_progress,omitempty"`
+	DownloadDir               string `protobuf:"bytes,30,opt,name=download_dir,json=downloadDir,proto3" json:"download_dir,omitempty"`
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
@@ -6789,6 +6798,13 @@ func (x *EngineUpdateConfigRequest) GetHasSendUploadProgress() bool {
 		return x.HasSendUploadProgress
 	}
 	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetDownloadDir() string {
+	if x != nil {
+		return x.DownloadDir
+	}
+	return ""
 }
 
 type EngineFolderInfo struct {
@@ -13585,7 +13601,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x1bEngineGetForumTopicsRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
-	"\achat_id\x18\x02 \x01(\tR\x06chatId\"\xcb\x05\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\"\x93\x06\n" +
 	"\x10EngineForumTopic\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x19\n" +
@@ -13610,7 +13626,9 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"can_delete\x18\x13 \x01(\bR\tcanDelete\x12*\n" +
 	"\x11can_toggle_closed\x18\x14 \x01(\bR\x0fcanToggleClosed\x12*\n" +
-	"\x11can_toggle_pinned\x18\x15 \x01(\bR\x0fcanTogglePinned\"S\n" +
+	"\x11can_toggle_pinned\x18\x15 \x01(\bR\x0fcanTogglePinned\x12\"\n" +
+	"\rlast_msg_text\x18\x16 \x01(\tR\vlastMsgText\x12\"\n" +
+	"\rlast_msg_date\x18\x17 \x01(\x03R\vlastMsgDate\"S\n" +
 	"\x1cEngineGetForumTopicsResponse\x123\n" +
 	"\x06topics\x18\x01 \x03(\v2\x1b.uniclient.EngineForumTopicR\x06topics\"\xac\x01\n" +
 	"\x1dEngineCreateForumTopicRequest\x12\x1d\n" +
@@ -13848,7 +13866,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
 	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x16\n" +
-	"\x06pinned\x18\x04 \x01(\bR\x06pinned\"\x83\x03\n" +
+	"\x06pinned\x18\x04 \x01(\bR\x06pinned\"\x9f\x03\n" +
 	"\x17EngineUploadFileRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -13862,7 +13880,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\rcaption_above\x18\t \x01(\bR\fcaptionAbove\x12)\n" +
 	"\x10caption_entities\x18\n" +
 	" \x01(\tR\x0fcaptionEntities\x12(\n" +
-	"\x10video_cover_path\x18\v \x01(\tR\x0evideoCoverPath\"1\n" +
+	"\x10video_cover_path\x18\v \x01(\tR\x0evideoCoverPath\x12\x1a\n" +
+	"\bduration\x18\f \x01(\x05R\bduration\"1\n" +
 	"\x18EngineUploadFileResponse\x12\x15\n" +
 	"\x06msg_id\x18\x01 \x01(\tR\x05msgId\"6\n" +
 	"\x19EngineRetryPendingRequest\x12\x19\n" +
@@ -13995,7 +14014,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x19send_offline_after_online\x18\x0e \x01(\bR\x16sendOfflineAfterOnline\x123\n" +
 	"\x16mark_read_after_action\x18\x0f \x01(\bR\x13markReadAfterAction\x124\n" +
 	"\x16use_scheduled_messages\x18\x10 \x01(\bR\x14useScheduledMessages\x12,\n" +
-	"\x12send_without_sound\x18\x11 \x01(\bR\x10sendWithoutSound\"\xd7\n" +
+	"\x12send_without_sound\x18\x11 \x01(\bR\x10sendWithoutSound\"\xfa\n" +
 	"\n" +
 	"\x19EngineUpdateConfigRequest\x12\x14\n" +
 	"\x05theme\x18\x01 \x01(\tR\x05theme\x12!\n" +
@@ -14030,7 +14049,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x12send_without_sound\x18\x1a \x01(\bR\x10sendWithoutSound\x123\n" +
 	"\x16has_send_without_sound\x18\x1b \x01(\bR\x13hasSendWithoutSound\x120\n" +
 	"\x14send_upload_progress\x18\x1c \x01(\bR\x12sendUploadProgress\x127\n" +
-	"\x18has_send_upload_progress\x18\x1d \x01(\bR\x15hasSendUploadProgress\"\xdb\x03\n" +
+	"\x18has_send_upload_progress\x18\x1d \x01(\bR\x15hasSendUploadProgress\x12!\n" +
+	"\fdownload_dir\x18\x1e \x01(\tR\vdownloadDir\"\xdb\x03\n" +
 	"\x10EngineFolderInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +

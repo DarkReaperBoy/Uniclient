@@ -6630,6 +6630,7 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     $core.bool? captionAbove,
     $core.String? captionEntities,
     $core.String? videoCoverPath,
+    $core.int? duration,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -6665,6 +6666,9 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     if (videoCoverPath != null) {
       $result.videoCoverPath = videoCoverPath;
     }
+    if (duration != null) {
+      $result.duration = duration;
+    }
     return $result;
   }
   EngineUploadFileRequest._() : super();
@@ -6683,6 +6687,7 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     ..aOB(9, _omitFieldNames ? '' : 'captionAbove')
     ..aOS(10, _omitFieldNames ? '' : 'captionEntities')
     ..aOS(11, _omitFieldNames ? '' : 'videoCoverPath')
+    ..a<$core.int>(12, _omitFieldNames ? '' : 'duration', $pb.PbFieldType.O3)
     ..hasRequiredFields = false
   ;
 
@@ -6805,6 +6810,15 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
   $core.bool hasVideoCoverPath() => $_has(10);
   @$pb.TagNumber(11)
   void clearVideoCoverPath() => clearField(11);
+
+  @$pb.TagNumber(12)
+  $core.int get duration => $_getIZ(11);
+  @$pb.TagNumber(12)
+  set duration($core.int v) { $_setSignedInt32(11, v); }
+  @$pb.TagNumber(12)
+  $core.bool hasDuration() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearDuration() => clearField(12);
 }
 
 class EngineUploadFileResponse extends $pb.GeneratedMessage {
@@ -8862,6 +8876,7 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
     $core.bool? hasSendWithoutSound_27,
     $core.bool? sendUploadProgress,
     $core.bool? hasSendUploadProgress_29,
+    $core.String? downloadDir,
   }) {
     final $result = create();
     if (theme != null) {
@@ -8951,6 +8966,9 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
     if (hasSendUploadProgress_29 != null) {
       $result.hasSendUploadProgress_29 = hasSendUploadProgress_29;
     }
+    if (downloadDir != null) {
+      $result.downloadDir = downloadDir;
+    }
     return $result;
   }
   EngineUpdateConfigRequest._() : super();
@@ -8987,6 +9005,7 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
     ..aOB(27, _omitFieldNames ? '' : 'hasSendWithoutSound')
     ..aOB(28, _omitFieldNames ? '' : 'sendUploadProgress')
     ..aOB(29, _omitFieldNames ? '' : 'hasSendUploadProgress')
+    ..aOS(30, _omitFieldNames ? '' : 'downloadDir')
     ..hasRequiredFields = false
   ;
 
@@ -9273,6 +9292,15 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
   $core.bool hasHasSendUploadProgress_29() => $_has(28);
   @$pb.TagNumber(29)
   void clearHasSendUploadProgress_29() => clearField(29);
+
+  @$pb.TagNumber(30)
+  $core.String get downloadDir => $_getSZ(29);
+  @$pb.TagNumber(30)
+  set downloadDir($core.String v) { $_setString(29, v); }
+  @$pb.TagNumber(30)
+  $core.bool hasDownloadDir() => $_has(29);
+  @$pb.TagNumber(30)
+  void clearDownloadDir() => clearField(30);
 }
 
 class EngineFolderInfo extends $pb.GeneratedMessage {

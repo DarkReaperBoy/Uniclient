@@ -2222,6 +2222,58 @@ class GroupCallStateEvent {
   });
 }
 
+// ── 1:1 Call events ──
+
+class CallSessionInfo {
+  final String id;
+  final String chatId;
+  final bool isVideo;
+  final String state;
+  final List<GroupCallParticipant> participants;
+  final Map<String, String> meta;
+
+  const CallSessionInfo({
+    this.id = '',
+    this.chatId = '',
+    this.isVideo = false,
+    this.state = '',
+    this.participants = const [],
+    this.meta = const {},
+  });
+
+  factory CallSessionInfo.fromJson(Map<String, dynamic> j) => CallSessionInfo(
+    id: j['id'] as String? ?? '',
+    chatId: j['chat_id'] as String? ?? '',
+    isVideo: j['is_video'] as bool? ?? false,
+    state: j['state'] as String? ?? '',
+    participants: (j['participants'] as List<dynamic>?)
+        ?.map((p) => GroupCallParticipant.fromJson(p as Map<String, dynamic>))
+        .toList() ?? [],
+    meta: (j['meta'] as Map<String, dynamic>?)
+        ?.map((k, v) => MapEntry(k, v.toString())) ?? {},
+  );
+}
+
+class IncomingCallEvent {
+  final String accountId;
+  final CallSessionInfo call;
+
+  const IncomingCallEvent({
+    this.accountId = '',
+    this.call = const CallSessionInfo(),
+  });
+}
+
+class CallStateEvent {
+  final String accountId;
+  final CallSessionInfo call;
+
+  const CallStateEvent({
+    this.accountId = '',
+    this.call = const CallSessionInfo(),
+  });
+}
+
 // ── Export events ──
 
 class ExportProgressEvent {

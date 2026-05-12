@@ -1994,11 +1994,10 @@ class _EditContactBoxState extends State<_EditContactBox> {
     if (result == null || result.files.isEmpty) return;
     final path = result.files.single.path;
     if (path == null) return;
-    final bytes = await File(path).readAsBytes();
     final account = widget.appState.activeAccount;
     if (account == null) return;
     try {
-      await widget.engine.suggestContactPhoto(account.id, widget.contact.userId, bytes);
+      await widget.engine.suggestContactPhoto(account.id, widget.contact.userId, path);
       if (mounted) showTelegramToast(context, 'Photo suggestion sent');
     } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed: ${e.toString().replaceFirst("Exception: ", "")}');
@@ -2010,11 +2009,10 @@ class _EditContactBoxState extends State<_EditContactBox> {
     if (result == null || result.files.isEmpty) return;
     final path = result.files.single.path;
     if (path == null) return;
-    final bytes = await File(path).readAsBytes();
     final account = widget.appState.activeAccount;
     if (account == null) return;
     try {
-      await widget.engine.setPersonalContactPhoto(account.id, widget.contact.userId, bytes);
+      await widget.engine.setPersonalContactPhoto(account.id, widget.contact.userId, path);
       if (mounted) showTelegramToast(context, 'Personal photo set');
     } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed: ${e.toString().replaceFirst("Exception: ", "")}');

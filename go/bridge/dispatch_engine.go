@@ -417,23 +417,41 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		var params struct {
 			AccountID string `json:"account_id"`
 			UserID    string `json:"user_id"`
+			PhotoPath string `json:"photo_path"`
 			PhotoData []byte `json:"photo_data"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		return nil, e.SuggestContactPhoto(params.AccountID, params.UserID, params.PhotoData)
+		photoData := params.PhotoData
+		if params.PhotoPath != "" {
+			var readErr error
+			photoData, readErr = os.ReadFile(params.PhotoPath)
+			if readErr != nil {
+				return nil, fmt.Errorf("read photo file: %w", readErr)
+			}
+		}
+		return nil, e.SuggestContactPhoto(params.AccountID, params.UserID, photoData)
 
 	case "SetPersonalContactPhoto":
 		var params struct {
 			AccountID string `json:"account_id"`
 			UserID    string `json:"user_id"`
+			PhotoPath string `json:"photo_path"`
 			PhotoData []byte `json:"photo_data"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		return nil, e.SetPersonalContactPhoto(params.AccountID, params.UserID, params.PhotoData)
+		photoData := params.PhotoData
+		if params.PhotoPath != "" {
+			var readErr error
+			photoData, readErr = os.ReadFile(params.PhotoPath)
+			if readErr != nil {
+				return nil, fmt.Errorf("read photo file: %w", readErr)
+			}
+		}
+		return nil, e.SetPersonalContactPhoto(params.AccountID, params.UserID, photoData)
 
 	case "ClearPersonalContactPhoto":
 		var params struct {
@@ -799,6 +817,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			SendAsDocument:  req.SendAsDocument,
 			CaptionAbove:    req.CaptionAbove,
 			VideoCoverPath:  req.VideoCoverPath,
+			Duration:        int(req.Duration),
 		})
 		if err != nil {
 			return nil, err
@@ -1248,6 +1267,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			FontScale:    req.FontScale,
 			Language:     req.Language,
 			MaxCacheSize: req.MaxCacheSize,
+			DownloadDir:  req.DownloadDir,
 		}
 		if req.HasSendReadReceipts {
 			v := req.SendReadReceipts

@@ -567,6 +567,7 @@ message EngineUploadFileRequest {
   bool   caption_above     = 9;
   string caption_entities  = 10;
   string video_cover_path  = 11;
+  int32  duration          = 12;
 }
 
 message EngineUploadFileResponse {
@@ -780,6 +781,7 @@ message EngineUpdateConfigRequest {
   bool has_send_without_sound      = 27;
   bool send_upload_progress        = 28;
   bool has_send_upload_progress    = 29;
+  string download_dir              = 30;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -37,6 +37,8 @@ class EngineService {
   final _downloadProgressController = StreamController<DownloadProgressEvent>.broadcast();
   final _downloadCompleteController = StreamController<DownloadCompleteEvent>.broadcast();
   final _userStatusController = StreamController<UserStatusEvent>.broadcast();
+  final _incomingCallController = StreamController<IncomingCallEvent>.broadcast();
+  final _callStateController = StreamController<CallStateEvent>.broadcast();
   final _groupCallStateController = StreamController<GroupCallStateEvent>.broadcast();
   final _exportProgressController = StreamController<ExportProgressEvent>.broadcast();
   final _exportErrorController = StreamController<ExportErrorEvent>.broadcast();
@@ -57,6 +59,8 @@ class EngineService {
   Stream<DownloadProgressEvent> get onDownloadProgress => _downloadProgressController.stream;
   Stream<DownloadCompleteEvent> get onDownloadComplete => _downloadCompleteController.stream;
   Stream<UserStatusEvent> get onUserStatus => _userStatusController.stream;
+  Stream<IncomingCallEvent> get onIncomingCall => _incomingCallController.stream;
+  Stream<CallStateEvent> get onCallState => _callStateController.stream;
   Stream<GroupCallStateEvent> get onGroupCallState => _groupCallStateController.stream;
   Stream<ExportProgressEvent> get onExportProgress => _exportProgressController.stream;
   Stream<ExportErrorEvent> get onExportError => _exportErrorController.stream;
@@ -444,7 +448,7 @@ class EngineService {
       ..chatId = chatId;
     final respBytes = await _callAsync('__engine', 'GetLinkedChatId', req.writeToBuffer());
     if (respBytes == null || respBytes.isEmpty) return '';
-    return String.fromCharCodes(respBytes);
+    return utf8.decode(respBytes);
   }
 
   Future<void> addContact(String accountId, String phone, String firstName, String lastName, {String note = ''}) async {
@@ -459,20 +463,20 @@ class EngineService {
     await _callAsync('__engine', 'AddContact', req.writeToBuffer());
   }
 
-  Future<void> suggestContactPhoto(String accountId, String userId, List<int> photoData) async {
+  Future<void> suggestContactPhoto(String accountId, String userId, String photoPath) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'user_id': userId,
-      'photo_data': photoData,
+      'photo_path': photoPath,
     }));
     await _callAsync('__engine', 'SuggestContactPhoto', Uint8List.fromList(payload));
   }
 
-  Future<void> setPersonalContactPhoto(String accountId, String userId, List<int> photoData) async {
+  Future<void> setPersonalContactPhoto(String accountId, String userId, String photoPath) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'user_id': userId,
-      'photo_data': photoData,
+      'photo_path': photoPath,
     }));
     await _callAsync('__engine', 'SetPersonalContactPhoto', Uint8List.fromList(payload));
   }
@@ -1917,7 +1921,7 @@ class EngineService {
     }));
     try {
       final respBytes = await _callAsync(
-          accountId, 'AccountUpdateDeviceLocked', Uint8List.fromList(payload));
+          '__engine', 'AccountUpdateDeviceLocked', Uint8List.fromList(payload));
       if (respBytes.isEmpty) return false;
       final result =
           json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
@@ -2016,11 +2020,11 @@ class EngineService {
       'story_id': storyId,
       'emoji': emoji,
     }));
-    await _callAsync(accountId, 'ReactToStory', Uint8List.fromList(payload));
+    await _callAsync('__engine', 'ReactToStory', Uint8List.fromList(payload));
   }
 
   Future<void> activateStealthMode(String accountId) async {
-    await _callAsync(accountId, 'ActivateStealthMode', Uint8List(0));
+    await _callAsync('__engine', 'ActivateStealthMode', Uint8List(0));
   }
 
   Future<List<StoryItem>> fetchPeerStories(String accountId, String peerId) async {
@@ -3267,7 +3271,7 @@ class EngineService {
       'limit': limit,
     }));
     try {
-      final respBytes = await _callAsync(accountId, 'GetCommonChats', Uint8List.fromList(payload));
+      final respBytes = await _callAsync('__engine', 'GetCommonChats', Uint8List.fromList(payload));
       if (respBytes.isEmpty) return [];
       final data = json.decode(utf8.decode(respBytes));
       if (data is Map && data['chats'] is List) {
@@ -3860,7 +3864,8 @@ class EngineService {
       ..accountId = accountId
       ..chatId = chatId
       ..filePath = filePath
-      ..caption = caption;
+      ..caption = caption
+      ..duration = duration;
     final resp = epb.EngineUploadFileResponse.fromBuffer(
       await _callAsync('__engine', 'UploadFile', req.writeToBuffer()),
     );
@@ -3872,7 +3877,8 @@ class EngineService {
       ..accountId = accountId
       ..chatId = chatId
       ..filePath = filePath
-      ..caption = caption;
+      ..caption = caption
+      ..duration = duration;
     final resp = epb.EngineUploadFileResponse.fromBuffer(
       await _callAsync('__engine', 'UploadFile', req.writeToBuffer()),
     );
@@ -4028,7 +4034,7 @@ class EngineService {
     if (accentColor != null) req.accentColor = accentColor;
     if (fontScale != null) req.fontScale = fontScale;
     if (language != null) req.language = language;
-    // downloadDir not yet in EngineUpdateConfigRequest proto — stored locally only.
+    if (downloadDir != null) req.downloadDir = downloadDir;
     if (maxCacheSize != null) req.maxCacheSize = Int64(maxCacheSize);
     if (sendReadReceipts != null) {
       req.sendReadReceipts = sendReadReceipts;
@@ -4721,6 +4727,22 @@ class EngineService {
         if (data is Map<String, dynamic>) {
           _userStatusController.add(UserStatusEvent.fromJson(data,
             accountId: event['account_id'] as String? ?? ''));
+        }
+
+      case 'incoming_call':
+        if (data is Map<String, dynamic>) {
+          _incomingCallController.add(IncomingCallEvent(
+            accountId: event['account_id'] as String? ?? '',
+            call: CallSessionInfo.fromJson(data),
+          ));
+        }
+
+      case 'call_state':
+        if (data is Map<String, dynamic>) {
+          _callStateController.add(CallStateEvent(
+            accountId: event['account_id'] as String? ?? '',
+            call: CallSessionInfo.fromJson(data),
+          ));
         }
 
       case 'group_call_state':

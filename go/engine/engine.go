@@ -275,6 +275,7 @@ type ConfigChanges struct {
 	FontScale    float64
 	Language     string
 	MaxCacheSize int64
+	DownloadDir  string
 	// Use pointers for booleans so zero-value (false) is distinguishable from "not set".
 	SendReadReceipts       *bool
 	SendTyping             *bool
@@ -310,6 +311,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	if changes.MaxCacheSize > 0 {
 		e.config.MaxCacheSize = changes.MaxCacheSize
 		e.maxCache = changes.MaxCacheSize
+	}
+	if changes.DownloadDir != "" {
+		e.config.DownloadDir = changes.DownloadDir
 	}
 	if changes.SendReadReceipts != nil {
 		e.config.SendReadReceipts = *changes.SendReadReceipts
