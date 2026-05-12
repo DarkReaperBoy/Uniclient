@@ -334,11 +334,6 @@ If `paint()` is called multiple times before the async `decodeImageFromList` cal
 
 # active_sessions_screen — Audit findings
 
-- [ ] [CRITICAL] Device icons use Material Design icons (`Icons.desktop_windows`, `Icons.phone_android`, etc.) instead of Telegram's dedicated platform SVG icons (`st::sessionIconWindows`, `st::sessionIconAndroid`, etc.) — `active_sessions_screen.dart:64-122` ← `AyuGram/settings/settings.style:370-382`
-
-- [ ] [CRITICAL] Session info box uses a Flutter scale+fade animation (`Curves.elasticOut`) instead of a Lottie animated device icon. AyuGram calls `LottieForType()` to get a Lottie animation that plays when the box is shown; only `Web` and `Other` types fall back to a static icon — `active_sessions_screen.dart:1076-1143` ← `AyuGram/settings/sections/settings_active_sessions.cpp:297-409`
-
-- [ ] [CRITICAL] Device rename stores the custom name in a local JSON file (`device_prefs.json`) instead of Telegram cloud settings. AyuGram calls `Core::App().settings().setCustomDeviceModel(result)` + `Core::App().saveSettingsDelayed()` so the name is synced with Telegram's settings storage — `active_sessions_screen.dart:438-447` ← `AyuGram/settings/sections/settings_active_sessions.cpp:148-158`
 
 ## admin_tools — EditPeerInfo / Permissions / AdminLog / InviteLinks / MemberList
 
