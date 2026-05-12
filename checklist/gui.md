@@ -1088,35 +1088,6 @@ The implementation is complete, accurate, and ready for use. No changes needed.
 
 **Missing Features:** No Semibold support. Code block language detection works but entity type isn't properly distinguished in JSON output.
 
-
-# custom_emoji_cache — Audit Findings
-
-- [ ] [CRITICAL] `_failed` and `_fileFailed` sets are never cleared — once a thumb or file fetch fails it is permanently blacklisted for the entire session. `request()` returns early at line 236 if `_failed.contains(documentId)`, `requestFile()` returns early at line 272 if `_fileFailed.contains(documentId)`. Any subsequent widget mount, `acquire()`, or `_requestIfNeeded()` call is silently ignored forever. AyuGram has no such blacklist; `requestFinished()` retries all remaining `_pendingForRequest` items until the queue empties — `custom_emoji_cache.dart:236` ← `data/stickers/data_custom_emoji.cpp:871`
-
-- [ ] [CRITICAL] `_notifyListeners()` at line 386 fires every registered `VoidCallback` on every single emoji resolution event, regardless of which documentId changed. If 100 emoji widgets are mounted and one emoji resolves, all 100 receive `setState()`. AyuGram's repaint system batches per-Instance via `repaintLater()` + `_repaints` map, so only the specific Instance (documentId+sizeTag combination) that changed schedules a repaint — `custom_emoji_cache.dart:386` ← `data/stickers/data_custom_emoji.cpp:879`
-
-- [ ] [MAJOR] `base64Decode` is called synchronously on the main Dart isolate for every emoji in a batch response (up to `kMaxPerRequest = 100`) inside `_fetchThumbBatch`. Decoding `thumbB64` + `pathB64` for 100 emojis can be several hundred KB of CPU work that blocks the event loop. AyuGram processes downloaded media bytes in background `FrameRenderer` threads — `custom_emoji_cache.dart:334` ← `data/stickers/data_custom_emoji.cpp:785`
-
-- [ ] [MAJOR] Thumb batch requests use `Timer(Duration(milliseconds: 16), _flushBatch)` at line 247, adding at least 16ms artificial latency to every initial emoji load. File batch requests use 50ms at line 282. AyuGram dispatches immediately to the main event loop via `crl::on_main(this, [=] { request(); })` (zero added latency, naturally batches within the current event-loop tick) — `custom_emoji_cache.dart:247` ← `data/stickers/data_custom_emoji.cpp:658`
-
-- [ ] [MAJOR] `requestFile()` silently returns when `_fileFailed.contains(documentId)` (line 272) but there is no public `hasFileFailed()` accessor. Callers in `emoji_status_widget.dart:140` and `message_bubble.dart` only guard on `isFilePending()` and `getFile() == null`, so they call `requestFile()` repeatedly on a failed document and receive no signal that the request is permanently blocked — the widget is stuck showing a thumb or placeholder forever with no retry path — `custom_emoji_cache.dart:272` ← `data/stickers/data_custom_emoji.cpp:871`
-
-# edit_forum_topic_box — Audit Findings
-
-- [ ] [CRITICAL] `String.fromCharCode(_iconEmojiId)` in initState will throw `RangeError` at runtime when `existingIconEmojiId` is a Telegram document ID (typically ~10^18, far exceeding the max Unicode codepoint 0x10FFFF). Opening the edit dialog on any topic that has a custom emoji icon crashes — `edit_forum_topic_box.dart:165` ← `AyuGram/boxes/peers/edit_forum_topic_box.cpp:432` (`state->iconId = topic ? topic->iconId() : 0` — iconId is a `DocumentId`, not a codepoint; the display emoji is a separate field)
-
-- [ ] [CRITICAL] Fallback emoji grid (`_buildEmojiGridCell`) shows 24 hardcoded Unicode emoji as selectable topic icons, but selecting any of them calls `_selectEmoji(ctx, emoji)` with no `documentId`, so `_iconEmojiId` is set to `0` and `EditForumTopicResult.iconEmojiId = 0` — the server never receives a custom icon. The emoji preview shows in the UI but is silently discarded. AyuGram has no fallback emoji list; if forum icons haven't loaded the panel is empty — `edit_forum_topic_box.dart:694-730` + `517-530` ← `AyuGram/boxes/peers/edit_forum_topic_box.cpp:283-305` (`customRecentList` is populated from the server's `forumIcons().list()` only, no hardcoded fallback)
-
-- [ ] [CRITICAL] `canCycleColor` at line 343 does not guard against `widget.isGeneral == true`. When the dialog is opened for the General topic with `isEditing=false` or `isCreating=true`, `canCycleColor` becomes `true` and tapping the icon cycles colors. AyuGram uses `GeneralIconPreview` which unconditionally sets `Qt::WA_TransparentForMouseEvents` — the button is never interactive for general topics — `edit_forum_topic_box.dart:343` ← `AyuGram/boxes/peers/edit_forum_topic_box.cpp:220` (`result->setAttribute(Qt::WA_TransparentForMouseEvents)`)
-
-- [ ] [MAJOR] `_onTitleChanged` calls `setState` twice when `_titleError` is true (line 185 fires one setState, line 188 fires an unconditional second one), causing a redundant double rebuild on every keystroke while an error is shown. Should be merged into a single `setState(() => _titleError = false)` — `edit_forum_topic_box.dart:184-188` ← `AyuGram/boxes/peers/edit_forum_topic_box.cpp:488-494` (single reactive update via `title->changes()`)
-
-- [ ] [MAJOR] After `_fetchServerIcons` completes and populates `_serverIcons`, there is no code to match `existingIconEmojiId` against the loaded entries to recover the correct `_selectedEmojiStr`. The edit dialog for a topic with a custom icon loads with `_selectedEmojiStr` either blank (if `initState` crashes are avoided) or showing garbage from `String.fromCharCode`. The preview icon at the top of the dialog is wrong until the user re-selects — `edit_forum_topic_box.dart:191-220` ← `AyuGram/boxes/peers/edit_forum_topic_box.cpp:432-436` (initial icon is taken directly from `topic->iconId()` and rendered via `DefaultIconEmoji`/`CustomEmoji` which holds the resolved document)
-
-- [ ] [MAJOR] Premium icon enforcement uses a plain `AlertDialog` with a hardcoded link to `https://t.me/premium`. AyuGram shows `HistoryView::StickerToast` with `Section::TopicIcon`, which previews the locked sticker with a Premium upgrade button integrated into the sticker toast — `edit_forum_topic_box.dart:533-573` ← `AyuGram/boxes/peers/edit_forum_topic_box.cpp:335-345`
-
-- [ ] [MAJOR] The icon selector panel is a flat `Wrap` grid with no emoji tabs, no sticker pack footer, and no search. AyuGram embeds a full `EmojiListWidget` with `Mode::TopicIcon` and calls `placeFooter(selector->createFooter())` to add the sticker category tabs footer that lets users browse emoji sets — `edit_forum_topic_box.dart:576-629` ← `AyuGram/boxes/peers/edit_forum_topic_box.cpp:290-308`
-
 # edit_mark_box — Critical behavior mismatches with AyuGram reference
 
 ## Summary
