@@ -814,7 +814,7 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]cores.ForumTopic, e
 		return nil, nil
 	}
 
-	topics, err := ftg.GetForumTopics(chatID, 100)
+	topics, err := ftg.GetForumTopics(chatID, 20)
 	if err != nil {
 		return nil, err
 	}

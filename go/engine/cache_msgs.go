@@ -1485,6 +1485,10 @@ type PollVoter interface {
 	VotePoll(chatID string, msgID string, optionIndex int) error
 }
 
+type PollMultiVoter interface {
+	VoteInPollMulti(chatID string, msgID string, optionIndices []int) error
+}
+
 type PollVoteRetracter interface {
 	RetractPollVote(chatID string, msgID string) error
 }
@@ -1508,6 +1512,35 @@ func (e *Engine) VotePoll(accountID, chatID, msgID string, optionIndex int) erro
 	err := voter.VotePoll(chatID, msgID, optionIndex)
 	if err != nil {
 		return err
+	}
+	e.ghostAutoRead(accountID, chatID, msgID)
+	return nil
+}
+
+func (e *Engine) VotePollMulti(accountID, chatID, msgID string, optionIndices []int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	if mv, ok := acc.Core.(PollMultiVoter); ok {
+		err := mv.VoteInPollMulti(chatID, msgID, optionIndices)
+		if err != nil {
+			return err
+		}
+		e.ghostAutoRead(accountID, chatID, msgID)
+		return nil
+	}
+	voter, ok := acc.Core.(PollVoter)
+	if !ok {
+		return fmt.Errorf("platform does not support poll voting")
+	}
+	for _, idx := range optionIndices {
+		if err := voter.VotePoll(chatID, msgID, idx); err != nil {
+			return err
+		}
 	}
 	e.ghostAutoRead(accountID, chatID, msgID)
 	return nil

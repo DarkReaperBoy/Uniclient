@@ -1517,6 +1517,22 @@ class EngineService {
     }
   }
 
+  Future<bool> votePollMulti(String accountId, String chatId, String msgId, List<int> optionIndices) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+      'options': optionIndices,
+    }));
+    try {
+      await _callAsync('__engine', 'VotePollMulti', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'votePollMulti failed', e);
+      return false;
+    }
+  }
+
   Future<bool> retractPollVote(String accountId, String chatId, String msgId) async {
     final req = epb.EngineRetractPollVoteRequest()
       ..accountId = accountId

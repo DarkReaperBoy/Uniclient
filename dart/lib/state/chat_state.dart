@@ -53,6 +53,7 @@ class ChatState extends ChangeNotifier {
 
   // ── Archive state ──
   bool _hasArchivedChats = false;
+  bool _archiveChecked = false;
 
   // ── Pinned chat order (drag-to-reorder, spec §2.7) ──
   // Key: accountId, Value: ordered list of pinned chat IDs.
@@ -97,8 +98,8 @@ class ChatState extends ChangeNotifier {
   bool _savedSublistsFirstLoad = true;
   SavedSublistInfo? _activeSublist;
   List<SavedSublistInfo> _recentSublists = [];
-  static const _kFirstPerPage = 10;
-  static const _kPerPage = 50;
+  static const _kFirstPerPage = 20;
+  static const _kPerPage = 100;
   static const _kLoadedSublistsMinCount = 20;
   static const _kRecentSublistsMax = 6;
 
@@ -129,6 +130,8 @@ class ChatState extends ChangeNotifier {
   final List<StreamSubscription<dynamic>> _subs = [];
   Timer? _pollTimer;
   Timer? _loadChatsDebounce;
+  Timer? _forumTopicDebounce;
+  Timer? _savedSublistDebounce;
   bool _disposed = false;
 
   ChatState(this._engine, this._appState) {
@@ -361,18 +364,17 @@ class ChatState extends ChangeNotifier {
     }
   }
 
-  void _ensureEnoughTaggedMessages() {
+  Future<void> _ensureEnoughTaggedMessages() async {
     const minVisible = 10;
     const maxBatches = 5;
-    var batches = 0;
-    while (_hasMoreMessages && batches < maxBatches) {
+    for (var batch = 0; batch < maxBatches && _hasMoreMessages; batch++) {
       final matchCount = _messages.where((m) => m.reactions.any((r) {
         final key = r.isCustomEmoji ? 'custom:${r.documentId}' : 'emoji:${r.emoji}';
         return _selectedReactionTagIds.contains(key);
       })).length;
       if (matchCount >= minVisible) break;
       _loadMessages();
-      batches++;
+      await Future<void>.delayed(Duration.zero);
     }
   }
 
@@ -856,6 +858,7 @@ class ChatState extends ChangeNotifier {
     _isFirstLoad = true;
     _activeFolderId = null;
     _activeChannelId = null;
+    _archiveChecked = false;
     _stopPolling();
     _engine.clearActiveChat();
     loadFoldersForAccount(accountId);
@@ -882,9 +885,10 @@ class ChatState extends ChangeNotifier {
     if (_disposed) return;
     // Use a large limit for unified list so all accounts' chats are included.
     _chats = _engine.getChatList(accountId: accountId, archived: archived, limit: 500);
-    // Update archive presence: check loaded chats first, then probe engine.
-    _hasArchivedChats = _chats.any((c) => c.isArchived) ||
-        _engine.getChatList(archived: true, limit: 1).isNotEmpty;
+    if (!_archiveChecked) {
+      _archiveChecked = true;
+      _hasArchivedChats = _engine.getChatList(archived: true, limit: 1).isNotEmpty;
+    }
     notifyListeners();
   }
 
@@ -893,6 +897,21 @@ class ChatState extends ChangeNotifier {
     _loadChatsDebounce?.cancel();
     _loadChatsDebounce = Timer(const Duration(milliseconds: 300), () {
       loadChats();
+    });
+  }
+
+  void _debouncedRefreshForumTopics() {
+    _forumTopicDebounce?.cancel();
+    _forumTopicDebounce = Timer(const Duration(milliseconds: 500), () {
+      refreshForumTopics();
+    });
+  }
+
+  void _debouncedRefreshSavedSublists() {
+    if (!_isViewingSavedSublists || _savedSublistsAccountId.isEmpty) return;
+    _savedSublistDebounce?.cancel();
+    _savedSublistDebounce = Timer(const Duration(milliseconds: 500), () {
+      openSavedSublists(_savedSublistsAccountId);
     });
   }
 
@@ -969,6 +988,7 @@ class ChatState extends ChangeNotifier {
     _linkedChatId = '';
     _botStartToken = '';
     _loadScheduledCount(chat.accountId, chat.chatId);
+    _senderAvatars.clear();
     if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic) {
       _loadMemberAvatars(chat.accountId, chat.chatId);
       _loadOnlineCount(chat.accountId, chat.chatId);
@@ -977,7 +997,6 @@ class ChatState extends ChangeNotifier {
         _loadLinkedChatId(chat.accountId, chat.chatId);
       }
     } else {
-      _senderAvatars.clear();
       if (chat.type == ChatType.dm) {
         _loadConnectedBot(chat.accountId, chat.chatId);
       }
@@ -992,11 +1011,11 @@ class ChatState extends ChangeNotifier {
       _sortTopics(topics);
       _forumParentChat = chat;
       _forumTopics = topics;
-      _forumHasMore = topics.length >= 100;
+      _forumHasMore = topics.length >= 20;
       _activeTopicId = null;
       final key = '${chat.accountId}:${chat.chatId}';
       _forumRecentTopics[key] = topics.take(8).toList();
-      if (topics.length < 20) {
+      if (_forumHasMore) {
         _autoPreloadForumTopics(chat);
       }
       notifyListeners();
@@ -1032,8 +1051,8 @@ class ChatState extends ChangeNotifier {
       final topics = await _engine.getForumTopics(chat.accountId, chat.chatId);
       _forumTopics = topics;
       _sortTopics(_forumTopics);
-      _forumHasMore = topics.length >= 100;
-      if (topics.length < 20 && topics.isNotEmpty) {
+      _forumHasMore = topics.length >= 20;
+      if (_forumHasMore) {
         _autoPreloadForumTopics(chat);
       }
     } catch (_) {}
@@ -1088,7 +1107,7 @@ class ChatState extends ChangeNotifier {
       final topics = await _engine.getForumTopics(chat.accountId, chat.chatId);
       _forumTopics = topics;
       _sortTopics(_forumTopics);
-      _forumHasMore = topics.length >= 100;
+      _forumHasMore = topics.length >= 20;
     } catch (_) {}
     if (chat == _forumParentChat) {
       final key = '${chat.accountId}:${chat.chatId}';
@@ -1643,11 +1662,7 @@ class ChatState extends ChangeNotifier {
   Future<bool> votePoll(String msgId, List<int> optionIndices) async {
     final chat = _activeChat;
     if (chat == null) return false;
-    for (final idx in optionIndices) {
-      final ok = await _engine.votePoll(chat.accountId, chat.chatId, msgId, idx);
-      if (!ok) return false;
-    }
-    return true;
+    return _engine.votePollMulti(chat.accountId, chat.chatId, msgId, optionIndices);
   }
 
   Future<String> requestBotWebView(String botId) async {
@@ -1809,6 +1824,8 @@ class ChatState extends ChangeNotifier {
 
   void archiveChat(String accountId, String chatId, bool archived) {
     _engine.archiveChat(accountId, chatId, archived);
+    if (archived) _hasArchivedChats = true;
+    _archiveChecked = false;
     loadChats();
   }
 
@@ -2142,10 +2159,10 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Start periodic polling for the active chat (fallback for event delivery).
+  /// Start periodic polling for the active chat (rare safety-net fallback).
   void _startPolling() {
     _stopPolling();
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       _refreshMessages();
     });
   }
@@ -2167,6 +2184,13 @@ class ChatState extends ChangeNotifier {
     if (_activeChat?.accountId == updated.accountId && _activeChat?.chatId == updated.chatId) {
       _activeChat = updated;
     }
+    // Refresh forum topic list when a topic chat is updated in the active forum.
+    if (updated.type == ChatType.topic && _forumParentChat != null &&
+        _forumParentChat!.accountId == updated.accountId) {
+      _debouncedRefreshForumTopics();
+    }
+    // Track archive presence from chat updates.
+    if (updated.isArchived) _hasArchivedChats = true;
     notifyListeners();
   }
 
@@ -2246,6 +2270,12 @@ class ChatState extends ChangeNotifier {
         requiresStars: (chat?.starsToSend ?? 0) > 0,
         spoilerLoginCode: isLoginCodeSender,
       ));
+    }
+    // Refresh saved sublists when messages arrive in Saved Messages.
+    final savedChat = _chats.where((c) =>
+        c.accountId == event.accountId && c.chatId == event.chatId && c.isSelf).firstOrNull;
+    if (savedChat != null) {
+      _debouncedRefreshSavedSublists();
     }
   }
 
@@ -2432,6 +2462,8 @@ class ChatState extends ChangeNotifier {
     _disposed = true;
     _stopPolling();
     _loadChatsDebounce?.cancel();
+    _forumTopicDebounce?.cancel();
+    _savedSublistDebounce?.cancel();
     for (final sub in _subs) {
       sub.cancel();
     }

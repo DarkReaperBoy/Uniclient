@@ -3339,6 +3339,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return []byte{}, nil
 
+	case "VotePollMulti":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			MsgID     string `json:"msg_id"`
+			Options   []int  `json:"options"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.VotePollMulti(params.AccountID, params.ChatID, params.MsgID, params.Options); err != nil {
+			return nil, err
+		}
+		return []byte{}, nil
+
 	case "RetractPollVote":
 		var req pb.EngineRetractPollVoteRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
