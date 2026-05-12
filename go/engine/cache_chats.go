@@ -849,7 +849,7 @@ func (e *Engine) GetForumTopicsWithOffset(accountID, chatID string, offsetDate, 
 		return nil, fmt.Errorf("platform does not support paginated forum topics")
 	}
 
-	topics, err := ftg.GetForumTopicsWithOffset(chatID, 100, offsetDate, offsetID, offsetTopic)
+	topics, err := ftg.GetForumTopicsWithOffset(chatID, 500, offsetDate, offsetID, offsetTopic)
 	if err != nil {
 		return nil, err
 	}

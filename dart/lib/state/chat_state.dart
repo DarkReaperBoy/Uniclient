@@ -364,17 +364,9 @@ class ChatState extends ChangeNotifier {
     }
   }
 
-  Future<void> _ensureEnoughTaggedMessages() async {
-    const minVisible = 10;
-    const maxBatches = 5;
-    for (var batch = 0; batch < maxBatches && _hasMoreMessages; batch++) {
-      final matchCount = _messages.where((m) => m.reactions.any((r) {
-        final key = r.isCustomEmoji ? 'custom:${r.documentId}' : 'emoji:${r.emoji}';
-        return _selectedReactionTagIds.contains(key);
-      })).length;
-      if (matchCount >= minVisible) break;
+  void _ensureEnoughTaggedMessages() {
+    if (_hasMoreMessages) {
       _loadMessages();
-      await Future<void>.delayed(Duration.zero);
     }
   }
 
@@ -1087,7 +1079,7 @@ class ChatState extends ChangeNotifier {
           if (!existingIds.contains(t.id)) _forumTopics.add(t);
         }
         _sortTopics(_forumTopics);
-        _forumHasMore = topics.length >= 100;
+        _forumHasMore = topics.length >= 500;
       }
     } catch (_) {}
     _forumLoadingMore = false;
@@ -2184,10 +2176,17 @@ class ChatState extends ChangeNotifier {
     if (_activeChat?.accountId == updated.accountId && _activeChat?.chatId == updated.chatId) {
       _activeChat = updated;
     }
-    // Refresh forum topic list when a topic chat is updated in the active forum.
-    if (updated.type == ChatType.topic && _forumParentChat != null &&
-        _forumParentChat!.accountId == updated.accountId) {
-      _debouncedRefreshForumTopics();
+    // Refresh forum topic list when a topic chat or its parent forum is updated.
+    if (_forumParentChat != null && _forumParentChat!.accountId == updated.accountId) {
+      if (updated.type == ChatType.topic ||
+          (updated.isForum && updated.chatId == _forumParentChat!.chatId)) {
+        _debouncedRefreshForumTopics();
+      }
+    }
+    // Refresh saved sublists when Saved Messages chat is updated (pin/unpin from another device).
+    if (updated.isSelf && _isViewingSavedSublists &&
+        _savedSublistsAccountId == updated.accountId) {
+      _debouncedRefreshSavedSublists();
     }
     // Track archive presence from chat updates.
     if (updated.isArchived) _hasArchivedChats = true;
@@ -2200,6 +2199,11 @@ class ChatState extends ChangeNotifier {
     if (_activeChat?.chatId == event.chatId && (event.accountId.isEmpty || _activeChat?.accountId == event.accountId)) {
       _activeChat = null;
       _messages = [];
+    }
+    // Refresh forum topics if a topic was removed from the active forum.
+    if (_forumParentChat != null &&
+        (event.accountId.isEmpty || _forumParentChat!.accountId == event.accountId)) {
+      _debouncedRefreshForumTopics();
     }
     notifyListeners();
   }
