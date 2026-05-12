@@ -841,7 +841,6 @@ if (type == u"PASSWORD_HASH_INVALID"_q || type == u"SRP_PASSWORD_CHANGED"_q) {
 
 Dart will display these as error messages instead of auto-transitioning. **Behavior deviation**.
 
-- [ ] [MAJOR] Error-triggered state transitions missing: PASSWORD_EMPTY/AUTH_KEY_UNREGISTERED should goBack(), SRP_ID_INVALID needs retry logic — `auth_screen.dart:691-703` ← `intro_password_check.cpp:148-165`
 
 ---
 
