@@ -322,6 +322,9 @@ class _FilterColumnState extends State<FilterColumn> {
     return 0;
   }
 
+  static const int _folderLimitFree = 10;
+  static const int _folderLimitPremium = 20;
+
   void _onFolderTap(FolderInfo folder, String? activeFolderId) {
     final chatState = context.read<ChatState>();
     final appState = context.read<AppState>();
@@ -329,22 +332,26 @@ class _FilterColumnState extends State<FilterColumn> {
     final isPremium = account?.isPremium ?? false;
     final folders = chatState.folders;
     final folderIndex = folders.indexOf(folder);
-    if (!isPremium && folderIndex >= 10) {
-      _showFolderLimitDialog();
+    final folderLimit = isPremium ? _folderLimitPremium : _folderLimitFree;
+    if (folderIndex >= folderLimit) {
+      _showFolderLimitDialog(isPremium);
       return;
     }
     chatState.setActiveFolder(folder.id);
     _scrollToActiveTab(folderIndex);
   }
 
-  void _showFolderLimitDialog() {
+  void _showFolderLimitDialog(bool isPremium) {
+    final limit = isPremium ? _folderLimitPremium : _folderLimitFree;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Folder Limit Reached'),
-        content: const Text(
-          'You have reached the limit of folders for your account. '
-          'Subscribe to Telegram Premium to create more folders.',
+        content: Text(
+          isPremium
+              ? 'You have reached the maximum limit of $limit folders.'
+              : 'You have reached the limit of $limit folders. '
+                'Subscribe to Telegram Premium to increase the limit to $_folderLimitPremium.',
         ),
         actions: [
           TextButton(
