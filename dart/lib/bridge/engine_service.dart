@@ -2702,13 +2702,45 @@ class EngineService {
     await _callAsync('__engine', 'TogglePreHistoryHidden', Uint8List.fromList(payload));
   }
 
-  Future<void> toggleSignatures(String accountId, String chatId, bool enabled) async {
-    final payload = utf8.encode(json.encode({
+  Future<void> toggleSignatures(String accountId, String chatId, bool enabled, {bool? profilesEnabled}) async {
+    final data = <String, dynamic>{
       'account_id': accountId,
       'chat_id': chatId,
       'enabled': enabled,
+    };
+    if (profilesEnabled != null) {
+      data['profiles_enabled'] = profilesEnabled;
+    }
+    await _callAsync('__engine', 'ToggleSignatures', Uint8List.fromList(utf8.encode(json.encode(data))));
+  }
+
+  Future<void> setChatReactionsMode(String accountId, String chatId, String mode, {List<String> emojis = const []}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'mode': mode,
+      'emojis': emojis,
     }));
-    await _callAsync('__engine', 'ToggleSignatures', Uint8List.fromList(payload));
+    await _callAsync('__engine', 'SetChatReactionsMode', Uint8List.fromList(payload));
+  }
+
+  Future<void> updateChannelColor(String accountId, String chatId, int colorIndex) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'color_index': colorIndex,
+    }));
+    await _callAsync('__engine', 'UpdateChannelColor', Uint8List.fromList(payload));
+  }
+
+  Future<void> updatePaidMessagesPrice(String accountId, String chatId, int stars, {bool broadcastEnabled = false}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'stars': stars,
+      'broadcast_enabled': broadcastEnabled,
+    }));
+    await _callAsync('__engine', 'UpdatePaidMessagesPrice', Uint8List.fromList(payload));
   }
 
   Future<Map<String, dynamic>> getFullChatInfo(String accountId, String chatId) async {

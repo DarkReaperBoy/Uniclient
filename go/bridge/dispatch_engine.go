@@ -1854,12 +1854,16 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "ToggleSignatures":
 		var params struct {
-			AccountID string `json:"account_id"`
-			ChatID    string `json:"chat_id"`
-			Enabled   bool   `json:"enabled"`
+			AccountID       string `json:"account_id"`
+			ChatID          string `json:"chat_id"`
+			Enabled         bool   `json:"enabled"`
+			ProfilesEnabled *bool  `json:"profiles_enabled,omitempty"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
+		}
+		if params.ProfilesEnabled != nil {
+			return nil, e.ToggleSignatures(params.AccountID, params.ChatID, params.Enabled, *params.ProfilesEnabled)
 		}
 		return nil, e.ToggleSignatures(params.AccountID, params.ChatID, params.Enabled)
 
@@ -1873,6 +1877,41 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return nil, e.TogglePeerTranslations(params.AccountID, params.ChatID, params.Disabled)
+
+	case "SetChatReactionsMode":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			ChatID    string   `json:"chat_id"`
+			Mode      string   `json:"mode"`
+			Emojis    []string `json:"emojis"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetChatReactionsMode(params.AccountID, params.ChatID, params.Mode, params.Emojis)
+
+	case "UpdateChannelColor":
+		var params struct {
+			AccountID  string `json:"account_id"`
+			ChatID     string `json:"chat_id"`
+			ColorIndex int    `json:"color_index"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.UpdateChannelColor(params.AccountID, params.ChatID, params.ColorIndex)
+
+	case "UpdatePaidMessagesPrice":
+		var params struct {
+			AccountID        string `json:"account_id"`
+			ChatID           string `json:"chat_id"`
+			Stars            int64  `json:"stars"`
+			BroadcastEnabled bool   `json:"broadcast_enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.UpdatePaidMessagesPrice(params.AccountID, params.ChatID, params.Stars, params.BroadcastEnabled)
 
 	case "GetFullChatInfo":
 		var params struct {

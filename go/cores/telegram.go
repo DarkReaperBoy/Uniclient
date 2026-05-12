@@ -14731,12 +14731,19 @@ func (t *TelegramCore) GetFullChannel(chatID string) (*Dialog, error) {
 }
 
 type ChatPermissionFlags struct {
-	SlowmodeSeconds int  `json:"slowmode_seconds"`
-	JoinToSend      bool `json:"join_to_send"`
-	NoForwards      bool `json:"no_forwards"`
-	JoinRequest     bool `json:"join_request"`
-	IsForum         bool `json:"is_forum"`
-	Antispam        bool `json:"antispam"`
+	SlowmodeSeconds      int    `json:"slowmode_seconds"`
+	JoinToSend           bool   `json:"join_to_send"`
+	NoForwards           bool   `json:"no_forwards"`
+	JoinRequest          bool   `json:"join_request"`
+	IsForum              bool   `json:"is_forum"`
+	Antispam             bool   `json:"antispam"`
+	Signatures           bool   `json:"signatures"`
+	SignatureProfiles     bool   `json:"signature_profiles"`
+	PreHistoryHidden     bool   `json:"pre_history_hidden"`
+	NoTranslations       bool   `json:"no_translations"`
+	HasUsername           bool   `json:"has_username"`
+	LinkedChatID         string `json:"linked_chat_id"`
+	PendingRequestsCount int    `json:"pending_requests_count"`
 }
 
 type DefaultBannedRights struct {
@@ -14988,6 +14995,12 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 	if fc, ok := result.FullChat.(*tg.ChannelFull); ok {
 		flags.SlowmodeSeconds = fc.SlowmodeSeconds
 		flags.Antispam = fc.Antispam
+		flags.PreHistoryHidden = fc.HiddenPrehistory
+		flags.NoTranslations = fc.TranslationsDisabled
+		flags.PendingRequestsCount = fc.RequestsPending
+		if lc, ok := fc.GetLinkedChatID(); ok && lc != 0 {
+			flags.LinkedChatID = fmt.Sprintf("-100%d", lc)
+		}
 	}
 	for _, c := range result.Chats {
 		if cc, ok := c.(*tg.Channel); ok && cc.ID == ch.ChannelID {
@@ -14995,6 +15008,9 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 			flags.NoForwards = cc.Noforwards
 			flags.JoinRequest = cc.JoinRequest
 			flags.IsForum = cc.Forum
+			flags.Signatures = cc.Signatures
+			flags.SignatureProfiles = cc.SignatureProfiles
+			flags.HasUsername = len(cc.Usernames) > 0 || cc.Username != ""
 			break
 		}
 	}
@@ -15281,15 +15297,20 @@ func (t *TelegramCore) ToggleAntiSpam(chatID string, enabled bool) error {
 }
 
 // ToggleSignatures enables or disables author signatures in a channel.
-func (t *TelegramCore) ToggleSignatures(chatID string, enabled bool) error {
+func (t *TelegramCore) ToggleSignatures(chatID string, enabled bool, profilesEnabled ...bool) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ErrAuth }
 	peer, err := t.resolvePeer(chatID); if err != nil { return err }
 	ch, ok := peer.(*tg.PeerChannel); if !ok { return fmt.Errorf("not a channel") }
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-	_, err = t.api.ChannelsToggleSignatures(t.ctx, &tg.ChannelsToggleSignaturesRequest{
+	req := &tg.ChannelsToggleSignaturesRequest{
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash}, SignaturesEnabled: enabled,
-	}); return err
+	}
+	if len(profilesEnabled) > 0 {
+		req.SetProfilesEnabled(profilesEnabled[0])
+	}
+	_, err = t.api.ChannelsToggleSignatures(t.ctx, req)
+	return err
 }
 
 // TogglePreHistoryHidden controls whether new members see pre-join messages.
@@ -15415,7 +15436,43 @@ func (t *TelegramCore) SetChatReactions(chatID string, reactions []tg.ReactionCl
 	}); return err
 }
 
+// SetChatReactionsMode sets chat reactions to "all", "none", or specific emoji list.
+func (t *TelegramCore) SetChatReactionsMode(chatID string, mode string, emojis []string) error {
+	switch mode {
+	case "all":
+		return t.SetChatReactions(chatID, nil)
+	case "none":
+		return t.SetChatReactions(chatID, []tg.ReactionClass{})
+	case "some":
+		var reactions []tg.ReactionClass
+		for _, e := range emojis {
+			reactions = append(reactions, &tg.ReactionEmoji{Emoticon: e})
+		}
+		return t.SetChatReactions(chatID, reactions)
+	default:
+		return fmt.Errorf("unknown reaction mode: %s", mode)
+	}
+}
+
 // EditChannelTitle changes the title of a channel or supergroup.
+// UpdatePaidMessagesPrice sets the price for direct messages in a channel/supergroup.
+func (t *TelegramCore) UpdatePaidMessagesPrice(chatID string, stars int64, broadcastEnabled bool) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return fmt.Errorf("not a channel") }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	req := &tg.ChannelsUpdatePaidMessagesPriceRequest{
+		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		SendPaidMessagesStars: stars,
+	}
+	if broadcastEnabled {
+		req.SetBroadcastMessagesAllowed(true)
+	}
+	_, err = t.api.ChannelsUpdatePaidMessagesPrice(t.ctx, req)
+	return err
+}
+
 func (t *TelegramCore) EditChannelTitle(chatID string, title string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ErrAuth }

@@ -1089,11 +1089,18 @@ func (e *Engine) GetAdminedPublicChannels(accountID string) ([]PublicLinkInfo, e
 }
 
 type ChatPermissionFlags struct {
-	SlowmodeSeconds int  `json:"slowmode_seconds"`
-	JoinToSend      bool `json:"join_to_send"`
-	NoForwards      bool `json:"no_forwards"`
-	JoinRequest     bool `json:"join_request"`
-	IsForum         bool `json:"is_forum"`
+	SlowmodeSeconds      int    `json:"slowmode_seconds"`
+	JoinToSend           bool   `json:"join_to_send"`
+	NoForwards           bool   `json:"no_forwards"`
+	JoinRequest          bool   `json:"join_request"`
+	IsForum              bool   `json:"is_forum"`
+	Signatures           bool   `json:"signatures"`
+	SignatureProfiles     bool   `json:"signature_profiles"`
+	PreHistoryHidden     bool   `json:"pre_history_hidden"`
+	NoTranslations       bool   `json:"no_translations"`
+	HasUsername           bool   `json:"has_username"`
+	LinkedChatID         string `json:"linked_chat_id"`
+	PendingRequestsCount int    `json:"pending_requests_count"`
 }
 
 func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissionFlags, error) {
@@ -1113,11 +1120,18 @@ func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissi
 		return nil, err
 	}
 	return &ChatPermissionFlags{
-		SlowmodeSeconds: cf.SlowmodeSeconds,
-		JoinToSend:      cf.JoinToSend,
-		NoForwards:      cf.NoForwards,
-		JoinRequest:     cf.JoinRequest,
-		IsForum:         cf.IsForum,
+		SlowmodeSeconds:      cf.SlowmodeSeconds,
+		JoinToSend:           cf.JoinToSend,
+		NoForwards:           cf.NoForwards,
+		JoinRequest:          cf.JoinRequest,
+		IsForum:              cf.IsForum,
+		Signatures:           cf.Signatures,
+		SignatureProfiles:     cf.SignatureProfiles,
+		PreHistoryHidden:     cf.PreHistoryHidden,
+		NoTranslations:       cf.NoTranslations,
+		HasUsername:           cf.HasUsername,
+		LinkedChatID:         cf.LinkedChatID,
+		PendingRequestsCount: cf.PendingRequestsCount,
 	}, nil
 }
 
@@ -1307,16 +1321,16 @@ func (e *Engine) TogglePreHistoryHidden(accountID, chatID string, hidden bool) e
 	return fmt.Errorf("platform does not support pre-history hidden toggle")
 }
 
-func (e *Engine) ToggleSignatures(accountID, chatID string, enabled bool) error {
+func (e *Engine) ToggleSignatures(accountID, chatID string, enabled bool, profilesEnabled ...bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type toggler interface {
-		ToggleSignatures(chatID string, enabled bool) error
+		ToggleSignatures(chatID string, enabled bool, profilesEnabled ...bool) error
 	}
 	if t, ok := acc.Core.(toggler); ok {
-		return t.ToggleSignatures(chatID, enabled)
+		return t.ToggleSignatures(chatID, enabled, profilesEnabled...)
 	}
 	return fmt.Errorf("platform does not support signatures toggle")
 }
@@ -1333,6 +1347,48 @@ func (e *Engine) TogglePeerTranslations(accountID, chatID string, disabled bool)
 		return t.TogglePeerTranslations(chatID, disabled)
 	}
 	return fmt.Errorf("platform does not support peer translations toggle")
+}
+
+func (e *Engine) SetChatReactionsMode(accountID, chatID, mode string, emojis []string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type reactor interface {
+		SetChatReactionsMode(chatID string, mode string, emojis []string) error
+	}
+	if r, ok := acc.Core.(reactor); ok {
+		return r.SetChatReactionsMode(chatID, mode, emojis)
+	}
+	return fmt.Errorf("platform does not support reactions mode")
+}
+
+func (e *Engine) UpdateChannelColor(accountID, chatID string, colorIndex int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type colorUpdater interface {
+		UpdateChannelColor(chatID string, colorIndex int) error
+	}
+	if cu, ok := acc.Core.(colorUpdater); ok {
+		return cu.UpdateChannelColor(chatID, colorIndex)
+	}
+	return fmt.Errorf("platform does not support channel color update")
+}
+
+func (e *Engine) UpdatePaidMessagesPrice(accountID, chatID string, stars int64, broadcastEnabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type priceUpdater interface {
+		UpdatePaidMessagesPrice(chatID string, stars int64, broadcastEnabled bool) error
+	}
+	if pu, ok := acc.Core.(priceUpdater); ok {
+		return pu.UpdatePaidMessagesPrice(chatID, stars, broadcastEnabled)
+	}
+	return fmt.Errorf("platform does not support paid messages price")
 }
 
 func (e *Engine) GetFullChat(accountID, chatID string) (*cores.Dialog, error) {
