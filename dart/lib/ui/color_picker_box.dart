@@ -66,6 +66,7 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
   late final List<TextEditingController> _fieldCtrls;
 
   bool _updatingFields = false;
+  int _wheelAccum = 0;
 
   FocusNode _makeNumericFocus(TextEditingController ctrl, int max, int idx) {
     return FocusNode(
@@ -171,6 +172,12 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     ];
 
     _syncAllFields();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _hexFocus.requestFocus();
+      _hexCtrl.selection =
+          TextSelection(baseOffset: 0, extentOffset: _hexCtrl.text.length);
+    });
   }
 
   @override
@@ -192,11 +199,11 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
   static String _hex2(int v) => v.toRadixString(16).padLeft(2, '0');
 
   String _hexString(Color c) {
-    if (widget.showOpacity) {
-      return '${_hex2(c.red)}${_hex2(c.green)}${_hex2(c.blue)}${_hex2((_opacity * 255).round())}'
-          .toUpperCase();
+    final base = '${_hex2(c.red)}${_hex2(c.green)}${_hex2(c.blue)}';
+    if (widget.showOpacity && (_opacity * 255).round() != 255) {
+      return '$base${_hex2((_opacity * 255).round())}'.toUpperCase();
     }
-    return '${_hex2(c.red)}${_hex2(c.green)}${_hex2(c.blue)}'.toUpperCase();
+    return base.toUpperCase();
   }
 
   void _syncAllFields() {
@@ -335,7 +342,7 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
 
     return Focus(
       focusNode: _dialogFocus,
-      autofocus: true,
+      autofocus: false,
       onKeyEvent: _handleKey,
       child: Material(
         color: p.boxBg,
@@ -380,11 +387,11 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                               SizedBox(width: _kEditSkip),
                               _VerticalHueSlider(
                                 pickerSize: pickerSize,
-                                value: _hue / 360,
+                                value: 1.0 - _hue / 360,
                                 arrowColor: accentFg,
                                 onChanged: (v) {
                                   setState(() {
-                                    _hue = v * 360;
+                                    _hue = (1.0 - v) * 360;
                                     _syncAllFields();
                                   });
                                 },
@@ -412,7 +419,8 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                       ],
                     ),
                     SizedBox(width: _kEditSkip),
-                    Expanded(
+                    SizedBox(
+                      width: _kMinFieldWidth,
                       child: _buildFieldColumn(
                           p.boxTitleAdditionalFg, isDark),
                     ),
@@ -464,20 +472,16 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
         ),
         const SizedBox(height: 6),
         _numField('H', _hCtrl, 360, _hFocus, 0, labelFg, textFg, borderColor,
-            _onHSBFieldChanged),
-        const SizedBox(height: 3),
+            _onHSBFieldChanged, suffix: '°'),
         _numField('S', _sCtrl, 100, _sFocus, 1, labelFg, textFg, borderColor,
-            _onHSBFieldChanged),
-        const SizedBox(height: 3),
+            _onHSBFieldChanged, suffix: '%'),
         _numField('B', _bCtrl, 100, _bFocus, 2, labelFg, textFg, borderColor,
-            _onHSBFieldChanged),
-        const SizedBox(height: 6),
+            _onHSBFieldChanged, suffix: '%'),
+        const SizedBox(height: 13),
         _numField('R', _rCtrl, 255, _rFocus, 3, labelFg, textFg, borderColor,
             _onRGBFieldChanged),
-        const SizedBox(height: 3),
         _numField('G', _gCtrl, 255, _gFocus, 4, labelFg, textFg, borderColor,
             _onRGBFieldChanged),
-        const SizedBox(height: 3),
         _numField('B', _blueCtrl, 255, _blueFocus, 5, labelFg, textFg,
             borderColor, _onRGBFieldChanged),
         const SizedBox(height: 6),
@@ -495,13 +499,18 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     Color labelFg,
     Color textFg,
     Color borderColor,
-    VoidCallback onChanged,
-  ) {
+    VoidCallback onChanged, {
+    String? suffix,
+  }) {
     return Listener(
       onPointerSignal: (event) {
         if (event is PointerScrollEvent && focusNode.hasFocus) {
-          final delta = event.scrollDelta.dy < 0 ? 5 : -5;
-          _changeFieldValue(ctrl, max, delta);
+          _wheelAccum += (-event.scrollDelta.dy).toInt();
+          final steps = _wheelAccum ~/ 5;
+          if (steps != 0) {
+            _wheelAccum -= steps * 5;
+            _changeFieldValue(ctrl, max, steps);
+          }
         }
       },
       child: SizedBox(
@@ -527,6 +536,8 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                   isDense: true,
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  suffixText: suffix,
+                  suffixStyle: TextStyle(fontSize: 13, color: labelFg),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(4),
                       borderSide: BorderSide(color: borderColor)),
@@ -837,7 +848,7 @@ class _HueSliderPainter extends CustomPainter {
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: List.generate(
-          7, (i) => HSVColor.fromAHSV(1, i * 60.0, 1, 1).toColor()),
+          7, (i) => HSVColor.fromAHSV(1, (6 - i) * 60.0, 1, 1).toColor()),
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(barRect, const Radius.circular(4)),
