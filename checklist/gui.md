@@ -1052,13 +1052,7 @@ The implementation is complete, accurate, and ready for use. No changes needed.
 
 # chat_view — Stubs, Missing Wiring, Wrong Behavior
 
-- [ ] [CRITICAL] Star gift purchase is a placeholder stub — button shows toast "Gift purchase requires the official Telegram app." and pops the sheet instead of calling the engine — `chat_view.dart:18129` ← `AyuGram/SourceFiles/boxes/star_gift_box.cpp:3055` (`MTPpayments_SendStarGiftOffer`)
-
-- [ ] [CRITICAL] Poll-votes corner button onTap uses `_scrollToBottom` instead of scroll-to-first-unread-poll — `_showPollVotesBtn` is now wired to `unreadPollCount > 0` and count is dynamic, but `onTap: _scrollToBottom` scrolls to the bottom of the chat instead of to `minLoaded()` unread poll — `chat_view.dart:5049` ← `AyuGram/SourceFiles/history/view/history_view_corner_buttons.cpp:304-309`
-
 # choose_datetime_box — Calendar + Schedule + TimePicker audit
-
-- [ ] [CRITICAL] `_onRepeatTap` shows `SnackBar("Subscribe to Telegram Premium…")` for non-premium users instead of `ShowPremiumPromoToast` with a clickable link to the premium subscription page — `choose_datetime_box.dart:942-948` ← `AyuGramDesktop/Telegram/SourceFiles/history/view/history_view_schedule_box.cpp:129-144`
 
 # engine_service — Bridge/Engine Service Layer
 
