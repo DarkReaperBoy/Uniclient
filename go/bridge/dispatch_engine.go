@@ -3500,6 +3500,16 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetAccountTTL(params.AccountID, params.Days)
 
+	case "SetCustomDeviceModel":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Model     string `json:"model"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetCustomDeviceModel(params.AccountID, params.Model)
+
 	case "GetTopPeersEnabled":
 		var params struct {
 			AccountID string `json:"account_id"`

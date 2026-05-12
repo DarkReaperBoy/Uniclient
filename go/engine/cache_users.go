@@ -1743,6 +1743,23 @@ func (e *Engine) GetSessionAutoTerminateDays(accountID string) (int, error) {
 	return g.GetSessionAutoTerminateDays()
 }
 
+type customDeviceModelSetter interface {
+	SetCustomDeviceModel(model string)
+}
+
+func (e *Engine) SetCustomDeviceModel(accountID, model string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	s, ok := acc.Core.(customDeviceModelSetter)
+	if !ok {
+		return fmt.Errorf("not supported")
+	}
+	s.SetCustomDeviceModel(model)
+	return nil
+}
+
 func (e *Engine) SetSessionAutoTerminateDays(accountID string, days int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

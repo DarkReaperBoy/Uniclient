@@ -4328,6 +4328,20 @@ class EngineService {
     }
   }
 
+  Future<bool> setCustomDeviceModel(String accountId, String model) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'model': model,
+    }));
+    try {
+      await _callAsync('__engine', 'SetCustomDeviceModel', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'setCustomDeviceModel failed', e);
+      return false;
+    }
+  }
+
   // ── Language Pack ──
 
   Future<List<Map<String, dynamic>>> getLanguages(String accountId) async {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
@@ -27,9 +28,9 @@ class _DeviceInfo {
   final _DeviceType type;
   final Color gradientTop;
   final Color gradientBottom;
-  final IconData icon;
+  final String iconAsset;
 
-  const _DeviceInfo(this.type, this.gradientTop, this.gradientBottom, this.icon);
+  const _DeviceInfo(this.type, this.gradientTop, this.gradientBottom, this.iconAsset);
 }
 
 const _kGreen1 = Color(0xFF67B84D);
@@ -45,6 +46,54 @@ const _kRed2 = Color(0xFFD45050);
 const _kPink1 = Color(0xFFCB79D2);
 const _kPink2 = Color(0xFFBF5EBF);
 
+const _kDeviceIconDir = 'assets/icons/devices';
+
+String _iconPath(_DeviceType type) {
+  switch (type) {
+    case _DeviceType.windows: return '$_kDeviceIconDir/device_desktop_win.png';
+    case _DeviceType.mac: return '$_kDeviceIconDir/device_desktop_mac.png';
+    case _DeviceType.ubuntu: return '$_kDeviceIconDir/device_linux_ubuntu.png';
+    case _DeviceType.linux: return '$_kDeviceIconDir/device_linux.png';
+    case _DeviceType.iphone: return '$_kDeviceIconDir/device_phone_ios.png';
+    case _DeviceType.ipad: return '$_kDeviceIconDir/device_tablet_ios.png';
+    case _DeviceType.android: return '$_kDeviceIconDir/device_phone_android.png';
+    case _DeviceType.web: return '$_kDeviceIconDir/device_web_other.png';
+    case _DeviceType.chrome: return '$_kDeviceIconDir/device_web_chrome.png';
+    case _DeviceType.edge: return '$_kDeviceIconDir/device_web_edge.png';
+    case _DeviceType.firefox: return '$_kDeviceIconDir/device_web_firefox.png';
+    case _DeviceType.safari: return '$_kDeviceIconDir/device_web_safari.png';
+    case _DeviceType.other: return '$_kDeviceIconDir/device_other.png';
+  }
+}
+
+String? _lottiePath(_DeviceType type) {
+  const dir = 'assets/animations/devices';
+  switch (type) {
+    case _DeviceType.windows: return '$dir/device_desktop_win.lottie';
+    case _DeviceType.mac: return '$dir/device_desktop_mac.lottie';
+    case _DeviceType.ubuntu: return '$dir/device_linux_ubuntu.lottie';
+    case _DeviceType.linux: return '$dir/device_linux.lottie';
+    case _DeviceType.iphone: return '$dir/device_phone_ios.lottie';
+    case _DeviceType.ipad: return '$dir/device_tablet_ios.lottie';
+    case _DeviceType.android: return '$dir/device_phone_android.lottie';
+    case _DeviceType.chrome: return '$dir/device_web_chrome.lottie';
+    case _DeviceType.edge: return '$dir/device_web_edge.lottie';
+    case _DeviceType.firefox: return '$dir/device_web_firefox.lottie';
+    case _DeviceType.safari: return '$dir/device_web_safari.lottie';
+    case _DeviceType.web:
+    case _DeviceType.other:
+      return null;
+  }
+}
+
+String _bigIconPath(_DeviceType type) {
+  switch (type) {
+    case _DeviceType.web: return '$_kDeviceIconDir/device_web_other_large.png';
+    case _DeviceType.other: return '$_kDeviceIconDir/device_other_large.png';
+    default: return _iconPath(type);
+  }
+}
+
 _DeviceInfo _classifyDevice(String device, String platform, String appName, {int? apiId, String? system}) {
   final d = device.toLowerCase();
   final p = (system ?? '').toLowerCase();
@@ -56,67 +105,69 @@ _DeviceInfo _classifyDevice(String device, String platform, String appName, {int
   const kiOS = {1, 7, 10840, 16352};
   const kWeb = {2496, 739222, 1025907};
 
+  _DeviceInfo make(_DeviceType t, Color c1, Color c2) => _DeviceInfo(t, c1, c2, _iconPath(t));
+
   _DeviceInfo? detectBrowser() {
     if (d.contains('edg/') || d.contains('edgios/') || d.contains('edga/')) {
-      return const _DeviceInfo(_DeviceType.edge, _kPink1, _kPink2, Icons.web);
+      return make(_DeviceType.edge, _kPink1, _kPink2);
     } else if (d.contains('chrome')) {
-      return const _DeviceInfo(_DeviceType.chrome, _kPink1, _kPink2, Icons.language);
+      return make(_DeviceType.chrome, _kPink1, _kPink2);
     } else if (d.contains('safari')) {
-      return const _DeviceInfo(_DeviceType.safari, _kPink1, _kPink2, Icons.explore);
+      return make(_DeviceType.safari, _kPink1, _kPink2);
     } else if (d.contains('firefox')) {
-      return const _DeviceInfo(_DeviceType.firefox, _kPink1, _kPink2, Icons.local_fire_department);
+      return make(_DeviceType.firefox, _kPink1, _kPink2);
     }
     return null;
   }
 
   _DeviceInfo? detectDesktop() {
     if (p.contains('windows') || s.contains('windows')) {
-      return const _DeviceInfo(_DeviceType.windows, _kGreen1, _kGreen2, Icons.desktop_windows);
+      return make(_DeviceType.windows, _kGreen1, _kGreen2);
     } else if (p.contains('macos') || s.contains('macos')) {
-      return const _DeviceInfo(_DeviceType.mac, _kGreen1, _kGreen2, Icons.desktop_mac);
+      return make(_DeviceType.mac, _kGreen1, _kGreen2);
     } else if (p.contains('ubuntu') || s.contains('ubuntu') || p.contains('unity') || s.contains('unity')) {
-      return const _DeviceInfo(_DeviceType.ubuntu, _kOrange1, _kOrange2, Icons.terminal);
+      return make(_DeviceType.ubuntu, _kOrange1, _kOrange2);
     } else if (p.contains('linux') || s.contains('linux')) {
-      return const _DeviceInfo(_DeviceType.linux, _kPurple1, _kPurple2, Icons.computer);
+      return make(_DeviceType.linux, _kPurple1, _kPurple2);
     }
     return null;
   }
 
   if (apiId != null) {
     if (kAndroid.contains(apiId)) {
-      return const _DeviceInfo(_DeviceType.android, _kRed1, _kRed2, Icons.phone_android);
+      return make(_DeviceType.android, _kRed1, _kRed2);
     } else if (kDesktop.contains(apiId)) {
-      return detectDesktop() ?? const _DeviceInfo(_DeviceType.linux, _kPurple1, _kPurple2, Icons.computer);
+      return detectDesktop() ?? make(_DeviceType.linux, _kPurple1, _kPurple2);
     } else if (kMac.contains(apiId)) {
-      return const _DeviceInfo(_DeviceType.mac, _kGreen1, _kGreen2, Icons.desktop_mac);
+      return make(_DeviceType.mac, _kGreen1, _kGreen2);
     } else if (kWeb.contains(apiId)) {
-      return detectBrowser() ?? const _DeviceInfo(_DeviceType.web, _kPink1, _kPink2, Icons.public);
+      return detectBrowser() ?? make(_DeviceType.web, _kPink1, _kPink2);
     }
   }
 
   if (d.contains('chromebook')) {
-    return const _DeviceInfo(_DeviceType.other, _kGreen1, _kGreen2, Icons.devices);
+    return make(_DeviceType.other, _kGreen1, _kGreen2);
   }
   final browser = detectBrowser();
   if (browser != null) return browser;
   if (d.contains('iphone')) {
-    return const _DeviceInfo(_DeviceType.iphone, _kCyan1, _kCyan2, Icons.phone_iphone);
+    return make(_DeviceType.iphone, _kCyan1, _kCyan2);
   }
   if (d.contains('ipad')) {
-    return const _DeviceInfo(_DeviceType.ipad, _kCyan1, _kCyan2, Icons.tablet_mac);
+    return make(_DeviceType.ipad, _kCyan1, _kCyan2);
   }
   if (apiId != null && kiOS.contains(apiId)) {
-    return const _DeviceInfo(_DeviceType.iphone, _kCyan1, _kCyan2, Icons.phone_iphone);
+    return make(_DeviceType.iphone, _kCyan1, _kCyan2);
   }
   final desktop = detectDesktop();
   if (desktop != null) return desktop;
   if (p.contains('android') || s.contains('android')) {
-    return const _DeviceInfo(_DeviceType.android, _kRed1, _kRed2, Icons.phone_android);
+    return make(_DeviceType.android, _kRed1, _kRed2);
   }
   if (p.contains('ios') || s.contains('ios')) {
-    return const _DeviceInfo(_DeviceType.iphone, _kCyan1, _kCyan2, Icons.phone_iphone);
+    return make(_DeviceType.iphone, _kCyan1, _kCyan2);
   }
-  return const _DeviceInfo(_DeviceType.other, _kGreen1, _kGreen2, Icons.devices);
+  return make(_DeviceType.other, _kGreen1, _kGreen2);
 }
 
 class ActiveSessionsScreen extends StatefulWidget {
@@ -453,6 +504,8 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE6E6E6);
     final sectionTitleColor = context.palette.windowActiveTextFg;
 
+    final useLottie = info.type != _DeviceType.web && info.type != _DeviceType.other;
+
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -464,10 +517,9 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 18),
-              _DeviceUserpic(
+              _DeviceUserpicBig(
                 info: info,
-                size: 70,
-                animate: info.type != _DeviceType.web && info.type != _DeviceType.other,
+                useLottie: useLottie,
               ),
               const SizedBox(height: 7),
               Padding(
@@ -616,6 +668,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final current = _currentSession;
     final currentDevice = current?['device'] as String? ?? '';
     final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
     final controller = TextEditingController(text: appState.customDeviceModel);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -661,6 +714,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
             onPressed: () {
               final text = controller.text.trim();
               appState.customDeviceModel = text;
+              engine.setCustomDeviceModel(appState.activeAccountId, text);
               if (mounted) setState(() {});
               Navigator.pop(ctx);
             },
@@ -1134,51 +1188,79 @@ class _SessionRow extends StatelessWidget {
   }
 }
 
-class _DeviceUserpic extends StatefulWidget {
+class _DeviceUserpic extends StatelessWidget {
   final _DeviceInfo info;
   final double size;
-  final bool animate;
 
-  const _DeviceUserpic({required this.info, required this.size, this.animate = false});
+  const _DeviceUserpic({required this.info, required this.size});
 
   @override
-  State<_DeviceUserpic> createState() => _DeviceUserpicState();
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [info.gradientTop, info.gradientBottom],
+        ),
+      ),
+      child: Center(
+        child: Image.asset(
+          info.iconAsset,
+          width: size * 0.52,
+          height: size * 0.52,
+          color: Colors.white,
+          colorBlendMode: BlendMode.srcIn,
+        ),
+      ),
+    );
+  }
 }
 
-class _DeviceUserpicState extends State<_DeviceUserpic> with SingleTickerProviderStateMixin {
-  AnimationController? _controller;
-  Animation<double>? _scaleAnim;
-  Animation<double>? _fadeAnim;
+class _DeviceUserpicBig extends StatefulWidget {
+  final _DeviceInfo info;
+  final bool useLottie;
+
+  const _DeviceUserpicBig({required this.info, required this.useLottie});
+
+  @override
+  State<_DeviceUserpicBig> createState() => _DeviceUserpicBigState();
+}
+
+class _DeviceUserpicBigState extends State<_DeviceUserpicBig> with SingleTickerProviderStateMixin {
+  AnimationController? _lottieController;
 
   @override
   void initState() {
     super.initState();
-    if (widget.animate) {
-      _controller = AnimationController(
-        duration: const Duration(milliseconds: 600),
-        vsync: this,
-      );
-      _scaleAnim = Tween<double>(begin: 0.7, end: 1.0).animate(
-        CurvedAnimation(parent: _controller!, curve: Curves.easeOutBack),
-      );
-      _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
-        CurvedAnimation(parent: _controller!, curve: const Interval(0.0, 0.5, curve: Curves.easeIn)),
-      );
-      _controller!.forward();
+    if (widget.useLottie) {
+      _lottieController = AnimationController(vsync: this);
     }
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _lottieController?.dispose();
     super.dispose();
+  }
+
+  void _onLottieLoaded(LottieComposition composition) {
+    _lottieController
+      ?..duration = composition.duration
+      ..forward();
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget child = Container(
-      width: widget.size,
-      height: widget.size,
+    const size = 70.0;
+    final lottieAsset = _lottiePath(widget.info.type);
+
+    return Container(
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
@@ -1187,19 +1269,33 @@ class _DeviceUserpicState extends State<_DeviceUserpic> with SingleTickerProvide
           colors: [widget.info.gradientTop, widget.info.gradientBottom],
         ),
       ),
-      child: Icon(widget.info.icon, color: Colors.white, size: widget.size * 0.52),
+      child: lottieAsset != null && widget.useLottie
+          ? Lottie.asset(
+              lottieAsset,
+              controller: _lottieController,
+              onLoaded: _onLottieLoaded,
+              width: size * 0.62,
+              height: size * 0.62,
+              fit: BoxFit.contain,
+              delegates: LottieDelegates(
+                values: [
+                  ValueDelegate.color(
+                    const ['**'],
+                    value: Colors.white,
+                  ),
+                ],
+              ),
+            )
+          : Center(
+              child: Image.asset(
+                _bigIconPath(widget.info.type),
+                width: size * 0.52,
+                height: size * 0.52,
+                color: Colors.white,
+                colorBlendMode: BlendMode.srcIn,
+              ),
+            ),
     );
-    if (_controller != null) {
-      child = AnimatedBuilder(
-        animation: _controller!,
-        builder: (context, child) => Opacity(
-          opacity: _fadeAnim!.value,
-          child: Transform.scale(scale: _scaleAnim!.value, child: child),
-        ),
-        child: child,
-      );
-    }
-    return child;
   }
 }
 

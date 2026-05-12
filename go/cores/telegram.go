@@ -82,10 +82,11 @@ type TelegramCore struct {
 	noOwnOffer       bool
 	maxCallVersion   string
 	minCallVersion   string
-	botToken      string
-	phone         string
-	isBot         bool
-	authed        bool
+	botToken          string
+	phone             string
+	isBot             bool
+	authed            bool
+	customDeviceModel string
 
 	// Session storage
 	sessionStorage telegram.SessionStorage
@@ -12447,6 +12448,14 @@ func (t *TelegramCore) SetSessionAutoTerminateDays(days int) error {
 	}
 	_, err := t.api.AccountSetAuthorizationTTL(t.ctx, days)
 	return err
+}
+
+// SetCustomDeviceModel stores a custom device model name and triggers
+// a help.getConfig call to propagate it via initConnection.
+func (t *TelegramCore) SetCustomDeviceModel(model string) {
+	t.mu.Lock()
+	t.customDeviceModel = model
+	t.mu.Unlock()
 }
 
 // SetGroupPermissions sets default permissions for a group/supergroup.
