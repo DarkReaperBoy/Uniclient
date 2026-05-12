@@ -2787,13 +2787,15 @@ class EngineService {
   Future<void> resendAsOwn(String accountId, String sourceChatId, String msgId, String toChatId, {
     bool silent = false,
     int scheduleDate = 0,
+    bool dropCaptions = false,
   }) async {
     final req = epb.EngineResendAsOwnRequest()
       ..accountId = accountId
       ..sourceChatId = sourceChatId
       ..msgId = msgId
       ..toChatId = toChatId
-      ..silent = silent;
+      ..silent = silent
+      ..dropCaptions = dropCaptions;
     if (scheduleDate > 0) {
       req.scheduleDate = Int64(scheduleDate);
     }
@@ -2803,13 +2805,15 @@ class EngineService {
   Future<void> resendAlbumAsOwn(String accountId, String sourceChatId, List<String> msgIds, String toChatId, {
     bool silent = false,
     int scheduleDate = 0,
+    bool dropCaptions = false,
   }) async {
     final req = epb.EngineResendAlbumAsOwnRequest()
       ..accountId = accountId
       ..sourceChatId = sourceChatId
       ..msgIds.addAll(msgIds)
       ..toChatId = toChatId
-      ..silent = silent;
+      ..silent = silent
+      ..dropCaptions = dropCaptions;
     if (scheduleDate > 0) {
       req.scheduleDate = Int64(scheduleDate);
     }

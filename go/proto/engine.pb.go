@@ -4397,6 +4397,7 @@ type EngineResendAsOwnRequest struct {
 	ToChatId      string                 `protobuf:"bytes,4,opt,name=to_chat_id,json=toChatId,proto3" json:"to_chat_id,omitempty"`
 	Silent        bool                   `protobuf:"varint,5,opt,name=silent,proto3" json:"silent,omitempty"`
 	ScheduleDate  int64                  `protobuf:"varint,6,opt,name=schedule_date,json=scheduleDate,proto3" json:"schedule_date,omitempty"`
+	DropCaptions  bool                   `protobuf:"varint,7,opt,name=drop_captions,json=dropCaptions,proto3" json:"drop_captions,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4473,6 +4474,13 @@ func (x *EngineResendAsOwnRequest) GetScheduleDate() int64 {
 	return 0
 }
 
+func (x *EngineResendAsOwnRequest) GetDropCaptions() bool {
+	if x != nil {
+		return x.DropCaptions
+	}
+	return false
+}
+
 type EngineResendAlbumAsOwnRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
@@ -4481,6 +4489,7 @@ type EngineResendAlbumAsOwnRequest struct {
 	ToChatId      string                 `protobuf:"bytes,4,opt,name=to_chat_id,json=toChatId,proto3" json:"to_chat_id,omitempty"`
 	Silent        bool                   `protobuf:"varint,5,opt,name=silent,proto3" json:"silent,omitempty"`
 	ScheduleDate  int64                  `protobuf:"varint,6,opt,name=schedule_date,json=scheduleDate,proto3" json:"schedule_date,omitempty"`
+	DropCaptions  bool                   `protobuf:"varint,7,opt,name=drop_captions,json=dropCaptions,proto3" json:"drop_captions,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4555,6 +4564,13 @@ func (x *EngineResendAlbumAsOwnRequest) GetScheduleDate() int64 {
 		return x.ScheduleDate
 	}
 	return 0
+}
+
+func (x *EngineResendAlbumAsOwnRequest) GetDropCaptions() bool {
+	if x != nil {
+		return x.DropCaptions
+	}
+	return false
 }
 
 type EngineSendContactRequest struct {
@@ -13772,7 +13788,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"dropAuthor\x12#\n" +
 	"\rdrop_captions\x18\x06 \x01(\bR\fdropCaptions\x12\x16\n" +
 	"\x06silent\x18\a \x01(\bR\x06silent\x12#\n" +
-	"\rschedule_date\x18\b \x01(\x03R\fscheduleDate\"\xd1\x01\n" +
+	"\rschedule_date\x18\b \x01(\x03R\fscheduleDate\"\xf6\x01\n" +
 	"\x18EngineResendAsOwnRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12$\n" +
@@ -13781,7 +13797,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"to_chat_id\x18\x04 \x01(\tR\btoChatId\x12\x16\n" +
 	"\x06silent\x18\x05 \x01(\bR\x06silent\x12#\n" +
-	"\rschedule_date\x18\x06 \x01(\x03R\fscheduleDate\"\xd8\x01\n" +
+	"\rschedule_date\x18\x06 \x01(\x03R\fscheduleDate\x12#\n" +
+	"\rdrop_captions\x18\a \x01(\bR\fdropCaptions\"\xfd\x01\n" +
 	"\x1dEngineResendAlbumAsOwnRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12$\n" +
@@ -13790,7 +13807,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"to_chat_id\x18\x04 \x01(\tR\btoChatId\x12\x16\n" +
 	"\x06silent\x18\x05 \x01(\bR\x06silent\x12#\n" +
-	"\rschedule_date\x18\x06 \x01(\x03R\fscheduleDate\"\xc2\x01\n" +
+	"\rschedule_date\x18\x06 \x01(\x03R\fscheduleDate\x12#\n" +
+	"\rdrop_captions\x18\a \x01(\bR\fdropCaptions\"\xc2\x01\n" +
 	"\x18EngineSendContactRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1c\n" +

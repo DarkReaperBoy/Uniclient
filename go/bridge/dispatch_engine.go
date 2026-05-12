@@ -748,14 +748,14 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.ResendAsOwn(req.AccountId, req.SourceChatId, req.MsgId, req.ToChatId, req.Silent, req.ScheduleDate)
+		return nil, e.ResendAsOwn(req.AccountId, req.SourceChatId, req.MsgId, req.ToChatId, req.Silent, req.ScheduleDate, req.DropCaptions)
 
 	case "ResendAlbumAsOwn":
 		var req pb.EngineResendAlbumAsOwnRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.ResendAlbumAsOwn(req.AccountId, req.SourceChatId, req.MsgIds, req.ToChatId, req.Silent, req.ScheduleDate)
+		return nil, e.ResendAlbumAsOwn(req.AccountId, req.SourceChatId, req.MsgIds, req.ToChatId, req.Silent, req.ScheduleDate, req.DropCaptions)
 
 	case "SendScheduledNow":
 		var req pb.EngineSendScheduledNowRequest

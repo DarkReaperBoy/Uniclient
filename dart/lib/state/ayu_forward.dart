@@ -13,6 +13,15 @@ class ForwardChunk {
   const ForwardChunk(this.method, this.messages);
 }
 
+class AyuForwardStrings {
+  static String statusPreparing() => 'Preparing...';
+  static String statusForwarding() => 'Forwarding messages';
+  static String statusLoadingMedia() => 'Loading media';
+  static String statusFinished() => 'Done';
+  static String sentCount(int sent, int total) => 'sent $sent of $total';
+  static String chunkCount(int chunk, int total) => 'chunk $chunk of $total';
+}
+
 class ForwardProgress extends ChangeNotifier {
   AyuForwardPhase _phase = AyuForwardPhase.preparing;
   int _sentCount = 0;
@@ -31,22 +40,22 @@ class ForwardProgress extends ChangeNotifier {
   String get statusText {
     switch (_phase) {
       case AyuForwardPhase.preparing:
-        return 'Preparing...';
+        return AyuForwardStrings.statusPreparing();
       case AyuForwardPhase.sending:
-        return 'Forwarding messages';
+        return AyuForwardStrings.statusForwarding();
       case AyuForwardPhase.downloading:
-        return 'Loading media';
+        return AyuForwardStrings.statusLoadingMedia();
       case AyuForwardPhase.finished:
-        return 'Done';
+        return AyuForwardStrings.statusFinished();
     }
   }
 
   String get detailText {
     if (_phase == AyuForwardPhase.downloading) return '';
     if (_totalCount == 0) return '';
-    final msg = 'sent $_sentCount of $_totalCount';
+    final msg = AyuForwardStrings.sentCount(_sentCount, _totalCount);
     if (_totalChunks > 1) {
-      return '$msg · chunk $_chunkIndex of $_totalChunks';
+      return '$msg • ${AyuForwardStrings.chunkCount(_chunkIndex, _totalChunks)}';
     }
     return msg;
   }
@@ -77,7 +86,11 @@ class AyuForward {
   static final Map<String, ForwardProgress> _activeForwards = {};
 
   static ForwardProgress? getProgress(String peerId) => _activeForwards[peerId];
-  static bool isForwarding(String peerId) => _activeForwards.containsKey(peerId);
+  static bool isForwarding(String peerId) {
+    final p = _activeForwards[peerId];
+    if (p == null) return false;
+    return p.phase != AyuForwardPhase.finished && !p.isCancelled;
+  }
 
   static void startNativeForward(String toChatId, ForwardProgress progress, int total) {
     _activeForwards[toChatId] = progress;
@@ -124,10 +137,6 @@ class AyuForward {
     ChatInfo sourceChat,
   ) {
     if (isChatRestricted(sourceChat)) {
-      return [ForwardChunk(ForwardMethod.resendAsOwn, messages)];
-    }
-
-    if (messages.any((m) => m.senderNoForwards)) {
       return [ForwardChunk(ForwardMethod.resendAsOwn, messages)];
     }
 
@@ -238,6 +247,7 @@ class AyuForward {
                   toChatId,
                   silent: silent,
                   scheduleDate: scheduleDate,
+                  dropCaptions: dropCaptions,
                 );
                 sentSoFar += group.length;
               } else {
@@ -245,6 +255,7 @@ class AyuForward {
                   accountId, sourceChatId, group.first.msgId, toChatId,
                   silent: silent,
                   scheduleDate: scheduleDate,
+                  dropCaptions: dropCaptions,
                 );
                 sentSoFar++;
               }

@@ -86,6 +86,7 @@ type resendAsOwnPayload struct {
 	ToChatID     string `json:"to_chat_id"`
 	Silent       bool   `json:"silent,omitempty"`
 	ScheduleDate int64  `json:"schedule_date,omitempty"`
+	DropCaptions bool   `json:"drop_captions,omitempty"`
 }
 
 // resendAlbumPayload is the serialized payload for a "resend_album" action.
@@ -95,6 +96,7 @@ type resendAlbumPayload struct {
 	ToChatID     string   `json:"to_chat_id"`
 	Silent       bool     `json:"silent,omitempty"`
 	ScheduleDate int64    `json:"schedule_date,omitempty"`
+	DropCaptions bool     `json:"drop_captions,omitempty"`
 }
 
 // pendingItem represents a row in the pending table.
@@ -418,13 +420,13 @@ func (e *Engine) ForwardMessage(accountID, chatID, msgID, toChatID string, dropA
 // ResendAsOwn downloads a source message's content and resends it as a new
 // message (no forward header) to toChatID. Used by AyuForward for restricted
 // content that can't be natively forwarded.
-func (e *Engine) ResendAsOwn(accountID, sourceChatID, msgID, toChatID string, silent bool, scheduleDate int64) error {
+func (e *Engine) ResendAsOwn(accountID, sourceChatID, msgID, toChatID string, silent bool, scheduleDate int64, dropCaptions bool) error {
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
 
 	payload, _ := json.Marshal(resendAsOwnPayload{
 		MsgID: msgID, SourceChatID: sourceChatID, ToChatID: toChatID,
-		Silent: silent, ScheduleDate: scheduleDate,
+		Silent: silent, ScheduleDate: scheduleDate, DropCaptions: dropCaptions,
 	})
 
 	_, err := e.db.Exec(
@@ -445,13 +447,13 @@ func (e *Engine) ResendAsOwn(accountID, sourceChatID, msgID, toChatID string, si
 
 // ResendAlbumAsOwn downloads a group of messages (album) and resends them as
 // a single album with no forward header. Used by AyuForward for grouped media.
-func (e *Engine) ResendAlbumAsOwn(accountID, sourceChatID string, msgIDs []string, toChatID string, silent bool, scheduleDate int64) error {
+func (e *Engine) ResendAlbumAsOwn(accountID, sourceChatID string, msgIDs []string, toChatID string, silent bool, scheduleDate int64, dropCaptions bool) error {
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
 
 	payload, _ := json.Marshal(resendAlbumPayload{
 		MsgIDs: msgIDs, SourceChatID: sourceChatID, ToChatID: toChatID,
-		Silent: silent, ScheduleDate: scheduleDate,
+		Silent: silent, ScheduleDate: scheduleDate, DropCaptions: dropCaptions,
 	})
 
 	_, err := e.db.Exec(
@@ -815,6 +817,9 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 	}
 
 	text := contentText.String
+	if p.DropCaptions {
+		text = ""
+	}
 
 	var remoteRef, fileName, mimeType, extraStr sql.NullString
 	var mediaType int
@@ -1002,6 +1007,9 @@ func (e *Engine) executeResendAlbum(acc *Account, p resendAlbumPayload) error {
 		if err != nil {
 			log.Printf("resend album: source message %s not found, skipping", msgID)
 			continue
+		}
+		if p.DropCaptions {
+			contentText.String = ""
 		}
 
 		var remoteRef, fName, mime, extra sql.NullString

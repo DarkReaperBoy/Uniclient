@@ -5981,6 +5981,7 @@ class EngineResendAsOwnRequest extends $pb.GeneratedMessage {
     $core.String? toChatId,
     $core.bool? silent,
     $fixnum.Int64? scheduleDate,
+    $core.bool? dropCaptions,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -6001,6 +6002,9 @@ class EngineResendAsOwnRequest extends $pb.GeneratedMessage {
     if (scheduleDate != null) {
       $result.scheduleDate = scheduleDate;
     }
+    if (dropCaptions != null) {
+      $result.dropCaptions = dropCaptions;
+    }
     return $result;
   }
   EngineResendAsOwnRequest._() : super();
@@ -6014,6 +6018,7 @@ class EngineResendAsOwnRequest extends $pb.GeneratedMessage {
     ..aOS(4, _omitFieldNames ? '' : 'toChatId')
     ..aOB(5, _omitFieldNames ? '' : 'silent')
     ..aInt64(6, _omitFieldNames ? '' : 'scheduleDate')
+    ..aOB(7, _omitFieldNames ? '' : 'dropCaptions')
     ..hasRequiredFields = false
   ;
 
@@ -6091,6 +6096,15 @@ class EngineResendAsOwnRequest extends $pb.GeneratedMessage {
   $core.bool hasScheduleDate() => $_has(5);
   @$pb.TagNumber(6)
   void clearScheduleDate() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get dropCaptions => $_getBF(6);
+  @$pb.TagNumber(7)
+  set dropCaptions($core.bool v) { $_setBool(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasDropCaptions() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearDropCaptions() => clearField(7);
 }
 
 class EngineResendAlbumAsOwnRequest extends $pb.GeneratedMessage {
@@ -6101,6 +6115,7 @@ class EngineResendAlbumAsOwnRequest extends $pb.GeneratedMessage {
     $core.String? toChatId,
     $core.bool? silent,
     $fixnum.Int64? scheduleDate,
+    $core.bool? dropCaptions,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -6121,6 +6136,9 @@ class EngineResendAlbumAsOwnRequest extends $pb.GeneratedMessage {
     if (scheduleDate != null) {
       $result.scheduleDate = scheduleDate;
     }
+    if (dropCaptions != null) {
+      $result.dropCaptions = dropCaptions;
+    }
     return $result;
   }
   EngineResendAlbumAsOwnRequest._() : super();
@@ -6134,6 +6152,7 @@ class EngineResendAlbumAsOwnRequest extends $pb.GeneratedMessage {
     ..aOS(4, _omitFieldNames ? '' : 'toChatId')
     ..aOB(5, _omitFieldNames ? '' : 'silent')
     ..aInt64(6, _omitFieldNames ? '' : 'scheduleDate')
+    ..aOB(7, _omitFieldNames ? '' : 'dropCaptions')
     ..hasRequiredFields = false
   ;
 
@@ -6205,6 +6224,15 @@ class EngineResendAlbumAsOwnRequest extends $pb.GeneratedMessage {
   $core.bool hasScheduleDate() => $_has(5);
   @$pb.TagNumber(6)
   void clearScheduleDate() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get dropCaptions => $_getBF(6);
+  @$pb.TagNumber(7)
+  set dropCaptions($core.bool v) { $_setBool(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasDropCaptions() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearDropCaptions() => clearField(7);
 }
 
 class EngineSendContactRequest extends $pb.GeneratedMessage {

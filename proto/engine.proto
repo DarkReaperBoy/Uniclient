@@ -513,6 +513,7 @@ message EngineResendAsOwnRequest {
   string to_chat_id      = 4;
   bool   silent          = 5;
   int64  schedule_date   = 6;
+  bool   drop_captions   = 7;
 }
 
 message EngineResendAlbumAsOwnRequest {
@@ -522,6 +523,7 @@ message EngineResendAlbumAsOwnRequest {
   string to_chat_id      = 4;
   bool   silent          = 5;
   int64  schedule_date   = 6;
+  bool   drop_captions   = 7;
 }
 
 message EngineSendContactRequest {
