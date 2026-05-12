@@ -330,18 +330,67 @@ class _FilterColumnState extends State<FilterColumn> {
     final folders = chatState.folders;
     final folderIndex = folders.indexOf(folder);
     if (!isPremium && folderIndex >= 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Subscribe to Telegram Premium to use more folders.'),
-          duration: Duration(seconds: 3),
-        ),
-      );
+      _showFolderLimitDialog();
       return;
     }
-    chatState.setActiveFolder(
-      activeFolderId == folder.id ? null : folder.id,
-    );
+    chatState.setActiveFolder(folder.id);
     _scrollToActiveTab(folderIndex);
+  }
+
+  void _showFolderLimitDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Folder Limit Reached'),
+        content: const Text(
+          'You have reached the limit of folders for your account. '
+          'Subscribe to Telegram Premium to create more folders.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAllChatsContextMenu(BuildContext context, Offset globalPosition) {
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
+    final allUnread = chatState.unreadCountForAccount(appState.activeAccountId);
+
+    showTelegramMenu<String>(
+      context: context,
+      position: globalPosition,
+      items: [
+        if (allUnread > 0)
+          const TelegramMenuItem(
+            value: 'mark_read',
+            icon: Icon(Icons.done_all),
+            label: 'Mark All as Read',
+          ),
+        const TelegramMenuItem(
+          value: 'settings',
+          icon: Icon(Icons.edit),
+          label: 'Edit Folders',
+        ),
+      ],
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'mark_read':
+          final chats = chatState.chatsForFolder(null);
+          for (final chat in chats) {
+            if (chat.unreadCount > 0) {
+              chatState.markChatRead(chat.accountId, chat.chatId);
+            }
+          }
+        case 'settings':
+          _openFoldersSettings();
+      }
+    });
   }
 
   void _scrollToActiveTab(int index) {
@@ -359,13 +408,13 @@ class _FilterColumnState extends State<FilterColumn> {
     if (tabTop < viewStart) {
       _scrollController.animateTo(
         tabTop,
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 240),
         curve: Curves.easeInOutSine,
       );
     } else if (tabBottom > viewEnd) {
       _scrollController.animateTo(
         _scrollController.offset + (tabBottom - viewEnd),
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 240),
         curve: Curves.easeInOutSine,
       );
     }
@@ -380,17 +429,17 @@ class _FilterColumnState extends State<FilterColumn> {
       context: context,
       position: globalPosition,
       items: [
+        const TelegramMenuItem(
+          value: 'edit',
+          icon: Icon(Icons.edit),
+          label: 'Edit Folder',
+        ),
         if (unread > 0)
           const TelegramMenuItem(
             value: 'mark_read',
             icon: Icon(Icons.done_all),
             label: 'Mark All as Read',
           ),
-        const TelegramMenuItem(
-          value: 'edit',
-          icon: Icon(Icons.edit),
-          label: 'Edit Folder',
-        ),
         const TelegramMenuItem(
           value: 'remove_folder',
           icon: Icon(Icons.delete_outline),
@@ -481,6 +530,15 @@ class _FilterColumnState extends State<FilterColumn> {
 
     _syncTabKeys(folders.length);
 
+    bool _isOtherAccountsAllMuted(AppState appState, ChatState chatState) {
+      for (final acc in appState.accounts) {
+        if (acc.id != appState.activeAccountId) {
+          if (!chatState.isAccountUnreadAllMuted(acc.id)) return false;
+        }
+      }
+      return true;
+    }
+
     final physics = _dragActive
         ? const NeverScrollableScrollPhysics()
         : const ClampingScrollPhysics();
@@ -498,18 +556,24 @@ class _FilterColumnState extends State<FilterColumn> {
             label: 'Menu',
             isActive: false,
             unreadCount: appState.hideNotificationCounters ? 0 : otherAccountsUnread,
+            unreadAllMuted: otherAccountsUnread > 0 && _isOtherAccountsAllMuted(appState, chatState),
             minHeight: 54,
             iconCentered: true,
+            useDotBadge: true,
             onTap: widget.onOpenDrawer ?? () {},
           ),
           if (!appState.hideAllChatsFolder)
-          _SideBarButton(
-            icon: Icons.chat,
-            label: 'All',
-            isActive: activeFolderId == null,
-            unreadCount: appState.hideNotificationCounters ? 0 : allUnread,
-            unreadAllMuted: chatState.isAccountUnreadAllMuted(appState.activeAccountId),
-            onTap: () => chatState.setActiveFolder(null),
+          GestureDetector(
+            onSecondaryTapUp: (details) => _showAllChatsContextMenu(
+              context, details.globalPosition),
+            child: _SideBarButton(
+              icon: Icons.chat,
+              label: 'All',
+              isActive: activeFolderId == null,
+              unreadCount: appState.hideNotificationCounters ? 0 : allUnread,
+              unreadAllMuted: chatState.isAccountUnreadAllMuted(appState.activeAccountId),
+              onTap: () => chatState.setActiveFolder(null),
+            ),
           ),
           // Folder tabs (scrollable, drag-reorderable via raw pointers).
           Expanded(
@@ -621,6 +685,7 @@ class _SideBarButton extends StatelessWidget {
   final VoidCallback onTap;
   final double minHeight;
   final bool iconCentered; // true for hamburger (centered both ways)
+  final bool useDotBadge; // true for hamburger dot overlay (no number)
 
   const _SideBarButton({
     required this.icon,
@@ -631,6 +696,7 @@ class _SideBarButton extends StatelessWidget {
     required this.onTap,
     this.minHeight = 62,
     this.iconCentered = false,
+    this.useDotBadge = false,
   });
 
   // Spec: windowFiltersButton dimensions from window.style.
@@ -662,7 +728,7 @@ class _SideBarButton extends StatelessWidget {
           child: SizedBox(
             width: FilterColumn.width,
             child: iconCentered
-                ? _buildCenteredIcon(iconColor)
+                ? _buildCenteredIcon(context, iconColor)
                 : _buildFullButton(context, iconColor, textColor),
           ),
         ),
@@ -671,17 +737,33 @@ class _SideBarButton extends StatelessWidget {
   }
 
   /// Hamburger menu button: icon centered both ways, minHeight 54px.
-  Widget _buildCenteredIcon(Color iconColor) {
+  /// AyuGram uses a dot overlay (windowFiltersMainMenuUnread) instead of a
+  /// numeric badge — just a colored circle on the icon.
+  Widget _buildCenteredIcon(BuildContext context, Color iconColor) {
+    final palette = PaletteProvider.of(context);
     return SizedBox(
       height: minHeight,
       child: Center(
-        child: unreadCount > 0
-            ? Badge(
-                label: Text(
-                  unreadCount > 99 ? '99+' : '$unreadCount',
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600),
-                ),
-                child: Icon(icon, size: _iconSize, color: iconColor),
+        child: unreadCount > 0 && useDotBadge
+            ? Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(icon, size: _iconSize, color: iconColor),
+                  Positioned(
+                    right: -4,
+                    top: -2,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: unreadAllMuted
+                            ? palette.sideBarBadgeBgMuted
+                            : palette.sideBarBadgeBg,
+                      ),
+                    ),
+                  ),
+                ],
               )
             : Icon(icon, size: _iconSize, color: iconColor),
       ),
