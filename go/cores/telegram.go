@@ -8509,6 +8509,55 @@ func (t *TelegramCore) LeaveGroupCall(callID string) error {
 	return nil
 }
 
+// EndGroupCall ends (discards) an active group call for everyone.
+func (t *TelegramCore) EndGroupCall(callID string) error {
+	t.mu.RLock()
+	if !t.authed || t.api == nil {
+		t.mu.RUnlock()
+		return ErrAuth
+	}
+	t.mu.RUnlock()
+
+	cid, err := strconv.ParseInt(callID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid call ID: %w", err)
+	}
+
+	t.mu.Lock()
+	call := t.activeCalls[cid]
+	if call != nil {
+		delete(t.activeCalls, cid)
+	}
+	t.mu.Unlock()
+
+	if call == nil {
+		return fmt.Errorf("no active group call %s", callID)
+	}
+
+	if call.done != nil {
+		select {
+		case <-call.done:
+		default:
+			close(call.done)
+		}
+	}
+
+	if call.pc != nil {
+		call.pc.Close()
+	}
+
+	_, err = t.api.PhoneDiscardGroupCall(t.ctx, &tg.InputGroupCall{
+		ID:         cid,
+		AccessHash: call.accessHash,
+	})
+	if err != nil {
+		return fmt.Errorf("phone.discardGroupCall: %w", err)
+	}
+
+	fmt.Printf("[tg-group] Ended (discarded) group call: id=%d\n", cid)
+	return nil
+}
+
 // StartGroupCallScreenShare joins the group call presentation with a screen share track.
 // Uses phone.joinGroupCallPresentation with its own SSRC+FID group.
 // The SFU sends a separate UpdateGroupCallConnection(presentation=true) with transport params.

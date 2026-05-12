@@ -33,7 +33,7 @@ void showRateCallDialog(BuildContext context, {required String callId}) =>
 // §34.2: showCallsBox — entry point (GenericBox pattern)
 // ---------------------------------------------------------------------------
 
-void showCallsBox(BuildContext context) {
+void showCallsBox(BuildContext context, {bool highlightStartCall = false}) {
   final engine = context.read<EngineService>();
   final appState = context.read<AppState>();
   final chatState = context.read<ChatState>();
@@ -45,7 +45,7 @@ void showCallsBox(BuildContext context) {
         ChangeNotifierProvider.value(value: appState),
         ChangeNotifierProvider.value(value: chatState),
       ],
-      child: const _CallsBox(),
+      child: _CallsBox(highlightStartCall: highlightStartCall),
     ),
   );
 }
@@ -55,7 +55,8 @@ void showCallsBox(BuildContext context) {
 // ---------------------------------------------------------------------------
 
 class _CallsBox extends StatefulWidget {
-  const _CallsBox();
+  final bool highlightStartCall;
+  const _CallsBox({this.highlightStartCall = false});
 
   @override
   State<_CallsBox> createState() => _CallsBoxState();
@@ -171,12 +172,11 @@ class _CallsBoxState extends State<_CallsBox> {
     final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
     final accountId = appState.activeAccountId;
-    final chats = engine.getChatList(accountId: accountId, limit: 20);
+    final chats = engine.getChatList(accountId: accountId, limit: 200);
     final pinned = chats.where((c) => c.isPinned);
     final nonPinned = chats.where((c) => !c.isPinned);
     final candidates = [...pinned, ...nonPinned]
         .where((c) => c.type == ChatType.group || c.type == ChatType.channel)
-        .take(20)
         .toList();
 
     final entries = <_ActiveGroupCallEntry>[];
@@ -298,7 +298,7 @@ class _CallsBoxState extends State<_CallsBox> {
             isDark: isDark,
           ),
           // §34.12: Create Call Button
-          _CreateCallButton(isDark: isDark),
+          _CreateCallButton(isDark: isDark, highlightOnShow: widget.highlightStartCall),
           Divider(height: 1, color: p.boxDividerBg),
           // §34.4: Call history list
           Flexible(
@@ -988,6 +988,9 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
       } else {
         final result = await engine.createConferenceCall(accountId);
         if (result != null && result.inviteLink.isNotEmpty) {
+          for (final userId in _selectedIds) {
+            await engine.sendMessage(accountId, userId, result.inviteLink);
+          }
           if (mounted) {
             Navigator.of(context).pop(true);
             _showLinkBox(context, result.inviteLink,
@@ -1939,13 +1942,13 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
   void _startRedial(BuildContext context) async {
     final permOk = await requestCallPermissions(
       context,
-      video: widget.group.isVideo,
+      video: false,
     );
     if (!permOk || !context.mounted) return;
     final engine = context.read<EngineService>();
     final group = widget.group;
     await engine.startCall(widget.accountId, group.peerId,
-        video: group.isVideo);
+        video: false);
   }
 
   @override
@@ -2177,6 +2180,22 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
           _cameraDevices = ['Default', ...cameras];
         });
       }
+    } else if (Platform.isMacOS) {
+      if (mounted) {
+        setState(() {
+          _outputDevices = ['Default', 'Built-in Output', 'Headphones'];
+          _inputDevices = ['Default', 'Built-in Microphone'];
+          _cameraDevices = ['Default', 'FaceTime HD Camera'];
+        });
+      }
+    } else if (Platform.isWindows) {
+      if (mounted) {
+        setState(() {
+          _outputDevices = ['Default', 'Speakers', 'Headphones'];
+          _inputDevices = ['Default', 'Microphone'];
+          _cameraDevices = ['Default', 'Integrated Camera'];
+        });
+      }
     }
   }
 
@@ -2279,7 +2298,12 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
               title: 'Output Device',
               current: appState.callOutputDevice,
               devices: _outputDevices,
-              onSelected: (d) => appState.setCallOutputDevice(d),
+              onSelected: (d) {
+                appState.setCallOutputDevice(d);
+                final engine = context.read<EngineService>();
+                final accountId = appState.activeAccountId;
+                engine.setCallAudioDevice(accountId, 'output', d);
+              },
             ),
           ),
           Divider(height: 1, color: dividerColor, indent: 60),
@@ -2294,7 +2318,12 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
               title: 'Input Device',
               current: appState.callInputDevice,
               devices: _inputDevices,
-              onSelected: (d) => appState.setCallInputDevice(d),
+              onSelected: (d) {
+                appState.setCallInputDevice(d);
+                final engine = context.read<EngineService>();
+                final accountId = appState.activeAccountId;
+                engine.setCallAudioDevice(accountId, 'input', d);
+              },
             ),
           ),
           Padding(

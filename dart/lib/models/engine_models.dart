@@ -2178,6 +2178,7 @@ class GroupCallInfo {
   final int participantsCount;
   final List<GroupCallParticipant> participants;
   final bool active;
+  final bool isRtmp;
 
   const GroupCallInfo({
     this.callId = '',
@@ -2186,6 +2187,7 @@ class GroupCallInfo {
     this.participantsCount = 0,
     this.participants = const [],
     this.active = false,
+    this.isRtmp = false,
   });
 
   factory GroupCallInfo.fromJson(Map<String, dynamic> j) => GroupCallInfo(
@@ -2197,6 +2199,7 @@ class GroupCallInfo {
         ?.map((p) => GroupCallParticipant.fromJson(p as Map<String, dynamic>))
         .toList() ?? [],
     active: j['active'] as bool? ?? false,
+    isRtmp: j['is_rtmp'] as bool? ?? false,
   );
 }
 

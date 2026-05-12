@@ -104,7 +104,7 @@ class _ExportTopBarState extends State<ExportTopBar>
               ),
             ),
             SizedBox(
-              height: 3,
+              height: 8,
               child: Stack(
                 children: [
                   Positioned.fill(
@@ -182,6 +182,14 @@ class _ExportPanelController {
     );
     _entry = entry;
     Overlay.of(context).insert(entry);
+  }
+
+  static void showAndActivate(BuildContext context, ExportTarget target) {
+    if (_entry != null) {
+      _entry!.markNeedsBuild();
+      return;
+    }
+    show(context, target);
   }
 
   static void close() {
@@ -764,7 +772,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         ? _exportLocation
         : _defaultExportLocation;
 
-    engine.startExport(accountId, {
+    final exportParams = <String, dynamic>{
       'personal_info': _personalInfo,
       'contacts': _contacts,
       'stories': _stories,
@@ -789,7 +797,20 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       'topic_root_id': widget.target.topicRootId ?? 0,
       'sessions': _sessions,
       'other_data': _otherData,
-    }).catchError((e) {
+    };
+    if (_isPerChat && _fromDate != null) {
+      final fromEpoch = DateTime(_fromDate!.year, _fromDate!.month, _fromDate!.day)
+          .add(Duration(seconds: _fromTimeSeconds))
+          .millisecondsSinceEpoch ~/ 1000;
+      exportParams['from_date'] = fromEpoch;
+    }
+    if (_isPerChat && _tillDate != null) {
+      final tillEpoch = DateTime(_tillDate!.year, _tillDate!.month, _tillDate!.day)
+          .add(Duration(seconds: _tillTimeSeconds))
+          .millisecondsSinceEpoch ~/ 1000;
+      exportParams['till_date'] = tillEpoch;
+    }
+    engine.startExport(accountId, exportParams).catchError((e) {
       if (mounted) {
         _triggerGenericApiError(0, 'StartExport', e.toString());
       }
@@ -870,8 +891,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }
 
   void _bringPanelToFront() {
-    _ExportPanelController.close();
-    _ExportPanelController.show(context, widget.target);
+    _ExportPanelController.showAndActivate(context, widget.target);
   }
 
   List<_ExportStepInfo> _buildExportStepList() {
@@ -949,6 +969,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
 
   void _triggerTakeoutInvalidError() {
     _cleanupExportSubscriptions();
+    setState(() => _phase = ExportPhase.settings);
     _showExportInformBox(
       'Sorry, your data export session has expired, please try again.',
     );
@@ -957,6 +978,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   void _triggerTakeoutInitDelayError(
       int hoursRemaining, DateTime availableAt) {
     _cleanupExportSubscriptions();
+    setState(() => _phase = ExportPhase.settings);
     const months = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -1711,7 +1733,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                 controller: _scrollController,
                 padding: EdgeInsets.zero,
                 children: [
-                  _buildSectionHeader('Media', headerColor),
+                  if (!_isPerChat) _buildSectionHeader('Media', headerColor),
                   _buildMediaCheckbox('Photos', _mediaPhotos,
                       (v) => _updateSetting(() => _mediaPhotos = v!), textColor),
                   _buildMediaCheckbox('Video files', _mediaVideo,
@@ -2075,12 +2097,13 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
-              for (final step in visibleSteps)
+              for (int _si = 0; _si < visibleSteps.length; _si++) ...[
+                if (_si > 0) const SizedBox(height: 10),
                 AnimatedOpacity(
-                  opacity: step.opacity,
+                  opacity: visibleSteps[_si].opacity,
                   duration: const Duration(milliseconds: 300),
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 5, 22, 5),
+                    padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
                     child: SizedBox(
                       height: 30,
                       child: Column(
@@ -2091,7 +2114,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                               children: [
                                 Expanded(
                                   child: Text(
-                                    step.label,
+                                    visibleSteps[_si].label,
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
@@ -2102,7 +2125,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  step.info,
+                                  visibleSteps[_si].info,
                                   style: TextStyle(
                                       fontSize: 14, color: subtextColor),
                                 ),
@@ -2125,7 +2148,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                                           const Duration(milliseconds: 200),
                                       curve: Curves.easeInOut,
                                       width: constraints.maxWidth *
-                                          step.progress,
+                                          visibleSteps[_si].progress,
                                       height: 3,
                                       color: activeFg,
                                     ),
@@ -2139,6 +2162,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                     ),
                   ),
                 ),
+              ],
             ],
           ),
         ),
@@ -2238,57 +2262,90 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final activeFg =
         context.palette.windowBgActive;
+    final inactiveFg =
+        isDark ? const Color(0xFF283848) : const Color(0xFFE0E0E0);
 
-    final doneRows = [
-      'Data exported successfully.',
-      'Total files: ${_formatFileCount(_totalFiles)}',
-      'Total size: ${_formatSize(_totalSizeBytes)}',
-    ];
+    final completedSteps = _exportSteps.map((s) => _ExportStepInfo(
+      label: s.label,
+      info: s.info.isNotEmpty ? s.info : 'Done',
+      progress: 1.0,
+      opacity: 1.0,
+    )).toList();
 
     return Column(
       children: [
         const SizedBox(height: 10),
-        for (final label in doneRows)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 5, 22, 5),
-            child: SizedBox(
-              height: 30,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: textColor,
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              for (int i = 0; i < completedSteps.length; i++) ...[
+                if (i > 0) const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+                  child: SizedBox(
+                    height: 30,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  completedSteps[i].label,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: textColor,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                completedSteps[i].info,
+                                style: TextStyle(
+                                    fontSize: 14, color: subtextColor),
+                              ),
+                            ],
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        SizedBox(
+                          height: 3,
+                          child: Stack(
+                            children: [
+                              Container(
+                                width: double.infinity,
+                                height: 3,
+                                color: inactiveFg,
+                              ),
+                              Container(
+                                width: double.infinity,
+                                height: 3,
+                                color: activeFg,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  Container(
-                    width: double.infinity,
-                    height: 3,
-                    color: activeFg,
+                ),
+              ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Your data was successfully exported.',
+                    style: TextStyle(fontSize: 14, color: subtextColor),
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Your data was successfully exported.',
-              style: TextStyle(fontSize: 14, color: subtextColor),
-            ),
+            ],
           ),
         ),
-        const Spacer(),
         Padding(
           padding: const EdgeInsets.only(bottom: 30),
           child: SizedBox(

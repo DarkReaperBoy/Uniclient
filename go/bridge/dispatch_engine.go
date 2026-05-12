@@ -4036,6 +4036,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "EndGroupCall":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.EndGroupCall(params.AccountID, params.CallID); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	case "SetCallMuted":
 		var params struct {
 			AccountID string `json:"account_id"`

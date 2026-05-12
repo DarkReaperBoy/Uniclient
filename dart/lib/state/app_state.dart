@@ -237,6 +237,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String _callInputDevice = 'Default';
   String _callCameraDevice = 'Default';
   bool _callUseSameDevices = true;
+  bool _callNoiseSuppression = true;
   bool _notifAllAccountsNotify = true;
   bool _notifIncludeMutedChats = true;
   bool _notifIncludeMutedInFolders = true;
@@ -503,6 +504,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String get callInputDevice => _callInputDevice;
   String get callCameraDevice => _callCameraDevice;
   bool get callUseSameDevices => _callUseSameDevices;
+  bool get callNoiseSuppression => _callNoiseSuppression;
   bool get notifAllAccountsNotify => _notifAllAccountsNotify;
   bool get notifIncludeMutedChats => _notifIncludeMutedChats;
   bool get notifIncludeMutedInFolders => _notifIncludeMutedInFolders;
@@ -769,6 +771,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setCallUseSameDevices(bool v) {
     if (_callUseSameDevices == v) return;
     _callUseSameDevices = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setCallNoiseSuppression(bool v) {
+    if (_callNoiseSuppression == v) return;
+    _callNoiseSuppression = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -2906,6 +2915,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _callInputDevice = data['callInputDevice'] as String? ?? 'Default';
       _callCameraDevice = data['callCameraDevice'] as String? ?? 'Default';
       _callUseSameDevices = data['callUseSameDevices'] as bool? ?? true;
+      _callNoiseSuppression = data['callNoiseSuppression'] as bool? ?? true;
       _notifAllAccountsNotify = data['notifAllAccountsNotify'] as bool? ?? true;
       _notifIncludeMutedChats = data['notifIncludeMutedChats'] as bool? ?? true;
       _notifIncludeMutedInFolders = data['notifIncludeMutedInFolders'] as bool? ?? true;
@@ -3146,6 +3156,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'callInputDevice': _callInputDevice,
         'callCameraDevice': _callCameraDevice,
         'callUseSameDevices': _callUseSameDevices,
+        'callNoiseSuppression': _callNoiseSuppression,
         'notifAllAccountsNotify': _notifAllAccountsNotify,
         'notifIncludeMutedChats': _notifIncludeMutedChats,
         'notifIncludeMutedInFolders': _notifIncludeMutedInFolders,

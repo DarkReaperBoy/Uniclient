@@ -1643,6 +1643,23 @@ func (e *Engine) EndCall(accountID, callID string) error {
 	return acc.Core.EndCall(callID)
 }
 
+func (e *Engine) EndGroupCall(accountID, callID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type groupCallEnder interface {
+		EndGroupCall(callID string) error
+	}
+	if gc, ok := acc.Core.(groupCallEnder); ok {
+		return gc.EndGroupCall(callID)
+	}
+	return fmt.Errorf("core does not support EndGroupCall")
+}
+
 func (e *Engine) SetCallMuted(accountID, callID string, muted bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

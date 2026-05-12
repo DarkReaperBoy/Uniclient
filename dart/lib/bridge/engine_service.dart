@@ -1797,6 +1797,18 @@ class EngineService {
     }
   }
 
+  Future<void> endGroupCall(String accountId, String callId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+    }));
+    try {
+      await _callAsync('__engine', 'EndGroupCall', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'endGroupCall failed', e);
+    }
+  }
+
   Future<void> setCallMuted(String accountId, String callId, bool muted) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -1807,6 +1819,19 @@ class EngineService {
       await _callAsync('__engine', 'SetCallMuted', Uint8List.fromList(payload));
     } catch (e) {
       Debug.error('ENGINE', 'setCallMuted failed', e);
+    }
+  }
+
+  Future<void> setCallAudioDevice(String accountId, String type, String device) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'type': type,
+      'device': device,
+    }));
+    try {
+      await _callAsync('__engine', 'SetCallAudioDevice', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'setCallAudioDevice failed', e);
     }
   }
 
