@@ -17,11 +17,13 @@ class AuthState extends ChangeNotifier {
   bool _submitting = false;
   String? _error;
 
-  // SRP_ID_INVALID rate limiting.
-  int _srpRetryCount = 0;
+  // SRP_ID_INVALID rate limiting — 60s time gate matching AyuGram.
+  DateTime? _lastSrpIdInvalidTime;
+  static const _srpIdInvalidTimeout = Duration(seconds: 60);
 
   StreamSubscription<AuthStateEvent>? _sub;
   Timer? _autoPollTimer;
+  bool _autoInputBusy = false;
 
   /// File path for CLI automation input.
   /// Write JSON to this file to control auth flow:
@@ -96,16 +98,21 @@ class AuthState extends ChangeNotifier {
       _currentAuth = result;
       _submitting = false;
 
-      // SRP_ID_INVALID is retried transparently in the Go engine.
-      // If it still reaches here as an error state, the retry also failed.
       if (result?.state == 'error' &&
           (result!.message.contains('SRP_ID_INVALID') ||
            result.error.contains('SRP_ID_INVALID'))) {
-        _srpRetryCount++;
-        _error = 'Server challenge expired. Please try again.';
-        Debug.log('AUTH', 'SRP_ID_INVALID — Go retry failed (attempt $_srpRetryCount)');
+        final now = DateTime.now();
+        if (_lastSrpIdInvalidTime != null &&
+            now.difference(_lastSrpIdInvalidTime!) < _srpIdInvalidTimeout) {
+          _error = 'Server error. Please try again later.';
+          Debug.log('AUTH', 'SRP_ID_INVALID twice within 60s — giving up');
+        } else {
+          _lastSrpIdInvalidTime = now;
+          _error = 'Server challenge expired. Please try again.';
+          Debug.log('AUTH', 'SRP_ID_INVALID — will retry');
+        }
       } else {
-        _srpRetryCount = 0;
+        _lastSrpIdInvalidTime = null;
       }
 
       Debug.log('AUTH', 'submitInput → state=${result?.state} label=${result?.label}');
@@ -125,8 +132,11 @@ class AuthState extends ChangeNotifier {
     _currentAuth = null;
     _submitting = false;
     _error = null;
+    _lastSrpIdInvalidTime = null;
     _stopAutoPoll();
     notifyListeners();
+    // Yield to let the engine process the cancel before starting new auth.
+    await Future<void>.delayed(Duration.zero);
     await startAuth(accountId);
     if (_currentAuth?.state == 'choose') {
       await submitInput(method);
@@ -193,16 +203,17 @@ class AuthState extends ChangeNotifier {
     _autoPollTimer = null;
   }
 
-  void _checkAutoInput() {
+  Future<void> _checkAutoInput() async {
+    if (_autoInputBusy) return;
+    _autoInputBusy = true;
     try {
       final file = File(autoInputPath);
-      if (!file.existsSync()) return;
+      if (!await file.exists()) return;
 
-      final content = file.readAsStringSync().trim();
+      final content = (await file.readAsString()).trim();
       if (content.isEmpty) return;
 
-      // Delete file immediately to prevent re-reading.
-      file.deleteSync();
+      await file.delete();
 
       final cmd = jsonDecode(content) as Map<String, dynamic>;
       final action = cmd['action'] as String? ?? '';
@@ -220,6 +231,8 @@ class AuthState extends ChangeNotifier {
       }
     } catch (e) {
       // Silently ignore — file might not exist or be in transit.
+    } finally {
+      _autoInputBusy = false;
     }
   }
 
