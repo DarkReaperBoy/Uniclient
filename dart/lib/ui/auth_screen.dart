@@ -20,6 +20,25 @@ import '../utils/country_data.dart';
 import 'photo_crop_editor.dart';
 import 'settings_screen.dart';
 
+double _authShakeOffset(double value) {
+  const shift = 4.0;
+  const segments = 5;
+  final fullProgress = value * 6.0;
+  final segment = fullProgress.floor().clamp(0, segments);
+  final part = fullProgress - segment;
+  final from = switch (segment) {
+    0 => 0.0,
+    1 || 3 || 5 => 1.0,
+    _ => -1.0,
+  };
+  final to = switch (segment) {
+    0 || 2 || 4 => 1.0,
+    1 || 3 => -1.0,
+    _ => 0.0,
+  };
+  return (from * (1.0 - part) + to * part) * shift;
+}
+
 /// Authentication screen. Spec §11.
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -573,9 +592,7 @@ class _AuthScreenState extends State<AuthScreen>
       animation: _shakeController,
       builder: (context, child) {
         final dx = _shakeController.isAnimating
-            ? sin(_shakeController.value * pi * 5) *
-                4 *
-                (1 - _shakeController.value)
+            ? _authShakeOffset(_shakeController.value)
             : 0.0;
         return Transform.translate(offset: Offset(dx, 0), child: child);
       },
@@ -1076,9 +1093,7 @@ class _AuthScreenState extends State<AuthScreen>
             animation: _shakeController,
             builder: (context, child) {
               final dx = _shakeController.isAnimating
-                  ? sin(_shakeController.value * pi * 4) *
-                      6 *
-                      (1 - _shakeController.value)
+                  ? _authShakeOffset(_shakeController.value)
                   : 0.0;
               return Transform.translate(
                 offset: Offset(dx, 0),
@@ -1832,9 +1847,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
               animation: _shakeController,
               builder: (context, child) {
                 final dx = _shakeController.isAnimating
-                    ? sin(_shakeController.value * pi * 5) *
-                        4 *
-                        (1 - _shakeController.value)
+                    ? _authShakeOffset(_shakeController.value)
                     : 0.0;
                 return Transform.translate(
                   offset: Offset(dx, 0),
