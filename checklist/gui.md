@@ -1048,11 +1048,7 @@ The implementation is complete, accurate, and ready for use. No changes needed.
 
 # call_screen — Group Call Panel + Minimised Call Bar
 
-- [ ] [MAJOR] `_ScreenSourceThumb` shows a generic `Icons.monitor` / `Icons.web_asset` placeholder instead of a real live preview of the window/screen; AyuGram renders actual capture thumbnails via `tgcalls::DesktopCaptureSource::captureImage()` — `call_screen.dart:2504-2510` ← `desktop_capture_choose_source.cpp`
-
 # calls_screen — Call History, Conference Call, Active Group Calls, Call Settings
-
-- [ ] [MAJOR] Device selection in `_CallSettingsScreen` (output, input, camera) only calls `appState.setCallOutputDevice()` / `setCallInputDevice()` / `setCallCameraDevice()`. Camera device has no engine call; output/input engine calls exist in Dart but `SetCallAudioDevice` dispatch is missing from Go bridge — device preferences are never applied to the call engine. — `calls_screen.dart:2282` ← `AyuGram/calls/calls_controller.h:setAudioOutputDevice`
 
 ## chat_list_panel — full panel audit (search, story bar, folder tabs, archived row, forum topics, saved sublists, drag behaviors)
 
