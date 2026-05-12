@@ -628,7 +628,7 @@ class _AuthScreenState extends State<AuthScreen>
     const recoveryFieldTop = 96.0;
     const fieldHeight = 61.0;
     const hintTop = 151.0;
-    const errorTop = 235.0;
+    const errorTop = 220.0;
     final activeFieldTop = _isRecoveryMode ? recoveryFieldTop : fieldTop;
     final linkTop = activeFieldTop + fieldHeight + 24.0;
 
