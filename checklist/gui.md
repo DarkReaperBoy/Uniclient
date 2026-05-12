@@ -1109,29 +1109,7 @@ This dialog is fundamentally non-functional as implemented:
 
 # emoji_panel — Emoji/Sticker/GIF Panel Audit
 
-- [ ] [CRITICAL] Stickers rendered as static JPEG thumbnails only — no Lottie (TGS) or WebM animation playback; `_StickerCell` at line 2132 calls `Image.memory(bytes)` from `thumbB64`, never plays animated content — `emoji_panel.dart:2140-2156` ← `AyuGram/chat_helpers/stickers_list_widget.cpp:1791` (`paintSticker` renders animated via `MultiPlayer`/`SinglePlayer`)
-
 - [ ] [CRITICAL] GIFs rendered as static thumbnails only — `_GifCell` and `_GifSearchCell` show `Image.memory` from `thumbB64`, no actual GIF/WebM playback; user sees a still frame in the GIF panel — `emoji_panel.dart:2876-2899` ← `AyuGram/chat_helpers/gifs_list_widget.cpp:676` (`layoutPrepareSavedGif` uses animated layout items with live rendering)
-
-- [ ] [CRITICAL] Custom emoji rendered as static JPEG thumbnails only — `_CustomEmojiCell` decodes `sticker.thumbB64` as JPEG and shows `Image.memory`; TGS custom emoji are never animated — `emoji_panel.dart:1216-1248` ← `AyuGram/chat_helpers/emoji_list_widget.cpp:1720` (refreshes via animated `CustomEmoji` renderer)
-
-- [ ] [CRITICAL] Sticker context menu missing Send quietly / Schedule options — `_showStickerContextMenu` only builds fave/view_set/remove_recent/copy_link; AyuGram calls `SendMenu::FillSendMenu` before the fave item, which injects "Send without sound" and "Schedule" — `emoji_panel.dart:1646-1688` ← `AyuGram/chat_helpers/stickers_list_widget.cpp:2182` (`SendMenu::FillSendMenu(menu, nullptr, details, ...)`)
-
-- [ ] [CRITICAL] Saved GIF context menu missing Send quietly / Schedule options — `_onSavedGifContextMenu` only offers "Delete GIF"; AyuGram GIF context menu also calls `SendMenu::FillSendMenu` — `emoji_panel.dart:2507-2540` ← `AyuGram/chat_helpers/gifs_list_widget.cpp:2415` (`SendMenu::FillSendMenu(menu, nullptr, details, ...)`)
-
-- [ ] [CRITICAL] Sticker long-press preview (MediaPreviewWidget) not implemented — AyuGram starts `_previewTimer` on mouse press (`QApplication::startDragTime()`) and shows a full animated sticker preview overlay; Dart's `_StickerCell` has no preview on long-press — `emoji_panel.dart:2121-2188` ← `AyuGram/chat_helpers/stickers_list_widget.cpp:2027` (`_previewTimer.callOnce(...)`) and `3101` (`showPreview()`)
-
-- [ ] [CRITICAL] "Remove from recent sticker" only updates local list — not persisted to backend; AyuGram calls `Api::ToggleRecentSticker(document, ..., false)` which hits the MTProto API to actually remove it; Dart only does `setState(() { _recentStickers.removeWhere(...); })` — `emoji_panel.dart:1679-1683` ← `AyuGram/chat_helpers/stickers_list_widget.cpp:2211` (`Api::ToggleRecentSticker(document, ..., false)`)
-
-- [ ] [MAJOR] Sticker grid is non-lazy — `_buildGrid` at line 1876 uses `ListView(children: sections)` which eagerly builds all sticker pack sections (potentially thousands of cells) as upfront children; should use `CustomScrollView` with `SliverList`/`SliverGrid` for lazy rendering — `emoji_panel.dart:1911-1915` ← `AyuGram/chat_helpers/stickers_list_widget.cpp:572` (lazy `countDesiredHeight` + virtual row painting)
-
-- [ ] [MAJOR] Sticker section rows built non-lazily — `_buildSection` constructs all `Row` widgets for all sticker rows inside a `Column` at build time; a pack with 60 stickers at 5-per-row creates 12 Row widgets with 60 StickerCell children all rendered at once — `emoji_panel.dart:1933-1955` ← `AyuGram/chat_helpers/stickers_list_widget.cpp:1174` (row paint is virtual/lazy)
-
-- [ ] [MAJOR] Skin tone popup base-to-variant gap missing — Dart places the separator (`_kEmojiColorsSep = 1px`) directly adjacent to the base emoji with zero extra spacing; AyuGram positions the separator at `emojiPanMargins.left + 2*emojiColorsPadding + singleSize.width` = 10+16+30=56px from left, creating 16px visual breathing room on each side of the separator — `emoji_panel.dart:1114-1118` ← `AyuGram/chat_helpers/emoji_list_widget.cpp:244` (`auto x = st::emojiPanMargins.left() + 2 * st::emojiColorsPadding + _singleSize.width()`)
-
-- [ ] [MAJOR] Skin tone popup outer padding wrong — Dart uses `_kPopupPad = 4.0` for all four sides of the popup container; AyuGram uses `emojiPanMargins: margins(10px, 10px, 10px, 10px)` around the popup's inner rect — `emoji_panel.dart:30` (`_kPopupPad = 4.0`) and `1086-1107` ← `AyuGram/chat_helpers/chat_helpers.style:486` (`emojiPanMargins: margins(10px, 10px, 10px, 10px)`) and `emoji_list_widget.cpp:199` (`st::emojiPanMargins.left()`)
-
-- [ ] [MAJOR] `Image.memory` used without `cacheWidth`/`cacheHeight` — thumbnail images (stickers, GIF thumbs, pack icons) are decoded at full embedded resolution with no size hint; Flutter will decode the full JPEG then scale down, wasting memory and CPU; affects every cell render — `emoji_panel.dart:2144-2150` (StickerCell), `2016-2018` (FeaturedPackRow), `2233-2235` (footer icon), `2882-2883` (GifCell) ← best practice per Flutter `Image.memory` docs (`cacheWidth`/`cacheHeight` use `ResizeImage` for decode-time downscaling)
 
 # ayu_filter — Match-blob completeness, blocking logic, missing features
 
