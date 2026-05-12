@@ -1109,7 +1109,6 @@ This dialog is fundamentally non-functional as implemented:
 
 # emoji_panel — Emoji/Sticker/GIF Panel Audit
 
-- [ ] [CRITICAL] GIFs rendered as static thumbnails only — `_GifCell` and `_GifSearchCell` show `Image.memory` from `thumbB64`, no actual GIF/WebM playback; user sees a still frame in the GIF panel — `emoji_panel.dart:2876-2899` ← `AyuGram/chat_helpers/gifs_list_widget.cpp:676` (`layoutPrepareSavedGif` uses animated layout items with live rendering)
 
 # emoji_status_widget — Fixed
 
