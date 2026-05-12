@@ -1097,10 +1097,6 @@ The Dart implementation has fundamentally wrong button behavior and is missing c
 
 ## Findings
 
-- [ ] **[MAJOR]** Missing Enter key validation flow
-  - `edit_mark_box.dart:66-68` (TelegramBox onConfirm calls `_save()` directly, which has no validation)
-  - ← `edit_mark_box.cpp:61-66` (submits signal calls `submit()`, which validates before calling `save()`)
-  - **Issue:** In AyuGram, pressing Enter triggers `submit()` which validates first. In Dart, pressing Enter triggers `onConfirm` which directly saves without validation. If user presses Enter with empty text in Dart, it will save without error feedback.
 
 ---
 
