@@ -1161,10 +1161,6 @@ This dialog is fundamentally non-functional as implemented:
 
 **Priority**: Fix missing import immediately. All other logic is sound and matches AyuGram's emoji status rendering patterns.
 
-# filter_column — Audit Findings
-
-- [ ] [CRITICAL] Premium folder limit shows AlertDialog with hardcoded limit instead of FiltersLimitBox dialog — AyuGram calls `_session->show(Box(FiltersLimitBox, ...))` with the server-driven `PremiumLimits.dialogFiltersCurrent()` value; Dart still uses hardcoded `folderIndex >= 10` check (SnackBar was fixed to AlertDialog, but the hardcoded limit remains) — `filter_column.dart:332` ← `window_filters_menu.cpp:371-375`
-
 ## folders_settings_screen — Folder create/edit missing individual chat picker; limit buttons are stubs
 
 - [ ] [CRITICAL] "Add Chats" and "Remove Chats" buttons open only type-category pickers (_IncludeTypePicker / _ExcludeTypePicker) — there is no individual chat search/selection UI, so users can never add specific chats to a folder; new folders always have empty chatIds — `folders_settings_screen.dart:1877-1878` (`_openIncludeTypePicker`) and `dart:1909` (`_openExcludeTypePicker`) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:946-963` (`EditExceptions` opens `EditFilterChatsListController` peer-list box)
