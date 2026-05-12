@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -92,8 +93,21 @@ class _WizardDialogState extends State<_WizardDialog>
   static const Map<int, String> _ttlOptions = {
     0: 'Off',
     86400: '1 day',
+    172800: '2 days',
+    259200: '3 days',
+    345600: '4 days',
+    432000: '5 days',
+    518400: '6 days',
     604800: '1 week',
+    1209600: '2 weeks',
+    1814400: '3 weeks',
     2678400: '1 month',
+    5356800: '2 months',
+    8035200: '3 months',
+    10713600: '4 months',
+    13392000: '5 months',
+    16070400: '6 months',
+    31536000: '1 year',
   };
 
   // Member picker state.
@@ -102,8 +116,8 @@ class _WizardDialogState extends State<_WizardDialog>
   final _memberSearchController = TextEditingController();
   bool _loadingContacts = false;
 
-  // Channel setup state.
-  bool _isPublic = false;
+  // Channel setup state — AyuGram defaults to Public (Privacy::Public).
+  bool _isPublic = true;
   final _usernameController = TextEditingController();
   String? _usernameStatus;
   bool _usernameValid = false;
@@ -133,7 +147,16 @@ class _WizardDialogState extends State<_WizardDialog>
     ));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _nameFocus.requestFocus();
+      if (widget.type == _WizardType.group) _loadDefaultTTL();
     });
+  }
+
+  Future<void> _loadDefaultTTL() async {
+    try {
+      final ttl = await _engine.getDefaultHistoryTTL(_accountId);
+      if (!mounted || ttl <= 0) return;
+      setState(() => _ttlSeconds = ttl);
+    } catch (_) {}
   }
 
   @override
@@ -338,16 +361,12 @@ class _WizardDialogState extends State<_WizardDialog>
 
   Future<void> _captureFromCamera() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-      );
-      if (result == null || result.files.isEmpty) return;
-      final path = result.files.first.path;
-      if (path == null || !mounted) return;
+      final picker = ImagePicker();
+      final photo = await picker.pickImage(source: ImageSource.camera);
+      if (photo == null || !mounted) return;
       await PhotoCropEditor.open(
         context,
-        imageFile: File(path),
+        imageFile: File(photo.path),
         shape: PhotoCropShape.ellipse,
         purpose: PhotoEditorPurpose.setPhoto,
         onDone: (croppedFile) async {
@@ -366,27 +385,48 @@ class _WizardDialogState extends State<_WizardDialog>
 
   Future<void> _pasteFromClipboard() async {
     try {
-      final data = await Clipboard.getData('image/png');
-      if (data == null || data.text == null) {
+      final tempPath = '/tmp/uniclient_clipboard_${DateTime.now().millisecondsSinceEpoch}.png';
+      bool gotImage = false;
+
+      if (Platform.isLinux) {
+        // Wayland: wl-paste; X11: xclip
+        var result = await Process.run('bash', ['-c',
+          'wl-paste --type image/png > ${_shellEscape(tempPath)} 2>/dev/null']);
+        if (result.exitCode != 0) {
+          result = await Process.run('bash', ['-c',
+            'xclip -selection clipboard -t image/png -o > ${_shellEscape(tempPath)} 2>/dev/null']);
+        }
+        final f = File(tempPath);
+        gotImage = await f.exists() && (await f.length()) > 0;
+      } else if (Platform.isMacOS) {
+        final result = await Process.run('bash', ['-c',
+          'osascript -e \'set theData to the clipboard as «class PNGf»\' '
+          '-e \'set theFile to open for access POSIX file "${_shellEscape(tempPath)}" with write permission\' '
+          '-e \'write theData to theFile\' '
+          '-e \'close access theFile\' 2>/dev/null']);
+        if (result.exitCode == 0) {
+          final f = File(tempPath);
+          gotImage = await f.exists() && (await f.length()) > 0;
+        }
+      }
+
+      if (!gotImage) {
+        // Clean up temp file if empty
+        try { await File(tempPath).delete(); } catch (_) {}
         if (!mounted) return;
         showTelegramToast(context, 'No image in clipboard');
         return;
       }
-    } catch (_) {}
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-      );
-      if (result == null || result.files.isEmpty) return;
-      final path = result.files.first.path;
-      if (path == null || !mounted) return;
+      if (!mounted) return;
+
       await PhotoCropEditor.open(
         context,
-        imageFile: File(path),
+        imageFile: File(tempPath),
         shape: PhotoCropShape.ellipse,
+        purpose: PhotoEditorPurpose.setPhoto,
         onDone: (croppedFile) async {
           final bytes = await croppedFile.readAsBytes();
+          try { await File(tempPath).delete(); } catch (_) {}
           if (!mounted) return;
           setState(() {
             _photoBytes = bytes;
@@ -394,10 +434,13 @@ class _WizardDialogState extends State<_WizardDialog>
           });
         },
       );
-    } catch (_) {
+    } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed to paste image');
     }
   }
+
+  static String _shellEscape(String s) => "'${s.replaceAll("'", "'\\''")}'";
+
 
   Future<void> _pickEmojiAvatar() async {
     if (!mounted) return;
@@ -1819,8 +1862,12 @@ class _ProgressRingPainter extends CustomPainter {
 
     if (isForum) {
       final rrect = RRect.fromRectAndRadius(rect, Radius.circular(forumRadius));
-      final path = Path()..addRRect(rrect);
-      canvas.drawPath(path, paint..style = PaintingStyle.stroke);
+      final fullPath = Path()..addRRect(rrect);
+      final metrics = fullPath.computeMetrics().first;
+      final totalLength = metrics.length;
+      final arcLength = progress.clamp(0.05, 1.0) * totalLength;
+      final extracted = metrics.extractPath(0, arcLength);
+      canvas.drawPath(extracted, paint);
     } else {
       canvas.drawArc(rect, -math.pi / 2, sweepAngle, false, paint);
     }
@@ -2384,6 +2431,8 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
   bool _isForum = false;
   int _slowmodeSeconds = 0;
 
+  bool _hasDiscussionLink = false;
+
   bool _origJoinToSend = false;
   bool _origNoForwards = false;
   bool _origJoinRequest = false;
@@ -2433,10 +2482,12 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
       final results = await Future.wait([
         engine.getChatUsername(widget.accountId, widget.chatId),
         engine.getChatPermissionFlags(widget.accountId, widget.chatId),
+        engine.getLinkedChatId(widget.accountId, widget.chatId).catchError((_) => ''),
       ]);
       if (!mounted) return;
       final username = results[0] as String;
       final flags = results[1] as Map<String, dynamic>;
+      final linkedChatId = results[2] as String;
       setState(() {
         _currentUsername = username;
         _origUsername = username;
@@ -2454,6 +2505,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         _origNoForwards = _noForwards;
         _origJoinRequest = _joinRequest;
         _origSlowmodeSeconds = _slowmodeSeconds;
+        _hasDiscussionLink = linkedChatId.isNotEmpty;
         _loading = false;
       });
       if (!_isPublic) _loadInviteLink();
@@ -2679,40 +2731,44 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
     final separatorColor = isDark ? const Color(0xFF0F1820) : const Color(0xFFE0E0E0);
     final toggleActiveColor = context.palette.windowBgActive;
 
+    final showWhoSend = _isPublic || _hasDiscussionLink;
+
     return [
-      _PermissionToggleRow(
-        icon: Icons.chat_bubble_outline,
-        label: 'Only members can send',
-        subtitle: 'Non-members won\'t be able to send messages.',
-        value: _joinToSend,
-        activeColor: toggleActiveColor,
-        textColor: textColor,
-        subtextColor: subtextColor,
-        onChanged: (v) {
-          setState(() {
-            _joinToSend = v;
-            if (!v) _joinRequest = false;
-          });
-        },
-      ),
-      Container(height: 1, color: separatorColor),
-      if (_joinToSend)
-        Padding(
-          padding: const EdgeInsets.only(left: 42),
-          child: _PermissionToggleRow(
-            icon: Icons.person_add_outlined,
-            label: 'Approve New Members',
-            value: _joinRequest,
-            activeColor: toggleActiveColor,
-            textColor: textColor,
-            subtextColor: subtextColor,
-            onChanged: (v) {
-              setState(() => _joinRequest = v);
-            },
-          ),
+      if (showWhoSend) ...[
+        _PermissionToggleRow(
+          icon: Icons.chat_bubble_outline,
+          label: 'Only members can send',
+          subtitle: 'Non-members won\'t be able to send messages.',
+          value: _joinToSend,
+          activeColor: toggleActiveColor,
+          textColor: textColor,
+          subtextColor: subtextColor,
+          onChanged: (v) {
+            setState(() {
+              _joinToSend = v;
+              if (!v) _joinRequest = false;
+            });
+          },
         ),
-      if (_joinToSend)
         Container(height: 1, color: separatorColor),
+        if (_joinToSend)
+          Padding(
+            padding: const EdgeInsets.only(left: 42),
+            child: _PermissionToggleRow(
+              icon: Icons.person_add_outlined,
+              label: 'Approve New Members',
+              value: _joinRequest,
+              activeColor: toggleActiveColor,
+              textColor: textColor,
+              subtextColor: subtextColor,
+              onChanged: (v) {
+                setState(() => _joinRequest = v);
+              },
+            ),
+          ),
+        if (_joinToSend)
+          Container(height: 1, color: separatorColor),
+      ],
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Column(
