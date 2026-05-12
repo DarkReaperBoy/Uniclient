@@ -40,17 +40,34 @@ class _EditMarkBoxContent extends StatefulWidget {
 
 class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
   late final TextEditingController _controller;
+  final _focusNode = FocusNode();
+  bool _showError = false;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.currentValue);
+    _controller.addListener(() {
+      if (_showError && _controller.text.trim().isNotEmpty) {
+        setState(() => _showError = false);
+      }
+    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  void _submit() {
+    if (_controller.text.trim().isEmpty) {
+      _focusNode.requestFocus();
+      setState(() => _showError = true);
+    } else {
+      _save();
+    }
   }
 
   void _save() {
@@ -65,17 +82,19 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
 
     return TelegramBox(
       title: widget.title,
-      onConfirm: _save,
+      onConfirm: _submit,
       content: Padding(
         padding: const EdgeInsets.fromLTRB(24, 2, 24, 8),
         child: TextField(
           controller: _controller,
+          focusNode: _focusNode,
           autofocus: true,
           style: TextStyle(fontSize: 14, color: textFg),
           decoration: InputDecoration(
             hintText: widget.defaultValue.isEmpty ? 'edited' : widget.defaultValue,
             border: const UnderlineInputBorder(),
             contentPadding: const EdgeInsets.symmetric(vertical: 8),
+            errorText: _showError ? 'This field is required' : null,
           ),
         ),
       ),
@@ -84,13 +103,16 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
           text: 'Reset',
           isLeft: true,
           onPressed: () {
-            widget.onSave(widget.defaultValue);
-            Navigator.of(context).pop();
+            _controller.text = widget.defaultValue;
           },
         ),
         TelegramBoxButton(
           text: 'Save',
-          onPressed: _save,
+          onPressed: _submit,
+        ),
+        TelegramBoxButton(
+          text: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ],
     );
