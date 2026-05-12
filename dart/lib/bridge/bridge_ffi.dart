@@ -67,13 +67,17 @@ class BridgeImpl {
 
   /// Synchronous FFI call (use callAsync for non-blocking).
   Uint8List call(Uint8List requestBytes) {
-    assert(_initialized, 'Bridge not initialized. Call init() first.');
+    if (!_initialized) {
+      throw StateError('Bridge not initialized. Call init() first.');
+    }
     return _doCall(_callWithLen, _free, requestBytes);
   }
 
   /// Async FFI call — runs the blocking Go call on a background isolate.
   Future<Uint8List> callAsync(Uint8List requestBytes) async {
-    assert(_initialized, 'Bridge not initialized. Call init() first.');
+    if (!_initialized) {
+      throw StateError('Bridge not initialized. Call init() first.');
+    }
     final libPath = _resolvedLibPath!;
     return Isolate.run(() => _isolateCall(libPath, requestBytes));
   }
@@ -82,17 +86,33 @@ class BridgeImpl {
     if (!_initialized) return;
     _setEventCallback(nullptr);
     _initialized = false;
+    _globalEventController.close();
+    _eventCallable.close();
   }
 
   static String _findLibraryPath() {
     if (Platform.isLinux) {
       final exeDir = File(Platform.resolvedExecutable).parent.path;
-      final bundlePath = '$exeDir/lib/libcores.so';
-      if (File(bundlePath).existsSync()) return bundlePath;
+      for (final candidate in [
+        '$exeDir/lib/libcores.so',
+        '$exeDir/libcores.so',
+      ]) {
+        if (File(candidate).existsSync()) return candidate;
+      }
       return 'libcores.so';
     }
-    if (Platform.isMacOS) return 'libcores.dylib';
-    if (Platform.isWindows) return 'cores.dll';
+    if (Platform.isMacOS) {
+      final exeDir = File(Platform.resolvedExecutable).parent.path;
+      final frameworkPath = '$exeDir/../Frameworks/libcores.dylib';
+      if (File(frameworkPath).existsSync()) return frameworkPath;
+      return 'libcores.dylib';
+    }
+    if (Platform.isWindows) {
+      final exeDir = File(Platform.resolvedExecutable).parent.path;
+      final localPath = '$exeDir/cores.dll';
+      if (File(localPath).existsSync()) return localPath;
+      return 'cores.dll';
+    }
     if (Platform.isAndroid) return 'libcores.so';
     throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
   }
