@@ -34,56 +34,6 @@
 No auditable issues found. Code quality is high.
 
 
-# web_drop_web — Web drag-and-drop zone (web platform implementation)
-
-- [ ] [MAJOR] `_readFiles` is async but calls `widget.onDrop?.call(results)` at line 163 without a `mounted` check. If `_WebDropZone` is disposed while files are being read (e.g., user navigates away mid-read), the callback fires on a stale widget and triggers `setState` in the caller (`chat_view.dart:4361`), causing a "setState called after dispose" crash. AyuGram's equivalent resets state synchronously in `dropEvent` before any async work (`history_drag_area.cpp:209-218`), avoiding the problem entirely. Fix: add `if (!mounted) return;` before the `widget.onDrop?.call(results)` call — `web_drop_web.dart:163` ← `history_drag_area.cpp:209`
-
-# notification_manager_default — Audit
-
-- [ ] [CRITICAL] `startAllHiding` skips notifications still `waitingForInput` (line 160: `if (item.waitingForInput) continue;`), so those notifications are never auto-dismissed on mouse-leave; C++ calls `notification->startHiding()` on every active notification unconditionally (no `_waitingForInput` guard) — `notification_manager_default.dart:160` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager_default.cpp:204`
-
-- [ ] [MAJOR] No `stopAllHiding()` method on the manager — C++ exposes `Manager::stopAllHiding()` which stops ALL notifications AND the HideAll button from hiding when the mouse enters any notification widget; Dart only exposes per-id `pauseDismissTimer(id)`, so hovering one notification does not pause the auto-dismiss timers of other simultaneously visible notifications — `notification_manager_default.dart:145` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager_default.cpp:213`
-
-- [ ] [MAJOR] `updateSettings` does not evict active notifications when `maxNotificationCount` is reduced — C++ `settingsChanged(MaxCount)` iterates active notifications in reverse and calls `unlinkHistory()` on any that exceed the new limit, then calls `showNextFromQueue()` to backfill; Dart's `updateSettings` only updates `_maxVisible` and `_corner`, leaving currently visible notifications above the new limit untouched — `notification_manager_default.dart:269` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager_default.cpp:148`
-
-- [ ] [MAJOR] `showNotification` evicts the oldest non-sticky notification when the active list is full (line 74–78: `_findEvictableItem` + `dismiss`), but C++ never evicts active notifications — it only dequeues when there is room; eviction changes user-visible behaviour (a notification the user is reading can be forcefully removed to show a new one) — `notification_manager_default.dart:74` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager_default.cpp:231`
-
-- [ ] [MAJOR] `_checkLastInput` has no platform-support guard — C++ calls `base::Platform::LastUserInputTimeSupported()` and passes `std::nullopt` when unsupported, causing `checkLastInput` to immediately set `_waitingForInput = false` and start the hide timer without waiting; Dart always requires `onUserInput()` to be called externally and will keep every notification in `waitingForInput = true` forever on platforms that never call that callback — `notification_manager_default.dart:103` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager_default.cpp:189`
-
-- [ ] [MAJOR] `updateSettings` does not refresh the display of existing notifications after settings change — C++ `doUpdateAll()` calls `notification->updateNotifyDisplay()` on all active widgets so they re-render with the new settings (name/photo visibility, preview text, etc.); Dart has no equivalent refresh path — `notification_manager_default.dart:269` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager_default.cpp:486`
-
-# notification_manager_native — DBus/native notification manager
-
-- [ ] [CRITICAL] No userpic fallback: if `data.avatarPath.isEmpty` the notification sends no image at all; AyuGram always calls `GenerateUserpic(peer, userpicView)` which produces a colored placeholder even for peers with no custom photo — `notification_manager_native.dart:387` ← `notifications_manager_linux.cpp:675-710`
-
-- [ ] [MAJOR] `_inhibited` read once at init and never refreshed; AyuGram reads `_interface.get_inhibited()` live on every `invokeIfNotInhibited` call, so toggling DND after app start has no effect on sound suppression in the Dart version — `notification_manager_native.dart:160,224-232,146` ← `notifications_manager_linux.cpp:873-877`
-
-- [ ] [MAJOR] `_escapeHtml` does not escape `"` (double-quote); AyuGram uses Qt's `toHtmlEscaped()` which also escapes `"`, so messages containing `"` in body-markup mode produce malformed HTML — `notification_manager_native.dart:462-467` ← `notifications_manager_linux.cpp:779-792`
-
-- [ ] [MAJOR] No GNotification/Flatpak fallback: AyuGram has a complete `Gio::Notification` code path (`UseGNotification()`) for Flatpak sandboxes and systems with a GApplication; Dart only implements the raw FDO DBus path and silently fails for sandboxed installs — `notification_manager_native.dart:170-173` ← `notifications_manager_linux.cpp:134-144,537-728`
-
-- [ ] [MAJOR] No DBus service-restart watcher: AyuGram registers a static `ServiceWatcher` that calls `createManager()` when the notification daemon ownership changes; if the daemon crashes and restarts the Dart manager stays broken with a stale `_notifProxy` — `notification_manager_native.dart:175` ← `notifications_manager_linux.cpp:63-96,239-241`
-
-- [ ] [MAJOR] `desktop-entry` hint hardcoded as `'uniclient'`; AyuGram uses `QGuiApplication::desktopFileName()` so the notification is always associated with the correct `.desktop` file regardless of install path — `notification_manager_native.dart:383-384` ← `notifications_manager_linux.cpp:670-671`
-
-- [ ] [MAJOR] `_buildImageHint` re-decodes and re-resizes the PNG that `CachedUserpics.get()` already wrote as 64×64; the file is read from disk, decoded, then `copyResize(image, width: 64, height: 64)` is called on an image that is already 64×64, wasting one full decode+resize cycle per notification — `notification_manager_native.dart:469-506` vs `notification_manager_native.dart:79`
-
-- [ ] [MAJOR] Default `_imageDataKey` is `'image-data'` but AyuGram's `GetImageKey()` defaults to `"icon_data"` when `CurrentServerInformation` is empty (i.e. `GetServerInformation` fails); on old notification daemons where the call fails the Dart will send the wrong key and the image will be silently ignored — `notification_manager_native.dart:161` ← `notifications_manager_linux.cpp:124-132`
-
-# notification_system — Notification scheduling, grouping, and dispatch
-
-- [ ] [CRITICAL] `_scheduleDispatch` creates `Timer` objects that are never stored, so `dispose()` cannot cancel them — pending timers fire after `dispose()` and call `_dispatch()` on an already-cleaned-up system (accessing disposed `_manager`, `_settings`, `_lastAlertPerThread`) — `notification_system.dart:338-348,559-569` ← `notifications_manager.cpp:492-506` (C++ uses `_waiters.clear()` + single cancellable `_waitTimer` so `showNext()` is a no-op after clear)
-
-- [ ] [MAJOR] `_kNotifyCloudDelay` (30 s), `_kNotifyDefaultDelay` (1500 ms), and `onlineCloudTimeoutSec` (300) are hardcoded constants; C++ reads `config.notifyCloudDelay`, `config.notifyDefaultDelay`, and `config.onlineCloudTimeout` from the server-negotiated MTP config — values can differ per server and must come from the engine bridge — `notification_system.dart:99-105,312` ← `notifications_manager.cpp:387-393` + `mtproto_config.h:24-26`
-
-- [ ] [MAJOR] Forward-group body text is hardcoded English (`'${group.length} forwarded messages'`) instead of a localisation call; C++ uses `tr::lng_forward_messages(tr::now, lt_count, fields.forwardedCount)` — `notification_system.dart:421` ← `notifications_manager.cpp:1608-1609`
-
-- [ ] [MAJOR] Album notifications dispatch `group.last` with its per-item media type (Photo/Video/…); C++ replaces the body with `tr::lng_in_dlg_album(tr::now)` whenever `item->groupId()` is set — `notification_system.dart:408-413` ← `notifications_manager.cpp:1610-1611`
-
-- [ ] [MAJOR] `_settingWaiters` is an unbounded `List<NotificationData>` that accumulates every notification whose mute state is unresolved, including multiple entries for the same chat; C++ `_settingWaiters` is a `base::flat_map<Thread*, Waiter>` (one entry per thread, kept only if `timing.when` is earlier than the existing one) so at most one pending item per thread can queue — `notification_system.dart:121,233,488-502` ← `notifications_manager.cpp:473-483`
-
-- [ ] [MAJOR] No `isMessageHidden` guard before scheduling: C++ skips notifications for messages suppressed by AyuGram filters (`AyuState::isHidden` + `FiltersController::filtered`); `NotificationData` has no `isHidden` field and the system never checks for it, so filtered/hidden messages still produce notifications — `notification_system.dart:206-244` ← `notifications_manager.cpp:437-440` + `telegram_helpers.cpp:296-302`
-
 # notification_types — Notification text composition & data structures
 
 ## Issues Found
