@@ -3140,6 +3140,36 @@ List<_GifRow> _packGifRows(List<_GifLayoutItem> items, double availableWidth) {
   return rows;
 }
 
+class _GifPlayerPool {
+  static const int maxConcurrent = 4;
+  static final _GifPlayerPool instance = _GifPlayerPool._();
+  _GifPlayerPool._();
+
+  final Set<Object> _active = {};
+  final List<(Object, VoidCallback)> _waiting = [];
+
+  bool tryAcquire(Object owner, VoidCallback onReady) {
+    if (_active.length < maxConcurrent) {
+      _active.add(owner);
+      return true;
+    }
+    _waiting.add((owner, onReady));
+    return false;
+  }
+
+  void release(Object owner) {
+    final wasActive = _active.remove(owner);
+    _waiting.removeWhere((e) => e.$1 == owner);
+    if (wasActive) {
+      while (_waiting.isNotEmpty && _active.length < maxConcurrent) {
+        final (next, callback) = _waiting.removeAt(0);
+        _active.add(next);
+        callback();
+      }
+    }
+  }
+}
+
 class _GifCell extends StatefulWidget {
   final GifInfoItem gif;
   final VoidCallback onTap;
@@ -3171,7 +3201,8 @@ class _GifCellState extends State<_GifCell> {
 
     final cached = _gifFileCache[docId];
     if (cached != null) {
-      _initPlayer(cached);
+      _filePath = cached;
+      _requestPlayer();
       return;
     }
 
@@ -3193,22 +3224,36 @@ class _GifCellState extends State<_GifCell> {
     await File(path).writeAsBytes(data);
     _gifFileCache[docId] = path;
     if (!mounted) return;
-    _initPlayer(path);
+    _filePath = path;
+    _requestPlayer();
   }
 
-  void _initPlayer(String path) {
-    _filePath = path;
+  void _requestPlayer() {
+    if (_filePath == null) return;
+    if (_GifPlayerPool.instance.tryAcquire(this, _createPlayer)) {
+      _createPlayer();
+    }
+  }
+
+  void _createPlayer() {
+    if (!mounted || _filePath == null) {
+      _GifPlayerPool.instance.release(this);
+      return;
+    }
     _player = Player();
     _videoController = VideoController(_player!);
     _player!.setVolume(0);
     _player!.setPlaylistMode(PlaylistMode.loop);
-    _player!.open(Media(path));
+    _player!.open(Media(_filePath!));
     if (mounted) setState(() => _loading = false);
   }
 
   @override
   void dispose() {
     _player?.dispose();
+    _player = null;
+    _videoController = null;
+    _GifPlayerPool.instance.release(this);
     super.dispose();
   }
 
@@ -3272,10 +3317,22 @@ class _GifSearchCellState extends State<_GifSearchCell> {
   @override
   void initState() {
     super.initState();
-    _initPlayer();
+    _requestPlayer();
   }
 
-  void _initPlayer() {
+  void _requestPlayer() {
+    final url = widget.result.contentUrl;
+    if (url.isEmpty) return;
+    if (_GifPlayerPool.instance.tryAcquire(this, _createPlayer)) {
+      _createPlayer();
+    }
+  }
+
+  void _createPlayer() {
+    if (!mounted) {
+      _GifPlayerPool.instance.release(this);
+      return;
+    }
     final url = widget.result.contentUrl;
     if (url.isEmpty) return;
     _player = Player();
@@ -3283,11 +3340,15 @@ class _GifSearchCellState extends State<_GifSearchCell> {
     _player!.setVolume(0);
     _player!.setPlaylistMode(PlaylistMode.loop);
     _player!.open(Media(url));
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     _player?.dispose();
+    _player = null;
+    _videoController = null;
+    _GifPlayerPool.instance.release(this);
     super.dispose();
   }
 
