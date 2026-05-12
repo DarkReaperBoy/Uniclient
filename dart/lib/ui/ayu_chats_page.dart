@@ -58,12 +58,11 @@ class AyuChatsPage extends StatelessWidget {
     );
     b.addSlider(
       label: 'Recent Stickers Count',
-      value: appState.recentStickersCount.toDouble(),
-      min: 0,
-      max: 200,
-      divisions: 200,
-      valueLabel: '${appState.recentStickersCount}',
-      onChanged: (v) => appState.setRecentStickersCount(v.round()),
+      steps: 200,
+      current: appState.recentStickersCount,
+      indexToValue: (i) => i,
+      formatLabel: (v) => '$v',
+      onChanged: (v) => appState.setRecentStickersCount(v),
     );
 
     b.addSectionDivider();

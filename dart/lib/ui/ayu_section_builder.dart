@@ -48,20 +48,18 @@ class AyuSectionBuilder {
 
   void addSlider({
     required String label,
-    required double value,
-    required double min,
-    required double max,
-    required int divisions,
-    required String valueLabel,
-    required ValueChanged<double> onChanged,
+    required int steps,
+    required int current,
+    required int Function(int) indexToValue,
+    required String Function(int) formatLabel,
+    required ValueChanged<int> onChanged,
   }) {
     _children.add(_AyuSlider(
       label: label,
-      value: value,
-      min: min,
-      max: max,
-      divisions: divisions,
-      valueLabel: valueLabel,
+      steps: steps,
+      current: current,
+      indexToValue: indexToValue,
+      formatLabel: formatLabel,
       onChanged: onChanged,
       isDark: isDark,
     ));
@@ -88,6 +86,7 @@ class AyuSectionBuilder {
     required List<AyuNestedCheckboxItem> children,
     ValueChanged<bool>? onMasterToggle,
     bool? masterValue,
+    bool toggledWhenAll = true,
   }) {
     _children.add(_AyuCollapsibleToggle(
       label: label,
@@ -97,19 +96,26 @@ class AyuSectionBuilder {
       children: children,
       onMasterToggle: onMasterToggle,
       masterValue: masterValue,
+      toggledWhenAll: toggledWhenAll,
     ));
   }
 
   void addBetaBadge(String text) {
-    // No-op: AyuGram has no standalone badge row. Use showBetaBadge on toggle rows instead.
+    if (_children.isEmpty) return;
+    final lastWidget = _children.removeLast();
+    _children.add(_BetaBadgeOverlay(
+      badge: text,
+      isDark: isDark,
+      child: lastWidget,
+    ));
   }
 
   void addSectionDivider() {
     _children.add(Column(
       children: [
-        const SizedBox(height: 7),
+        const SizedBox(height: 6),
         Container(height: 1, color: _dividerColor),
-        const SizedBox(height: 7),
+        const SizedBox(height: 6),
       ],
     ));
   }
@@ -149,6 +155,51 @@ class AyuNestedCheckboxItem {
   });
 
   bool get isLocked => lockGetter?.call() ?? false;
+}
+
+class _BetaBadgeOverlay extends StatelessWidget {
+  final String badge;
+  final bool isDark;
+  final Widget child;
+
+  const _BetaBadgeOverlay({
+    required this.badge,
+    required this.isDark,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          left: 22 + 200,
+          top: 0,
+          bottom: 0,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Builder(builder: (context) {
+              final badgeColor = context.palette.windowBgActive;
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: badgeColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(badge,
+                    style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white)),
+              );
+            }),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _AyuSettingToggle extends StatelessWidget {
@@ -200,7 +251,7 @@ class _AyuSettingToggle extends StatelessWidget {
                                 horizontal: 4, vertical: 1),
                             decoration: BoxDecoration(
                               color: badgeColor,
-                              borderRadius: BorderRadius.circular(3),
+                              borderRadius: BorderRadius.circular(4),
                             ),
                             child: const Text('BETA',
                                 style: TextStyle(
@@ -238,44 +289,62 @@ class _AyuSettingToggle extends StatelessWidget {
   }
 }
 
-class _AyuSlider extends StatelessWidget {
+class _AyuSlider extends StatefulWidget {
   final String label;
-  final double value;
-  final double min;
-  final double max;
-  final int divisions;
-  final String valueLabel;
-  final ValueChanged<double> onChanged;
+  final int steps;
+  final int current;
+  final int Function(int) indexToValue;
+  final String Function(int) formatLabel;
+  final ValueChanged<int> onChanged;
   final bool isDark;
 
   const _AyuSlider({
     required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.divisions,
-    required this.valueLabel,
+    required this.steps,
+    required this.current,
+    required this.indexToValue,
+    required this.formatLabel,
     required this.onChanged,
     required this.isDark,
   });
 
   @override
+  State<_AyuSlider> createState() => _AyuSliderState();
+}
+
+class _AyuSliderState extends State<_AyuSlider> {
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.current;
+  }
+
+  @override
+  void didUpdateWidget(_AyuSlider old) {
+    super.didUpdateWidget(old);
+    if (old.current != widget.current) _currentIndex = widget.current;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final accentColor = context.palette.windowBgActive;
+    final displayValue = widget.indexToValue(_currentIndex);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+      padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Expanded(
-                child: Text(label,
+                child: Text(widget.label,
                     style: TextStyle(
                         fontSize: 14,
-                        color: isDark ? Colors.white : Colors.black87)),
+                        color: widget.isDark ? Colors.white : Colors.black87)),
               ),
-              Text(valueLabel,
+              Text(widget.formatLabel(displayValue),
                   style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -286,7 +355,7 @@ class _AyuSlider extends StatelessWidget {
             data: SliderThemeData(
               activeTrackColor: accentColor,
               inactiveTrackColor:
-                  isDark ? const Color(0xFF2B3C4C) : const Color(0xFFD5D5D5),
+                  widget.isDark ? const Color(0xFF2B3C4C) : const Color(0xFFD5D5D5),
               thumbColor: accentColor,
               overlayColor: const Color(0x2940A7E3),
               trackHeight: 3,
@@ -294,11 +363,15 @@ class _AyuSlider extends StatelessWidget {
                   const RoundSliderThumbShape(enabledThumbRadius: 7.5),
             ),
             child: Slider(
-              value: value,
-              min: min,
-              max: max,
-              divisions: divisions,
-              onChanged: onChanged,
+              value: _currentIndex.toDouble(),
+              min: 0,
+              max: widget.steps.toDouble(),
+              divisions: widget.steps,
+              onChanged: (d) {
+                final idx = d.round();
+                setState(() => _currentIndex = idx);
+                widget.onChanged(widget.indexToValue(idx));
+              },
             ),
           ),
         ],
@@ -390,6 +463,7 @@ class _AyuCollapsibleToggle extends StatefulWidget {
   final List<AyuNestedCheckboxItem> children;
   final ValueChanged<bool>? onMasterToggle;
   final bool? masterValue;
+  final bool toggledWhenAll;
 
   const _AyuCollapsibleToggle({
     required this.label,
@@ -399,6 +473,7 @@ class _AyuCollapsibleToggle extends StatefulWidget {
     required this.children,
     this.onMasterToggle,
     this.masterValue,
+    this.toggledWhenAll = true,
   });
 
   @override
@@ -425,8 +500,20 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
     final checkedCount = widget.children.where((c) => c.value).length;
     final totalCount = widget.children.length;
     final hasMaster = widget.onMasterToggle != null;
-    final allChecked = widget.children.every((c) => c.value);
-    final toggleValue = widget.masterValue ?? allChecked;
+    final lockedCount = widget.children.where((c) => c.isLocked).length;
+    final canLockMore = lockedCount + 1 < widget.children.length;
+
+    final bool toggleValue;
+    if (widget.masterValue != null) {
+      toggleValue = widget.masterValue!;
+    } else if (widget.toggledWhenAll) {
+      toggleValue = widget.children
+          .where((c) => !c.isLocked)
+          .every((c) => c.value);
+    } else {
+      toggleValue = widget.children.any((c) => c.value);
+    }
+
     final accentColor = widget.isDark
         ? const Color(0xFF6AB2F2)
         : const Color(0xFF3390EC);
@@ -440,24 +527,36 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
             child: Row(
               children: [
                 Expanded(
-                  child: Row(
-                    children: [
-                      Text(widget.label,
+                  child: !hasMaster && checkedCount > 0
+                      ? Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: widget.label,
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    color: widget.isDark
+                                        ? Colors.white
+                                        : Colors.black87),
+                              ),
+                              TextSpan(
+                                text: '  $checkedCount/$totalCount',
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: widget.isDark
+                                        ? Colors.white
+                                        : Colors.black87),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Text(widget.label,
                           style: TextStyle(
                               fontSize: 14,
                               color: widget.isDark
                                   ? Colors.white
                                   : Colors.black87)),
-                      if (!hasMaster && checkedCount > 0) ...[
-                        const SizedBox(width: 8),
-                        Text('$checkedCount/$totalCount',
-                            style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: accentColor)),
-                      ],
-                    ],
-                  ),
                 ),
                 if (hasMaster) ...[
                   const SizedBox(width: 12),
@@ -474,10 +573,15 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                     isMaterial: widget.useMaterial,
                   ),
                 ] else
-                  Icon(
-                    _open ? Icons.expand_less : Icons.expand_more,
-                    size: 20,
-                    color: accentColor,
+                  AnimatedRotation(
+                    turns: _open ? 0.5 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    child: Icon(
+                      Icons.expand_more,
+                      size: 20,
+                      color: accentColor,
+                    ),
                   ),
               ],
             ),
@@ -496,6 +600,7 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                             isDark: widget.isDark,
                             isLocked: item.isLocked,
                             onLockToggle: item.lockSetter,
+                            canLock: !item.isLocked ? canLockMore : true,
                           ))
                       .toList(),
                 )
@@ -513,6 +618,7 @@ class _NestedCheckbox extends StatelessWidget {
   final bool isDark;
   final bool isLocked;
   final ValueChanged<bool>? onLockToggle;
+  final bool canLock;
 
   const _NestedCheckbox({
     required this.label,
@@ -521,14 +627,23 @@ class _NestedCheckbox extends StatelessWidget {
     required this.isDark,
     this.isLocked = false,
     this.onLockToggle,
+    this.canLock = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final activeColor = isDark
+        ? const Color(0xFF6AB2F2)
+        : const Color(0xFF3390EC);
+    final borderColor = isDark
+        ? const Color(0xFF5A6A78)
+        : const Color(0xFFCBCBCB);
     return GestureDetector(
       onTap: () {
         if (HardwareKeyboard.instance.isShiftPressed && onLockToggle != null) {
-          onLockToggle!(!isLocked);
+          if (isLocked || canLock) {
+            onLockToggle!(!isLocked);
+          }
         } else if (!isLocked) {
           onChanged(!value);
         }
@@ -540,24 +655,10 @@ class _NestedCheckbox extends StatelessWidget {
               const EdgeInsets.only(left: 44, right: 22, top: 6, bottom: 6),
           child: Row(
             children: [
-              SizedBox(
-                width: 22,
-                height: 22,
-                child: Checkbox(
-                  value: value,
-                  onChanged: isLocked
-                      ? null
-                      : (v) => onChanged(v ?? false),
-                  activeColor: isDark
-                      ? const Color(0xFF6AB2F2)
-                      : const Color(0xFF3390EC),
-                  side: BorderSide(
-                    color: isDark
-                        ? const Color(0xFF5A6A78)
-                        : const Color(0xFFCBCBCB),
-                    width: 2,
-                  ),
-                ),
+              _TgCheckbox(
+                value: value,
+                activeColor: activeColor,
+                borderColor: borderColor,
               ),
               const SizedBox(width: 12),
               Text(label,
@@ -570,6 +671,83 @@ class _NestedCheckbox extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TgCheckbox extends StatelessWidget {
+  final bool value;
+  final Color activeColor;
+  final Color borderColor;
+
+  const _TgCheckbox({
+    required this.value,
+    required this.activeColor,
+    required this.borderColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 22,
+      height: 22,
+      child: CustomPaint(
+        painter: _TgCheckboxPainter(
+          checked: value,
+          activeColor: activeColor,
+          borderColor: borderColor,
+        ),
+      ),
+    );
+  }
+}
+
+class _TgCheckboxPainter extends CustomPainter {
+  final bool checked;
+  final Color activeColor;
+  final Color borderColor;
+
+  _TgCheckboxPainter({
+    required this.checked,
+    required this.activeColor,
+    required this.borderColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(4));
+
+    if (checked) {
+      final fillPaint = Paint()..color = activeColor;
+      canvas.drawRRect(rrect, fillPaint);
+
+      final checkPaint = Paint()
+        ..color = Colors.white
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+
+      final path = Path()
+        ..moveTo(size.width * 0.25, size.height * 0.5)
+        ..lineTo(size.width * 0.42, size.height * 0.67)
+        ..lineTo(size.width * 0.75, size.height * 0.33);
+
+      canvas.drawPath(path, checkPaint);
+    } else {
+      final borderPaint = Paint()
+        ..color = borderColor
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawRRect(rrect.deflate(1), borderPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TgCheckboxPainter old) =>
+      old.checked != checked ||
+      old.activeColor != activeColor ||
+      old.borderColor != borderColor;
 }
 
 Scaffold ayuSettingsScaffold({

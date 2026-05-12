@@ -1,6 +1,3 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
@@ -66,25 +63,26 @@ class AyuGramSettingsScreen extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: [
           Center(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(TgTokens.settingsCloudPasswordIconSize / 2),
-              child: Image.asset(
-                'assets/icons/ayu/$selectedIcon.png',
-                width: TgTokens.settingsCloudPasswordIconSize,
-                height: TgTokens.settingsCloudPasswordIconSize,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: TgTokens.settingsCloudPasswordIconSize,
-                  height: TgTokens.settingsCloudPasswordIconSize,
-                  decoration: BoxDecoration(
-                    color: logoColor,
-                    borderRadius: BorderRadius.circular(TgTokens.settingsCloudPasswordIconSize / 2),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      _iconForTheme(selectedIcon),
-                      size: 48,
-                      color: Colors.white,
+            child: SizedBox(
+              width: TgTokens.settingsCloudPasswordIconSize,
+              height: TgTokens.settingsCloudPasswordIconSize,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Image.asset(
+                  'assets/icons/ayu/$selectedIcon.png',
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Container(
+                    decoration: BoxDecoration(
+                      color: logoColor,
+                      borderRadius: BorderRadius.circular(
+                          (TgTokens.settingsCloudPasswordIconSize - 24) / 2),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        _iconForTheme(selectedIcon),
+                        size: 36,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -93,12 +91,11 @@ class AyuGramSettingsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // Version title (§54.17): boxTitle style (bold, 14px spec but 17px looks right)
           Center(
             child: Text(
               'AyuGram Desktop v${_appVersion()}',
               style: TextStyle(
-                fontSize: 17,
+                fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: textColor,
               ),
@@ -134,45 +131,39 @@ class AyuGramSettingsScreen extends StatelessWidget {
                     color: sectionLabelColor)),
           ),
 
-          _CategoryButton(
+          _FlatCategoryButton(
             icon: Icons.emoji_emotions,
-            iconBg: const Color(0xFF6B72D5),
             label: 'AyuGram',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const GhostSettingsPage()),
           ),
-          _CategoryButton(
-            icon: Icons.filter_alt,
-            iconBg: const Color(0xFF5288C1),
+          _FlatCategoryButton(
+            icon: Icons.filter_list,
             label: 'Filters',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const AyuFiltersPage()),
           ),
-          _CategoryButton(
+          _FlatCategoryButton(
             icon: Icons.visibility,
-            iconBg: context.palette.windowBgActive,
             label: 'General',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const AyuGeneralPage()),
           ),
-          _CategoryButton(
+          _FlatCategoryButton(
             icon: Icons.palette,
-            iconBg: const Color(0xFFE67E22),
             label: 'Appearance',
             isDark: isDark,
             onTap: () =>
                 _pushPage(context, appState, const AyuAppearancePage()),
           ),
-          _CategoryButton(
+          _FlatCategoryButton(
             icon: Icons.chat_bubble,
-            iconBg: const Color(0xFF4DC920),
             label: 'Chats',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const AyuChatsPage()),
           ),
-          _CategoryButton(
+          _FlatCategoryButton(
             icon: Icons.star,
-            iconBg: const Color(0xFFCC3333),
             label: 'Other',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const AyuOtherPage()),
@@ -193,7 +184,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
           ),
 
           _LinkButton(
-            icon: Icons.campaign,
+            icon: Icons.podcasts,
             label: 'Channel',
             rightLabel: '@ayugram',
             isDark: isDark,
@@ -214,7 +205,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
             onTap: () => _openUrl('https://translate.ayugram.one'),
           ),
           _LinkButton(
-            icon: Icons.description,
+            icon: Icons.language,
             label: 'Documentation',
             rightLabel: 'docs.ayugram.one',
             isDark: isDark,
@@ -279,30 +270,18 @@ class AyuGramSettingsScreen extends StatelessWidget {
   static String _appVersion() {
     const version =
         String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
-    const stage =
-        String.fromEnvironment('APP_STAGE', defaultValue: 'alpha');
-    const stageNum =
-        String.fromEnvironment('APP_STAGE_NUM', defaultValue: '');
-    final buf = StringBuffer(version);
-    if (stage.isNotEmpty) {
-      buf.write(' $stage');
-      if (stageNum.isNotEmpty) buf.write(' $stageNum');
-    }
-    if (kDebugMode) buf.write(' DEBUG');
-    return buf.toString();
+    return version;
   }
 }
 
-class _CategoryButton extends StatelessWidget {
+class _FlatCategoryButton extends StatelessWidget {
   final IconData icon;
-  final Color iconBg;
   final String label;
   final bool isDark;
   final VoidCallback onTap;
 
-  const _CategoryButton({
+  const _FlatCategoryButton({
     required this.icon,
-    required this.iconBg,
     required this.label,
     required this.isDark,
     required this.onTap,
@@ -311,24 +290,18 @@ class _CategoryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textColor = isDark ? Colors.white : Colors.black87;
+    final iconColor =
+        isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: SettingsStyle.iconRowPadding,
+        padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
         child: Row(
           children: [
-            Container(
-              width: SettingsStyle.iconSize,
-              height: SettingsStyle.iconSize,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius:
-                    BorderRadius.circular(SettingsStyle.iconRadius),
-              ),
-              child: Icon(icon,
-                  color: Colors.white, size: SettingsStyle.iconInner),
+            SizedBox(
+              width: 57,
+              child: Icon(icon, size: 24, color: iconColor),
             ),
-            const SizedBox(width: SettingsStyle.iconGap),
             Expanded(
               child: Text(label,
                   style: TextStyle(

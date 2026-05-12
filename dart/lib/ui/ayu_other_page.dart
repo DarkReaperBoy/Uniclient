@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -79,10 +80,10 @@ class AyuOtherPage extends StatelessWidget {
           const Color(0xFFFF0013), isDark, 'assets/icons/ayu/donates/tron.svg'),
     ));
     b.addSkip();
-    b.addDescription(
-        'You can support AyuGram development through donations. '
-        'For questions, contact support.');
-    b.addWidget(_ContactSupportLink(isDark: isDark));
+    b.addWidget(_SupportDescription(
+      isDark: isDark,
+      onSupportTap: () => _showDonateInfoBox(context, isDark),
+    ));
     b.addSkip();
 
     if (!const bool.fromEnvironment('TDESKTOP_DISABLE_AUTOUPDATE')) {
@@ -135,6 +136,13 @@ class AyuOtherPage extends StatelessWidget {
         isDark: isDark,
         svgAsset: svgAsset,
       ),
+    );
+  }
+
+  static void _showDonateInfoBox(BuildContext context, bool isDark) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _DonateInfoBox(isDark: isDark),
     );
   }
 
@@ -286,19 +294,28 @@ class _DonateButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const iconSize = 28.0;
+    final bgColor = isDark
+        ? const Color(0xFF242B2C)
+        : const Color(0xFFEEEEEE);
     return InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
         child: Row(
           children: [
-            SizedBox(
+            Container(
               width: iconSize,
               height: iconSize,
-              child: SvgPicture.asset(
-                svgAsset,
-                width: iconSize,
-                height: iconSize,
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(iconSize / 4),
+              ),
+              child: Center(
+                child: SvgPicture.asset(
+                  svgAsset,
+                  width: iconSize - 4,
+                  height: iconSize - 4,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -335,25 +352,16 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconBgColor =
-        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    final iconColor =
+        isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     return InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
         child: Row(
           children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: iconBgColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              alignment: Alignment.center,
-              child: Icon(icon, size: 18, color: iconBgColor),
-            ),
-            const SizedBox(width: 12),
+            Icon(icon, size: 24, color: iconColor),
+            const SizedBox(width: 16),
             Expanded(
               child: Text(label,
                   style: TextStyle(
@@ -367,111 +375,171 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-class _ContactSupportLink extends StatelessWidget {
+class _SupportDescription extends StatefulWidget {
   final bool isDark;
+  final VoidCallback onSupportTap;
 
-  const _ContactSupportLink({required this.isDark});
+  const _SupportDescription({
+    required this.isDark,
+    required this.onSupportTap,
+  });
+
+  @override
+  State<_SupportDescription> createState() => _SupportDescriptionState();
+}
+
+class _SupportDescriptionState extends State<_SupportDescription> {
+  late final TapGestureRecognizer _recognizer;
+
+  @override
+  void initState() {
+    super.initState();
+    _recognizer = TapGestureRecognizer()..onTap = widget.onSupportTap;
+  }
+
+  @override
+  void dispose() {
+    _recognizer.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final subtextColor =
+        widget.isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     final linkColor =
-        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+        widget.isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22),
-      child: GestureDetector(
-        onTap: () => _showSupportInfoDialog(context),
-        child: Text('Contact support',
-            style: TextStyle(fontSize: 12, color: linkColor)),
-      ),
-    );
-  }
-
-  void _showSupportInfoDialog(BuildContext context) {
-    final isDk = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDk ? const Color(0xFF1B2836) : Colors.white;
-    final textColor = isDk ? Colors.white : Colors.black87;
-    final subtextColor = isDk ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
-    final accentColor = isDk ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: bgColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SvgPicture.asset(
-                'assets/icons/ayu/donates/support_logo.svg',
-                width: 72,
-                height: 72,
-              ),
-              const SizedBox(height: 16),
-              Text('Support AyuGram',
-                  style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                      color: textColor)),
-              const SizedBox(height: 12),
-              Text(
-                'AyuGram is free and open source. You can support '
-                'development by donating via cryptocurrency or Boosty.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: subtextColor),
-              ),
-              const SizedBox(height: 16),
-              _SupportInfoRow(
-                icon: Icons.monetization_on,
-                title: 'Make a donation',
-                description: 'Use the crypto buttons on the previous screen or visit Boosty.',
-                textColor: textColor,
-                subtextColor: subtextColor,
-              ),
-              const SizedBox(height: 12),
-              _SupportInfoRow(
-                icon: Icons.photo_camera,
-                title: 'Send proof',
-                description: 'Forward your payment confirmation to @AyuGramSupport on Telegram.',
-                textColor: textColor,
-                subtextColor: subtextColor,
-              ),
-              const SizedBox(height: 12),
-              _SupportInfoRow(
-                icon: Icons.verified,
-                title: 'Receive your badge',
-                description: 'After verification, you will receive a supporter badge in AyuGram.',
-                textColor: textColor,
-                subtextColor: subtextColor,
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: Text('Close', style: TextStyle(color: accentColor)),
-                ),
-              ),
-            ],
-          ),
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+      child: RichText(
+        text: TextSpan(
+          style: TextStyle(fontSize: 12, color: subtextColor),
+          children: [
+            const TextSpan(
+                text: 'You can support AyuGram development through donations. '
+                    'For questions, '),
+            TextSpan(
+              text: 'contact support',
+              style: TextStyle(color: linkColor),
+              recognizer: _recognizer,
+            ),
+            const TextSpan(text: '.'),
+          ],
         ),
       ),
     );
   }
 }
 
-class _SupportInfoRow extends StatelessWidget {
+class _DonateInfoBox extends StatelessWidget {
+  final bool isDark;
+
+  static const _donateAmountUsd = '5';
+  static const _donateAmountTon = '10';
+  static const _donateAmountRub = '300';
+  static const _donateUsername = 'RadianceTG';
+
+  const _DonateInfoBox({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = isDark ? const Color(0xFF1B2836) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtextColor =
+        isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SvgPicture.asset(
+              'assets/icons/ayu/donates/support_logo.svg',
+              width: 96,
+              height: 96,
+            ),
+            const SizedBox(height: 16),
+            Text('Support AyuGram Desktop',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: textColor)),
+            const SizedBox(height: 12),
+            Text(
+              'Support AyuGram development by donating. '
+              'Minimum amounts: \$$_donateAmountUsd, '
+              '$_donateAmountTon TON, '
+              '${_donateAmountRub}₽.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: subtextColor),
+            ),
+            const SizedBox(height: 16),
+            _DonateInfoRow(
+              icon: Icons.monetization_on,
+              title: 'Make a donation',
+              description: 'Use the crypto buttons or visit Boosty.',
+              textColor: textColor,
+              subtextColor: subtextColor,
+            ),
+            const SizedBox(height: 12),
+            _DonateInfoRow(
+              icon: Icons.photo_camera,
+              title: 'Send proof',
+              descriptionSpan: TextSpan(
+                children: [
+                  const TextSpan(text: 'Forward your payment confirmation to '),
+                  TextSpan(
+                    text: '@$_donateUsername',
+                    style: TextStyle(color: accentColor),
+                  ),
+                  const TextSpan(text: ' on Telegram.'),
+                ],
+              ),
+              textColor: textColor,
+              subtextColor: subtextColor,
+            ),
+            const SizedBox(height: 12),
+            _DonateInfoRow(
+              icon: Icons.verified,
+              title: 'Receive your badge',
+              description:
+                  'After verification, you will receive a supporter badge.',
+              textColor: textColor,
+              subtextColor: subtextColor,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('Close', style: TextStyle(color: accentColor)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DonateInfoRow extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String description;
+  final String? description;
+  final TextSpan? descriptionSpan;
   final Color textColor;
   final Color subtextColor;
 
-  const _SupportInfoRow({
+  const _DonateInfoRow({
     required this.icon,
     required this.title,
-    required this.description,
+    this.description,
+    this.descriptionSpan,
     required this.textColor,
     required this.subtextColor,
   });
@@ -493,8 +561,12 @@ class _SupportInfoRow extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       color: textColor)),
               const SizedBox(height: 2),
-              Text(description,
-                  style: TextStyle(fontSize: 12, color: subtextColor)),
+              if (descriptionSpan != null)
+                Text.rich(descriptionSpan!,
+                    style: TextStyle(fontSize: 12, color: subtextColor))
+              else
+                Text(description ?? '',
+                    style: TextStyle(fontSize: 12, color: subtextColor)),
             ],
           ),
         ),
