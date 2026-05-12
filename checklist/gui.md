@@ -407,7 +407,6 @@ void _checkComplete() {
 
 **Impact**: User perceives 80ms lag before submission confirmation. AyuGram provides instant feedback.
 
-- [ ] [CRITICAL] OTP auto-submit delayed 80ms vs AyuGram's immediate fire — `auth_screen.dart:1607` ← `intro_code_input.cpp:378-379`
 
 ---
 
@@ -432,7 +431,6 @@ SizedBox(width: 300, ...)
 
 This creates **80px unused horizontal space** (380 - 300 = 80px margin on each side). AyuGram's form width should respect full 380px layout.
 
-- [ ] [CRITICAL] Step content uses 300px fields in 380px container; 80px wasted space — `auth_screen.dart:328,551` ← `intro.style:78`
 
 ---
 
@@ -470,7 +468,6 @@ void _submit(AuthState authState) {
 - Does not validate code length (AyuGram ensures > 1 digits)
 - No per-field focus management before submit
 
-- [ ] [CRITICAL] Phone validation missing check: if code focused + code.length>1 + phone empty, should focus phone — `auth_screen.dart:110-116` ← `intro_phone.cpp:166-179`
 
 ---
 
@@ -517,7 +514,6 @@ void _handleForgotPassword(AuthStateData data, AuthState authState) async {
 - No explicit focus management to recovery code field
 - Does not cancel pending requests before switching modes
 
-- [ ] [CRITICAL] Recovery mode switch doesn't clear password field or manage focus — `auth_screen.dart:822-829` ← `intro_password_check.cpp:291-310`
 
 ---
 
@@ -553,7 +549,6 @@ result->resize(size, size);
 
 Both match (204px), but **Dart passes 204x204 as calculated SizedBox, then QR rendered at qrSize 180px, wasting 24px padding**. This is correct per spec but comment indicates possible confusion.
 
-- [ ] [MAJOR] QR logo size (44px) may be too large for 180px QR code; AyuGram uses st::introQrCenterSize — `auth_screen.dart:891` ← `intro_qr.cpp:167-170`
 
 ---
 
