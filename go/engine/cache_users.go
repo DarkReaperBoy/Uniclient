@@ -1888,6 +1888,22 @@ type connectedBotDisabler interface {
 	DisablePeerConnectedBot(chatID string) error
 }
 
+type folderLimitsGetter interface {
+	GetFolderLimits() (int, int, error)
+}
+
+func (e *Engine) GetFolderLimits(accountID string) (int, int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 10, 20, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(folderLimitsGetter)
+	if !ok {
+		return 10, 20, nil
+	}
+	return g.GetFolderLimits()
+}
+
 type publicLinksLimitsGetter interface {
 	GetPublicLinksLimits() (int, int, error)
 }

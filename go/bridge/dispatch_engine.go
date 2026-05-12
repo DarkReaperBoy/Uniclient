@@ -1515,6 +1515,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "GetFolderLimits":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		free, premium, err := e.GetFolderLimits(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]int{"free_limit": free, "premium_limit": premium})
+
 	case "GetPublicLinksLimits":
 		var params struct {
 			AccountID string `json:"account_id"`

@@ -2556,6 +2556,16 @@ class EngineService {
     await _callAsync('__engine', 'UpdateChannelUsername', Uint8List.fromList(payload));
   }
 
+  Future<Map<String, int>> getFolderLimits(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    final respBytes = await _callAsync('__engine', 'GetFolderLimits', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return {
+      'free_limit': data['free_limit'] as int? ?? 10,
+      'premium_limit': data['premium_limit'] as int? ?? 20,
+    };
+  }
+
   Future<Map<String, int>> getPublicLinksLimits(String accountId) async {
     final payload = utf8.encode(json.encode({'account_id': accountId}));
     final respBytes = await _callAsync('__engine', 'GetPublicLinksLimits', Uint8List.fromList(payload));

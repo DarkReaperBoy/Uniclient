@@ -197,7 +197,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
     if (currentCount >= limit) {
       showDialog(
         context: context,
-        builder: (_) => _SimpleLimitBox(
+        builder: (_) => SimpleLimitBox(
           isDark: isDark,
           title: 'Folder Limit Reached',
           current: currentCount,
@@ -1470,7 +1470,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     if (!f.isChatList && shareableCount >= shareLimit) {
       showDialog(
         context: context,
-        builder: (_) => _SimpleLimitBox(
+        builder: (_) => SimpleLimitBox(
           isDark: isDark,
           title: 'Shareable Folder Limit',
           current: shareableCount,
@@ -1492,7 +1492,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     if (_inviteLinks.length >= linkLimit) {
       showDialog(
         context: context,
-        builder: (_) => _SimpleLimitBox(
+        builder: (_) => SimpleLimitBox(
           isDark: isDark,
           title: 'Link Limit Reached',
           current: _inviteLinks.length,
@@ -1678,7 +1678,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     if (chatCount > chatLimit) {
       showDialog(
         context: context,
-        builder: (_) => _SimpleLimitBox(
+        builder: (_) => SimpleLimitBox(
           isDark: widget.isDark,
           title: 'Chat Limit Reached',
           current: chatCount,
@@ -4312,7 +4312,7 @@ class _ChatlistFolderRemovalDialogState
   }
 }
 
-class _SimpleLimitBox extends StatefulWidget {
+class SimpleLimitBox extends StatefulWidget {
   final bool isDark;
   final String title;
   final int current;
@@ -4322,7 +4322,7 @@ class _SimpleLimitBox extends StatefulWidget {
   final IconData icon;
   final String description;
 
-  const _SimpleLimitBox({
+  const SimpleLimitBox({
     required this.isDark,
     required this.title,
     required this.current,
@@ -4334,10 +4334,10 @@ class _SimpleLimitBox extends StatefulWidget {
   });
 
   @override
-  State<_SimpleLimitBox> createState() => _SimpleLimitBoxState();
+  State<SimpleLimitBox> createState() => _SimpleLimitBoxState();
 }
 
-class _SimpleLimitBoxState extends State<_SimpleLimitBox>
+class _SimpleLimitBoxState extends State<SimpleLimitBox>
     with SingleTickerProviderStateMixin {
   late final AnimationController _animController;
   late final Animation<double> _barAnimation;

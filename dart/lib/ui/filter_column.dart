@@ -9,7 +9,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
 import 'chat_list_row.dart' show ForwardDragData;
-import 'folders_settings_screen.dart' show showEditFolderBox, FoldersSettingsScreen;
+import 'folders_settings_screen.dart' show showEditFolderBox, FoldersSettingsScreen, SimpleLimitBox;
 import 'popup_menu.dart';
 import 'settings_style.dart';
 import 'telegram_tooltip.dart';
@@ -322,9 +322,6 @@ class _FilterColumnState extends State<FilterColumn> {
     return 0;
   }
 
-  static const int _folderLimitFree = 10;
-  static const int _folderLimitPremium = 20;
-
   void _onFolderTap(FolderInfo folder, String? activeFolderId) {
     final chatState = context.read<ChatState>();
     final appState = context.read<AppState>();
@@ -332,33 +329,37 @@ class _FilterColumnState extends State<FilterColumn> {
     final isPremium = account?.isPremium ?? false;
     final folders = chatState.folders;
     final folderIndex = folders.indexOf(folder);
-    final folderLimit = isPremium ? _folderLimitPremium : _folderLimitFree;
+    final folderLimit = isPremium
+        ? chatState.folderLimitPremium
+        : chatState.folderLimitFree;
     if (folderIndex >= folderLimit) {
-      _showFolderLimitDialog(isPremium);
+      _showFolderLimitDialog(chatState, isPremium);
       return;
     }
     chatState.setActiveFolder(folder.id);
     _scrollToActiveTab(folderIndex);
   }
 
-  void _showFolderLimitDialog(bool isPremium) {
-    final limit = isPremium ? _folderLimitPremium : _folderLimitFree;
+  void _showFolderLimitDialog(ChatState chatState, bool isPremium) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final current = chatState.folders.length;
+    final limitFree = chatState.folderLimitFree;
+    final limitPremium = chatState.folderLimitPremium;
+    final limit = isPremium ? limitPremium : limitFree;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Folder Limit Reached'),
-        content: Text(
-          isPremium
-              ? 'You have reached the maximum limit of $limit folders.'
-              : 'You have reached the limit of $limit folders. '
-                'Subscribe to Telegram Premium to increase the limit to $_folderLimitPremium.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
-          ),
-        ],
+      builder: (_) => SimpleLimitBox(
+        isDark: isDark,
+        title: 'Folder Limit Reached',
+        current: current,
+        limitFree: limitFree,
+        limitPremium: limitPremium,
+        isPremium: isPremium,
+        icon: Icons.folder_outlined,
+        description: isPremium
+            ? 'You have reached the maximum limit of $limit folders.'
+            : 'You have reached the limit of $limit folders. '
+              'Subscribe to Telegram Premium to increase the limit to $limitPremium.',
       ),
     );
   }

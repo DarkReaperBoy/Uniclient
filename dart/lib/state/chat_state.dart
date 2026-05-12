@@ -65,6 +65,8 @@ class ChatState extends ChangeNotifier {
   String? _activeFolderId; // null = "All Chats"
   bool _showFolderTags = false;
   bool _useVerticalFilters = true;
+  int _folderLimitFree = 10;
+  int _folderLimitPremium = 20;
 
   void Function(NotificationData data)? onNotification;
 
@@ -607,6 +609,9 @@ class ChatState extends ChangeNotifier {
   /// Whether any folders exist (controls folder sidebar visibility).
   bool get hasFolders => _folders.isNotEmpty;
 
+  int get folderLimitFree => _folderLimitFree;
+  int get folderLimitPremium => _folderLimitPremium;
+
   bool get showFolderTags => _showFolderTags;
   set showFolderTags(bool v) {
     if (_showFolderTags == v) return;
@@ -838,7 +843,16 @@ class ChatState extends ChangeNotifier {
     } catch (_) {
       _folders = [];
     }
+    _fetchFolderLimits(accountId);
     notifyListeners();
+  }
+
+  Future<void> _fetchFolderLimits(String accountId) async {
+    try {
+      final limits = await _engine.getFolderLimits(accountId);
+      _folderLimitFree = limits['free_limit'] ?? 10;
+      _folderLimitPremium = limits['premium_limit'] ?? 20;
+    } catch (_) {}
   }
 
   /// Called when the user switches active account.

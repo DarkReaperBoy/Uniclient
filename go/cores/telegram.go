@@ -18087,6 +18087,29 @@ func (t *TelegramCore) GetConfcallSizeLimit() (int, error) {
 	return 200, nil
 }
 
+func (t *TelegramCore) GetFolderLimits() (freeLimit, premiumLimit int, err error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 10, 20, ErrAuth }
+	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	if err != nil { return 10, 20, nil }
+	cfg, ok := result.(*tg.HelpAppConfig)
+	if !ok { return 10, 20, nil }
+	freeLimit, premiumLimit = 10, 20
+	if jv := cfg.Config; jv != nil {
+		if obj, ok2 := jv.(*tg.JSONObject); ok2 {
+			for _, kv := range obj.Value {
+				switch kv.Key {
+				case "dialog_filters_limit_default":
+					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 { freeLimit = int(n.Value) }
+				case "dialog_filters_limit_premium":
+					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 { premiumLimit = int(n.Value) }
+				}
+			}
+		}
+	}
+	return freeLimit, premiumLimit, nil
+}
+
 func (t *TelegramCore) GetPublicLinksLimits() (freeLimit, premiumLimit int, err error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return 10, 20, ErrAuth }
