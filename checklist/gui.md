@@ -1163,17 +1163,7 @@ This dialog is fundamentally non-functional as implemented:
 
 # filter_column — Audit Findings
 
-- [ ] [CRITICAL] Missing right-click context menu on "All Chats" tab — AyuGram supports context menu on the All Chats button with "Mark as Read" + "Settings" actions (`showMenu` with `id == 0`); Dart wraps folder tabs in `GestureDetector(onSecondaryTapUp:...)` but the All Chats `_SideBarButton` at line 506 has no such wrapper — `filter_column.dart:505-512` ← `window_filters_menu.cpp:466-483`
-
-- [ ] [CRITICAL] Premium folder limit shows SnackBar with hardcoded limit instead of FiltersLimitBox dialog — AyuGram calls `_session->show(Box(FiltersLimitBox, ...))` with the server-driven `PremiumLimits.dialogFiltersCurrent()` value; Dart shows a `SnackBar` with hardcoded text and hardcoded `folderIndex >= 10` check — `filter_column.dart:332-339` ← `window_filters_menu.cpp:371-375`
-
-- [ ] [MAJOR] Context menu item order is wrong — AyuGram adds: Edit → Mark as Read → Remove; Dart adds: Mark as Read → Edit → Remove — `filter_column.dart:382-399` ← `window_filters_menu.cpp:444-465`
-
-- [ ] [MAJOR] Hamburger button shows numerical badge instead of icon overlay — AyuGram uses `setIconOverride` with `windowFiltersMainMenuUnread`/`windowFiltersMainMenuUnreadMuted` (a dot icon, no count number); Dart shows a numeric `Badge` widget with `unreadCount > 99 ? '99+' : '$unreadCount'` — `filter_column.dart:678-688` ← `window_filters_menu.cpp:161-178` / `window.style:271-284`
-
-- [ ] [MAJOR] Tapping the already-active folder deactivates it (toggle) — AyuGram always calls `setActiveChatsFilter(id)` with no toggle logic; Dart calls `setActiveFolder(activeFolderId == folder.id ? null : folder.id)` which deactivates when tapping the current folder — `filter_column.dart:341-343` ← `window_filters_menu.cpp:368-371`
-
-- [ ] [MAJOR] Scroll-to-active-tab animation uses 200ms instead of 240ms — AyuGram's `scrollToButton` uses `st::slideDuration = 240ms`; Dart uses `Duration(milliseconds: 200)` (17% shorter) — `filter_column.dart:362` ← `lib_ui/ui/basic.style:92`
+- [ ] [CRITICAL] Premium folder limit shows AlertDialog with hardcoded limit instead of FiltersLimitBox dialog — AyuGram calls `_session->show(Box(FiltersLimitBox, ...))` with the server-driven `PremiumLimits.dialogFiltersCurrent()` value; Dart still uses hardcoded `folderIndex >= 10` check (SnackBar was fixed to AlertDialog, but the hardcoded limit remains) — `filter_column.dart:332` ← `window_filters_menu.cpp:371-375`
 
 ## folders_settings_screen — Folder create/edit missing individual chat picker; limit buttons are stubs
 
