@@ -309,6 +309,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
             enabled: _canGoPrev(),
             color: textFg,
             disabledColor: subtextFg,
+            tooltip: 'To the beginning',
             onTap: () {
               _cancelJump();
               _prevMonth();
@@ -321,6 +322,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
             enabled: _canGoNext(),
             color: textFg,
             disabledColor: subtextFg,
+            tooltip: 'To the end',
             onTap: () {
               _cancelJump();
               _nextMonth();
@@ -383,7 +385,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
       ),
       buttons: [
         TelegramBoxButton(
-          text: 'Cancel',
+          text: 'Close',
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
@@ -402,13 +404,37 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
   ) {
     final rows = <Widget>[];
     var day = 1;
+    final prevMonthDays = DateTime(_year, _month, 0).day;
 
     for (var row = 0; row < 6 && day <= daysInMonth; row++) {
       final cells = <Widget>[];
       for (var col = 0; col < 7; col++) {
         final cellIndex = row * 7 + col;
-        if (cellIndex < offset || day > daysInMonth) {
-          cells.add(const SizedBox(width: _cellW, height: _cellH));
+        if (cellIndex < offset) {
+          final prevDay = prevMonthDays - (offset - cellIndex - 1);
+          cells.add(SizedBox(
+            width: _cellW,
+            height: _cellH,
+            child: Center(
+              child: Text(
+                '$prevDay',
+                style: TextStyle(fontSize: 13, color: disabledFg.withValues(alpha: 0.5)),
+              ),
+            ),
+          ));
+        } else if (day > daysInMonth) {
+          final nextDay = day - daysInMonth;
+          cells.add(SizedBox(
+            width: _cellW,
+            height: _cellH,
+            child: Center(
+              child: Text(
+                '$nextDay',
+                style: TextStyle(fontSize: 13, color: disabledFg.withValues(alpha: 0.5)),
+              ),
+            ),
+          ));
+          day++;
         } else {
           final thisDay = day;
           final date = DateTime(_year, _month, thisDay);
@@ -584,7 +610,7 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         TelegramBoxButton(
-          text: 'OK',
+          text: 'Show',
           onPressed: () {
             final month = _clampMonth(_selectedMonth, _selectedYear);
             Navigator.of(context).pop(DateTime(_selectedYear, month));
@@ -603,6 +629,7 @@ class _NavArrow extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPressStart;
   final VoidCallback onLongPressEnd;
+  final String tooltip;
 
   const _NavArrow({
     required this.icon,
@@ -612,19 +639,24 @@ class _NavArrow extends StatelessWidget {
     required this.onTap,
     required this.onLongPressStart,
     required this.onLongPressEnd,
+    required this.tooltip,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onLongPressStart: enabled ? (_) => onLongPressStart() : null,
-      onLongPressEnd: enabled ? (_) => onLongPressEnd() : null,
-      child: IconButton(
-        icon: Icon(icon, color: enabled ? color : disabledColor, size: 24),
-        onPressed: enabled ? onTap : null,
-        splashRadius: 16,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+    return Tooltip(
+      message: enabled ? tooltip : '',
+      waitDuration: const Duration(milliseconds: 350),
+      child: GestureDetector(
+        onLongPressStart: enabled ? (_) => onLongPressStart() : null,
+        onLongPressEnd: enabled ? (_) => onLongPressEnd() : null,
+        child: IconButton(
+          icon: Icon(icon, color: enabled ? color : disabledColor, size: 24),
+          onPressed: enabled ? onTap : null,
+          splashRadius: 16,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+        ),
       ),
     );
   }
@@ -690,7 +722,6 @@ class _DayCellState extends State<_DayCell> {
       onExit: (_) => setState(() => _hovering = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
         child: SizedBox(
           width: _cellW,
           height: _cellH,
@@ -939,10 +970,20 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     if (widget.isPremium) {
       _showRepeatMenu();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Subscribe to Telegram Premium to set repeat schedules.'),
-          duration: Duration(seconds: 3),
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Telegram Premium'),
+          content: const Text(
+            'Repeat schedules are available to Telegram Premium subscribers. '
+            'Subscribe to Telegram Premium in the official app to use this feature.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
         ),
       );
     }

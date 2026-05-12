@@ -1925,6 +1925,10 @@ class ChatState extends ChangeNotifier {
     return _engine.searchGlobalChats(accountId, query, limit: limit);
   }
 
+  List<ChatInfo> searchGlobalPosts(String accountId, String query, {int limit = 20}) {
+    return _engine.searchGlobalPosts(accountId, query, limit: limit);
+  }
+
   // ── Search ──
 
   List<SearchResult> searchMessages(String query, {String accountId = ''}) {

@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart' as lottie;
 import 'package:provider/provider.dart';
 import 'package:record/record.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 import '../bridge/engine_service.dart';
 import '../data/ayu_filter.dart';
@@ -2380,6 +2381,48 @@ class _ChatViewState extends State<ChatView>
     );
   }
 
+  void _handleRequestLocation(BuildContext ctx, ChatState chatState, ChatInfo chat) {
+    final latCtrl = TextEditingController();
+    final lonCtrl = TextEditingController();
+    showDialog(
+      context: ctx,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('Share Location'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter coordinates to share with the bot:'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: latCtrl,
+              decoration: const InputDecoration(labelText: 'Latitude', hintText: '0.0'),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: lonCtrl,
+              decoration: const InputDecoration(labelText: 'Longitude', hintText: '0.0'),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dCtx);
+              final lat = double.tryParse(latCtrl.text) ?? 0.0;
+              final lon = double.tryParse(lonCtrl.text) ?? 0.0;
+              final engine = ctx.read<EngineService>();
+              engine.sendMessage(chat.accountId, chat.chatId, '📍 Location: $lat, $lon');
+            },
+            child: const Text('Share'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _addFilter(CachedMessage msg, String selectedText) {
     final text = selectedText.isNotEmpty ? selectedText : msg.contentText;
     final escaped = RegExp.escape(text.trim());
@@ -4548,10 +4591,10 @@ class _ChatViewState extends State<ChatView>
       _showReactionsBtn = wantReactions;
       if (wantReactions) _reactionsAnimCtrl.forward(); else _reactionsAnimCtrl.reverse();
     }
-    // PollVotes: no data field yet — always hidden.
-    if (_showPollVotesBtn) {
-      _showPollVotesBtn = false;
-      _pollVotesAnimCtrl.reverse();
+    final wantPollVotes = chat.unreadPollCount > 0;
+    if (wantPollVotes != _showPollVotesBtn) {
+      _showPollVotesBtn = wantPollVotes;
+      if (wantPollVotes) _pollVotesAnimCtrl.forward(); else _pollVotesAnimCtrl.reverse();
     }
 
     return Focus(
@@ -4986,7 +5029,6 @@ class _ChatViewState extends State<ChatView>
                     ),
                   ),
                 ),
-                // --- PollVotes button (no data yet — always hidden) ---
                 Positioned(
                   right: 12,
                   bottom: 10,
@@ -5003,7 +5045,7 @@ class _ChatViewState extends State<ChatView>
                     },
                     child: _CornerButton(
                       icon: Icons.poll,
-                      count: 0,
+                      count: chat.unreadPollCount,
                       onTap: _scrollToBottom,
                     ),
                   ),
@@ -5297,7 +5339,7 @@ class _ChatViewState extends State<ChatView>
                   case 'request_phone':
                     _handleRequestPhone(context, chatState, chat);
                   case 'request_location':
-                    showTelegramToast(context, 'Location sharing requires GPS access.');
+                    _handleRequestLocation(context, chatState, chat);
                   case 'request_poll':
                     showCreatePollBox(context).then((result) {
                       if (result == null) return;
@@ -5312,7 +5354,8 @@ class _ChatViewState extends State<ChatView>
                       if (!url.startsWith('http://') && !url.startsWith('https://')) {
                         url = 'https://$url';
                       }
-                      Process.run('xdg-open', [url]);
+                      url_launcher.launchUrl(Uri.parse(url),
+                          mode: url_launcher.LaunchMode.externalApplication);
                     }
                   default:
                     _composeController.text = btn.text;
@@ -9290,6 +9333,7 @@ class _ContactStatusBar extends StatelessWidget {
   void _showAddContactDialog(BuildContext context) {
     final firstNameCtrl = TextEditingController(text: chat.title);
     final lastNameCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -9307,6 +9351,15 @@ class _ContactStatusBar extends StatelessWidget {
               controller: lastNameCtrl,
               decoration: const InputDecoration(labelText: 'Last Name'),
             ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: phoneCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Phone Number',
+                hintText: '+1234567890',
+              ),
+              keyboardType: TextInputType.phone,
+            ),
           ],
         ),
         actions: [
@@ -9318,7 +9371,7 @@ class _ContactStatusBar extends StatelessWidget {
             onPressed: () {
               chatState.addContact(
                 chat.accountId,
-                '', // phone unknown from DM context
+                phoneCtrl.text.trim(),
                 firstNameCtrl.text.trim(),
                 lastNameCtrl.text.trim(),
               );
@@ -18125,8 +18178,23 @@ class _StarGiftSheetState extends State<_StarGiftSheet> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              Navigator.pop(context);
-              showTelegramToast(context, 'Gift purchase requires the official Telegram app.');
+              showDialog(
+                context: context,
+                builder: (errCtx) => AlertDialog(
+                  title: const Text('Payment Not Available'),
+                  content: const Text(
+                    'Star gift purchases require the Telegram Payments API, '
+                    'which is not yet supported in this client. '
+                    'Please use the official Telegram app to send gifts.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(errCtx),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              );
             },
             child: Text('Send for ${gift.stars} Stars'),
           ),
@@ -20697,7 +20765,7 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
       } else if (_mode == _AiMode.fix) {
         final result = await widget.engine.translateFreeText(
           widget.accountId,
-          widget.originalText,
+          'Fix grammar and spelling: ${widget.originalText}',
           _targetLang,
         );
         if (!mounted) return;
@@ -20706,9 +20774,10 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
           _loading = false;
         });
       } else if (_mode == _AiMode.style) {
+        final styleName = _selectedStyle ?? 'formal';
         final result = await widget.engine.translateFreeText(
           widget.accountId,
-          widget.originalText,
+          'Rewrite in $styleName style: ${widget.originalText}',
           _targetLang,
         );
         if (!mounted) return;

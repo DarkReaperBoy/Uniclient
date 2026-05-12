@@ -19420,6 +19420,21 @@ func (t *TelegramCore) AccountInitTakeoutSession(request *tg.AccountInitTakeoutS
 	return t.api.AccountInitTakeoutSession(t.ctx, request)
 }
 
+// InstallCloudTheme installs a cloud theme (high-level wrapper for engine).
+func (t *TelegramCore) InstallCloudTheme(themeID int64, isDark bool) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	theme := &tg.InputTheme{ID: themeID}
+	_, err := t.api.AccountInstallTheme(t.ctx, &tg.AccountInstallThemeRequest{
+		Dark:  isDark,
+		Theme: theme,
+	})
+	return err
+}
+
 // AccountInstallTheme applies a theme to the client.
 func (t *TelegramCore) AccountInstallTheme(request *tg.AccountInstallThemeRequest) (bool, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
@@ -24185,6 +24200,76 @@ func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog
 		}
 	}
 	return dialogs, nil
+}
+
+// SearchGlobalPosts searches for public channel posts matching a query.
+func (t *TelegramCore) SearchGlobalPosts(query string, opts PaginationOpts) ([]Dialog, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	result, err := t.api.ChannelsSearchPosts(t.ctx, &tg.ChannelsSearchPostsRequest{
+		Hashtag:    query,
+		OffsetPeer: &tg.InputPeerEmpty{},
+		Limit:      limit,
+	})
+	if err != nil {
+		dialogs, gErr := t.SearchGlobal(query, opts)
+		if gErr != nil {
+			return nil, err
+		}
+		var filtered []Dialog
+		for _, d := range dialogs {
+			if d.Type == ChatTypeChannel {
+				filtered = append(filtered, d)
+			}
+		}
+		return filtered, nil
+	}
+	return t.convertMessagesToDialogs(result), nil
+}
+
+func (t *TelegramCore) convertMessagesToDialogs(msgs tg.MessagesMessagesClass) []Dialog {
+	var dialogs []Dialog
+	seen := make(map[string]bool)
+	switch m := msgs.(type) {
+	case *tg.MessagesMessages:
+		for _, ch := range m.Chats {
+			if c, ok := ch.(*tg.Channel); ok && c.Broadcast {
+				id := strconv.FormatInt(-1000000000000-c.ID, 10)
+				if !seen[id] {
+					seen[id] = true
+					dialogs = append(dialogs, Dialog{ID: id, Title: c.Title, Type: ChatTypeChannel, Platform: tgPlatform})
+				}
+			}
+		}
+	case *tg.MessagesMessagesSlice:
+		for _, ch := range m.Chats {
+			if c, ok := ch.(*tg.Channel); ok && c.Broadcast {
+				id := strconv.FormatInt(-1000000000000-c.ID, 10)
+				if !seen[id] {
+					seen[id] = true
+					dialogs = append(dialogs, Dialog{ID: id, Title: c.Title, Type: ChatTypeChannel, Platform: tgPlatform})
+				}
+			}
+		}
+	case *tg.MessagesChannelMessages:
+		for _, ch := range m.Chats {
+			if c, ok := ch.(*tg.Channel); ok && c.Broadcast {
+				id := strconv.FormatInt(-1000000000000-c.ID, 10)
+				if !seen[id] {
+					seen[id] = true
+					dialogs = append(dialogs, Dialog{ID: id, Title: c.Title, Type: ChatTypeChannel, Platform: tgPlatform})
+				}
+			}
+		}
+	}
+	return dialogs
 }
 
 // SendTyping sends a typing indicator to a chat.

@@ -148,3 +148,47 @@ func (e *Engine) SearchGlobalChats(accountID, query string, limit int) ([]ChatIn
 	}
 	return result, nil
 }
+
+func (e *Engine) SearchGlobalPosts(accountID, query string, limit int) ([]ChatInfo, error) {
+	if query == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	type postsSearcher interface {
+		SearchGlobalPosts(query string, opts cores.PaginationOpts) ([]cores.Dialog, error)
+	}
+	ps, ok := acc.Core.(postsSearcher)
+	if !ok {
+		chats, err := e.SearchGlobalChats(accountID, query, limit)
+		if err != nil {
+			return nil, err
+		}
+		var filtered []ChatInfo
+		for _, c := range chats {
+			if c.Type == 3 {
+				filtered = append(filtered, c)
+			}
+		}
+		return filtered, nil
+	}
+	dialogs, err := ps.SearchGlobalPosts(query, cores.PaginationOpts{Limit: limit})
+	if err != nil {
+		return nil, err
+	}
+	var result []ChatInfo
+	for _, d := range dialogs {
+		result = append(result, ChatInfo{
+			AccountID: accountID,
+			ChatID:    d.ID,
+			Title:     d.Title,
+			Type:      chatTypeToInt(d.Type),
+		})
+	}
+	return result, nil
+}

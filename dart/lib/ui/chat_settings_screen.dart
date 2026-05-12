@@ -297,8 +297,16 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   ? '#${(theme.accentColor & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}'
                   : null;
               appState.applyTestingTheme(targetTheme, accentColor: accentHex);
+              final account = appState.activeAccount;
+              if (account != null) {
+                context.read<EngineService>().installCloudTheme(
+                  account.id,
+                  theme.id,
+                  isDark: theme.isDark,
+                );
+              }
             },
-            onEditTheme: null,
+            onEditTheme: () => _openThemeEditor(context),
           ),
           InkWell(
             onTap: () => _openThemeEditor(context),
@@ -335,7 +343,12 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           _FontFamilyRow(
             isDark: isDark,
             currentFont: appState.customFontFamily,
-            onFontChanged: (f) => appState.customFontFamily = f,
+            onFontChanged: (f) {
+              appState.customFontFamily = f;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Restart app to apply font changes.')),
+              );
+            },
           ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
@@ -424,10 +437,41 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
               accentColor: currentAccent,
               enabled: _sensitiveEnabled,
               onChanged: (v) {
-                setState(() => _sensitiveEnabled = v);
-                final account = appState.activeAccount;
-                if (account != null) {
-                  context.read<EngineService>().setContentSettings(account.id, v);
+                if (v && !_sensitiveEnabled) {
+                  showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Sensitive Content'),
+                      content: const Text(
+                        'You must be at least 18 years old to enable sensitive content. '
+                        'Are you sure you want to continue?',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(true),
+                          child: const Text('Enable'),
+                        ),
+                      ],
+                    ),
+                  ).then((confirmed) {
+                    if (confirmed == true && mounted) {
+                      setState(() => _sensitiveEnabled = true);
+                      final account = appState.activeAccount;
+                      if (account != null) {
+                        context.read<EngineService>().setContentSettings(account.id, true);
+                      }
+                    }
+                  });
+                } else {
+                  setState(() => _sensitiveEnabled = v);
+                  final account = appState.activeAccount;
+                  if (account != null) {
+                    context.read<EngineService>().setContentSettings(account.id, v);
+                  }
                 }
               },
             ),
@@ -3454,12 +3498,12 @@ class _MessageCheckbox extends StatelessWidget {
   }
 }
 
-class _ReactionChooserButton extends StatelessWidget {
+class _ReactionChooserButton extends StatefulWidget {
   final String currentReaction;
   final bool isDark;
   final ValueChanged<String> onReactionSelected;
 
-  static const _defaultReactions = ['❤️', '👍', '👎', '🔥', '🎉', '😢', '💩', '👏', '😂', '🤔', '🤯', '😱'];
+  static const _fallbackReactions = ['❤️', '👍', '👎', '🔥', '🎉', '😢', '💩', '👏', '😂', '🤔', '🤯', '😱'];
 
   const _ReactionChooserButton({
     required this.currentReaction,
@@ -3467,6 +3511,38 @@ class _ReactionChooserButton extends StatelessWidget {
     required this.onReactionSelected,
   });
 
+  @override
+  State<_ReactionChooserButton> createState() => _ReactionChooserButtonState();
+}
+
+class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
+  List<String> _reactions = _ReactionChooserButton._fallbackReactions;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadReactions();
+  }
+
+  void _loadReactions() {
+    try {
+      final engine = context.read<EngineService>();
+      final appState = context.read<AppState>();
+      final account = appState.activeAccount;
+      if (account != null) {
+        final tags = engine.getSavedReactionTags(account.id);
+        if (tags.isNotEmpty) {
+          final fromTags = tags.map((t) => t.emoji).where((e) => e.isNotEmpty).toList();
+          if (fromTags.length >= 4) {
+            setState(() => _reactions = fromTags);
+            return;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  @override
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -3476,17 +3552,17 @@ class _ReactionChooserButton extends StatelessWidget {
         height: 28,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
+          color: widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
         ),
         alignment: Alignment.center,
-        child: Text(currentReaction, style: const TextStyle(fontSize: 16)),
+        child: Text(widget.currentReaction, style: const TextStyle(fontSize: 16)),
       ),
     );
   }
 
   void _showReactionPicker(BuildContext context) {
-    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
 
     showDialog(
       context: context,
@@ -3505,11 +3581,11 @@ class _ReactionChooserButton extends StatelessWidget {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _defaultReactions.map((emoji) {
-                  final isSelected = emoji == currentReaction;
+                children: _reactions.map((emoji) {
+                  final isSelected = emoji == widget.currentReaction;
                   return GestureDetector(
                     onTap: () {
-                      onReactionSelected(emoji);
+                      widget.onReactionSelected(emoji);
                       Navigator.pop(ctx);
                     },
                     child: Container(
@@ -3518,8 +3594,8 @@ class _ReactionChooserButton extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: isSelected
-                            ? (isDark ? const Color(0xFF2B5278) : const Color(0xFFE3F2FD))
-                            : (isDark ? const Color(0xFF232E3C) : const Color(0xFFF5F5F5)),
+                            ? (widget.isDark ? const Color(0xFF2B5278) : const Color(0xFFE3F2FD))
+                            : (widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF5F5F5)),
                         border: isSelected
                             ? Border.all(color: context.palette.windowBgActive, width: 2)
                             : null,
@@ -3689,12 +3765,20 @@ class _ArchiveSettingsBoxState extends State<_ArchiveSettingsBox> {
     final account = appState.activeAccount;
     if (account == null) return;
     final engine = context.read<EngineService>();
-    engine.setArchiveSettings(
-      account.id,
-      archiveAndMute: _archiveAndMute,
-      keepArchivedUnmuted: _keepUnmuted,
-      keepArchivedFolders: _keepFolders,
-    );
+    try {
+      engine.setArchiveSettings(
+        account.id,
+        archiveAndMute: _archiveAndMute,
+        keepArchivedUnmuted: _keepUnmuted,
+        keepArchivedFolders: _keepFolders,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save archive settings: $e')),
+        );
+      }
+    }
   }
 
   @override

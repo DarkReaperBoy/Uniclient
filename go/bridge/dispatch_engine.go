@@ -3065,6 +3065,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(wallpapers)
 
+	case "InstallCloudTheme":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ThemeID   int64  `json:"theme_id"`
+			IsDark    bool   `json:"is_dark"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.InstallCloudTheme(params.AccountID, params.ThemeID, params.IsDark); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": true})
+
 	case "DeleteCloudTheme":
 		var params struct {
 			AccountID string `json:"account_id"`
@@ -4539,6 +4553,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		chats, err := e.SearchGlobalChats(params.AccountID, params.Query, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(chats)
+
+	case "SearchGlobalPosts":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Query     string `json:"query"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		chats, err := e.SearchGlobalPosts(params.AccountID, params.Query, params.Limit)
 		if err != nil {
 			return nil, err
 		}

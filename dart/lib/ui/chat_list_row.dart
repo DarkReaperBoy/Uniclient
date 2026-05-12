@@ -397,7 +397,7 @@ class ChatListRow extends StatelessWidget {
               errorBuilder: (_, __, ___) => const SizedBox(width: 16, height: 16),
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 2),
           Expanded(child: textWidget),
         ],
       );
@@ -409,7 +409,7 @@ class ChatListRow extends StatelessWidget {
       return Row(
         children: [
           Icon(iconData, size: 16, color: mutedColor),
-          const SizedBox(width: 4),
+          const SizedBox(width: 2),
           Expanded(child: textWidget),
         ],
       );
@@ -504,14 +504,19 @@ enum SwipeAction {
 SwipeAction resolveSwipeAction(String baseAction, ChatInfo chat) {
   switch (baseAction) {
     case 'mute':
+      if (chat.isSelf) return SwipeAction.disabled;
       return chat.isMuted ? SwipeAction.unmute : SwipeAction.mute;
     case 'pin':
       return chat.isPinned ? SwipeAction.unpin : SwipeAction.pin;
     case 'read':
+      if (chat.isForum && chat.unreadCount == 0 && !chat.isUnreadMark) {
+        return SwipeAction.disabled;
+      }
       return (chat.unreadCount > 0 || chat.isUnreadMark)
           ? SwipeAction.read
           : SwipeAction.unread;
     case 'archive':
+      if (chat.isSelf) return SwipeAction.disabled;
       return chat.isArchived ? SwipeAction.unarchive : SwipeAction.archive;
     case 'delete':
       return SwipeAction.delete;
@@ -1267,9 +1272,9 @@ class _TypingDotsIndicator extends StatefulWidget {
       case 'upload_document':
         return 'sending file';
       case 'geo_location':
-        return 'choosing location';
+        return 'typing';
       case 'choose_contact':
-        return 'choosing contact';
+        return 'typing';
       case 'game_play':
         return 'playing game';
       case 'record_round':
@@ -1306,6 +1311,13 @@ class _TypingDotsIndicatorState extends State<_TypingDotsIndicator>
     super.dispose();
   }
 
+  static bool _isRecordAction(String action) =>
+      action == 'record_video' || action == 'record_audio' || action == 'record_round';
+
+  static bool _isUploadAction(String action) =>
+      action == 'upload_video' || action == 'upload_audio' ||
+      action == 'upload_photo' || action == 'upload_document' || action == 'upload_round';
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -1322,37 +1334,133 @@ class _TypingDotsIndicatorState extends State<_TypingDotsIndicator>
             ),
           ),
         ),
-        const SizedBox(width: 1),
+        const SizedBox(width: 3),
         AnimatedBuilder(
           animation: _controller,
           builder: (context, child) {
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(3, (i) {
-                // Stagger each dot by 1/3 of the cycle, bounce up using sin().
-                final phase = (_controller.value + i / 3.0) * 2 * math.pi;
-                final dy = -3.0 * math.max(0.0, math.sin(phase));
-                return Padding(
-                  padding: const EdgeInsets.only(left: 1),
-                  child: Transform.translate(
-                    offset: Offset(0, dy),
-                    child: Text(
-                      '.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: widget.color,
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            );
+            if (_isRecordAction(widget.action)) {
+              return _buildRecordAnimation();
+            } else if (_isUploadAction(widget.action)) {
+              return _buildUploadAnimation();
+            } else if (widget.action == 'choose_sticker') {
+              return _buildStickerAnimation();
+            }
+            return _buildTypingDots();
           },
         ),
       ],
     );
   }
+
+  Widget _buildTypingDots() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (i) {
+        final phase = (_controller.value + i / 3.0) * 2 * math.pi;
+        final dy = -3.0 * math.max(0.0, math.sin(phase));
+        return Padding(
+          padding: const EdgeInsets.only(left: 1),
+          child: Transform.translate(
+            offset: Offset(0, dy),
+            child: Text(
+              '.',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: widget.color,
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildRecordAnimation() {
+    return SizedBox(
+      width: 14,
+      height: 14,
+      child: CustomPaint(
+        painter: _RecordWaveformPainter(
+          progress: _controller.value,
+          color: widget.color,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUploadAnimation() {
+    return SizedBox(
+      width: 14,
+      height: 14,
+      child: CustomPaint(
+        painter: _UploadArrowPainter(
+          progress: _controller.value,
+          color: widget.color,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStickerAnimation() {
+    final scale = 0.8 + 0.2 * math.sin(_controller.value * 2 * math.pi);
+    return Transform.scale(
+      scale: scale,
+      child: Icon(Icons.sticky_note_2_outlined, size: 14, color: widget.color),
+    );
+  }
+}
+
+class _RecordWaveformPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  _RecordWaveformPainter({required this.progress, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    const bars = 4;
+    final barWidth = size.width / (bars * 2 - 1);
+    for (int i = 0; i < bars; i++) {
+      final phase = (progress + i / bars) * 2 * math.pi;
+      final h = size.height * (0.3 + 0.7 * math.max(0, math.sin(phase)));
+      final x = i * barWidth * 2 + barWidth / 2;
+      canvas.drawLine(
+        Offset(x, size.height / 2 - h / 2),
+        Offset(x, size.height / 2 + h / 2),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RecordWaveformPainter old) => progress != old.progress;
+}
+
+class _UploadArrowPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  _UploadArrowPainter({required this.progress, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    final cy = size.height * (1.0 - progress);
+    final cx = size.width / 2;
+    canvas.drawLine(Offset(cx, size.height), Offset(cx, cy), paint);
+    canvas.drawLine(Offset(cx - 3, cy + 3), Offset(cx, cy), paint);
+    canvas.drawLine(Offset(cx + 3, cy + 3), Offset(cx, cy), paint);
+  }
+
+  @override
+  bool shouldRepaint(_UploadArrowPainter old) => progress != old.progress;
 }
 
 /// Red text badge for scam/fake indicators.
@@ -1789,7 +1897,8 @@ class ForumChatListRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final effectiveHeight = _rowHeight;
+    final hasTags = chat.type == ChatType.topic && chat.parentId.isNotEmpty;
+    final effectiveHeight = hasTags ? _rowHeightWithTags : _rowHeight;
 
     final nameColor = isActive ? palette.dialogsNameFgActive : palette.dialogsNameFg;
     final mutedColor = isActive ? palette.dialogsTextFgActive : palette.dialogsTextFg;
@@ -1861,7 +1970,7 @@ class ForumChatListRow extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         Row(
                           children: [
                             Icon(Icons.forum, size: 16, color: mutedColor),
@@ -2007,13 +2116,7 @@ class _TopicsPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     if (topics.isEmpty) {
-      return Text(
-        'No topics',
-        style: TextStyle(
-          fontSize: 13,
-          color: isActive ? palette.dialogsTextFgActive.withValues(alpha: 0.7) : palette.dialogsTextFg,
-        ),
-      );
+      return const SizedBox.shrink();
     }
 
     return LayoutBuilder(

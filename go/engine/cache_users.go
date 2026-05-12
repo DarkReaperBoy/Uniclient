@@ -1265,6 +1265,25 @@ func (e *Engine) CreateCloudTheme(accountID, title, slug string, themeData []byt
 	return c.CreateCloudThemeWithData(title, slug, themeData)
 }
 
+type cloudThemeInstaller interface {
+	InstallCloudTheme(themeID int64, isDark bool) error
+}
+
+func (e *Engine) InstallCloudTheme(accountID string, themeID int64, isDark bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	i, ok := acc.Core.(cloudThemeInstaller)
+	if !ok {
+		return fmt.Errorf("core does not support cloud theme installation")
+	}
+	return i.InstallCloudTheme(themeID, isDark)
+}
+
 type chatThemesFetcher interface {
 	GetChatThemesList() ([]cores.ChatThemeInfo, error)
 }

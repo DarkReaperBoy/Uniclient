@@ -497,12 +497,12 @@ class _ChatListPanelState extends State<ChatListPanel>
         }
       case _SearchTab.publicPosts:
         final appState = context.read<AppState>();
-        final globalResults = chatState.searchGlobalChats(
+        final postsResults = chatState.searchGlobalPosts(
           appState.activeAccountId,
           _searchController.text,
         );
-        return globalResults.isNotEmpty
-            ? globalResults.where((c) => c.type == ChatType.channel).toList()
+        return postsResults.isNotEmpty
+            ? postsResults
             : results.where((c) => c.type == ChatType.channel).toList();
       case _SearchTab.thisPeer:
         // Only results matching the currently active chat.
@@ -705,6 +705,7 @@ class _ChatListPanelState extends State<ChatListPanel>
               _SearchSubFilterRow(
                 activeFilter: _myMsgSubFilter,
                 onFilterChanged: _onSubFilterChanged,
+                searchInChat: chatState.activeChat,
               ),
             // Top Peers strip (spec §2: shown when search focused, no query).
             if (_searching && _searchController.text.isEmpty)
@@ -3610,10 +3611,12 @@ class _SearchTabItem extends StatelessWidget {
 class _SearchSubFilterRow extends StatelessWidget {
   final _MyMsgSubFilter activeFilter;
   final ValueChanged<_MyMsgSubFilter> onFilterChanged;
+  final ChatInfo? searchInChat;
 
   const _SearchSubFilterRow({
     required this.activeFilter,
     required this.onFilterChanged,
+    this.searchInChat,
   });
 
   static const _filters = [
@@ -3671,19 +3674,7 @@ class _SearchSubFilterRow extends StatelessWidget {
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(top: 5),
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: palette.windowBgActive,
-                        ),
-                        child: Icon(
-                          _activeIcon,
-                          size: 16,
-                          color: palette.windowFgActive,
-                        ),
-                      ),
+                      child: _buildSearchInAvatar(palette),
                     ),
                     const SizedBox(width: 8),
                     // Filter label (spec: name top 9px from row top).
@@ -3718,6 +3709,59 @@ class _SearchSubFilterRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSearchInAvatar(TelegramPalette palette) {
+    final chat = searchInChat;
+    if (chat != null && chat.avatarPath.isNotEmpty) {
+      return ClipOval(
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Image.file(
+            File(chat.avatarPath),
+            width: 28,
+            height: 28,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildFallbackIcon(palette),
+          ),
+        ),
+      );
+    }
+    if (chat != null && chat.title.isNotEmpty) {
+      final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+      final colors = [
+        palette.historyPeer1UserpicBg,
+        palette.historyPeer2UserpicBg,
+        palette.historyPeer3UserpicBg,
+        palette.historyPeer4UserpicBg,
+      ];
+      final color = colors[numId.abs() % colors.length];
+      final initial = chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '';
+      return Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+        alignment: Alignment.center,
+        child: Text(
+          initial,
+          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+        ),
+      );
+    }
+    return _buildFallbackIcon(palette);
+  }
+
+  Widget _buildFallbackIcon(TelegramPalette palette) {
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: palette.windowBgActive,
+      ),
+      child: Icon(_activeIcon, size: 16, color: palette.windowFgActive),
     );
   }
 

@@ -230,7 +230,7 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
     final p = context.palette;
     final overlayColor = p.layerBg;
     final boxBg = p.boxBg;
-    final accentColor = p.windowActiveTextFg;
+    final accentColor = p.windowBgActive;
     final nameColor = p.boxTextFg;
 
     return LayoutBuilder(
@@ -365,23 +365,23 @@ class _ChatSwitchCell extends StatelessWidget {
             )
           : null,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           SizedBox(height: _userpicTop),
           _buildAvatar(context.palette),
-          const SizedBox(height: 4),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: _nameSkip),
-              child: Text(
-                chat.title,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: nameColor,
-                  height: 1.2,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: _nameSkip),
+                child: Text(
+                  chat.title,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: nameColor,
+                    height: 1.2,
+                  ),
                 ),
               ),
             ),
@@ -391,28 +391,24 @@ class _ChatSwitchCell extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(TelegramPalette palette) {
-    if (chat.isSelf) {
-      return const SavedMessagesUserpic(size: _userpicSize);
-    }
-
+  Widget _buildBaseUserpic(TelegramPalette palette, double size) {
     if (chat.avatarPath.isNotEmpty) {
       if (decodedAvatar != null) {
         return ClipOval(
           child: SizedBox(
-            width: _userpicSize,
-            height: _userpicSize,
+            width: size,
+            height: size,
             child: Image.memory(decodedAvatar!,
-                width: _userpicSize, height: _userpicSize, fit: BoxFit.cover),
+                width: size, height: size, fit: BoxFit.cover),
           ),
         );
       }
       return ClipOval(
         child: SizedBox(
-          width: _userpicSize,
-          height: _userpicSize,
+          width: size,
+          height: size,
           child: Image.file(File(chat.avatarPath),
-              width: _userpicSize, height: _userpicSize, fit: BoxFit.cover),
+              width: size, height: size, fit: BoxFit.cover),
         ),
       );
     }
@@ -422,19 +418,82 @@ class _ChatSwitchCell extends StatelessWidget {
     final initials = _initials(chat.title);
 
     return Container(
-      width: _userpicSize,
-      height: _userpicSize,
+      width: size,
+      height: size,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       alignment: Alignment.center,
       child: Text(
         initials,
-        style: const TextStyle(
+        style: TextStyle(
           color: Colors.white,
-          fontSize: 18,
+          fontSize: size * 0.32,
           fontWeight: FontWeight.w500,
         ),
       ),
     );
+  }
+
+  Widget _buildAvatar(TelegramPalette palette) {
+    if (chat.isSelf) {
+      return const SavedMessagesUserpic(size: _userpicSize);
+    }
+
+    if (chat.isForum && chat.type == ChatType.topic) {
+      return SizedBox(
+        width: _userpicSize,
+        height: _userpicSize,
+        child: Stack(
+          children: [
+            _buildBaseUserpic(palette, _userpicSize),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: palette.windowBgActive,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: palette.boxBg, width: 2),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.tag, size: 14, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (chat.parentId.isNotEmpty && chat.type == ChatType.dm) {
+      return SizedBox(
+        width: _userpicSize,
+        height: _userpicSize,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: 0,
+              top: 0,
+              child: _buildBaseUserpic(palette, 40),
+            ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: palette.boxBg, width: 2),
+                ),
+                child: SavedMessagesUserpic(size: 24),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _buildBaseUserpic(palette, _userpicSize);
   }
 
   static String _initials(String name) {
