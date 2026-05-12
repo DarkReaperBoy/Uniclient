@@ -1046,8 +1046,6 @@ The implementation is complete, accurate, and ready for use. No changes needed.
 
 # call_panel — Audit Findings
 
-- [ ] [MAJOR] `_onAddPeopleTap()` immediately calls `engine.createConferenceCall(accountId)` and shows a copy-link dialog; AyuGram shows `Group::PrepareInviteBox` which offers both "invite specific contacts" (migrates call, passes mute state and video capture) and "get shareable link" as separate options — `call_panel.dart:260-275` ← `calls_panel.cpp:425-457`
-
 # call_screen — Group Call Panel + Minimised Call Bar
 
 - [ ] [CRITICAL] "End for all" button calls identical `onLeave()` as "Leave" — no engine discard call; AyuGram calls `MTPphone_DiscardGroupCall` for end-for-all vs `MTPphone_LeaveGroupCall` for leave — `call_screen.dart:1211-1215` ← `calls_group_call.cpp:2180,2247`
