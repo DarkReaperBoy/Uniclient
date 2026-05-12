@@ -10,7 +10,6 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'ayu_section_builder.dart';
 import 'ayu_toggle.dart';
-import 'confirm_box.dart';
 
 class AyuAppearancePage extends StatelessWidget {
   const AyuAppearancePage({super.key});
@@ -31,7 +30,7 @@ class AyuAppearancePage extends StatelessWidget {
       onChanged: (v) => appState.setAppIcon(v),
       isDark: isDark,
     ));
-    if (Platform.isWindows)
+    if (Platform.isWindows || Platform.isMacOS)
       b.addSettingToggle(
         label: 'Hide notification badge',
         subtitle: 'Hides the unread count on the taskbar and tray icon',
@@ -303,23 +302,21 @@ class _AvatarCornersSectionState extends State<_AvatarCornersSection> {
               min: 0,
               max: _kMax.toDouble(),
               divisions: _kMax,
-              onChanged: (v) => setState(() => _localCorners = v.round()),
+              onChanged: (v) {
+                final newVal = v.round();
+                setState(() => _localCorners = newVal);
+                widget.onCornersChanged(newVal);
+              },
               onChangeEnd: (v) {
                 final newVal = v.round();
                 if (newVal == _committedCorners) return;
-                showConfirmBox(
-                  context,
-                  title: 'Restart Required',
-                  text: 'Avatar corners will be applied after restarting.',
-                  confirmText: 'Apply',
-                  cancelText: 'Cancel',
-                  onConfirm: () {
-                    _committedCorners = newVal;
-                    widget.onCornersChanged(newVal);
-                  },
-                  onCancel: () =>
-                      setState(() => _localCorners = _committedCorners),
-                );
+                _committedCorners = newVal;
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(const SnackBar(
+                    content: Text('Restart to apply avatar corners'),
+                    duration: Duration(seconds: 2),
+                  ));
               },
             ),
           ),
@@ -394,7 +391,7 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
   Widget build(BuildContext context) {
     const photoSize = 46.0;
     final avatarRadius = photoSize / 2 * (widget.corners / 23.0);
-    final bgColor = widget.isDark ? const Color(0xFF24292E) : const Color(0xFFF1F1F1);
+    final bgColor = context.palette.windowBg;
     final nameColor = widget.isDark ? Colors.white : Colors.black87;
     final previewColor =
         widget.isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
@@ -429,65 +426,66 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
       );
     }
 
-    return GestureDetector(
-      onTap: () {
-        if (_channelId != null) {
-          context.read<ChatState>().openChatById(_channelId!);
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
-        child: Container(
-          height: 62,
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(avatarRadius),
-                child: SizedBox(
-                  width: photoSize,
-                  height: photoSize,
-                  child: avatarContent,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+      child: Material(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () {
+            if (_channelId != null) {
+              context.read<ChatState>().openChatById(_channelId!);
+            }
+          },
+          child: Container(
+            height: 62,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(avatarRadius),
+                  child: SizedBox(
+                    width: photoSize,
+                    height: photoSize,
+                    child: avatarContent,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text('AyuGram Releases',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: nameColor),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
-                        ),
-                        const SizedBox(width: 3),
-                        Icon(Icons.verified,
-                            size: 15,
-                            color: widget.isDark
-                                ? const Color(0xFF6AB2F2)
-                                : const Color(0xFF3390EC)),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text('Better late than never',
-                        style: TextStyle(fontSize: 13, color: previewColor),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                  ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text('AyuGram Releases',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: nameColor),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                          ),
+                          const SizedBox(width: 3),
+                          Icon(Icons.verified,
+                              size: 15,
+                              color: widget.isDark
+                                  ? const Color(0xFF6AB2F2)
+                                  : const Color(0xFF3390EC)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text('Better late than never',
+                          style: TextStyle(fontSize: 13, color: previewColor),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -594,27 +592,21 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
   }
 
   Future<void> _loadSystemFonts() async {
+    List<String>? families;
     try {
-      if (Platform.isLinux) {
-        final result = await Process.run('fc-list', ['-f', '%{family}\n']);
-        if (result.exitCode == 0) {
-          final families = <String>{};
-          for (final line in (result.stdout as String).split('\n')) {
-            final trimmed = line.trim();
-            if (trimmed.isNotEmpty) {
-              for (final family in trimmed.split(',')) {
-                final f = family.trim();
-                if (f.isNotEmpty) families.add(f);
-              }
-            }
-          }
-          final sorted = families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-          if (mounted) setState(() { _systemFonts = ['', ...sorted]; _loadingFonts = false; });
-          return;
-        }
+      if (Platform.isLinux || Platform.isMacOS) {
+        families = await _loadViaFcList();
+      }
+      if (families == null && Platform.isMacOS) {
+        families = await _loadViaMacOSScan();
+      }
+      if (families == null && Platform.isWindows) {
+        families = await _loadViaWindowsPowerShell();
       }
     } catch (_) {}
-    if (mounted) {
+    if (families != null && families.isNotEmpty) {
+      if (mounted) setState(() { _systemFonts = ['', ...families!]; _loadingFonts = false; });
+    } else if (mounted) {
       setState(() {
         _systemFonts = [
           '', 'Cascadia Mono', 'JetBrains Mono', 'Fira Code',
@@ -624,6 +616,82 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
         _loadingFonts = false;
       });
     }
+  }
+
+  Future<List<String>?> _loadViaFcList() async {
+    try {
+      final result = await Process.run('fc-list', ['-f', '%{family}\n']);
+      if (result.exitCode == 0) {
+        final families = <String>{};
+        for (final line in (result.stdout as String).split('\n')) {
+          final trimmed = line.trim();
+          if (trimmed.isNotEmpty) {
+            for (final family in trimmed.split(',')) {
+              final f = family.trim();
+              if (f.isNotEmpty) families.add(f);
+            }
+          }
+        }
+        if (families.isNotEmpty) {
+          return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<String>?> _loadViaMacOSScan() async {
+    try {
+      final dirs = [
+        '/Library/Fonts',
+        '/System/Library/Fonts',
+        '/System/Library/Fonts/Supplemental',
+        '${Platform.environment['HOME']}/Library/Fonts',
+      ];
+      final families = <String>{};
+      for (final dirPath in dirs) {
+        final dir = Directory(dirPath);
+        if (!await dir.exists()) continue;
+        await for (final entity in dir.list()) {
+          if (entity is File) {
+            final name = entity.uri.pathSegments.last;
+            final ext = name.split('.').last.toLowerCase();
+            if (ext == 'ttf' || ext == 'otf' || ext == 'ttc') {
+              final family = name.substring(0, name.length - ext.length - 1)
+                  .replaceAll(RegExp(r'[-_]'), ' ')
+                  .replaceAll(RegExp(r'\s+(Regular|Bold|Italic|Light|Medium|Thin|Black|Heavy|Condensed|Expanded|Oblique|Semibold|Demibold|ExtraBold|ExtraLight|UltraLight|UltraBold|Book|Roman)$', caseSensitive: false), '');
+              if (family.isNotEmpty) families.add(family);
+            }
+          }
+        }
+      }
+      if (families.isNotEmpty) {
+        return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<String>?> _loadViaWindowsPowerShell() async {
+    try {
+      final result = await Process.run('powershell', [
+        '-NoProfile', '-Command',
+        'Add-Type -AssemblyName System.Drawing; '
+            '(New-Object System.Drawing.Text.InstalledFontCollection).Families '
+            '| ForEach-Object { \$_.Name }',
+      ]);
+      if (result.exitCode == 0) {
+        final families = <String>{};
+        for (final line in (result.stdout as String).split('\n')) {
+          final trimmed = line.trim();
+          if (trimmed.isNotEmpty) families.add(trimmed);
+        }
+        if (families.isNotEmpty) {
+          return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   @override
@@ -822,7 +890,7 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
   }
 }
 
-class _AppIconPicker extends StatelessWidget {
+class _AppIconPicker extends StatefulWidget {
   final String selectedIcon;
   final ValueChanged<String> onChanged;
   final bool isDark;
@@ -833,16 +901,24 @@ class _AppIconPicker extends StatelessWidget {
     required this.isDark,
   });
 
-  static const _icons = [
+  static const icons = [
     'default', 'alt', 'discord', 'spotify', 'extera', 'nothing',
     'bard', 'yaplus', 'win95', 'chibi', 'chibi2', 'extera2',
   ];
 
   @override
+  State<_AppIconPicker> createState() => _AppIconPickerState();
+}
+
+class _AppIconPickerState extends State<_AppIconPicker> {
+  String? _prevSelected;
+
+  String get _selected =>
+      widget.selectedIcon.isEmpty ? 'default' : widget.selectedIcon;
+
+  @override
   Widget build(BuildContext context) {
-    final selected = selectedIcon.isEmpty ? 'default' : selectedIcon;
-    final accentColor =
-        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    final dividerBg = context.palette.boxDividerBg;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
       child: GridView.builder(
@@ -854,50 +930,55 @@ class _AppIconPicker extends StatelessWidget {
           crossAxisSpacing: 8,
           childAspectRatio: 1,
         ),
-        itemCount: _icons.length,
+        itemCount: _AppIconPicker.icons.length,
         itemBuilder: (ctx, i) {
-          final name = _icons[i];
-          final isSelected = name == selected;
+          final name = _AppIconPicker.icons[i];
+          final isSelected = name == _selected;
+          final wasPrev = name == _prevSelected;
           return GestureDetector(
             onTap: () {
+              if (name == _selected) return;
+              setState(() => _prevSelected = _selected);
               final newIcon = name == 'default' ? '' : name;
-              onChanged(newIcon);
-              showConfirmBox(
-                context,
-                title: 'Restart Required',
-                text: 'The app icon will be applied after restarting.',
-                confirmText: 'Restart Now',
-                cancelText: 'Later',
-                onConfirm: () => exit(0),
-                onCancel: () {},
-              );
+              widget.onChanged(newIcon);
             },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: isSelected
-                    ? Border.all(color: accentColor, width: 2)
-                    : null,
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  'assets/icons/ayu/$name.png',
-                  width: 64,
-                  height: 64,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 64,
-                    height: 64,
-                    color: const Color(0xFF40A7E3),
-                    child: const Icon(Icons.image_not_supported,
-                        color: Colors.white, size: 24),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: AnimatedOpacity(
+                    opacity: isSelected ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: dividerBg,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset(
+                        'assets/icons/ayu/$name.png',
+                        width: 64,
+                        height: 64,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 64,
+                          height: 64,
+                          color: const Color(0xFF40A7E3),
+                          child: const Icon(Icons.image_not_supported,
+                              color: Colors.white, size: 24),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           );
         },
