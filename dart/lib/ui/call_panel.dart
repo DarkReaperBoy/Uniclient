@@ -9,6 +9,7 @@ import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import 'confirm_box.dart';
 import 'telegram_tooltip.dart';
@@ -365,10 +366,38 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     );
     if (action == null || !mounted) return;
 
-    final result = await engine.createConferenceCall(accountId);
-    if (result == null || !mounted) return;
+    if (action == 'invite') {
+      final selectedIds = await showTelegramBox<Set<String>>(
+        context: context,
+        builder: (ctx) => _InviteContactPicker(
+          engine: engine,
+          accountId: accountId,
+          excludeUserId: widget.info.callerId,
+        ),
+      );
+      if (selectedIds == null || selectedIds.isEmpty || !mounted) return;
 
-    if (action == 'link') {
+      final result = await engine.createConferenceCall(accountId);
+      if (result == null || !mounted) return;
+
+      for (final userId in selectedIds) {
+        await engine.sendMessage(accountId, userId, result.inviteLink);
+      }
+
+      if (mounted) {
+        showConfirmBox(
+          context,
+          title: 'Invitations Sent',
+          text: 'Conference link sent to ${selectedIds.length} contact${selectedIds.length == 1 ? '' : 's'}.',
+          confirmText: 'Copy Link',
+          onConfirm: () {
+            Clipboard.setData(ClipboardData(text: result.inviteLink));
+          },
+        );
+      }
+    } else if (action == 'link') {
+      final result = await engine.createConferenceCall(accountId);
+      if (result == null || !mounted) return;
       showConfirmBox(
         context,
         title: 'Conference Call Created',
@@ -378,16 +407,6 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
           Clipboard.setData(ClipboardData(text: result.inviteLink));
         },
       );
-    } else if (action == 'invite') {
-      Clipboard.setData(ClipboardData(text: result.inviteLink));
-      if (mounted) {
-        showConfirmBox(
-          context,
-          title: 'Conference Call Created',
-          text: 'Conference link copied to clipboard.\nShare it with the people you want to invite.',
-          confirmText: 'OK',
-        );
-      }
     }
   }
 
@@ -1274,6 +1293,287 @@ class _AddPeopleOption extends StatelessWidget {
                   Text(subtitle, style: TextStyle(fontSize: 12, color: palette.boxTextFg.withValues(alpha: 0.5))),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InviteContactPicker extends StatefulWidget {
+  final EngineService engine;
+  final String accountId;
+  final String excludeUserId;
+
+  const _InviteContactPicker({
+    required this.engine,
+    required this.accountId,
+    this.excludeUserId = '',
+  });
+
+  @override
+  State<_InviteContactPicker> createState() => _InviteContactPickerState();
+}
+
+class _InviteContactPickerState extends State<_InviteContactPicker> {
+  List<ContactInfo>? _contacts;
+  bool _loading = true;
+  final Set<String> _selectedIds = {};
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContacts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadContacts() async {
+    try {
+      final contacts = await widget.engine.getContacts(widget.accountId);
+      if (mounted) {
+        setState(() {
+          _contacts = contacts
+              .where((c) => !c.isBot && c.userId != widget.excludeUserId)
+              .toList()
+            ..sort((a, b) => a.displayName.compareTo(b.displayName));
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  List<ContactInfo> get _filteredContacts {
+    final all = _contacts ?? [];
+    if (_searchQuery.isEmpty) return all;
+    final q = _searchQuery.toLowerCase();
+    return all
+        .where((c) =>
+            c.displayName.toLowerCase().contains(q) ||
+            c.username.toLowerCase().contains(q))
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final textColor = p.boxTextFg;
+    final subtextColor = p.boxTitleAdditionalFg;
+    final accentColor = p.windowBgActive;
+    final dividerColor = p.boxDividerBg;
+
+    return Dialog(
+      backgroundColor: p.boxBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364, maxHeight: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 48,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 24, top: 13),
+                child: Text(
+                  'Invite to Conference Call',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: SizedBox(
+                height: 36,
+                child: TextField(
+                  controller: _searchController,
+                  style: TextStyle(fontSize: 14, color: textColor),
+                  decoration: InputDecoration(
+                    hintText: 'Search',
+                    hintStyle: TextStyle(fontSize: 14, color: subtextColor),
+                    prefixIcon:
+                        Icon(Icons.search, size: 20, color: subtextColor),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF131C26)
+                        : const Color(0xFFF0F0F0),
+                  ),
+                  onChanged: (v) => setState(() => _searchQuery = v),
+                ),
+              ),
+            ),
+            Divider(height: 1, color: dividerColor),
+            Expanded(
+              child: _loading
+                  ? Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2, color: accentColor),
+                      ),
+                    )
+                  : _filteredContacts.isEmpty
+                      ? Center(
+                          child: Text(
+                            _searchQuery.isEmpty
+                                ? 'No contacts found'
+                                : 'No results',
+                            style:
+                                TextStyle(fontSize: 14, color: subtextColor),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          itemCount: _filteredContacts.length,
+                          itemBuilder: (context, index) {
+                            final contact = _filteredContacts[index];
+                            final selected =
+                                _selectedIds.contains(contact.userId);
+                            return _InviteContactRow(
+                              contact: contact,
+                              selected: selected,
+                              textColor: textColor,
+                              subtextColor: subtextColor,
+                              accentColor: accentColor,
+                              onTap: () {
+                                setState(() {
+                                  if (selected) {
+                                    _selectedIds.remove(contact.userId);
+                                  } else {
+                                    _selectedIds.add(contact.userId);
+                                  }
+                                });
+                              },
+                            );
+                          },
+                        ),
+            ),
+            Divider(height: 1, color: dividerColor),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(fontSize: 14, color: subtextColor),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _selectedIds.isEmpty
+                        ? null
+                        : () => Navigator.of(context).pop(_selectedIds),
+                    child: Text(
+                      _selectedIds.isEmpty
+                          ? 'Invite'
+                          : 'Invite (${_selectedIds.length})',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: _selectedIds.isEmpty
+                            ? subtextColor
+                            : accentColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InviteContactRow extends StatelessWidget {
+  final ContactInfo contact;
+  final bool selected;
+  final Color textColor;
+  final Color subtextColor;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  const _InviteContactRow({
+    required this.contact,
+    required this.selected,
+    required this.textColor,
+    required this.subtextColor,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: accentColor.withValues(alpha: 0.2),
+              child: Text(
+                contact.displayName.isNotEmpty
+                    ? contact.displayName[0].toUpperCase()
+                    : '?',
+                style: TextStyle(
+                  color: accentColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    contact.displayName,
+                    style: TextStyle(fontSize: 14, color: textColor),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (contact.username.isNotEmpty)
+                    Text(
+                      '@${contact.username}',
+                      style: TextStyle(fontSize: 12, color: subtextColor),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: selected
+                  ? Icon(Icons.check_circle, color: accentColor, size: 22)
+                  : Icon(Icons.radio_button_unchecked,
+                      color: subtextColor.withValues(alpha: 0.4), size: 22),
             ),
           ],
         ),
