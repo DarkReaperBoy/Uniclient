@@ -33,38 +33,6 @@ class _TopicIconEntry {
   const _TopicIconEntry({required this.documentId, required this.emoji});
 }
 
-const List<String> _defaultTopicEmojiIcons = [
-  '\u{1F4AC}', // 💬
-  '\u{1F4E2}', // 📢
-  '\u{1F4DD}', // 📝
-  '\u{1F4CA}', // 📊
-  '\u{1F4C1}', // 📁
-  '\u{1F4CC}', // 📌
-  '\u{1F4A1}', // 💡
-  '\u{2B50}',  // ⭐
-  '\u{2753}',  // ❓
-  '\u{2757}',  // ❗
-  '\u{1F514}', // 🔔
-  '\u{1F3AF}', // 🎯
-  '\u{1F3C6}', // 🏆
-  '\u{1F512}', // 🔒
-  '\u{2699}',  // ⚙
-  '\u{1F4E3}', // 📣
-  '\u{1F4D6}', // 📖
-  '\u{1F517}', // 🔗
-  '\u{1F4F7}', // 📷
-  '\u{1F3B5}', // 🎵
-  '\u{1F3AE}', // 🎮
-  '\u{1F4B0}', // 💰
-  '\u{2764}',  // ❤
-  '\u{1F680}', // 🚀
-];
-
-/// Codepoints of default topic icons — selection of these is free.
-final Set<int> _defaultTopicEmojiCodepoints = {
-  for (final e in _defaultTopicEmojiIcons) e.runes.first,
-};
-
 Future<EditForumTopicResult?> showEditForumTopicBox(
   BuildContext context, {
   String? existingTitle,
@@ -144,9 +112,9 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   late int _iconEmojiId;
   String? _selectedEmojiStr;
   late List<int> _remainingColors;
-  late List<String> _emojiIcons;
   bool _titleError = false;
   bool _loadingServerIcons = false;
+  int _selectedTab = 0;
 
   List<_TopicIconEntry> _serverIcons = [];
 
@@ -160,10 +128,6 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     _titleController = TextEditingController(text: widget.existingTitle ?? '');
     _colorId = widget.existingColorId ?? _topicColorIds[0];
     _iconEmojiId = widget.existingIconEmojiId ?? 0;
-    _emojiIcons = widget.serverEmojiIcons ?? _defaultTopicEmojiIcons;
-    if (_iconEmojiId != 0) {
-      _selectedEmojiStr = String.fromCharCode(_iconEmojiId);
-    }
     _remainingColors = List.of(_topicColorIds)..remove(_colorId);
     _titleController.addListener(_onTitleChanged);
     _fetchServerIcons();
@@ -182,10 +146,9 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   }
 
   void _onTitleChanged() {
-    if (_titleError) {
-      setState(() => _titleError = false);
-    }
-    setState(() {});
+    setState(() {
+      if (_titleError) _titleError = false;
+    });
   }
 
   Future<void> _fetchServerIcons() async {
@@ -209,9 +172,21 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
           entries.add(_TopicIconEntry(documentId: docId, emoji: emoji));
         }
       }
+      String? recoveredEmoji;
+      if (_iconEmojiId != 0) {
+        for (final e in entries) {
+          if (e.documentId == _iconEmojiId) {
+            recoveredEmoji = e.emoji.isNotEmpty ? e.emoji : null;
+            break;
+          }
+        }
+      }
       setState(() {
         _serverIcons = entries;
         _loadingServerIcons = false;
+        if (recoveredEmoji != null) {
+          _selectedEmojiStr = recoveredEmoji;
+        }
       });
     } catch (_) {
       if (!mounted) return;
@@ -340,7 +315,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
       dialogTitle = widget.isBot ? 'New Thread' : 'New Topic';
     }
 
-    final bool canCycleColor = _iconEmojiId == 0 && (!widget.isEditing || widget.isCreating);
+    final bool canCycleColor = _iconEmojiId == 0 && (!widget.isEditing || widget.isCreating) && !widget.isGeneral;
 
     return Dialog(
       backgroundColor: boxBg,
@@ -514,10 +489,9 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     );
   }
 
-  void _selectEmoji(BuildContext cellContext, String emoji, {int documentId = 0}) {
-    if (documentId == 0 && !widget.isPremium) {
-      final codePoint = emoji.runes.first;
-      final isFree = _defaultTopicEmojiCodepoints.contains(codePoint);
+  void _selectEmoji(BuildContext cellContext, String emoji, {required int documentId}) {
+    if (documentId != 0 && !widget.isPremium) {
+      final isFree = _serverIcons.any((e) => e.documentId == documentId);
       if (!isFree) {
         _showPremiumRequiredDialog(emoji);
         return;
@@ -531,77 +505,137 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   }
 
   void _showPremiumRequiredDialog(String emoji) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF1B2836) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 64)),
-              const SizedBox(height: 16),
-              Text(
-                'This icon is available with\nTelegram Premium',
-                textAlign: TextAlign.center,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 4),
+        backgroundColor: isDark ? const Color(0xFF1B2836) : Colors.white,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        content: Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 32)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'This icon is available with Telegram Premium.',
                 style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? Colors.white : Colors.black,
+                  fontSize: 13,
+                  color: isDark ? Colors.white : Colors.black87,
                 ),
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('Close', style: TextStyle(
-                color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
-              )),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                launchUrl(Uri.parse('https://t.me/premium'), mode: LaunchMode.externalApplication);
-              },
-              child: const Text('Get Premium', style: TextStyle(color: Color(0xFF40a7e3))),
             ),
           ],
-        );
-      },
+        ),
+        action: SnackBarAction(
+          label: 'Get Premium',
+          textColor: const Color(0xFF40a7e3),
+          onPressed: () {
+            launchUrl(Uri.parse('https://t.me/premium'), mode: LaunchMode.externalApplication);
+          },
+        ),
+      ),
     );
   }
 
   Widget _buildIconSelectorPanel(bool isDark) {
-    final sectionLabelStyle = TextStyle(
-      fontSize: 12,
-      fontWeight: FontWeight.w600,
-      color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildCategoryTabBar(isDark),
+        Flexible(
+          child: _buildIconGrid(isDark),
+        ),
+      ],
     );
+  }
 
+  Widget _buildCategoryTabBar(bool isDark) {
+    final tabs = [
+      Icons.access_time,
+      Icons.emoji_emotions_outlined,
+    ];
+    final tabColors = isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999);
+    final activeColor = const Color(0xFF40a7e3);
+    return Container(
+      height: 36,
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? const Color(0xFF3a4a5c) : const Color(0xFFdadce0),
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < tabs.length; i++)
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedTab = i),
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: _selectedTab == i ? activeColor : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        tabs[i],
+                        size: 20,
+                        color: _selectedTab == i ? activeColor : tabColors,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIconGrid(bool isDark) {
+    if (_selectedTab == 0) {
+      return SingleChildScrollView(
+        padding: EdgeInsets.all(_gridPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 2,
+              runSpacing: 2,
+              children: [
+                _buildDefaultResetCell(isDark),
+                for (final colorId in _topicColorIds)
+                  _buildGridCell(colorId, isDark),
+                if (_serverIcons.isNotEmpty)
+                  for (final icon in _serverIcons)
+                    _buildServerIconGridCell(icon, isDark),
+                if (_loadingServerIcons)
+                  const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
     return SingleChildScrollView(
       padding: EdgeInsets.all(_gridPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 6),
-            child: Text('Default Icons', style: sectionLabelStyle),
-          ),
-          Wrap(
-            spacing: 2,
-            runSpacing: 2,
-            children: [
-              for (final colorId in _topicColorIds)
-                _buildGridCell(colorId, isDark),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 6),
-            child: Text('Topic Icons', style: sectionLabelStyle),
-          ),
           if (_loadingServerIcons)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
@@ -610,19 +644,27 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                 child: CircularProgressIndicator(strokeWidth: 2),
               )),
             )
-          else
+          else if (_serverIcons.isNotEmpty)
             Wrap(
               spacing: 2,
               runSpacing: 2,
               children: [
-                _buildDefaultResetCell(isDark),
-                if (_serverIcons.isNotEmpty)
-                  for (final icon in _serverIcons)
-                    _buildServerIconGridCell(icon, isDark)
-                else
-                  for (final emoji in _emojiIcons)
-                    _buildEmojiGridCell(emoji, isDark),
+                for (final icon in _serverIcons)
+                  _buildServerIconGridCell(icon, isDark),
               ],
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: Text(
+                  'No emoji icons available',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
+                  ),
+                ),
+              ),
             ),
         ],
       ),
@@ -684,45 +726,6 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                 : null,
             child: Center(
               child: Text(displayEmoji, style: const TextStyle(fontSize: 22)),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmojiGridCell(String emoji, bool isDark) {
-    final codePoint = emoji.runes.first;
-    final isSelected = _selectedEmojiStr == emoji && _iconEmojiId != 0;
-    final isFree = _defaultTopicEmojiCodepoints.contains(codePoint);
-    return Builder(
-      builder: (cellContext) => GestureDetector(
-        onTap: () => _selectEmoji(cellContext, emoji),
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Container(
-            width: _gridCellSize,
-            height: _gridCellSize,
-            decoration: isSelected
-                ? BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: isDark
-                        ? const Color(0xFF2b5278)
-                        : const Color(0xFFE3F2FD),
-                  )
-                : null,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Text(emoji, style: const TextStyle(fontSize: 22)),
-                if (!isFree && !widget.isPremium)
-                  Positioned(
-                    right: 2,
-                    bottom: 2,
-                    child: Icon(Icons.lock, size: 10,
-                      color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999)),
-                  ),
-              ],
             ),
           ),
         ),

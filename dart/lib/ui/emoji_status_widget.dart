@@ -136,7 +136,8 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
       cache.request(_documentId!, widget.accountId, engine);
     }
     if (cache.getFile(_documentId!) == null &&
-        !cache.isFilePending(_documentId!)) {
+        !cache.isFilePending(_documentId!) &&
+        !cache.hasFileFailed(_documentId!)) {
       final engine = context.read<EngineService>();
       cache.requestFile(_documentId!, widget.accountId, engine);
     }

@@ -9,6 +9,28 @@ import 'package:flutter/foundation.dart';
 import '../models/engine_models.dart';
 import '../bridge/engine_service.dart';
 
+class _DecodedThumbResult {
+  final int documentId;
+  final Uint8List? thumb;
+  final Uint8List? path;
+  const _DecodedThumbResult(this.documentId, this.thumb, this.path);
+}
+
+List<_DecodedThumbResult> _decodeThumbBatchIsolate(List<List<dynamic>> entries) {
+  final results = <_DecodedThumbResult>[];
+  for (final entry in entries) {
+    final docId = entry[0] as int;
+    final thumbB64 = entry[1] as String;
+    final pathB64 = entry[2] as String;
+    Uint8List? thumb;
+    Uint8List? path;
+    if (thumbB64.isNotEmpty) thumb = base64Decode(thumbB64);
+    if (pathB64.isNotEmpty) path = base64Decode(pathB64);
+    results.add(_DecodedThumbResult(docId, thumb, path));
+  }
+  return results;
+}
+
 enum EmojiSizeTag {
   normal,   // 20px frame (inline in text)
   large,    // 27px frame
@@ -69,11 +91,15 @@ class CustomEmojiCache {
   String? _diskCacheDir;
   final Set<int> _diskIndex = {};
 
-  final List<VoidCallback> _listeners = [];
+  final Map<int, Set<VoidCallback>> _listenersByDoc = {};
+  final List<VoidCallback> _globalListeners = [];
   Timer? _batchTimer;
   Timer? _fileBatchTimer;
   final List<_PendingRequest> _batchQueue = [];
   final List<_PendingRequest> _fileBatchQueue = [];
+  final Map<int, int> _failedRetryTime = {};
+  final Map<int, int> _fileFailedRetryTime = {};
+  static const int _retryDelayMs = 5000;
 
   Future<void> initDiskCache(String cacheDir) async {
     if (kIsWeb) return;
@@ -93,14 +119,26 @@ class CustomEmojiCache {
     } catch (_) {}
   }
 
-  void addListener(VoidCallback cb) => _listeners.add(cb);
-  void removeListener(VoidCallback cb) => _listeners.remove(cb);
+  void addListener(VoidCallback cb) => _globalListeners.add(cb);
+  void removeListener(VoidCallback cb) => _globalListeners.remove(cb);
+
+  void addListenerForDoc(int documentId, VoidCallback cb) {
+    (_listenersByDoc[documentId] ??= {}).add(cb);
+  }
+
+  void removeListenerForDoc(int documentId, VoidCallback cb) {
+    _listenersByDoc[documentId]?.remove(cb);
+    if (_listenersByDoc[documentId]?.isEmpty ?? false) {
+      _listenersByDoc.remove(documentId);
+    }
+  }
 
   Uint8List? getThumb(int documentId) => _thumbs[documentId];
   Uint8List? getPath(int documentId) => _paths[documentId];
   CustomEmojiFileData? getFile(int documentId) => _files[documentId];
   bool isPending(int documentId) => _pending.contains(documentId);
   bool hasFailed(int documentId) => _failed.contains(documentId);
+  bool hasFileFailed(int documentId) => _fileFailed.contains(documentId);
   bool isFilePending(int documentId) => _filePending.contains(documentId);
   bool hasAnyPreview(int documentId) =>
       _thumbs.containsKey(documentId) || _paths.containsKey(documentId);
@@ -145,6 +183,9 @@ class CustomEmojiCache {
   void _evictFromMemory(int documentId) {
     _files.remove(documentId);
     _fileFailed.remove(documentId);
+    _fileFailedRetryTime.remove(documentId);
+    _failed.remove(documentId);
+    _failedRetryTime.remove(documentId);
   }
 
   bool hasFileAtAnySize(int documentId) => _files.containsKey(documentId);
@@ -227,13 +268,17 @@ class CustomEmojiCache {
       _diskIndex.remove(documentId);
     }
     _filePending.remove(documentId);
-    _notifyListeners();
+    _notifyListeners({documentId});
   }
 
   void request(int documentId, String accountId, EngineService engine) {
-    if (_thumbs.containsKey(documentId) ||
-        _pending.contains(documentId) ||
-        _failed.contains(documentId)) return;
+    if (_thumbs.containsKey(documentId) || _pending.contains(documentId)) return;
+    if (_failed.contains(documentId)) {
+      final retryAt = _failedRetryTime[documentId] ?? 0;
+      if (DateTime.now().millisecondsSinceEpoch < retryAt) return;
+      _failed.remove(documentId);
+      _failedRetryTime.remove(documentId);
+    }
 
     if (!kIsWeb && _diskCacheDir != null) {
       _pending.add(documentId);
@@ -243,8 +288,12 @@ class CustomEmojiCache {
 
     _pending.add(documentId);
     _batchQueue.add(_PendingRequest(documentId, accountId, engine));
-    _batchTimer?.cancel();
-    _batchTimer = Timer(const Duration(milliseconds: 16), _flushBatch);
+    if (_batchTimer == null) {
+      _batchTimer = Timer(Duration.zero, () {
+        _batchTimer = null;
+        _flushBatch();
+      });
+    }
   }
 
   Future<void> _loadThumbFromDisk(int documentId, String accountId, EngineService engine) async {
@@ -257,19 +306,27 @@ class CustomEmojiCache {
           _paths[documentId] = await pathFile.readAsBytes();
         }
         _pending.remove(documentId);
-        _notifyListeners();
+        _notifyListeners({documentId});
         return;
       }
     } catch (_) {}
     _batchQueue.add(_PendingRequest(documentId, accountId, engine));
-    _batchTimer?.cancel();
-    _batchTimer = Timer(const Duration(milliseconds: 16), _flushBatch);
+    if (_batchTimer == null) {
+      _batchTimer = Timer(Duration.zero, () {
+        _batchTimer = null;
+        _flushBatch();
+      });
+    }
   }
 
   void requestFile(int documentId, String accountId, EngineService engine) {
-    if (_files.containsKey(documentId) ||
-        _filePending.contains(documentId) ||
-        _fileFailed.contains(documentId)) return;
+    if (_files.containsKey(documentId) || _filePending.contains(documentId)) return;
+    if (_fileFailed.contains(documentId)) {
+      final retryAt = _fileFailedRetryTime[documentId] ?? 0;
+      if (DateTime.now().millisecondsSinceEpoch < retryAt) return;
+      _fileFailed.remove(documentId);
+      _fileFailedRetryTime.remove(documentId);
+    }
 
     if (_diskIndex.contains(documentId)) {
       _loadFromDisk(documentId);
@@ -278,8 +335,12 @@ class CustomEmojiCache {
 
     _filePending.add(documentId);
     _fileBatchQueue.add(_PendingRequest(documentId, accountId, engine));
-    _fileBatchTimer?.cancel();
-    _fileBatchTimer = Timer(const Duration(milliseconds: 50), _flushFileBatch);
+    if (_fileBatchTimer == null) {
+      _fileBatchTimer = Timer(Duration.zero, () {
+        _fileBatchTimer = null;
+        _flushFileBatch();
+      });
+    }
   }
 
   void _flushBatch() {
@@ -326,65 +387,90 @@ class CustomEmojiCache {
 
   Future<void> _fetchThumbBatch(
       String accountId, List<int> ids, EngineService engine) async {
+    final Set<int> changedIds = {};
     try {
       final result = await engine.getCustomEmojiThumbs(accountId, ids);
+      final isolateInput = <List<dynamic>>[];
       for (final entry in result.entries) {
         final data = entry.value;
-        if (data.thumbB64.isNotEmpty) {
-          final bytes = base64Decode(data.thumbB64);
-          _thumbs[entry.key] = bytes;
-          _writeThumbToDisk(entry.key, bytes);
-        }
-        if (data.pathB64.isNotEmpty) {
-          final bytes = base64Decode(data.pathB64);
-          _paths[entry.key] = bytes;
-          _writePathToDisk(entry.key, bytes);
-        }
-        _pending.remove(entry.key);
+        isolateInput.add([entry.key, data.thumbB64, data.pathB64]);
       }
+      final decoded = await compute(_decodeThumbBatchIsolate, isolateInput);
+      for (final item in decoded) {
+        if (item.thumb != null) {
+          _thumbs[item.documentId] = item.thumb!;
+          _writeThumbToDisk(item.documentId, item.thumb!);
+        }
+        if (item.path != null) {
+          _paths[item.documentId] = item.path!;
+          _writePathToDisk(item.documentId, item.path!);
+        }
+        _pending.remove(item.documentId);
+        changedIds.add(item.documentId);
+      }
+      final now = DateTime.now().millisecondsSinceEpoch;
       for (final id in ids) {
         if (!_thumbs.containsKey(id) && !_paths.containsKey(id)) {
           _pending.remove(id);
           _failed.add(id);
+          _failedRetryTime[id] = now + _retryDelayMs;
         } else {
           _pending.remove(id);
         }
       }
     } catch (_) {
+      final now = DateTime.now().millisecondsSinceEpoch;
       for (final id in ids) {
         _pending.remove(id);
         _failed.add(id);
+        _failedRetryTime[id] = now + _retryDelayMs;
       }
     }
-    _notifyListeners();
+    _notifyListeners(changedIds);
   }
 
   Future<void> _fetchFileBatch(
       String accountId, List<int> ids, EngineService engine) async {
+    final Set<int> changedIds = {};
     try {
       final result = await engine.getCustomEmojiFiles(accountId, ids);
       for (final entry in result.entries) {
         _files[entry.key] = entry.value;
         _filePending.remove(entry.key);
         _writeToDisk(entry.key, entry.value);
+        changedIds.add(entry.key);
       }
+      final now = DateTime.now().millisecondsSinceEpoch;
       for (final id in ids) {
         if (!_files.containsKey(id)) {
           _filePending.remove(id);
           _fileFailed.add(id);
+          _fileFailedRetryTime[id] = now + _retryDelayMs;
         }
       }
     } catch (_) {
+      final now = DateTime.now().millisecondsSinceEpoch;
       for (final id in ids) {
         _filePending.remove(id);
         _fileFailed.add(id);
+        _fileFailedRetryTime[id] = now + _retryDelayMs;
       }
     }
-    _notifyListeners();
+    _notifyListeners(changedIds);
   }
 
-  void _notifyListeners() {
-    for (final cb in List<VoidCallback>.from(_listeners)) {
+  void _notifyListeners([Set<int>? changedDocIds]) {
+    if (changedDocIds != null && changedDocIds.isNotEmpty) {
+      for (final docId in changedDocIds) {
+        final docListeners = _listenersByDoc[docId];
+        if (docListeners != null) {
+          for (final cb in Set<VoidCallback>.from(docListeners)) {
+            cb();
+          }
+        }
+      }
+    }
+    for (final cb in List<VoidCallback>.from(_globalListeners)) {
       cb();
     }
   }
