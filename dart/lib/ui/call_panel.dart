@@ -53,6 +53,8 @@ class CallPanelInfo {
   final bool isRemoteLowBattery;
   final bool isFullscreen;
   final bool isScreenSharing;
+  final bool isMuted;
+  final bool isCameraOn;
   final int signalQuality;
   final List<String> fingerprintEmoji;
   final String callId;
@@ -68,6 +70,8 @@ class CallPanelInfo {
     this.isRemoteLowBattery = false,
     this.isFullscreen = false,
     this.isScreenSharing = false,
+    this.isMuted = false,
+    this.isCameraOn = false,
     this.signalQuality = -1,
     this.fingerprintEmoji = const [],
     this.callId = '',
@@ -115,8 +119,10 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   bool _controlsVisible = true;
   bool _isMuted = false;
   bool _isCameraOn = false;
-  String _selectedCameraDevice = 'Default Camera';
-  String _selectedMicDevice = 'Default Microphone';
+  String _selectedCameraDevice = 'Default';
+  String _selectedMicDevice = 'Default';
+  List<String> _cameraDevices = ['Default'];
+  List<String> _micDevices = ['Default'];
 
   static const _kHideControlsFullscreen = Duration(milliseconds: 5000);
   static const _kHideControlsMouseLeave = Duration(milliseconds: 2000);
@@ -124,6 +130,8 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _isMuted = widget.info.isMuted;
+    _isCameraOn = widget.info.isCameraOn;
     _rippleController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
@@ -134,6 +142,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
       value: 1.0,
     );
     _extractDominantColors();
+    _enumerateDevices();
     if (widget.info.state == CallPanelState.active) {
       _startDurationTimer();
       if (widget.info.isFullscreen) {
@@ -142,9 +151,54 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _enumerateDevices() async {
+    if (!Platform.isLinux) return;
+    try {
+      final cameras = <String>[];
+      final mics = <String>[];
+      final v4l2 = await Process.run('v4l2-ctl', ['--list-devices']);
+      if (v4l2.exitCode == 0) {
+        for (final line in (v4l2.stdout as String).split('\n')) {
+          final trimmed = line.trim();
+          if (trimmed.isNotEmpty && !trimmed.startsWith('/dev/')) {
+            final name = trimmed.replaceAll(RegExp(r'\s*\(.*\)\s*:?\s*$'), '');
+            if (name.isNotEmpty) cameras.add(name);
+          }
+        }
+      }
+      final pactl = await Process.run('pactl', ['list', 'sources', 'short']);
+      if (pactl.exitCode == 0) {
+        for (final line in (pactl.stdout as String).split('\n')) {
+          if (line.trim().isEmpty) continue;
+          final parts = line.split('\t');
+          if (parts.length >= 2) {
+            final name = parts[1];
+            if (name.contains('.monitor')) continue;
+            mics.add(name
+                .replaceAll('alsa_input.', '')
+                .replaceAll('.analog-stereo', ' (Analog Stereo)')
+                .replaceAll('_', ' '));
+          }
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _cameraDevices = ['Default', ...cameras];
+          _micDevices = ['Default', ...mics];
+        });
+      }
+    } catch (_) {}
+  }
+
   @override
   void didUpdateWidget(CallPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.info.isMuted != widget.info.isMuted) {
+      _isMuted = widget.info.isMuted;
+    }
+    if (oldWidget.info.isCameraOn != widget.info.isCameraOn) {
+      _isCameraOn = widget.info.isCameraOn;
+    }
     if (oldWidget.info.callerAvatarUrl != widget.info.callerAvatarUrl ||
         oldWidget.info.callerId != widget.info.callerId) {
       _extractDominantColors();
@@ -226,12 +280,18 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     if (callId.isEmpty) return;
 
     if (widget.info.isScreenSharing) {
-      await engine.endCall(accountId, callId);
+      await engine.toggleScreenSharing(accountId, callId, false);
       return;
     }
     final result = await showScreenShareChooser(context);
     if (result != null && mounted) {
-      await engine.startCall(accountId, widget.info.callerId, video: true);
+      await engine.toggleScreenSharing(
+        accountId,
+        callId,
+        true,
+        sourceId: result.source.id,
+        withAudio: result.withAudio,
+      );
     }
   }
 
@@ -261,8 +321,54 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     if (widget.info.state != CallPanelState.active) return;
     final engine = context.read<EngineService>();
     final accountId = context.read<AppState>().activeAccountId;
+
+    final action = await showTelegramBox<String>(
+      context: context,
+      builder: (ctx) {
+        final palette = ctx.palette;
+        return TelegramBox(
+          title: 'Add People',
+          content: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _AddPeopleOption(
+                  icon: Icons.person_add,
+                  title: 'Invite Members',
+                  subtitle: 'Invite contacts to a conference call',
+                  palette: palette,
+                  onTap: () => Navigator.of(ctx).pop('invite'),
+                ),
+                const SizedBox(height: 4),
+                Divider(height: 1, color: palette.boxTextFg.withValues(alpha: 0.1)),
+                const SizedBox(height: 4),
+                _AddPeopleOption(
+                  icon: Icons.link,
+                  title: 'Get Shareable Link',
+                  subtitle: 'Create a link anyone can use to join',
+                  palette: palette,
+                  onTap: () => Navigator.of(ctx).pop('link'),
+                ),
+              ],
+            ),
+          ),
+          buttons: [
+            TelegramBoxButton(
+              text: 'Cancel',
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        );
+      },
+    );
+    if (action == null || !mounted) return;
+
     final result = await engine.createConferenceCall(accountId);
-    if (result != null && mounted) {
+    if (result == null || !mounted) return;
+
+    if (action == 'link') {
       showConfirmBox(
         context,
         title: 'Conference Call Created',
@@ -272,29 +378,62 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
           Clipboard.setData(ClipboardData(text: result.inviteLink));
         },
       );
+    } else if (action == 'invite') {
+      Clipboard.setData(ClipboardData(text: result.inviteLink));
+      if (mounted) {
+        showConfirmBox(
+          context,
+          title: 'Conference Call Created',
+          text: 'Conference link copied to clipboard.\nShare it with the people you want to invite.',
+          confirmText: 'OK',
+        );
+      }
     }
   }
 
   Future<void> _showDeviceSelectorMenu(BuildContext btnContext) async {
     final RenderBox box = btnContext.findRenderObject() as RenderBox;
     final offset = box.localToGlobal(Offset(box.size.width / 2, 0));
+    final items = <PopupMenuEntry<String>>[
+      const PopupMenuItem(enabled: false, child: Text('Camera', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+      for (final cam in _cameraDevices)
+        PopupMenuItem(
+          value: 'cam_$cam',
+          child: Row(
+            children: [
+              if (cam == _selectedCameraDevice)
+                const Icon(Icons.check, size: 16, color: Colors.white70),
+              if (cam == _selectedCameraDevice) const SizedBox(width: 8),
+              Expanded(child: Text(cam, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
+            ],
+          ),
+        ),
+      const PopupMenuDivider(),
+      const PopupMenuItem(enabled: false, child: Text('Microphone', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+      for (final mic in _micDevices)
+        PopupMenuItem(
+          value: 'mic_$mic',
+          child: Row(
+            children: [
+              if (mic == _selectedMicDevice)
+                const Icon(Icons.check, size: 16, color: Colors.white70),
+              if (mic == _selectedMicDevice) const SizedBox(width: 8),
+              Expanded(child: Text(mic, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
+            ],
+          ),
+        ),
+    ];
     final result = await showMenu<String>(
       context: btnContext,
-      position: RelativeRect.fromLTRB(offset.dx - 100, offset.dy - 8, offset.dx + 100, offset.dy),
-      items: [
-        const PopupMenuItem(enabled: false, child: Text('Camera', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
-        PopupMenuItem(value: 'cam_default', child: Text(_selectedCameraDevice, style: const TextStyle(fontSize: 13))),
-        const PopupMenuDivider(),
-        const PopupMenuItem(enabled: false, child: Text('Microphone', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
-        PopupMenuItem(value: 'mic_default', child: Text(_selectedMicDevice, style: const TextStyle(fontSize: 13))),
-      ],
+      position: RelativeRect.fromLTRB(offset.dx - 120, offset.dy - 8, offset.dx + 120, offset.dy),
+      items: items,
     );
     if (result == null || !mounted) return;
     setState(() {
       if (result.startsWith('cam_')) {
-        _selectedCameraDevice = 'Default Camera';
+        _selectedCameraDevice = result.substring(4);
       } else if (result.startsWith('mic_')) {
-        _selectedMicDevice = 'Default Microphone';
+        _selectedMicDevice = result.substring(4);
       }
     });
   }
@@ -549,8 +688,6 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
                   label: 'End Call',
                   backgroundColor: const Color(0xFFE53935),
                   onTap: widget.onHangup,
-                  size: 64,
-                  iconSize: 32,
                 ),
                 const SizedBox(height: 48),
               ],
@@ -639,7 +776,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
         ),
         if (widget.info.fingerprintEmoji.length == 4) ...[
           const SizedBox(width: 8),
-          _EncryptionFingerprint(emoji: widget.info.fingerprintEmoji),
+          _EncryptionFingerprint(emoji: widget.info.fingerprintEmoji, callerName: widget.info.callerName),
         ],
         if (widget.info.signalQuality >= 0) ...[
           const SizedBox(width: 8),
@@ -903,8 +1040,8 @@ class _CallActionButton extends StatelessWidget {
     required this.label,
     required this.backgroundColor,
     this.onTap,
-    this.size = 56,
-    this.iconSize = 28,
+    this.size = 44,
+    this.iconSize = 24,
   });
 
   @override
@@ -967,8 +1104,8 @@ class _AnswerButton extends StatelessWidget {
               );
             },
             child: Container(
-              width: 56,
-              height: 56,
+              width: 44,
+              height: 44,
               decoration: const BoxDecoration(
                 color: Color(0xFF4CAF50),
                 shape: BoxShape.circle,
@@ -976,7 +1113,7 @@ class _AnswerButton extends StatelessWidget {
               child: Icon(
                 isVideo ? Icons.videocam : Icons.call,
                 color: Colors.white,
-                size: 28,
+                size: 24,
               ),
             ),
           ),
@@ -1049,13 +1186,13 @@ class _CallControlButton extends StatelessWidget {
         GestureDetector(
           onTap: onTap,
           child: SizedBox(
-            width: 48,
-            height: 48,
+            width: 44,
+            height: 44,
             child: Stack(
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: isActive
                         ? Colors.white.withValues(alpha: 0.3)
@@ -1102,6 +1239,49 @@ class _CallControlButton extends StatelessWidget {
   }
 }
 
+class _AddPeopleOption extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final TelegramPalette palette;
+  final VoidCallback onTap;
+
+  const _AddPeopleOption({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.palette,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(icon, color: palette.windowActiveTextFg, size: 22),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(fontSize: 14, color: palette.boxTextFg)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: TextStyle(fontSize: 12, color: palette.boxTextFg.withValues(alpha: 0.5))),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _RemoteStatusPill extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -1143,8 +1323,9 @@ class _RemoteStatusPill extends StatelessWidget {
 
 class _EncryptionFingerprint extends StatefulWidget {
   final List<String> emoji;
+  final String callerName;
 
-  const _EncryptionFingerprint({required this.emoji});
+  const _EncryptionFingerprint({required this.emoji, this.callerName = ''});
 
   @override
   State<_EncryptionFingerprint> createState() => _EncryptionFingerprintState();
@@ -1261,15 +1442,44 @@ class _EncryptionFingerprintState extends State<_EncryptionFingerprint>
     final startMs = pos * _kStartTimeShiftMs;
     final elapsed = elapsedMs - startMs;
     if (elapsed < 0) return _carouselSequences[pos][0];
-    final idx = (elapsed / _kCarouselOneMs).floor();
-    if (idx >= _kCarouselCount) return widget.emoji[pos];
-    return _carouselSequences[pos][idx.clamp(0, _kCarouselCount - 1)];
+
+    final totalDistance = _kCarouselCount.toDouble();
+    final totalTime = _kCarouselCount * _kCarouselOneMs.toDouble();
+    final accelPhase = totalTime * 0.25;
+    final decelPhase = totalTime * 0.35;
+    final constPhase = totalTime - accelPhase - decelPhase;
+    final maxSpeed = totalDistance / (accelPhase * 0.5 + constPhase + decelPhase * 0.5);
+
+    double position;
+    if (elapsed >= totalTime) {
+      return widget.emoji[pos];
+    } else if (elapsed < accelPhase) {
+      final t = elapsed / accelPhase;
+      final speed = maxSpeed * t;
+      position = speed * elapsed * 0.5 / totalDistance * _kCarouselCount;
+    } else if (elapsed < accelPhase + constPhase) {
+      final accelDist = maxSpeed * accelPhase * 0.5;
+      final constElapsed = elapsed - accelPhase;
+      position = (accelDist + maxSpeed * constElapsed) / totalDistance * _kCarouselCount;
+    } else {
+      final accelDist = maxSpeed * accelPhase * 0.5;
+      final constDist = maxSpeed * constPhase;
+      final decelElapsed = elapsed - accelPhase - constPhase;
+      final t = decelElapsed / decelPhase;
+      final decelDist = maxSpeed * decelElapsed * (1.0 - t * 0.5);
+      position = (accelDist + constDist + decelDist) / totalDistance * _kCarouselCount;
+    }
+
+    final idx = position.floor().clamp(0, _kCarouselCount - 1);
+    return _carouselSequences[pos][idx];
   }
 
   @override
   Widget build(BuildContext context) {
     return TelegramTooltip(
-      message: 'This call is end-to-end encrypted',
+      message: widget.callerName.isNotEmpty
+          ? 'This call with ${widget.callerName} is end-to-end encrypted'
+          : 'This call is end-to-end encrypted',
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {

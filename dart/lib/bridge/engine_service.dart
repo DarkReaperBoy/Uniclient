@@ -1823,12 +1823,15 @@ class EngineService {
     }
   }
 
-  Future<void> toggleScreenSharing(String accountId, String callId, bool enabled) async {
-    final payload = utf8.encode(json.encode({
+  Future<void> toggleScreenSharing(String accountId, String callId, bool enabled, {String? sourceId, bool withAudio = false}) async {
+    final map = <String, dynamic>{
       'account_id': accountId,
       'call_id': callId,
       'enabled': enabled,
-    }));
+    };
+    if (sourceId != null) map['source_id'] = sourceId;
+    if (withAudio) map['with_audio'] = true;
+    final payload = utf8.encode(json.encode(map));
     try {
       await _callAsync('__engine', 'ToggleScreenSharing', Uint8List.fromList(payload));
     } catch (e) {
