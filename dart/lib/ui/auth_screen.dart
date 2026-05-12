@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../bridge/engine_service.dart';
+import '../utils/debug.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
@@ -47,6 +48,8 @@ class _AuthScreenState extends State<AuthScreen>
 
   final _codeController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _codeFocusNode = FocusNode();
+  final _phoneFocusNode = FocusNode();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   late CountryInfo _selectedCountry;
@@ -56,7 +59,7 @@ class _AuthScreenState extends State<AuthScreen>
   void initState() {
     super.initState();
     _shakeController = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 300),
       vsync: this,
     )..addStatusListener((status) {
         if (status == AnimationStatus.completed) {
@@ -74,6 +77,8 @@ class _AuthScreenState extends State<AuthScreen>
     _recoveryCodeController.dispose();
     _codeController.dispose();
     _phoneController.dispose();
+    _codeFocusNode.dispose();
+    _phoneFocusNode.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _shakeController.dispose();
@@ -82,13 +87,19 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   static Future<void> _uploadSignupAvatar(
-      EngineService engine, String accountId, Uint8List bytes) async {
+      EngineService engine, String accountId, Uint8List bytes,
+      {ScaffoldMessengerState? messenger}) async {
     try {
       final tmpFile = File('${Directory.systemTemp.path}/uniclient_signup_avatar.png');
       await tmpFile.writeAsBytes(bytes);
       await engine.uploadProfilePhoto(accountId, tmpFile.path);
       try { await tmpFile.delete(); } catch (_) {}
-    } catch (_) {}
+    } catch (e) {
+      Debug.error('AUTH', 'Avatar upload failed', e);
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Failed to upload profile photo.')),
+      );
+    }
   }
 
   static int _stepOrder(String s) => switch (s) {
@@ -111,6 +122,10 @@ class _AuthScreenState extends State<AuthScreen>
     if (data?.state == 'input' && data?.fieldType == 'phone') {
       final code = _codeController.text.replaceAll(RegExp(r'\D'), '');
       final phone = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+      if (_codeFocusNode.hasFocus && code.length > 1 && phone.isEmpty) {
+        _phoneFocusNode.requestFocus();
+        return;
+      }
       if (code.isEmpty || phone.length < 2) return;
       setState(() => _showErrorBorder = false);
       authState.submitInput('+$code$phone');
@@ -138,6 +153,7 @@ class _AuthScreenState extends State<AuthScreen>
       if (_signupAvatarBytes != null) {
         final avatarBytes = _signupAvatarBytes!;
         final engine = context.read<EngineService>();
+        final messenger = ScaffoldMessenger.of(context);
         _signupAvatarBytes = null;
         void onReady() {
           final current = authState.currentAuth;
@@ -145,7 +161,8 @@ class _AuthScreenState extends State<AuthScreen>
             authState.removeListener(onReady);
             final accountId = current?.accountId ?? '';
             if (accountId.isNotEmpty) {
-              _uploadSignupAvatar(engine, accountId, avatarBytes);
+              _uploadSignupAvatar(engine, accountId, avatarBytes,
+                  messenger: messenger);
             }
           }
         }
@@ -187,14 +204,14 @@ class _AuthScreenState extends State<AuthScreen>
             TextButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                authState.switchToMethod('phone');
+                authState.cancelAuth();
               },
               child: const Text('Edit Phone Number'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(ctx).pop();
-                authState.submitInput('__resend_code');
+                await authState.submitInput('__resend_code');
               },
               child: const Text('Resend Code'),
             ),
@@ -275,6 +292,8 @@ class _AuthScreenState extends State<AuthScreen>
         _showResetButton = false;
         _passwordController.clear();
         _recoveryCodeController.clear();
+        _floodTimer?.cancel();
+        _floodSecondsLeft = 0;
       }
     }
     if (currentStep.isNotEmpty) {
@@ -291,13 +310,26 @@ class _AuthScreenState extends State<AuthScreen>
       } else if (_phoneErrorType == _PhoneErrorType.flood) {
         _startFloodCountdown(err);
       }
-      _showErrorBorder = true;
-      _shakeController.forward(from: 0);
-      if (currentStep == '2fa' && !_isRecoveryMode) {
-        _passwordController.selection = TextSelection(
-          baseOffset: 0,
-          extentOffset: _passwordController.text.length,
-        );
+      final upper = err.toUpperCase();
+      if (upper.contains('PASSWORD_EMPTY') || upper.contains('AUTH_KEY_UNREGISTERED')) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) authState.cancelAuth();
+        });
+      } else if (upper.contains('SRP_ID_INVALID')) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _submit(authState);
+        });
+      } else {
+        _showErrorBorder = true;
+        _shakeController.forward(from: 0);
+        if (currentStep == '2fa' && !_isRecoveryMode) {
+          final len = _passwordController.text.length;
+          final isRtl = Directionality.of(context) == TextDirection.rtl;
+          _passwordController.selection = TextSelection(
+            baseOffset: isRtl ? len : 0,
+            extentOffset: isRtl ? 0 : len,
+          );
+        }
       }
     }
     if (err == null && _showErrorBorder) {
@@ -541,14 +573,14 @@ class _AuthScreenState extends State<AuthScreen>
       animation: _shakeController,
       builder: (context, child) {
         final dx = _shakeController.isAnimating
-            ? sin(_shakeController.value * pi * 4) *
-                6 *
+            ? sin(_shakeController.value * pi * 5) *
+                4 *
                 (1 - _shakeController.value)
             : 0.0;
         return Transform.translate(offset: Offset(dx, 0), child: child);
       },
       child: SizedBox(
-        width: 300,
+        width: double.infinity,
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 61),
           child: TextField(
@@ -579,7 +611,7 @@ class _AuthScreenState extends State<AuthScreen>
     const recoveryFieldTop = 96.0;
     const fieldHeight = 61.0;
     const hintTop = 151.0;
-    const errorTop = 220.0;
+    const errorTop = 235.0;
     final activeFieldTop = _isRecoveryMode ? recoveryFieldTop : fieldTop;
     final linkTop = activeFieldTop + fieldHeight + 24.0;
 
@@ -638,7 +670,7 @@ class _AuthScreenState extends State<AuthScreen>
               right: 0,
               child: Center(
                 child: SizedBox(
-                  width: 300,
+                  width: double.infinity,
                   child: Padding(
                     padding: const EdgeInsets.only(left: 6),
                     child: Text(
@@ -674,7 +706,7 @@ class _AuthScreenState extends State<AuthScreen>
               right: 0,
               child: Center(
                 child: SizedBox(
-                  width: 300,
+                  width: double.infinity,
                   child: Text(
                     _mapAuthError(authState.error!),
                     style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
@@ -692,6 +724,10 @@ class _AuthScreenState extends State<AuthScreen>
     if (raw.contains('PASSWORD_HASH_INVALID') || raw.contains('SRP_PASSWORD_CHANGED')) {
       return 'Wrong password, try again.';
     }
+    if (raw.contains('PASSWORD_EMPTY') || raw.contains('AUTH_KEY_UNREGISTERED')) {
+      return '';
+    }
+    if (raw.contains('SRP_ID_INVALID')) return 'Session expired, retrying...';
     if (raw.contains('FLOOD_WAIT')) return 'Too many attempts. Please try again later.';
     if (raw.contains('CODE_INVALID')) return 'Invalid code. Please try again.';
     if (raw.contains('EMAIL_HASH_EXPIRED')) return 'Email confirmation expired.';
@@ -763,7 +799,7 @@ class _AuthScreenState extends State<AuthScreen>
         ),
         const SizedBox(height: 8),
         SizedBox(
-          width: 300,
+          width: double.infinity,
           child: Text(
             'Enter your name and add a\nprofile photo',
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -776,7 +812,7 @@ class _AuthScreenState extends State<AuthScreen>
         const SizedBox(height: 24),
         if (authState.error != null) ...[
           SizedBox(
-            width: 300,
+            width: double.infinity,
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -793,7 +829,7 @@ class _AuthScreenState extends State<AuthScreen>
           const SizedBox(height: 16),
         ],
         SizedBox(
-          width: 300,
+          width: double.infinity,
           child: TextField(
             controller: isRtl ? _lastNameController : _firstNameController,
             autofocus: true,
@@ -805,7 +841,7 @@ class _AuthScreenState extends State<AuthScreen>
         ),
         const SizedBox(height: 16),
         SizedBox(
-          width: 300,
+          width: double.infinity,
           child: TextField(
             controller: isRtl ? _firstNameController : _lastNameController,
             textInputAction: TextInputAction.done,
@@ -826,6 +862,8 @@ class _AuthScreenState extends State<AuthScreen>
       setState(() {
         _isRecoveryMode = true;
         _showErrorBorder = false;
+        _passwordController.clear();
+        _recoveryCodeController.clear();
       });
     } else {
       _showNoRecoveryDialog(context);
@@ -1050,7 +1088,7 @@ class _AuthScreenState extends State<AuthScreen>
             child: isPhone
                 ? _buildPhoneFields(authState, theme)
                 : SizedBox(
-                    width: 300,
+                    width: double.infinity,
                     child: TextField(
                       controller: _inputController,
                       keyboardType: TextInputType.text,
@@ -1092,7 +1130,7 @@ class _AuthScreenState extends State<AuthScreen>
         GestureDetector(
           onTap: () => _showCountryPicker(theme),
           child: Container(
-            width: 300,
+            width: double.infinity,
             constraints: const BoxConstraints(minHeight: 61),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
@@ -1121,7 +1159,7 @@ class _AuthScreenState extends State<AuthScreen>
         ),
         const SizedBox(height: 8),
         SizedBox(
-          width: 300,
+          width: double.infinity,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1129,6 +1167,7 @@ class _AuthScreenState extends State<AuthScreen>
                 width: 64,
                 child: TextField(
                   controller: _codeController,
+                  focusNode: _codeFocusNode,
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   textAlign: TextAlign.center,
@@ -1151,6 +1190,7 @@ class _AuthScreenState extends State<AuthScreen>
               Expanded(
                 child: TextField(
                   controller: _phoneController,
+                  focusNode: _phoneFocusNode,
                   keyboardType: TextInputType.phone,
                   autofocus: true,
                   inputFormatters: [_PhoneNumberFormatter()],
@@ -1175,7 +1215,7 @@ class _AuthScreenState extends State<AuthScreen>
         if (_phoneErrorType == _PhoneErrorType.invalid) ...[
           const SizedBox(height: 8),
           SizedBox(
-            width: 300,
+            width: double.infinity,
             child: Text(
               'Invalid phone number. Please check and try again.',
               style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
@@ -1185,7 +1225,7 @@ class _AuthScreenState extends State<AuthScreen>
         if (_phoneErrorType == _PhoneErrorType.flood) ...[
           const SizedBox(height: 8),
           SizedBox(
-            width: 300,
+            width: double.infinity,
             child: Row(
               children: [
                 Icon(Icons.warning_amber_rounded,
@@ -1604,9 +1644,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
     if (code.length == widget.digitCount &&
         code.runes.every((r) => r >= 0x30 && r <= 0x39)) {
       _submitted = true;
-      Future.delayed(const Duration(milliseconds: 80), () {
-        widget.onComplete(code);
-      });
+      widget.onComplete(code);
     }
   }
 
@@ -1794,8 +1832,8 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
               animation: _shakeController,
               builder: (context, child) {
                 final dx = _shakeController.isAnimating
-                    ? sin(_shakeController.value * pi * 6) *
-                        8 *
+                    ? sin(_shakeController.value * pi * 5) *
+                        4 *
                         (1 - _shakeController.value)
                     : 0.0;
                 return Transform.translate(
@@ -1992,7 +2030,7 @@ class _AuthBottomBarState extends State<_AuthBottomBar>
                 );
               },
               child: SizedBox(
-                width: 300,
+                width: double.infinity,
                 height: 42,
                 child: FilledButton(
                   onPressed: widget.submitting ? null : widget.onNext,
