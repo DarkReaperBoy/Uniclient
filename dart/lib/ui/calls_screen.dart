@@ -2357,7 +2357,12 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
               title: 'Camera',
               current: appState.callCameraDevice,
               devices: _cameraDevices,
-              onSelected: (d) => appState.setCallCameraDevice(d),
+              onSelected: (d) {
+                appState.setCallCameraDevice(d);
+                final engine = context.read<EngineService>();
+                final accountId = appState.activeAccountId;
+                engine.setCallAudioDevice(accountId, 'camera', d);
+              },
             ),
           ),
           Divider(height: 1, color: dividerColor, indent: 60),

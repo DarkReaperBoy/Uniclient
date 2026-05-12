@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:dbus/dbus.dart';
@@ -2360,6 +2361,7 @@ class _ScreenShareChooserDialogState
   List<ScreenShareSource> _windows = [];
   List<ScreenShareSource> _screens = [];
   bool _loading = true;
+  final Map<String, Uint8List> _thumbnails = {};
 
   @override
   void initState() {
@@ -2381,6 +2383,48 @@ class _ScreenShareChooserDialogState
       _loading = false;
       if (_screens.isNotEmpty) _selected = _screens.first;
     });
+    _captureThumbnails();
+  }
+
+  Future<void> _captureThumbnails() async {
+    if (!Platform.isLinux) return;
+    final allSources = [..._screens, ..._windows];
+    final futures = allSources.map((source) async {
+      final bytes = await _captureSourceThumb(source);
+      if (bytes != null && mounted) {
+        setState(() => _thumbnails[source.id] = bytes);
+      }
+    });
+    await Future.wait(futures);
+  }
+
+  static Future<Uint8List?> _captureSourceThumb(ScreenShareSource source) async {
+    try {
+      final w = _kThumbW.toInt() * 2;
+      final h = _kThumbH.toInt() * 2;
+      if (source.isScreen) {
+        final result = await Process.run(
+          'import',
+          ['-window', 'root', '-resize', '${w}x$h!', 'png:-'],
+          stdoutEncoding: null,
+        ).timeout(const Duration(seconds: 3));
+        if (result.exitCode == 0 && (result.stdout as List<int>).isNotEmpty) {
+          return Uint8List.fromList(result.stdout as List<int>);
+        }
+      } else {
+        final wid = source.id.replaceFirst('window:', '');
+        if (wid.isEmpty || wid == '0') return null;
+        final result = await Process.run(
+          'import',
+          ['-window', wid, '-resize', '${w}x$h!', 'png:-'],
+          stdoutEncoding: null,
+        ).timeout(const Duration(seconds: 3));
+        if (result.exitCode == 0 && (result.stdout as List<int>).isNotEmpty) {
+          return Uint8List.fromList(result.stdout as List<int>);
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   static Future<List<ScreenShareSource>> _enumerateWindows() async {
@@ -2626,6 +2670,7 @@ class _ScreenShareChooserDialogState
           return _ScreenSourceThumb(
             source: source,
             isSelected: isSelected,
+            thumbnail: _thumbnails[source.id],
             onTap: () => setState(() => _selected = source),
             onDoubleTap: () {
               _selected = source;
@@ -2746,12 +2791,14 @@ class _ScreenSourceThumb extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final VoidCallback onDoubleTap;
+  final Uint8List? thumbnail;
 
   const _ScreenSourceThumb({
     required this.source,
     required this.isSelected,
     required this.onTap,
     required this.onDoubleTap,
+    this.thumbnail,
   });
 
   @override
@@ -2777,41 +2824,49 @@ class _ScreenSourceThumb extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(5),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: source.isScreen
-                        ? [const Color(0xFF1A2233), const Color(0xFF2A3344)]
-                        : [const Color(0xFF1E2A3A), const Color(0xFF263344)],
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      source.isScreen ? Icons.monitor : Icons.web_asset,
-                      color: const Color(0x80FFFFFF),
-                      size: 32,
-                    ),
-                    const SizedBox(height: 4),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Text(
-                        source.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0x80FFFFFF),
-                          fontSize: 10,
+              child: thumbnail != null
+                  ? Image.memory(
+                      thumbnail!,
+                      width: _kThumbW,
+                      height: _kThumbH,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                    )
+                  : Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: source.isScreen
+                              ? [const Color(0xFF1A2233), const Color(0xFF2A3344)]
+                              : [const Color(0xFF1E2A3A), const Color(0xFF263344)],
                         ),
                       ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            source.isScreen ? Icons.monitor : Icons.web_asset,
+                            color: const Color(0x80FFFFFF),
+                            size: 32,
+                          ),
+                          const SizedBox(height: 4),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text(
+                              source.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0x80FFFFFF),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
             ),
           ),
           const SizedBox(height: 6),

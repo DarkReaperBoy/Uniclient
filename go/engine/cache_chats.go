@@ -1682,6 +1682,22 @@ func (e *Engine) ToggleCamera(accountID, callID string, enabled bool) error {
 	return acc.Core.ToggleCamera(callID, enabled)
 }
 
+func (e *Engine) SetCallAudioDevice(accountID, deviceType, device string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	switch deviceType {
+	case "output":
+		e.config.CallOutputDevice = device
+	case "input":
+		e.config.CallInputDevice = device
+	case "camera":
+		e.config.CallCameraDevice = device
+	default:
+		return fmt.Errorf("unknown device type: %s", deviceType)
+	}
+	return e.vault.SetConfig(e.config)
+}
+
 type GroupCallScreenSharer interface {
 	StartGroupCallScreenShare(callID string) error
 	StopGroupCallScreenShare(callID string) error

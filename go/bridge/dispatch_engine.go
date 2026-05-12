@@ -4567,6 +4567,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetContactSignUpNotification(params.AccountID, params.Silent)
 
+	case "SetCallAudioDevice":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Type      string `json:"type"`
+			Device    string `json:"device"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetCallAudioDevice(params.AccountID, params.Type, params.Device)
+
 	case "SetCallsDisabledHere":
 		var params struct {
 			AccountID string `json:"account_id"`

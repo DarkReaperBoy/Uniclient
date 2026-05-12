@@ -47,6 +47,11 @@ type AppConfig struct {
 	NotifyDMs          bool `json:"notify_dms"`
 	NotifyGroups       bool `json:"notify_groups"`
 	NotifyMentionsOnly bool `json:"notify_mentions_only"`
+
+	// Call Devices
+	CallOutputDevice string `json:"call_output_device,omitempty"`
+	CallInputDevice  string `json:"call_input_device,omitempty"`
+	CallCameraDevice string `json:"call_camera_device,omitempty"`
 }
 
 // DefaultConfig returns an AppConfig populated with sensible defaults.
