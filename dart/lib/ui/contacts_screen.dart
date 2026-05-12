@@ -91,6 +91,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
     setState(() {
       _searchQuery = query;
       _globalResults = null;
+      _sortedCache = null;
     });
     _globalSearchTimer?.cancel();
     if (query.isNotEmpty) {
@@ -108,6 +109,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
       _searchQuery = '';
       _globalResults = null;
       _globalSearching = false;
+      _sortedCache = null;
     });
   }
 
@@ -130,6 +132,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
               _globalResults = [
                 ContactInfo(userId: result, username: username, displayName: '@$username'),
               ];
+              _sortedCache = null;
             });
           }
         }
@@ -147,7 +150,10 @@ class _ContactsBoxState extends State<_ContactsBox> {
             }
           }
           if (results.isNotEmpty) {
-            setState(() => _globalResults = results);
+            setState(() {
+              _globalResults = results;
+              _sortedCache = null;
+            });
           }
         }
       }
@@ -172,6 +178,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
         setState(() {
           _contacts = contacts;
           _loading = false;
+          _sortedCache = null;
         });
       }
     } catch (e) {
@@ -256,19 +263,22 @@ class _ContactsBoxState extends State<_ContactsBox> {
     if (_sortMode != _SortMode.online) return;
     if (_sortThrottleTimer?.isActive == true) return;
     _sortThrottleTimer = Timer(_sortByOnlineThrottle, () {
-      if (mounted) setState(() {});
+      if (mounted) setState(() { _sortedCache = null; });
     });
   }
 
   List<ContactInfo> get _filteredContacts {
+    if (_sortedCache != null) return _sortedCache!;
     final local = _localFiltered(_searchQuery);
     final sorted = _sortedContacts(local);
     if (_globalResults != null && _globalResults!.isNotEmpty) {
       final localIds = sorted.map((c) => c.userId).toSet();
       final extra = _globalResults!.where((c) => !localIds.contains(c.userId));
-      return [...sorted, ...extra];
+      _sortedCache = [...sorted, ...extra];
+    } else {
+      _sortedCache = sorted;
     }
-    return sorted;
+    return _sortedCache!;
   }
 
   @override
@@ -342,6 +352,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
                         _sortMode = _sortMode == _SortMode.online
                             ? _SortMode.alphabetical
                             : _SortMode.online;
+                        _sortedCache = null;
                       });
                     },
                   ),
@@ -445,6 +456,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
                                         onStoryTap: contact.hasStories
                                             ? () => _openStory(contact)
                                             : null,
+                                        onContactChanged: _loadContacts,
                                       );
                                     },
                                   ),
@@ -521,7 +533,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
   }
 
   void _showAddContactBox(BuildContext context) {
-    showDialog<bool>(
+    showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => ChangeNotifierProvider.value(
         value: context.read<AppState>(),
@@ -533,9 +545,28 @@ class _ContactsBoxState extends State<_ContactsBox> {
           ),
         ),
       ),
-    ).then((added) {
-      if (added == true && mounted) {
-        _loadContacts();
+    ).then((result) {
+      if (result != null && mounted) {
+        _loadContacts().then((_) {
+          if (!mounted) return;
+          final phone = result['phone'] ?? '';
+          final contacts = _contacts ?? [];
+          final newContact = contacts.where((c) => c.phone == phone).firstOrNull;
+          if (newContact != null) {
+            _openChat(newContact);
+          } else {
+            final name = '${result['firstName'] ?? ''} ${result['lastName'] ?? ''}'.trim();
+            final chatState = context.read<ChatState>();
+            final syntheticDm = ChatInfo(
+              accountId: context.read<AppState>().activeAccountId ?? '',
+              chatId: '',
+              title: name,
+              type: ChatType.dm,
+            );
+            chatState.openChat(syntheticDm);
+            Navigator.of(context).pop();
+          }
+        });
       }
     });
   }
@@ -663,6 +694,7 @@ class _ContactRow extends StatefulWidget {
   final bool isDark;
   final VoidCallback onTap;
   final VoidCallback? onStoryTap;
+  final VoidCallback? onContactChanged;
 
   const _ContactRow({
     required this.contact,
@@ -673,6 +705,7 @@ class _ContactRow extends StatefulWidget {
     required this.isDark,
     required this.onTap,
     this.onStoryTap,
+    this.onContactChanged,
   });
 
   @override
@@ -844,7 +877,11 @@ class _ContactRowState extends State<_ContactRow> {
         engine: engine,
         contact: contact,
       ),
-    );
+    ).then((saved) {
+      if (saved == true) {
+        widget.onContactChanged?.call();
+      }
+    });
   }
 
   void _deleteContact(ContactInfo contact, AppState appState, EngineService engine) {
@@ -856,8 +893,9 @@ class _ContactRowState extends State<_ContactRow> {
       title: 'Delete Contact',
       confirmText: 'Delete',
       isDestructive: true,
-      onConfirm: () {
-        engine.deleteContact(account.id, contact.userId);
+      onConfirm: () async {
+        await engine.deleteContact(account.id, contact.userId);
+        widget.onContactChanged?.call();
       },
     );
   }
@@ -871,8 +909,9 @@ class _ContactRowState extends State<_ContactRow> {
       title: 'Block User',
       confirmText: 'Block',
       isDestructive: true,
-      onConfirm: () {
-        engine.blockUser(account.id, contact.userId);
+      onConfirm: () async {
+        await engine.blockUser(account.id, contact.userId);
+        widget.onContactChanged?.call();
       },
     );
   }
@@ -1124,6 +1163,7 @@ class _AddContactBoxState extends State<_AddContactBox> {
   late final FocusNode _lastNameFocus;
   late final FocusNode _phoneFocus;
   CountryInfo _selectedCountry = countries.firstWhere((c) => c.iso == 'US');
+  late final _PhoneNumberFormatter _phoneFormatter;
   bool _saving = false;
   String? _error;
   bool _retry = false;
@@ -1134,6 +1174,7 @@ class _AddContactBoxState extends State<_AddContactBox> {
     _firstNameFocus = FocusNode();
     _lastNameFocus = FocusNode();
     _phoneFocus = FocusNode();
+    _phoneFormatter = _PhoneNumberFormatter(dialCode: _selectedCountry.dialCode);
     _codeCtrl.text = _selectedCountry.dialCode;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _firstNameFocus.requestFocus();
@@ -1155,7 +1196,7 @@ class _AddContactBoxState extends State<_AddContactBox> {
   bool _isValidPhone(String phone) {
     final digits = phone.replaceAll(RegExp(r'\D'), '');
     if (digits == '333') return true;
-    if (digits.startsWith('42') && (digits.length == 2 || digits.length == 4 || digits.length == 5 || digits.length == 6)) return true;
+    if (digits == '42' || digits == '4242' || (digits.startsWith('42') && (digits.length == 5 || digits.length == 6))) return true;
     return digits.length >= 8;
   }
 
@@ -1164,6 +1205,7 @@ class _AddContactBoxState extends State<_AddContactBox> {
     if (code.isEmpty) return;
     final match = countries.where((c) => c.dialCode == code).firstOrNull;
     if (match != null && match != _selectedCountry) {
+      _phoneFormatter.dialCode = match.dialCode;
       setState(() => _selectedCountry = match);
     }
   }
@@ -1174,6 +1216,7 @@ class _AddContactBoxState extends State<_AddContactBox> {
       builder: (ctx) => _CountrySelectBox(
         selected: _selectedCountry,
         onSelect: (country) {
+          _phoneFormatter.dialCode = country.dialCode;
           setState(() {
             _selectedCountry = country;
             _codeCtrl.text = country.dialCode;
@@ -1190,8 +1233,12 @@ class _AddContactBoxState extends State<_AddContactBox> {
       return;
     }
 
-    final firstName = _firstNameCtrl.text.trim();
-    final lastName = _lastNameCtrl.text.trim();
+    var firstName = _firstNameCtrl.text.trim();
+    var lastName = _lastNameCtrl.text.trim();
+    if (firstName.isEmpty && lastName.isNotEmpty) {
+      firstName = lastName;
+      lastName = '';
+    }
     if (firstName.isEmpty && lastName.isEmpty) {
       setState(() => _error = 'Please enter a name');
       return;
@@ -1232,7 +1279,11 @@ class _AddContactBoxState extends State<_AddContactBox> {
     try {
       await widget.engine.addContact(account.id, phone, firstName, lastName);
       if (mounted) {
-        Navigator.of(context).pop(true);
+        Navigator.of(context).pop(<String, String>{
+          'firstName': firstName,
+          'lastName': lastName,
+          'phone': phone,
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -1393,7 +1444,7 @@ class _AddContactBoxState extends State<_AddContactBox> {
                       borderColor: borderColor,
                       focusBorderColor: focusBorderColor,
                       keyboardType: TextInputType.phone,
-                      inputFormatters: [_PhoneNumberFormatter()],
+                      inputFormatters: [_phoneFormatter],
                       onSubmitted: (_) => _submit(),
                     ),
                   ),
@@ -1501,18 +1552,17 @@ class _InputField extends StatelessWidget {
 }
 
 class _PhoneNumberFormatter extends TextInputFormatter {
+  String dialCode;
+
+  _PhoneNumberFormatter({this.dialCode = ''});
+
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) {
       return const TextEditingValue(text: '', selection: TextSelection.collapsed(offset: 0));
     }
-    final buf = StringBuffer();
-    for (var i = 0; i < digits.length; i++) {
-      if (i > 0 && i % 3 == 0) buf.write(' ');
-      buf.write(digits[i]);
-    }
-    final formatted = buf.toString();
+    final formatted = formatPhoneDigits(digits, dialCode);
     final digitsBeforeCursor = newValue.text
         .substring(0, newValue.selection.end.clamp(0, newValue.text.length))
         .replaceAll(RegExp(r'\D'), '')
@@ -1797,7 +1847,7 @@ class _CountryRowState extends State<_CountryRow> {
         behavior: HitTestBehavior.opaque,
         child: Container(
           height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.fromLTRB(22, 9, 8, 0),
           color: _hovered ? widget.hoverBg : (widget.isKeyboardSelected ? widget.selectedBg : Colors.transparent),
           child: Row(
             children: [
