@@ -89,6 +89,7 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
           controller: _controller,
           focusNode: _focusNode,
           autofocus: true,
+          onSubmitted: (_) => _submit(),
           style: TextStyle(fontSize: 14, color: textFg),
           decoration: InputDecoration(
             hintText: widget.defaultValue.isEmpty ? 'edited' : widget.defaultValue,
