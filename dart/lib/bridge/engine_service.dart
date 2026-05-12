@@ -3164,6 +3164,21 @@ class EngineService {
     }
   }
 
+  Future<bool> sendStarGift(String accountId, String chatId, int giftId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'gift_id': giftId,
+    }));
+    try {
+      await _callAsync('__engine', 'SendStarGift', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'sendStarGift failed', e);
+      return false;
+    }
+  }
+
   Future<String?> resolveUsername(String accountId, String username) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

@@ -13876,6 +13876,41 @@ func (t *TelegramCore) GetPinnedStarGifts(chatID string) (*PinnedGiftsResult, er
 	return res, nil
 }
 
+func (t *TelegramCore) SendStarGift(chatID string, giftID int64) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	invoice := &tg.InputInvoiceStarGift{
+		Peer:   inputPeer,
+		GiftID: giftID,
+	}
+	rawForm, err := t.api.PaymentsGetPaymentForm(t.ctx, &tg.PaymentsGetPaymentFormRequest{
+		Invoice: invoice,
+	})
+	if err != nil {
+		return fmt.Errorf("get gift payment form: %w", err)
+	}
+	form, ok := rawForm.(*tg.PaymentsPaymentForm)
+	if !ok {
+		return fmt.Errorf("unexpected payment form type: %T", rawForm)
+	}
+	_, err = t.api.PaymentsSendPaymentForm(t.ctx, &tg.PaymentsSendPaymentFormRequest{
+		FormID:  form.FormID,
+		Invoice: invoice,
+		Credentials: &tg.InputPaymentCredentials{
+			Save: false,
+			Data: tg.DataJSON{Data: "{}"},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("send star gift: %w", err)
+	}
+	return nil
+}
+
 // DeleteFolder deletes a dialog filter/folder by ID.
 func (t *TelegramCore) DeleteFolder(filterID int) error {
 	t.mu.RLock()

@@ -1614,6 +1614,25 @@ func (e *Engine) GetPinnedStarGifts(accountID, chatID string) (*cores.PinnedGift
 	return fetcher.GetPinnedStarGifts(chatID)
 }
 
+type StarGiftSender interface {
+	SendStarGift(chatID string, giftID int64) error
+}
+
+func (e *Engine) SendStarGift(accountID, chatID string, giftID int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	sender, ok := acc.Core.(StarGiftSender)
+	if !ok {
+		return fmt.Errorf("platform does not support sending star gifts")
+	}
+	return sender.SendStarGift(chatID, giftID)
+}
+
 type AttachMenuBotsFetcher interface {
 	GetAttachMenuBots() ([]cores.AttachMenuBotInfo, error)
 }

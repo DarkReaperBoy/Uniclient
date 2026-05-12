@@ -1005,6 +1005,18 @@ class _ChatViewState extends State<ChatView>
     });
   }
 
+  void _scrollToFirstUnreadPoll() {
+    final chatState = context.read<ChatState>();
+    final msgs = chatState.messages;
+    for (final msg in msgs.reversed) {
+      if (msg.isPoll) {
+        chatState.jumpToMessage(msg.timestamp, highlightMsgId: msg.msgId);
+        return;
+      }
+    }
+    _scrollToBottom();
+  }
+
   /// Spec §49.8: Smooth scroll engine.
   /// Duration: 240ms (slideDuration).
   /// Short scroll (≤ 1 viewport): sineInOut.
@@ -5046,7 +5058,7 @@ class _ChatViewState extends State<ChatView>
                     child: _CornerButton(
                       icon: Icons.poll,
                       count: chat.unreadPollCount,
-                      onTap: _scrollToBottom,
+                      onTap: _scrollToFirstUnreadPoll,
                     ),
                   ),
                 ),
@@ -18178,29 +18190,27 @@ class _StarGiftSheetState extends State<_StarGiftSheet> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              showDialog(
-                context: context,
-                builder: (errCtx) => AlertDialog(
-                  title: const Text('Payment Not Available'),
-                  content: const Text(
-                    'Star gift purchases require the Telegram Payments API, '
-                    'which is not yet supported in this client. '
-                    'Please use the official Telegram app to send gifts.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(errCtx),
-                      child: const Text('OK'),
-                    ),
-                  ],
-                ),
-              );
+              _sendStarGift(context, gift);
             },
             child: Text('Send for ${gift.stars} Stars'),
           ),
         ],
       ),
     );
+  }
+
+  void _sendStarGift(BuildContext context, StarGiftItem gift) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Sending gift...')));
+    final ok = await widget.engine.sendStarGift(widget.accountId, widget.chatId, gift.id);
+    if (!mounted) return;
+    messenger.hideCurrentSnackBar();
+    if (ok) {
+      messenger.showSnackBar(const SnackBar(content: Text('Gift sent!')));
+      Navigator.pop(context);
+    } else {
+      messenger.showSnackBar(const SnackBar(content: Text('Failed to send gift. Please try again.')));
+    }
   }
 }
 

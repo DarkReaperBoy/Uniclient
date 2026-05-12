@@ -3383,6 +3383,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(result)
 
+	case "SendStarGift":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			GiftID    int64  `json:"gift_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.SendStarGift(params.AccountID, params.ChatID, params.GiftID); err != nil {
+			return nil, err
+		}
+		return []byte("{}"), nil
+
 	case "VotePoll":
 		var req pb.EngineVotePollRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

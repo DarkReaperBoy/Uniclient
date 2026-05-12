@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 import 'confirm_box.dart';
 import 'popup_menu.dart';
@@ -970,22 +971,13 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     if (widget.isPremium) {
       _showRepeatMenu();
     } else {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Telegram Premium'),
-          content: const Text(
-            'Repeat schedules are available to Telegram Premium subscribers. '
-            'Subscribe to Telegram Premium in the official app to use this feature.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
-            ),
-          ],
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Repeat schedules require Telegram Premium.'),
+        action: SnackBarAction(
+          label: 'Get Premium',
+          onPressed: () => url_launcher.launchUrl(Uri.parse('https://t.me/premium')),
         ),
-      );
+      ));
     }
   }
 
