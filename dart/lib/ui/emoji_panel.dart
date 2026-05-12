@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -3138,7 +3140,7 @@ List<_GifRow> _packGifRows(List<_GifLayoutItem> items, double availableWidth) {
   return rows;
 }
 
-class _GifCell extends StatelessWidget {
+class _GifCell extends StatefulWidget {
   final GifInfoItem gif;
   final VoidCallback onTap;
   final ValueChanged<Offset> onContextMenu;
@@ -3146,37 +3148,113 @@ class _GifCell extends StatelessWidget {
   const _GifCell({required this.gif, required this.onTap, required this.onContextMenu});
 
   @override
+  State<_GifCell> createState() => _GifCellState();
+}
+
+class _GifCellState extends State<_GifCell> {
+  Player? _player;
+  VideoController? _videoController;
+  String? _filePath;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGif();
+  }
+
+  Future<void> _loadGif() async {
+    final fileId = widget.gif.fileId;
+    if (fileId.isEmpty) return;
+    final docId = int.tryParse(fileId);
+    if (docId == null) return;
+
+    final cached = _gifFileCache[docId];
+    if (cached != null) {
+      _initPlayer(cached);
+      return;
+    }
+
+    setState(() => _loading = true);
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
+    final files = await engine.getGifFiles(accountId, [docId]);
+    if (!mounted) return;
+    final data = files[docId];
+    if (data == null || data.isEmpty) {
+      setState(() => _loading = false);
+      return;
+    }
+    final dir = Directory.systemTemp;
+    final path = '${dir.path}/uniclient_gif_$docId.mp4';
+    await File(path).writeAsBytes(data);
+    _gifFileCache[docId] = path;
+    if (!mounted) return;
+    _initPlayer(path);
+  }
+
+  void _initPlayer(String path) {
+    _filePath = path;
+    _player = Player();
+    _videoController = VideoController(_player!);
+    _player!.setVolume(0);
+    _player!.setPlaylistMode(PlaylistMode.loop);
+    _player!.open(Media(path));
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  void dispose() {
+    _player?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    Widget thumb;
-    if (gif.thumbB64.isNotEmpty) {
+    Widget content;
+    if (_videoController != null && _filePath != null) {
+      content = Video(
+        controller: _videoController!,
+        controls: NoVideoControls,
+        fit: BoxFit.cover,
+      );
+    } else if (widget.gif.thumbB64.isNotEmpty) {
       try {
-        final bytes = _decodeStrippedThumbB64(gif.thumbB64);
-        thumb = Image.memory(
-          bytes,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-          cacheWidth: 200,
+        final bytes = _decodeStrippedThumbB64(widget.gif.thumbB64);
+        content = Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: 200),
+            if (_loading)
+              const Center(child: SizedBox(width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70))),
+          ],
         );
       } catch (_) {
-        thumb = _gifPlaceholder(isDark);
+        content = _gifPlaceholder(isDark);
       }
     } else {
-      thumb = _gifPlaceholder(isDark);
+      content = _gifPlaceholder(isDark);
     }
     return PlatformGestureDetector(
-      onTap: onTap,
-      onSecondaryTapUp: (d) => onContextMenu(d.globalPosition),
-      onLongPressStart: (d) => onContextMenu(d.globalPosition),
+      onTap: widget.onTap,
+      onSecondaryTapUp: (d) => widget.onContextMenu(d.globalPosition),
+      onLongPressStart: (d) => widget.onContextMenu(d.globalPosition),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(4),
-        child: thumb,
+        child: content,
       ),
     );
   }
 }
 
-class _GifSearchCell extends StatelessWidget {
+final Map<int, String> _gifFileCache = {};
+
+class _GifSearchCell extends StatefulWidget {
   final InlineBotResult result;
   final VoidCallback onTap;
   final ValueChanged<Offset> onContextMenu;
@@ -3184,31 +3262,62 @@ class _GifSearchCell extends StatelessWidget {
   const _GifSearchCell({required this.result, required this.onTap, required this.onContextMenu});
 
   @override
+  State<_GifSearchCell> createState() => _GifSearchCellState();
+}
+
+class _GifSearchCellState extends State<_GifSearchCell> {
+  Player? _player;
+  VideoController? _videoController;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPlayer();
+  }
+
+  void _initPlayer() {
+    final url = widget.result.contentUrl;
+    if (url.isEmpty) return;
+    _player = Player();
+    _videoController = VideoController(_player!);
+    _player!.setVolume(0);
+    _player!.setPlaylistMode(PlaylistMode.loop);
+    _player!.open(Media(url));
+  }
+
+  @override
+  void dispose() {
+    _player?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    Widget thumb;
-    if (result.thumbB64.isNotEmpty) {
+    Widget content;
+    if (_videoController != null) {
+      content = Video(
+        controller: _videoController!,
+        controls: NoVideoControls,
+        fit: BoxFit.cover,
+      );
+    } else if (widget.result.thumbB64.isNotEmpty) {
       try {
-        final bytes = _decodeStrippedThumbB64(result.thumbB64);
-        thumb = Image.memory(
-          bytes,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-          cacheWidth: 200,
-        );
+        final bytes = _decodeStrippedThumbB64(widget.result.thumbB64);
+        content = Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: 200);
       } catch (_) {
-        thumb = _gifPlaceholder(isDark);
+        content = _gifPlaceholder(isDark);
       }
     } else {
-      thumb = _gifPlaceholder(isDark);
+      content = _gifPlaceholder(isDark);
     }
     return PlatformGestureDetector(
-      onTap: onTap,
-      onSecondaryTapUp: (d) => onContextMenu(d.globalPosition),
-      onLongPressStart: (d) => onContextMenu(d.globalPosition),
+      onTap: widget.onTap,
+      onSecondaryTapUp: (d) => widget.onContextMenu(d.globalPosition),
+      onLongPressStart: (d) => widget.onContextMenu(d.globalPosition),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(4),
-        child: thumb,
+        child: content,
       ),
     );
   }

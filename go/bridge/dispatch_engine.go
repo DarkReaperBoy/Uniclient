@@ -2321,6 +2321,25 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetGifFiles":
+		var req pb.EngineGetCustomEmojiFilesRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		files, err := e.GetGifFiles(req.AccountId, req.DocumentIds)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetCustomEmojiFilesResponse{}
+		for _, f := range files {
+			resp.Files = append(resp.Files, &pb.EngineCustomEmojiFile{
+				DocumentId: f.DocumentID,
+				MimeType:   f.MimeType,
+				FileData:   f.FileData,
+			})
+		}
+		return proto.Marshal(resp)
+
 	case "GetCustomEmojiSetInfo":
 		var req pb.EngineGetCustomEmojiSetInfoRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
@@ -128,6 +130,14 @@ const _mediaTypeNames = <int, int>{
   9: 17,  // poll → TYPE_POLL
   10: 4,  // location → TYPE_GEO
   11: 12, // contact → TYPE_CONTACT
+  12: 15, // animated sticker/dice → TYPE_ANIMATED_STICKER
+  13: 19, // emoji-only text → TYPE_EMOJIS
+  14: 23, // story → TYPE_STORY
+  15: 24, // story mention → TYPE_STORY_MENTION
+  16: 26, // giveaway → TYPE_GIVEAWAY
+  17: 28, // giveaway results → TYPE_GIVEAWAY_RESULTS
+  18: 29, // paid media → TYPE_PAID_MEDIA
+  19: 30, // gift stars → TYPE_GIFT_STARS
 };
 
 String _extractSingleText(CachedMessage msg, {Set<String>? extractedUrls}) {
@@ -168,6 +178,15 @@ String _extractSingleText(CachedMessage msg, {Set<String>? extractedUrls}) {
 
 int _serviceMessageType(CachedMessage msg) {
   if (msg.mediaType == 1) return 11; // service + photo → TYPE_ACTION_PHOTO
+  final text = msg.contentText.toLowerCase();
+  if (text.contains('call')) return 16; // TYPE_PHONE_CALL
+  if (text.contains('suggest') && text.contains('photo')) return 21; // TYPE_SUGGEST_PHOTO
+  if (text.contains('wallpaper')) return 22; // TYPE_ACTION_WALLPAPER
+  if (text.contains('gift') && text.contains('star')) return 30; // TYPE_GIFT_STARS
+  if (text.contains('giveaway') && text.contains('result')) return 28; // TYPE_GIVEAWAY_RESULTS
+  if (text.contains('boost')) return 25; // TYPE_GIFT_PREMIUM_CHANNEL
+  if (text.contains('premium') || text.contains('gift')) return 18; // TYPE_GIFT_PREMIUM
+  if (msg.mediaType == 2) return 8; // service + video/gif → TYPE_GIF
   return 10; // TYPE_DATE (generic service)
 }
 
@@ -189,21 +208,11 @@ String extractMatchBlob(CachedMessage msg, {List<CachedMessage>? groupMessages})
 
   for (final row in msg.inlineKeyboard) {
     for (final btn in row) {
-      if (btn.data.isNotEmpty && entityUrls.contains(btn.data)) continue;
       buf.write('<button>');
       buf.write(btn.text);
       buf.write(' ');
       buf.write(btn.data);
       buf.write('</button>\n');
-    }
-  }
-  if (msg.replyKeyboard != null) {
-    for (final row in msg.replyKeyboard!.rows) {
-      for (final btn in row) {
-        buf.write('<button>');
-        buf.write(btn.text);
-        buf.write('</button>\n');
-      }
     }
   }
 
@@ -212,9 +221,7 @@ String extractMatchBlob(CachedMessage msg, {List<CachedMessage>? groupMessages})
     buf.write('\n<type>$serviceType</type>');
   } else {
     final typeId = _mediaTypeNames[msg.mediaType] ?? 0;
-    if (typeId > 0) {
-      buf.write('\n<type>$typeId</type>');
-    }
+    buf.write('\n<type>$typeId</type>');
   }
 
   return buf.toString();
@@ -227,6 +234,7 @@ class AyuFilterEngine extends ChangeNotifier {
   final Map<String, List<_CompiledPattern>> _dialogPatterns = {};
   final Map<String, Set<String>> _exclusionsByDialog = {};
   final Map<String, bool> _messageCache = {};
+  final Map<String, bool> _filteredMessagesShown = {};
 
   List<RegexFilter> _filters = [];
   List<RegexFilterExclusion> _exclusions = [];
@@ -279,6 +287,110 @@ class AyuFilterEngine extends ChangeNotifier {
     'regexFilters': _filters.map((f) => f.toJson()).toList(),
     'regexExclusions': _exclusions.map((e) => e.toJson()).toList(),
   };
+
+  static const _backupVersion = 2;
+
+  Map<String, dynamic> exportFilters({Map<String, String> peers = const {}}) => {
+    'version': _backupVersion,
+    'filters': _filters.map((f) => f.toJson()).toList(),
+    'exclusions': _exclusions.map((e) => e.toJson()).toList(),
+    'removeFiltersById': <String>[],
+    'removeExclusions': <Map<String, dynamic>>[],
+    'peers': peers,
+  };
+
+  ({int added, int updated, int removedFilters, int removedExclusions})
+      importFromJson(Map<String, dynamic> data) {
+    final filters = (data['filters'] as List<dynamic>?)
+        ?.map((e) => RegexFilter.fromJson(e as Map<String, dynamic>))
+        .toList() ?? [];
+    final exclusions = (data['exclusions'] as List<dynamic>?)
+        ?.map((e) => RegexFilterExclusion.fromJson(e as Map<String, dynamic>))
+        .toList() ?? [];
+    final removeIds = (data['removeFiltersById'] as List<dynamic>?)
+        ?.map((e) => e.toString())
+        .toList() ?? [];
+    final removeExcl = (data['removeExclusions'] as List<dynamic>?)
+        ?.map((e) => RegexFilterExclusion.fromJson(e as Map<String, dynamic>))
+        .toList() ?? [];
+
+    int added = 0, updated = 0;
+    for (final f in filters) {
+      if (_filters.any((ef) => ef.id == f.id)) {
+        updateFilter(f);
+        updated++;
+      } else {
+        addFilter(f);
+        added++;
+      }
+    }
+    for (final e in exclusions) {
+      addExclusion(e);
+    }
+    for (final id in removeIds) {
+      deleteFilter(id);
+    }
+    for (final e in removeExcl) {
+      deleteExclusion(e.dialogId, e.filterId);
+    }
+    return (added: added, updated: updated, removedFilters: removeIds.length,
+        removedExclusions: removeExcl.length);
+  }
+
+  Future<String?> importFromLink(String url) async {
+    try {
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 10);
+      final request = await client.getUrl(Uri.parse(url));
+      final response = await request.close();
+      final body = await response.transform(utf8.decoder).join();
+      client.close();
+      final parsed = jsonDecode(body);
+      if (parsed is! Map<String, dynamic>) return 'Invalid JSON format';
+      importFromJson(parsed);
+      return null;
+    } catch (e) {
+      return 'Failed to fetch: $e';
+    }
+  }
+
+  Future<String?> publishFilters({Map<String, String> peers = const {}}) async {
+    final data = exportFilters(peers: peers);
+    final jsonText = const JsonEncoder.withIndent('  ').convert(data);
+    try {
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 10);
+      final request = await client.postUrl(Uri.parse('https://dpaste.com/api/v2/'));
+      final boundary = '----DartFormBoundary${DateTime.now().millisecondsSinceEpoch}';
+      request.headers.set('Content-Type', 'multipart/form-data; boundary=$boundary');
+      final body = StringBuffer();
+      void addField(String name, String value) {
+        body.write('--$boundary\r\n');
+        body.write('Content-Disposition: form-data; name="$name"\r\n\r\n');
+        body.write('$value\r\n');
+      }
+      addField('content', jsonText);
+      addField('syntax', 'json');
+      addField('title', 'AyuGram Filters');
+      body.write('--$boundary--\r\n');
+      request.write(body.toString());
+      final response = await request.close();
+      await response.drain<void>();
+      client.close();
+      String pasteUrl = '';
+      if (response.statusCode == 201 &&
+          response.headers['location'] != null &&
+          response.headers['location']!.isNotEmpty) {
+        pasteUrl = response.headers['location']!.first;
+      }
+      if (!pasteUrl.startsWith('http')) return null;
+      if (!pasteUrl.endsWith('.txt')) pasteUrl = '$pasteUrl.txt';
+      await Clipboard.setData(ClipboardData(text: pasteUrl));
+      return pasteUrl;
+    } catch (_) {
+      return null;
+    }
+  }
 
   void addFilter(RegexFilter filter) {
     _filters = [..._filters, filter];
@@ -345,19 +457,38 @@ class AyuFilterEngine extends ChangeNotifier {
     }
   }
 
-  void invalidateMessage(String chatId, String msgId) {
+  bool filteredMessagesShown(String chatId) =>
+      _filteredMessagesShown[chatId] ?? false;
+
+  void toggleFilteredMessagesShown(String chatId) {
+    _filteredMessagesShown[chatId] = !(_filteredMessagesShown[chatId] ?? false);
+    notifyListeners();
+  }
+
+  void invalidateMessage(String chatId, String msgId, {String? groupedId}) {
     _messageCache.remove('$chatId:$msgId');
+    if (groupedId != null && groupedId.isNotEmpty) {
+      _messageCache.removeWhere((key, _) => key.startsWith('$chatId:'));
+    }
   }
 
   bool isFiltered(CachedMessage msg, AppState appState, {ChatType? chatType, List<CachedMessage>? groupMessages}) {
     if (!appState.filtersEnabled) return false;
     if (msg.isOutgoing) return false;
 
+    final dialogId = msg.chatId;
+    if (_filteredMessagesShown[dialogId] == true) return false;
+
     final senderId = _parseSenderId(msg.senderId);
-    if (senderId != null) {
-      if (msg.senderId != msg.chatId && appState.isShadowBanned(senderId)) {
-        return true;
-      }
+    if (senderId != null && msg.senderId != msg.chatId) {
+      if (appState.isShadowBanned(senderId)) return true;
+      if (appState.hideFromBlocked && appState.isBlocked(senderId)) return true;
+    }
+
+    final fwdId = _parseForwardSenderId(msg.forwardFrom);
+    if (fwdId != null) {
+      if (appState.isShadowBanned(fwdId)) return true;
+      if (appState.hideFromBlocked && appState.isBlocked(fwdId)) return true;
     }
 
     if (!_isEnabledForChat(chatType, appState)) return false;
@@ -367,7 +498,6 @@ class AyuFilterEngine extends ChangeNotifier {
     if (cached != null) return cached;
 
     final blob = extractMatchBlob(msg, groupMessages: groupMessages);
-    final dialogId = msg.chatId;
 
     final dialogPats = _dialogPatterns[dialogId];
     if (dialogPats != null) {
@@ -394,7 +524,11 @@ class AyuFilterEngine extends ChangeNotifier {
 
   void _cacheResult(String key, bool value) {
     if (_messageCache.length >= _maxCacheSize) {
-      _messageCache.clear();
+      final evictCount = _maxCacheSize ~/ 10;
+      final keys = _messageCache.keys.take(evictCount).toList();
+      for (final k in keys) {
+        _messageCache.remove(k);
+      }
     }
     _messageCache[key] = value;
   }
@@ -407,5 +541,16 @@ class AyuFilterEngine extends ChangeNotifier {
   int? _parseSenderId(String senderId) {
     if (senderId.isEmpty) return null;
     return int.tryParse(senderId);
+  }
+
+  static final _forwardIdPattern = RegExp(r'(?:User|Channel|Chat) (\d+)$');
+
+  int? _parseForwardSenderId(String forwardFrom) {
+    if (forwardFrom.isEmpty) return null;
+    final id = int.tryParse(forwardFrom);
+    if (id != null) return id;
+    final match = _forwardIdPattern.firstMatch(forwardFrom);
+    if (match != null) return int.tryParse(match.group(1)!);
+    return null;
   }
 }

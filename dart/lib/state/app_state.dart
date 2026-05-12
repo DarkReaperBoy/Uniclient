@@ -354,6 +354,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _filtersEnabledInChats = false;
   bool _hideFromBlocked = false;
   Set<int> _shadowBanIds = {};
+  Set<int> _blockedIds = {};
   final AyuFilterEngine filterEngine = AyuFilterEngine();
 
   // Delete dialog: remember "delete for everyone" choice (AyuGram: rememberedDeleteMessageOnlyForYou)
@@ -1324,6 +1325,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _filtersEnabledInChats = false;
     _hideFromBlocked = false;
     _shadowBanIds = {};
+    _blockedIds = {};
     _readExclusions = {};
     _typingExclusions = {};
     notifyListeners();
@@ -1579,6 +1581,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
   bool isShadowBanned(int id) => _shadowBanIds.contains(id);
+  void addBlocked(int id) {
+    if (_blockedIds.contains(id)) return;
+    _blockedIds = {..._blockedIds, id};
+    filterEngine.rebuildCache();
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void removeBlocked(int id) {
+    if (!_blockedIds.contains(id)) return;
+    _blockedIds = {..._blockedIds}..remove(id);
+    filterEngine.rebuildCache();
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  bool isBlocked(int id) => _blockedIds.contains(id);
 
   void saveFilterEngine() {
     _saveWindowPrefs();
@@ -3045,6 +3062,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (rawShadowBan != null) {
         _shadowBanIds = rawShadowBan.map((e) => (e as num).toInt()).toSet();
       }
+      final rawBlocked = data['blockedIds'] as List<dynamic>?;
+      if (rawBlocked != null) {
+        _blockedIds = rawBlocked.map((e) => (e as num).toInt()).toSet();
+      }
       final rawExcl = data['readExclusions'] as Map<String, dynamic>?;
       if (rawExcl != null) {
         _readExclusions = rawExcl.map((k, v) => MapEntry(k, (v as int?) ?? 0));
@@ -3251,6 +3272,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'filtersEnabledInChats': _filtersEnabledInChats,
         'hideFromBlocked': _hideFromBlocked,
         'shadowBanIds': _shadowBanIds.toList(),
+        'blockedIds': _blockedIds.toList(),
         ...filterEngine.toJson(),
         'readExclusions': _readExclusions,
         'typingExclusions': _typingExclusions,

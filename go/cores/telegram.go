@@ -13652,6 +13652,37 @@ func (t *TelegramCore) GetSavedGifs() ([]GifInfo, error) {
 	return gifs, nil
 }
 
+func (t *TelegramCore) GetGifFiles(documentIDs []int64) ([]CustomEmojiFile, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	var result []CustomEmojiFile
+	for _, docID := range documentIDs {
+		accessHash := t.getCachedFileHash(docID)
+		fileRef := t.getCachedFileRef(docID)
+		if accessHash == 0 && len(fileRef) == 0 {
+			continue
+		}
+		loc := &tg.InputDocumentFileLocation{
+			ID:            docID,
+			AccessHash:    accessHash,
+			FileReference: fileRef,
+		}
+		buf, err := t.downloadSmallFile(loc, 10*1024*1024)
+		if err != nil || len(buf) == 0 {
+			continue
+		}
+		result = append(result, CustomEmojiFile{
+			DocumentID: docID,
+			MimeType:   "video/mp4",
+			FileData:   buf,
+		})
+	}
+	return result, nil
+}
+
 func (t *TelegramCore) GetFeaturedStickerPacks() ([]StickerPackSummary, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()

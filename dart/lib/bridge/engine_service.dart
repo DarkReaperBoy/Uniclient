@@ -1656,6 +1656,23 @@ class EngineService {
     }
   }
 
+  Future<Map<int, Uint8List>> getGifFiles(String accountId, List<int> documentIds) async {
+    final req = epb.EngineGetCustomEmojiFilesRequest()
+      ..accountId = accountId
+      ..documentIds.addAll(documentIds.map((id) => Int64(id)));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetGifFiles', req.writeToBuffer());
+      if (respBytes.isEmpty) return {};
+      final resp = epb.EngineGetCustomEmojiFilesResponse.fromBuffer(respBytes);
+      return {
+        for (final f in resp.files) f.documentId.toInt(): Uint8List.fromList(f.fileData),
+      };
+    } catch (e) {
+      Debug.error('ENGINE', 'getGifFiles failed', e);
+      return {};
+    }
+  }
+
   Future<bool> saveGif(String accountId, int fileId, {String extra = '', bool unsave = false}) async {
     final req = epb.EngineSaveGifRequest()
       ..accountId = accountId

@@ -1146,6 +1146,25 @@ func (e *Engine) GetSavedGifs(accountID string) ([]cores.GifInfo, error) {
 	return fetcher.GetSavedGifs()
 }
 
+type GifFilesFetcher interface {
+	GetGifFiles(documentIDs []int64) ([]cores.CustomEmojiFile, error)
+}
+
+func (e *Engine) GetGifFiles(accountID string, documentIDs []int64) ([]cores.CustomEmojiFile, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(GifFilesFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support GIF file download")
+	}
+	return fetcher.GetGifFiles(documentIDs)
+}
+
 type SavedSublistsFetcher interface {
 	GetSavedSublists(limit, offsetDate, offsetID int, excludePinned bool) ([]cores.SavedSublistInfo, int, error)
 }
