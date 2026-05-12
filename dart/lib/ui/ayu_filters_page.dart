@@ -77,6 +77,7 @@ class AyuFiltersPage extends StatelessWidget {
       b.addSectionDivider();
       b.addSkip();
       b.addSectionTitle('Per-Dialog Filters');
+      final chatState = context.read<ChatState>();
       final dialogIds = appState.filterEngine.dialogIdsWithFilters();
       for (final dId in dialogIds) {
         final filters = appState.filterEngine.filtersForDialog(dId);
@@ -87,8 +88,9 @@ class AyuFiltersPage extends StatelessWidget {
           if (status.isNotEmpty) status.write(', ');
           status.write('$exclCount excluded');
         }
+        final dialogName = _resolveDialogName(chatState, dId);
         b.addWidget(_NavigationButton(
-          label: dId.length > 18 ? '${dId.substring(0, 17)}…' : dId,
+          label: dialogName,
           subtitle: status.toString(),
           isDark: isDark,
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -96,7 +98,7 @@ class AyuFiltersPage extends StatelessWidget {
               value: appState,
               child: _AyuFiltersListScreen(
                 mode: _FiltersListMode.perDialog,
-                dialogTitle: dId,
+                dialogTitle: dialogName,
                 dialogId: dId,
               ),
             ),
@@ -129,6 +131,16 @@ class AyuFiltersPage extends StatelessWidget {
       ],
       children: b.build(),
     );
+  }
+
+  static String _resolveDialogName(ChatState chatState, String dialogId) {
+    for (final chat in chatState.chats) {
+      if (chat.chatId == dialogId) {
+        final name = chat.title;
+        return name.length > 18 ? '${name.substring(0, 17)}…' : name;
+      }
+    }
+    return 'Filters ($dialogId)';
   }
 
   PopupMenuItem<String> _menuItem(
@@ -255,12 +267,14 @@ class _SelectChatDialog extends StatefulWidget {
   final AppState appState;
   final bool isDark;
   final BuildContext parentContext;
+  final void Function(ChatInfo)? onChatSelected;
 
   const _SelectChatDialog({
     required this.chatState,
     required this.appState,
     required this.isDark,
     required this.parentContext,
+    this.onChatSelected,
   });
 
   @override
@@ -428,17 +442,21 @@ class _SelectChatDialogState extends State<_SelectChatDialog> {
                                       : const Color(0xFF999999))),
                           onTap: () {
                             Navigator.of(context).pop();
-                            Navigator.of(widget.parentContext)
-                                .push(MaterialPageRoute(
-                              builder: (_) => ChangeNotifierProvider.value(
-                                value: widget.appState,
-                                child: _AyuFiltersListScreen(
-                                  mode: _FiltersListMode.perDialog,
-                                  dialogTitle: chat.title,
-                                  dialogId: chat.chatId,
+                            if (widget.onChatSelected != null) {
+                              widget.onChatSelected!(chat);
+                            } else {
+                              Navigator.of(widget.parentContext)
+                                  .push(MaterialPageRoute(
+                                builder: (_) => ChangeNotifierProvider.value(
+                                  value: widget.appState,
+                                  child: _AyuFiltersListScreen(
+                                    mode: _FiltersListMode.perDialog,
+                                    dialogTitle: chat.title,
+                                    dialogId: chat.chatId,
+                                  ),
                                 ),
-                              ),
-                            ));
+                              ));
+                            }
                           },
                         );
                       },
@@ -560,6 +578,20 @@ class _AyuFiltersListScreen extends StatelessWidget {
     return ayuSettingsScaffold(
       context: context,
       title: _title,
+      actions: [
+        if (mode == _FiltersListMode.shadowBan)
+          IconButton(
+            icon: Icon(Icons.add,
+                color: isDark ? Colors.white : Colors.black87),
+            onPressed: () => _showAddShadowBanDialog(context, appState),
+          )
+        else if (mode != _FiltersListMode.perDialog || showExclude)
+          IconButton(
+            icon: Icon(Icons.add,
+                color: isDark ? Colors.white : Colors.black87),
+            onPressed: () => _showRegexEditBox(context, appState, null),
+          ),
+      ],
       children: children,
     );
   }
@@ -736,6 +768,26 @@ class _AyuFiltersListScreen extends StatelessWidget {
           filter: existing,
           dialogId: mode == _FiltersListMode.perDialog ? dialogId : null,
         ),
+      ),
+    );
+  }
+
+  void _showAddShadowBanDialog(BuildContext context, AppState appState) {
+    final chatState = context.read<ChatState>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => _SelectChatDialog(
+        chatState: chatState,
+        appState: appState,
+        isDark: isDark,
+        parentContext: context,
+        onChatSelected: (chat) {
+          final id = int.tryParse(chat.chatId);
+          if (id != null) {
+            appState.addShadowBan(id);
+          }
+        },
       ),
     );
   }
@@ -973,20 +1025,27 @@ class _ShadowBanRow extends StatefulWidget {
 
 class _ShadowBanRowState extends State<_ShadowBanRow> {
   String? _resolvedName;
+  String? _avatarPath;
   bool _attempted = false;
 
   @override
   void initState() {
     super.initState();
-    _resolvePeerName();
+    _resolvePeerInfo();
   }
 
-  void _resolvePeerName() {
+  void _resolvePeerInfo() {
     final chatState = context.read<ChatState>();
     final idStr = widget.id.toString();
     for (final chat in chatState.chats) {
       if (chat.chatId == idStr || chat.chatId.endsWith(idStr)) {
-        if (mounted) setState(() { _resolvedName = chat.title; _attempted = true; });
+        if (mounted) {
+          setState(() {
+            _resolvedName = chat.title;
+            _attempted = true;
+            if (chat.avatarPath.isNotEmpty) _avatarPath = chat.avatarPath;
+          });
+        }
         return;
       }
     }
@@ -995,12 +1054,16 @@ class _ShadowBanRowState extends State<_ShadowBanRow> {
     final accountId = appState.activeAccountId;
     if (accountId.isNotEmpty) {
       engine.getUserProfile(accountId, idStr).then((profile) {
-        if (mounted) {
-          setState(() {
-            _resolvedName = profile?.displayName;
-            _attempted = true;
-          });
-        }
+        if (!mounted) return;
+        setState(() {
+          _resolvedName = profile?.displayName;
+          _attempted = true;
+        });
+        engine.downloadSingleAvatar(accountId, idStr).then((path) {
+          if (mounted && path != null && path.isNotEmpty) {
+            setState(() => _avatarPath = path);
+          }
+        });
       });
     } else {
       if (mounted) setState(() => _attempted = true);
@@ -1048,8 +1111,13 @@ class _ShadowBanRowState extends State<_ShadowBanRow> {
           CircleAvatar(
             radius: 23,
             backgroundColor: context.palette.peerUserpicBg(_colorRemap[widget.id.abs() % 7]),
-            child: Text(_avatarLetter,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+            backgroundImage: _avatarPath != null && File(_avatarPath!).existsSync()
+                ? FileImage(File(_avatarPath!))
+                : null,
+            child: _avatarPath != null && File(_avatarPath!).existsSync()
+                ? null
+                : Text(_avatarLetter,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1228,7 +1296,7 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
               maxLines: null,
               style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87),
               decoration: InputDecoration(
-                hintText: 'Regular expression (ECMAScript syntax)',
+                hintText: 'Regular expression',
                 hintStyle: TextStyle(
                     color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999)),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -1451,6 +1519,32 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
           ?.map((e) => RegexFilterExclusion.fromJson(e as Map<String, dynamic>))
           .toList() ?? [];
 
+      final peersRaw = parsed['peers'];
+      final peerHints = <String, String>{};
+      if (peersRaw is Map<String, dynamic>) {
+        for (final entry in peersRaw.entries) {
+          final username = entry.value?.toString() ?? '';
+          if (username.isNotEmpty) {
+            peerHints[entry.key] = username;
+          }
+        }
+      }
+
+      final chatState = context.read<ChatState>();
+      final peersToResolve = <String, String>{};
+      for (final entry in peerHints.entries) {
+        bool loaded = false;
+        for (final chat in chatState.chats) {
+          if (chat.chatId == entry.key) {
+            loaded = true;
+            break;
+          }
+        }
+        if (!loaded) {
+          peersToResolve[entry.key] = entry.value;
+        }
+      }
+
       final engine = appState.filterEngine;
       int newCount = 0;
       int updatedCount = 0;
@@ -1466,7 +1560,8 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
           !engine.exclusions.contains(e)).length;
 
       if (newCount == 0 && updatedCount == 0 && newExclCount == 0 &&
-          removeFilterIds.isEmpty && removeExclusions.isEmpty) {
+          removeFilterIds.isEmpty && removeExclusions.isEmpty &&
+          peersToResolve.isEmpty) {
         messenger.showSnackBar(
           const SnackBar(content: Text('No changes')),
         );
@@ -1480,6 +1575,7 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
         removedFilters: removeFilterIds.length,
         newExclusions: newExclCount,
         removedExclusions: removeExclusions.length,
+        dialogsToResolve: peersToResolve.length,
       );
       if (confirmed != true) return;
 
@@ -1502,10 +1598,23 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
       }
       appState.saveFilterEngine();
 
+      if (peersToResolve.isNotEmpty) {
+        final engineSvc = context.read<EngineService>();
+        final accountId = appState.activeAccountId;
+        if (accountId.isNotEmpty) {
+          for (final entry in peersToResolve.entries) {
+            try {
+              await engineSvc.resolveUsername(accountId, entry.value);
+            } catch (_) {}
+          }
+        }
+      }
+
       final total = newCount + updatedCount;
       messenger.showSnackBar(
         SnackBar(content: Text('Imported $total filter${total != 1 ? "s" : ""}'
-            '${removeFilterIds.isNotEmpty ? ', removed ${removeFilterIds.length}' : ''}')),
+            '${removeFilterIds.isNotEmpty ? ', removed ${removeFilterIds.length}' : ''}'
+            '${peersToResolve.isNotEmpty ? ', resolved ${peersToResolve.length} dialog${peersToResolve.length != 1 ? "s" : ""}' : ''}')),
       );
     } on FormatException {
       messenger.showSnackBar(
@@ -1520,6 +1629,7 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
     required int removedFilters,
     required int newExclusions,
     required int removedExclusions,
+    int dialogsToResolve = 0,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accentColor =
@@ -1534,6 +1644,7 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
     if (removedFilters > 0) lines.add('$removedFilters removed filter${removedFilters != 1 ? "s" : ""}');
     if (newExclusions > 0) lines.add('$newExclusions new exclusion${newExclusions != 1 ? "s" : ""}');
     if (removedExclusions > 0) lines.add('$removedExclusions removed exclusion${removedExclusions != 1 ? "s" : ""}');
+    if (dialogsToResolve > 0) lines.add('$dialogsToResolve dialog${dialogsToResolve != 1 ? "s" : ""} to be resolved');
 
     return showDialog<bool>(
       context: context,
@@ -1577,17 +1688,38 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
 
   Future<void> _doExport(AppState appState, ScaffoldMessengerState messenger) async {
     final engine = appState.filterEngine;
-    final peers = <Map<String, dynamic>>[];
+    final dialogIds = <String>{};
     for (final f in engine.filters) {
       if (f.dialogId != null && f.dialogId!.isNotEmpty) {
-        if (!peers.any((p) => p['id'] == f.dialogId)) {
-          peers.add({'id': f.dialogId});
-        }
+        dialogIds.add(f.dialogId!);
       }
     }
     for (final e in engine.exclusions) {
-      if (!peers.any((p) => p['id'] == e.dialogId)) {
-        peers.add({'id': e.dialogId});
+      dialogIds.add(e.dialogId);
+    }
+    final peers = <String, String>{};
+    if (dialogIds.isNotEmpty) {
+      final chatState = context.read<ChatState>();
+      final engineSvc = context.read<EngineService>();
+      final accountId = appState.activeAccountId;
+      for (final dId in dialogIds) {
+        String? username;
+        for (final chat in chatState.chats) {
+          if (chat.chatId == dId) {
+            if (accountId.isNotEmpty) {
+              try {
+                final profile = await engineSvc.getUserProfile(accountId, dId);
+                if (profile != null && profile.username.isNotEmpty) {
+                  username = profile.username;
+                }
+              } catch (_) {}
+            }
+            break;
+          }
+        }
+        if (username != null && username.isNotEmpty) {
+          peers[dId] = username;
+        }
       }
     }
 
