@@ -335,11 +335,6 @@ If `paint()` is called multiple times before the async `decodeImageFromList` cal
 # active_sessions_screen — Audit findings
 
 
-## admin_tools — EditPeerInfo / Permissions / AdminLog / InviteLinks / MemberList
-
-- [ ] [MAJOR] Auto-Translation toggle has no boost-level lock — AyuGram checks `channel->levelHint() < requiredLevel` and shows `AskBoostBox` if not enough level; Dart just toggles unconditionally — `admin_tools.dart:716` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1221`
-
-- [ ] [MAJOR] `_InviteLinksBox._buildAdminRow` shows other admins' invite link counts but tapping an admin row opens a generic invite links box instead of that admin's specific list — AyuGram opens `ManageInviteLinksBox` filtered to that admin (`row->peer()->asUser()`); Dart opens unfiltered `_InviteLinksBox` with no `adminId` parameter — `admin_tools.dart:4568` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:831`
 
 # bridge_stub — Platform Fallback (Not a Feature)
 
