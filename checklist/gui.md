@@ -1050,82 +1050,15 @@ The implementation is complete, accurate, and ready for use. No changes needed.
 
 # calls_screen — Call History, Conference Call, Active Group Calls, Call Settings
 
-## chat_list_panel — full panel audit (search, story bar, folder tabs, archived row, forum topics, saved sublists, drag behaviors)
-
-- [ ] [MAJOR] `_SearchSubFilterRow` photo placeholder uses a `Material Icon` (`Icons.forum_outlined` etc.) instead of the actual avatar/peer photo of the currently selected search-in target. AyuGram renders the peer photo (28px) of the current "search in" context (e.g., group avatar) — `chat_list_panel.dart:3584-3590` ← `AyuGram/dialogs/ui/chat_search_in.cpp` (`dialogsSearchInPhotoSize: 28px`, actual peer userpic)
-
-- [ ] [MAJOR] `_SearchTabsStrip` "Public Posts" tab performs `searchGlobalChats()` only returning channel-type results as fallback, but AyuGram's public posts search uses a dedicated `SearchPostsManager` with a separate server-side posts search endpoint — `chat_list_panel.dart:494-502` ← `AyuGram/dialogs/dialogs_search_posts.cpp`
-
-# chat_list_row — Audit Findings
-
-- [ ] [CRITICAL] `_TypingDotsIndicator._actionLabel` maps `'geo_location'` → `'choosing location'` and `'choose_contact'` → `'choosing contact'`, but AyuGram's `SendActionPainter` falls both `ChooseLocation` and `ChooseContact` through to the generic `tr::lng_typing` / `tr::lng_user_typing` string (same as plain Typing) — `chat_list_row.dart:1269-1272` ← `AyuGram/SourceFiles/history/view/history_view_send_action.cpp:299-302`
-
-- [ ] [MAJOR] Typing indicator always renders three bouncing `"."` text characters regardless of action type; AyuGram uses type-specific graphical animations: `RecordAnimation` (waveform) for `record_video/record_audio/record_round`, `UploadAnimation` (upload bar) for all upload types, `ChooseStickerAnimation` for `choose_sticker`, and only `TypingAnimation` (bouncing dots) for actual typing — `chat_list_row.dart:1326-1354` ← `AyuGram/SourceFiles/ui/effects/send_action_animations.cpp:634-660`
-
-- [ ] [MAJOR] `resolveSwipeAction` does not disable `mute` for self-chat: AyuGram returns `QuickDialogActionLabel::Disabled` when `history->peer->isSelf()` for the Mute action — `chat_list_row.dart:506-507` ← `AyuGram/SourceFiles/dialogs/dialogs_quick_action.cpp:149-152`
-
-- [ ] [MAJOR] `resolveSwipeAction` does not disable `read` for forum chats with no unread: AyuGram returns `Disabled` when `history->isForum() && !unread` for the Read action — `chat_list_row.dart:510-513` ← `AyuGram/SourceFiles/dialogs/dialogs_quick_action.cpp:164-167`
-
-- [ ] [MAJOR] `resolveSwipeAction` does not check `CanArchive` before allowing the archive action: AyuGram calls `Window::CanArchive(history, peer)` and returns `Disabled` if the chat cannot be archived — `chat_list_row.dart:514-515` ← `AyuGram/SourceFiles/dialogs/dialogs_quick_action.cpp:171-177`
-
-- [ ] [MAJOR] Mini-preview gap between thumbnail and text is `4px` (`SizedBox(width: 4)`), but spec is `dialogsMiniPreviewSkip: 2px` — `chat_list_row.dart:400` ← `AyuGram/SourceFiles/dialogs/dialogs.style:546`
-
-- [ ] [MAJOR] `ForumChatListRow` top gap before the name row is `8px` (`SizedBox(height: 8)`), but `forumDialogRow` inherits `nameTop: 10px` from `defaultDialogRow` (not overridden) — `chat_list_row.dart:1864` ← `AyuGram/SourceFiles/dialogs/dialogs.style:98,108`
-
-- [ ] [MAJOR] `_rowHeightWithTags = 96.0` is declared but `effectiveHeight` is always set to `_rowHeight` (80px), so tagged forum rows never expand to 96px; AyuGram uses `taggedForumDialogRow.height: 96px` for forum rows with filter tags — `chat_list_row.dart:1780,1792` ← `AyuGram/SourceFiles/dialogs/dialogs.style:114-116`
-
-- [ ] [MAJOR] `_TopicsPreview` renders `'No topics'` text when `topics.isEmpty`; AyuGram renders no topics-preview widget at all when there are no recent topics (empty topics area shows nothing) — `chat_list_row.dart:2010-2016` ← `AyuGram/SourceFiles/dialogs/ui/dialogs_topics_view.h`
-
-# chat_settings_screen — Audit Results
-
-- [ ] [CRITICAL] Cloud themes have zero backend wiring — `onEditTheme: null` disables editing, theme selection calls `appState.applyTestingTheme()` only with no server sync — `chat_settings_screen.dart:301` ← `AyuGramDesktop/Telegram/SourceFiles/settings/settings_chat.cpp:2780`
-- [ ] [CRITICAL] Reaction chooser uses hardcoded static emoji list instead of loading favorite reaction dynamically from session — `chat_settings_screen.dart:3462` ← `AyuGramDesktop/Telegram/SourceFiles/settings/settings_chat.cpp:1694`
-- [ ] [CRITICAL] Auto-night mode toggle calls `appState.setSystemDarkMode(v)` only — no actual theme switch, no editor-open guard, no `saveSettingsDelayed()` — `chat_settings_screen.dart:333` ← `AyuGramDesktop/Telegram/SourceFiles/settings/settings_chat.cpp:2840`
-- [ ] [CRITICAL] Font family selection sets `appState.customFontFamily` only — no `Local::writeSettings()` and no app restart to apply font change — `chat_settings_screen.dart:1718` ← `AyuGramDesktop/Telegram/SourceFiles/settings/settings_chat.cpp:2876`
-- [ ] [CRITICAL] Sensitive content toggle missing age-verification guard — AyuGram blocks toggle when age verification is needed; Dart has no such check — `chat_settings_screen.dart:426` ← `AyuGramDesktop/Telegram/SourceFiles/settings/settings_privacy_security.cpp:293`
-- [ ] [MAJOR] Chat swipe (quick) action sets `appState.swipeAction` in memory only — no `saveSettings()` call to persist — `chat_settings_screen.dart:377` ← `AyuGramDesktop/Telegram/SourceFiles/settings/settings_chat.cpp:2121`
-- [ ] [MAJOR] Stickers/emoji checkboxes (large emoji, replace emojis, suggest emoji, etc.) update `appState` only — no engine persistence calls — `chat_settings_screen.dart:392` ← `AyuGramDesktop/Telegram/SourceFiles/settings/settings_chat.cpp:1460`
-- [ ] [MAJOR] Messages section settings (send-by, double-click action/reaction, reply button, reaction button) update `appState` only — no `saveSettingsDelayed()` equivalent — `chat_settings_screen.dart:410` ← `AyuGramDesktop/Telegram/SourceFiles/settings/settings_chat.cpp:1646`
-- [ ] [MAJOR] Chat background wallpaper selection has no persistence layer — `appState.setWallpaper()` applied locally only, never saved to Telegram — `chat_settings_screen.dart:125` ← `AyuGramDesktop/Telegram/SourceFiles/settings/settings_chat.cpp:2069`
-- [ ] [MAJOR] Archive settings save fires with no error feedback and no loading indicator during initial fetch — `chat_settings_screen.dart:3692` ← `AyuGramDesktop/Telegram/SourceFiles/settings/settings_chat.cpp:1832`
-
-# chat_switch_overlay — Ctrl+Tab chat switcher overlay
-
-- [ ] [CRITICAL] Forum topic entries not rendered — AyuGram shows a `TopicIconButton` on top of the channel userpic (`chatSwitchUserpicSmall: 24px`) when the thread is a forum topic; Dart renders only a plain circle avatar for all chat types with no topic-icon layer — `chat_switch_overlay.dart:394-418` ← `window/window_chat_switch_process.cpp:99-111`
-
-- [ ] [CRITICAL] Saved sublist dual-userpic not implemented — AyuGram overlays the sublist peer's userpic (40px, `chatSwitchUserpicSublist`) behind the channel userpic (24px, `chatSwitchUserpicSmall`) for saved-sublist threads; Dart renders a single avatar with no secondary peer userpic — `chat_switch_overlay.dart:394-418` ← `window/window_chat_switch_process.cpp:112-127`
-
-- [ ] [MAJOR] Selection border uses wrong color — AyuGram draws the selection rect with `st::defaultRoundCheckbox.bgActive` = `windowBgActive` (#40a7e3, bright fill-blue); Dart uses `p.windowActiveTextFg` (#168acd, text-accent blue); these are distinct semantic colours — `chat_switch_overlay.dart:233` ← `window/window.style:376` + `lib_ui/ui/widgets/widgets.style:1239`
-
-- [ ] [MAJOR] Name label vertical position is ~10px too high — AyuGram places the label by centering it in the space below the userpic: `top = (cell_height + userpic_top + userpic_height − label_height) / 2 ≈ 77.5px`; Dart starts the label at a fixed `userpicTop(8) + userpicSize(56) + SizedBox(4) = 68px`, using top-alignment in the Expanded — `chat_switch_overlay.dart:368-388` ← `window/window_chat_switch_process.cpp:152-155`
-
 # chat_view — Stubs, Missing Wiring, Wrong Behavior
 
 - [ ] [CRITICAL] Star gift purchase is a placeholder stub — button shows toast "Gift purchase requires the official Telegram app." and pops the sheet instead of calling the engine — `chat_view.dart:18129` ← `AyuGram/SourceFiles/boxes/star_gift_box.cpp:3055` (`MTPpayments_SendStarGiftOffer`)
 
-- [ ] [CRITICAL] Bot reply-keyboard `request_location` button shows a toast "Location sharing requires GPS access." instead of sending a geo point — `chat_view.dart:5300` ← `AyuGram/SourceFiles/export/data/export_data_types.cpp:179` (RequestLocation type handled by real geo picker in AyuGram)
-
-- [ ] [CRITICAL] AI Editor Fix and Style modes both call `translateFreeText()` — identical to the Translate mode call with the same `_targetLang` arg, so grammar-fix and restyle both silently translate instead — `chat_view.dart:20697-20718` ← `AyuGram/SourceFiles/` (no `translateFreeText` equivalent for grammar/style exists there; these need separate engine methods)
-
-- [ ] [CRITICAL] Poll-votes corner button is permanently invisible and non-functional: `_showPollVotesBtn` is declared at line 284 but is only ever set to `false` (lines 694, 4553) — never set to `true` anywhere in the file, so the animation controller stays dismissed; additionally the button has `count: 0` hardcoded and uses `_scrollToBottom` as callback instead of scroll-to-first-unread-poll; and the `unreadPollVoteCount` field does not exist anywhere in the Dart model or state — `chat_view.dart:284,694,5004-5007` ← `AyuGram/SourceFiles/history/view/history_view_corner_buttons.cpp:78,154,304-309` (AyuGram reads `thread->unreadPollVotes().loadedCount()` and scrolls to `minLoaded()`)
-
-- [ ] [MAJOR] Bot reply-keyboard `web_view`/`simple_web_view` button opens URLs with `Process.run('xdg-open', [url])` — Linux-only; will silently fail on macOS and Windows where `xdg-open` does not exist — `chat_view.dart:5315` ← `AyuGram/SourceFiles/history/history_item_reply_markup.cpp:13` (uses `bot_attach_web_view.h` / `InlineBotsManager` for cross-platform web-app launch)
-
-- [ ] [MAJOR] Add-contact dialog in `_ContactStatusBar._showAddContactDialog` passes `''` as the phone number to `chatState.addContact()` with a comment "phone unknown from DM context" — the Telegram API `contacts.addContact` requires a valid phone or the `add_phone_privacy_exception` flag, and without a phone the contact is silently saved with no number — `chat_view.dart:9319-9323` ← `AyuGram/SourceFiles/boxes/add_contact_box.cpp:285-330` (AyuGram always presents a phone input field and validates it before calling the API)
+- [ ] [CRITICAL] Poll-votes corner button onTap uses `_scrollToBottom` instead of scroll-to-first-unread-poll — `_showPollVotesBtn` is now wired to `unreadPollCount > 0` and count is dynamic, but `onTap: _scrollToBottom` scrolls to the bottom of the chat instead of to `minLoaded()` unread poll — `chat_view.dart:5049` ← `AyuGram/SourceFiles/history/view/history_view_corner_buttons.cpp:304-309`
 
 # choose_datetime_box — Calendar + Schedule + TimePicker audit
 
 - [ ] [CRITICAL] `_onRepeatTap` shows `SnackBar("Subscribe to Telegram Premium…")` for non-premium users instead of `ShowPremiumPromoToast` with a clickable link to the premium subscription page — `choose_datetime_box.dart:942-948` ← `AyuGramDesktop/Telegram/SourceFiles/history/view/history_view_schedule_box.cpp:129-144`
-
-- [ ] [CRITICAL] `_DayCell` registers `widget.onTap` on **both** the outer `GestureDetector` (line 693) **and** the inner `InkWell` (line 701); in Flutter's gesture arena these compete — the InkWell ripple never plays (outer wins) or `Navigator.pop()` fires twice (double-pop crashes) — `choose_datetime_box.dart:691-701` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:820-911` (single click-through via `mouseReleaseEvent`)
-
-- [ ] [MAJOR] Calendar day grid shows empty `SizedBox` for leading cells before the 1st of the month; AyuGram renders those cells as grayed-out days from the previous month (`grayedOut = index < 0 || index >= daysCount`, drawn in `_styleColors.dayTextGrayedOutColor`) — `choose_datetime_box.dart:408-411` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:820-911`
-
-- [ ] [MAJOR] Calendar box "Cancel" button label is wrong; AyuGram uses `tr::lng_close()` ("Close"), not "Cancel" — `choose_datetime_box.dart:385-389` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:1433`
-
-- [ ] [MAJOR] Month/Year picker confirm button says "OK"; AyuGram uses `tr::lng_gift_menu_show()` ("Show") — `choose_datetime_box.dart:586-593` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:180`
-
-- [ ] [MAJOR] Navigation arrows (`_NavArrow`) have no hover tooltip; AyuGram shows "To the beginning" / "To the end" tooltips after `kTooltipDelay = 350 ms` hover and triggers a long-press jump after `kJumpDelay = 700 ms` — `choose_datetime_box.dart:598-631` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:35-36,1241-1265,1314-1321`
 
 # engine_service — Bridge/Engine Service Layer
 
