@@ -2563,6 +2563,12 @@ class EngineService {
     return {
       'free_limit': data['free_limit'] as int? ?? 10,
       'premium_limit': data['premium_limit'] as int? ?? 20,
+      'chats_per_folder_free': data['chats_per_folder_free'] as int? ?? 100,
+      'chats_per_folder_premium': data['chats_per_folder_premium'] as int? ?? 200,
+      'shared_folders_free': data['shared_folders_free'] as int? ?? 2,
+      'shared_folders_premium': data['shared_folders_premium'] as int? ?? 20,
+      'links_per_folder_free': data['links_per_folder_free'] as int? ?? 3,
+      'links_per_folder_premium': data['links_per_folder_premium'] as int? ?? 20,
     };
   }
 

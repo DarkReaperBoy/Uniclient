@@ -18110,6 +18110,48 @@ func (t *TelegramCore) GetFolderLimits() (freeLimit, premiumLimit int, err error
 	return freeLimit, premiumLimit, nil
 }
 
+func (t *TelegramCore) GetAllFolderLimits() (map[string]int, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	limits := map[string]int{
+		"free_limit": 10, "premium_limit": 20,
+		"chats_per_folder_free": 100, "chats_per_folder_premium": 200,
+		"shared_folders_free": 2, "shared_folders_premium": 20,
+		"links_per_folder_free": 3, "links_per_folder_premium": 20,
+	}
+	if !t.authed || t.api == nil { return limits, ErrAuth }
+	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	if err != nil { return limits, nil }
+	cfg, ok := result.(*tg.HelpAppConfig)
+	if !ok { return limits, nil }
+	if jv := cfg.Config; jv != nil {
+		if obj, ok2 := jv.(*tg.JSONObject); ok2 {
+			for _, kv := range obj.Value {
+				if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 {
+					switch kv.Key {
+					case "dialog_filters_limit_default":
+						limits["free_limit"] = int(n.Value)
+					case "dialog_filters_limit_premium":
+						limits["premium_limit"] = int(n.Value)
+					case "dialog_filters_chats_limit_default":
+						limits["chats_per_folder_free"] = int(n.Value)
+					case "dialog_filters_chats_limit_premium":
+						limits["chats_per_folder_premium"] = int(n.Value)
+					case "chatlist_invites_limit_default":
+						limits["links_per_folder_free"] = int(n.Value)
+					case "chatlist_invites_limit_premium":
+						limits["links_per_folder_premium"] = int(n.Value)
+					case "chatlists_joined_limit_default":
+						limits["shared_folders_free"] = int(n.Value)
+					case "chatlists_joined_limit_premium":
+						limits["shared_folders_premium"] = int(n.Value)
+					}
+				}
+			}
+		}
+	}
+	return limits, nil
+}
+
 func (t *TelegramCore) GetPublicLinksLimits() (freeLimit, premiumLimit int, err error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return 10, 20, ErrAuth }

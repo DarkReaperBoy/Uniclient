@@ -1892,6 +1892,10 @@ type folderLimitsGetter interface {
 	GetFolderLimits() (int, int, error)
 }
 
+type allFolderLimitsGetter interface {
+	GetAllFolderLimits() (map[string]int, error)
+}
+
 func (e *Engine) GetFolderLimits(accountID string) (int, int, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1902,6 +1906,36 @@ func (e *Engine) GetFolderLimits(accountID string) (int, int, error) {
 		return 10, 20, nil
 	}
 	return g.GetFolderLimits()
+}
+
+func (e *Engine) GetAllFolderLimits(accountID string) (map[string]int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return map[string]int{
+			"free_limit": 10, "premium_limit": 20,
+			"chats_per_folder_free": 100, "chats_per_folder_premium": 200,
+			"shared_folders_free": 2, "shared_folders_premium": 20,
+			"links_per_folder_free": 3, "links_per_folder_premium": 20,
+		}, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(allFolderLimitsGetter)
+	if ok {
+		return g.GetAllFolderLimits()
+	}
+	defaults := map[string]int{
+		"free_limit": 10, "premium_limit": 20,
+		"chats_per_folder_free": 100, "chats_per_folder_premium": 200,
+		"shared_folders_free": 2, "shared_folders_premium": 20,
+		"links_per_folder_free": 3, "links_per_folder_premium": 20,
+	}
+	if fg, ok2 := acc.Core.(folderLimitsGetter); ok2 {
+		free, prem, err := fg.GetFolderLimits()
+		if err == nil {
+			defaults["free_limit"] = free
+			defaults["premium_limit"] = prem
+		}
+	}
+	return defaults, nil
 }
 
 type publicLinksLimitsGetter interface {

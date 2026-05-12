@@ -67,6 +67,12 @@ class ChatState extends ChangeNotifier {
   bool _useVerticalFilters = true;
   int _folderLimitFree = 10;
   int _folderLimitPremium = 20;
+  int _chatsPerFolderFree = 100;
+  int _chatsPerFolderPremium = 200;
+  int _sharedFoldersFree = 2;
+  int _sharedFoldersPremium = 20;
+  int _linksPerFolderFree = 3;
+  int _linksPerFolderPremium = 20;
 
   void Function(NotificationData data)? onNotification;
 
@@ -611,6 +617,12 @@ class ChatState extends ChangeNotifier {
 
   int get folderLimitFree => _folderLimitFree;
   int get folderLimitPremium => _folderLimitPremium;
+  int get chatsPerFolderFree => _chatsPerFolderFree;
+  int get chatsPerFolderPremium => _chatsPerFolderPremium;
+  int get sharedFoldersFree => _sharedFoldersFree;
+  int get sharedFoldersPremium => _sharedFoldersPremium;
+  int get linksPerFolderFree => _linksPerFolderFree;
+  int get linksPerFolderPremium => _linksPerFolderPremium;
 
   bool get showFolderTags => _showFolderTags;
   set showFolderTags(bool v) {
@@ -852,6 +864,12 @@ class ChatState extends ChangeNotifier {
       final limits = await _engine.getFolderLimits(accountId);
       _folderLimitFree = limits['free_limit'] ?? 10;
       _folderLimitPremium = limits['premium_limit'] ?? 20;
+      _chatsPerFolderFree = limits['chats_per_folder_free'] ?? 100;
+      _chatsPerFolderPremium = limits['chats_per_folder_premium'] ?? 200;
+      _sharedFoldersFree = limits['shared_folders_free'] ?? 2;
+      _sharedFoldersPremium = limits['shared_folders_premium'] ?? 20;
+      _linksPerFolderFree = limits['links_per_folder_free'] ?? 3;
+      _linksPerFolderPremium = limits['links_per_folder_premium'] ?? 20;
     } catch (_) {}
   }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show File;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -181,14 +182,8 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
     });
   }
 
-  static const int _folderLimitFree = 10;
-  static const int _folderLimitPremium = 20;
-  static const int _chatsPerFolderFree = 100;
-  static const int _chatsPerFolderPremium = 200;
-  static const int _shareableFoldersFree = 2;
-  static const int _shareableFoldersPremium = 20;
-  static const int _linksPerFolderFree = 3;
-  static const int _linksPerFolderPremium = 20;
+  int get _folderLimitFree => context.read<ChatState>().folderLimitFree;
+  int get _folderLimitPremium => context.read<ChatState>().folderLimitPremium;
 
   void _onCreateFolder(bool isDark, Color accentColor) {
     final isPremium = context.read<AppState>().activeAccount?.isPremium ?? false;
@@ -1025,8 +1020,15 @@ class _TagsToggleState extends State<_TagsToggle> {
         ),
         actions: [
           TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _showPremiumPurchaseDialog(context, widget.isDark);
+            },
+            child: Text('Subscribe to Premium', style: TextStyle(color: const Color(0xFFCB7DFF))),
+          ),
+          TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('OK', style: TextStyle(color: accentColor)),
+            child: Text('Close', style: TextStyle(color: accentColor)),
           ),
         ],
       ),
@@ -1224,6 +1226,8 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   int _colorIndex = -1;
   List<ChatlistInviteLink> _inviteLinks = [];
   bool _loadingLinks = false;
+  List<String> _includedChatIds = [];
+  List<String> _excludedChatIds = [];
 
   static const _allIncludeTypes = <_PreviewTypeInfo>[
     _PreviewTypeInfo('newChats', 'New Chats', Icons.fiber_new, Color(0xFF7bc862)),
@@ -1259,6 +1263,8 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       _excludeArchived = f.excludeArchived;
       _userTyped = f.name.isNotEmpty;
       _colorIndex = f.colorIndex;
+      _includedChatIds = List<String>.from(f.chatIds);
+      _excludedChatIds = List<String>.from(f.excludeChatIds);
     }
     if (widget.isEditMode) {
       _loadInviteLinks();
@@ -1465,8 +1471,8 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     final chatState = context.read<ChatState>();
     final shareableCount = chatState.folders.where((fo) => fo.isChatList).length;
     final shareLimit = isPremium
-        ? _FoldersSettingsScreenState._shareableFoldersPremium
-        : _FoldersSettingsScreenState._shareableFoldersFree;
+        ? chatState.sharedFoldersPremium
+        : chatState.sharedFoldersFree;
     if (!f.isChatList && shareableCount >= shareLimit) {
       showDialog(
         context: context,
@@ -1474,21 +1480,21 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
           isDark: isDark,
           title: 'Shareable Folder Limit',
           current: shareableCount,
-          limitFree: _FoldersSettingsScreenState._shareableFoldersFree,
-          limitPremium: _FoldersSettingsScreenState._shareableFoldersPremium,
+          limitFree: chatState.sharedFoldersFree,
+          limitPremium: chatState.sharedFoldersPremium,
           isPremium: isPremium,
           icon: Icons.share_outlined,
           description: isPremium
               ? 'You have $shareableCount shareable folders, the maximum is $shareLimit.'
-              : 'You can share up to $shareLimit folders for free. Subscribe to Premium for up to ${_FoldersSettingsScreenState._shareableFoldersPremium}.',
+              : 'You can share up to $shareLimit folders for free. Subscribe to Premium for up to ${chatState.sharedFoldersPremium}.',
         ),
       );
       return;
     }
 
     final linkLimit = isPremium
-        ? _FoldersSettingsScreenState._linksPerFolderPremium
-        : _FoldersSettingsScreenState._linksPerFolderFree;
+        ? chatState.linksPerFolderPremium
+        : chatState.linksPerFolderFree;
     if (_inviteLinks.length >= linkLimit) {
       showDialog(
         context: context,
@@ -1496,13 +1502,13 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
           isDark: isDark,
           title: 'Link Limit Reached',
           current: _inviteLinks.length,
-          limitFree: _FoldersSettingsScreenState._linksPerFolderFree,
-          limitPremium: _FoldersSettingsScreenState._linksPerFolderPremium,
+          limitFree: chatState.linksPerFolderFree,
+          limitPremium: chatState.linksPerFolderPremium,
           isPremium: isPremium,
           icon: Icons.link,
           description: isPremium
               ? 'This folder has ${_inviteLinks.length} links, the maximum is $linkLimit.'
-              : 'You can create up to $linkLimit links per folder for free. Subscribe to Premium for up to ${_FoldersSettingsScreenState._linksPerFolderPremium}.',
+              : 'You can create up to $linkLimit links per folder for free. Subscribe to Premium for up to ${chatState.linksPerFolderPremium}.',
         ),
       );
       return;
@@ -1584,7 +1590,10 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   }
 
   void _openExcludeTypePicker() {
-    showDialog<Map<String, bool>>(
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccount?.id ?? '';
+    final allChats = context.read<ChatState>().chatsForAccount(accountId);
+    showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _ExcludeTypePicker(
@@ -1593,13 +1602,16 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
         excludeMuted: _excludeMuted,
         excludeArchived: _excludeArchived,
         excludeRead: _excludeRead,
+        selectedChatIds: _excludedChatIds,
+        allChats: allChats,
       ),
     ).then((result) {
       if (result != null && mounted) {
         setState(() {
-          _excludeMuted = result['excludeMuted'] ?? _excludeMuted;
-          _excludeArchived = result['excludeArchived'] ?? _excludeArchived;
-          _excludeRead = result['excludeRead'] ?? _excludeRead;
+          _excludeMuted = result['excludeMuted'] as bool? ?? _excludeMuted;
+          _excludeArchived = result['excludeArchived'] as bool? ?? _excludeArchived;
+          _excludeRead = result['excludeRead'] as bool? ?? _excludeRead;
+          _excludedChatIds = (result['chatIds'] as List<String>?) ?? _excludedChatIds;
           _updateAutoTitle();
         });
       }
@@ -1608,7 +1620,10 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
 
   void _openIncludeTypePicker() {
     final isChatList = widget.existingFolder?.isChatList ?? false;
-    showDialog<Map<String, bool>>(
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccount?.id ?? '';
+    final allChats = context.read<ChatState>().chatsForAccount(accountId);
+    showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _IncludeTypePicker(
@@ -1622,17 +1637,20 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
         groups: _groups,
         channels: _channels,
         bots: _bots,
+        selectedChatIds: _includedChatIds,
+        allChats: allChats,
       ),
     ).then((result) {
       if (result != null && mounted) {
         setState(() {
-          _newChats = result['newChats'] ?? _newChats;
-          _existingChats = result['existingChats'] ?? _existingChats;
-          _contacts = result['contacts'] ?? _contacts;
-          _nonContacts = result['nonContacts'] ?? _nonContacts;
-          _groups = result['groups'] ?? _groups;
-          _channels = result['channels'] ?? _channels;
-          _bots = result['bots'] ?? _bots;
+          _newChats = result['newChats'] as bool? ?? _newChats;
+          _existingChats = result['existingChats'] as bool? ?? _existingChats;
+          _contacts = result['contacts'] as bool? ?? _contacts;
+          _nonContacts = result['nonContacts'] as bool? ?? _nonContacts;
+          _groups = result['groups'] as bool? ?? _groups;
+          _channels = result['channels'] as bool? ?? _channels;
+          _bots = result['bots'] as bool? ?? _bots;
+          _includedChatIds = (result['chatIds'] as List<String>?) ?? _includedChatIds;
           _updateAutoTitle();
         });
       }
@@ -1644,8 +1662,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     final hasIncludeTypes =
         _contacts || _nonContacts || _groups || _channels || _bots ||
         _newChats || _existingChats;
-    final hasIncludeChats =
-        widget.existingFolder?.chatIds.isNotEmpty ?? false;
+    final hasIncludeChats = _includedChatIds.isNotEmpty;
 
     if (name.isEmpty || name.characters.length > 12) {
       setState(() {
@@ -1670,11 +1687,10 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       return;
     }
     final existing = widget.existingFolder;
-    final chatCount = existing?.chatIds.length ?? 0;
+    final chatCount = _includedChatIds.length;
     final isPremium = context.read<AppState>().activeAccount?.isPremium ?? false;
-    final chatLimit = isPremium
-        ? _FoldersSettingsScreenState._chatsPerFolderPremium
-        : _FoldersSettingsScreenState._chatsPerFolderFree;
+    final cs = context.read<ChatState>();
+    final chatLimit = isPremium ? cs.chatsPerFolderPremium : cs.chatsPerFolderFree;
     if (chatCount > chatLimit) {
       showDialog(
         context: context,
@@ -1682,13 +1698,13 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
           isDark: widget.isDark,
           title: 'Chat Limit Reached',
           current: chatCount,
-          limitFree: _FoldersSettingsScreenState._chatsPerFolderFree,
-          limitPremium: _FoldersSettingsScreenState._chatsPerFolderPremium,
+          limitFree: cs.chatsPerFolderFree,
+          limitPremium: cs.chatsPerFolderPremium,
           isPremium: isPremium,
           icon: Icons.chat_outlined,
           description: isPremium
               ? 'This folder contains $chatCount chats, exceeding the limit of $chatLimit.'
-              : 'This folder contains $chatCount chats, exceeding the free limit of $chatLimit. Subscribe to Premium for up to ${_FoldersSettingsScreenState._chatsPerFolderPremium}.',
+              : 'This folder contains $chatCount chats, exceeding the free limit of $chatLimit. Subscribe to Premium for up to ${cs.chatsPerFolderPremium}.',
         ),
       );
       return;
@@ -1696,8 +1712,8 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     Navigator.of(context).pop(FolderInfo(
       id: existing?.id ?? '',
       name: name,
-      chatIds: existing?.chatIds ?? const [],
-      excludeChatIds: existing?.excludeChatIds ?? const [],
+      chatIds: _includedChatIds,
+      excludeChatIds: _excludedChatIds,
       pinnedChatIds: existing?.pinnedChatIds ?? const [],
       contacts: _contacts,
       nonContacts: _nonContacts,
@@ -1883,6 +1899,12 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                         textColor: textColor,
                         onRemove: _removeIncludeType,
                       ),
+                      _SelectedChatsPreview(
+                        chatIds: _includedChatIds,
+                        isDark: widget.isDark,
+                        textColor: textColor,
+                        onRemove: (id) => setState(() => _includedChatIds.remove(id)),
+                      ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
                         child: Text(
@@ -1913,6 +1935,12 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                           isDark: widget.isDark,
                           textColor: textColor,
                           onRemove: _removeExcludeType,
+                        ),
+                        _SelectedChatsPreview(
+                          chatIds: _excludedChatIds,
+                          isDark: widget.isDark,
+                          textColor: textColor,
+                          onRemove: (id) => setState(() => _excludedChatIds.remove(id)),
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
@@ -3679,6 +3707,8 @@ class _IncludeTypePicker extends StatefulWidget {
   final bool groups;
   final bool channels;
   final bool bots;
+  final List<String> selectedChatIds;
+  final List<ChatInfo> allChats;
 
   const _IncludeTypePicker({
     required this.isDark,
@@ -3691,6 +3721,8 @@ class _IncludeTypePicker extends StatefulWidget {
     required this.groups,
     required this.channels,
     required this.bots,
+    required this.selectedChatIds,
+    required this.allChats,
   });
 
   @override
@@ -3705,6 +3737,9 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
   late bool _groups;
   late bool _channels;
   late bool _bots;
+  late Set<String> _selectedIds;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -3716,23 +3751,21 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
     _groups = widget.groups;
     _channels = widget.channels;
     _bots = widget.bots;
+    _selectedIds = Set<String>.from(widget.selectedChatIds);
   }
 
-  int get _selectedCount {
-    int c = 0;
-    if (widget.isChatList) {
-      if (_newChats) c++;
-      if (_existingChats) c++;
-    }
-    if (_contacts) c++;
-    if (_nonContacts) c++;
-    if (_groups) c++;
-    if (_channels) c++;
-    if (_bots) c++;
-    return c;
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  int get _limit => widget.isChatList ? 7 : 5;
+  List<ChatInfo> get _filteredChats {
+    final q = _searchQuery.toLowerCase();
+    final chats = widget.allChats.where((c) => !c.isArchived);
+    if (q.isEmpty) return chats.toList();
+    return chats.where((c) => c.title.toLowerCase().contains(q)).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3743,10 +3776,10 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
     final subtextColor = widget.isDark
         ? const Color(0xFF6C7883)
         : const Color(0xFF999999);
-    final searchedBarBg = widget.isDark
+    final searchBarBg = widget.isDark
         ? const Color(0xFF213240)
         : const Color(0xFFE2E7EB);
-    final searchedBarFg = widget.isDark
+    final searchBarFg = widget.isDark
         ? const Color(0xFF6C818D)
         : const Color(0xFF88949E);
 
@@ -3755,155 +3788,142 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: SizedBox(
         width: 364,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 18, 22, 14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Include Chats',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
-                      ),
-                    ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 18, 22, 10),
+                child: Text(
+                  'Include Chats',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
                   ),
-                  Text(
-                    '$_selectedCount/$_limit',
-                    style: TextStyle(fontSize: 13, color: subtextColor),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              height: 28,
-              color: searchedBarBg,
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.symmetric(horizontal: 22),
-              child: Text(
-                'Chat types',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: searchedBarFg,
                 ),
               ),
-            ),
-            if (widget.isChatList) ...[
-              _TypeToggleRow(
-                label: 'New Chats',
-                icon: Icons.fiber_new,
-                color: const Color(0xFF7bc862),
-                value: _newChats,
-                isDark: widget.isDark,
-                textColor: textColor,
-                onChanged: (v) => setState(() => _newChats = v),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 10),
+                child: SizedBox(
+                  height: 34,
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                    style: TextStyle(fontSize: 13, color: textColor),
+                    decoration: InputDecoration(
+                      hintText: 'Search',
+                      hintStyle: TextStyle(fontSize: 13, color: subtextColor),
+                      prefixIcon: Icon(Icons.search, size: 18, color: subtextColor),
+                      filled: true,
+                      fillColor: searchBarBg,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                    ),
+                  ),
+                ),
               ),
-              _TypeToggleRow(
-                label: 'Existing Chats',
-                icon: Icons.chat_bubble,
-                color: const Color(0xFF40a7e3),
-                value: _existingChats,
-                isDark: widget.isDark,
-                textColor: textColor,
-                onChanged: (v) => setState(() => _existingChats = v),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    if (_searchQuery.isEmpty) ...[
+                      Container(
+                        height: 28,
+                        color: searchBarBg,
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                        child: Text(
+                          'Chat types',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg),
+                        ),
+                      ),
+                      if (widget.isChatList) ...[
+                        _TypeToggleRow(label: 'New Chats', icon: Icons.fiber_new, color: const Color(0xFF7bc862), value: _newChats, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _newChats = v)),
+                        _TypeToggleRow(label: 'Existing Chats', icon: Icons.chat_bubble, color: const Color(0xFF40a7e3), value: _existingChats, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _existingChats = v)),
+                      ],
+                      _TypeToggleRow(label: 'Contacts', icon: Icons.person, color: const Color(0xFF7bc862), value: _contacts, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _contacts = v)),
+                      _TypeToggleRow(label: 'Non-Contacts', icon: Icons.person_outline, color: const Color(0xFF6ec9cb), value: _nonContacts, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _nonContacts = v)),
+                      _TypeToggleRow(label: 'Groups', icon: Icons.group, color: const Color(0xFF7bc862), value: _groups, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _groups = v)),
+                      _TypeToggleRow(label: 'Channels', icon: Icons.campaign, color: const Color(0xFFe17076), value: _channels, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _channels = v)),
+                      _TypeToggleRow(label: 'Bots', icon: Icons.smart_toy, color: const Color(0xFFa695e7), value: _bots, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _bots = v)),
+                    ],
+                    Container(
+                      height: 28,
+                      color: searchBarBg,
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 22),
+                      child: Text(
+                        'Chats',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg),
+                      ),
+                    ),
+                    for (final chat in _filteredChats)
+                      _ChatToggleRow(
+                        chat: chat,
+                        selected: _selectedIds.contains(chat.chatId),
+                        isDark: widget.isDark,
+                        textColor: textColor,
+                        onChanged: (v) {
+                          setState(() {
+                            if (v) { _selectedIds.add(chat.chatId); }
+                            else { _selectedIds.remove(chat.chatId); }
+                          });
+                        },
+                      ),
+                    if (_filteredChats.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(22),
+                        child: Text(
+                          _searchQuery.isEmpty ? 'No chats available' : 'No chats matching "$_searchQuery"',
+                          style: TextStyle(fontSize: 13, color: subtextColor),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('Cancel', style: TextStyle(color: subtextColor, fontSize: 14)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(<String, dynamic>{
+                        'newChats': _newChats,
+                        'existingChats': _existingChats,
+                        'contacts': _contacts,
+                        'nonContacts': _nonContacts,
+                        'groups': _groups,
+                        'channels': _channels,
+                        'bots': _bots,
+                        'chatIds': _selectedIds.toList(),
+                      }),
+                      style: TextButton.styleFrom(
+                        backgroundColor: widget.accentColor,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                      child: const Text('Done', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                    ),
+                  ],
+                ),
               ),
             ],
-            _TypeToggleRow(
-              label: 'Contacts',
-              icon: Icons.person,
-              color: const Color(0xFF7bc862),
-              value: _contacts,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => setState(() => _contacts = v),
-            ),
-            _TypeToggleRow(
-              label: 'Non-Contacts',
-              icon: Icons.person_outline,
-              color: const Color(0xFF6ec9cb),
-              value: _nonContacts,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => setState(() => _nonContacts = v),
-            ),
-            _TypeToggleRow(
-              label: 'Groups',
-              icon: Icons.group,
-              color: const Color(0xFF7bc862),
-              value: _groups,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => setState(() => _groups = v),
-            ),
-            _TypeToggleRow(
-              label: 'Channels',
-              icon: Icons.campaign,
-              color: const Color(0xFFe17076),
-              value: _channels,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => setState(() => _channels = v),
-            ),
-            _TypeToggleRow(
-              label: 'Bots',
-              icon: Icons.smart_toy,
-              color: const Color(0xFFa695e7),
-              value: _bots,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => setState(() => _bots = v),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(color: subtextColor, fontSize: 14),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop({
-                      'newChats': _newChats,
-                      'existingChats': _existingChats,
-                      'contacts': _contacts,
-                      'nonContacts': _nonContacts,
-                      'groups': _groups,
-                      'channels': _channels,
-                      'bots': _bots,
-                    }),
-                    style: TextButton.styleFrom(
-                      backgroundColor: widget.accentColor,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    child: const Text(
-                      'Done',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -3916,6 +3936,8 @@ class _ExcludeTypePicker extends StatefulWidget {
   final bool excludeMuted;
   final bool excludeArchived;
   final bool excludeRead;
+  final List<String> selectedChatIds;
+  final List<ChatInfo> allChats;
 
   const _ExcludeTypePicker({
     required this.isDark,
@@ -3923,6 +3945,8 @@ class _ExcludeTypePicker extends StatefulWidget {
     required this.excludeMuted,
     required this.excludeArchived,
     required this.excludeRead,
+    required this.selectedChatIds,
+    required this.allChats,
   });
 
   @override
@@ -3933,6 +3957,9 @@ class _ExcludeTypePickerState extends State<_ExcludeTypePicker> {
   late bool _excludeMuted;
   late bool _excludeArchived;
   late bool _excludeRead;
+  late Set<String> _selectedIds;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -3940,14 +3967,20 @@ class _ExcludeTypePickerState extends State<_ExcludeTypePicker> {
     _excludeMuted = widget.excludeMuted;
     _excludeArchived = widget.excludeArchived;
     _excludeRead = widget.excludeRead;
+    _selectedIds = Set<String>.from(widget.selectedChatIds);
   }
 
-  int get _selectedCount {
-    int c = 0;
-    if (_excludeMuted) c++;
-    if (_excludeArchived) c++;
-    if (_excludeRead) c++;
-    return c;
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<ChatInfo> get _filteredChats {
+    final q = _searchQuery.toLowerCase();
+    final chats = widget.allChats.where((c) => !c.isArchived);
+    if (q.isEmpty) return chats.toList();
+    return chats.where((c) => c.title.toLowerCase().contains(q)).toList();
   }
 
   @override
@@ -3959,10 +3992,10 @@ class _ExcludeTypePickerState extends State<_ExcludeTypePicker> {
     final subtextColor = widget.isDark
         ? const Color(0xFF6C7883)
         : const Color(0xFF999999);
-    final searchedBarBg = widget.isDark
+    final searchBarBg = widget.isDark
         ? const Color(0xFF213240)
         : const Color(0xFFE2E7EB);
-    final searchedBarFg = widget.isDark
+    final searchBarFg = widget.isDark
         ? const Color(0xFF6C818D)
         : const Color(0xFF88949E);
 
@@ -3971,113 +4004,330 @@ class _ExcludeTypePickerState extends State<_ExcludeTypePicker> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: SizedBox(
         width: 364,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 18, 22, 14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Exclude Chats',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
-                      ),
-                    ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 18, 22, 10),
+                child: Text(
+                  'Exclude Chats',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
                   ),
-                  Text(
-                    '$_selectedCount/3',
-                    style: TextStyle(fontSize: 13, color: subtextColor),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              height: 28,
-              color: searchedBarBg,
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.symmetric(horizontal: 22),
-              child: Text(
-                'Chat types',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: searchedBarFg,
                 ),
               ),
-            ),
-            _TypeToggleRow(
-              label: 'Muted',
-              icon: Icons.volume_off,
-              color: const Color(0xFFa695e7),
-              value: _excludeMuted,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => setState(() => _excludeMuted = v),
-            ),
-            _TypeToggleRow(
-              label: 'Archived',
-              icon: Icons.archive,
-              color: const Color(0xFF7bc862),
-              value: _excludeArchived,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => setState(() => _excludeArchived = v),
-            ),
-            _TypeToggleRow(
-              label: 'Read',
-              icon: Icons.done_all,
-              color: const Color(0xFF6ec9cb),
-              value: _excludeRead,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => setState(() => _excludeRead = v),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(color: subtextColor, fontSize: 14),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 10),
+                child: SizedBox(
+                  height: 34,
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                    style: TextStyle(fontSize: 13, color: textColor),
+                    decoration: InputDecoration(
+                      hintText: 'Search',
+                      hintStyle: TextStyle(fontSize: 13, color: subtextColor),
+                      prefixIcon: Icon(Icons.search, size: 18, color: subtextColor),
+                      filled: true,
+                      fillColor: searchBarBg,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop({
-                      'excludeMuted': _excludeMuted,
-                      'excludeArchived': _excludeArchived,
-                      'excludeRead': _excludeRead,
-                    }),
-                    style: TextButton.styleFrom(
-                      backgroundColor: widget.accentColor,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    child: const Text(
-                      'Done',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    if (_searchQuery.isEmpty) ...[
+                      Container(
+                        height: 28,
+                        color: searchBarBg,
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                        child: Text(
+                          'Chat types',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg),
+                        ),
+                      ),
+                      _TypeToggleRow(label: 'Muted', icon: Icons.volume_off, color: const Color(0xFFa695e7), value: _excludeMuted, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _excludeMuted = v)),
+                      _TypeToggleRow(label: 'Archived', icon: Icons.archive, color: const Color(0xFF7bc862), value: _excludeArchived, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _excludeArchived = v)),
+                      _TypeToggleRow(label: 'Read', icon: Icons.done_all, color: const Color(0xFF6ec9cb), value: _excludeRead, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _excludeRead = v)),
+                    ],
+                    Container(
+                      height: 28,
+                      color: searchBarBg,
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 22),
+                      child: Text(
+                        'Chats',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg),
+                      ),
+                    ),
+                    for (final chat in _filteredChats)
+                      _ChatToggleRow(
+                        chat: chat,
+                        selected: _selectedIds.contains(chat.chatId),
+                        isDark: widget.isDark,
+                        textColor: textColor,
+                        onChanged: (v) {
+                          setState(() {
+                            if (v) { _selectedIds.add(chat.chatId); }
+                            else { _selectedIds.remove(chat.chatId); }
+                          });
+                        },
+                      ),
+                    if (_filteredChats.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(22),
+                        child: Text(
+                          _searchQuery.isEmpty ? 'No chats available' : 'No chats matching "$_searchQuery"',
+                          style: TextStyle(fontSize: 13, color: subtextColor),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('Cancel', style: TextStyle(color: subtextColor, fontSize: 14)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(<String, dynamic>{
+                        'excludeMuted': _excludeMuted,
+                        'excludeArchived': _excludeArchived,
+                        'excludeRead': _excludeRead,
+                        'chatIds': _selectedIds.toList(),
+                      }),
+                      style: TextButton.styleFrom(
+                        backgroundColor: widget.accentColor,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                      child: const Text('Done', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatToggleRow extends StatelessWidget {
+  final ChatInfo chat;
+  final bool selected;
+  final bool isDark;
+  final Color textColor;
+  final ValueChanged<bool> onChanged;
+
+  const _ChatToggleRow({
+    required this.chat,
+    required this.selected,
+    required this.isDark,
+    required this.textColor,
+    required this.onChanged,
+  });
+
+  IconData get _chatIcon {
+    if (chat.isBot) return Icons.smart_toy;
+    switch (chat.type) {
+      case ChatType.dm: return Icons.person;
+      case ChatType.group: return Icons.group;
+      case ChatType.channel: return Icons.campaign;
+      default: return Icons.chat;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onChanged(!selected),
+        hoverColor: hoverColor,
+        child: SizedBox(
+          height: 44,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(13, 5, 16, 5),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isDark ? const Color(0xFF3A4A5A) : const Color(0xFFE0E0E0),
+                  ),
+                  child: chat.avatarPath.isNotEmpty && File(chat.avatarPath).existsSync()
+                      ? ClipOval(child: Image.file(
+                          File(chat.avatarPath),
+                          fit: BoxFit.cover, width: 34, height: 34,
+                          errorBuilder: (_, __, ___) => Icon(_chatIcon, size: 18, color: subtextColor),
+                        ))
+                      : Icon(_chatIcon, size: 18, color: subtextColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    chat.title,
+                    style: TextStyle(fontSize: 14, color: textColor),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Checkbox(
+                    value: selected,
+                    onChanged: (v) => onChanged(v ?? false),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectedChatsPreview extends StatelessWidget {
+  final List<String> chatIds;
+  final bool isDark;
+  final Color textColor;
+  final ValueChanged<String> onRemove;
+
+  const _SelectedChatsPreview({
+    required this.chatIds,
+    required this.isDark,
+    required this.textColor,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (chatIds.isEmpty) return const SizedBox.shrink();
+    final chatState = context.watch<ChatState>();
+    final accountChats = chatState.chats;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final id in chatIds)
+          _SelectedChatRow(
+            chatId: id,
+            chatName: accountChats.where((c) => c.chatId == id).firstOrNull?.title ?? id,
+            isDark: isDark,
+            textColor: textColor,
+            onRemove: () => onRemove(id),
+          ),
+      ],
+    );
+  }
+}
+
+class _SelectedChatRow extends StatefulWidget {
+  final String chatId;
+  final String chatName;
+  final bool isDark;
+  final Color textColor;
+  final VoidCallback onRemove;
+
+  const _SelectedChatRow({
+    required this.chatId,
+    required this.chatName,
+    required this.isDark,
+    required this.textColor,
+    required this.onRemove,
+  });
+
+  @override
+  State<_SelectedChatRow> createState() => _SelectedChatRowState();
+}
+
+class _SelectedChatRowState extends State<_SelectedChatRow> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final removeBtnColor = widget.isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+    final hoverColor = widget.isDark
+        ? const Color(0xFF202B36)
+        : const Color(0xFFF1F1F1);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Container(
+        height: 44,
+        color: _hovering ? hoverColor : Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(13, 5, 10, 5),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: widget.isDark ? const Color(0xFF3A4A5A) : const Color(0xFFE0E0E0),
+                ),
+                child: const Icon(Icons.person, size: 18, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  widget.chatName,
+                  style: TextStyle(fontSize: 14, color: widget.textColor),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+              SizedBox(
+                width: 34,
+                height: 34,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: widget.onRemove,
+                    customBorder: const CircleBorder(),
+                    child: Center(
+                      child: Icon(Icons.close, size: 16, color: removeBtnColor),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -4488,7 +4738,10 @@ class _SimpleLimitBoxState extends State<SimpleLimitBox>
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _showPremiumPurchaseDialog(context, widget.isDark);
+                      },
                     ),
                   ),
                 ),
@@ -4506,6 +4759,53 @@ class _SimpleLimitBoxState extends State<SimpleLimitBox>
       ),
     );
   }
+}
+
+void _showPremiumPurchaseDialog(BuildContext context, bool isDark) {
+  final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+  final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+  final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+  final premiumColor = const Color(0xFFCB7DFF);
+
+  showDialog(
+    context: context,
+    builder: (ctx) => Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: SizedBox(
+        width: 320,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.workspace_premium, size: 48, color: premiumColor),
+              const SizedBox(height: 12),
+              Text(
+                'Telegram Premium',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Subscribe to Telegram Premium in the official Telegram app to increase limits and unlock exclusive features.',
+                style: TextStyle(fontSize: 14, color: subtextColor),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 38,
+                child: TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text('OK', style: TextStyle(color: premiumColor, fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _LimitBarPainter extends CustomPainter {
