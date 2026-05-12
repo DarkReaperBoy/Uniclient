@@ -256,6 +256,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _useSystemAccent = false;
   String _customFontFamily = 'Inter';
   String _appIcon = '';
+  String _customDeviceModel = '';
   bool _simpleQuotes = false;
   bool _semiTransparentDeleted = false;
   double _wideMultiplier = 1.0; // §54.3: 1.00–4.00 in 0.05 steps
@@ -2122,6 +2123,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   set useSystemAccent(bool v) { if (_useSystemAccent != v) { _useSystemAccent = v; _saveWindowPrefs(); notifyListeners(); } }
   String get customFontFamily => _customFontFamily;
   set customFontFamily(String v) { if (_customFontFamily != v) { _customFontFamily = v; _saveWindowPrefs(); notifyListeners(); } }
+  String get customDeviceModel => _customDeviceModel;
+  set customDeviceModel(String v) { if (_customDeviceModel != v) { _customDeviceModel = v; _saveWindowPrefs(); notifyListeners(); } }
 
   bool get recordVideoMessages => _recordVideoMessages;
   set recordVideoMessages(bool value) {
@@ -2902,6 +2905,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _chatShowReactionButton = data['chatShowReactionButton'] as bool? ?? true;
       _useSystemAccent = data['useSystemAccent'] as bool? ?? false;
       _customFontFamily = data['customFontFamily'] as String? ?? 'Inter';
+      _customDeviceModel = data['customDeviceModel'] as String? ?? '';
       _appIcon = data['appIcon'] as String? ?? '';
       _simpleQuotes = data['simpleQuotes'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
@@ -3141,6 +3145,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'chatShowReactionButton': _chatShowReactionButton,
         'useSystemAccent': _useSystemAccent,
         'customFontFamily': _customFontFamily,
+        'customDeviceModel': _customDeviceModel,
         'appIcon': _appIcon,
         'simpleQuotes': _simpleQuotes,
         'semiTransparentDeleted': _semiTransparentDeleted,

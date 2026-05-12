@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
@@ -8,7 +6,6 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
-import 'settings_style.dart';
 
 enum _DeviceType {
   windows,
@@ -61,13 +58,13 @@ _DeviceInfo _classifyDevice(String device, String platform, String appName, {int
 
   _DeviceInfo? detectBrowser() {
     if (d.contains('edg/') || d.contains('edgios/') || d.contains('edga/')) {
-      return const _DeviceInfo(_DeviceType.edge, _kPink1, _kPink2, Icons.language);
+      return const _DeviceInfo(_DeviceType.edge, _kPink1, _kPink2, Icons.web);
     } else if (d.contains('chrome')) {
       return const _DeviceInfo(_DeviceType.chrome, _kPink1, _kPink2, Icons.language);
     } else if (d.contains('safari')) {
-      return const _DeviceInfo(_DeviceType.safari, _kPink1, _kPink2, Icons.language);
+      return const _DeviceInfo(_DeviceType.safari, _kPink1, _kPink2, Icons.explore);
     } else if (d.contains('firefox')) {
-      return const _DeviceInfo(_DeviceType.firefox, _kPink1, _kPink2, Icons.language);
+      return const _DeviceInfo(_DeviceType.firefox, _kPink1, _kPink2, Icons.local_fire_department);
     }
     return null;
   }
@@ -78,9 +75,9 @@ _DeviceInfo _classifyDevice(String device, String platform, String appName, {int
     } else if (p.contains('macos') || s.contains('macos')) {
       return const _DeviceInfo(_DeviceType.mac, _kGreen1, _kGreen2, Icons.desktop_mac);
     } else if (p.contains('ubuntu') || s.contains('ubuntu') || p.contains('unity') || s.contains('unity')) {
-      return const _DeviceInfo(_DeviceType.ubuntu, _kOrange1, _kOrange2, Icons.desktop_windows);
+      return const _DeviceInfo(_DeviceType.ubuntu, _kOrange1, _kOrange2, Icons.terminal);
     } else if (p.contains('linux') || s.contains('linux')) {
-      return const _DeviceInfo(_DeviceType.linux, _kPurple1, _kPurple2, Icons.desktop_windows);
+      return const _DeviceInfo(_DeviceType.linux, _kPurple1, _kPurple2, Icons.computer);
     }
     return null;
   }
@@ -89,11 +86,11 @@ _DeviceInfo _classifyDevice(String device, String platform, String appName, {int
     if (kAndroid.contains(apiId)) {
       return const _DeviceInfo(_DeviceType.android, _kRed1, _kRed2, Icons.phone_android);
     } else if (kDesktop.contains(apiId)) {
-      return detectDesktop() ?? const _DeviceInfo(_DeviceType.linux, _kPurple1, _kPurple2, Icons.desktop_windows);
+      return detectDesktop() ?? const _DeviceInfo(_DeviceType.linux, _kPurple1, _kPurple2, Icons.computer);
     } else if (kMac.contains(apiId)) {
       return const _DeviceInfo(_DeviceType.mac, _kGreen1, _kGreen2, Icons.desktop_mac);
     } else if (kWeb.contains(apiId)) {
-      return detectBrowser() ?? const _DeviceInfo(_DeviceType.web, _kPink1, _kPink2, Icons.language);
+      return detectBrowser() ?? const _DeviceInfo(_DeviceType.web, _kPink1, _kPink2, Icons.public);
     }
   }
 
@@ -133,13 +130,14 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   List<Map<String, dynamic>> _sessions = [];
   bool _loading = true;
   Timer? _refreshTimer;
-  String _customDeviceModel = '';
   int _autoTerminateDays = 0;
+
+  List<Map<String, dynamic>> _cachedOtherSessions = [];
+  List<Map<String, dynamic>> _cachedIncompleteSessions = [];
 
   @override
   void initState() {
     super.initState();
-    _loadCustomDeviceModel();
     _loadSessions();
     _loadAutoTerminateDays();
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) => _loadSessions());
@@ -149,6 +147,24 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   void dispose() {
     _refreshTimer?.cancel();
     super.dispose();
+  }
+
+  void _recomputeCachedLists() {
+    final other = _sessions.where((s) => s['is_current'] != true && s['password_pending'] != true).toList();
+    other.sort((a, b) {
+      final aDate = a['last_active'] as String? ?? '';
+      final bDate = b['last_active'] as String? ?? '';
+      return bDate.compareTo(aDate);
+    });
+    _cachedOtherSessions = other;
+
+    final incomplete = _sessions.where((s) => s['password_pending'] == true).toList();
+    incomplete.sort((a, b) {
+      final aDate = a['last_active'] as String? ?? '';
+      final bDate = b['last_active'] as String? ?? '';
+      return bDate.compareTo(aDate);
+    });
+    _cachedIncompleteSessions = incomplete;
   }
 
   Future<void> _loadSessions() async {
@@ -162,6 +178,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     setState(() {
       _sessions = sessions;
       _loading = false;
+      _recomputeCachedLists();
     });
   }
 
@@ -172,26 +189,6 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     return null;
   }
 
-  List<Map<String, dynamic>> get _otherSessions {
-    final list = _sessions.where((s) => s['is_current'] != true && s['password_pending'] != true).toList();
-    list.sort((a, b) {
-      final aDate = a['last_active'] as String? ?? '';
-      final bDate = b['last_active'] as String? ?? '';
-      return bDate.compareTo(aDate);
-    });
-    return list;
-  }
-
-  List<Map<String, dynamic>> get _incompleteSessions {
-    final list = _sessions.where((s) => s['password_pending'] == true).toList();
-    list.sort((a, b) {
-      final aDate = a['last_active'] as String? ?? '';
-      final bDate = b['last_active'] as String? ?? '';
-      return bDate.compareTo(aDate);
-    });
-    return list;
-  }
-
   Future<void> _terminateSession(String sessionId) async {
     final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
@@ -199,6 +196,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     if (ok && mounted) {
       setState(() {
         _sessions.removeWhere((s) => s['id'] == sessionId);
+        _recomputeCachedLists();
       });
     }
   }
@@ -210,6 +208,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     if (ok && mounted) {
       setState(() {
         _sessions.removeWhere((s) => s['is_current'] != true);
+        _recomputeCachedLists();
       });
     }
   }
@@ -224,13 +223,14 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     setState(() => _autoTerminateDays = days);
   }
 
-  String _formatDaysLabel(int days) {
+  static String _formatDaysLabel(int days) {
     if (days <= 0) return '';
-    if (days == 7) return '1 week';
-    if (days < 30) return '$days days';
-    final months = days ~/ 30;
-    if (months == 1) return '1 month';
-    return '$months months';
+    if (days > 25) {
+      final months = (days / 30).round().clamp(1, 999);
+      return months == 1 ? '1 month' : '$months months';
+    }
+    final weeks = (days / 7).round().clamp(1, 999);
+    return weeks == 1 ? '1 week' : '$weeks weeks';
   }
 
   void _showAutoTerminateDialog() {
@@ -243,7 +243,11 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final options = [7, 30, 90, 180, 365];
     int selected = _autoTerminateDays;
     if (!options.contains(selected)) {
-      selected = options.first;
+      var closest = options.first;
+      for (final v in options) {
+        if ((selected - v).abs() < (selected - closest).abs()) closest = v;
+      }
+      selected = closest;
     }
 
     showDialog(
@@ -261,7 +265,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
                   child: Text(
-                    'If Inactive For',
+                    'Session termination',
                     style: TextStyle(
                       color: textColor,
                       fontSize: 17,
@@ -272,7 +276,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(22, 10, 22, 14),
                   child: Text(
-                    'If you don\'t connect from a device for this period, the session on that device will be terminated.',
+                    'If you don\'t come online from a specific session at least once within this period, it will be terminated.',
                     style: TextStyle(color: subtextColor, fontSize: 13, height: 1.4),
                   ),
                 ),
@@ -419,53 +423,13 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     }
   }
 
-  String get _devicePrefsPath {
-    final configDir = context.read<AppState>().configDir;
-    return configDir.isEmpty ? '' : '$configDir/device_prefs.json';
-  }
-
-  void _loadCustomDeviceModel() {
-    try {
-      final path = _devicePrefsPath;
-      if (path.isEmpty) return;
-      final file = File(path);
-      if (!file.existsSync()) return;
-      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-      _customDeviceModel = data['custom_device_model'] as String? ?? '';
-    } catch (_) {}
-  }
-
-  void _saveCustomDeviceModel(String name) {
-    setState(() => _customDeviceModel = name);
-    try {
-      final path = _devicePrefsPath;
-      if (path.isEmpty) return;
-      File(path).writeAsStringSync(jsonEncode({
-        'custom_device_model': name,
-      }));
-    } catch (_) {}
-  }
-
-  String _formatFullDate(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return '';
-    try {
-      final date = DateTime.parse(dateStr);
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      final h = date.hour.toString().padLeft(2, '0');
-      final m = date.minute.toString().padLeft(2, '0');
-      return '${months[date.month - 1]} ${date.day}, ${date.year} at $h:$m';
-    } catch (_) {
-      return dateStr ?? '';
-    }
-  }
-
   void _showSessionInfoBox(Map<String, dynamic> session) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isCurrent = session['is_current'] == true;
     final rawDevice = session['device'] as String? ?? 'Unknown';
-    final device = (isCurrent && _customDeviceModel.isNotEmpty)
-        ? _customDeviceModel
+    final appState = context.read<AppState>();
+    final device = (isCurrent && appState.customDeviceModel.isNotEmpty)
+        ? appState.customDeviceModel
         : rawDevice;
     final platform = session['platform'] as String? ?? '';
     final appName = session['app_name'] as String? ?? '';
@@ -486,6 +450,8 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final subtextColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     final iconColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     final accentColor = context.palette.windowBgActive;
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE6E6E6);
+    final sectionTitleColor = context.palette.windowActiveTextFg;
 
     showDialog(
       context: context,
@@ -498,7 +464,11 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 18),
-              _DeviceUserpic(info: info, size: 70, animate: true),
+              _DeviceUserpic(
+                info: info,
+                size: 70,
+                animate: info.type != _DeviceType.web && info.type != _DeviceType.other,
+              ),
               const SizedBox(height: 7),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -523,6 +493,22 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 ),
               ],
               const SizedBox(height: 19),
+              Container(height: 1, color: dividerColor),
+              const SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 20, bottom: 8),
+                  child: Text(
+                    'Session info',
+                    style: TextStyle(
+                      color: sectionTitleColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
               if (appStr.isNotEmpty)
                 _SessionInfoRow(
                   icon: Icons.devices,
@@ -568,6 +554,16 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   subtextColor: subtextColor,
                 ),
               const SizedBox(height: 8),
+              if (location.isNotEmpty) ...[
+                Container(height: 1, color: dividerColor),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                  child: Text(
+                    'This location is based on the IP address and may not always be accurate.',
+                    style: TextStyle(color: subtextColor, fontSize: 12, height: 1.4),
+                  ),
+                ),
+              ],
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                 child: Row(
@@ -619,7 +615,8 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   void _showRenameDialog() {
     final current = _currentSession;
     final currentDevice = current?['device'] as String? ?? '';
-    final controller = TextEditingController(text: _customDeviceModel);
+    final appState = context.read<AppState>();
+    final controller = TextEditingController(text: appState.customDeviceModel);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showDialog(
@@ -663,7 +660,8 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
           TextButton(
             onPressed: () {
               final text = controller.text.trim();
-              _saveCustomDeviceModel(text);
+              appState.customDeviceModel = text;
+              if (mounted) setState(() {});
               Navigator.pop(ctx);
             },
             child: const Text('Save'),
@@ -671,6 +669,20 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         ],
       ),
     );
+  }
+
+  String _formatFullDate(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return '';
+    try {
+      final date = DateTime.parse(dateStr);
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final h = date.hour.toString().padLeft(2, '0');
+      final m = date.minute.toString().padLeft(2, '0');
+      return '${months[date.month - 1]} ${date.day}, ${date.year} at $h:$m';
+    } catch (_) {
+      return dateStr ?? '';
+    }
   }
 
   @override
@@ -681,6 +693,9 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final subtextColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE6E6E6);
     final accentColor = context.palette.windowBgActive;
+
+    final otherSessions = _cachedOtherSessions;
+    final incompleteSessions = _cachedIncompleteSessions;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -714,20 +729,75 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 ],
               ),
             )
-          : ListView(
-              children: [
-                _buildCurrentSession(textColor, subtextColor, accentColor, dividerColor),
-                if (_otherSessions.isNotEmpty || _incompleteSessions.isNotEmpty) ...[
-                  _buildTerminateAllButton(dividerColor),
-                ],
-                if (_incompleteSessions.isNotEmpty)
-                  _buildIncompleteSessionsList(textColor, subtextColor, dividerColor, accentColor),
-                if (_otherSessions.isNotEmpty)
-                  _buildOtherSessionsList(textColor, subtextColor, dividerColor, accentColor),
-                if (_otherSessions.isEmpty && _incompleteSessions.isEmpty)
-                  _buildEmptyPlaceholder(subtextColor),
-                if (_otherSessions.isNotEmpty)
-                  _buildAutoTerminateButton(textColor, subtextColor, dividerColor, accentColor),
+          : CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: _buildCurrentSession(textColor, subtextColor, accentColor, dividerColor),
+                ),
+                if (otherSessions.isNotEmpty || incompleteSessions.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _buildTerminateAllButton(dividerColor, subtextColor),
+                  ),
+                if (incompleteSessions.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _buildIncompleteSectionHeader(accentColor),
+                  ),
+                if (incompleteSessions.isNotEmpty)
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => _SessionRow(
+                        session: incompleteSessions[index],
+                        textColor: textColor,
+                        subtextColor: subtextColor,
+                        formatDate: _formatActiveDate,
+                        showTerminate: true,
+                        onTerminate: () => _showTerminateConfirmation(
+                          incompleteSessions[index]['id'] as String? ?? '',
+                          incompleteSessions[index]['device'] as String? ?? 'Unknown',
+                        ),
+                        onTap: () => _showSessionInfoBox(incompleteSessions[index]),
+                      ),
+                      childCount: incompleteSessions.length,
+                    ),
+                  ),
+                if (incompleteSessions.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _buildIncompleteSectionFooter(dividerColor, subtextColor),
+                  ),
+                if (otherSessions.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _buildOtherSectionHeader(accentColor),
+                  ),
+                if (otherSessions.isNotEmpty)
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => _SessionRow(
+                        session: otherSessions[index],
+                        textColor: textColor,
+                        subtextColor: subtextColor,
+                        formatDate: _formatActiveDate,
+                        showTerminate: true,
+                        onTerminate: () => _showTerminateConfirmation(
+                          otherSessions[index]['id'] as String? ?? '',
+                          otherSessions[index]['device'] as String? ?? 'Unknown',
+                        ),
+                        onTap: () => _showSessionInfoBox(otherSessions[index]),
+                      ),
+                      childCount: otherSessions.length,
+                    ),
+                  ),
+                if (otherSessions.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _buildOtherSectionFooter(dividerColor, subtextColor),
+                  ),
+                if (otherSessions.isEmpty && incompleteSessions.isEmpty)
+                  SliverToBoxAdapter(
+                    child: _buildEmptyPlaceholder(subtextColor),
+                  ),
+                if (otherSessions.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _buildAutoTerminateSection(textColor, subtextColor, dividerColor, accentColor),
+                  ),
               ],
             ),
     );
@@ -740,6 +810,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     Color dividerColor,
   ) {
     final current = _currentSession;
+    final appState = context.watch<AppState>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -778,7 +849,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
           subtextColor: subtextColor,
           formatDate: _formatActiveDate,
           showTerminate: false,
-          customDeviceName: _customDeviceModel,
+          customDeviceName: appState.customDeviceModel,
           onTap: () => _showSessionInfoBox(current),
         ),
         Container(height: 1, color: dividerColor),
@@ -786,8 +857,9 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     );
   }
 
-  Widget _buildTerminateAllButton(Color dividerColor) {
+  Widget _buildTerminateAllButton(Color dividerColor, Color subtextColor) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 8),
         InkWell(
@@ -811,45 +883,37 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
             ),
           ),
         ),
+        const SizedBox(height: 4),
         Container(height: 1, color: dividerColor),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
+          child: Text(
+            'Interrupted sessions will have to go through the full authorization process with a new confirmation code.',
+            style: TextStyle(color: subtextColor, fontSize: 13),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildIncompleteSessionsList(
-    Color textColor,
-    Color subtextColor,
-    Color dividerColor,
-    Color accentColor,
-  ) {
-    final incomplete = _incompleteSessions;
+  Widget _buildIncompleteSectionHeader(Color accentColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
+      child: Text(
+        'Incomplete Login Attempts',
+        style: TextStyle(
+          color: accentColor,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIncompleteSectionFooter(Color dividerColor, Color subtextColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
-          child: Text(
-            'Incomplete Login Attempts',
-            style: TextStyle(
-              color: accentColor,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        for (final session in incomplete)
-          _SessionRow(
-            session: session,
-            textColor: textColor,
-            subtextColor: subtextColor,
-            formatDate: _formatActiveDate,
-            showTerminate: true,
-            onTerminate: () => _showTerminateConfirmation(
-              session['id'] as String? ?? '',
-              session['device'] as String? ?? 'Unknown',
-            ),
-            onTap: () => _showSessionInfoBox(session),
-          ),
         Container(height: 1, color: dividerColor),
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
@@ -862,40 +926,24 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     );
   }
 
-  Widget _buildOtherSessionsList(
-    Color textColor,
-    Color subtextColor,
-    Color dividerColor,
-    Color accentColor,
-  ) {
-    final others = _otherSessions;
+  Widget _buildOtherSectionHeader(Color accentColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
+      child: Text(
+        'Active sessions',
+        style: TextStyle(
+          color: accentColor,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOtherSectionFooter(Color dividerColor, Color subtextColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
-          child: Text(
-            'Active sessions',
-            style: TextStyle(
-              color: accentColor,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        for (final session in others)
-          _SessionRow(
-            session: session,
-            textColor: textColor,
-            subtextColor: subtextColor,
-            formatDate: _formatActiveDate,
-            showTerminate: true,
-            onTerminate: () => _showTerminateConfirmation(
-              session['id'] as String? ?? '',
-              session['device'] as String? ?? 'Unknown',
-            ),
-            onTap: () => _showSessionInfoBox(session),
-          ),
         Container(height: 1, color: dividerColor),
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
@@ -908,7 +956,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     );
   }
 
-  Widget _buildAutoTerminateButton(
+  Widget _buildAutoTerminateSection(
     Color textColor,
     Color subtextColor,
     Color dividerColor,
@@ -916,12 +964,25 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   ) {
     final label = _autoTerminateDays > 0 ? _formatDaysLabel(_autoTerminateDays) : '';
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(height: 1, color: dividerColor),
+        const SizedBox(height: 14),
+        Padding(
+          padding: const EdgeInsets.only(left: 22, bottom: 8),
+          child: Text(
+            'Terminate old sessions',
+            style: TextStyle(
+              color: accentColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
         InkWell(
           onTap: _showAutoTerminateDialog,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 14, 22, 14),
+            padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
             child: Row(
               children: [
                 Expanded(
@@ -1002,7 +1063,7 @@ class _SessionRow extends StatelessWidget {
     if (locationOrIp.isNotEmpty) locationParts.add(locationOrIp);
     final dateStr = formatDate(lastActive);
     if (dateStr.isNotEmpty) locationParts.add(dateStr);
-    final locationLine = locationParts.join(' · ');
+    final locationLine = locationParts.join(' • ');
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hoverBg = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
@@ -1097,8 +1158,8 @@ class _DeviceUserpicState extends State<_DeviceUserpic> with SingleTickerProvide
         duration: const Duration(milliseconds: 600),
         vsync: this,
       );
-      _scaleAnim = Tween<double>(begin: 0.6, end: 1.0).animate(
-        CurvedAnimation(parent: _controller!, curve: Curves.elasticOut),
+      _scaleAnim = Tween<double>(begin: 0.7, end: 1.0).animate(
+        CurvedAnimation(parent: _controller!, curve: Curves.easeOutBack),
       );
       _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(parent: _controller!, curve: const Interval(0.0, 0.5, curve: Curves.easeIn)),
