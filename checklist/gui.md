@@ -584,7 +584,6 @@ if (_prevStep == '2fa' && currentStep != '2fa') {
 
 **Missing**: No `_floodTimer?.cancel()` when exiting 2FA state. Timer will continue counting if user navigates away.
 
-- [ ] [MAJOR] Flood timer not cancelled when exiting 2FA step — `auth_screen.dart:272-277` ← `intro_phone.cpp:221-223`
 
 ---
 
@@ -622,7 +621,6 @@ final dx = _shakeController.isAnimating
 
 **Inconsistency**: OTP uses 8px/6 cycles, password uses 6px/4 cycles. AyuGram uses single unified shake.
 
-- [ ] [MAJOR] OTP and password fields use different shake animations (8px vs 6px amplitude, 6π vs 4π frequency) — `auth_screen.dart:1799,544` ← `intro_code_input.cpp:48-54`
 
 ---
 
@@ -650,7 +648,6 @@ Simpler, doesn't consider RTL directional selection.
 
 **Issue**: In RTL languages, selection order should be reversed (end to start). Dart hardcodes `baseOffset: 0, extentOffset: length` which creates backwards selection in RTL.
 
-- [ ] [MAJOR] Password field text selection (line 296-298) not RTL-aware; selects 0→length regardless of text direction — `auth_screen.dart:296-298` ← No direct AyuGram parallel
 
 ---
 
@@ -694,7 +691,6 @@ void _showDidntGetCodeDialog(AuthState authState) {
 
 However, this is **design choice**, not a defect. Dart's UX is more explicit.
 
-- [ ] [MAJOR] Dialog for "didn't get code" switches method without API confirmation call — `auth_screen.dart:189-190` ← `intro_code.cpp:440-492` (different flow)
 
 ---
 
@@ -725,7 +721,6 @@ Built-in error handling with user notifications.
 
 **Issue**: Dart silently ignores all avatar upload errors. User never informed if upload fails. No logging, no toast, no state update.
 
-- [ ] [MAJOR] Avatar upload errors silently caught and ignored; no user feedback on failure — `auth_screen.dart:83-91` ← `intro_signup.cpp` (uses built-in UserpicButton with error handling)
 
 ---
 
