@@ -117,28 +117,6 @@ The most critical issues are:
 
 
 
-## Confusing Toggle Pattern in Keyboard Shortcuts
-
-- [ ] [MAJOR] Ambiguous playVoice('', currentMsgId) toggle pattern — `keyboard_shortcuts.dart:1218,1224,1230` calls `audio.playVoice('', audio.currentMsgId)` to toggle play/pause in media play/pause/playpause handlers. While this works due to the check `if (_currentMsgId == msgId && _player != null)` on `audio_service.dart:40` that re-uses the existing player, passing empty filePath is semantically confusing and could lead to bugs if someone calls playVoice() with empty filePath for any other reason. A dedicated `togglePlayback()` or `pauseResume()` method would be clearer and safer. `keyboard_shortcuts.dart:1218` ← (no specific AyuGram reference; Dart design issue)
-
-# auth_state — Auth flow state management
-
-- [ ] [MAJOR] `_srpRetryCount` is tracked but never checked against any maximum — the counter increments indefinitely (`_srpRetryCount++` at line 104) but no guard like `if (_srpRetryCount >= MAX) stopRetrying()` exists anywhere in the file. AyuGram enforces a strict 60-second time gate (`kHandleSrpIdInvalidTimeout = 60s`) and stops retrying with a server error if SRP_ID_INVALID fires twice within that window. The Dart field is dead code: it records retries but never gates on them, making SRP retry protection non-functional — `auth_state.dart:21,104` ← `core_cloud_password.h:14` + `intro_password_check.cpp:169-178`
-
-- [ ] [MAJOR] `switchToMethod` calls `_engine.cancelAuth(accountId)` (a fire-and-forget void call, line 124) then immediately awaits `startAuth(accountId)` (line 130) with no synchronization between the two. The engine may receive `startAuth` before the previous cancel resolves, leaving two auth flows partially alive. AyuGram uses structured step navigation that fully tears down the current step widget and all its pending MTP requests (`api().request(base::take(_sentRequest)).cancel()`, `cancelled()`) before the next step is shown — `auth_state.dart:120-133` ← `intro_password_check.cpp:125-127` + `intro_widget.cpp`
-
-- [ ] [MAJOR] `_checkAutoInput()` performs synchronous file I/O (`existsSync()`, `readAsStringSync()`, `deleteSync()`) on the UI thread every second via a `Timer.periodic` (line 188). In Flutter, synchronous file operations block the main isolate and can cause dropped frames/jank. This should use `File.exists()` / `File.readAsString()` (async) with proper isolate offloading — `auth_state.dart:188,197-205` ← no direct AyuGram equivalent (AyuGram uses reactive streams, not polling timers)
-
-# ayu_forward — Forward state management + intelligent chunking
-
-- [ ] [CRITICAL] `isForwarding` returns `true` even when forward is `Finished` or cancelled — it only checks map membership (`_activeForwards.containsKey`), so it stays `true` for 2 seconds after completion (delayed cleanup) and also after `cancel()` sets phase to `Finished` without removing from map; C++ immediately returns `false` when `state == Finished || stopRequested` — `ayu_forward.dart:80` ← `AyuGram/ayu/features/forward/ayu_forward.cpp:33-44`
-
-- [ ] [MAJOR] `buildChunks` short-circuits to ALL-resendAsOwn when ANY message has `senderNoForwards` set — C++ `intelligentForward` has no such short-circuit; it uses per-item `isAyuForwardNeeded` only, with `isFullAyuForwardNeeded` used only in context_menu.cpp to select between `forwardMessages(false)` vs `intelligentForward`; current Dart behavior over-aggressively forces resend-as-own for mixed selections — `ayu_forward.dart:130-132` ← `AyuGram/ayu/features/forward/ayu_forward.cpp:269-285` + `AyuGram/ayu/ui/context_menu/context_menu.cpp:842`
-
-- [ ] [MAJOR] `statusText` and `detailText` hardcode English strings (`'Preparing...'`, `'Forwarding messages'`, `'Loading media'`, `'Done'`, `'sent X of Y'`, `'chunk X of Y'`) — C++ uses `tr::ayu_AyuForwardStatusPreparing`, `tr::ayu_AyuForwardStatusForwarding`, `tr::ayu_AyuForwardStatusLoadingMedia`, `tr::ayu_AyuForwardStatusFinished`, `tr::ayu_AyuForwardStatusSentCount`, `tr::ayu_AyuForwardStatusChunkCount` localization keys — `ayu_forward.dart:33-51` ← `AyuGram/ayu/features/forward/ayu_forward.cpp:64-96`
-
-- [ ] [MAJOR] `dropCaptions` is silently ignored for the `resendAsOwn`/`resendAlbumAsOwn` path — proto `EngineResendAsOwnRequest` and `EngineResendAlbumAsOwnRequest` have no `drop_captions` field, so captions are always preserved when resending as own; C++ `forwardMessages` strips captions via `draft.options != NoNamesAndCaptions` check — `ayu_forward.dart:234-250` ← `AyuGram/ayu/features/forward/ayu_forward.cpp:383-385` + `proto/engine.proto` (missing field)
-
 # bridge_ffi.dart — FFI Bridge Infrastructure Audit
 
 ## Summary
