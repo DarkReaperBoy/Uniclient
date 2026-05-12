@@ -58,6 +58,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   String _linkedChatId = '';
   bool _hasPublicUsername = false;
   int _pendingRequestsCount = 0;
+  int _boostLevel = 0;
 
   bool get _isChannel => widget.chat.type == ChatType.channel;
   bool get _isBot => widget.chat.isBot;
@@ -127,6 +128,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           _linkedChatId = (flags['linked_chat_id'] as String?) ?? '';
           _hasPublicUsername = flags['has_username'] == true;
           _pendingRequestsCount = (flags['pending_requests_count'] as int?) ?? 0;
+          _boostLevel = (flags['boost_level'] as int?) ?? 0;
         });
       }
     } catch (_) {
@@ -761,7 +763,13 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     }
   }
 
+  static const int _autoTranslateMinLevel = 3;
+
   Future<void> _toggleAutoTranslate() async {
+    if (_autoTranslateDisabled && _boostLevel < _autoTranslateMinLevel) {
+      showTelegramToast(context, 'This channel needs more boosts to enable Auto-Translation (level $_boostLevel/$_autoTranslateMinLevel).');
+      return;
+    }
     final engine = context.read<EngineService>();
     final newVal = !_autoTranslateDisabled;
     setState(() => _autoTranslateDisabled = newVal);
@@ -4424,7 +4432,8 @@ class _InviteLinksBox extends StatefulWidget {
   final String accountId;
   final String chatId;
   final bool isChannel;
-  const _InviteLinksBox({required this.accountId, required this.chatId, required this.isChannel});
+  final String adminId;
+  const _InviteLinksBox({required this.accountId, required this.chatId, required this.isChannel, this.adminId = ''});
 
   @override
   State<_InviteLinksBox> createState() => _InviteLinksBoxState();
@@ -4445,12 +4454,14 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
   Future<void> _loadAll() async {
     final engine = context.read<EngineService>();
     try {
-      final active = await engine.getExportedChatInvites(widget.accountId, widget.chatId);
-      final revoked = await engine.getExportedChatInvites(widget.accountId, widget.chatId, revoked: true);
+      final active = await engine.getExportedChatInvites(widget.accountId, widget.chatId, adminId: widget.adminId);
+      final revoked = await engine.getExportedChatInvites(widget.accountId, widget.chatId, revoked: true, adminId: widget.adminId);
       List<Map<String, dynamic>> admins = [];
-      try {
-        admins = await engine.getAdminsWithInvites(widget.accountId, widget.chatId);
-      } catch (_) {}
+      if (widget.adminId.isEmpty) {
+        try {
+          admins = await engine.getAdminsWithInvites(widget.accountId, widget.chatId);
+        } catch (_) {}
+      }
       if (mounted) {
         setState(() {
           _activeLinks = active.map(_InviteLinkData.fromMap).toList();
@@ -4843,6 +4854,7 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
               accountId: widget.accountId,
               chatId: widget.chatId,
               isChannel: widget.isChannel,
+              adminId: adminId,
             ),
           ),
         );

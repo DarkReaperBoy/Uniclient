@@ -1531,16 +1531,16 @@ func (e *Engine) GetDiscussionGroups(accountID string) ([]map[string]interface{}
 	return nil, fmt.Errorf("platform does not support discussion groups")
 }
 
-func (e *Engine) GetExportedChatInvites(accountID, chatID string, revoked bool) ([]map[string]interface{}, error) {
+func (e *Engine) GetExportedChatInvites(accountID, chatID string, revoked bool, adminID string) ([]map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type provider interface {
-		GetExportedChatInvites(chatID string, revoked bool) ([]map[string]interface{}, error)
+		GetExportedChatInvites(chatID string, revoked bool, adminID string) ([]map[string]interface{}, error)
 	}
 	if p, ok := acc.Core.(provider); ok {
-		return p.GetExportedChatInvites(chatID, revoked)
+		return p.GetExportedChatInvites(chatID, revoked, adminID)
 	}
 	return nil, fmt.Errorf("platform does not support invite link listing")
 }

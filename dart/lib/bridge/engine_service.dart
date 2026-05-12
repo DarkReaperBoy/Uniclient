@@ -2351,11 +2351,12 @@ class EngineService {
 
   // ── Chat Invite Links ──
 
-  Future<List<Map<String, dynamic>>> getExportedChatInvites(String accountId, String chatId, {bool revoked = false}) async {
+  Future<List<Map<String, dynamic>>> getExportedChatInvites(String accountId, String chatId, {bool revoked = false, String adminId = ''}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'revoked': revoked,
+      if (adminId.isNotEmpty) 'admin_id': adminId,
     }));
     final respBytes = await _callAsync('__engine', 'GetExportedChatInvites', Uint8List.fromList(payload));
     final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;

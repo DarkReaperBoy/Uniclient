@@ -1348,11 +1348,12 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			AccountID string `json:"account_id"`
 			ChatID    string `json:"chat_id"`
 			Revoked   bool   `json:"revoked"`
+			AdminID   string `json:"admin_id"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		links, err := e.GetExportedChatInvites(params.AccountID, params.ChatID, params.Revoked)
+		links, err := e.GetExportedChatInvites(params.AccountID, params.ChatID, params.Revoked, params.AdminID)
 		if err != nil {
 			return nil, err
 		}

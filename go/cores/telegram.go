@@ -14744,6 +14744,7 @@ type ChatPermissionFlags struct {
 	HasUsername           bool   `json:"has_username"`
 	LinkedChatID         string `json:"linked_chat_id"`
 	PendingRequestsCount int    `json:"pending_requests_count"`
+	BoostLevel           int    `json:"boost_level"`
 }
 
 type DefaultBannedRights struct {
@@ -15011,6 +15012,9 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 			flags.Signatures = cc.Signatures
 			flags.SignatureProfiles = cc.SignatureProfiles
 			flags.HasUsername = len(cc.Usernames) > 0 || cc.Username != ""
+			if lvl, ok := cc.GetLevel(); ok {
+				flags.BoostLevel = lvl
+			}
 			break
 		}
 	}
@@ -23589,13 +23593,20 @@ func inviteLinkFromExported(inv *tg.ChatInviteExported) map[string]interface{} {
 	return m
 }
 
-func (t *TelegramCore) GetExportedChatInvites(chatID string, revoked bool) ([]map[string]interface{}, error) {
+func (t *TelegramCore) GetExportedChatInvites(chatID string, revoked bool, adminID string) ([]map[string]interface{}, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil { return nil, err }
 	defer unlock()
+	var adminUser tg.InputUserClass
+	if adminID != "" {
+		uid, _ := strconv.ParseInt(adminID, 10, 64)
+		adminUser = &tg.InputUser{UserID: uid, AccessHash: t.getCachedUserHash(uid)}
+	} else {
+		adminUser = &tg.InputUserSelf{}
+	}
 	req := &tg.MessagesGetExportedChatInvitesRequest{
 		Peer:    inputPeer,
-		AdminID: &tg.InputUserSelf{},
+		AdminID: adminUser,
 		Revoked: revoked,
 		Limit:   100,
 	}
