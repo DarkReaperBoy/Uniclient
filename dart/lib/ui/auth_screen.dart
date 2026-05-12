@@ -334,10 +334,6 @@ class _AuthScreenState extends State<AuthScreen>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) authState.cancelAuth();
         });
-      } else if (upper.contains('SRP_ID_INVALID')) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _submit(authState);
-        });
       } else {
         _showErrorBorder = true;
         _shakeController.forward(from: 0);

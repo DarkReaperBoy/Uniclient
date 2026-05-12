@@ -98,18 +98,32 @@ class AuthState extends ChangeNotifier {
       _currentAuth = result;
       _submitting = false;
 
-      if (result?.state == 'error' &&
-          (result!.message.contains('SRP_ID_INVALID') ||
-           result.error.contains('SRP_ID_INVALID'))) {
-        final now = DateTime.now();
-        if (_lastSrpIdInvalidTime != null &&
-            now.difference(_lastSrpIdInvalidTime!) < _srpIdInvalidTimeout) {
-          _error = 'Server error. Please try again later.';
-          Debug.log('AUTH', 'SRP_ID_INVALID twice within 60s — giving up');
+      if (result?.state == 'error') {
+        final rawError = result!.error.isNotEmpty ? result.error : result.message;
+        if (rawError.contains('SRP_ID_INVALID')) {
+          final now = DateTime.now();
+          if (_lastSrpIdInvalidTime != null &&
+              now.difference(_lastSrpIdInvalidTime!) < _srpIdInvalidTimeout) {
+            _error = 'Server error. Please try again later.';
+            Debug.log('AUTH', 'SRP_ID_INVALID twice within 60s — giving up');
+          } else {
+            _lastSrpIdInvalidTime = now;
+            Debug.log('AUTH', 'SRP_ID_INVALID — auto-retrying');
+            _currentAuth = auth;
+            notifyListeners();
+            final retry = await _engine.submitAuthInput(auth.accountId, input);
+            _currentAuth = retry;
+            _submitting = false;
+            if (retry?.state == 'error') {
+              final retryErr = retry!.error.isNotEmpty ? retry.error : retry.message;
+              _error = retryErr.contains('SRP_ID_INVALID')
+                  ? 'Server error. Please try again later.'
+                  : retryErr;
+            }
+          }
         } else {
-          _lastSrpIdInvalidTime = now;
-          _error = 'Server challenge expired. Please try again.';
-          Debug.log('AUTH', 'SRP_ID_INVALID — will retry');
+          _lastSrpIdInvalidTime = null;
+          _error = rawError;
         }
       } else {
         _lastSrpIdInvalidTime = null;
