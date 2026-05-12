@@ -790,7 +790,6 @@ AyuGram has:
 
 Dart conflates both into single 220px constant.
 
-- [ ] [MAJOR] Error top position hardcoded to 220px; should be 235px for main fields, 220px only below links — `auth_screen.dart:582` ← `intro.style:158-159`
 
 ---
 
