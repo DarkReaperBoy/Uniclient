@@ -157,26 +157,26 @@ The FFI bridge implementation is structurally sound and has proper memory manage
   - **Impact:** Theme files will fail to cache; every app restart recomputes palettes; storage hit
   - **Fix:** Import from `package:crypto` (`import 'package:crypto/crypto.dart'`) or implement custom CRC32, then replace `getCrc32(bytes)` with equivalent (e.g., `crc32.convert(bytes).toString()` or custom implementation)
 
-- [ ] [MAJOR] Color format parser handles both 6-digit and 8-digit hex, matches AyuGram — `theme_file.dart:262-276` vs `AyuGramDesktop/window/themes/window_theme.cpp:178-183`
+- [x] [MAJOR] Color format parser handles both 6-digit and 8-digit hex, matches AyuGram — `theme_file.dart:262-276` vs `AyuGramDesktop/window/themes/window_theme.cpp:178-183`
   - Dart expects `#RRGGBB` (6 digits) or `#RRGGBBAA` (8 digits) ✓
   - AyuGram expects `#RRGGBB` (7 chars with #) or `#RRGGBBAA` (9 chars with #) ✓
   - Both equivalent; minor style difference only
   - Alpha-to-ARGB conversion in line 273 (`Color((a << 24) | (r << 16) | (g << 8) | b)`) is correct
 
-- [ ] [MAJOR] Export function uses hex color format correctly — `theme_file.dart:278-292`
+- [x] [MAJOR] Export function uses hex color format correctly — `theme_file.dart:278-292`
   - `_colorToHex()` extracts RGBA from `Color` object using `c.r`, `c.g`, `c.b`, `c.a` (normalized 0.0-1.0)
   - Multiplies by 255 and rounds to get byte values (0-255) ✓
   - Formats as `#RRGGBB` (omits alpha if 255) or `#RRGGBBAA` ✓
   - Matches AyuGram output format
 
-- [ ] [MAJOR] ZIP theme parsing matches AyuGram behavior — `theme_file.dart:208-257` vs `window_theme.cpp:299-325`
+- [x] [MAJOR] ZIP theme parsing matches AyuGram behavior — `theme_file.dart:208-257` vs `window_theme.cpp:299-325`
   - Both check for `colors.tdesktop-theme` first, then `colors.tdesktop-palette` (case-insensitive) ✓
   - Both support `background.jpg`, `background.png`, `tiled.jpg`, `tiled.png` in same priority order ✓
   - ZIP magic byte detection (`0x50 0x4B 0x03 0x04`) correct — matches "PK.." ✓
   - Max theme file size: 5 MB (Dart: 5 * 1024 * 1024, AyuGram: 5 MB) ✓
   - Max palette file size: 1 MB (Dart: 1 * 1024 * 1024, AyuGram: 1 MB via `kThemeSchemeSizeLimit`) ✓
 
-- [ ] [MAJOR] Palette text parsing differs from AyuGram in comment handling — `theme_file.dart:78-120` vs `window_theme.cpp:1514-1537`
+- [x] [MAJOR] Palette text parsing differs from AyuGram in comment handling — `theme_file.dart:78-120` vs `window_theme.cpp:1514-1537`
   - Dart: Manual comment stripping with `//` detection and substring operation (line 109-110)
     ```dart
     final commentIdx = value.indexOf('//');
@@ -190,14 +190,14 @@ The FFI bridge implementation is structurally sound and has proper memory manage
   - **Example:** AyuGram would fail on `// comment` lines as top-level statements (they're stripped), but Dart ignores them with `if (line.isEmpty() || line.startsWith('//')) continue;`
   - Both approaches work; Dart's is slightly more lenient
 
-- [ ] [MAJOR] Cloud theme metadata parsing and serialization implemented — `theme_file.dart:177-197`
+- [x] [MAJOR] Cloud theme metadata parsing and serialization implemented — `theme_file.dart:177-197`
   - Parses `// THEME EDITOR SERVICE INFO START/END` blocks ✓
   - Extracts `id:(\d+)` and `hash:(\d+)` with regex ✓
   - Serializes as comment block in `writeCloudMeta()` ✓
   - Matches AyuGram's cloud theme storage in `ReadCloudFromText()` / equivalent
   - Not verified against AyuGram source (cloud metadata is AyuGram-specific feature), but format is self-consistent
 
-- [ ] [MAJOR] Theme cache storage uses JSON but AyuGram uses binary — `theme_file.dart:1456-1488` vs `window_theme.cpp:382-410`
+- [x] [MAJOR] Theme cache storage uses JSON but AyuGram uses binary — `theme_file.dart:1456-1488` vs `window_theme.cpp:382-410`
   - Dart: Stores palette as JSON with hex color strings (line 1457-1461)
     ```dart
     final hexColors = <String, String>{};
@@ -212,7 +212,7 @@ The FFI bridge implementation is structurally sound and has proper memory manage
   - Background storage: Dart saves as raw bytes (line 1480); AyuGram saves as BMP (line 349)
   - **Compatibility:** Both approaches work for their own consumption; neither needs to be identical
 
-- [ ] [MAJOR] Background image caching uses raw bytes, AyuGram uses BMP — `theme_file.dart:1478-1487` vs `window_theme.cpp:347-355`
+- [x] [MAJOR] Background image caching uses raw bytes, AyuGram uses BMP — `theme_file.dart:1478-1487` vs `window_theme.cpp:347-355`
   - Dart: `File(...).writeAsBytesSync(cache.backgroundImage!);` — raw JPEG/PNG bytes
   - AyuGram: Saves as BMP via `background.save(&buffer, "BMP")`
   - **Format difference:** Dart preserves original format (JPEG/PNG); AyuGram transcodes to BMP
