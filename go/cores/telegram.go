@@ -105,6 +105,7 @@ type TelegramCore struct {
 	channelAccessHash map[int64]int64  // channelID → accessHash
 	fileAccessHash    map[int64]int64  // fileID → accessHash
 	fileReference     map[int64][]byte // fileID → fileReference
+	fileMimeType      map[int64]string // fileID → mimeType
 	userNames         map[int64]string // userID → display name (first + last)
 	userUsernames     map[int64]string // userID → @username (for via-bot labels etc.)
 	userColorIDs      map[int64]int    // userID → name color_id (0..63, from User.Color.Color)
@@ -209,6 +210,7 @@ func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
 		channelAccessHash: make(map[int64]int64),
 		fileAccessHash:    make(map[int64]int64),
 		fileReference:     make(map[int64][]byte),
+		fileMimeType:      make(map[int64]string),
 		userNames:         make(map[int64]string),
 		userUsernames:     make(map[int64]string),
 		userColorIDs:      make(map[int64]int),
@@ -10334,6 +10336,18 @@ func (t *TelegramCore) getCachedFileRef(fileID int64) []byte {
 	return t.fileReference[fileID]
 }
 
+func (t *TelegramCore) cacheFileMime(fileID int64, mime string) {
+	t.peerMu.Lock()
+	t.fileMimeType[fileID] = mime
+	t.peerMu.Unlock()
+}
+
+func (t *TelegramCore) getCachedFileMime(fileID int64) string {
+	t.peerMu.RLock()
+	defer t.peerMu.RUnlock()
+	return t.fileMimeType[fileID]
+}
+
 // cacheEntities extracts access hashes from user/chat lists and caches them.
 func (t *TelegramCore) cacheEntities(users []tg.UserClass, chats []tg.ChatClass) {
 	if len(users) == 0 && len(chats) == 0 {
@@ -13528,6 +13542,73 @@ func (t *TelegramCore) GetRecentStickers() ([]StickerInfo, error) {
 		stickers = stickers[:20]
 	}
 	return stickers, nil
+}
+
+func (t *TelegramCore) RemoveRecentSticker(fileID int64, extra string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	accessHash, fileRef := decodeFileExtra(extra)
+	if accessHash == 0 {
+		accessHash = t.getCachedFileHash(fileID)
+		fileRef = t.getCachedFileRef(fileID)
+	}
+	_, err := t.api.MessagesSaveRecentSticker(t.ctx, &tg.MessagesSaveRecentStickerRequest{
+		ID: &tg.InputDocument{
+			ID:            fileID,
+			AccessHash:    accessHash,
+			FileReference: fileRef,
+		},
+		Unsave: true,
+	})
+	return err
+}
+
+func (t *TelegramCore) GetStickerFiles(documentIDs []int64) ([]CustomEmojiFile, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	var result []CustomEmojiFile
+	for _, docID := range documentIDs {
+		accessHash := t.getCachedFileHash(docID)
+		fileRef := t.getCachedFileRef(docID)
+		if accessHash == 0 {
+			continue
+		}
+		loc := &tg.InputDocumentFileLocation{
+			ID:            docID,
+			AccessHash:    accessHash,
+			FileReference: fileRef,
+		}
+		buf, err := t.downloadSmallFile(loc, 512*1024)
+		if err != nil || len(buf) == 0 {
+			continue
+		}
+		mimeType := t.getCachedFileMime(docID)
+		if mimeType == "" {
+			mimeType = detectStickerMime(buf)
+		}
+		result = append(result, CustomEmojiFile{
+			DocumentID: docID,
+			MimeType:   mimeType,
+			FileData:   buf,
+		})
+	}
+	return result, nil
+}
+
+func detectStickerMime(data []byte) string {
+	if len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b {
+		return "application/x-tgsticker"
+	}
+	if len(data) >= 4 && data[0] == 0x1a && data[1] == 0x45 && data[2] == 0xdf && data[3] == 0xa3 {
+		return "video/webm"
+	}
+	return "image/webp"
 }
 
 func (t *TelegramCore) GetSavedGifs() ([]GifInfo, error) {

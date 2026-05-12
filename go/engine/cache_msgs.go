@@ -1278,6 +1278,47 @@ func (e *Engine) FaveSticker(accountID string, fileID int64, extra string, unfav
 	return faver.FaveSticker(fileID, extra, unfave)
 }
 
+type RecentStickerRemover interface {
+	RemoveRecentSticker(fileID int64, extra string) error
+}
+
+func (e *Engine) RemoveRecentSticker(accountID string, fileID int64, extra string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	remover, ok := acc.Core.(RecentStickerRemover)
+	if !ok {
+		return fmt.Errorf("platform does not support recent sticker removal")
+	}
+	if extra == "" {
+		extra = e.lookupMediaExtra(accountID, fileID)
+	}
+	return remover.RemoveRecentSticker(fileID, extra)
+}
+
+type StickerFilesFetcher interface {
+	GetStickerFiles(documentIDs []int64) ([]cores.CustomEmojiFile, error)
+}
+
+func (e *Engine) GetStickerFiles(accountID string, documentIDs []int64) ([]cores.CustomEmojiFile, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(StickerFilesFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support sticker file downloads")
+	}
+	return fetcher.GetStickerFiles(documentIDs)
+}
+
 type FeaturedStickerPacksFetcher interface {
 	GetFeaturedStickerPacks() ([]cores.StickerPackSummary, error)
 }

@@ -2364,6 +2364,35 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return []byte{}, nil
 
+	case "RemoveRecentSticker":
+		var req pb.EngineFaveStickerRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.RemoveRecentSticker(req.AccountId, req.FileId, req.Extra); err != nil {
+			return nil, err
+		}
+		return []byte{}, nil
+
+	case "GetStickerFiles":
+		var req pb.EngineGetCustomEmojiFilesRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		files, err := e.GetStickerFiles(req.AccountId, req.DocumentIds)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetCustomEmojiFilesResponse{}
+		for _, f := range files {
+			resp.Files = append(resp.Files, &pb.EngineCustomEmojiFile{
+				DocumentId: f.DocumentID,
+				MimeType:   f.MimeType,
+				FileData:   f.FileData,
+			})
+		}
+		return proto.Marshal(resp)
+
 	case "GetInstalledStickerPacks":
 		var req pb.EngineGetInstalledStickerPacksRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

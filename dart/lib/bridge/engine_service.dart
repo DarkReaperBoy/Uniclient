@@ -1622,6 +1622,40 @@ class EngineService {
     }
   }
 
+  Future<bool> removeRecentSticker(String accountId, int fileId, {String extra = ''}) async {
+    final req = epb.EngineFaveStickerRequest()
+      ..accountId = accountId
+      ..fileId = Int64(fileId)
+      ..extra = extra;
+    try {
+      await _callAsync('__engine', 'RemoveRecentSticker', req.writeToBuffer());
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'removeRecentSticker failed', e);
+      return false;
+    }
+  }
+
+  Future<Map<int, CustomEmojiFileData>> getStickerFiles(String accountId, List<int> documentIds) async {
+    final req = epb.EngineGetCustomEmojiFilesRequest()
+      ..accountId = accountId
+      ..documentIds.addAll(documentIds.map((id) => Int64(id)));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetStickerFiles', req.writeToBuffer());
+      if (respBytes.isEmpty) return {};
+      final resp = epb.EngineGetCustomEmojiFilesResponse.fromBuffer(respBytes);
+      return {
+        for (final f in resp.files) f.documentId.toInt(): CustomEmojiFileData(
+          mimeType: f.mimeType,
+          fileData: Uint8List.fromList(f.fileData),
+        ),
+      };
+    } catch (e) {
+      Debug.error('ENGINE', 'getStickerFiles failed', e);
+      return {};
+    }
+  }
+
   Future<bool> saveGif(String accountId, int fileId, {String extra = '', bool unsave = false}) async {
     final req = epb.EngineSaveGifRequest()
       ..accountId = accountId

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -27,7 +28,7 @@ const double _kEmojiGridPadding = 8.0;
 const double _kCategoryBarHeight = 36.0;
 const double _kEmojiColorsPadding = 8.0;
 const double _kEmojiColorsSep = 1.0;
-const double _kPopupPad = 4.0;
+const double _kPopupPad = 10.0;
 
 Map<String, int> _skinTonePrefs = {};
 bool _emojiPrefsLoaded = false;
@@ -1083,7 +1084,7 @@ class _EmojiTabState extends State<_EmojiTab> {
     const sep = _kEmojiColorsSep;
     const gap = _kEmojiColorsPadding;
     const pad = _kPopupPad;
-    final popupW = pad * 2 + cs + sep + 5 * cs + 4 * gap;
+    final popupW = pad * 2 + cs + gap + sep + gap + 5 * cs + 4 * gap;
     const popupH = pad * 2 + cs;
 
     final stackSize = stackBox.size;
@@ -1111,11 +1112,13 @@ class _EmojiTabState extends State<_EmojiTab> {
                   emoji: variants[0],
                   onTap: () => _onSkinToneSelected(variants[0], 0),
                 ),
+                SizedBox(width: gap),
                 Container(
                   width: sep,
                   height: cs * 0.6,
                   color: sepColor,
                 ),
+                SizedBox(width: gap),
                 for (var i = 1; i <= 5; i++) ...[
                   if (i > 1) SizedBox(width: gap),
                   _PopupEmojiCell(
@@ -1205,27 +1208,100 @@ class _CustomEmojiCell extends StatefulWidget {
   State<_CustomEmojiCell> createState() => _CustomEmojiCellState();
 }
 
-class _CustomEmojiCellState extends State<_CustomEmojiCell> {
+class _CustomEmojiCellState extends State<_CustomEmojiCell> with SingleTickerProviderStateMixin {
   bool _hovered = false;
+  CustomEmojiFileData? _fileData;
+  Uint8List? _decompressedLottie;
+  AnimationController? _lottieController;
+  bool _loadRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _maybeLoadFile();
+  }
+
+  void _maybeLoadFile() {
+    if (_loadRequested) return;
+    final mime = widget.sticker.mimeType;
+    if (mime != 'application/x-tgsticker' && mime != 'video/webm' && mime != 'image/webp') return;
+    final docId = int.tryParse(widget.sticker.fileId);
+    if (docId == null || docId == 0) return;
+    _loadRequested = true;
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final acc = appState.activeAccount;
+    if (acc == null) return;
+    engine.getCustomEmojiFiles(acc.id, [docId]).then((files) {
+      if (!mounted) return;
+      if (files.containsKey(docId)) {
+        final file = files[docId]!;
+        _fileData = file;
+        if (file.isTgs) {
+          try {
+            _decompressedLottie = Uint8List.fromList(gzip.decode(file.fileData));
+          } catch (_) {}
+        }
+        setState(() {});
+      }
+    });
+  }
+
+  void _onLottieLoaded(LottieComposition composition) {
+    _lottieController?.dispose();
+    _lottieController = AnimationController(
+      vsync: this,
+      duration: composition.duration,
+    );
+    _lottieController!.repeat();
+  }
+
+  @override
+  void dispose() {
+    _lottieController?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFf0f0f0);
+    final powerSaving = context.read<AppState>().powerSaving(AppState.kPowerSavingEmojiStatus);
+    const innerSize = _kEmojiCellSize - 8.0;
 
     Widget child;
-    if (widget.sticker.thumbB64.isNotEmpty) {
-      try {
-        final bytes = _decodeStrippedThumb(widget.sticker.thumbB64);
+    if (_fileData != null && !powerSaving) {
+      if (_fileData!.isTgs && _decompressedLottie != null) {
         child = Padding(
           padding: const EdgeInsets.all(4),
-          child: Image.memory(bytes, fit: BoxFit.contain, gaplessPlayback: true),
+          child: Lottie.memory(
+            _decompressedLottie!,
+            width: innerSize,
+            height: innerSize,
+            fit: BoxFit.contain,
+            controller: _lottieController,
+            onLoaded: _onLottieLoaded,
+            errorBuilder: (_, __, ___) => _buildThumb(innerSize),
+          ),
         );
-      } catch (_) {
-        child = _fallbackEmoji();
+      } else if (_fileData!.isWebp) {
+        child = Padding(
+          padding: const EdgeInsets.all(4),
+          child: Image.memory(
+            _fileData!.fileData,
+            width: innerSize,
+            height: innerSize,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            cacheWidth: (innerSize * 2).round(),
+            errorBuilder: (_, __, ___) => _buildThumb(innerSize),
+          ),
+        );
+      } else {
+        child = _buildThumb(innerSize);
       }
     } else {
-      child = _fallbackEmoji();
+      child = _buildThumb(innerSize);
     }
 
     return GestureDetector(
@@ -1247,14 +1323,32 @@ class _CustomEmojiCellState extends State<_CustomEmojiCell> {
     );
   }
 
+  Widget _buildThumb(double size) {
+    if (widget.sticker.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _decodeStrippedThumbB64(widget.sticker.thumbB64);
+        return Padding(
+          padding: const EdgeInsets.all(4),
+          child: Image.memory(
+            bytes,
+            fit: BoxFit.contain,
+            width: size,
+            height: size,
+            gaplessPlayback: true,
+            cacheWidth: (size * 2).round(),
+          ),
+        );
+      } catch (_) {}
+    }
+    return _fallbackEmoji();
+  }
+
   Widget _fallbackEmoji() {
     return Text(
       widget.sticker.emoji.isNotEmpty ? widget.sticker.emoji : '?',
       style: const TextStyle(fontSize: 26),
     );
   }
-
-  static Uint8List _decodeStrippedThumb(String b64) => _decodeStrippedThumbB64(b64);
 
   static Uint8List _jpegHeader(int w, int h) {
     final tmpl = Uint8List.fromList([
@@ -1468,6 +1562,8 @@ class _StickerTabState extends State<_StickerTab> {
   bool _programmaticScroll = false;
   final Set<int> _viewedFeaturedPacks = {};
   Timer? _searchDebounce;
+  final Map<int, CustomEmojiFileData> _stickerFileCache = {};
+  final Set<int> _stickerFileLoading = {};
 
   @override
   void initState() {
@@ -1515,6 +1611,26 @@ class _StickerTabState extends State<_StickerTab> {
       }
     } catch (_) {}
   }
+
+  void _loadStickerFile(int docId) {
+    if (_stickerFileCache.containsKey(docId) || _stickerFileLoading.contains(docId)) return;
+    _stickerFileLoading.add(docId);
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final acc = appState.activeAccount;
+    if (acc == null) return;
+    engine.getStickerFiles(acc.id, [docId]).then((files) {
+      if (!mounted) return;
+      if (files.containsKey(docId)) {
+        setState(() {
+          _stickerFileCache[docId] = files[docId]!;
+        });
+      }
+      _stickerFileLoading.remove(docId);
+    });
+  }
+
+  CustomEmojiFileData? getStickerFile(int docId) => _stickerFileCache[docId];
 
   void _rebuildSectionKeys(List<StickerInfoItem> recent, List<StickerPackSummary> packs) {
     _sectionKeys.clear();
@@ -1656,6 +1772,8 @@ class _StickerTabState extends State<_StickerTab> {
       color: menuBg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       items: [
+        PopupMenuItem(value: 'send_silent', child: Text('Send Without Sound', style: TextStyle(fontSize: 13, color: textColor))),
+        PopupMenuItem(value: 'schedule', child: Text('Schedule', style: TextStyle(fontSize: 13, color: textColor))),
         PopupMenuItem(value: 'fave', child: Text(faveLabel, style: TextStyle(fontSize: 13, color: textColor))),
         PopupMenuItem(value: 'view_set', child: Text('View Set', style: TextStyle(fontSize: 13, color: textColor))),
         if (isRecentSection)
@@ -1665,7 +1783,11 @@ class _StickerTabState extends State<_StickerTab> {
       ],
     ).then((value) {
       widget.onContextMenuToggle?.call(false);
-      if (value == 'fave') {
+      if (value == 'send_silent') {
+        widget.onStickerSend?.call(sticker.fileId);
+      } else if (value == 'schedule') {
+        widget.onStickerSend?.call(sticker.fileId);
+      } else if (value == 'fave') {
         final engine = context.read<EngineService>();
         final appState = context.read<AppState>();
         final acc = appState.activeAccount;
@@ -1677,6 +1799,13 @@ class _StickerTabState extends State<_StickerTab> {
       } else if (value == 'view_set') {
         _viewStickerSet(context, sticker, setShortName);
       } else if (value == 'remove_recent') {
+        final engine = context.read<EngineService>();
+        final appState = context.read<AppState>();
+        final acc = appState.activeAccount;
+        if (acc != null && sticker.fileId.isNotEmpty) {
+          final id = int.tryParse(sticker.fileId) ?? 0;
+          engine.removeRecentSticker(acc.id, id);
+        }
         setState(() {
           _recentStickers.removeWhere((s) => s.fileId == sticker.fileId);
           _rebuildSectionKeys(_recentStickers, _packs);
@@ -1686,6 +1815,27 @@ class _StickerTabState extends State<_StickerTab> {
         Clipboard.setData(ClipboardData(text: 'https://t.me/$prefix/$setShortName'));
       }
     });
+  }
+
+  void _showStickerPreview(BuildContext context, Offset position, StickerInfoItem sticker) {
+    final overlay = Overlay.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final docId = int.tryParse(sticker.fileId) ?? 0;
+    final file = _stickerFileCache[docId];
+
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (ctx) => _StickerPreviewOverlay(
+        sticker: sticker,
+        fileData: file,
+        position: position,
+        bg: bg,
+        isDark: isDark,
+        onDismiss: () => entry.remove(),
+      ),
+    );
+    overlay.insert(entry);
   }
 
   void _viewStickerSet(BuildContext context, StickerInfoItem sticker, String? setShortName) async {
@@ -1879,11 +2029,11 @@ class _StickerTabState extends State<_StickerTab> {
         final colCount = (availableWidth / _kStickerCellSize).floor().clamp(1, 10);
         final cellSize = availableWidth / colCount;
 
-        final sections = <Widget>[];
+        final slivers = <Widget>[];
         int sectionIdx = 0;
 
         if (_recentStickers.isNotEmpty) {
-          sections.add(_buildSection(
+          slivers.addAll(_buildSectionSlivers(
             key: _sectionKeys.length > sectionIdx ? _sectionKeys[sectionIdx] : null,
             title: 'Recent',
             stickers: _recentStickers,
@@ -1895,7 +2045,7 @@ class _StickerTabState extends State<_StickerTab> {
         }
 
         for (final pack in _packs) {
-          sections.add(_buildSection(
+          slivers.addAll(_buildSectionSlivers(
             key: sectionIdx < _sectionKeys.length ? _sectionKeys[sectionIdx] : null,
             title: pack.title,
             stickers: pack.stickers,
@@ -1908,16 +2058,20 @@ class _StickerTabState extends State<_StickerTab> {
           sectionIdx++;
         }
 
-        return ListView(
+        return CustomScrollView(
           controller: _gridScrollController,
-          padding: const EdgeInsets.symmetric(horizontal: _kStickerGridPadding, vertical: 4),
-          children: sections,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: _kStickerGridPadding, vertical: 4),
+              sliver: SliverMainAxisGroup(slivers: slivers),
+            ),
+          ],
         );
       },
     );
   }
 
-  Widget _buildSection({
+  List<Widget> _buildSectionSlivers({
     Key? key,
     required String title,
     required List<StickerInfoItem> stickers,
@@ -1930,35 +2084,13 @@ class _StickerTabState extends State<_StickerTab> {
   }) {
     final headerColor = isDark ? const Color(0xFF8899a6) : const Color(0xFF666666);
     final removeColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
-    final rows = <Widget>[];
-    for (int i = 0; i < stickers.length; i += colCount) {
-      final end = (i + colCount).clamp(0, stickers.length);
-      final rowStickers = stickers.sublist(i, end);
-      rows.add(Row(
-        children: [
-          for (final s in rowStickers)
-            SizedBox(
-              width: cellSize,
-              height: cellSize,
-              child: _StickerCell(
-                sticker: s,
-                onTap: () {
-                  widget.onStickerSend?.call(s.fileId);
-                },
-                onContextMenu: (pos) => _showStickerContextMenu(context, pos, s, setShortName: setShortName, isCustomEmojiSet: isCustomEmojiSet, isRecentSection: title == 'Recent'),
-              ),
-            ),
-          if (rowStickers.length < colCount)
-            SizedBox(width: cellSize * (colCount - rowStickers.length)),
-        ],
-      ));
-    }
+    final rowCount = (stickers.length / colCount).ceil();
+    final isRecent = title == 'Recent';
 
-    return Column(
-      key: key,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
+    return [
+      SliverToBoxAdapter(
+        key: key,
+        child: Padding(
           padding: const EdgeInsets.only(top: 8, bottom: 4, left: 2),
           child: Row(
             children: [
@@ -1979,9 +2111,47 @@ class _StickerTabState extends State<_StickerTab> {
             ],
           ),
         ),
-        ...rows,
-      ],
-    );
+      ),
+      SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, rowIdx) {
+            final start = rowIdx * colCount;
+            final end = (start + colCount).clamp(0, stickers.length);
+            final rowStickers = stickers.sublist(start, end);
+            return Row(
+              children: [
+                for (final s in rowStickers)
+                  SizedBox(
+                    width: cellSize,
+                    height: cellSize,
+                    child: _StickerCell(
+                      sticker: s,
+                      fileData: _stickerFileCache[int.tryParse(s.fileId) ?? 0],
+                      onRequestFile: () {
+                        final docId = int.tryParse(s.fileId);
+                        if (docId != null) _loadStickerFile(docId);
+                      },
+                      onTap: () {
+                        widget.onStickerSend?.call(s.fileId);
+                      },
+                      onContextMenu: (pos) => _showStickerContextMenu(
+                        context, pos, s,
+                        setShortName: setShortName,
+                        isCustomEmojiSet: isCustomEmojiSet,
+                        isRecentSection: isRecent,
+                      ),
+                      onLongPress: (pos) => _showStickerPreview(context, pos, s),
+                    ),
+                  ),
+                if (rowStickers.length < colCount)
+                  SizedBox(width: cellSize * (colCount - rowStickers.length)),
+              ],
+            );
+          },
+          childCount: rowCount,
+        ),
+      ),
+    ];
   }
 }
 
@@ -2015,7 +2185,7 @@ class _FeaturedPackRowState extends State<_FeaturedPackRow> {
         final bytes = _decodeStrippedThumbB64(pack.thumbB64);
         thumb = ClipRRect(
           borderRadius: BorderRadius.circular(6),
-          child: Image.memory(bytes, fit: BoxFit.cover, width: 48, height: 48, gaplessPlayback: true),
+          child: Image.memory(bytes, fit: BoxFit.cover, width: 48, height: 48, gaplessPlayback: true, cacheWidth: 96),
         );
       } catch (_) {
         thumb = Container(
@@ -2029,7 +2199,7 @@ class _FeaturedPackRowState extends State<_FeaturedPackRow> {
         final bytes = _decodeStrippedThumbB64(pack.stickers.first.thumbB64);
         thumb = ClipRRect(
           borderRadius: BorderRadius.circular(6),
-          child: Image.memory(bytes, fit: BoxFit.cover, width: 48, height: 48, gaplessPlayback: true),
+          child: Image.memory(bytes, fit: BoxFit.cover, width: 48, height: 48, gaplessPlayback: true, cacheWidth: 96),
         );
       } catch (_) {
         thumb = Container(
@@ -2122,38 +2292,112 @@ class _StickerCell extends StatefulWidget {
   final StickerInfoItem sticker;
   final VoidCallback onTap;
   final void Function(Offset)? onContextMenu;
+  final void Function(Offset)? onLongPress;
+  final CustomEmojiFileData? fileData;
+  final VoidCallback? onRequestFile;
 
-  const _StickerCell({required this.sticker, required this.onTap, this.onContextMenu});
+  const _StickerCell({
+    required this.sticker,
+    required this.onTap,
+    this.onContextMenu,
+    this.onLongPress,
+    this.fileData,
+    this.onRequestFile,
+  });
 
   @override
   State<_StickerCell> createState() => _StickerCellState();
 }
 
-class _StickerCellState extends State<_StickerCell> {
+class _StickerCellState extends State<_StickerCell> with SingleTickerProviderStateMixin {
   bool _hovered = false;
+  AnimationController? _lottieController;
+  Uint8List? _decompressedLottie;
+  bool _fileRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _maybeRequestFile();
+  }
+
+  @override
+  void didUpdateWidget(_StickerCell old) {
+    super.didUpdateWidget(old);
+    if (widget.fileData != old.fileData && widget.fileData != null) {
+      _prepareAnimatedContent(widget.fileData!);
+    }
+    _maybeRequestFile();
+  }
+
+  void _maybeRequestFile() {
+    if (!_fileRequested && widget.fileData == null && widget.onRequestFile != null) {
+      final mime = widget.sticker.mimeType;
+      if (mime == 'application/x-tgsticker' || mime == 'video/webm') {
+        _fileRequested = true;
+        widget.onRequestFile!();
+      }
+    }
+  }
+
+  void _prepareAnimatedContent(CustomEmojiFileData file) {
+    if (file.isTgs && _decompressedLottie == null) {
+      try {
+        _decompressedLottie = Uint8List.fromList(gzip.decode(file.fileData));
+      } catch (_) {}
+    }
+  }
+
+  void _onLottieLoaded(LottieComposition composition) {
+    _lottieController?.dispose();
+    _lottieController = AnimationController(
+      vsync: this,
+      duration: composition.duration,
+    );
+    _lottieController!.repeat();
+  }
+
+  @override
+  void dispose() {
+    _lottieController?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFf0f0f0);
     final stickerPanelPowerSave = context.read<AppState>().powerSaving(AppState.kPowerSavingStickersPanel);
+    final cellInner = _kStickerCellSize - 8;
 
     Widget child;
-    if (widget.sticker.thumbB64.isNotEmpty) {
-      try {
-        final bytes = _decodeStrippedThumbB64(widget.sticker.thumbB64);
-        child = Image.memory(
-          bytes,
+    final file = widget.fileData;
+    if (file != null && !stickerPanelPowerSave) {
+      if (file.isTgs && _decompressedLottie != null) {
+        child = Lottie.memory(
+          _decompressedLottie!,
+          width: cellInner,
+          height: cellInner,
           fit: BoxFit.contain,
-          width: _kStickerCellSize - 8,
-          height: _kStickerCellSize - 8,
-          gaplessPlayback: true,
+          controller: _lottieController,
+          onLoaded: _onLottieLoaded,
+          errorBuilder: (_, __, ___) => _buildThumb(cellInner),
         );
-      } catch (_) {
-        child = _stickerFallback();
+      } else if (file.isWebp) {
+        child = Image.memory(
+          file.fileData,
+          width: cellInner,
+          height: cellInner,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          cacheWidth: (cellInner * 2).round(),
+          errorBuilder: (_, __, ___) => _buildThumb(cellInner),
+        );
+      } else {
+        child = _buildThumb(cellInner);
       }
     } else {
-      child = _stickerFallback();
+      child = _buildThumb(cellInner);
     }
 
     final hoverDuration = stickerPanelPowerSave ? Duration.zero : const Duration(milliseconds: 100);
@@ -2166,9 +2410,11 @@ class _StickerCellState extends State<_StickerCell> {
         onSecondaryTapUp: widget.onContextMenu != null
             ? (details) => widget.onContextMenu!(details.globalPosition)
             : null,
-        onLongPressStart: widget.onContextMenu != null
-            ? (details) => widget.onContextMenu!(details.globalPosition)
-            : null,
+        onLongPressStart: widget.onLongPress != null
+            ? (details) => widget.onLongPress!(details.globalPosition)
+            : (widget.onContextMenu != null
+                ? (details) => widget.onContextMenu!(details.globalPosition)
+                : null),
         child: AnimatedContainer(
           duration: hoverDuration,
           decoration: BoxDecoration(
@@ -2182,9 +2428,26 @@ class _StickerCellState extends State<_StickerCell> {
     );
   }
 
+  Widget _buildThumb(double size) {
+    if (widget.sticker.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _decodeStrippedThumbB64(widget.sticker.thumbB64);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.contain,
+          width: size,
+          height: size,
+          gaplessPlayback: true,
+          cacheWidth: (size * 2).round(),
+        );
+      } catch (_) {}
+    }
+    return _stickerFallback();
+  }
+
   Widget _stickerFallback() {
     return Text(
-      widget.sticker.emoji.isNotEmpty ? widget.sticker.emoji : '🖼',
+      widget.sticker.emoji.isNotEmpty ? widget.sticker.emoji : '\u{1F5BC}',
       style: const TextStyle(fontSize: 32),
     );
   }
@@ -2235,7 +2498,7 @@ class _StickerPackFooter extends StatelessWidget {
           final bytes = _decodeStrippedThumbB64(pack.thumbB64);
           iconWidget = ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: Image.memory(bytes, fit: BoxFit.cover, width: 26, height: 26, gaplessPlayback: true),
+            child: Image.memory(bytes, fit: BoxFit.cover, width: 26, height: 26, gaplessPlayback: true, cacheWidth: 52),
           );
         } catch (_) {
           iconWidget = Icon(Icons.sticky_note_2_outlined, size: 22, color: isActive ? (isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd)) : inactiveColor);
@@ -2509,26 +2772,32 @@ class _GifTabState extends State<_GifTab> {
 
   void _onSavedGifContextMenu(GifInfoItem gif, Offset globalPos) async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    final dangerColor = isDark ? const Color(0xFFe53935) : const Color(0xFFdd4b39);
+    final menuBg = isDark ? const Color(0xFF1e2c3a) : Colors.white;
     widget.onContextMenuToggle?.call(true);
     final result = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
         globalPos.dx, globalPos.dy, globalPos.dx + 1, globalPos.dy + 1,
       ),
+      color: menuBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       items: [
+        PopupMenuItem(value: 'send_silent', child: Text('Send Without Sound', style: TextStyle(fontSize: 13, color: textColor))),
+        PopupMenuItem(value: 'schedule', child: Text('Schedule', style: TextStyle(fontSize: 13, color: textColor))),
         PopupMenuItem(
           value: 'delete',
-          child: Text(
-            'Delete GIF',
-            style: TextStyle(
-              color: isDark ? const Color(0xFFe53935) : const Color(0xFFdd4b39),
-            ),
-          ),
+          child: Text('Delete GIF', style: TextStyle(fontSize: 13, color: dangerColor)),
         ),
       ],
     );
     widget.onContextMenuToggle?.call(false);
-    if (result == 'delete' && mounted) {
+    if (result == 'send_silent' && mounted) {
+      widget.onGifSend?.call(gif.fileId);
+    } else if (result == 'schedule' && mounted) {
+      widget.onGifSend?.call(gif.fileId);
+    } else if (result == 'delete' && mounted) {
       final appState = context.read<AppState>();
       final engine = context.read<EngineService>();
       final activeAccount = appState.activeAccount;
@@ -2883,7 +3152,12 @@ class _GifCell extends StatelessWidget {
     if (gif.thumbB64.isNotEmpty) {
       try {
         final bytes = _decodeStrippedThumbB64(gif.thumbB64);
-        thumb = Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true);
+        thumb = Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          cacheWidth: 200,
+        );
       } catch (_) {
         thumb = _gifPlaceholder(isDark);
       }
@@ -2916,7 +3190,12 @@ class _GifSearchCell extends StatelessWidget {
     if (result.thumbB64.isNotEmpty) {
       try {
         final bytes = _decodeStrippedThumbB64(result.thumbB64);
-        thumb = Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true);
+        thumb = Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          cacheWidth: 200,
+        );
       } catch (_) {
         thumb = _gifPlaceholder(isDark);
       }
@@ -2946,6 +3225,149 @@ Widget _gifPlaceholder(bool isDark) {
       ),
     ),
   );
+}
+
+class _StickerPreviewOverlay extends StatefulWidget {
+  final StickerInfoItem sticker;
+  final CustomEmojiFileData? fileData;
+  final Offset position;
+  final Color bg;
+  final bool isDark;
+  final VoidCallback onDismiss;
+
+  const _StickerPreviewOverlay({
+    required this.sticker,
+    this.fileData,
+    required this.position,
+    required this.bg,
+    required this.isDark,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_StickerPreviewOverlay> createState() => _StickerPreviewOverlayState();
+}
+
+class _StickerPreviewOverlayState extends State<_StickerPreviewOverlay> with SingleTickerProviderStateMixin {
+  AnimationController? _lottieController;
+  Uint8List? _decompressedLottie;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.fileData != null && widget.fileData!.isTgs) {
+      try {
+        _decompressedLottie = Uint8List.fromList(gzip.decode(widget.fileData!.fileData));
+      } catch (_) {}
+    }
+  }
+
+  void _onLottieLoaded(LottieComposition composition) {
+    _lottieController?.dispose();
+    _lottieController = AnimationController(
+      vsync: this,
+      duration: composition.duration,
+    );
+    _lottieController!.repeat();
+  }
+
+  @override
+  void dispose() {
+    _lottieController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const previewSize = 200.0;
+    final screenSize = MediaQuery.sizeOf(context);
+    final left = (widget.position.dx - previewSize / 2).clamp(8.0, screenSize.width - previewSize - 8);
+    final top = (widget.position.dy - previewSize - 20).clamp(8.0, screenSize.height - previewSize - 8);
+
+    Widget content;
+    final file = widget.fileData;
+    if (file != null && file.isTgs && _decompressedLottie != null) {
+      content = Lottie.memory(
+        _decompressedLottie!,
+        width: previewSize - 24,
+        height: previewSize - 24,
+        fit: BoxFit.contain,
+        controller: _lottieController,
+        onLoaded: _onLottieLoaded,
+      );
+    } else if (file != null && file.isWebp) {
+      content = Image.memory(
+        file.fileData,
+        width: previewSize - 24,
+        height: previewSize - 24,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+      );
+    } else if (widget.sticker.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _decodeStrippedThumbB64(widget.sticker.thumbB64);
+        content = Image.memory(
+          bytes,
+          width: previewSize - 24,
+          height: previewSize - 24,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+        );
+      } catch (_) {
+        content = Text(
+          widget.sticker.emoji.isNotEmpty ? widget.sticker.emoji : '\u{1F5BC}',
+          style: const TextStyle(fontSize: 80),
+        );
+      }
+    } else {
+      content = Text(
+        widget.sticker.emoji.isNotEmpty ? widget.sticker.emoji : '\u{1F5BC}',
+        style: const TextStyle(fontSize: 80),
+      );
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: widget.onDismiss,
+            onPanEnd: (_) => widget.onDismiss(),
+            child: Container(color: Colors.black26),
+          ),
+        ),
+        Positioned(
+          left: left,
+          top: top,
+          child: Material(
+            color: widget.bg,
+            borderRadius: BorderRadius.circular(12),
+            elevation: 8,
+            child: SizedBox(
+              width: previewSize,
+              height: previewSize,
+              child: Center(child: content),
+            ),
+          ),
+        ),
+        Positioned(
+          left: left,
+          top: top + previewSize + 4,
+          child: Material(
+            color: widget.bg,
+            borderRadius: BorderRadius.circular(8),
+            elevation: 4,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Text(
+                widget.sticker.emoji,
+                style: const TextStyle(fontSize: 24),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _StickerSetDialog extends StatelessWidget {
@@ -3013,7 +3435,7 @@ class _StickerSetDialog extends StatelessWidget {
                   if (s.thumbB64.isNotEmpty) {
                     try {
                       final bytes = _decodeStrippedThumbB64(s.thumbB64);
-                      child = Image.memory(bytes, fit: BoxFit.contain, gaplessPlayback: true);
+                      child = Image.memory(bytes, fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: 120);
                     } catch (_) {
                       child = Text(s.emoji.isNotEmpty ? s.emoji : '?', style: const TextStyle(fontSize: 28));
                     }
