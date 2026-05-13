@@ -420,18 +420,19 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         }
                       },
                     ),
-                    // §51.5: SRead — one-shot "mark all stories read without receipts".
+                    // §51.5: SRead — mark all stories as viewed (sends read receipts
+                    // even when ghost mode suppresses them).
                     if (appState.showSReadToggleInDrawer)
                     _MenuRow(
                       icon: Icons.auto_stories,
-                      label: 'Mark Stories Read (Silent)',
+                      label: 'Mark Stories as Viewed',
                       onTap: () async {
                         bool userConfirmed = false;
                         await showConfirmBox(
                           context,
-                          title: 'Mark All Stories Read',
-                          text: 'This will mark all stories as read without sending read receipts. Continue?',
-                          confirmText: 'Mark Read',
+                          title: 'Mark All Stories as Viewed',
+                          text: 'This will mark all stories as viewed by sending read receipts. Continue?',
+                          confirmText: 'Mark as Viewed',
                           onConfirm: () => userConfirmed = true,
                         );
                         if (!userConfirmed || !context.mounted) return;
@@ -446,7 +447,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           appState.setSendReadMessages(origVal);
                         }
                         if (context.mounted) {
-                          showTelegramToast(context, 'All stories marked as read.');
+                          showTelegramToast(context, 'All stories marked as viewed.');
                         }
                       },
                     ),
@@ -468,27 +469,18 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                     ),
                     // §3.3: Archive row — shown when user has archived chats.
                     if (context.watch<ChatState>().hasArchivedChats)
-                      _MenuRow(
-                        icon: Icons.archive,
-                        label: 'Archived Chats',
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          appState.requestShowArchive();
+                      GestureDetector(
+                        onSecondaryTapUp: (details) {
+                          _showArchiveContextMenu(context, details.globalPosition, appState);
                         },
-                      ),
-                    if (Platform.isLinux)
-                      _MenuRow(
-                        icon: Icons.desktop_windows,
-                        label: 'System Frame',
-                        trailing: _InlineToggle(
-                          value: appState.nativeWindowFrame,
-                          onChanged: (value) {
-                            appState.setNativeWindowFrame(value);
+                        child: _MenuRow(
+                          icon: Icons.archive,
+                          label: 'Archived Chats',
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            appState.requestShowArchive();
                           },
                         ),
-                        onTap: () {
-                          appState.setNativeWindowFrame(!appState.nativeWindowFrame);
-                        },
                       ),
                     // §3.6: Footer — product name + version/about links.
                     const _FooterSection(),
@@ -525,10 +517,58 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
     });
   }
 
+  void _showArchiveContextMenu(
+      BuildContext context, Offset position, AppState appState) {
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: const [
+        TelegramMenuItem(
+          value: 'expand',
+          icon: Icon(Icons.open_in_full),
+          label: 'Expand',
+        ),
+        TelegramMenuItem(
+          value: 'settings',
+          icon: Icon(Icons.settings),
+          label: 'Archive Settings',
+        ),
+      ],
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'expand':
+          Navigator.of(context).pop();
+          appState.requestShowArchive();
+        case 'settings':
+          final chatSt = context.read<ChatState>();
+          final authSt = context.read<AuthState>();
+          Navigator.of(context).pop();
+          Navigator.of(context).push(
+            settingsPageRoute(
+              ChangeNotifierProvider.value(
+                value: appState,
+                child: ChangeNotifierProvider.value(
+                  value: chatSt,
+                  child: ChangeNotifierProvider.value(
+                    value: authSt,
+                    child: const SettingsScreen(),
+                  ),
+                ),
+              ),
+            ),
+          );
+      }
+    });
+  }
+
   void _showMyGroupsPopup(BuildContext context, Offset position, {required bool isGroup}) {
     final chatState = context.read<ChatState>();
+    final accountId = context.read<AppState>().activeAccount?.id ?? '';
     final targetType = isGroup ? ChatType.group : ChatType.channel;
-    final chats = chatState.chats.where((c) => c.type == targetType).take(20).toList();
+    final chats = chatState.chatsForAccount(accountId)
+        .where((c) => c.type == targetType && c.isAdmin)
+        .toList();
     if (chats.isEmpty) return;
     final items = chats.map((c) => TelegramMenuItem<String>(
       value: c.chatId,
@@ -710,21 +750,36 @@ class _ProfileCover extends StatelessWidget {
                         if ((account?.isVerified == true || account?.isPremium == true) &&
                             !context.read<AppState>().hidePremiumStatuses) ...[
                           const SizedBox(width: 4),
-                          Icon(
-                            account?.isPremium == true
-                                ? Icons.workspace_premium
-                                : Icons.verified,
-                            size: 16,
-                            color: context.palette.windowFgActive,
+                          GestureDetector(
+                            onTap: () {
+                              final as2 = context.read<AppState>();
+                              final chatSt = context.read<ChatState>();
+                              final authSt = context.read<AuthState>();
+                              Navigator.of(context).pop();
+                              Navigator.of(context).push(
+                                settingsPageRoute(
+                                  ChangeNotifierProvider.value(
+                                    value: as2,
+                                    child: ChangeNotifierProvider.value(
+                                      value: chatSt,
+                                      child: ChangeNotifierProvider.value(
+                                        value: authSt,
+                                        child: const SettingsScreen(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Icon(
+                              account?.isPremium == true
+                                  ? Icons.workspace_premium
+                                  : Icons.verified,
+                              size: 16,
+                              color: context.palette.windowFgActive,
+                            ),
                           ),
                         ],
-                        const SizedBox(width: 4),
-                        Image.asset(
-                          'assets/icon/icon_256.png',
-                          width: 16,
-                          height: 16,
-                          filterQuality: FilterQuality.medium,
-                        ),
                       ],
                     ),
                     const SizedBox(height: 3),
@@ -741,25 +796,85 @@ class _ProfileCover extends StatelessWidget {
               child: GestureDetector(
                 onTap: onToggle,
                 behavior: HitTestBehavior.opaque,
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Center(
-                    child: AnimatedRotation(
-                      turns: expanded ? 0.5 : 0.0,
-                      duration: const Duration(milliseconds: 150),
-                      curve: Curves.linear,
-                      child: CustomPaint(
-                        size: const Size(6, 6),
-                        painter: _ChevronPainter(
-                          color: context.palette.windowFgActive.withValues(alpha: 0.7),
+                child: Builder(builder: (ctx) {
+                  final as2 = ctx.watch<AppState>();
+                  final cs = ctx.watch<ChatState>();
+                  int otherUnread = 0;
+                  if (!expanded) {
+                    for (final a in as2.accounts) {
+                      if (a.id != as2.activeAccountId) {
+                        otherUnread += cs.unreadCountForAccount(a.id);
+                      }
+                    }
+                  }
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (otherUnread > 0 && !expanded)
+                        Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: ctx.palette.windowFgActive,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            otherUnread > 99 ? '99+' : '$otherUnread',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: ctx.palette.windowBgActive,
+                            ),
+                          ),
+                        ),
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Center(
+                          child: AnimatedRotation(
+                            turns: expanded ? 0.5 : 0.0,
+                            duration: const Duration(milliseconds: 150),
+                            curve: Curves.linear,
+                            child: CustomPaint(
+                              size: const Size(6, 6),
+                              painter: _ChevronPainter(
+                                color: ctx.palette.windowFgActive.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
+                    ],
+                  );
+                }),
+              ),
+            ),
+          Builder(builder: (ctx) {
+            final scale = ctx.watch<AppState>().uiScalePercent;
+            if ((scale - 100.0).abs() < 0.01) return const SizedBox.shrink();
+            return Positioned(
+              right: 10,
+              top: 10,
+              child: GestureDetector(
+                onTap: () => ctx.read<AppState>().setUiScalePercent(100.0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '100%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: ctx.palette.windowFgActive,
                     ),
                   ),
                 ),
               ),
-            ),
+            );
+          }),
         ],
       ),
     );
@@ -767,22 +882,6 @@ class _ProfileCover extends StatelessWidget {
 
   Widget _buildStatusLine(BuildContext context, AccountInfo? account) {
     if (account == null) return const SizedBox.shrink();
-    // Phone number: plain subdued text (windowSubTextFg).
-    if (account.phone.isNotEmpty) {
-      return Text(
-        account.phone,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w400,
-          color: context.palette.windowSubTextFg,
-        ),
-      );
-    }
-    // "Set Emoji Status": link-styled (spec §3.1 — FlatLabel link entity).
-    // Full-opacity white + underline distinguishes from plain subdued text.
-    // Tap navigates to Settings (profile/status configuration).
     return GestureDetector(
       onTap: () {
         final appState = context.read<AppState>();
@@ -805,7 +904,7 @@ class _ProfileCover extends StatelessWidget {
         );
       },
       child: Text(
-        'Set Emoji Status',
+        'Uniclient Preferences',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(

@@ -1892,6 +1892,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                         isDark: widget.isDark,
                         accentColor: widget.accentColor,
                         onTap: _openIncludeTypePicker,
+                        selectedCount: _includedChatIds.length,
                       ),
                       _FilterChatsPreview(
                         types: _buildIncludeTypeList(),
@@ -1929,6 +1930,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                           isDark: widget.isDark,
                           accentColor: widget.accentColor,
                           onTap: _openExcludeTypePicker,
+                          selectedCount: _excludedChatIds.length,
                         ),
                         _FilterChatsPreview(
                           types: _buildExcludeTypeList(),
@@ -3475,16 +3477,19 @@ class _AddChatsButton extends StatelessWidget {
   final bool isDark;
   final Color accentColor;
   final VoidCallback onTap;
+  final int selectedCount;
 
   const _AddChatsButton({
     required this.isDark,
     required this.accentColor,
     required this.onTap,
+    this.selectedCount = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     final hoverColor = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final label = selectedCount > 0 ? 'Add Chats ($selectedCount)' : 'Add Chats';
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -3507,7 +3512,7 @@ class _AddChatsButton extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'Add Chats',
+                  label,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -3527,16 +3532,19 @@ class _RemoveChatsButton extends StatelessWidget {
   final bool isDark;
   final Color accentColor;
   final VoidCallback onTap;
+  final int selectedCount;
 
   const _RemoveChatsButton({
     required this.isDark,
     required this.accentColor,
     required this.onTap,
+    this.selectedCount = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     final hoverColor = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final label = selectedCount > 0 ? 'Remove Chats ($selectedCount)' : 'Remove Chats';
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -3559,7 +3567,7 @@ class _RemoveChatsButton extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'Remove Chats',
+                  label,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
