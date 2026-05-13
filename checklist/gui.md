@@ -1172,19 +1172,7 @@ Audited against AyuGram Desktop C++ source at
 
 - [ ] [CRITICAL] Avatar (userpic) in `_FlexibleCoverDelegate` has no tap handler — clicking the avatar does nothing. AyuGram opens the photo viewer on left-click and a context menu (Open Photo / Report / Change Photo / Suggest Photo) on right-click. — `info_panel.dart:590-641` ← `info/profile/info_profile_top_bar.cpp:1022-1349`
 
-- [ ] [CRITICAL] Mute button right-click context menu only shows "Mute forever" or "Unmute" — missing the standard Telegram timed-mute options (1 hour, 4 hours, 8 hours, 2 days, 1 week, custom duration, and sound on/off toggle). AyuGram uses `MuteMenu::SetupMuteMenu` which generates a full duration list from `session->settings().mutePeriods()`. — `info_panel.dart:978-993` ← `menu/menu_mute.cpp:298-365`, `info/profile/info_profile_top_bar.cpp:848`
-
-- [ ] [CRITICAL] Bot commands in `_ChatDetailsState` are hardcoded to `['help', 'settings', 'privacy']` regardless of what commands the bot actually provides. AyuGram reads `user->botInfo->commands` (the real server-fetched command list) and shows only commands that actually exist for that bot. — `info_panel.dart:2852-2859` ← `info/profile/info_profile_actions.cpp:2829`
-
-- [ ] [CRITICAL] `_SharedMediaSection` search bar (`_MediaSearchRow`) is purely cosmetic — `_searchController.text` is passed only as the `isSearch` boolean (which only changes the empty-state label), never used to filter or re-query `_gridItems`. Media search does not actually search. — `info_panel.dart:4107-4122`, `4036-4059`
-
-- [ ] [CRITICAL] `_SharedMediaSubPage._buildContent()` contains a null-check `_items == null` on a field declared as non-nullable `List<SharedMediaItem> _items = []` (line 2314). This is dead code that masks a real type error; more importantly the dual-scroll-controller pattern is broken: a `SingleChildScrollView` is given the same `widget.scrollController` that the outer `Column` already registers for scroll pagination (line 2333/2453-2481), creating a controller attached to two scroll views simultaneously — one will throw. — `info_panel.dart:2314`, `2444`, `2453-2481`
-
 - [ ] [CRITICAL] `profileBgColors` (gradient cover background) is never passed to `_FlexibleCoverDelegate` from `_ChatInfoPage` — the parameter is always `null` because `ChatInfo` model has no `bgColors` field. The gradient cover feature is entirely non-functional. — `info_panel.dart:1876-1919` (no `profileBgColors:` argument passed)
-
-- [ ] [CRITICAL] Personal Channel field in `_ChatDetailsState` displays the channel name as plain text with no tap action. AyuGram makes this row tappable to open the channel. The `_TextWithLabel` at line 2847 has no `onTap` — clicking does nothing. — `info_panel.dart:2846-2851`
-
-- [ ] [CRITICAL] `_CommonGroupsRow` in `_ChatDetailsState` (main chat info, not user profile) is rendered without `onTap` (line 2871-2874). The entire "X groups in common" row is non-tappable — tapping it does nothing. The version in `_UserProfilePageState` has the same navigation bug: it pushes another `_InfoPageType.userProfile` page with the same member instead of a common-groups list page. No common-groups page type exists in `_InfoPageType`. — `info_panel.dart:2870-2874`, `2259-2270`
 
 ---
 
