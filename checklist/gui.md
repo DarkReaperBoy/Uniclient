@@ -1191,24 +1191,6 @@ Before findings, confirmed matches (not issues):
 
 ---
 
-- [ ] [CRITICAL] `_ReactionStrip` uses a hardcoded emoji list `['👍','❤️','🔥','🥰','👏','😱','😢','🎉']` with no engine call to fetch available reactions for the chat. AyuGram loads the strip from `session().data().reactions()` (server-provided top/available reactions). — `message_bubble.dart:1490` ← `AyuGram/history/view/reactions/history_view_reactions_selector.cpp:142-175` (defaultReactionIds populated from server reaction list)
-
-- [ ] [CRITICAL] `_ReactionCornerButton` hardcodes the display emoji and sent reaction as `❤️`. AyuGram always uses `session().data().reactions().favoriteId()` — the user's configured favorite reaction. User may have set a different quick reaction via Settings → Appearance → Quick Reaction. — `message_bubble.dart:1075` ← `AyuGram/history/view/history_view_list_widget.cpp:2901` (`const auto favorite = session().data().reactions().favoriteId()`)
-
-- [ ] [CRITICAL] `_ReactionEmojiOverlay` uses a fully static hardcoded Unicode emoji list across 10 categories (lines 1713–1786). This is a vanilla emoji keyboard, not Telegram's reaction picker. AyuGram's full-screen reaction picker loads available reactions from the server via `messages.getAvailableReactions` and shows custom emoji reactions from sticker packs. No engine call is made. — `message_bubble.dart:1713-1786` ← `AyuGram/history/view/reactions/history_view_reactions_selector.cpp:282-357`
-
-- [ ] [CRITICAL] `request_peer` inline button (line 9554–9658) calls `chatState.sendMessage(selected.chatId)` after peer selection — literally sends the chatId string as a plain text message. The correct API is `messages.SendBotRequestedPeer`. The Go backend has `MessagesSendBotRequestedPeer` implemented at `telegram.go:21976` but the bridge dispatch is explicitly skipped (`dispatch_gen.go:20979`: `// Skipped: MessagesSendBotRequestedPeer (complex external types)`). There is no Dart bridge call for it. The bot never receives the peer result. — `message_bubble.dart:9657` ← `AyuGram/history/view/history_view_list_widget.cpp` (uses proper bot requested peer API)
-
-- [ ] [MAJOR] Transcription pending poll uses a fixed 3-second `Future.delayed` (line 4144) then calls `transcribeAudio` once more. If that retry also returns `pending: true`, transcription silently fails with an empty result. Should poll with backoff until `pending == false`. — `message_bubble.dart:4143-4151` ← `AyuGram/history/view/history_view_transcribe_button.cpp` (listens to server update event when transcription completes)
-
-- [ ] [MAJOR] `request_location` keyboard button shows a toast "Location sharing is not supported on this platform" / "requires GPS access" (lines 9539–9543) and never sends any location data to the bot. This is a dead stub. — `message_bubble.dart:9538-9543` ← `AyuGram/history/view/history_view_message.cpp` (uses geolocation API to send location to bot)
-
-- [ ] [MAJOR] Inline reaction pill dimensions deviate from AyuGram spec: emoji `fontSize: 15` vs `chat.style:874 reactionInlineSize: 18px`; padding `symmetric(horizontal: 4, vertical: 1)` vs `chat.style:873 reactionInlinePadding: margins(5px, 2px, 7px, 2px)` (asymmetric left/right); between-pill spacing `Wrap(spacing: 3)` vs `chat.style:887 reactionInlineBetween: 4px`. — `message_bubble.dart:2055,2073` ← `AyuGram/ui/chat/chat.style:873-887`
-
-- [ ] [MAJOR] `_ReactorAvatar` in the "who reacted" popup always renders a generated letter-initial avatar (line 2120) because `ReactorInfo` model has no `avatarB64` field — user photos are never shown. Peer photo data is available from `messages.GetMessageReactionsList` (`from_photo` field) but is not included in the `ReactorInfo` model or the Go bridge serialization. — `message_bubble.dart:2109-2135` ← `AyuGram/history/view/reactions/history_view_reactions_list.cpp` (shows user userpics)
-
-- [ ] [MAJOR] `_ReactionCornerButton` is positioned at `top: 0` (flush with bubble top-corner). AyuGram places the button with `reactionCornerCenter: point(7px, -9px)` — center is 9px above the top bubble edge, so it partially floats above the bubble. The Dart button is entirely inside the message row with no vertical float offset. — `message_bubble.dart:1069-1070` ← `AyuGram/ui/chat/chat.style:904 reactionCornerCenter: point(7px, -9px)`
-
 # my_profile_page — Edit Profile / My Profile Page
 
 - [ ] [MAJOR] Birthday picker uses Flutter system calendar (`showDatePicker`) instead of AyuGram's vertical drum picker (three scroll wheels: day, month, year) — `my_profile_page.dart:124` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/edit_birthday_box.cpp:44` (`Ui::VerticalDrumPicker` with `st::settingsWorkingHoursPicker` height, three wheels)
