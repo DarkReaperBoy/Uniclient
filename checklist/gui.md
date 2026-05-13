@@ -1168,12 +1168,6 @@ Audited against AyuGram Desktop C++ source at
 
 ---
 
-## CRITICAL Issues
-
-- [ ] [CRITICAL] Avatar (userpic) in `_FlexibleCoverDelegate` has no tap handler — clicking the avatar does nothing. AyuGram opens the photo viewer on left-click and a context menu (Open Photo / Report / Change Photo / Suggest Photo) on right-click. — `info_panel.dart:590-641` ← `info/profile/info_profile_top_bar.cpp:1022-1349`
-
-- [ ] [CRITICAL] `profileBgColors` (gradient cover background) is never passed to `_FlexibleCoverDelegate` from `_ChatInfoPage` — the parameter is always `null` because `ChatInfo` model has no `bgColors` field. The gradient cover feature is entirely non-functional. — `info_panel.dart:1876-1919` (no `profileBgColors:` argument passed)
-
 ---
 
 ## MAJOR Issues
