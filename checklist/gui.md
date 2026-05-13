@@ -1175,7 +1175,6 @@ Audited against AyuGram Desktop C++ source at
 
 ## _UsernameBoxContent
 
-- [ ] [CRITICAL] `USERNAME_PURCHASE_AVAILABLE` error silently falls into "Sorry, this username is invalid" catch-all instead of showing a Fragment purchase link — `input_dialogs.dart:252-258` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/username_box.cpp:286-287,301-302,343-350` (`checkInfoPurchaseAvailable()` → `AppConfig::FragmentLink` → displayed as clickable link)
 
 ## _AddContactBoxContent
 
