@@ -51,6 +51,23 @@ class GhostModeAccountSettings {
     this.sendOfflinePacketAfterOnlineLocked = false,
   });
 
+  void copyFrom(GhostModeAccountSettings src) {
+    sendReadMessages = src.sendReadMessages;
+    sendReadStories = src.sendReadStories;
+    sendOnlinePackets = src.sendOnlinePackets;
+    sendUploadProgress = src.sendUploadProgress;
+    sendOfflinePacketAfterOnline = src.sendOfflinePacketAfterOnline;
+    markReadAfterAction = src.markReadAfterAction;
+    useScheduledMessages = src.useScheduledMessages;
+    sendWithoutSound = src.sendWithoutSound;
+    suggestGhostModeBeforeViewingStory = src.suggestGhostModeBeforeViewingStory;
+    sendReadMessagesLocked = src.sendReadMessagesLocked;
+    sendReadStoriesLocked = src.sendReadStoriesLocked;
+    sendOnlinePacketsLocked = src.sendOnlinePacketsLocked;
+    sendUploadProgressLocked = src.sendUploadProgressLocked;
+    sendOfflinePacketAfterOnlineLocked = src.sendOfflinePacketAfterOnlineLocked;
+  }
+
   bool get ghostModeActive =>
       (sendReadMessagesLocked || !sendReadMessages) &&
       (sendReadStoriesLocked || !sendReadStories) &&
@@ -559,6 +576,81 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get useGlobalGhostMode => _useGlobalGhostMode;
   Map<String, GhostModeAccountSettings> get ghostModeSettings =>
       Map.unmodifiable(_ghostModeSettings);
+
+  String resolveGhostKey(String? selectedUserId) {
+    if (_useGlobalGhostMode) return '0';
+    final key = selectedUserId ?? activeAccount?.selfUserId ?? '0';
+    return key.isEmpty ? '0' : key;
+  }
+
+  GhostModeAccountSettings ensureGhostForKey(String key) {
+    return _ghostModeSettings.putIfAbsent(key, GhostModeAccountSettings.new);
+  }
+
+  void ghostSettingChanged(String key) {
+    if (key == _ghostKey) _syncGhostToEngine();
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void copyGhostToGlobal(String fromKey) {
+    final src = _ghostModeSettings[fromKey];
+    if (src == null) return;
+    final dst = _ghostModeSettings.putIfAbsent('0', GhostModeAccountSettings.new);
+    dst.copyFrom(src);
+  }
+
+  void setGhostModeEnabledForKey(String key, bool v) {
+    final s = _ghostModeSettings.putIfAbsent(key, GhostModeAccountSettings.new);
+    bool changed = false;
+    if (v) {
+      if (!s.sendReadMessagesLocked && s.sendReadMessages) { s.sendReadMessages = false; changed = true; }
+      if (!s.sendReadStoriesLocked && s.sendReadStories) { s.sendReadStories = false; changed = true; }
+      if (!s.sendOnlinePacketsLocked && s.sendOnlinePackets) { s.sendOnlinePackets = false; changed = true; }
+      if (!s.sendUploadProgressLocked && s.sendUploadProgress) { s.sendUploadProgress = false; changed = true; }
+      if (!s.sendOfflinePacketAfterOnlineLocked && !s.sendOfflinePacketAfterOnline) { s.sendOfflinePacketAfterOnline = true; changed = true; }
+    } else {
+      if (!s.sendReadMessagesLocked && !s.sendReadMessages) { s.sendReadMessages = true; changed = true; }
+      if (!s.sendReadStoriesLocked && !s.sendReadStories) { s.sendReadStories = true; changed = true; }
+      if (!s.sendOnlinePacketsLocked && !s.sendOnlinePackets) { s.sendOnlinePackets = true; changed = true; }
+      if (!s.sendUploadProgressLocked && !s.sendUploadProgress) { s.sendUploadProgress = true; changed = true; }
+      if (!s.sendOfflinePacketAfterOnlineLocked && s.sendOfflinePacketAfterOnline) { s.sendOfflinePacketAfterOnline = false; changed = true; }
+    }
+    if (!changed) return;
+    if (v && key == _ghostKey) _engine.markAsOnline();
+    ghostSettingChanged(key);
+  }
+
+  void toggleLockForKey(String key, String field) {
+    final s = _ghostModeSettings.putIfAbsent(key, GhostModeAccountSettings.new);
+    final locks = [
+      s.sendReadMessagesLocked, s.sendReadStoriesLocked,
+      s.sendOnlinePacketsLocked, s.sendUploadProgressLocked,
+      s.sendOfflinePacketAfterOnlineLocked,
+    ];
+    bool isCurrentlyLocked;
+    switch (field) {
+      case 'sendReadMessages': isCurrentlyLocked = s.sendReadMessagesLocked;
+      case 'sendReadStories': isCurrentlyLocked = s.sendReadStoriesLocked;
+      case 'sendOnlinePackets': isCurrentlyLocked = s.sendOnlinePacketsLocked;
+      case 'sendUploadProgress': isCurrentlyLocked = s.sendUploadProgressLocked;
+      case 'sendOfflinePacketAfterOnline': isCurrentlyLocked = s.sendOfflinePacketAfterOnlineLocked;
+      default: return;
+    }
+    if (!isCurrentlyLocked) {
+      final unlockedCount = locks.where((l) => !l).length;
+      if (unlockedCount <= 1) return;
+    }
+    switch (field) {
+      case 'sendReadMessages': s.sendReadMessagesLocked = !s.sendReadMessagesLocked;
+      case 'sendReadStories': s.sendReadStoriesLocked = !s.sendReadStoriesLocked;
+      case 'sendOnlinePackets': s.sendOnlinePacketsLocked = !s.sendOnlinePacketsLocked;
+      case 'sendUploadProgress': s.sendUploadProgressLocked = !s.sendUploadProgressLocked;
+      case 'sendOfflinePacketAfterOnline': s.sendOfflinePacketAfterOnlineLocked = !s.sendOfflinePacketAfterOnlineLocked;
+    }
+    notifyListeners();
+    _saveWindowPrefs();
+  }
   bool get ghostModeEnabled => _ghostSettings.ghostModeActive;
   bool get sendReadMessages => _ghostSettings.sendReadMessages;
   bool get sendReadStories => _ghostSettings.sendReadStories;

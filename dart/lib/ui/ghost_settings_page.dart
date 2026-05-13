@@ -9,8 +9,6 @@ import '../state/app_state.dart';
 import '../theme/theme.dart';
 import 'ayu_toggle.dart';
 import 'confirm_box.dart';
-import 'edit_mark_box.dart';
-import 'settings_style.dart';
 import 'telegram_toast.dart';
 
 class GhostSettingsPage extends StatefulWidget {
@@ -29,8 +27,16 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
     final appState = context.read<AppState>();
     final activeCount = appState.accounts.length;
     if (activeCount <= 1 && !appState.useGlobalGhostMode) {
+      final userId = appState.activeAccount?.selfUserId ?? '';
+      if (userId.isNotEmpty) {
+        appState.copyGhostToGlobal(userId);
+      }
       appState.setUseGlobalGhostMode(true);
     }
+  }
+
+  String _resolveKey(AppState appState) {
+    return appState.resolveGhostKey(_selectedUserId);
   }
 
   @override
@@ -47,6 +53,9 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
     final subtitleColor = isDark
         ? const Color(0xFF6D7F8F)
         : const Color(0xFF999999);
+
+    final key = _resolveKey(appState);
+    final gs = appState.ensureGhostForKey(key);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -90,12 +99,13 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
           ),
           _ToggleRow(
             label: 'Ghost Mode',
-            value: appState.ghostModeEnabled,
+            value: gs.ghostModeActive,
             onChanged: (v) {
-              final before = appState.ghostModeEnabled;
-              appState.setGhostModeEnabled(v);
-              if (before != appState.ghostModeEnabled) {
-                showTelegramToast(context, appState.ghostModeEnabled
+              final before = gs.ghostModeActive;
+              appState.setGhostModeEnabledForKey(key, v);
+              final after = appState.ensureGhostForKey(key).ghostModeActive;
+              if (before != after) {
+                showTelegramToast(context, after
                     ? 'Ghost Mode turned on'
                     : 'Ghost Mode turned off');
               }
@@ -111,59 +121,67 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
-            child: appState.ghostModeEnabled
+            child: gs.ghostModeActive
                 ? Column(
                     children: [
                       _LockableToggleRow(
                         label: "Don't Read Messages",
                         subtitle: 'Block read receipts from being sent',
-                        value: !appState.sendReadMessages,
-                        locked: appState.sendReadMessagesLocked,
-                        onChanged: (v) => appState.setSendReadMessages(!v),
-                        onLock: () => appState.toggleLock('sendReadMessages'),
+                        value: !gs.sendReadMessages,
+                        locked: gs.sendReadMessagesLocked,
+                        onChanged: (v) {
+                          gs.sendReadMessages = !v;
+                          appState.ghostSettingChanged(key);
+                        },
+                        onLock: () => appState.toggleLockForKey(key, 'sendReadMessages'),
                         isDark: isDark,
                       ),
                       _LockableToggleRow(
                         label: "Don't Read Stories",
                         subtitle: 'Block story view confirmations',
-                        value: !appState.sendReadStories,
-                        locked: appState.sendReadStoriesLocked,
-                        onChanged: (v) => appState.setSendReadStories(!v),
-                        onLock: () => appState.toggleLock('sendReadStories'),
+                        value: !gs.sendReadStories,
+                        locked: gs.sendReadStoriesLocked,
+                        onChanged: (v) {
+                          gs.sendReadStories = !v;
+                          appState.ghostSettingChanged(key);
+                        },
+                        onLock: () => appState.toggleLockForKey(key, 'sendReadStories'),
                         isDark: isDark,
-                      ),
-                      _ToggleRow(
-                        label: 'Suggest Ghost before Story',
-                        value: appState.suggestGhostModeBeforeViewingStory,
-                        onChanged: (v) => appState.setSuggestGhostModeBeforeViewingStory(v),
-                        isDark: isDark,
-                        useMaterial: appState.materialSwitches,
                       ),
                       _LockableToggleRow(
                         label: "Don't Send Online",
                         subtitle: 'Never report online status to the server',
-                        value: !appState.sendOnlinePackets,
-                        locked: appState.sendOnlinePacketsLocked,
-                        onChanged: (v) => appState.setSendOnlinePackets(!v),
-                        onLock: () => appState.toggleLock('sendOnlinePackets'),
+                        value: !gs.sendOnlinePackets,
+                        locked: gs.sendOnlinePacketsLocked,
+                        onChanged: (v) {
+                          gs.sendOnlinePackets = !v;
+                          appState.ghostSettingChanged(key);
+                        },
+                        onLock: () => appState.toggleLockForKey(key, 'sendOnlinePackets'),
                         isDark: isDark,
                       ),
                       _LockableToggleRow(
                         label: "Don't Send Typing",
                         subtitle: 'Block typing and upload progress indicators',
-                        value: !appState.sendUploadProgress,
-                        locked: appState.sendUploadProgressLocked,
-                        onChanged: (v) => appState.setSendUploadProgress(!v),
-                        onLock: () => appState.toggleLock('sendUploadProgress'),
+                        value: !gs.sendUploadProgress,
+                        locked: gs.sendUploadProgressLocked,
+                        onChanged: (v) {
+                          gs.sendUploadProgress = !v;
+                          appState.ghostSettingChanged(key);
+                        },
+                        onLock: () => appState.toggleLockForKey(key, 'sendUploadProgress'),
                         isDark: isDark,
                       ),
                       _LockableToggleRow(
                         label: 'Go Offline Automatically',
                         subtitle: 'Immediately go offline after any online appearance',
-                        value: appState.sendOfflinePacketAfterOnline,
-                        locked: appState.sendOfflinePacketAfterOnlineLocked,
-                        onChanged: (v) => appState.setSendOfflinePacketAfterOnline(v),
-                        onLock: () => appState.toggleLock('sendOfflinePacketAfterOnline'),
+                        value: gs.sendOfflinePacketAfterOnline,
+                        locked: gs.sendOfflinePacketAfterOnlineLocked,
+                        onChanged: (v) {
+                          gs.sendOfflinePacketAfterOnline = v;
+                          appState.ghostSettingChanged(key);
+                        },
+                        onLock: () => appState.toggleLockForKey(key, 'sendOfflinePacketAfterOnline'),
                         isDark: isDark,
                       ),
                     ],
@@ -172,8 +190,12 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
           ),
           _ToggleRow(
             label: 'Read on Interact',
-            value: appState.markReadAfterAction,
-            onChanged: (v) => appState.setMarkReadAfterAction(v),
+            value: gs.markReadAfterAction,
+            onChanged: (v) {
+              gs.markReadAfterAction = v;
+              if (v) gs.useScheduledMessages = false;
+              appState.ghostSettingChanged(key);
+            },
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
@@ -183,8 +205,12 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
           ),
           _ToggleRow(
             label: 'Schedule Messages',
-            value: appState.useScheduledMessages,
-            onChanged: (v) => appState.setUseScheduledMessages(v),
+            value: gs.useScheduledMessages,
+            onChanged: (v) {
+              gs.useScheduledMessages = v;
+              if (v) gs.markReadAfterAction = false;
+              appState.ghostSettingChanged(key);
+            },
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
@@ -192,15 +218,30 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
             text: 'Automatically schedules outgoing messages to send after ~12 seconds. Avoid using on unreliable networks.',
             color: subtitleColor,
           ),
-          _ThreeWayRow(
-            label: 'Send without Sound',
-            value: appState.sendWithoutSound,
-            options: const ['Never', 'In Ghost Mode', 'Always'],
-            onChanged: (v) => appState.setSendWithoutSound(v),
+          _SendWithoutSoundRow(
+            value: gs.sendWithoutSound,
+            onChanged: (v) {
+              gs.sendWithoutSound = v;
+              appState.ghostSettingChanged(key);
+            },
             isDark: isDark,
           ),
           _DividerText(
             text: 'Sends outgoing messages without sound. "In Ghost Mode" only activates when ghost mode is active.',
+            color: subtitleColor,
+          ),
+          _ToggleRow(
+            label: 'Suggest Ghost before Story',
+            value: gs.suggestGhostModeBeforeViewingStory,
+            onChanged: (v) {
+              gs.suggestGhostModeBeforeViewingStory = v;
+              appState.ghostSettingChanged(key);
+            },
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _DividerText(
+            text: 'Asks whether to enable ghost mode before viewing a story.',
             color: subtitleColor,
           ),
           const SizedBox(height: 7),
@@ -231,52 +272,11 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
-          Container(height: 1, color: dividerColor, margin: const EdgeInsets.symmetric(horizontal: 22)),
-          _BetaToggleRow(
-            label: 'Semi-transparent Deleted',
-            value: appState.semiTransparentDeleted,
-            onChanged: (v) => appState.setSemiTransparentDeleted(v),
-            isDark: isDark,
-            useMaterial: appState.materialSwitches,
-          ),
-          Container(height: 1, color: dividerColor, margin: const EdgeInsets.symmetric(horizontal: 22)),
-          _ToggleRow(
-            label: 'Replace Marks with Icons',
-            value: appState.replaceMarksWithIcons,
-            onChanged: (v) => appState.setReplaceMarksWithIcons(v),
-            isDark: isDark,
-            useMaterial: appState.materialSwitches,
-          ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.topCenter,
-            child: !appState.replaceMarksWithIcons
-                ? Column(
-                    children: [
-                      _MarkEditButton(
-                        label: 'Deleted mark',
-                        currentValue: appState.deletedMark,
-                        defaultValue: '\u{1F9F9}',
-                        onSave: (v) => appState.setDeletedMark(v),
-                        isDark: isDark,
-                      ),
-                      _MarkEditButton(
-                        label: 'Edited mark',
-                        currentValue: appState.editedMark,
-                        defaultValue: '',
-                        onSave: (v) => appState.setEditedMark(v),
-                        isDark: isDark,
-                      ),
-                    ],
-                  )
-                : const SizedBox.shrink(),
-          ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
 
-          // ── Other (§54.12) ──
+          // ── Other (§54.12) — only localPremium and disableAds per AyuGram ──
           _SectionLabel(label: 'Other', color: sectionLabelColor),
           _ToggleRow(
             label: 'Local Premium',
@@ -289,20 +289,6 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
             label: 'Disable Ads',
             value: appState.disableAds,
             onChanged: (v) => appState.setDisableAds(v),
-            isDark: isDark,
-            useMaterial: appState.materialSwitches,
-          ),
-          _ToggleRow(
-            label: 'Disable Stories',
-            value: appState.disableStories,
-            onChanged: (v) => appState.setDisableStories(v),
-            isDark: isDark,
-            useMaterial: appState.materialSwitches,
-          ),
-          _ToggleRow(
-            label: 'Disable Custom Wallpapers for All Chats',
-            value: appState.disableCustomBackgrounds,
-            onChanged: (v) => appState.setDisableCustomBackgrounds(v),
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
@@ -385,42 +371,48 @@ class _ToggleRow extends StatelessWidget {
   }
 }
 
-class _ThreeWayRow extends StatelessWidget {
-  final String label;
+class _SendWithoutSoundRow extends StatelessWidget {
   final int value;
-  final List<String> options;
   final ValueChanged<int> onChanged;
   final bool isDark;
 
-  const _ThreeWayRow({
-    required this.label,
+  static const _options = ['Never', 'In Ghost Mode', 'Always'];
+
+  const _SendWithoutSoundRow({
     required this.value,
-    required this.options,
     required this.onChanged,
     required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accentColor = isDark
+        ? const Color(0xFF6AB2F2)
+        : const Color(0xFF3390EC);
     return InkWell(
-      onTap: () => onChanged((value + 1) % options.length),
+      onTap: () {
+        showSingleChoiceBox(
+          context,
+          title: 'Send without Sound',
+          options: _options,
+          initialSelection: value.clamp(0, _options.length - 1),
+          onChanged: onChanged,
+        );
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
         child: Row(
           children: [
             Expanded(
-              child: Text(label,
+              child: Text('Send without Sound',
                   style: TextStyle(
                       fontSize: 14,
                       color: isDark ? Colors.white : Colors.black87)),
             ),
             const SizedBox(width: 12),
             Text(
-              options[value.clamp(0, options.length - 1)],
-              style: TextStyle(
-                fontSize: 14,
-                color: isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC),
-              ),
+              _options[value.clamp(0, _options.length - 1)],
+              style: TextStyle(fontSize: 14, color: accentColor),
             ),
           ],
         ),
@@ -683,25 +675,26 @@ class _AccountPickerButton extends StatelessWidget {
 class _GlobalSettingsAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       width: 30,
       height: 30,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF9C27B0), Color(0xFF7B1FA2)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            palette.peerUserpicBg(4),
+            palette.peerUserpicBg2(4),
+          ],
         ),
       ),
       child: const Center(
-        child: Text(
-          'GS',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-          ),
+        child: Icon(
+          Icons.visibility_off,
+          color: Colors.white,
+          size: 16,
         ),
       ),
     );
@@ -743,120 +736,6 @@ class _AccountAvatar extends StatelessWidget {
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BetaToggleRow extends StatelessWidget {
-  final String label;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  final bool isDark;
-  final bool useMaterial;
-
-  const _BetaToggleRow({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-    required this.isDark,
-    this.useMaterial = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => onChanged(!value),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-        child: Row(
-          children: [
-            Expanded(
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(label,
-                        style: TextStyle(
-                            fontSize: 14,
-                            color: isDark ? Colors.white : Colors.black87)),
-                  ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF9500),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: const Text('BETA',
-                        style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            AyuToggle(
-              value: value,
-              onChanged: onChanged,
-              isMaterial: useMaterial,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MarkEditButton extends StatelessWidget {
-  final String label;
-  final String currentValue;
-  final String defaultValue;
-  final ValueChanged<String> onSave;
-  final bool isDark;
-
-  const _MarkEditButton({
-    required this.label,
-    required this.currentValue,
-    required this.defaultValue,
-    required this.onSave,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final accentColor = isDark
-        ? const Color(0xFF6AB2F2)
-        : const Color(0xFF3390EC);
-    final displayValue = currentValue.isEmpty
-        ? (defaultValue.isEmpty ? 'default' : defaultValue)
-        : currentValue;
-
-    return InkWell(
-      onTap: () => showEditMarkBox(
-        context,
-        title: label,
-        currentValue: currentValue,
-        defaultValue: defaultValue,
-        onSave: onSave,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 10),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(label,
-                  style: TextStyle(
-                      fontSize: 14,
-                      color: isDark ? Colors.white : Colors.black87)),
-            ),
-            Text(displayValue,
-                style: TextStyle(fontSize: 14, color: accentColor)),
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right, size: 18, color: accentColor),
-          ],
         ),
       ),
     );
