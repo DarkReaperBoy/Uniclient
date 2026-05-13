@@ -4278,6 +4278,7 @@ class _InviteLinkData {
   final bool permanent;
   final bool revoked;
   final bool needApproval;
+  final int subscriptionCredits;
 
   _InviteLinkData({
     required this.link,
@@ -4292,6 +4293,7 @@ class _InviteLinkData {
     this.permanent = false,
     this.revoked = false,
     this.needApproval = false,
+    this.subscriptionCredits = 0,
   });
 
   factory _InviteLinkData.fromMap(Map<String, dynamic> m) {
@@ -4308,6 +4310,7 @@ class _InviteLinkData {
       permanent: m['permanent'] as bool? ?? false,
       revoked: m['revoked'] as bool? ?? false,
       needApproval: m['need_approval'] as bool? ?? false,
+      subscriptionCredits: (m['subscription_credits'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -5121,9 +5124,12 @@ class _CreateEditLinkForm extends StatefulWidget {
 
 class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
   late final TextEditingController _labelCtrl;
+  late final TextEditingController _creditsCtrl;
   int _expireOption = 0;
   int _usageLimitOption = 0;
   bool _requestApproval = false;
+  bool _subscription = false;
+  bool _subscriptionLocked = false;
   bool _saving = false;
 
   bool get _isEdit => widget.existingLink != null;
@@ -5157,6 +5163,13 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
   void initState() {
     super.initState();
     _labelCtrl = TextEditingController(text: widget.existingLink?.label ?? '');
+    _subscriptionLocked = (widget.existingLink?.subscriptionCredits ?? 0) > 0;
+    _subscription = _subscriptionLocked;
+    _creditsCtrl = TextEditingController(
+      text: (widget.existingLink?.subscriptionCredits ?? 0) > 0
+          ? '${widget.existingLink!.subscriptionCredits}'
+          : '',
+    );
     if (_isEdit) {
       final el = widget.existingLink!;
       _requestApproval = el.needApproval;
@@ -5189,6 +5202,7 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
   @override
   void dispose() {
     _labelCtrl.dispose();
+    _creditsCtrl.dispose();
     super.dispose();
   }
 
@@ -5272,6 +5286,9 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
       expireDate = 0;
     }
     final usageLimit = _requestApproval ? 0 : (_usageLimitOption == -1 ? _customUsageLimit : _usageLimitOption);
+    final subscriptionCredits = _subscription
+        ? (int.tryParse(_creditsCtrl.text.trim()) ?? 0)
+        : 0;
 
     try {
       if (_isEdit) {
@@ -5279,12 +5296,14 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
           widget.accountId, widget.chatId, widget.existingLink!.link,
           label: label, expireDate: expireDate, usageLimit: usageLimit,
           requestApproval: _requestApproval,
+          subscriptionCredits: subscriptionCredits,
         );
       } else {
         await engine.createChatInviteLink(
           widget.accountId, widget.chatId,
           label: label, expireDate: expireDate, usageLimit: usageLimit,
           requestApproval: _requestApproval,
+          subscriptionCredits: subscriptionCredits,
         );
       }
       if (mounted) Navigator.pop(context, {'ok': true});
@@ -5333,6 +5352,7 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
                   counterText: '',
                 ),
               ),
+              if (!_subscriptionLocked) ...[
               const SizedBox(height: 16),
               Text('Expire After', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: palette.windowActiveTextFg)),
               const SizedBox(height: 8),
@@ -5384,6 +5404,71 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
                 activeTrackColor: palette.windowBgActive,
                 contentPadding: EdgeInsets.zero,
               ),
+              ], // end if (!_subscriptionLocked)
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: (_saving || _subscriptionLocked)
+                    ? () {
+                        if (_subscriptionLocked) {
+                          showTelegramToast(context, 'Subscription links cannot be changed after creation.');
+                        }
+                      }
+                    : () => setState(() {
+                          _subscription = !_subscription;
+                          if (_subscription) _requestApproval = false;
+                        }),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 18, height: 18,
+                      child: Checkbox(
+                        value: _subscription,
+                        onChanged: (_saving || _subscriptionLocked)
+                            ? null
+                            : (v) => setState(() {
+                                  _subscription = v ?? false;
+                                  if (_subscription) _requestApproval = false;
+                                }),
+                        activeColor: palette.windowBgActive,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text('Subscription', style: TextStyle(fontSize: 14, color: textColor)),
+                    ),
+                  ],
+                ),
+              ),
+              if (_subscription) ...[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.only(left: 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Users will pay star credits to subscribe via this link.',
+                        style: TextStyle(fontSize: 12, color: subColor)),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: 180,
+                        child: TextField(
+                          controller: _creditsCtrl,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          enabled: !_saving && !_subscriptionLocked,
+                          decoration: InputDecoration(
+                            labelText: 'Star credits',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity, height: 42,
