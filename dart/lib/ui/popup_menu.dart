@@ -15,16 +15,14 @@ const Duration _kCloseDuration = Duration(milliseconds: 150);
 Color _menuBg(Brightness b) =>
     b == Brightness.dark ? const Color(0xFF17212b) : const Color(0xFFffffff);
 
-Color _shadowColor(Brightness b) =>
-    b == Brightness.dark
-        ? const Color(0xFF17212b)
-        : const Color(0xFF000000);
+Color _shadowColor(Brightness b) => const Color(0xFF000000);
 
 Future<T?> showTelegramMenu<T>({
   required BuildContext context,
   required Offset position,
   required List<TelegramMenuItem<T>> items,
   bool fullAttention = false,
+  double? maxHeight,
 }) {
   final brightness = Theme.of(context).brightness;
   final mediaQuery = MediaQuery.of(context);
@@ -39,6 +37,7 @@ Future<T?> showTelegramMenu<T>({
       screenSize: screenSize,
       screenPadding: screenPadding,
       fullAttention: fullAttention,
+      maxHeight: maxHeight,
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     ),
   );
@@ -89,6 +88,7 @@ class _TelegramMenuRoute<T> extends PopupRoute<T> {
   final Size screenSize;
   final EdgeInsets screenPadding;
   final bool fullAttention;
+  final double? maxHeight;
 
   _TelegramMenuRoute({
     required this.position,
@@ -98,6 +98,7 @@ class _TelegramMenuRoute<T> extends PopupRoute<T> {
     required this.screenPadding,
     required String barrierLabel,
     this.fullAttention = false,
+    this.maxHeight,
   }) : _barrierLabel = barrierLabel;
 
   final String _barrierLabel;
@@ -150,6 +151,7 @@ class _TelegramMenuRoute<T> extends PopupRoute<T> {
       screenSize: screenSize,
       screenPadding: screenPadding,
       fullAttention: fullAttention,
+      maxHeight: maxHeight,
       onSelected: (T? value) {
         if (value != null) {
           navigator?.pop(value);
@@ -179,6 +181,7 @@ class _TelegramMenuOverlay<T> extends StatefulWidget {
   final EdgeInsets screenPadding;
   final ValueChanged<T?> onSelected;
   final bool fullAttention;
+  final double? maxHeight;
 
   const _TelegramMenuOverlay({
     required this.animation,
@@ -189,6 +192,7 @@ class _TelegramMenuOverlay<T> extends StatefulWidget {
     required this.screenPadding,
     required this.onSelected,
     this.fullAttention = false,
+    this.maxHeight,
   });
 
   @override
@@ -242,6 +246,7 @@ class _TelegramMenuOverlayState<T> extends State<_TelegramMenuOverlay<T>> {
             position: widget.position,
             screenSize: widget.screenSize,
             margin: margin,
+            maxHeight: widget.maxHeight,
             onOriginResolved: (origin) {
               if (origin != _origin) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -313,6 +318,7 @@ class _AnimatedMenuPositioner extends StatelessWidget {
   final double margin;
   final Widget child;
   final ValueChanged<Alignment>? onOriginResolved;
+  final double? maxHeight;
 
   const _AnimatedMenuPositioner({
     required this.animation,
@@ -321,6 +327,7 @@ class _AnimatedMenuPositioner extends StatelessWidget {
     required this.margin,
     required this.child,
     this.onOriginResolved,
+    this.maxHeight,
   });
 
   @override
@@ -331,6 +338,7 @@ class _AnimatedMenuPositioner extends StatelessWidget {
         screenSize: screenSize,
         margin: margin,
         onOriginResolved: onOriginResolved,
+        maxHeight: maxHeight,
       ),
       child: child,
     );
@@ -342,19 +350,25 @@ class _MenuPositionDelegate extends SingleChildLayoutDelegate {
   final Size screenSize;
   final double margin;
   final ValueChanged<Alignment>? onOriginResolved;
+  final double? maxHeight;
 
   _MenuPositionDelegate({
     required this.position,
     required this.screenSize,
     required this.margin,
     this.onOriginResolved,
+    this.maxHeight,
   });
 
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    final screenMax = screenSize.height - margin * 2;
+    final effectiveMax = maxHeight != null
+        ? math.min(maxHeight!, screenMax)
+        : screenMax;
     return BoxConstraints.loose(Size(
       _kMenuMaxWidth,
-      screenSize.height - margin * 2,
+      effectiveMax,
     ));
   }
 
@@ -390,7 +404,73 @@ class _MenuPositionDelegate extends SingleChildLayoutDelegate {
   @override
   bool shouldRelayout(_MenuPositionDelegate oldDelegate) =>
       position != oldDelegate.position ||
-      screenSize != oldDelegate.screenSize;
+      screenSize != oldDelegate.screenSize ||
+      maxHeight != oldDelegate.maxHeight;
+}
+
+class _AnimatedSubmenuReveal extends StatefulWidget {
+  final Widget child;
+  final Alignment origin;
+
+  const _AnimatedSubmenuReveal({
+    required this.child,
+    this.origin = Alignment.topLeft,
+  });
+
+  @override
+  State<_AnimatedSubmenuReveal> createState() => _AnimatedSubmenuRevealState();
+}
+
+class _AnimatedSubmenuRevealState extends State<_AnimatedSubmenuReveal>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: _kOpenDuration,
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = const _SineInOutCurve().transform(_controller.value);
+        final widthFactor = 0.5 + 0.5 * _panelCurve(t, 0.6);
+        final heightFactor = 0.45 + 0.55 * _panelCurve(t, 0.9);
+        final opacity = (0.2 + 0.8 * _panelCurve(t, 0.3)).clamp(0.0, 1.0);
+
+        return Opacity(
+          opacity: opacity,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(_kCornerRadius),
+            child: Align(
+              alignment: widget.origin,
+              widthFactor: widthFactor.clamp(0.0, 1.0),
+              heightFactor: heightFactor.clamp(0.0, 1.0),
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+
+  static double _panelCurve(double t, double portion) {
+    if (t >= portion) return 1.0;
+    return t / portion;
+  }
 }
 
 class _TelegramMenuContent<T> extends StatefulWidget {
@@ -477,33 +557,36 @@ class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
             screenSize: screenSize,
             margin: 8.0,
           ),
-          child: IntrinsicWidth(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                minWidth: _kMenuMinWidth,
-                maxWidth: _kMenuMaxWidth,
-              ),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: bg,
-                  borderRadius: BorderRadius.circular(_kCornerRadius),
-                  boxShadow: [
-                    BoxShadow(
-                      color: shadow.withOpacity(_kShadowOpacity),
-                      blurRadius: _kShadowBlurRadius,
-                      offset: _kShadowOffset,
-                    ),
-                  ],
+          child: _AnimatedSubmenuReveal(
+            origin: Alignment.topLeft,
+            child: IntrinsicWidth(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minWidth: _kMenuMinWidth,
+                  maxWidth: _kMenuMaxWidth,
                 ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: pad),
-                    child: _TelegramMenuContent<T>(
-                      items: items,
-                      brightness: brightness,
-                      onSelected: _handleSelection,
-                      onEscape: _hideSubmenu,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: bg,
+                    borderRadius: BorderRadius.circular(_kCornerRadius),
+                    boxShadow: [
+                      BoxShadow(
+                        color: shadow.withOpacity(_kShadowOpacity),
+                        blurRadius: _kShadowBlurRadius,
+                        offset: _kShadowOffset,
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: pad),
+                      child: _TelegramMenuContent<T>(
+                        items: items,
+                        brightness: brightness,
+                        onSelected: _handleSelection,
+                        onEscape: _hideSubmenu,
+                      ),
                     ),
                   ),
                 ),
@@ -684,6 +767,7 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
     with SingleTickerProviderStateMixin {
   late final AnimationController _rippleController;
   bool _hovering = false;
+  Offset _tapPosition = Offset.zero;
 
   static const _kRippleShowDuration = Duration(milliseconds: 650);
   static const _kRippleHideDuration = Duration(milliseconds: 200);
@@ -704,7 +788,8 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
     super.dispose();
   }
 
-  void _onTapDown(TapDownDetails _) {
+  void _onTapDown(TapDownDetails details) {
+    _tapPosition = details.localPosition;
     _rippleController.forward();
   }
 
@@ -851,21 +936,24 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
         child: AnimatedBuilder(
           animation: _rippleController,
           builder: (context, child) {
-            return Container(
-              height: hasIcon ? 29 : 28,
-              color: _rippleController.value > 0
-                  ? Color.lerp(
-                      highlighted ? hoverColor : null,
-                      rippleColor,
-                      _rippleController.value,
+            return CustomPaint(
+              foregroundPainter: _rippleController.value > 0
+                  ? _RippleCirclePainter(
+                      progress: _rippleController.value,
+                      center: _tapPosition,
+                      color: rippleColor,
                     )
-                  : (highlighted ? hoverColor : null),
-              padding: hasIcon
-                  ? const EdgeInsets.only(
-                      left: 54, top: 8, right: 17, bottom: 8)
-                  : const EdgeInsets.only(
-                      left: 17, top: 8, right: 17, bottom: 7),
-              child: child,
+                  : null,
+              child: Container(
+                height: hasIcon ? 29 : 28,
+                color: highlighted ? hoverColor : null,
+                padding: hasIcon
+                    ? const EdgeInsets.only(
+                        left: 54, top: 8, right: 17, bottom: 8)
+                    : const EdgeInsets.only(
+                        left: 17, top: 8, right: 17, bottom: 7),
+                child: child,
+              ),
             );
           },
           child: contentChild,
@@ -873,6 +961,52 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
       ),
     );
   }
+}
+
+class _RippleCirclePainter extends CustomPainter {
+  final double progress;
+  final Offset center;
+  final Color color;
+
+  _RippleCirclePainter({
+    required this.progress,
+    required this.center,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final maxRadius = math.sqrt(
+      math.max(
+        center.dx * center.dx + center.dy * center.dy,
+        math.max(
+          (size.width - center.dx) * (size.width - center.dx) +
+              center.dy * center.dy,
+          math.max(
+            center.dx * center.dx +
+                (size.height - center.dy) * (size.height - center.dy),
+            (size.width - center.dx) * (size.width - center.dx) +
+                (size.height - center.dy) * (size.height - center.dy),
+          ),
+        ),
+      ),
+    );
+    final radius = maxRadius * progress;
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()..color = color.withOpacity(color.opacity * (1.0 - progress * 0.3)),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_RippleCirclePainter old) =>
+      progress != old.progress ||
+      center != old.center ||
+      color != old.color;
 }
 
 class _TelegramDisabledItem<T> extends StatelessWidget {
@@ -889,10 +1023,10 @@ class _TelegramDisabledItem<T> extends StatelessWidget {
     final isDark = brightness == Brightness.dark;
     final textColor = isDark
         ? const Color(0xFF6c7883)
-        : const Color(0xFF999999);
+        : const Color(0xFFcccccc);
     final iconColor = isDark
         ? const Color(0xFF6c7883)
-        : const Color(0xFF999999);
+        : const Color(0xFFcccccc);
     final hasIcon = item.icon != null;
 
     return IgnorePointer(

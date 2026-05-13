@@ -71,6 +71,14 @@ const double _kMarkerOpacity = 0.35;
 const double _kMarkerSizeMultiplier = 2.5;
 const Color _kControlBarPillBg = Color(0x33000000);
 
+const double _kBrushSizeControlHeight = 280.0;
+const double _kBrushSizeControlCollapsedWidth = 2.0;
+const double _kBrushSizeControlExpandedTopWidth = 25.0;
+const double _kBrushSizeControlExpandedBottomWidth = 4.0;
+const double _kBrushSizeControlExpandShift = 14.0;
+const double _kBrushSizeControlHitPadding = 24.0;
+const Duration _kBrushSizeControlAnimDuration = Duration(milliseconds: 200);
+
 enum _Edge {
   none,
   topLeft, topRight, bottomLeft, bottomRight,
@@ -825,6 +833,20 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
 
             Positioned(
               left: 0,
+              top: 0,
+              bottom: _kContentMarginBottom,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _VerticalBrushSizeControl(
+                  value: _brushWidth,
+                  onChanged: _setBrushWidth,
+                  visible: _editorMode == _EditorMode.paint,
+                ),
+              ),
+            ),
+
+            Positioned(
+              left: 0,
               right: 0,
               bottom: 0,
               height: _kContentMarginBottom,
@@ -858,8 +880,6 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
                               canRedo: _canRedo,
                               onUndo: _paintUndo,
                               onRedo: _paintRedo,
-                              brushWidth: _brushWidth,
-                              onBrushWidthChanged: _setBrushWidth,
                             ),
                             const SizedBox(height: 6),
                           ],
@@ -2097,8 +2117,6 @@ class _PaintTopBar extends StatelessWidget {
   final bool canRedo;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
-  final double brushWidth;
-  final ValueChanged<double>? onBrushWidthChanged;
 
   const _PaintTopBar({
     super.key,
@@ -2106,8 +2124,6 @@ class _PaintTopBar extends StatelessWidget {
     required this.canRedo,
     required this.onUndo,
     required this.onRedo,
-    this.brushWidth = 4.0,
-    this.onBrushWidthChanged,
   });
 
   @override
@@ -2125,14 +2141,7 @@ class _PaintTopBar extends StatelessWidget {
               onPressed: onUndo,
               tooltip: 'Undo',
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _BrushSizeSlider(
-                value: brushWidth,
-                onChanged: onBrushWidthChanged ?? (_) {},
-              ),
-            ),
-            const SizedBox(width: 12),
+            const Spacer(),
             _BarIconButton(
               icon: Icons.redo,
               state: canRedo ? _IconState.idle : _IconState.inactive,
@@ -2197,60 +2206,202 @@ class _ColorPaletteRow extends StatelessWidget {
   }
 }
 
-class _BrushSizeSlider extends StatelessWidget {
+class _VerticalBrushSizeControl extends StatefulWidget {
   final double value;
   final ValueChanged<double> onChanged;
+  final bool visible;
 
-  const _BrushSizeSlider({
+  const _VerticalBrushSizeControl({
     required this.value,
     required this.onChanged,
+    this.visible = false,
   });
 
   @override
+  State<_VerticalBrushSizeControl> createState() =>
+      _VerticalBrushSizeControlState();
+}
+
+class _VerticalBrushSizeControlState extends State<_VerticalBrushSizeControl>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _expandController;
+  bool _hovered = false;
+  bool _dragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _expandController = AnimationController(
+      vsync: this,
+      duration: _kBrushSizeControlAnimDuration,
+    );
+  }
+
+  @override
+  void dispose() {
+    _expandController.dispose();
+    super.dispose();
+  }
+
+  void _setExpanded(bool expanded) {
+    if (expanded) {
+      _expandController.forward();
+    } else if (!_dragging) {
+      _expandController.reverse();
+    }
+  }
+
+  double _ratioFromValue(double v) {
+    return ((v - _kMinBrushSize) / (_kMaxBrushSize - _kMinBrushSize))
+        .clamp(0.0, 1.0);
+  }
+
+  double _valueFromRatio(double ratio) {
+    return _kMinBrushSize + ratio * (_kMaxBrushSize - _kMinBrushSize);
+  }
+
+  double get _sliderTop =>
+      _kBrushSizeControlHitPadding + _kBrushSizeControlExpandedTopWidth / 2;
+  double get _sliderBottom =>
+      _kBrushSizeControlHeight -
+      _kBrushSizeControlHitPadding -
+      _kBrushSizeControlExpandedBottomWidth / 2;
+  double get _sliderRange => _sliderBottom - _sliderTop;
+
+  double _yFromRatio(double ratio) {
+    return _sliderTop + (1.0 - ratio) * _sliderRange;
+  }
+
+  void _updateFromY(double localY) {
+    final ratio =
+        1.0 - ((localY - _sliderTop) / _sliderRange).clamp(0.0, 1.0);
+    widget.onChanged(_valueFromRatio(ratio));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 32,
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(
-              color: Color(0xAAFFFFFF),
-              shape: BoxShape.circle,
-            ),
-          ),
-          Expanded(
-            child: SliderTheme(
-              data: SliderThemeData(
-                activeTrackColor: const Color(0xCCFFFFFF),
-                inactiveTrackColor: const Color(0x44FFFFFF),
-                thumbColor: Colors.white,
-                thumbShape:
-                    const RoundSliderThumbShape(enabledThumbRadius: 8),
-                trackHeight: 2,
-                overlayShape: SliderComponentShape.noOverlay,
+    return AnimatedOpacity(
+      opacity: widget.visible ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 200),
+      child: IgnorePointer(
+        ignoring: !widget.visible,
+        child: SizedBox(
+          width: _kBrushSizeControlHitPadding * 2 +
+              _kBrushSizeControlExpandShift +
+              _kBrushSizeControlExpandedTopWidth,
+          height: _kBrushSizeControlHeight,
+          child: MouseRegion(
+            onEnter: (_) {
+              _hovered = true;
+              _setExpanded(true);
+            },
+            onExit: (_) {
+              _hovered = false;
+              _setExpanded(false);
+            },
+            child: GestureDetector(
+              onVerticalDragStart: (d) {
+                _dragging = true;
+                _setExpanded(true);
+                _updateFromY(d.localPosition.dy);
+              },
+              onVerticalDragUpdate: (d) => _updateFromY(d.localPosition.dy),
+              onVerticalDragEnd: (_) {
+                _dragging = false;
+                if (!_hovered) _setExpanded(false);
+              },
+              onVerticalDragCancel: () {
+                _dragging = false;
+                if (!_hovered) _setExpanded(false);
+              },
+              child: AnimatedBuilder(
+                animation: _expandController,
+                builder: (context, _) {
+                  return CustomPaint(
+                    size: Size(
+                      _kBrushSizeControlHitPadding * 2 +
+                          _kBrushSizeControlExpandShift +
+                          _kBrushSizeControlExpandedTopWidth,
+                      _kBrushSizeControlHeight,
+                    ),
+                    painter: _BrushSizeControlPainter(
+                      expandProgress: Curves.easeOutCirc
+                          .transform(_expandController.value),
+                      ratio: _ratioFromValue(widget.value),
+                    ),
+                  );
+                },
               ),
-              child: Slider(
-                value: value,
-                min: _kMinBrushSize,
-                max: _kMaxBrushSize,
-                onChanged: onChanged,
-              ),
             ),
           ),
-          Container(
-            width: 14,
-            height: 14,
-            decoration: const BoxDecoration(
-              color: Color(0xAAFFFFFF),
-              shape: BoxShape.circle,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
+}
+
+class _BrushSizeControlPainter extends CustomPainter {
+  final double expandProgress;
+  final double ratio;
+
+  _BrushSizeControlPainter({
+    required this.expandProgress,
+    required this.ratio,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerX = _kBrushSizeControlHitPadding +
+        _kBrushSizeControlExpandShift * expandProgress +
+        _kBrushSizeControlExpandedTopWidth / 2;
+
+    final topY = _kBrushSizeControlHitPadding +
+        _kBrushSizeControlExpandedTopWidth / 2;
+    final bottomY = _kBrushSizeControlHeight -
+        _kBrushSizeControlHitPadding -
+        _kBrushSizeControlExpandedBottomWidth / 2;
+
+    final collapsedHalf = _kBrushSizeControlCollapsedWidth / 2;
+    final expandedTopHalf = _kBrushSizeControlExpandedTopWidth / 2;
+    final expandedBottomHalf = _kBrushSizeControlExpandedBottomWidth / 2;
+
+    final topRadius =
+        collapsedHalf + (expandedTopHalf - collapsedHalf) * expandProgress;
+    final bottomRadius =
+        collapsedHalf + (expandedBottomHalf - collapsedHalf) * expandProgress;
+
+    final alpha = (96 + (176 - 96) * expandProgress).round();
+    final trackPaint = Paint()
+      ..color = Color.fromARGB(alpha, 255, 255, 255)
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    path.addArc(
+      Rect.fromCircle(center: Offset(centerX, topY), radius: topRadius),
+      math.pi,
+      math.pi,
+    );
+    path.lineTo(centerX + bottomRadius, bottomY);
+    path.addArc(
+      Rect.fromCircle(center: Offset(centerX, bottomY), radius: bottomRadius),
+      0,
+      math.pi,
+    );
+    path.lineTo(centerX - topRadius, topY);
+    path.close();
+    canvas.drawPath(path, trackPaint);
+
+    final handleY = topY + (1.0 - ratio) * (bottomY - topY);
+    final handleRadius = 4.0 + ratio * 6.0;
+    final handlePaint = Paint()
+      ..color = const Color(0xF4FFFFFF)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(centerX, handleY), handleRadius, handlePaint);
+  }
+
+  @override
+  bool shouldRepaint(_BrushSizeControlPainter old) =>
+      expandProgress != old.expandProgress || ratio != old.ratio;
 }
 
 // ── §39.9 Sticker/Emoji Avatar Builder ──
