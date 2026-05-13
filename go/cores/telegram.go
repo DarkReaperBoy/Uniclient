@@ -24948,6 +24948,7 @@ func (t *TelegramCore) SetReactionsNotifySettings(reactionsEnabled bool, reactio
 
 	settings := tg.ReactionsNotifySettings{
 		ShowPreviews: showSenderName,
+		Sound:        &tg.NotificationSoundDefault{},
 	}
 	if reactionsEnabled {
 		settings.SetMessagesNotifyFrom(fromClass(reactionsFrom))
