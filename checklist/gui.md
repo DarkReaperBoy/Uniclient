@@ -1191,41 +1191,6 @@ Before findings, confirmed matches (not issues):
 
 ---
 
-
-# payment_panel — Checkout/Receipt payment panel
-
-- [ ] [CRITICAL] `_editPaymentMethod()` is a broken stub: for native providers (Stripe/SmartGlocal) it tries to `launchUrl(nativeParams['url'])` which is an empty field — native params contain a `publishableKey`, not a URL; no in-app card tokenization exists, so submitting payment will always fail with missing credentials — `payment_panel.dart:897-908` ← `AyuGram/payments/ui/payments_panel.cpp:426-436` (`showEditPaymentMethod` shows native card form or WebView)
-
-- [ ] [CRITICAL] Shipping method selection is an empty stub: `case 'Shipping Method': break` does nothing — the user can never select a shipping option — `payment_panel.dart:880-881` ← `AyuGram/payments/payments_checkout_process.cpp:912-918` (`panelChooseShippingOption` calls `chooseShippingOption` which shows a `SingleChoiceBox`)
-
-- [ ] [CRITICAL] `_submitPayment()` never validates/sends user information to the server before submitting — AyuGram calls `_form->validateInformation(_form->information())` which POSTs address/name/email/phone to get a `requested_info_id` required in the final submit call; Dart skips this entirely — `payment_panel.dart:246-265` ← `AyuGram/payments/payments_checkout_process.cpp:646-668`
-
-- [ ] [CRITICAL] Receipt tips row is wrapped in a GestureDetector that opens the edit-tips dialog — receipts are read-only, tips must not be editable after payment; AyuGram shows receipt tips as a plain non-interactive row — `payment_panel.dart:570-573` ← `AyuGram/payments/ui/payments_form_summary.cpp:353-357` (receipt branch calls `add(label, tips)` with no click handler)
-
-- [ ] [CRITICAL] Max-tip validation compares user-entered major units against a minor-unit limit: `val <= _maxTip` where `_maxTip` is minor units (e.g. 1000 = $10.00) but `val` is what the user typed (e.g. 15 for $15 → `15 <= 1000` passes, allowing a $15 tip when max is $10) — `payment_panel.dart:986` ← `AyuGram/payments/ui/payments_panel.cpp:410-413` (field returns minor units; compared directly to `max` in minor units)
-
-- [ ] [MAJOR] `_spinnerAnim` (1200ms repeating controller) is included in the `AnimatedBuilder` listenable merge but its value is never referenced in the builder body — `_progressFade.value` is the only value used; this causes the entire loading widget to rebuild at ~60fps while `_spinnerAnim` is running for no reason; `CircularProgressIndicator` already animates internally — `payment_panel.dart:495-508` ← `AyuGram/payments/ui/payments_panel.cpp:64-69` (single `InfiniteRadialAnimation` drives itself, no external ticker merge)
-
-- [ ] [MAJOR] Shipping address display only includes `street1 + city`; AyuGram builds the address from address1, address2, city, state, country name (by ISO2 via `Countries::Instance()`), and postcode — `payment_panel.dart:199-204` ← `AyuGram/payments/ui/payments_form_summary.cpp:508-520`
-
-- [ ] [MAJOR] Shipping prices (from the selected shipping option) are silently folded into `_computeTotal()` but never rendered as individual line items — AyuGram adds each `selected->prices` entry as its own labeled row in the price list — `payment_panel.dart:673-703` ← `AyuGram/payments/ui/payments_form_summary.cpp:340-349`
-
-- [ ] [MAJOR] Terms acceptance is tracked in local `_termsAccepted` bool only and never communicated to the backend — AyuGram calls `_form->acceptTerms()` via `panelAcceptTermsAndSubmit()` which marks terms as accepted in the form state before the final submit — `payment_panel.dart:310-315` ← `AyuGram/payments/payments_checkout_process.cpp:676-679`
-
-- [ ] [MAJOR] Phone number displayed as a raw string from `saved['phone']` with no formatting — AyuGram applies `Ui::FormatPhone(_information.phone)` before display — `payment_panel.dart:122-123` ← `AyuGram/payments/ui/payments_form_summary.cpp:554-557`
-
-- [ ] [MAJOR] Product thumbnail loaded via `Image.network(photoUrl)` bypassing the Go engine media pipeline — AyuGram delivers thumbnails through `updateThumbnail(QImage)` fired from the reactive `_thumbnails` stream attached to the form; no engine caching or lifecycle management — `payment_panel.dart:618` ← `AyuGram/payments/ui/payments_form_summary.cpp:135-138` (`updateThumbnail` / `_thumbnails.fire_copy`)
-
-# peer_short_info — Peer Short Info Box Audit
-
-- [ ] [CRITICAL] "Open in New Window" context menu item calls `chatState.openChat(chat)` which opens in the **same** window, not a new separate window — `peer_short_info.dart:371` ← `prepare_short_info_box.cpp:508` (`window->showInNewWindow(peer)`)
-
-- [ ] [MAJOR] Progress bars never show video playback position — `_PhotoProgressBarsPainter` always renders the active bar at full width, but AyuGram partially fills it based on `_videoPosition / float64(_videoDuration)` (active bar acts as a playback-progress indicator while video is playing) — `peer_short_info.dart:1196-1214` ← `peer_short_info_box.cpp:296-322`
-
-- [ ] [MAJOR] Missing `InfiniteRadialAnimation` for video waiting/buffering state — Dart only shows a static `CircularProgressIndicator` gated on `_showRadialLoader`, but AyuGram renders a separate infinite animation (opacity driven by `_videoInstance->waitingOpacity()`) whenever a video avatar is buffering/seeking — `peer_short_info.dart:743-759` ← `peer_short_info_box.cpp:366-412`
-
-- [ ] [MAJOR] `_buildCoverOverlay` rebuilds the entire cover overlay widget subtree (gradients, progress bars, name/status labels, nav zones) on every scroll tick via `ValueListenableBuilder<double>` — AyuGram does a single `_widget->update()` triggering one repaint call; the Dart approach causes excessive widget tree reconstruction during scroll — `peer_short_info.dart:584-764` ← `peer_short_info_box.cpp:175-178` (`setScrollTop` → `_widget->update()`)
-
 # photo_crop_editor — Audit findings
 
 ## photo_crop_editor — Photo editor paint tools, text/sticker tools, color picker, and layout
