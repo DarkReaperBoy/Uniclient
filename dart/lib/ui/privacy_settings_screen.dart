@@ -76,7 +76,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     _fetchArchiveSettings();
     _fetchAccountTTL();
     _fetchTopPeers();
-    _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       _fetchPasswordState();
       _fetchGlobalTTL();
       _loadPasscodeState();
@@ -765,6 +765,30 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       initialAllowPremium = current?['allow_premium'] as bool? ?? false;
     }
 
+    bool giftShowIcon = true;
+    bool giftAcceptLimited = true;
+    bool giftAcceptUnlimited = true;
+    bool giftAcceptUnique = true;
+    bool giftAcceptFromChannels = true;
+    bool giftAcceptPremium = true;
+    if (key == 'gifts') {
+      final gs = await engine.getGiftSettings(accountId);
+      giftShowIcon = gs.showIcon;
+      giftAcceptLimited = gs.acceptLimited;
+      giftAcceptUnlimited = gs.acceptUnlimited;
+      giftAcceptUnique = gs.acceptUnique;
+      giftAcceptFromChannels = gs.acceptChannels;
+      giftAcceptPremium = gs.acceptPremium;
+    }
+
+    List<String> alwaysUsers = [];
+    List<String> neverUsers = [];
+    final privacyDetail = await engine.getPrivacySetting(accountId, key);
+    if (privacyDetail != null) {
+      alwaysUsers = (privacyDetail['always_users'] as List<dynamic>?)?.cast<String>() ?? [];
+      neverUsers = (privacyDetail['never_users'] as List<dynamic>?)?.cast<String>() ?? [];
+    }
+
     if (!mounted) return;
 
     showDialog<void>(
@@ -784,6 +808,14 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         initialHasFallbackPhoto: hasFallbackPhoto,
         initialHasBirthday: hasBirthday,
         initialAllowPremium: initialAllowPremium,
+        initialGiftShowIcon: giftShowIcon,
+        initialGiftAcceptLimited: giftAcceptLimited,
+        initialGiftAcceptUnlimited: giftAcceptUnlimited,
+        initialGiftAcceptUnique: giftAcceptUnique,
+        initialGiftAcceptFromChannels: giftAcceptFromChannels,
+        initialGiftAcceptPremium: giftAcceptPremium,
+        initialAlwaysUsers: alwaysUsers,
+        initialNeverUsers: neverUsers,
         onSaved: (newOption, {String? addedByPhone, String? callsP2P}) {
           setState(() {
             _privacySettings[key] = {
@@ -897,6 +929,20 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     ];
   }
 
+  void _toggleArchiveAndMute(bool newVal) {
+    setState(() => _archiveAndMute = newVal);
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isNotEmpty) {
+      engine.setArchiveSettings(
+        accountId,
+        archiveAndMute: newVal,
+        keepArchivedUnmuted: _archiveKeepUnmuted,
+        keepArchivedFolders: _archiveKeepFolders,
+      );
+    }
+  }
+
   List<Widget> _buildArchiveAndMuteSection(
     bool isDark,
     Color textColor,
@@ -907,20 +953,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     if (!_archiveLoaded) return [];
     return [
       InkWell(
-        onTap: () {
-          final newVal = !_archiveAndMute;
-          setState(() => _archiveAndMute = newVal);
-          final engine = context.read<EngineService>();
-          final accountId = context.read<AppState>().activeAccountId;
-          if (accountId.isNotEmpty) {
-            engine.setArchiveSettings(
-              accountId,
-              archiveAndMute: newVal,
-              keepArchivedUnmuted: _archiveKeepUnmuted,
-              keepArchivedFolders: _archiveKeepFolders,
-            );
-          }
-        },
+        onTap: () => _toggleArchiveAndMute(!_archiveAndMute),
         hoverColor: hoverBg,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
@@ -937,19 +970,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                 height: 20,
                 child: Switch(
                   value: _archiveAndMute,
-                  onChanged: (v) {
-                    setState(() => _archiveAndMute = v);
-                    final engine = context.read<EngineService>();
-                    final accountId = context.read<AppState>().activeAccountId;
-                    if (accountId.isNotEmpty) {
-                      engine.setArchiveSettings(
-                        accountId,
-                        archiveAndMute: v,
-                        keepArchivedUnmuted: _archiveKeepUnmuted,
-                        keepArchivedFolders: _archiveKeepFolders,
-                      );
-                    }
-                  },
+                  onChanged: _toggleArchiveAndMute,
                   activeColor: accentColor,
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -1225,9 +1246,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                     accountId,
                     currentPassword: password,
                     email: email,
-                  );
+                  ).timeout(const Duration(seconds: 30));
                   if (ctx.mounted) Navigator.of(ctx).pop();
                   _fetchPasswordState();
+                } on TimeoutException {
+                  setDialogState(() { errorText = 'Request timed out. Please try again.'; isBusy = false; });
                 } catch (e) {
                   final msg = e.toString();
                   if (msg.contains('FLOOD')) {
@@ -1251,6 +1274,15 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     );
   }
 
+  void _toggleTopPeers(bool newVal) {
+    setState(() => _topPeersEnabled = newVal);
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isNotEmpty) {
+      engine.toggleTopPeers(accountId, newVal);
+    }
+  }
+
   List<Widget> _buildTopPeersSection(
     bool isDark,
     Color textColor,
@@ -1260,15 +1292,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   ) {
     return [
       InkWell(
-        onTap: () {
-          final newVal = !_topPeersEnabled;
-          setState(() => _topPeersEnabled = newVal);
-          final engine = context.read<EngineService>();
-          final accountId = context.read<AppState>().activeAccountId;
-          if (accountId.isNotEmpty) {
-            engine.toggleTopPeers(accountId, newVal);
-          }
-        },
+        onTap: () => _toggleTopPeers(!_topPeersEnabled),
         hoverColor: hoverBg,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
@@ -1285,14 +1309,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                 height: 20,
                 child: Switch(
                   value: _topPeersEnabled,
-                  onChanged: (v) {
-                    setState(() => _topPeersEnabled = v);
-                    final engine = context.read<EngineService>();
-                    final accountId = context.read<AppState>().activeAccountId;
-                    if (accountId.isNotEmpty) {
-                      engine.toggleTopPeers(accountId, v);
-                    }
-                  },
+                  onChanged: _toggleTopPeers,
                   activeColor: accentColor,
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -1837,6 +1854,16 @@ class _EditPrivacyBox extends StatefulWidget {
   final String userName;
   final bool initialAllowPremium;
 
+  final bool initialGiftShowIcon;
+  final bool initialGiftAcceptLimited;
+  final bool initialGiftAcceptUnlimited;
+  final bool initialGiftAcceptUnique;
+  final bool initialGiftAcceptFromChannels;
+  final bool initialGiftAcceptPremium;
+
+  final List<String> initialAlwaysUsers;
+  final List<String> initialNeverUsers;
+
   const _EditPrivacyBox({
     required this.title,
     required this.privacyKey,
@@ -1853,6 +1880,14 @@ class _EditPrivacyBox extends StatefulWidget {
     this.initialHasFallbackPhoto = false,
     this.initialHasBirthday = false,
     this.initialAllowPremium = false,
+    this.initialGiftShowIcon = true,
+    this.initialGiftAcceptLimited = true,
+    this.initialGiftAcceptUnlimited = true,
+    this.initialGiftAcceptUnique = true,
+    this.initialGiftAcceptFromChannels = true,
+    this.initialGiftAcceptPremium = true,
+    this.initialAlwaysUsers = const [],
+    this.initialNeverUsers = const [],
   });
 
   @override
@@ -1883,12 +1918,12 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
 
   late bool _allowPremium;
 
-  bool _giftShowIcon = true;
-  bool _giftAcceptLimited = true;
-  bool _giftAcceptUnlimited = true;
-  bool _giftAcceptUnique = true;
-  bool _giftAcceptFromChannels = true;
-  bool _giftAcceptPremium = true;
+  late bool _giftShowIcon;
+  late bool _giftAcceptLimited;
+  late bool _giftAcceptUnlimited;
+  late bool _giftAcceptUnique;
+  late bool _giftAcceptFromChannels;
+  late bool _giftAcceptPremium;
 
   @override
   void initState() {
@@ -1901,6 +1936,12 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
     _hasBirthday = widget.initialHasBirthday;
     _allowPremium = widget.initialAllowPremium;
     _confirmedRestriction = widget.currentOption != 'everyone';
+    _giftShowIcon = widget.initialGiftShowIcon;
+    _giftAcceptLimited = widget.initialGiftAcceptLimited;
+    _giftAcceptUnlimited = widget.initialGiftAcceptUnlimited;
+    _giftAcceptUnique = widget.initialGiftAcceptUnique;
+    _giftAcceptFromChannels = widget.initialGiftAcceptFromChannels;
+    _giftAcceptPremium = widget.initialGiftAcceptPremium;
   }
 
   String _optionLabel(String opt) {
@@ -2114,6 +2155,17 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
       if (_isLastSeen && _hideReadMarks != widget.initialHideReadMarks) {
         await widget.engine.setHideReadMarks(widget.accountId, hide: _hideReadMarks);
       }
+      if (_isGifts) {
+        await widget.engine.setGiftSettings(
+          widget.accountId,
+          showIcon: _giftShowIcon,
+          acceptLimited: _giftAcceptLimited,
+          acceptUnlimited: _giftAcceptUnlimited,
+          acceptUnique: _giftAcceptUnique,
+          acceptChannels: _giftAcceptFromChannels,
+          acceptPremium: _giftAcceptPremium,
+        );
+      }
       widget.onSaved(
         _selected,
         addedByPhone: _isPhoneNumber ? _addedByPhoneOption : null,
@@ -2143,11 +2195,14 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
     try {
       await widget.engine.uploadFallbackPhoto(widget.accountId, path);
       if (mounted) {
-        setState(() {
-          _hasFallbackPhoto = true;
-          _uploadingFallback = false;
-        });
-        showTelegramToast(context, 'Public photo updated');
+        final hasPhoto = await widget.engine.hasFallbackPhoto(widget.accountId);
+        if (mounted) {
+          setState(() {
+            _hasFallbackPhoto = hasPhoto;
+            _uploadingFallback = false;
+          });
+          showTelegramToast(context, 'Public photo updated');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -2162,11 +2217,14 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
     try {
       await widget.engine.deleteFallbackPhoto(widget.accountId);
       if (mounted) {
-        setState(() {
-          _hasFallbackPhoto = false;
-          _uploadingFallback = false;
-        });
-        showTelegramToast(context, 'Public photo removed');
+        final hasPhoto = await widget.engine.hasFallbackPhoto(widget.accountId);
+        if (mounted) {
+          setState(() {
+            _hasFallbackPhoto = hasPhoto;
+            _uploadingFallback = false;
+          });
+          showTelegramToast(context, 'Public photo removed');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -2612,7 +2670,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                 ),
               ),
             ],
-            if (_isLastSeen && _selected != 'everyone') ...[
+            if (_isLastSeen) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
                 child: Divider(height: 1, color: dividerColor),
@@ -3075,6 +3133,7 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
   }
 
   void _updateCountdownText() {
+    if (!mounted) return;
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final remaining = _pendingResetDate - now;
     if (remaining <= 0) {
@@ -4821,16 +4880,15 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
 
   Future<void> _selectTTL(int period) async {
     if (_saving) return;
-    final wasZero = _selectedTTL == 0;
-    final goingNonZero = period > 0;
+    if (period == _selectedTTL) return;
 
-    if (wasZero && goingNonZero) {
+    if (period > 0) {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Auto-Delete Messages'),
           content: Text(
-            'Are you sure you want to enable auto-delete with a timer of ${_formatPeriod(period)}? '
+            'Are you sure you want to ${_selectedTTL == 0 ? 'enable' : 'change'} auto-delete with a timer of ${_formatPeriod(period)}? '
             'All new messages in chats you start will be automatically deleted after this period.',
           ),
           actions: [
@@ -4840,7 +4898,7 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
             ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Enable'),
+              child: Text(_selectedTTL == 0 ? 'Enable' : 'Change'),
             ),
           ],
         ),
@@ -6184,6 +6242,7 @@ class _MessagesPrivacyBoxState extends State<_MessagesPrivacyBox> {
                 return InkWell(
                   onTap: () {
                     if (isPremiumLocked) {
+                      setState(() => _selected = 'everyone');
                       showTelegramToast(context, 'Subscribe to Telegram Premium to restrict who can send you messages.');
                     } else {
                       setState(() => _selected = key);
@@ -6201,8 +6260,13 @@ class _MessagesPrivacyBoxState extends State<_MessagesPrivacyBox> {
                             value: key,
                             groupValue: _selected,
                             onChanged: (v) {
-                              if (v != null && !isPremiumLocked) {
-                                setState(() => _selected = v);
+                              if (v != null) {
+                                if (isPremiumLocked) {
+                                  setState(() => _selected = 'everyone');
+                                  showTelegramToast(context, 'Subscribe to Telegram Premium to restrict who can send you messages.');
+                                } else {
+                                  setState(() => _selected = v);
+                                }
                               }
                             },
                             activeColor: accentColor,
@@ -6590,6 +6654,23 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
                       child: FutureBuilder<List<_BlockPickerContact>>(
                         future: _loadContacts(engine, accountId, blockedIds),
                         builder: (ctx, snap) {
+                          if (snap.hasError) {
+                            return Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.error_outline, color: subtextColor, size: 32),
+                                  const SizedBox(height: 8),
+                                  Text('Failed to load contacts', style: TextStyle(color: subtextColor, fontSize: 13)),
+                                  const SizedBox(height: 8),
+                                  TextButton(
+                                    onPressed: () => setDialogState(() {}),
+                                    child: Text('Retry', style: TextStyle(color: accentColor)),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
                           if (!snap.hasData) {
                             return const Center(child: CircularProgressIndicator());
                           }

@@ -17628,6 +17628,32 @@ func (t *TelegramCore) GetGlobalPrivacy() (*tg.GlobalPrivacySettings, error) {
 	return t.api.AccountGetGlobalPrivacySettings(t.ctx)
 }
 
+func (t *TelegramCore) GetGiftSettings() (showIcon bool, disallowLimited, disallowUnlimited, disallowUnique, disallowChannels, disallowPremium bool, err error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return false, false, false, false, false, false, ErrAuth }
+	s, err := t.api.AccountGetGlobalPrivacySettings(t.ctx)
+	if err != nil { return false, false, false, false, false, false, err }
+	dg, _ := s.GetDisallowedGifts()
+	return s.DisplayGiftsButton, dg.DisallowLimitedStargifts, dg.DisallowUnlimitedStargifts, dg.DisallowUniqueStargifts, dg.DisallowStargiftsFromChannels, dg.DisallowPremiumGifts, nil
+}
+
+func (t *TelegramCore) SetGiftSettings(showIcon, acceptLimited, acceptUnlimited, acceptUnique, acceptChannels, acceptPremium bool) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	s, err := t.api.AccountGetGlobalPrivacySettings(t.ctx)
+	if err != nil { return err }
+	s.SetDisplayGiftsButton(showIcon)
+	s.SetDisallowedGifts(tg.DisallowedGiftsSettings{
+		DisallowLimitedStargifts:     !acceptLimited,
+		DisallowUnlimitedStargifts:   !acceptUnlimited,
+		DisallowUniqueStargifts:      !acceptUnique,
+		DisallowStargiftsFromChannels: !acceptChannels,
+		DisallowPremiumGifts:         !acceptPremium,
+	})
+	_, err = t.api.AccountSetGlobalPrivacySettings(t.ctx, *s)
+	return err
+}
+
 func (t *TelegramCore) GetArchiveSettings() (archiveAndMute bool, keepArchivedUnmuted bool, keepArchivedFolders bool, err error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return false, false, false, ErrAuth }

@@ -4050,6 +4050,60 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return getAllPrivacySettings(e, params.AccountID)
 
+	case "GetGiftSettings":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		acc := e.GetAccountCore(params.AccountID)
+		if acc == nil {
+			return nil, fmt.Errorf("account not found")
+		}
+		tgCore, ok := acc.(*cores.TelegramCore)
+		if !ok {
+			return json.Marshal(map[string]interface{}{
+				"show_icon": true, "accept_limited": true, "accept_unlimited": true,
+				"accept_unique": true, "accept_channels": true, "accept_premium": true,
+			})
+		}
+		showIcon, disLimited, disUnlimited, disUnique, disChannels, disPremium, err := tgCore.GetGiftSettings()
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{
+			"show_icon":        showIcon,
+			"accept_limited":   !disLimited,
+			"accept_unlimited": !disUnlimited,
+			"accept_unique":    !disUnique,
+			"accept_channels":  !disChannels,
+			"accept_premium":   !disPremium,
+		})
+
+	case "SetGiftSettings":
+		var params struct {
+			AccountID       string `json:"account_id"`
+			ShowIcon        bool   `json:"show_icon"`
+			AcceptLimited   bool   `json:"accept_limited"`
+			AcceptUnlimited bool   `json:"accept_unlimited"`
+			AcceptUnique    bool   `json:"accept_unique"`
+			AcceptChannels  bool   `json:"accept_channels"`
+			AcceptPremium   bool   `json:"accept_premium"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		acc := e.GetAccountCore(params.AccountID)
+		if acc == nil {
+			return nil, fmt.Errorf("account not found")
+		}
+		tgCore, ok := acc.(*cores.TelegramCore)
+		if !ok {
+			return nil, fmt.Errorf("gift settings not supported for this platform")
+		}
+		return nil, tgCore.SetGiftSettings(params.ShowIcon, params.AcceptLimited, params.AcceptUnlimited, params.AcceptUnique, params.AcceptChannels, params.AcceptPremium)
+
 	case "GetConnectedBots":
 		var params struct {
 			AccountID string `json:"account_id"`

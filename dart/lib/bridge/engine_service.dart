@@ -3692,6 +3692,45 @@ class EngineService {
     await _callAsync('__engine', 'SetHideReadMarks', Uint8List.fromList(payload));
   }
 
+  Future<({bool showIcon, bool acceptLimited, bool acceptUnlimited, bool acceptUnique, bool acceptChannels, bool acceptPremium})> getGiftSettings(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetGiftSettings', Uint8List.fromList(payload));
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (
+        showIcon: data['show_icon'] as bool? ?? true,
+        acceptLimited: data['accept_limited'] as bool? ?? true,
+        acceptUnlimited: data['accept_unlimited'] as bool? ?? true,
+        acceptUnique: data['accept_unique'] as bool? ?? true,
+        acceptChannels: data['accept_channels'] as bool? ?? true,
+        acceptPremium: data['accept_premium'] as bool? ?? true,
+      );
+    } catch (e) {
+      Debug.error('ENGINE', 'getGiftSettings failed', e);
+      return (showIcon: true, acceptLimited: true, acceptUnlimited: true, acceptUnique: true, acceptChannels: true, acceptPremium: true);
+    }
+  }
+
+  Future<void> setGiftSettings(String accountId, {
+    required bool showIcon,
+    required bool acceptLimited,
+    required bool acceptUnlimited,
+    required bool acceptUnique,
+    required bool acceptChannels,
+    required bool acceptPremium,
+  }) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'show_icon': showIcon,
+      'accept_limited': acceptLimited,
+      'accept_unlimited': acceptUnlimited,
+      'accept_unique': acceptUnique,
+      'accept_channels': acceptChannels,
+      'accept_premium': acceptPremium,
+    }));
+    await _callAsync('__engine', 'SetGiftSettings', Uint8List.fromList(payload));
+  }
+
   Future<({String option, int chargeStars})> getMessagesPrivacy(String accountId) async {
     final payload = utf8.encode(json.encode({'account_id': accountId}));
     try {
