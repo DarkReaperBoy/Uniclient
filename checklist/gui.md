@@ -1165,29 +1165,7 @@ This dialog is fundamentally non-functional as implemented:
 
 - [ ] [CRITICAL] "Add Chats" and "Remove Chats" buttons open only type-category pickers (_IncludeTypePicker / _ExcludeTypePicker) — there is no individual chat search/selection UI, so users can never add specific chats to a folder; new folders always have empty chatIds — `folders_settings_screen.dart:1877-1878` (`_openIncludeTypePicker`) and `dart:1909` (`_openExcludeTypePicker`) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:946-963` (`EditExceptions` opens `EditFilterChatsListController` peer-list box)
 
-# ghost_settings_page — Ghost Settings Page Audit
-
-- [ ] [CRITICAL] Per-account ghost toggle rows read global AppState instead of the selected account's settings — when user switches to per-account mode, all lockable toggles (sendReadMessages, sendReadStories, sendOnlinePackets, sendUploadProgress, sendOfflinePacketAfterOnline) still show/modify global values — `ghost_settings_page.dart:120` (`value: !appState.sendReadMessages`) ← `settings_ayu.cpp:390` (`AyuSettings::ghost(state->selectedUserId.current()).sendReadMessages()`)
-
-- [ ] [CRITICAL] `markReadAfterAction` and `useScheduledMessages` mutual exclusion is missing — AyuGram enforces that enabling one disables the other; Dart has no such logic — `ghost_settings_page.dart:176` (`onChanged: (v) => appState.setMarkReadAfterAction(v)`) ← `settings_ayu.cpp:462-464` (`if (enabled) { ghost.setUseScheduledMessages(false); }`) and `settings_ayu.cpp:494-497`
-
-- [ ] [CRITICAL] `sendWithoutSound` cycles through options on tap instead of opening a dialog — AyuGram shows a `SingleChoiceBox`; Dart just does `(value + 1) % options.length` — `ghost_settings_page.dart:406` (`onTap: () => onChanged((value + 1) % options.length)`) ← `settings_ayu.cpp:526-541` (`SingleChoiceBox`)
-
-- [ ] [CRITICAL] `suggestGhostModeBeforeViewingStory` is placed inside the ghost-mode collapsible section — AyuGram puts it outside, after the `sendWithoutSound` button at the top level — `ghost_settings_page.dart:135-141` (inside AnimatedSize/ghost collapsible) ← `settings_ayu.cpp:547-572` (separate top-level toggle after sendWithoutSound)
-
-- [ ] [CRITICAL] `initState` calls `setUseGlobalGhostMode(true)` without copying per-account settings to the global slot — AyuGram copies all 14 ghost fields from the per-account slot to the global (userId=0) slot first — `ghost_settings_page.dart:31-33` ← `settings_ayu.cpp:319-337`
-
-- [ ] [MAJOR] `markReadAfterAction`, `useScheduledMessages`, `sendWithoutSound`, and `suggestGhostModeBeforeViewingStory` are all per-account settings in `GhostModeAccountSettings` but the Dart reads them as global AppState fields, ignoring the selected `_selectedUserId` — `ghost_settings_page.dart:175` (`appState.markReadAfterAction`) ← `ayu_settings.h:94-98` (fields of `GhostModeAccountSettings`) and `settings_ayu.cpp:448-570` (all read via `AyuSettings::ghost(state->selectedUserId.current())`)
-
-- [ ] [MAJOR] Scope switch (`onScopeChanged`) stores `_selectedUserId` in widget state but nothing re-reads settings for the new account — toggle rows are always wired to the same global appState fields regardless of which account is selected — `ghost_settings_page.dart:84-87` (`setState(() => _selectedUserId = userId)`) ← `settings_ayu.cpp:283-303` (`state->refreshCheckboxes()` rebuilds all checkbox values from new account)
-
-- [ ] [MAJOR] `semiTransparentDeleted` (BETA), `replaceMarksWithIcons`, `deletedMark`, and `editedMark` do not belong in the ghost settings page — AyuGram places them in the Chats settings section — `ghost_settings_page.dart:235-273` ← `settings_chats.cpp:155-229`
-
-- [ ] [MAJOR] `disableStories` and `disableCustomBackgrounds` do not belong in the ghost settings "Other" section — AyuGram's `BuildOther` only contains `localPremium` and `disableAds`; `disableStories` is in General settings and `disableCustomBackgrounds` is in Appearance settings — `ghost_settings_page.dart:295-308` ← `settings_ayu.cpp:664-679` (`BuildOther`) and `settings_general.cpp:167` / `settings_appearance.cpp:201`
-
-- [ ] [MAJOR] Global ghost picker avatar shows "GS" text with a hardcoded purple gradient — AyuGram renders `st::ayuGhostModeGlobalIcon` (ghost SVG icon) painted over `st::historyPeer5UserpicBg` gradient — `ghost_settings_page.dart:695-707` (Text('GS'), Color(0xFF9C27B0)) ← `settings_ayu.cpp:231-248` (`st::ayuGhostModeGlobalIcon.instance(st::historyPeerUserpicFg->c)`)
-
-# hamburger_drawer — 10 issues (1 CRITICAL, 9 MAJOR)
+# hamburger_drawer — 9 issues (1 CRITICAL, 8 MAJOR)
 
 - [ ] [CRITICAL] `Mark Stories Read (Silent)` label and confirm-dialog text both say "without sending read receipts" but the implementation calls `appState.setSendReadMessages(true)` which **enables** receipts — the exact opposite. AyuGram's SRead intentionally sets `ghost.setSendReadMessages(true)` so story-view receipts are delivered; the "Silent" framing is inverted and misleads users. — `hamburger_drawer.dart:427` (label) + `dart:441` (implementation) ← `window_main_menu.cpp:784`
 
@@ -1198,8 +1176,6 @@ This dialog is fundamentally non-functional as implemented:
 - [ ] [MAJOR] "System Frame" toggle row (`Platform.isLinux`) has no equivalent in AyuGram `setupMenu()`. It is a non-spec item that bloats the menu on Linux. — `hamburger_drawer.dart:479` ← `window_main_menu.cpp:689`
 
 - [ ] [MAJOR] Archive row has no right-click context menu. AyuGram installs a right-click handler that calls `FillDialogsEntryMenu` (mute, open settings, etc.) and a Ctrl+click path that opens the archive folder in a new window. Dart archive tap only calls `appState.requestShowArchive()` with no secondary interaction. — `hamburger_drawer.dart:469` ← `window_main_menu.cpp:573`
-
-- [ ] [MAJOR] Ghost mode toggle reads/writes the global `appState.ghostModeEnabled` instead of the per-session ghost state. AyuGram uses `AyuSettings::ghost(&controller->session()).ghostModeActiveValue()` so each account has independent ghost mode. In a multi-account setup, toggling ghost for one account silently affects all others in Dart. — `hamburger_drawer.dart:381` ← `window_main_menu.cpp:888`
 
 - [ ] [MAJOR] Premium/verified badge icon (`Icons.workspace_premium` / `Icons.verified`) has no tap handler. AyuGram calls `_badge->setPremiumClickCallback` which triggers `chooseEmojiStatus()` → `EmojiStatusPanel::show()`. Without this handler, tapping the badge does nothing and the emoji status picker is entirely inaccessible. — `hamburger_drawer.dart:710` ← `window_main_menu.cpp:424`
 
