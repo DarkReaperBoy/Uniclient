@@ -1176,12 +1176,6 @@ Audited against AyuGram Desktop C++ source at
 ## _UsernameBoxContent
 
 
-## _CreatePollContent
-
-- [ ] [MAJOR] "Allow Revoting" toggle is missing from the poll creation UI and from `CreatePollResult`; AyuGram adds a full toggle row (`lng_polls_create_allow_revoting`) and maps it to `PollData::Flag::RevotingDisabled` — `input_dialogs.dart:1331-1349,1377` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/create_poll_box.cpp:2578-2586,2871`
-
-- [ ] [MAJOR] No per-option character counter: AyuGram warns once an option field exceeds `kWarnOptionLimit = 30` chars, showing a counter label. Dart has no counter at any threshold for option fields — `input_dialogs.dart:1501-1506` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/create_poll_box.cpp:107,484-485`
-
 # instant_view — Audit
 
 ## instant_view — Multiple stubs, missing interactivity, broken layout
