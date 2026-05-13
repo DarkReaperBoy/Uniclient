@@ -1161,10 +1161,6 @@ This dialog is fundamentally non-functional as implemented:
 
 **Priority**: Fix missing import immediately. All other logic is sound and matches AyuGram's emoji status rendering patterns.
 
-# hamburger_drawer — 1 issue remaining
-
-- [ ] [MAJOR] Right-click on New Group / New Channel rows calls `_showMyGroupsPopup`, which lists chats already loaded in local `chatState`. AyuGram's `AddMyChannelsBox` (in `window_main_menu_helpers.cpp`) opens a proper modal that fetches the user's admin groups/channels from the server with userpics and member counts. The local-list approach silently skips groups not yet loaded. — `hamburger_drawer.dart:565` ← `window_main_menu_helpers.cpp:60`
-
 # Audit Chunk 67 — info_panel.dart
 
 Audited against AyuGram Desktop C++ source at
