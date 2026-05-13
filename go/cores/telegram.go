@@ -24248,15 +24248,33 @@ func (t *TelegramCore) SetAdmin(chatID string, userID string, admin bool) error 
 
 // AddContact adds a new contact by phone number with the given first and last name.
 func (t *TelegramCore) AddContact(phone string, firstName string, lastName string) error {
+	_, err := t.AddContactReturnUserID(phone, firstName, lastName)
+	return err
+}
+
+// AddContactReturnUserID imports a contact and returns the Telegram user ID
+// from the response (matching AyuGram's add_contact_box.cpp:456-484).
+func (t *TelegramCore) AddContactReturnUserID(phone string, firstName string, lastName string) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
-		return ErrAuth
+		return "", ErrAuth
 	}
-	_, err := t.api.ContactsImportContacts(t.ctx, []tg.InputPhoneContact{
-		{Phone: phone, FirstName: firstName, LastName: lastName},
+	var buf [8]byte
+	rand.Read(buf[:])
+	clientID := int64(binary.LittleEndian.Uint64(buf[:]))
+	result, err := t.api.ContactsImportContacts(t.ctx, []tg.InputPhoneContact{
+		{ClientID: clientID, Phone: phone, FirstName: firstName, LastName: lastName},
 	})
-	return err
+	if err != nil {
+		return "", err
+	}
+	for _, imp := range result.Imported {
+		if imp.ClientID == clientID {
+			return strconv.FormatInt(imp.UserID, 10), nil
+		}
+	}
+	return "", nil
 }
 
 // AddContactWithNote adds a contact with a note field using contacts.addContact.

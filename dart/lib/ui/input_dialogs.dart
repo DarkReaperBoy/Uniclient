@@ -617,20 +617,12 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     });
 
     try {
-      await widget.engine.addContact(account.id, phone, firstName, lastName);
+      final userId = await widget.engine.addContact(account.id, phone, firstName, lastName);
       if (mounted) {
         final chatState = context.read<ChatState>();
-        final normalizedPhone = phone.replaceAll(RegExp(r'\D'), '');
-        final contacts = await widget.engine.getContacts(account.id);
-        final contact = contacts.where((c) {
-          final cp = c.phone.replaceAll(RegExp(r'\D'), '');
-          return cp == normalizedPhone || cp.endsWith(normalizedPhone) || normalizedPhone.endsWith(cp);
-        }).firstOrNull;
-        if (contact != null && contact.userId.isNotEmpty) {
-          chatState.loadChats();
-          chatState.openChatById(contact.userId);
-        } else {
-          chatState.loadChats();
+        chatState.loadChats();
+        if (userId.isNotEmpty) {
+          chatState.openChatById(userId);
         }
         if (mounted) Navigator.of(context).pop(true);
       }

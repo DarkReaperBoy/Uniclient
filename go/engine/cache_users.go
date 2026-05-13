@@ -877,24 +877,30 @@ func (e *Engine) GetLinkedChatId(accountID, chatID string) (string, error) {
 	return d.LinkedChatId, nil
 }
 
-// AddContact adds a contact via the core and updates local DB.
-func (e *Engine) AddContact(accountID, phone, firstName, lastName, note string) error {
+// AddContact adds a contact via the core and returns the new user ID (if available).
+func (e *Engine) AddContact(accountID, phone, firstName, lastName, note string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
-		return fmt.Errorf("account not found: %s", accountID)
+		return "", fmt.Errorf("account not found: %s", accountID)
 	}
 	if acc.Core == nil {
-		return fmt.Errorf("account not connected: %s", accountID)
+		return "", fmt.Errorf("account not connected: %s", accountID)
 	}
 	type noteAdder interface {
 		AddContactWithNote(phone, firstName, lastName, note string) error
 	}
 	if note != "" {
 		if na, ok := acc.Core.(noteAdder); ok {
-			return na.AddContactWithNote(phone, firstName, lastName, note)
+			return "", na.AddContactWithNote(phone, firstName, lastName, note)
 		}
 	}
-	return acc.Core.AddContact(phone, firstName, lastName)
+	type userIDReturner interface {
+		AddContactReturnUserID(phone, firstName, lastName string) (string, error)
+	}
+	if ur, ok := acc.Core.(userIDReturner); ok {
+		return ur.AddContactReturnUserID(phone, firstName, lastName)
+	}
+	return "", acc.Core.AddContact(phone, firstName, lastName)
 }
 
 func (e *Engine) DeleteContact(accountID, userID string) error {

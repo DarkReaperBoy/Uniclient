@@ -451,7 +451,7 @@ class EngineService {
     return utf8.decode(respBytes);
   }
 
-  Future<void> addContact(String accountId, String phone, String firstName, String lastName, {String note = ''}) async {
+  Future<String> addContact(String accountId, String phone, String firstName, String lastName, {String note = ''}) async {
     final req = epb.EngineAddContactRequest()
       ..accountId = accountId
       ..phone = phone
@@ -460,7 +460,9 @@ class EngineService {
     if (note.isNotEmpty) {
       req.note = note;
     }
-    await _callAsync('__engine', 'AddContact', req.writeToBuffer());
+    final respBytes = await _callAsync('__engine', 'AddContact', req.writeToBuffer());
+    if (respBytes == null || respBytes.isEmpty) return '';
+    return utf8.decode(respBytes);
   }
 
   Future<void> suggestContactPhoto(String accountId, String userId, String photoPath) async {

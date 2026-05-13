@@ -411,7 +411,11 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.AddContact(req.AccountId, req.Phone, req.FirstName, req.LastName, req.GetNote())
+		userId, err := e.AddContact(req.AccountId, req.Phone, req.FirstName, req.LastName, req.GetNote())
+		if err != nil {
+			return nil, err
+		}
+		return []byte(userId), nil
 
 	case "SuggestContactPhoto":
 		var params struct {
