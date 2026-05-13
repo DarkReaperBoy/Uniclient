@@ -279,6 +279,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _semiTransparentDeleted = false;
   double _wideMultiplier = 1.0; // §54.3: 1.00–4.00 in 0.05 steps
   double _uiScalePercent = 100.0; // §14.4 / §57: Interface scale, 100–300%
+  double _ivZoom = 1.0;
   bool _showDrawerThemeToggle = true;
 
   // §54.8: Per-item drawer visibility toggles (all default true).
@@ -533,6 +534,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   double get wideMultiplier => _wideMultiplier;
   double get uiScalePercent => _uiScalePercent;
   double get uiScaleFactor => _uiScalePercent / 100.0;
+  double get ivZoom => _ivZoom;
   bool get showDrawerThemeToggle => _showDrawerThemeToggle;
 
   // §54.8: Per-item drawer visibility getters.
@@ -924,6 +926,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     v = v.clamp(100.0, 300.0);
     if ((_uiScalePercent - v).abs() < 0.01) return;
     _uiScalePercent = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setIvZoom(double v) {
+    v = v.clamp(0.5, 3.0);
+    if ((_ivZoom - v).abs() < 0.01) return;
+    _ivZoom = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -3047,6 +3057,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
       _wideMultiplier = (data['wideMultiplier'] as num?)?.toDouble() ?? 1.0;
       _uiScalePercent = (data['uiScalePercent'] as num?)?.toDouble() ?? 100.0;
+      _ivZoom = (data['ivZoom'] as num?)?.toDouble() ?? 1.0;
       _showDrawerThemeToggle = data['showDrawerThemeToggle'] as bool? ?? true;
       // §54.8: Per-item drawer visibility.
       _showMyProfileInDrawer = data['showMyProfileInDrawer'] as bool? ?? true;
@@ -3292,6 +3303,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'semiTransparentDeleted': _semiTransparentDeleted,
         'wideMultiplier': _wideMultiplier,
         'uiScalePercent': _uiScalePercent,
+        'ivZoom': _ivZoom,
         'showDrawerThemeToggle': _showDrawerThemeToggle,
         'showMyProfileInDrawer': _showMyProfileInDrawer,
         'showBotsInDrawer': _showBotsInDrawer,

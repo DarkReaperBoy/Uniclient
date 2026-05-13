@@ -14636,6 +14636,22 @@ func ivBlockToMap(b tg.PageBlockClass, photoMap map[int64]ivPhotoInfo, docMap ma
 		return m
 	case *tg.PageBlockVideo:
 		m := map[string]interface{}{"type": "video", "video_id": v.VideoID, "autoplay": v.Autoplay, "loop": v.Loop, "caption": ivCaptionToMap(v.Caption)}
+		if doc, ok := docMap[v.VideoID]; ok {
+			m["extra"] = encodeFileExtra(doc.AccessHash, doc.FileReference)
+			m["mime"] = doc.MimeType
+			m["size"] = doc.Size
+			m["thumb"] = extractStrippedThumbB64(doc.Thumbs)
+			for _, attr := range doc.Attributes {
+				if a, ok := attr.(*tg.DocumentAttributeVideo); ok {
+					m["duration"] = a.Duration
+					m["w"] = a.W
+					m["h"] = a.H
+				}
+				if a, ok := attr.(*tg.DocumentAttributeFilename); ok {
+					m["filename"] = a.FileName
+				}
+			}
+		}
 		return m
 	case *tg.PageBlockCover:
 		if inner := ivBlockToMap(v.Cover, photoMap, docMap); inner != nil {
@@ -14693,6 +14709,10 @@ func ivBlockToMap(b tg.PageBlockClass, photoMap map[int64]ivPhotoInfo, docMap ma
 				cm := map[string]interface{}{"text": ivRichTextToMap(cell.Text), "header": cell.Header}
 				if cs, ok := cell.GetColspan(); ok { cm["colspan"] = cs }
 				if rs, ok := cell.GetRowspan(); ok { cm["rowspan"] = rs }
+				if cell.AlignCenter { cm["align_center"] = true
+				} else if cell.AlignRight { cm["align_right"] = true }
+				if cell.ValignMiddle { cm["valign_middle"] = true
+				} else if cell.ValignBottom { cm["valign_bottom"] = true }
 				cells = append(cells, cm)
 			}
 			rows = append(rows, cells)
@@ -14760,6 +14780,30 @@ func (t *TelegramCore) DownloadIVPhoto(photoID int64, extra string) (string, err
 	ref := FileRef{ID: strconv.FormatInt(photoID, 10), MimeType: "image/jpeg", Extra: extra}
 	if err := t.DownloadFile(ref, dest, nil); err != nil {
 		return "", fmt.Errorf("download IV photo %d: %w", photoID, err)
+	}
+	return dest, nil
+}
+
+// DownloadIVDocument downloads an Instant View document (video, audio) by its ID and returns the local file path.
+func (t *TelegramCore) DownloadIVDocument(docID int64, extra, mime string) (string, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return "", ErrAuth }
+	ext := ".bin"
+	switch {
+	case strings.HasPrefix(mime, "video/mp4"), strings.HasPrefix(mime, "video/"):
+		ext = ".mp4"
+	case strings.HasPrefix(mime, "audio/mpeg"):
+		ext = ".mp3"
+	case strings.HasPrefix(mime, "audio/ogg"):
+		ext = ".ogg"
+	case strings.HasPrefix(mime, "audio/"):
+		ext = ".mp3"
+	}
+	dest := filepath.Join(os.TempDir(), fmt.Sprintf("iv_doc_%d%s", docID, ext))
+	if _, err := os.Stat(dest); err == nil { return dest, nil }
+	ref := FileRef{ID: strconv.FormatInt(docID, 10), MimeType: mime, Extra: extra}
+	if err := t.DownloadFile(ref, dest, nil); err != nil {
+		return "", fmt.Errorf("download IV document %d: %w", docID, err)
 	}
 	return dest, nil
 }

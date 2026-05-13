@@ -1,14 +1,18 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
+import '../state/app_state.dart';
 
 void openInstantView(BuildContext context, String accountId, String url, {String? siteName}) {
   Navigator.of(context, rootNavigator: true).push(
@@ -38,7 +42,9 @@ class _InstantViewPageState extends State<InstantViewPage> {
   Map<String, dynamic>? _pageData;
   bool _loading = true;
   String? _error;
-  double _zoomFactor = 1.0;
+  late double _zoomFactor;
+  final ScrollController _scrollController = ScrollController();
+  bool _showScrollToTop = false;
 
   final List<_IvHistoryEntry> _history = [];
   int _historyIndex = -1;
@@ -46,7 +52,23 @@ class _InstantViewPageState extends State<InstantViewPage> {
   @override
   void initState() {
     super.initState();
+    _zoomFactor = context.read<AppState>().ivZoom;
+    _scrollController.addListener(_onScroll);
     _navigateTo(widget.url, push: false);
+  }
+
+  void _onScroll() {
+    final show = _scrollController.offset > 300;
+    if (show != _showScrollToTop) {
+      setState(() => _showScrollToTop = show);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
   }
 
   String get _currentUrl {
@@ -112,9 +134,14 @@ class _InstantViewPageState extends State<InstantViewPage> {
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
-  void _zoomIn() => setState(() => _zoomFactor = (_zoomFactor + 0.1).clamp(0.5, 3.0));
-  void _zoomOut() => setState(() => _zoomFactor = (_zoomFactor - 0.1).clamp(0.5, 3.0));
-  void _zoomReset() => setState(() => _zoomFactor = 1.0);
+  void _zoomIn() => _setZoom((_zoomFactor + 0.1).clamp(0.5, 3.0));
+  void _zoomOut() => _setZoom((_zoomFactor - 0.1).clamp(0.5, 3.0));
+  void _zoomReset() => _setZoom(1.0);
+
+  void _setZoom(double v) {
+    setState(() => _zoomFactor = v);
+    context.read<AppState>().setIvZoom(v);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -183,6 +210,13 @@ class _InstantViewPageState extends State<InstantViewPage> {
               : _error != null
                   ? _buildError(fgColor)
                   : _buildContent(isDark, fgColor),
+          floatingActionButton: _showScrollToTop && !_loading
+              ? FloatingActionButton.small(
+                  backgroundColor: isDark ? const Color(0xFF2b3a4a) : const Color(0xFFf0f0f0),
+                  onPressed: () => _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut),
+                  child: Icon(Icons.keyboard_arrow_up, color: fgColor),
+                )
+              : null,
         ),
       ),
     );
@@ -256,6 +290,7 @@ class _InstantViewPageState extends State<InstantViewPage> {
       child: MediaQuery(
         data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(_zoomFactor)),
         child: ListView.builder(
+          controller: _scrollController,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           itemCount: blocks.length,
           itemBuilder: (context, i) {
@@ -340,7 +375,9 @@ class _IvBlock extends StatelessWidget {
           child: Center(child: Container(width: 48, height: 2, color: _subtleColor.withAlpha(80))),
         );
       case 'anchor':
-        return const SizedBox.shrink();
+        final anchorName = block['name'] as String? ?? '';
+        if (anchorName.isEmpty) return const SizedBox.shrink();
+        return SizedBox.shrink(key: ValueKey('anchor_$anchorName'));
       case 'photo':
         return _buildPhoto(context);
       case 'cover':
@@ -538,33 +575,64 @@ class _IvBlock extends StatelessWidget {
     final extra = block['extra'] as String?;
     final photoW = block['w'] as num? ?? 0;
     final photoH = block['h'] as num? ?? 0;
+    final photoUrl = block['url'] as String?;
+
+    Widget imageWidget;
+    if (photoId != null && extra != null && extra.isNotEmpty) {
+      imageWidget = _IvFullPhoto(
+        accountId: accountId,
+        photoId: photoId.toInt(),
+        extra: extra,
+        thumbB64: thumbB64,
+        photoWidth: photoW.toInt(),
+        photoHeight: photoH.toInt(),
+        onTap: () => _openPhotoViewer(context, accountId, photoId.toInt(), extra, thumbB64),
+      );
+    } else if (thumbB64 != null && thumbB64.isNotEmpty) {
+      imageWidget = GestureDetector(
+        onTap: () => _openPhotoViewer(context, accountId, null, null, thumbB64),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Image.memory(
+            base64Decode(thumbB64),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            errorBuilder: (_, __, ___) => const SizedBox(height: 100),
+          ),
+        ),
+      );
+    } else {
+      imageWidget = const SizedBox.shrink();
+    }
+
+    if (photoUrl != null && photoUrl.isNotEmpty && onNavigateIV != null && _looksLikeIvUrl(photoUrl)) {
+      imageWidget = GestureDetector(
+        onTap: () => onNavigateIV!(photoUrl),
+        child: imageWidget,
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (photoId != null && extra != null && extra.isNotEmpty)
-            _IvFullPhoto(
-              accountId: accountId,
-              photoId: photoId.toInt(),
-              extra: extra,
-              thumbB64: thumbB64,
-              photoWidth: photoW.toInt(),
-              photoHeight: photoH.toInt(),
-            )
-          else if (thumbB64 != null && thumbB64.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Image.memory(
-                base64Decode(thumbB64),
-                fit: BoxFit.cover,
-                width: double.infinity,
-                errorBuilder: (_, __, ___) => const SizedBox(height: 100),
-              ),
-            ),
+          imageWidget,
           if (caption != null) _buildCaption(context, caption),
         ],
+      ),
+    );
+  }
+
+  static void _openPhotoViewer(BuildContext context, String accountId, int? photoId, String? extra, String? thumbB64) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => _IvPhotoViewer(
+        accountId: accountId,
+        photoId: photoId,
+        extra: extra,
+        thumbB64: thumbB64,
       ),
     );
   }
@@ -684,14 +752,15 @@ class _IvBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: items.asMap().entries.map((entry) {
           final itemMap = entry.value as Map<String, dynamic>;
-          final num = itemMap['num'] as String? ?? '${entry.key + 1}.';
+          final rawNum = itemMap['num'] as String? ?? '';
+          final numLabel = rawNum.isNotEmpty ? '$rawNum.' : '${entry.key + 1}.';
           if (itemMap.containsKey('text')) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(width: 28, child: Text('$num.', style: TextStyle(fontSize: 16, color: _subtleColor, height: 1.6))),
+                  SizedBox(width: 28, child: Text(numLabel, style: TextStyle(fontSize: 16, color: _subtleColor, height: 1.6))),
                   Expanded(child: _richText(context, itemMap['text'], TextStyle(fontSize: 16, color: _textColor, height: 1.6)) ?? const SizedBox.shrink()),
                 ],
               ),
@@ -703,7 +772,7 @@ class _IvBlock extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(width: 28, child: Text('$num.', style: TextStyle(fontSize: 16, color: _subtleColor, height: 1.6))),
+                SizedBox(width: 28, child: Text(numLabel, style: TextStyle(fontSize: 16, color: _subtleColor, height: 1.6))),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -737,32 +806,85 @@ class _IvBlock extends StatelessWidget {
   Widget _buildTable(BuildContext context) {
     final rows = block['rows'] as List<dynamic>? ?? [];
     final bordered = block['bordered'] == true;
+    final striped = block['striped'] == true;
     final borderColor = isDark ? const Color(0xFF2a3a4a) : const Color(0xFFe0e0e0);
+    final stripeColor = isDark ? const Color(0xFF1a2634) : const Color(0xFFF7F7F8);
+
+    int maxCols = 0;
+    for (final row in rows) {
+      final cells = row as List<dynamic>? ?? [];
+      int cols = 0;
+      for (final cell in cells) {
+        final cm = cell as Map<String, dynamic>;
+        cols += (cm['colspan'] as num?)?.toInt() ?? 1;
+      }
+      if (cols > maxCols) maxCols = cols;
+    }
+    if (maxCols == 0) maxCols = 1;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Table(
         border: bordered ? TableBorder.all(color: borderColor, width: 1) : null,
         defaultVerticalAlignment: TableCellVerticalAlignment.top,
-        children: rows.map((row) {
-          final cells = row as List<dynamic>? ?? [];
+        columnWidths: {for (int i = 0; i < maxCols; i++) i: const FlexColumnWidth()},
+        children: rows.asMap().entries.map((rowEntry) {
+          final rowIndex = rowEntry.key;
+          final cells = rowEntry.value as List<dynamic>? ?? [];
+          final isStriped = striped && rowIndex.isOdd;
+
+          final rowCells = <Widget>[];
+          for (final cell in cells) {
+            final cellMap = cell as Map<String, dynamic>;
+            final isHeader = cellMap['header'] == true;
+            final colSpan = (cellMap['colspan'] as num?)?.toInt() ?? 1;
+            Alignment cellAlignment = Alignment.topLeft;
+            if (cellMap['align_center'] == true) {
+              cellAlignment = cellMap['valign_middle'] == true ? Alignment.center
+                  : cellMap['valign_bottom'] == true ? Alignment.bottomCenter
+                  : Alignment.topCenter;
+            } else if (cellMap['align_right'] == true) {
+              cellAlignment = cellMap['valign_middle'] == true ? Alignment.centerRight
+                  : cellMap['valign_bottom'] == true ? Alignment.bottomRight
+                  : Alignment.topRight;
+            } else {
+              cellAlignment = cellMap['valign_middle'] == true ? Alignment.centerLeft
+                  : cellMap['valign_bottom'] == true ? Alignment.bottomLeft
+                  : Alignment.topLeft;
+            }
+            final cellWidget = Container(
+              color: isStriped ? stripeColor : null,
+              padding: const EdgeInsets.all(8),
+              alignment: cellAlignment,
+              child: _richText(
+                context,
+                cellMap['text'],
+                TextStyle(
+                  fontSize: 14,
+                  fontWeight: isHeader ? FontWeight.w600 : FontWeight.w400,
+                  color: _textColor,
+                  height: 1.4,
+                ),
+              ) ?? const SizedBox.shrink(),
+            );
+            if (colSpan > 1) {
+              rowCells.add(TableCell(
+                child: cellWidget,
+              ));
+              for (int s = 1; s < colSpan && rowCells.length < maxCols; s++) {
+                rowCells.add(const SizedBox.shrink());
+              }
+            } else {
+              rowCells.add(cellWidget);
+            }
+          }
+          while (rowCells.length < maxCols) {
+            rowCells.add(const SizedBox.shrink());
+          }
+
           return TableRow(
-            children: cells.map((cell) {
-              final cellMap = cell as Map<String, dynamic>;
-              final isHeader = cellMap['header'] == true;
-              return Padding(
-                padding: const EdgeInsets.all(8),
-                child: _richText(
-                  context,
-                  cellMap['text'],
-                  TextStyle(
-                    fontSize: 14,
-                    fontWeight: isHeader ? FontWeight.w600 : FontWeight.w400,
-                    color: _textColor,
-                    height: 1.4,
-                  ),
-                ) ?? const SizedBox.shrink(),
-              );
-            }).toList(),
+            decoration: isStriped ? BoxDecoration(color: stripeColor) : null,
+            children: rowCells,
           );
         }).toList(),
       ),
@@ -775,50 +897,86 @@ class _IvBlock extends StatelessWidget {
     final w = (block['w'] as num?)?.toDouble() ?? 0;
     final h = (block['h'] as num?)?.toDouble() ?? 0;
 
+    String? displayUrl = embedUrl;
+    String? embedTitle;
+    IconData embedIcon = Icons.web;
+
+    if (displayUrl != null) {
+      final lower = displayUrl.toLowerCase();
+      if (lower.contains('youtube.com') || lower.contains('youtu.be')) {
+        embedIcon = Icons.play_circle_filled;
+        embedTitle = 'YouTube Video';
+      } else if (lower.contains('twitter.com') || lower.contains('x.com')) {
+        embedIcon = Icons.chat_bubble;
+        embedTitle = 'Post';
+      } else if (lower.contains('instagram.com')) {
+        embedIcon = Icons.photo_camera;
+        embedTitle = 'Instagram';
+      } else if (lower.contains('vimeo.com')) {
+        embedIcon = Icons.play_circle_filled;
+        embedTitle = 'Vimeo Video';
+      } else if (lower.contains('soundcloud.com')) {
+        embedIcon = Icons.music_note;
+        embedTitle = 'SoundCloud';
+      }
+    }
+
+    if (displayUrl == null && embedHtml != null) {
+      final srcMatch = RegExp(r'''src=["']([^"']+)["']''').firstMatch(embedHtml);
+      if (srcMatch != null) displayUrl = srcMatch.group(1);
+    }
+
+    final targetUrl = displayUrl ?? embedUrl;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf4f4f5),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (embedHtml != null && embedHtml.isNotEmpty) ...[
-              Container(
-                width: double.infinity,
-                constraints: BoxConstraints(maxHeight: h > 0 ? h : 300),
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0e1621) : Colors.white,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: SingleChildScrollView(
-                  child: Text(
-                    _stripHtml(embedHtml),
-                    style: TextStyle(fontSize: 13, color: _textColor, height: 1.4),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            if (embedUrl != null && embedUrl.isNotEmpty)
-              GestureDetector(
-                onTap: () => launchUrl(Uri.parse(embedUrl), mode: LaunchMode.externalApplication),
-                child: Row(
-                  children: [
-                    Icon(Icons.open_in_new, size: 14, color: _accentColor),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(embedUrl, style: TextStyle(fontSize: 13, color: _accentColor, decoration: TextDecoration.underline), maxLines: 1, overflow: TextOverflow.ellipsis),
+      child: GestureDetector(
+        onTap: targetUrl != null
+            ? () => launchUrl(Uri.parse(targetUrl), mode: LaunchMode.externalApplication)
+            : null,
+        child: Container(
+          width: double.infinity,
+          constraints: BoxConstraints(minHeight: h > 0 ? h.clamp(60, 400) : 80),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf4f4f5),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isDark ? const Color(0xFF2a3a4a) : const Color(0xFFe0e0e0)),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(embedIcon, size: 32, color: _accentColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (embedTitle != null)
+                          Text(embedTitle, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _textColor)),
+                        if (targetUrl != null)
+                          Text(
+                            targetUrl,
+                            style: TextStyle(fontSize: 13, color: _accentColor, decoration: TextDecoration.underline),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  if (targetUrl != null)
+                    Icon(Icons.open_in_new, size: 16, color: _subtleColor),
+                ],
               ),
-            if (block['caption'] != null) _buildCaption(context, block['caption']),
-          ],
+              if (block['caption'] != null) ...[
+                const SizedBox(height: 8),
+                _buildCaption(context, block['caption']),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -899,29 +1057,39 @@ class _IvBlock extends StatelessWidget {
 
   Widget _buildVideo(BuildContext context) {
     final caption = block['caption'];
-    final autoplay = block['autoplay'] == true;
+    final videoId = block['video_id'] as num?;
+    final extra = block['extra'] as String?;
+    final mime = block['mime'] as String? ?? 'video/mp4';
+    final thumbB64 = block['thumb'] as String?;
+    final videoW = (block['w'] as num?)?.toDouble() ?? 0;
+    final videoH = (block['h'] as num?)?.toDouble() ?? 0;
+    final duration = block['duration'] as num?;
+
+    String durationStr = '';
+    if (duration != null && duration > 0) {
+      final mins = duration.toInt() ~/ 60;
+      final secs = duration.toInt() % 60;
+      durationStr = '$mins:${secs.toString().padLeft(2, '0')}';
+    }
+
+    final aspectRatio = videoW > 0 && videoH > 0 ? videoW / videoH : 16.0 / 9.0;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            height: 200,
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0e1621) : const Color(0xFFe8e8e8),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.play_circle_outline, size: 48, color: _accentColor),
-                  const SizedBox(height: 8),
-                  Text(autoplay ? 'Video (autoplay)' : 'Video', style: TextStyle(fontSize: 13, color: _subtleColor)),
-                ],
-              ),
-            ),
+          _IvVideoBlock(
+            accountId: accountId,
+            videoId: videoId?.toInt() ?? 0,
+            extra: extra ?? '',
+            mime: mime,
+            thumbB64: thumbB64,
+            aspectRatio: aspectRatio,
+            durationStr: durationStr,
+            isDark: isDark,
+            accentColor: _accentColor,
+            subtleColor: _subtleColor,
           ),
           if (caption != null) _buildCaption(context, caption),
         ],
@@ -934,26 +1102,118 @@ class _IvBlock extends StatelessWidget {
     final caption = block['caption'];
     if (items.isEmpty) return const SizedBox.shrink();
 
-    final crossCount = items.length <= 2 ? items.length : (items.length <= 4 ? 2 : 3);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GridView.count(
-            crossAxisCount: crossCount,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 2,
-            crossAxisSpacing: 2,
-            children: items.map((item) {
-              return _IvBlock(block: item as Map<String, dynamic>, isDark: isDark, accountId: accountId, onNavigateIV: onNavigateIV);
-            }).toList(),
+          LayoutBuilder(
+            builder: (ctx, constraints) {
+              final totalWidth = constraints.maxWidth;
+              return _buildCollageLayout(items, totalWidth);
+            },
           ),
           if (caption != null) _buildCaption(context, caption),
         ],
       ),
     );
+  }
+
+  Widget _buildCollageLayout(List<dynamic> items, double totalWidth) {
+    final count = items.length;
+    const gap = 2.0;
+
+    Widget buildItem(dynamic item) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(2),
+        child: _IvBlock(block: item as Map<String, dynamic>, isDark: isDark, accountId: accountId, onNavigateIV: onNavigateIV),
+      );
+    }
+
+    if (count == 1) {
+      return buildItem(items[0]);
+    }
+    if (count == 2) {
+      final halfW = (totalWidth - gap) / 2;
+      return SizedBox(
+        height: halfW * 0.75,
+        child: Row(
+          children: [
+            SizedBox(width: halfW, child: buildItem(items[0])),
+            const SizedBox(width: gap),
+            SizedBox(width: halfW, child: buildItem(items[1])),
+          ],
+        ),
+      );
+    }
+    if (count == 3) {
+      final leftW = totalWidth * 0.6;
+      final rightW = totalWidth - leftW - gap;
+      final h = leftW * 0.75;
+      return SizedBox(
+        height: h,
+        child: Row(
+          children: [
+            SizedBox(width: leftW, child: buildItem(items[0])),
+            const SizedBox(width: gap),
+            SizedBox(
+              width: rightW,
+              child: Column(
+                children: [
+                  Expanded(child: buildItem(items[1])),
+                  const SizedBox(height: gap),
+                  Expanded(child: buildItem(items[2])),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    if (count == 4) {
+      final halfW = (totalWidth - gap) / 2;
+      final cellH = halfW * 0.75;
+      return Column(
+        children: [
+          SizedBox(
+            height: cellH,
+            child: Row(
+              children: [
+                SizedBox(width: halfW, child: buildItem(items[0])),
+                const SizedBox(width: gap),
+                SizedBox(width: halfW, child: buildItem(items[1])),
+              ],
+            ),
+          ),
+          const SizedBox(height: gap),
+          SizedBox(
+            height: cellH,
+            child: Row(
+              children: [
+                SizedBox(width: halfW, child: buildItem(items[2])),
+                const SizedBox(width: gap),
+                SizedBox(width: halfW, child: buildItem(items[3])),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    final cols = count <= 6 ? 2 : 3;
+    final cellW = (totalWidth - (cols - 1) * gap) / cols;
+    final cellH = cellW * 0.75;
+    final rowList = <Widget>[];
+    for (int i = 0; i < count; i += cols) {
+      final rowItems = <Widget>[];
+      for (int j = 0; j < cols && i + j < count; j++) {
+        if (j > 0) rowItems.add(const SizedBox(width: gap));
+        rowItems.add(SizedBox(width: cellW, child: buildItem(items[i + j])));
+      }
+      if (rowList.isNotEmpty) rowList.add(const SizedBox(height: gap));
+      rowList.add(SizedBox(height: cellH, child: Row(children: rowItems)));
+    }
+    return Column(children: rowList);
   }
 
   Widget _buildSlideshow(BuildContext context) {
@@ -963,24 +1223,15 @@ class _IvBlock extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            height: 300,
-            child: PageView.builder(
-              itemCount: items.length,
-              itemBuilder: (ctx, i) {
-                return _IvBlock(block: items[i] as Map<String, dynamic>, isDark: isDark, accountId: accountId, onNavigateIV: onNavigateIV);
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Center(child: Text('${items.length} items', style: TextStyle(fontSize: 12, color: _subtleColor))),
-          ),
-          if (caption != null) _buildCaption(context, caption),
-        ],
+      child: _IvSlideshowBlock(
+        items: items,
+        isDark: isDark,
+        accountId: accountId,
+        onNavigateIV: onNavigateIV,
+        accentColor: _accentColor,
+        subtleColor: _subtleColor,
+        caption: caption,
+        captionBuilder: (ctx, cap) => _buildCaption(ctx, cap),
       ),
     );
   }
@@ -991,45 +1242,23 @@ class _IvBlock extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf4f4f5),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: _accentColor.withAlpha(40),
-              child: Icon(Icons.campaign, color: _accentColor, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _textColor)),
-                  if (username != null) Text('@$username', style: TextStyle(fontSize: 13, color: _subtleColor)),
-                ],
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                if (username != null) {
-                  launchUrl(Uri.parse('https://t.me/$username'), mode: LaunchMode.externalApplication);
-                }
-              },
-              child: Text('Join', style: TextStyle(color: _accentColor, fontWeight: FontWeight.w600)),
-            ),
-          ],
-        ),
+      child: _IvChannelBlock(
+        title: title,
+        username: username,
+        accountId: accountId,
+        isDark: isDark,
+        accentColor: _accentColor,
+        textColor: _textColor,
+        subtleColor: _subtleColor,
       ),
     );
   }
 
   Widget _buildAudio(BuildContext context) {
     final caption = block['caption'];
+    final audioId = block['audio_id'] as num?;
+    final extra = block['extra'] as String?;
+    final mime = block['mime'] as String? ?? 'audio/mpeg';
     final audioTitle = block['title'] as String?;
     final performer = block['performer'] as String?;
     final duration = block['duration'] as num?;
@@ -1046,33 +1275,18 @@ class _IvBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf4f4f5),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: _accentColor),
-                  child: const Icon(Icons.play_arrow, color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(audioTitle ?? performer ?? 'Audio', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _textColor), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      if (performer != null && audioTitle != null)
-                        Text(performer, style: TextStyle(fontSize: 12, color: _subtleColor), maxLines: 1),
-                      if (durationStr.isNotEmpty) Text(durationStr, style: TextStyle(fontSize: 12, color: _subtleColor)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          _IvAudioBlock(
+            accountId: accountId,
+            audioId: audioId?.toInt() ?? 0,
+            extra: extra ?? '',
+            mime: mime,
+            title: audioTitle,
+            performer: performer,
+            durationStr: durationStr,
+            isDark: isDark,
+            accentColor: _accentColor,
+            textColor: _textColor,
+            subtleColor: _subtleColor,
           ),
           if (caption != null) _buildCaption(context, caption),
         ],
@@ -1083,9 +1297,14 @@ class _IvBlock extends StatelessWidget {
   Widget _buildMap(BuildContext context) {
     final lat = block['lat'] as num?;
     final lng = block['lng'] as num?;
+    final zoom = (block['zoom'] as num?)?.toInt() ?? 15;
+    final mapW = (block['w'] as num?)?.toInt() ?? 650;
+    final mapH = (block['h'] as num?)?.toInt() ?? 200;
     final caption = block['caption'];
 
     if (lat == null || lng == null) return const SizedBox.shrink();
+
+    final tileUrl = 'https://static-maps.yandex.ru/1.x/?lang=en-US&ll=${lng.toDouble()},${lat.toDouble()}&z=$zoom&size=${mapW.clamp(100, 650)},${mapH.clamp(100, 450)}&l=map';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -1093,25 +1312,47 @@ class _IvBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onTap: () => launchUrl(Uri.parse('https://www.openstreetmap.org/?mlat=$lat&mlon=$lng#map=15/$lat/$lng'), mode: LaunchMode.externalApplication),
-            child: Container(
-              width: double.infinity,
-              height: 200,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.place, size: 40, color: _accentColor),
-                    const SizedBox(height: 6),
-                    Text('${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}', style: TextStyle(fontSize: 13, color: _subtleColor)),
-                    const SizedBox(height: 4),
-                    Text('Open in maps', style: TextStyle(fontSize: 12, color: _accentColor, fontWeight: FontWeight.w500)),
-                  ],
-                ),
+            onTap: () => launchUrl(Uri.parse('https://www.openstreetmap.org/?mlat=$lat&mlon=$lng#map=$zoom/$lat/$lng'), mode: LaunchMode.externalApplication),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Stack(
+                children: [
+                  Image.network(
+                    tileUrl,
+                    width: double.infinity,
+                    height: mapH.toDouble().clamp(100, 400),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: double.infinity,
+                      height: mapH.toDouble().clamp(100, 400),
+                      color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.place, size: 40, color: _accentColor),
+                            const SizedBox(height: 6),
+                            Text('${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}', style: TextStyle(fontSize: 13, color: _subtleColor)),
+                            const SizedBox(height: 4),
+                            Text('Open in maps', style: TextStyle(fontSize: 12, color: _accentColor, fontWeight: FontWeight.w500)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 0, right: 0, bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      color: Colors.black45,
+                      child: Text(
+                        'Open in maps',
+                        style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1260,6 +1501,7 @@ class _IvFullPhoto extends StatefulWidget {
   final String? thumbB64;
   final int photoWidth;
   final int photoHeight;
+  final VoidCallback? onTap;
 
   const _IvFullPhoto({
     required this.accountId,
@@ -1268,6 +1510,7 @@ class _IvFullPhoto extends StatefulWidget {
     this.thumbB64,
     this.photoWidth = 0,
     this.photoHeight = 0,
+    this.onTap,
   });
 
   @override
@@ -1303,13 +1546,16 @@ class _IvFullPhotoState extends State<_IvFullPhoto> {
     if (_localPath != null) {
       final file = File(_localPath!);
       if (file.existsSync()) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: Image.file(
-            file,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            errorBuilder: (_, __, ___) => _buildThumb(aspectRatio),
+        return GestureDetector(
+          onTap: widget.onTap,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Image.file(
+              file,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              errorBuilder: (_, __, ___) => _buildThumb(aspectRatio),
+            ),
           ),
         );
       }
@@ -1408,6 +1654,588 @@ class _IvDetailsState extends State<_IvDetails> {
               children: widget.blocks.map((b) => _IvBlock(block: b as Map<String, dynamic>, isDark: widget.isDark, accountId: widget.accountId, onNavigateIV: widget.onNavigateIV)).toList(),
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _IvPhotoViewer extends StatefulWidget {
+  final String accountId;
+  final int? photoId;
+  final String? extra;
+  final String? thumbB64;
+
+  const _IvPhotoViewer({required this.accountId, this.photoId, this.extra, this.thumbB64});
+
+  @override
+  State<_IvPhotoViewer> createState() => _IvPhotoViewerState();
+}
+
+class _IvPhotoViewerState extends State<_IvPhotoViewer> {
+  String? _fullPath;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.photoId != null && widget.extra != null) {
+      _loadFullImage();
+    }
+  }
+
+  Future<void> _loadFullImage() async {
+    final engine = context.read<EngineService>();
+    final path = await engine.downloadIVPhoto(widget.accountId, widget.photoId!, widget.extra!);
+    if (mounted) setState(() => _fullPath = path);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget imageWidget;
+    if (_fullPath != null && File(_fullPath!).existsSync()) {
+      imageWidget = InteractiveViewer(
+        minScale: 0.5,
+        maxScale: 4.0,
+        child: Image.file(File(_fullPath!), fit: BoxFit.contain),
+      );
+    } else if (widget.thumbB64 != null && widget.thumbB64!.isNotEmpty) {
+      imageWidget = Image.memory(base64Decode(widget.thumbB64!), fit: BoxFit.contain);
+    } else {
+      imageWidget = const Center(child: CircularProgressIndicator(color: Colors.white));
+    }
+
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop(),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Center(child: imageWidget),
+          Positioned(
+            top: 16, right: 16,
+            child: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 28),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IvVideoBlock extends StatefulWidget {
+  final String accountId;
+  final int videoId;
+  final String extra;
+  final String mime;
+  final String? thumbB64;
+  final double aspectRatio;
+  final String durationStr;
+  final bool isDark;
+  final Color accentColor;
+  final Color subtleColor;
+
+  const _IvVideoBlock({
+    required this.accountId,
+    required this.videoId,
+    required this.extra,
+    required this.mime,
+    this.thumbB64,
+    this.aspectRatio = 16 / 9,
+    this.durationStr = '',
+    required this.isDark,
+    required this.accentColor,
+    required this.subtleColor,
+  });
+
+  @override
+  State<_IvVideoBlock> createState() => _IvVideoBlockState();
+}
+
+class _IvVideoBlockState extends State<_IvVideoBlock> {
+  Player? _player;
+  VideoController? _videoController;
+  bool _downloading = false;
+  bool _playing = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _player?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _playVideo() async {
+    if (widget.videoId == 0 || widget.extra.isEmpty) {
+      setState(() => _error = 'No video data available');
+      return;
+    }
+    setState(() { _downloading = true; _error = null; });
+    final engine = context.read<EngineService>();
+    final path = await engine.downloadIVDocument(widget.accountId, widget.videoId, widget.extra, widget.mime);
+    if (!mounted) return;
+    if (path == null || path.isEmpty) {
+      setState(() { _downloading = false; _error = 'Failed to download video'; });
+      return;
+    }
+    final player = Player();
+    final controller = VideoController(player);
+    setState(() {
+      _player = player;
+      _videoController = controller;
+      _downloading = false;
+      _playing = true;
+    });
+    await player.open(Media(path));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_playing && _videoController != null) {
+      return AspectRatio(
+        aspectRatio: widget.aspectRatio,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Video(controller: _videoController!),
+              Positioned(
+                top: 8, right: 8,
+                child: GestureDetector(
+                  onTap: () {
+                    _player?.dispose();
+                    setState(() { _player = null; _videoController = null; _playing = false; });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                    child: const Icon(Icons.close, color: Colors.white, size: 18),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Widget thumb;
+    if (widget.thumbB64 != null && widget.thumbB64!.isNotEmpty) {
+      thumb = Image.memory(
+        base64Decode(widget.thumbB64!),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        errorBuilder: (_, __, ___) => Container(color: widget.isDark ? const Color(0xFF0e1621) : const Color(0xFFe8e8e8)),
+      );
+    } else {
+      thumb = Container(color: widget.isDark ? const Color(0xFF0e1621) : const Color(0xFFe8e8e8));
+    }
+
+    return GestureDetector(
+      onTap: _downloading ? null : _playVideo,
+      child: AspectRatio(
+        aspectRatio: widget.aspectRatio,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              thumb,
+              Container(color: Colors.black26),
+              Center(
+                child: _downloading
+                    ? const SizedBox(width: 40, height: 40, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                    : _error != null
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.error_outline, color: Colors.white70, size: 40),
+                              const SizedBox(height: 4),
+                              Text(_error!, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                            ],
+                          )
+                        : Container(
+                            width: 56, height: 56,
+                            decoration: BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                            child: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
+                          ),
+              ),
+              if (widget.durationStr.isNotEmpty)
+                Positioned(
+                  bottom: 8, right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
+                    child: Text(widget.durationStr, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IvAudioBlock extends StatefulWidget {
+  final String accountId;
+  final int audioId;
+  final String extra;
+  final String mime;
+  final String? title;
+  final String? performer;
+  final String durationStr;
+  final bool isDark;
+  final Color accentColor;
+  final Color textColor;
+  final Color subtleColor;
+
+  const _IvAudioBlock({
+    required this.accountId,
+    required this.audioId,
+    required this.extra,
+    required this.mime,
+    this.title,
+    this.performer,
+    this.durationStr = '',
+    required this.isDark,
+    required this.accentColor,
+    required this.textColor,
+    required this.subtleColor,
+  });
+
+  @override
+  State<_IvAudioBlock> createState() => _IvAudioBlockState();
+}
+
+class _IvAudioBlockState extends State<_IvAudioBlock> {
+  Player? _player;
+  bool _downloading = false;
+  bool _playing = false;
+  bool _paused = false;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  final List<StreamSubscription> _subs = [];
+
+  @override
+  void dispose() {
+    for (final s in _subs) { s.cancel(); }
+    _player?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _togglePlayback() async {
+    if (_player != null) {
+      if (_playing && !_paused) {
+        _player!.pause();
+      } else {
+        _player!.play();
+      }
+      return;
+    }
+
+    if (widget.audioId == 0 || widget.extra.isEmpty) return;
+    setState(() => _downloading = true);
+    final engine = context.read<EngineService>();
+    final path = await engine.downloadIVDocument(widget.accountId, widget.audioId, widget.extra, widget.mime);
+    if (!mounted) return;
+    if (path == null || path.isEmpty) {
+      setState(() => _downloading = false);
+      return;
+    }
+    final player = Player();
+    _player = player;
+    _subs.add(player.stream.playing.listen((v) {
+      if (mounted) setState(() { _playing = v; _paused = !v; });
+    }));
+    _subs.add(player.stream.position.listen((v) {
+      if (mounted) setState(() => _position = v);
+    }));
+    _subs.add(player.stream.duration.listen((v) {
+      if (mounted) setState(() => _duration = v);
+    }));
+    _subs.add(player.stream.completed.listen((v) {
+      if (v && mounted) setState(() { _playing = false; _paused = false; });
+    }));
+    setState(() { _downloading = false; _playing = true; });
+    await player.open(Media(path));
+  }
+
+  String _formatDuration(Duration d) {
+    final mins = d.inMinutes;
+    final secs = d.inSeconds % 60;
+    return '$mins:${secs.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = _duration.inMilliseconds > 0
+        ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf4f4f5),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              GestureDetector(
+                onTap: _downloading ? null : _togglePlayback,
+                child: Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: widget.accentColor),
+                  child: _downloading
+                      ? const Padding(
+                          padding: EdgeInsets.all(10),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : Icon(_playing && !_paused ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 22),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title ?? widget.performer ?? 'Audio',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: widget.textColor),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                    ),
+                    if (widget.performer != null && widget.title != null)
+                      Text(widget.performer!, style: TextStyle(fontSize: 12, color: widget.subtleColor), maxLines: 1),
+                    Text(
+                      _playing || _paused
+                          ? '${_formatDuration(_position)} / ${_formatDuration(_duration)}'
+                          : widget.durationStr.isNotEmpty ? widget.durationStr : '',
+                      style: TextStyle(fontSize: 12, color: widget.subtleColor),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (_playing || _paused) ...[
+            const SizedBox(height: 6),
+            LinearProgressIndicator(
+              value: progress,
+              backgroundColor: widget.isDark ? const Color(0xFF2a3a4a) : const Color(0xFFe0e0e0),
+              valueColor: AlwaysStoppedAnimation(widget.accentColor),
+              minHeight: 3,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _IvChannelBlock extends StatefulWidget {
+  final String title;
+  final String? username;
+  final String accountId;
+  final bool isDark;
+  final Color accentColor;
+  final Color textColor;
+  final Color subtleColor;
+
+  const _IvChannelBlock({
+    required this.title,
+    this.username,
+    required this.accountId,
+    required this.isDark,
+    required this.accentColor,
+    required this.textColor,
+    required this.subtleColor,
+  });
+
+  @override
+  State<_IvChannelBlock> createState() => _IvChannelBlockState();
+}
+
+class _IvChannelBlockState extends State<_IvChannelBlock> {
+  bool _joined = false;
+  bool _joining = false;
+
+  Future<void> _joinChannel() async {
+    final username = widget.username;
+    if (username == null || username.isEmpty) return;
+    setState(() => _joining = true);
+    try {
+      final engine = context.read<EngineService>();
+      await engine.joinChat(widget.accountId, username);
+      if (mounted) setState(() { _joined = true; _joining = false; });
+    } catch (e) {
+      if (mounted) setState(() => _joining = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf4f4f5),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: widget.accentColor.withAlpha(40),
+            child: Icon(Icons.campaign, color: widget.accentColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: widget.textColor)),
+                if (widget.username != null) Text('@${widget.username}', style: TextStyle(fontSize: 13, color: widget.subtleColor)),
+              ],
+            ),
+          ),
+          if (_joined)
+            Text('Joined', style: TextStyle(color: widget.subtleColor, fontSize: 14))
+          else
+            TextButton(
+              onPressed: _joining ? null : _joinChannel,
+              child: _joining
+                  ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: widget.accentColor))
+                  : Text('Join', style: TextStyle(color: widget.accentColor, fontWeight: FontWeight.w600)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IvSlideshowBlock extends StatefulWidget {
+  final List<dynamic> items;
+  final bool isDark;
+  final String accountId;
+  final void Function(String url)? onNavigateIV;
+  final Color accentColor;
+  final Color subtleColor;
+  final dynamic caption;
+  final Widget Function(BuildContext, dynamic) captionBuilder;
+
+  const _IvSlideshowBlock({
+    required this.items,
+    required this.isDark,
+    required this.accountId,
+    this.onNavigateIV,
+    required this.accentColor,
+    required this.subtleColor,
+    this.caption,
+    required this.captionBuilder,
+  });
+
+  @override
+  State<_IvSlideshowBlock> createState() => _IvSlideshowBlockState();
+}
+
+class _IvSlideshowBlockState extends State<_IvSlideshowBlock> {
+  late final PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _goTo(int page) {
+    if (page < 0 || page >= widget.items.length) return;
+    _pageController.animateToPage(page, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 300,
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: _pageController,
+                itemCount: widget.items.length,
+                onPageChanged: (i) => setState(() => _currentPage = i),
+                itemBuilder: (ctx, i) {
+                  return _IvBlock(
+                    block: widget.items[i] as Map<String, dynamic>,
+                    isDark: widget.isDark,
+                    accountId: widget.accountId,
+                    onNavigateIV: widget.onNavigateIV,
+                  );
+                },
+              ),
+              if (_currentPage > 0)
+                Positioned(
+                  left: 8, top: 0, bottom: 0,
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: () => _goTo(_currentPage - 1),
+                      child: Container(
+                        width: 36, height: 36,
+                        decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
+                        child: const Icon(Icons.chevron_left, color: Colors.white, size: 24),
+                      ),
+                    ),
+                  ),
+                ),
+              if (_currentPage < widget.items.length - 1)
+                Positioned(
+                  right: 8, top: 0, bottom: 0,
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: () => _goTo(_currentPage + 1),
+                      child: Container(
+                        width: 36, height: 36,
+                        decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
+                        child: const Icon(Icons.chevron_right, color: Colors.white, size: 24),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(widget.items.length, (i) {
+              final isActive = i == _currentPage;
+              return GestureDetector(
+                onTap: () => _goTo(i),
+                child: Container(
+                  width: isActive ? 8 : 6,
+                  height: isActive ? 8 : 6,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isActive ? widget.accentColor : widget.subtleColor.withAlpha(100),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+        if (widget.caption != null) widget.captionBuilder(context, widget.caption),
       ],
     );
   }

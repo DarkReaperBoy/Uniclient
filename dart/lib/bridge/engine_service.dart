@@ -1085,6 +1085,24 @@ class EngineService {
     }
   }
 
+  Future<String?> downloadIVDocument(String accountId, int docId, String extra, String mime) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'doc_id': docId,
+      'extra': extra,
+      'mime': mime,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'DownloadIVDocument', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return resp['path'] as String?;
+    } catch (e) {
+      Debug.error('ENGINE', 'downloadIVDocument failed', e);
+      return null;
+    }
+  }
+
   // ── Sticker sets ──
 
   Future<StickerSetInfo?> getStickerSetInfo(String accountId, {String shortName = '', int setId = 0, int accessHash = 0}) async {

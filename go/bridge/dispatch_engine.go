@@ -2745,6 +2745,18 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return e.DownloadIVPhoto(params.AccountID, params.PhotoID, params.Extra)
 
+	case "DownloadIVDocument":
+		var params struct {
+			AccountID string `json:"account_id"`
+			DocID     int64  `json:"doc_id"`
+			Extra     string `json:"extra"`
+			Mime      string `json:"mime"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return e.DownloadIVDocument(params.AccountID, params.DocID, params.Extra, params.Mime)
+
 	case "BotCallback":
 		var req pb.EngineBotCallbackRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

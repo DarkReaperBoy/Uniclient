@@ -1378,6 +1378,26 @@ func (e *Engine) DownloadIVPhoto(accountID string, photoID int64, extra string) 
 	return json.Marshal(map[string]string{"path": path})
 }
 
+func (e *Engine) DownloadIVDocument(accountID string, docID int64, extra, mime string) ([]byte, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type ivDocDownloader interface {
+		DownloadIVDocument(docID int64, extra, mime string) (string, error)
+	}
+	dl, ok := acc.Core.(ivDocDownloader)
+	if !ok {
+		return nil, fmt.Errorf("IV document download not supported for this account type")
+	}
+	path, err := dl.DownloadIVDocument(docID, extra, mime)
+	if err != nil { return nil, err }
+	return json.Marshal(map[string]string{"path": path})
+}
+
 // SendAsPeerInfo describes a peer the user can send messages as.
 type SendAsPeerInfo struct {
 	PeerID      string `json:"peer_id"`
