@@ -968,11 +968,13 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
               SizedBox(
                 width: 36,
                 height: 20,
-                child: Switch(
-                  value: _archiveAndMute,
-                  onChanged: _toggleArchiveAndMute,
-                  activeColor: accentColor,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                child: IgnorePointer(
+                  child: Switch(
+                    value: _archiveAndMute,
+                    onChanged: (_) {},
+                    activeColor: accentColor,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
               ),
             ],
@@ -1307,11 +1309,13 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
               SizedBox(
                 width: 36,
                 height: 20,
-                child: Switch(
-                  value: _topPeersEnabled,
-                  onChanged: _toggleTopPeers,
-                  activeColor: accentColor,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                child: IgnorePointer(
+                  child: Switch(
+                    value: _topPeersEnabled,
+                    onChanged: (_) {},
+                    activeColor: accentColor,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
               ),
             ],
