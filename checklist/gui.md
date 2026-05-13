@@ -1191,29 +1191,6 @@ Before findings, confirmed matches (not issues):
 
 ---
 
-# my_profile_page — Edit Profile / My Profile Page
-
-- [ ] [MAJOR] Birthday picker uses Flutter system calendar (`showDatePicker`) instead of AyuGram's vertical drum picker (three scroll wheels: day, month, year) — `my_profile_page.dart:124` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/edit_birthday_box.cpp:44` (`Ui::VerticalDrumPicker` with `st::settingsWorkingHoursPicker` height, three wheels)
-
-- [ ] [MAJOR] Status line in photo area shows only `"online"` or `"connecting..."` — missing full last-seen text (`"last seen recently"`, `"last seen today at HH:MM"`, etc.) that AyuGram computes reactively with `Data::OnlineText(user, now)` — `my_profile_page.dart:688-694` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_information.cpp:282-299` (`StatusValue` reactive producer)
-
-- [ ] [MAJOR] Account row context menu always adds `"Open in New Window"` item — AyuGram only adds it when the account is **not** active (`if (!isActive) { addAction(...newWindow...) }`) — `my_profile_page.dart:1683-1688` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_information.cpp:872-876`
-
-- [ ] [MAJOR] Profile photo in photo area is not tappable — AyuGram uses `UserpicButton::Role::OpenPhoto` so clicking the avatar opens the full-screen photo viewer; Dart has no tap handler on the main `_avatarFallback`/`Image.file` widget — `my_profile_page.dart:641-654` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_information.cpp:311-316`
-
-- [ ] [MAJOR] Personal channel editor accepts a raw username string with no channel ownership validation — AyuGram routes through `internal:edit_personal_channel` which presents a proper channel-selection flow — `my_profile_page.dart:1029-1079` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_information.cpp:507-520`
-
-# notification_popup — Audit findings
-
-- [ ] [CRITICAL] Body text vertical position is 7px too low: Dart computes `top: _textTop + _itemTopOffset + 13 = 7+12+13 = 32px` but AyuGram uses `st::notifyItemTop + st::semiboldFont->height = 12+13 = 25px`. The `_textTop` (7) is erroneously added to the body position — it belongs only to the title. — `notification_popup.dart:558` ← `notifications_manager_default.cpp:958-961` + `window.style:48-50`
-
-- [ ] [CRITICAL] Body text right margin overlaps close button: Dart body text uses `right: 8` but the close button occupies the region `right 1..31px`, causing ~23px of body text to draw over the close button. Title text is correctly bounded at `right: _closeSize + _closePosRight + 4 = 35`, but body text is not. AyuGram uses the same `itemWidth` for both title and body, which subtracts `notifyClosePos.x + notifyClose.width`. — `notification_popup.dart:557-581` ← `notifications_manager_default.cpp:928-930`
-
-- [ ] [MAJOR] Reply button fade animation defined but unused: `_actionsFadeDuration = Duration(milliseconds: 200)` is declared at the top of the file but never referenced. AyuGram uses `st::notifyActionsDuration` (200ms) for `a_actionsOpacity.start(...)` to fade the reply button in/out on hover; in Dart the reply button appears and disappears instantly via `setState`. — `notification_popup.dart:33` (defined but never used) ← `notifications_manager_default.cpp:1105`
-
-- [ ] [MAJOR] FocusNode created on every build and never disposed in `_ReplyField`: `focusNode: FocusNode()` at line 867 creates a new node each rebuild without assigning it to a field or disposing it, leaking OS focus resources. Should be a field in the parent `_NotificationPopupOverlayState` per `_PopupState`. — `notification_popup.dart:867` ← `notifications_manager_default.cpp:1128-1136` (C++ reuses the single `_replyArea` widget)
-
-- [ ] [MAJOR] Reply field does not handle Ctrl+Enter submission: Dart only wires `onSubmitted` (Enter key). AyuGram sets `_replyArea->setSubmitSettings(Ui::InputField::SubmitSettings::Both)` meaning both Enter and Ctrl+Enter submit the reply. Ctrl+Enter in Dart inserts a newline instead. — `notification_popup.dart:888` ← `notifications_manager_default.cpp:1138`
 
 ## notifications_settings_screen — Audit Findings
 
