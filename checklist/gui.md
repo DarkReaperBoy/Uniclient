@@ -1161,37 +1161,9 @@ This dialog is fundamentally non-functional as implemented:
 
 **Priority**: Fix missing import immediately. All other logic is sound and matches AyuGram's emoji status rendering patterns.
 
-## folders_settings_screen — Folder create/edit missing individual chat picker; limit buttons are stubs
+## folders_settings_screen — Folder create/edit missing individual chat picker
 
-- [x] [CRITICAL] "Add Chats" and "Remove Chats" buttons open only type-category pickers (_IncludeTypePicker / _ExcludeTypePicker) — there is no individual chat search/selection UI, so users can never add specific chats to a folder; new folders always have empty chatIds — `folders_settings_screen.dart:1877-1878` (`_openIncludeTypePicker`) and `dart:1909` (`_openExcludeTypePicker`) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:946-963` (`EditExceptions` opens `EditFilterChatsListController` peer-list box)
-
-- [x] [CRITICAL] "Increase Limit" button in _SimpleLimitBox just closes the dialog (`Navigator.of(context).pop()`) — it does not navigate to the premium purchase screen — `folders_settings_screen.dart:4491` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_folders.cpp:390` (`controller->show(Box(FiltersLimitBox, session, count))` which opens the full premium limits purchase flow)
-
-- [x] [MAJOR] Folder Tags premium preview shows a plain AlertDialog with only an "OK" dismiss button — no navigation to the premium purchase screen — `folders_settings_screen.dart:1028` (`onPressed: () => Navigator.of(ctx).pop()`) ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_folders.cpp:1048` (`ShowPremiumPreviewToBuy(controller, PremiumFeature::FilterTags)`)
-
-- [x] [MAJOR] Folder/chat premium limits are hardcoded constants (_folderLimitFree=10, _folderLimitPremium=20, _chatsPerFolderFree=100, _chatsPerFolderPremium=200, _shareableFoldersFree=2, _shareableFoldersPremium=20, _linksPerFolderFree=3, _linksPerFolderPremium=20) instead of being fetched from the server premium config — `folders_settings_screen.dart:184-191` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:147-149` (`Data::PremiumLimits(session).dialogFiltersChatsCurrent()`)
-
-# forum_topic_icon — Palette colors wrong across 6/7 palettes, letter case mismatch, static-only custom emoji
-
-- [x] [CRITICAL] Gray palette (0x9AABAB) fill gradient is wrong — SVG uses neutral gray (`#A5A5A5`→`#616161`), Dart uses bluish-teal (`#A0B0B8`→`#6D7F8F`), a completely different tone visible at all icon sizes — `forum_topic_icon.dart:57` ← `AyuGramDesktop/Telegram/Resources/art/topic_icons/gray.svg:6-8`
-
-- [x] [CRITICAL] Gray palette (0x9AABAB) stroke gradient is wrong — SVG uses neutral gray (`#737373`→`#565656`), Dart uses teal (`#8397A4`→`#5A6B78`) — `forum_topic_icon.dart:58` ← `AyuGramDesktop/Telegram/Resources/art/topic_icons/gray.svg:10-12`
-
-- [x] [MAJOR] Wrong highlight color for yellow (0xFFD67E) — SVG uses `#F9FF71` (yellow-green), Dart uses `#FFE78A` (warm yellow), visibly different hue — `forum_topic_icon.dart:34` ← `AyuGramDesktop/Telegram/Resources/art/topic_icons/yellow.svg:16`
-
-- [x] [MAJOR] Wrong highlight color for violet (0xCB86DB) — SVG uses `#F5BDFF`, Dart uses `#EFA6FF` — `forum_topic_icon.dart:39` ← `AyuGramDesktop/Telegram/Resources/art/topic_icons/violet.svg:16`
-
-- [x] [MAJOR] Wrong highlight color for green (0x8EEE98) — SVG uses `#C2FF71`, Dart uses `#B2F16C` — `forum_topic_icon.dart:44` ← `AyuGramDesktop/Telegram/Resources/art/topic_icons/green.svg:16`
-
-- [x] [MAJOR] Wrong highlight color for rose (0xFF93B2) — SVG uses `#FFC7D6`, Dart uses `#FFB1C8` — `forum_topic_icon.dart:49` ← `AyuGramDesktop/Telegram/Resources/art/topic_icons/rose.svg:16`
-
-- [x] [MAJOR] Wrong highlight color for red (0xFB6F5F) — SVG uses `#FFB47D`, Dart uses `#FF9E87` — `forum_topic_icon.dart:54` ← `AyuGramDesktop/Telegram/Resources/art/topic_icons/red.svg:16`
-
-- [x] [MAJOR] Wrong highlight color for gray (0x9AABAB) — SVG uses `#B8B8B8`, Dart uses `#BCCCCD4` — `forum_topic_icon.dart:59` ← `AyuGramDesktop/Telegram/Resources/art/topic_icons/gray.svg:16`
-
-- [x] [MAJOR] `extractTopicLetter` uppercases the letter (`char.toUpperCase()`) but AyuGram's `ExtractNonEmojiLetter` returns the original-case character — topics titled with lowercase first letters will render differently — `forum_topic_icon.dart:119` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_forum_topic.cpp:123`
-
-- [x] [MAJOR] Custom emoji topic icon shows a static base64 thumbnail only; AyuGram renders animated custom emoji via `CustomEmoji::paint()` repaint callbacks — animated sticker topic icons will appear frozen — `forum_topic_icon.dart:481-498` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_forum_topic.cpp:683` (`_icon->paint(p, args)` animation loop)
+- [ ] [CRITICAL] "Add Chats" and "Remove Chats" buttons open only type-category pickers (_IncludeTypePicker / _ExcludeTypePicker) — there is no individual chat search/selection UI, so users can never add specific chats to a folder; new folders always have empty chatIds — `folders_settings_screen.dart:1877-1878` (`_openIncludeTypePicker`) and `dart:1909` (`_openExcludeTypePicker`) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:946-963` (`EditExceptions` opens `EditFilterChatsListController` peer-list box)
 
 # ghost_settings_page — Ghost Settings Page Audit
 
