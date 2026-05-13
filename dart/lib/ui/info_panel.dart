@@ -644,17 +644,15 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                             ),
                           ),
                         GestureDetector(
-                          onTap: (isMyNotes || isSelf || accountId.isEmpty || chatId.isEmpty)
+                          onTap: (isMyNotes || isSelf || (avatarPath.isEmpty && (avatarBytes == null || avatarBytes!.isEmpty)))
                               ? null
                               : () {
-                                  showPeerShortInfoBox(
-                                    context,
-                                    accountId: accountId,
-                                    peerId: chatId,
-                                    peerName: displayName,
-                                    avatarPath: avatarPath,
-                                    peerType: chatType,
-                                  );
+                                  _openAvatarPhotoViewer(context, avatarPath, displayName, avatarBytes: avatarBytes);
+                                },
+                          onSecondaryTapUp: (isMyNotes || isSelf || (avatarPath.isEmpty && (avatarBytes == null || avatarBytes!.isEmpty)))
+                              ? null
+                              : (details) {
+                                  _showAvatarContextMenu(context, details.globalPosition, avatarPath, displayName, avatarBytes: avatarBytes);
                                 },
                           child: SizedBox(
                             width: avatarDisplaySize,
@@ -1117,6 +1115,114 @@ class _PinnedGiftWidget extends StatelessWidget {
         color: Color(0x30808080),
       ),
       child: Icon(Icons.card_giftcard, size: size * 0.6, color: const Color(0xFF40a7e3)),
+    );
+  }
+}
+
+void _openAvatarPhotoViewer(BuildContext context, String avatarPath, String title, {Uint8List? avatarBytes}) {
+  if (avatarPath.isEmpty && (avatarBytes == null || avatarBytes.isEmpty)) return;
+  Navigator.of(context).push(
+    PageRouteBuilder(
+      opaque: false,
+      barrierColor: Colors.black87,
+      barrierDismissible: true,
+      transitionDuration: const Duration(milliseconds: 200),
+      reverseTransitionDuration: const Duration(milliseconds: 150),
+      pageBuilder: (ctx, animation, _) {
+        return FadeTransition(
+          opacity: animation,
+          child: _AvatarPhotoViewer(imagePath: avatarPath, title: title, imageBytes: avatarBytes),
+        );
+      },
+    ),
+  );
+}
+
+void _showAvatarContextMenu(BuildContext context, Offset position, String avatarPath, String title, {Uint8List? avatarBytes}) {
+  showTelegramMenu<String>(
+    context: context,
+    position: position,
+    items: [
+      TelegramMenuItem(
+        value: 'open_photo',
+        icon: const Icon(Icons.photo_outlined, size: 20),
+        label: 'Open Photo',
+      ),
+    ],
+  ).then((value) {
+    if (value == 'open_photo') {
+      _openAvatarPhotoViewer(context, avatarPath, title, avatarBytes: avatarBytes);
+    }
+  });
+}
+
+class _AvatarPhotoViewer extends StatelessWidget {
+  final String imagePath;
+  final String title;
+  final Uint8List? imageBytes;
+
+  const _AvatarPhotoViewer({required this.imagePath, required this.title, this.imageBytes});
+
+  @override
+  Widget build(BuildContext context) {
+    final imageWidget = imagePath.isNotEmpty
+        ? Image.file(
+            File(imagePath),
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 64, color: Colors.white54),
+          )
+        : imageBytes != null && imageBytes!.isNotEmpty
+            ? Image.memory(
+                imageBytes!,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 64, color: Colors.white54),
+              )
+            : const Icon(Icons.broken_image, size: 64, color: Colors.white54);
+
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop(),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: imageWidget,
+              ),
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                color: Colors.black54,
+                padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1923,7 +2029,12 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
         : widget.theme.textTheme.bodySmall?.color;
     final palette = context.palette;
     final numId = int.tryParse(widget.chat.chatId) ?? widget.chat.chatId.hashCode.abs();
-    final avatarColor = palette.peerUserpicBg(_userpicColorRemap[numId.abs() % 7]);
+    final colorIndex = _userpicColorRemap[numId.abs() % 7];
+    final avatarColor = palette.peerUserpicBg(colorIndex);
+    final profileBgColors = [
+      palette.peerUserpicBg(colorIndex),
+      palette.peerUserpicBg2(colorIndex),
+    ];
     final tailPad = MediaQuery.sizeOf(context).height -
         _FlexibleCoverDelegate.minHeight;
 
@@ -1970,6 +2081,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               isMyNotes: widget.chatState.activeSublist?.isSelf == true,
               storyCount: widget.chat.storyCount,
               hasUnreadStory: widget.chat.hasUnreadStory,
+              profileBgColors: profileBgColors,
               emojiStatusId: widget.chat.emojiStatusId,
               accountId: widget.chat.accountId,
               pinnedGifts: widget.pinnedGifts,
@@ -2274,7 +2386,12 @@ class _UserProfilePageState extends State<_UserProfilePage> {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final numId = int.tryParse(widget.member.userId) ?? widget.member.userId.hashCode.abs();
-    final color = palette.peerUserpicBg(_userpicColorRemap[numId.abs() % 7]);
+    final colorIndex = _userpicColorRemap[numId.abs() % 7];
+    final color = palette.peerUserpicBg(colorIndex);
+    final memberProfileBgColors = [
+      palette.peerUserpicBg(colorIndex),
+      palette.peerUserpicBg2(colorIndex),
+    ];
     final name = widget.member.label;
     final initials = _userpicInitials(name);
     final statusText = widget.member.isOnline
@@ -2312,6 +2429,7 @@ class _UserProfilePageState extends State<_UserProfilePage> {
               onClose: widget.onClose,
               showBackButton: widget.showBackButton,
               collapsedTitle: widget.title,
+              profileBgColors: memberProfileBgColors,
               avatarBytes: widget.member.avatarB64.isNotEmpty
                   ? base64Decode(widget.member.avatarB64)
                   : null,
