@@ -1195,12 +1195,6 @@ Before findings, confirmed matches (not issues):
 
 ## privacy_settings_screen — Backend Wiring & API Connectivity
 
-## privacy_settings_screen — Double-Call Vulnerabilities
-
-- [ ] [MAJOR] Archive-and-Mute row fires `engine.setArchiveSettings()` twice per tap: once in `InkWell.onTap` (line 910) and again in `Switch.onChanged` (line 940) — rapid taps queue duplicate API calls — `privacy_settings_screen.dart:909-960` ← `AyuGram/settings/settings_privacy_security.cpp` (single `toggledChanges()` handler, no duplicate path)
-
-- [ ] [MAJOR] Top Peers toggle fires `engine.toggleTopPeers()` twice per tap: once in `InkWell.onTap` (line 1263) and again in `Switch.onChanged` (line 1288) — `privacy_settings_screen.dart:1262-1311` ← `AyuGram/settings/settings_privacy_security.cpp` (single toggle handler at topPeers section)
-
 ## privacy_settings_screen — Missing Feature Gating
 
 - [ ] [CRITICAL] "Charge Stars" messages privacy option can be selected by non-Premium users — no premium lock guard equivalent to the voice messages block at line 2314 — `privacy_settings_screen.dart:6183-6226` ← `AyuGram/settings/settings_privacy_security.cpp` (messagesPremium config check blocks non-premium access to paid messages option)
