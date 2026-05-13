@@ -1176,10 +1176,6 @@ Audited against AyuGram Desktop C++ source at
 ## _UsernameBoxContent
 
 
-## _AddContactBoxContent
-
-- [ ] [CRITICAL] Post-add chat navigation uses fragile name-matching on the local chat list with a 500 ms delay instead of using the peer ID returned directly from the `importContacts` API response — `input_dialogs.dart:592-601` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/add_contact_box.cpp` (parers peer from `MTPcontacts_ImportContacts` result, opens user page directly by peer ID)
-
 ## _CountryPickerContent
 
 - [ ] [MAJOR] Country list shows an empty `ListView` when the search query matches nothing; AyuGram renders a centred "No countries found" label (`tr::lng_country_none`) at `st::noContactsHeight` — `input_dialogs.dart:877-913` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/country_select_box.cpp:353-357`
