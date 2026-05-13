@@ -107,6 +107,10 @@ class _InstantViewPageState extends State<InstantViewPage> {
           _historyIndex = 0;
         }
       });
+      final fragment = Uri.tryParse(url)?.fragment;
+      if (fragment != null && fragment.isNotEmpty) {
+        _scrollToAnchor(fragment);
+      }
     } catch (e) {
       if (!mounted) return;
       _openExternal(url);
@@ -132,6 +136,24 @@ class _InstantViewPageState extends State<InstantViewPage> {
 
   void _openExternal(String url) {
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  void _scrollToAnchor(String name) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final targetKey = ValueKey('anchor_$name');
+      bool found = false;
+      void visit(Element element) {
+        if (found) return;
+        if (element.widget.key == targetKey) {
+          Scrollable.ensureVisible(element, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+          found = true;
+          return;
+        }
+        element.visitChildren(visit);
+      }
+      context.visitChildElements(visit);
+    });
   }
 
   void _zoomIn() => _setZoom((_zoomFactor + 0.1).clamp(0.5, 3.0));
@@ -289,19 +311,21 @@ class _InstantViewPageState extends State<InstantViewPage> {
       textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
       child: MediaQuery(
         data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(_zoomFactor)),
-        child: ListView.builder(
+        child: SingleChildScrollView(
           controller: _scrollController,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          itemCount: blocks.length,
-          itemBuilder: (context, i) {
-            final block = blocks[i] as Map<String, dynamic>;
-            return _IvBlock(
-              block: block,
-              isDark: isDark,
-              accountId: widget.accountId,
-              onNavigateIV: (url) => _navigateTo(url),
-            );
-          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: blocks.map((b) {
+              final block = b as Map<String, dynamic>;
+              return _IvBlock(
+                block: block,
+                isDark: isDark,
+                accountId: widget.accountId,
+                onNavigateIV: (url) => _navigateTo(url),
+              );
+            }).toList(),
+          ),
         ),
       ),
     );
@@ -753,7 +777,8 @@ class _IvBlock extends StatelessWidget {
         children: items.asMap().entries.map((entry) {
           final itemMap = entry.value as Map<String, dynamic>;
           final rawNum = itemMap['num'] as String? ?? '';
-          final numLabel = rawNum.isNotEmpty ? '$rawNum.' : '${entry.key + 1}.';
+          final cleanNum = rawNum.endsWith('.') ? rawNum.substring(0, rawNum.length - 1) : rawNum;
+          final numLabel = cleanNum.isNotEmpty ? '$cleanNum.' : '${entry.key + 1}.';
           if (itemMap.containsKey('text')) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 4),
@@ -1122,6 +1147,8 @@ class _IvBlock extends StatelessWidget {
   Widget _buildCollageLayout(List<dynamic> items, double totalWidth) {
     final count = items.length;
     const gap = 2.0;
+    final maxH = totalWidth.toDouble();
+    final minW = totalWidth * 0.1;
 
     Widget buildItem(dynamic item) {
       return ClipRRect(
@@ -1130,90 +1157,219 @@ class _IvBlock extends StatelessWidget {
       );
     }
 
+    List<double> ratios = items.map((item) {
+      final m = item as Map<String, dynamic>;
+      final w = (m['w'] as num?)?.toDouble() ?? 100;
+      final h = (m['h'] as num?)?.toDouble() ?? 100;
+      return w / h;
+    }).toList();
+
+    String proportions = ratios.map((r) => r > 1.2 ? 'w' : r < 0.8 ? 'n' : 'q').join();
+    double avgRatio = ratios.fold(0.0, (a, b) => a + b) / count;
+
+    int _round(double v) => v.round();
+
     if (count == 1) {
-      return buildItem(items[0]);
+      final h = _round(totalWidth / ratios[0]).toDouble().clamp(50.0, maxH);
+      return SizedBox(height: h, child: buildItem(items[0]));
     }
+
     if (count == 2) {
-      final halfW = (totalWidth - gap) / 2;
-      return SizedBox(
-        height: halfW * 0.75,
-        child: Row(
-          children: [
-            SizedBox(width: halfW, child: buildItem(items[0])),
+      if (proportions == 'ww' && avgRatio > 1.4 && (ratios[1] - ratios[0]).abs() < 0.2) {
+        final h = _round((totalWidth / ratios[0]).clamp(50, (maxH - gap) / 2)).toDouble();
+        return Column(children: [
+          SizedBox(height: h, child: buildItem(items[0])),
+          const SizedBox(height: gap),
+          SizedBox(height: h, child: buildItem(items[1])),
+        ]);
+      } else if (proportions == 'ww' || proportions == 'qq') {
+        final w = (totalWidth - gap) / 2;
+        final h = _round((w / ratios[0]).clamp(50, maxH).toDouble().clamp(50, (w / ratios[1]).clamp(50, maxH))).toDouble();
+        return SizedBox(
+          height: h,
+          child: Row(children: [
+            SizedBox(width: w, child: buildItem(items[0])),
             const SizedBox(width: gap),
-            SizedBox(width: halfW, child: buildItem(items[1])),
-          ],
-        ),
-      );
+            SizedBox(width: w, child: buildItem(items[1])),
+          ]),
+        );
+      } else {
+        final secondW = ((0.4 * (totalWidth - gap)).clamp(
+            minW,
+            ((totalWidth - gap) / ratios[0] / (1 / ratios[0] + 1 / ratios[1])).clamp(minW, totalWidth - gap - minW),
+        )).clamp(minW, totalWidth - gap - minW);
+        final firstW = totalWidth - secondW - gap;
+        final h = _round((firstW / ratios[0]).clamp(50, maxH).toDouble().clamp(50, (secondW / ratios[1]).clamp(50, maxH))).toDouble();
+        return SizedBox(
+          height: h,
+          child: Row(children: [
+            SizedBox(width: firstW, child: buildItem(items[0])),
+            const SizedBox(width: gap),
+            SizedBox(width: secondW, child: buildItem(items[1])),
+          ]),
+        );
+      }
     }
+
     if (count == 3) {
-      final leftW = totalWidth * 0.6;
-      final rightW = totalWidth - leftW - gap;
-      final h = leftW * 0.75;
-      return SizedBox(
-        height: h,
-        child: Row(
-          children: [
+      if (proportions[0] == 'n') {
+        final firstH = maxH;
+        final thirdH = _round(((maxH - gap) / 2).clamp(50, (ratios[1] * (totalWidth - gap) / (ratios[2] + ratios[1])).clamp(50, (maxH - gap) / 2))).toDouble();
+        final secondH = firstH - thirdH - gap;
+        final rightW = _round((((totalWidth - gap) / 2).clamp(minW, (thirdH * ratios[2]).clamp(minW, (secondH * ratios[1]).clamp(minW, (totalWidth - gap) / 2)))).clamp(minW, totalWidth - gap - minW)).toDouble();
+        final leftW = (totalWidth - gap - rightW).clamp(minW, _round(firstH * ratios[0]).toDouble());
+        return SizedBox(
+          height: firstH,
+          child: Row(children: [
             SizedBox(width: leftW, child: buildItem(items[0])),
             const SizedBox(width: gap),
             SizedBox(
               width: rightW,
-              child: Column(
-                children: [
-                  Expanded(child: buildItem(items[1])),
-                  const SizedBox(height: gap),
-                  Expanded(child: buildItem(items[2])),
-                ],
-              ),
+              child: Column(children: [
+                SizedBox(height: secondH, child: buildItem(items[1])),
+                const SizedBox(height: gap),
+                SizedBox(height: thirdH, child: buildItem(items[2])),
+              ]),
             ),
-          ],
-        ),
-      );
-    }
-    if (count == 4) {
-      final halfW = (totalWidth - gap) / 2;
-      final cellH = halfW * 0.75;
-      return Column(
-        children: [
-          SizedBox(
-            height: cellH,
-            child: Row(
-              children: [
-                SizedBox(width: halfW, child: buildItem(items[0])),
-                const SizedBox(width: gap),
-                SizedBox(width: halfW, child: buildItem(items[1])),
-              ],
-            ),
-          ),
+          ]),
+        );
+      } else {
+        final firstH = _round((totalWidth / ratios[0]).clamp(50, (maxH - gap) * 0.66)).toDouble();
+        final secondW = (totalWidth - gap) / 2;
+        final secondH = _round((secondW / ratios[1]).clamp(50, (secondW / ratios[2]).clamp(50, maxH - firstH - gap))).toDouble().clamp(50.0, maxH - firstH - gap);
+        final thirdW = totalWidth - secondW - gap;
+        return Column(children: [
+          SizedBox(height: firstH, child: buildItem(items[0])),
           const SizedBox(height: gap),
           SizedBox(
-            height: cellH,
-            child: Row(
-              children: [
-                SizedBox(width: halfW, child: buildItem(items[2])),
-                const SizedBox(width: gap),
-                SizedBox(width: halfW, child: buildItem(items[3])),
-              ],
-            ),
+            height: secondH,
+            child: Row(children: [
+              SizedBox(width: secondW, child: buildItem(items[1])),
+              const SizedBox(width: gap),
+              SizedBox(width: thirdW, child: buildItem(items[2])),
+            ]),
           ),
-        ],
-      );
+        ]);
+      }
     }
 
-    final cols = count <= 6 ? 2 : 3;
-    final cellW = (totalWidth - (cols - 1) * gap) / cols;
-    final cellH = cellW * 0.75;
-    final rowList = <Widget>[];
-    for (int i = 0; i < count; i += cols) {
-      final rowItems = <Widget>[];
-      for (int j = 0; j < cols && i + j < count; j++) {
-        if (j > 0) rowItems.add(const SizedBox(width: gap));
-        rowItems.add(SizedBox(width: cellW, child: buildItem(items[i + j])));
+    if (count == 4) {
+      if (proportions[0] == 'w') {
+        final h0 = _round((totalWidth / ratios[0]).clamp(50, (maxH - gap) * 0.66)).toDouble();
+        final h = _round((totalWidth - 2 * gap) / (ratios[1] + ratios[2] + ratios[3])).toDouble();
+        final w0 = ((totalWidth - 2 * gap) * 0.4).clamp(minW, (h * ratios[1]).clamp(minW, (totalWidth - 2 * gap) * 0.4));
+        final w2 = ((totalWidth - 2 * gap) * 0.33).clamp(minW, (h * ratios[3]).clamp(minW, (totalWidth - 2 * gap) * 0.33));
+        final w1 = totalWidth - w0 - w2 - 2 * gap;
+        final h1 = h.clamp(50.0, maxH - h0 - gap);
+        return Column(children: [
+          SizedBox(height: h0, child: buildItem(items[0])),
+          const SizedBox(height: gap),
+          SizedBox(
+            height: h1,
+            child: Row(children: [
+              SizedBox(width: w0, child: buildItem(items[1])),
+              const SizedBox(width: gap),
+              SizedBox(width: w1, child: buildItem(items[2])),
+              const SizedBox(width: gap),
+              SizedBox(width: w2, child: buildItem(items[3])),
+            ]),
+          ),
+        ]);
+      } else {
+        final h = maxH;
+        final w0 = _round((h * ratios[0]).clamp(minW, (totalWidth - gap) * 0.6)).toDouble();
+        final w = _round((h - 2 * gap) / (1 / ratios[1] + 1 / ratios[2] + 1 / ratios[3])).toDouble();
+        final h0 = _round(w / ratios[1]).toDouble();
+        final h1 = _round(w / ratios[2]).toDouble();
+        final h2 = h - h0 - h1 - 2 * gap;
+        final w1 = w.clamp(minW, totalWidth - w0 - gap);
+        return SizedBox(
+          height: h,
+          child: Row(children: [
+            SizedBox(width: w0, child: buildItem(items[0])),
+            const SizedBox(width: gap),
+            SizedBox(
+              width: w1,
+              child: Column(children: [
+                SizedBox(height: h0, child: buildItem(items[1])),
+                const SizedBox(height: gap),
+                SizedBox(height: h1, child: buildItem(items[2])),
+                const SizedBox(height: gap),
+                SizedBox(height: h2, child: buildItem(items[3])),
+              ]),
+            ),
+          ]),
+        );
       }
-      if (rowList.isNotEmpty) rowList.add(const SizedBox(height: gap));
-      rowList.add(SizedBox(height: cellH, child: Row(children: rowItems)));
     }
-    return Column(children: rowList);
+
+    final croppedRatios = ratios.map((r) {
+      const maxR = 2.75;
+      const minR = 0.6667;
+      return avgRatio > 1.1 ? r.clamp(1.0, maxR) : r.clamp(minR, 1.0);
+    }).toList();
+    final complexMaxH = totalWidth * 4 / 3;
+
+    double multiHeight(int offset, int lineCount) {
+      double sum = 0;
+      for (int i = offset; i < offset + lineCount; i++) sum += croppedRatios[i];
+      return (totalWidth - (lineCount - 1) * gap) / sum;
+    }
+
+    List<List<int>> attempts = [];
+    List<List<double>> attemptHeights = [];
+    void pushAttempt(List<int> lineCounts) {
+      final heights = <double>[];
+      int offset = 0;
+      for (final c in lineCounts) { heights.add(multiHeight(offset, c)); offset += c; }
+      attempts.add(lineCounts);
+      attemptHeights.add(heights);
+    }
+    for (int f = 1; f < count; f++) {
+      final s = count - f;
+      if (f <= 3 && s <= 3) pushAttempt([f, s]);
+    }
+    for (int f = 1; f < count - 1; f++) {
+      for (int s = 1; s < count - f; s++) {
+        final t = count - f - s;
+        if (f <= 3 && s <= (avgRatio < 0.85 ? 4 : 3) && t <= 3) pushAttempt([f, s, t]);
+      }
+    }
+
+    int bestIdx = 0;
+    double bestDiff = double.infinity;
+    for (int i = 0; i < attempts.length; i++) {
+      final heights = attemptHeights[i];
+      final total = heights.fold(0.0, (a, b) => a + b) + gap * (heights.length - 1);
+      final minH = heights.reduce((a, b) => a < b ? a : b);
+      final bad1 = minH < minW ? 1.5 : 1.0;
+      bool descending = false;
+      for (int j = 1; j < attempts[i].length; j++) {
+        if (attempts[i][j - 1] > attempts[i][j]) { descending = true; break; }
+      }
+      final bad2 = descending ? 1.5 : 1.0;
+      final diff = (total - complexMaxH).abs() * bad1 * bad2;
+      if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+    }
+
+    final optCounts = attempts[bestIdx];
+    final optHeights = attemptHeights[bestIdx];
+    int idx = 0;
+    final rows = <Widget>[];
+    for (int row = 0; row < optCounts.length; row++) {
+      final colCount = optCounts[row];
+      final h = optHeights[row].round().toDouble();
+      final rowItems = <Widget>[];
+      for (int col = 0; col < colCount; col++) {
+        if (col > 0) rowItems.add(const SizedBox(width: gap));
+        final w = (h * croppedRatios[idx]).round().toDouble().clamp(minW, totalWidth);
+        rowItems.add(SizedBox(width: w, height: h, child: buildItem(items[idx])));
+        idx++;
+      }
+      if (rows.isNotEmpty) rows.add(const SizedBox(height: gap));
+      rows.add(Row(children: rowItems));
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: rows);
   }
 
   Widget _buildSlideshow(BuildContext context) {
