@@ -43,6 +43,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
   int _birthdayYear = 0;
   bool _birthdayLoaded = false;
   String _birthdayPrivacy = 'contacts';
+  String _statusText = '';
 
   @override
   void initState() {
@@ -50,6 +51,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
     _loadBio();
     _loadColorAndChannel();
     _loadBirthday();
+    _loadStatus();
   }
 
   @override
@@ -113,32 +115,90 @@ class _MyProfilePageState extends State<MyProfilePage> {
     });
   }
 
+  void _loadStatus() {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    if (account.connState == ConnState.connected) {
+      setState(() => _statusText = 'online');
+    } else if (account.connState == ConnState.connecting) {
+      setState(() => _statusText = 'connecting...');
+    } else {
+      setState(() => _statusText = 'waiting for network...');
+    }
+    if (account.selfUserId.isEmpty) return;
+    final engine = context.read<EngineService>();
+    engine.getUserProfile(account.id, account.selfUserId).then((profile) {
+      if (!mounted || profile == null) return;
+      setState(() => _statusText = _computeStatusText(account.connState, profile));
+    });
+  }
+
+  static String _computeStatusText(ConnState connState, UserProfile profile) {
+    if (connState == ConnState.connected) return 'online';
+    if (connState == ConnState.connecting) return 'connecting...';
+    if (profile.isOnline) return 'online';
+    switch (profile.lastSeenKind) {
+      case 'online':
+        return 'online';
+      case 'recently':
+      case 'hidden':
+        return 'last seen recently';
+      case 'within_week':
+        return 'last seen within a week';
+      case 'within_month':
+        return 'last seen within a month';
+      case 'long_ago':
+        return 'last seen a long time ago';
+      case 'exact':
+        if (profile.lastSeen > 0) {
+          final dt = DateTime.fromMillisecondsSinceEpoch(profile.lastSeen);
+          final now = DateTime.now();
+          final diff = now.difference(dt);
+          if (diff.inMinutes < 1) return 'last seen just now';
+          if (diff.inMinutes < 60) return 'last seen ${diff.inMinutes} min ago';
+          if (diff.inHours < 12) return 'last seen ${diff.inHours}h ago';
+          if (dt.day == now.day && dt.month == now.month && dt.year == now.year) {
+            final h = dt.hour.toString().padLeft(2, '0');
+            final m = dt.minute.toString().padLeft(2, '0');
+            return 'last seen today at $h:$m';
+          }
+          final yesterday = now.subtract(const Duration(days: 1));
+          if (dt.day == yesterday.day && dt.month == yesterday.month && dt.year == yesterday.year) {
+            final h = dt.hour.toString().padLeft(2, '0');
+            final m = dt.minute.toString().padLeft(2, '0');
+            return 'last seen yesterday at $h:$m';
+          }
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          return 'last seen ${months[dt.month - 1]} ${dt.day}';
+        }
+        return 'last seen recently';
+      default:
+        return connState == ConnState.unstable ? 'updating...' : 'waiting for network...';
+    }
+  }
+
   void _pickBirthday() async {
-    final now = DateTime.now();
-    final firstDate = DateTime(1900);
-    var initial = _birthdayDay > 0 && _birthdayMonth > 0
-        ? DateTime(_birthdayYear > 0 ? _birthdayYear : now.year, _birthdayMonth, _birthdayDay)
-        : DateTime(now.year - 20, now.month, now.day);
-    if (initial.isBefore(firstDate)) initial = firstDate;
-    if (initial.isAfter(now)) initial = now;
-    final picked = await showDatePicker(
+    final result = await showDialog<({int day, int month, int year})>(
       context: context,
-      initialDate: initial,
-      firstDate: firstDate,
-      lastDate: now,
+      builder: (ctx) => _BirthdayDrumPickerDialog(
+        initialDay: _birthdayDay > 0 ? _birthdayDay : DateTime.now().day,
+        initialMonth: _birthdayMonth > 0 ? _birthdayMonth : DateTime.now().month,
+        initialYear: _birthdayYear > 0 ? _birthdayYear : 0,
+      ),
     );
-    if (picked == null || !mounted) return;
+    if (result == null || !mounted) return;
     final appState = context.read<AppState>();
     final account = appState.activeAccount;
     if (account == null) return;
     final engine = context.read<EngineService>();
     try {
-      await engine.updateBirthday(account.id, picked.day, picked.month, picked.year);
+      await engine.updateBirthday(account.id, result.day, result.month, result.year);
       if (mounted) {
         setState(() {
-          _birthdayDay = picked.day;
-          _birthdayMonth = picked.month;
-          _birthdayYear = picked.year;
+          _birthdayDay = result.day;
+          _birthdayMonth = result.month;
+          _birthdayYear = result.year;
         });
         showTelegramToast(context, 'Birthday saved');
       }
@@ -219,7 +279,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          _ProfilePhotoArea(account: account, isDark: isDark),
+          _ProfilePhotoArea(account: account, isDark: isDark, statusText: _statusText),
           Container(height: 8, color: dividerColor),
           _BioInput(
             controller: _bioController,
@@ -606,8 +666,9 @@ class _BioInput extends StatelessWidget {
 class _ProfilePhotoArea extends StatelessWidget {
   final AccountInfo? account;
   final bool isDark;
+  final String statusText;
 
-  const _ProfilePhotoArea({required this.account, required this.isDark});
+  const _ProfilePhotoArea({required this.account, required this.isDark, this.statusText = ''});
 
   @override
   Widget build(BuildContext context) {
@@ -638,20 +699,24 @@ class _ProfilePhotoArea extends StatelessWidget {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                // Main avatar.
                 Positioned.fill(
-                  child: account != null && account!.avatarPath.isNotEmpty
-                      ? ClipOval(
-                          child: Image.file(
-                            File(account!.avatarPath),
-                            width: 100,
-                            height: 100,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                _avatarFallback(color, initials),
-                          ),
-                        )
-                      : _avatarFallback(color, initials),
+                  child: GestureDetector(
+                    onTap: account != null && account!.avatarPath.isNotEmpty
+                        ? () => _openProfilePhoto(context, account!.avatarPath)
+                        : null,
+                    child: account != null && account!.avatarPath.isNotEmpty
+                        ? ClipOval(
+                            child: Image.file(
+                              File(account!.avatarPath),
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  _avatarFallback(color, initials),
+                            ),
+                          )
+                        : _avatarFallback(color, initials),
+                  ),
                 ),
                 // §14.5.1: Upload sub-button at bottom-right (6px from right edge).
                 Positioned(
@@ -685,10 +750,10 @@ class _ProfilePhotoArea extends StatelessWidget {
             Transform.translate(
               offset: const Offset(0, -1),
               child: Text(
-                account!.connState == ConnState.connected ? 'online' : 'connecting...',
+                statusText.isNotEmpty ? statusText : (account!.connState == ConnState.connected ? 'online' : 'connecting...'),
                 style: TextStyle(
                   fontSize: 13,
-                  color: account!.connState == ConnState.connected
+                  color: statusText == 'online' || (statusText.isEmpty && account!.connState == ConnState.connected)
                       ? context.palette.windowBgActive
                       : subtextColor,
                 ),
@@ -818,6 +883,38 @@ class _ProfilePhotoArea extends StatelessWidget {
   }
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+
+  void _openProfilePhoto(BuildContext context, String path) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black87,
+        barrierDismissible: true,
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: const Duration(milliseconds: 200),
+        pageBuilder: (ctx, animation, secondaryAnimation) {
+          return FadeTransition(
+            opacity: animation,
+            child: GestureDetector(
+              onTap: () => Navigator.of(ctx).pop(),
+              child: Scaffold(
+                backgroundColor: Colors.transparent,
+                body: Center(
+                  child: InteractiveViewer(
+                    child: Image.file(
+                      File(path),
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
 
 /// §14.5.5: Birthday row — shows formatted date or "Add", opens date picker.
@@ -992,98 +1089,13 @@ class _PersonalChannelRow extends StatelessWidget {
   }
 
   void _showPersonalChannelEditor(BuildContext context, bool hasChannel, String currentName, ValueChanged<String>? onChannelChanged) {
-    final isDarkTheme = isDark;
-    final bgColor = isDarkTheme ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final textColor = isDarkTheme ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDarkTheme ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = context.palette.windowBgActive;
-    final controller = TextEditingController(text: hasChannel ? currentName : '');
-
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: bgColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  hasChannel ? 'Personal Channel' : 'Add Personal Channel',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Enter the username of a channel you own to display it on your profile.',
-                  style: TextStyle(fontSize: 14, color: subtextColor),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  style: TextStyle(color: textColor, fontSize: 14),
-                  decoration: InputDecoration(
-                    prefixText: '@',
-                    prefixStyle: TextStyle(color: subtextColor, fontSize: 14),
-                    hintText: 'channel_username',
-                    hintStyle: TextStyle(color: subtextColor.withValues(alpha: 0.5)),
-                    enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: subtextColor.withValues(alpha: 0.3)),
-                    ),
-                    focusedBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: accentColor),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (hasChannel)
-                      TextButton(
-                        onPressed: () {
-                          final engine = context.read<EngineService>();
-                          final appState = context.read<AppState>();
-                          engine.clearPersonalChannel(appState.activeAccountId);
-                          onChannelChanged?.call('');
-                          Navigator.of(ctx).pop();
-                          showTelegramToast(context, 'Personal channel removed');
-                        },
-                        child: Text('Remove', style: TextStyle(color: Colors.red[400])),
-                      ),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      child: Text('Cancel', style: TextStyle(color: subtextColor)),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: () {
-                        final username = controller.text.trim();
-                        if (username.isEmpty) return;
-                        final engine = context.read<EngineService>();
-                        final appState = context.read<AppState>();
-                        engine.setPersonalChannel(appState.activeAccountId, username);
-                        onChannelChanged?.call(username);
-                        Navigator.of(ctx).pop();
-                        showTelegramToast(context, 'Personal channel set to @$username');
-                      },
-                      child: Text('Save', style: TextStyle(color: accentColor)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+      builder: (ctx) => _PersonalChannelSelector(
+        isDark: isDark,
+        hasChannel: hasChannel,
+        currentName: currentName,
+        onChannelChanged: onChannelChanged,
       ),
     );
   }
@@ -1680,11 +1692,13 @@ class _SettingsAccountRow extends StatelessWidget {
   void _showContextMenu(BuildContext context, Offset position) {
     final items = <TelegramMenuItem<String>>[];
 
-    items.add(const TelegramMenuItem(
-      value: 'new_window',
-      icon: Icon(Icons.open_in_new),
-      label: 'Open in New Window',
-    ));
+    if (!isActive) {
+      items.add(const TelegramMenuItem(
+        value: 'new_window',
+        icon: Icon(Icons.open_in_new),
+        label: 'Open in New Window',
+      ));
+    }
 
     if (account.phone.isNotEmpty) {
       items.add(const TelegramMenuItem(
@@ -2009,6 +2023,378 @@ class _AddAccountButton extends StatelessWidget {
               },
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _PersonalChannelSelector extends StatefulWidget {
+  final bool isDark;
+  final bool hasChannel;
+  final String currentName;
+  final ValueChanged<String>? onChannelChanged;
+
+  const _PersonalChannelSelector({
+    required this.isDark,
+    required this.hasChannel,
+    required this.currentName,
+    this.onChannelChanged,
+  });
+
+  @override
+  State<_PersonalChannelSelector> createState() => _PersonalChannelSelectorState();
+}
+
+class _PersonalChannelSelectorState extends State<_PersonalChannelSelector> {
+  List<PublicLinkInfo>? _channels;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChannels();
+  }
+
+  void _loadChannels() async {
+    try {
+      final engine = context.read<EngineService>();
+      final appState = context.read<AppState>();
+      final channels = await engine.getAdminedPublicChannels(appState.activeAccountId);
+      if (mounted) setState(() { _channels = channels; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = widget.isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380, maxHeight: 420),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.hasChannel ? 'Personal Channel' : 'Add Personal Channel',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Select a channel you own to display on your profile.',
+                style: TextStyle(fontSize: 14, color: subtextColor),
+              ),
+              const SizedBox(height: 12),
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))),
+                )
+              else if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text('Failed to load channels: $_error', style: TextStyle(fontSize: 13, color: Colors.red[400])),
+                )
+              else if (_channels != null && _channels!.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text('You don\'t own any public channels.', style: TextStyle(fontSize: 14, color: subtextColor)),
+                )
+              else if (_channels != null)
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _channels!.length,
+                    itemBuilder: (ctx, i) {
+                      final ch = _channels![i];
+                      final isSelected = ch.title == widget.currentName || ch.username == widget.currentName;
+                      return InkWell(
+                        onTap: () {
+                          final engine = context.read<EngineService>();
+                          final appState = context.read<AppState>();
+                          engine.setPersonalChannel(appState.activeAccountId, ch.username);
+                          widget.onChannelChanged?.call(ch.title.isNotEmpty ? ch.title : ch.username);
+                          Navigator.of(ctx).pop();
+                          showTelegramToast(context, 'Personal channel set to @${ch.username}');
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 36, height: 36,
+                                decoration: BoxDecoration(
+                                  color: accentColor.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                alignment: Alignment.center,
+                                child: Icon(Icons.campaign, size: 18, color: accentColor),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(ch.title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: textColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    if (ch.username.isNotEmpty)
+                                      Text('@${ch.username}', style: TextStyle(fontSize: 12, color: subtextColor)),
+                                  ],
+                                ),
+                              ),
+                              if (isSelected)
+                                Icon(Icons.check_circle, size: 20, color: accentColor),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (widget.hasChannel)
+                    TextButton(
+                      onPressed: () {
+                        final engine = context.read<EngineService>();
+                        final appState = context.read<AppState>();
+                        engine.clearPersonalChannel(appState.activeAccountId);
+                        widget.onChannelChanged?.call('');
+                        Navigator.of(context).pop();
+                        showTelegramToast(context, 'Personal channel removed');
+                      },
+                      child: Text('Remove', style: TextStyle(color: Colors.red[400])),
+                    ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel', style: TextStyle(color: subtextColor)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BirthdayDrumPickerDialog extends StatefulWidget {
+  final int initialDay;
+  final int initialMonth;
+  final int initialYear;
+
+  const _BirthdayDrumPickerDialog({
+    required this.initialDay,
+    required this.initialMonth,
+    this.initialYear = 0,
+  });
+
+  @override
+  State<_BirthdayDrumPickerDialog> createState() => _BirthdayDrumPickerDialogState();
+}
+
+class _BirthdayDrumPickerDialogState extends State<_BirthdayDrumPickerDialog> {
+  static const _minYear = 1900;
+  static const _monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  late int _maxYear;
+  late FixedExtentScrollController _dayController;
+  late FixedExtentScrollController _monthController;
+  late FixedExtentScrollController _yearController;
+  late int _selectedDay;
+  late int _selectedMonth;
+  late int _selectedYearIndex;
+  late int _yearCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _maxYear = DateTime.now().year;
+    _yearCount = _maxYear - _minYear + 2;
+    _selectedDay = widget.initialDay.clamp(1, 31);
+    _selectedMonth = widget.initialMonth.clamp(1, 12);
+    _selectedYearIndex = widget.initialYear > 0
+        ? (widget.initialYear - _minYear).clamp(0, _yearCount - 2)
+        : _yearCount - 1;
+    _dayController = FixedExtentScrollController(initialItem: _selectedDay - 1);
+    _monthController = FixedExtentScrollController(initialItem: _selectedMonth - 1);
+    _yearController = FixedExtentScrollController(initialItem: _selectedYearIndex);
+  }
+
+  @override
+  void dispose() {
+    _dayController.dispose();
+    _monthController.dispose();
+    _yearController.dispose();
+    super.dispose();
+  }
+
+  int _daysInMonth(int month, int yearIndex) {
+    final year = yearIndex < _yearCount - 1 ? _minYear + yearIndex : _maxYear;
+    if (month == 2) {
+      return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) ? 29 : 28;
+    }
+    return const [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month];
+  }
+
+  void _onMonthChanged(int index) {
+    setState(() {
+      _selectedMonth = index + 1;
+      final maxDay = _daysInMonth(_selectedMonth, _selectedYearIndex);
+      if (_selectedDay > maxDay) {
+        _selectedDay = maxDay;
+        _dayController.jumpToItem(_selectedDay - 1);
+      }
+    });
+  }
+
+  void _onYearChanged(int index) {
+    setState(() {
+      _selectedYearIndex = index;
+      final maxDay = _daysInMonth(_selectedMonth, _selectedYearIndex);
+      if (_selectedDay > maxDay) {
+        _selectedDay = maxDay;
+        _dayController.jumpToItem(_selectedDay - 1);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF3390EC);
+    final maxDays = _daysInMonth(_selectedMonth, _selectedYearIndex);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(0, 18, 0, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: Text(
+                  'Birthday',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 200,
+                child: Row(
+                  children: [
+                    Expanded(child: _buildWheel(
+                      controller: _dayController,
+                      itemCount: maxDays,
+                      textColor: textColor,
+                      subtextColor: subtextColor,
+                      labelBuilder: (i) => '${i + 1}',
+                      onChanged: (i) => setState(() => _selectedDay = i + 1),
+                    )),
+                    Expanded(child: _buildWheel(
+                      controller: _monthController,
+                      itemCount: 12,
+                      textColor: textColor,
+                      subtextColor: subtextColor,
+                      labelBuilder: (i) => _monthNames[i],
+                      onChanged: _onMonthChanged,
+                    )),
+                    Expanded(child: _buildWheel(
+                      controller: _yearController,
+                      itemCount: _yearCount,
+                      textColor: textColor,
+                      subtextColor: subtextColor,
+                      labelBuilder: (i) => i < _yearCount - 1 ? '${_minYear + i}' : '—',
+                      onChanged: _onYearChanged,
+                    )),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('Cancel', style: TextStyle(color: subtextColor)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () {
+                        final year = _selectedYearIndex < _yearCount - 1
+                            ? _minYear + _selectedYearIndex
+                            : 0;
+                        Navigator.of(context).pop(
+                          (day: _selectedDay, month: _selectedMonth, year: year),
+                        );
+                      },
+                      child: Text('Save', style: TextStyle(color: accentColor)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWheel({
+    required FixedExtentScrollController controller,
+    required int itemCount,
+    required Color textColor,
+    required Color subtextColor,
+    required String Function(int) labelBuilder,
+    required ValueChanged<int> onChanged,
+  }) {
+    return ListWheelScrollView.useDelegate(
+      controller: controller,
+      itemExtent: 40,
+      perspective: 0.003,
+      diameterRatio: 1.5,
+      physics: const FixedExtentScrollPhysics(),
+      onSelectedItemChanged: onChanged,
+      childDelegate: ListWheelChildBuilderDelegate(
+        childCount: itemCount,
+        builder: (context, index) {
+          final isSelected = controller.hasClients && controller.selectedItem == index;
+          return Center(
+            child: Text(
+              labelBuilder(index),
+              style: TextStyle(
+                fontSize: isSelected ? 16 : 14,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                color: isSelected ? textColor : subtextColor,
+              ),
+            ),
+          );
+        },
       ),
     );
   }

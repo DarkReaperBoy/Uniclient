@@ -556,8 +556,8 @@ class _NotificationPopupWidget extends StatelessWidget {
                         ),
                         Positioned(
                           left: _textLeft,
-                          top: _textTop + _itemTopOffset + 13,
-                          right: 8,
+                          top: _itemTopOffset + 13,
+                          right: _closeSize + _closePosRight + 4,
                           bottom: 4,
                           child: ShaderMask(
                             shaderCallback: (Rect bounds) {
@@ -588,13 +588,20 @@ class _NotificationPopupWidget extends StatelessWidget {
                             onTap: onClose,
                           ),
                         ),
-                        if (popup.hovered && !popup.replyOpen && !hideReply)
+                        if (!popup.replyOpen && !hideReply)
                           Positioned(
                             right: 9,
                             bottom: 9,
-                            child: _ReplyButton(
-                              accentColor: accentColor,
-                              onTap: onReplyClick,
+                            child: IgnorePointer(
+                              ignoring: !popup.hovered,
+                              child: AnimatedOpacity(
+                                opacity: popup.hovered ? 1.0 : 0.0,
+                                duration: _actionsFadeDuration,
+                                child: _ReplyButton(
+                                  accentColor: accentColor,
+                                  onTap: onReplyClick,
+                                ),
+                              ),
                             ),
                           ),
                       ],
@@ -834,7 +841,7 @@ class _ReplyButton extends StatelessWidget {
   }
 }
 
-class _ReplyField extends StatelessWidget {
+class _ReplyField extends StatefulWidget {
   final TextEditingController controller;
   final double width;
   final Color accentColor, bgColor, bodyColor;
@@ -851,6 +858,25 @@ class _ReplyField extends StatelessWidget {
   });
 
   @override
+  State<_ReplyField> createState() => _ReplyFieldState();
+}
+
+class _ReplyFieldState extends State<_ReplyField> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.only(
@@ -864,38 +890,44 @@ class _ReplyField extends StatelessWidget {
                 maxHeight: _replyFieldMaxH,
               ),
               child: KeyboardListener(
-                focusNode: FocusNode(),
+                focusNode: _focusNode,
                 onKeyEvent: (event) {
                   if (event is KeyDownEvent) {
                     if (event.logicalKey == LogicalKeyboardKey.escape) {
-                      onCancel();
+                      widget.onCancel();
+                    } else if (event.logicalKey == LogicalKeyboardKey.enter &&
+                        HardwareKeyboard.instance.logicalKeysPressed
+                            .any((k) =>
+                                k == LogicalKeyboardKey.controlLeft ||
+                                k == LogicalKeyboardKey.controlRight)) {
+                      widget.onSend();
                     }
                   }
                 },
                 child: TextField(
-                  controller: controller,
+                  controller: widget.controller,
                   autofocus: true,
                   maxLines: null,
-                  style: TextStyle(fontSize: 13, color: bodyColor),
+                  style: TextStyle(fontSize: 13, color: widget.bodyColor),
                   decoration: InputDecoration(
                     hintText: 'Reply...',
-                    hintStyle: TextStyle(fontSize: 13, color: bodyColor.withValues(alpha: 0.5)),
+                    hintStyle: TextStyle(fontSize: 13, color: widget.bodyColor.withValues(alpha: 0.5)),
                     border: InputBorder.none,
                     contentPadding:
                         const EdgeInsets.fromLTRB(8, 8, 8, 6),
                     isDense: true,
                   ),
-                  onSubmitted: (_) => onSend(),
+                  onSubmitted: (_) => widget.onSend(),
                 ),
               ),
             ),
           ),
           GestureDetector(
-            onTap: onSend,
+            onTap: widget.onSend,
             child: SizedBox(
               width: _replyButtonSize,
               height: _replyButtonSize,
-              child: Icon(Icons.send, size: 18, color: accentColor),
+              child: Icon(Icons.send, size: 18, color: widget.accentColor),
             ),
           ),
         ],
