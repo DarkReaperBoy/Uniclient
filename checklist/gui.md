@@ -1161,29 +1161,9 @@ This dialog is fundamentally non-functional as implemented:
 
 **Priority**: Fix missing import immediately. All other logic is sound and matches AyuGram's emoji status rendering patterns.
 
-## folders_settings_screen — Folder create/edit missing individual chat picker
+# hamburger_drawer — 1 issue remaining
 
-- [ ] [CRITICAL] "Add Chats" and "Remove Chats" buttons open only type-category pickers (_IncludeTypePicker / _ExcludeTypePicker) — there is no individual chat search/selection UI, so users can never add specific chats to a folder; new folders always have empty chatIds — `folders_settings_screen.dart:1877-1878` (`_openIncludeTypePicker`) and `dart:1909` (`_openExcludeTypePicker`) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:946-963` (`EditExceptions` opens `EditFilterChatsListController` peer-list box)
-
-# hamburger_drawer — 9 issues (1 CRITICAL, 8 MAJOR)
-
-- [ ] [CRITICAL] `Mark Stories Read (Silent)` label and confirm-dialog text both say "without sending read receipts" but the implementation calls `appState.setSendReadMessages(true)` which **enables** receipts — the exact opposite. AyuGram's SRead intentionally sets `ghost.setSendReadMessages(true)` so story-view receipts are delivered; the "Silent" framing is inverted and misleads users. — `hamburger_drawer.dart:427` (label) + `dart:441` (implementation) ← `window_main_menu.cpp:784`
-
-- [ ] [MAJOR] `_ProfileCover` name row inserts a 16×16 `Image.asset('assets/icon/icon_256.png')` app icon after the name and premium badge — absent from AyuGram. This eats available name width, causing premature ellipsis and clutter not present in the spec. — `hamburger_drawer.dart:721` ← `window_main_menu.cpp:1002`
-
-- [ ] [MAJOR] Toggle chevron area missing aggregate unread badge for other accounts. AyuGram's `ToggleAccountsButton::paintUnreadBadge` paints an unread count next to the chevron when the account list is collapsed, so the user can see pending activity without expanding. Dart chevron is purely a rotation animation with no badge. — `hamburger_drawer.dart:737` ← `window_main_menu.cpp:194`
-
-- [ ] [MAJOR] "System Frame" toggle row (`Platform.isLinux`) has no equivalent in AyuGram `setupMenu()`. It is a non-spec item that bloats the menu on Linux. — `hamburger_drawer.dart:479` ← `window_main_menu.cpp:689`
-
-- [ ] [MAJOR] Archive row has no right-click context menu. AyuGram installs a right-click handler that calls `FillDialogsEntryMenu` (mute, open settings, etc.) and a Ctrl+click path that opens the archive folder in a new window. Dart archive tap only calls `appState.requestShowArchive()` with no secondary interaction. — `hamburger_drawer.dart:469` ← `window_main_menu.cpp:573`
-
-- [ ] [MAJOR] Premium/verified badge icon (`Icons.workspace_premium` / `Icons.verified`) has no tap handler. AyuGram calls `_badge->setPremiumClickCallback` which triggers `chooseEmojiStatus()` → `EmojiStatusPanel::show()`. Without this handler, tapping the badge does nothing and the emoji status picker is entirely inaccessible. — `hamburger_drawer.dart:710` ← `window_main_menu.cpp:424`
-
-- [ ] [MAJOR] Scale-reset "100%" button absent. AyuGram creates `ResetScaleButton` and shows it in the cover area when the screen resolution is below `windowMinWidth`/`windowMinHeight`, allowing the user to restore normal scale. No equivalent exists in the Dart drawer. — `hamburger_drawer.dart:40` ← `window_main_menu.cpp:1040`
-
-- [ ] [MAJOR] Right-click on New Group / New Channel rows calls `_showMyGroupsPopup`, which lists chats already loaded in local `chatState`. AyuGram's `AddMyChannelsBox` (in `window_main_menu_helpers.cpp`) opens a proper modal that fetches the user's admin groups/channels from the server with userpics and member counts. The local-list approach silently skips groups not yet loaded. — `hamburger_drawer.dart:531` ← `window_main_menu_helpers.cpp:60`
-
-- [ ] [MAJOR] Cover status line shows the user's phone number or `'Set Emoji Status'` (original Telegram Desktop behaviour). AyuGram replaces this with `tr::ayu_AyuPreferences()` — a link that opens the AyuGram settings section (`Settings::AyuMain::Id()`). The Dart wires the tap to `SettingsScreen` without the correct label, so the UX deviates from spec. — `hamburger_drawer.dart:768` ← `window_main_menu.cpp:668`
+- [ ] [MAJOR] Right-click on New Group / New Channel rows calls `_showMyGroupsPopup`, which lists chats already loaded in local `chatState`. AyuGram's `AddMyChannelsBox` (in `window_main_menu_helpers.cpp`) opens a proper modal that fetches the user's admin groups/channels from the server with userpics and member counts. The local-list approach silently skips groups not yet loaded. — `hamburger_drawer.dart:565` ← `window_main_menu_helpers.cpp:60`
 
 # Audit Chunk 67 — info_panel.dart
 
