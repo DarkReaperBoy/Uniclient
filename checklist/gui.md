@@ -1191,24 +1191,6 @@ Before findings, confirmed matches (not issues):
 
 ---
 
-# photo_crop_editor — Audit findings
-
-## photo_crop_editor — Photo editor paint tools, text/sticker tools, color picker, and layout
-
-- [ ] [MAJOR] Brush size control is not an expandable vertical slider; AyuGram has a `photoEditorBrushSizeControlHeight: 280px` expandable vertical slider (collapsed width 2px, expands to 280px tall from the side) — current implementation uses a horizontal slider inline in `_PaintTopBar`, wrong orientation and no collapse/expand behavior — `photo_crop_editor.dart` ← `AyuGram/editor/editor.style:157-165` (`photoEditorBrushSizeControlHeight: 280px`, collapsed width 2px, expanded top 25px, expanded bottom 4px)
-
-# popup_menu — Audit findings
-
-- [ ] [CRITICAL] `_TelegramRippleItemState` uses an `AnimationController` to lerp the container background color between `hoverColor` and `rippleColor` — this is not a ripple. AyuGram calls `RippleButton::paintRipple(p, 0, 0)` which renders an actual expanding circle emanating from the pointer position. The Dart produces a flat background color pulse; Telegram users will see a completely wrong interaction feedback. — `popup_menu.dart:851-869` ← `AyuGram/Telegram/lib_ui/ui/widgets/menu/menu_action.cpp:121`
-
-- [ ] [CRITICAL] `_shadowColor(Brightness.dark)` returns `const Color(0xFF17212b)`, the same colour as the menu background (`_menuBg`). With 0.25 opacity this makes the shadow nearly invisible in dark mode — the menu appears to float without any depth cue. AyuGram uses `windowShadowFg: #000000` (black) at 0.25 opacity for all themes, giving a clear drop shadow. — `popup_menu.dart:18-21` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:21` + `AyuGram/Telegram/lib_ui/ui/widgets/widgets.style:926-930`
-
-- [ ] [MAJOR] Submenus are shown by inserting a bare `OverlayEntry` with no transition — they appear and disappear instantly. AyuGram calls `_activeSubmenu->showPrepared(source)` / `hideMenu(true)`, which runs the full `PanelAnimation` (scale + opacity reveal from the corner). Submenus should animate identically to the root menu. — `popup_menu.dart:471-517` / `popup_menu.dart:520-527` ← `AyuGram/Telegram/lib_ui/ui/widgets/popup_menu.cpp:390-413` / `popup_menu.cpp:531-549`
-
-- [ ] [MAJOR] `_TelegramDisabledItem` uses `Color(0xFF999999)` for text and icon in light mode. AyuGram's `itemFgDisabled` resolves to `menuFgDisabled: #cccccc` — a much lighter grey (~30% brighter). Disabled items in light mode will appear too dark and more prominent than they should be. — `popup_menu.dart:891-895` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:59` + `AyuGram/Telegram/lib_ui/ui/widgets/widgets.style:977`
-
-- [ ] [MAJOR] `showTelegramMenu` has no `maxHeight` concept. AyuGram's `PopupMenu` respects `st.maxHeight` from the style: when set, the scroll area is capped and the menu scrolls within that height. The Dart only constrains by `screenSize.height - margin * 2`. Any caller that needs a height-capped scrollable menu (e.g. long context menus in narrow windows) cannot express this constraint. — `popup_menu.dart:354-358` ← `AyuGram/Telegram/lib_ui/ui/widgets/popup_menu.cpp:210-213` + `widgets.style:1004`
-
 # privacy_settings_screen — Audit Findings
 
 ## privacy_settings_screen — Backend Wiring & API Connectivity
