@@ -1176,63 +1176,9 @@ Audited against AyuGram Desktop C++ source at
 ## _UsernameBoxContent
 
 
-# instant_view — Audit
-
-## instant_view — Multiple stubs, missing interactivity, broken layout
-
-- [ ] [CRITICAL] Video block is a non-functional placeholder stub — `_buildVideo()` renders a static `Icons.play_circle_outline` icon with text "Video" / "Video (autoplay)" and zero tap handler or video player. AyuGram renders a real `<video data-src="..." data-autoplay="..." data-loop="...">` element driven by `IV.initEmbedBlocks()` JavaScript. No video can actually be watched — `instant_view.dart:900-930` ← `iv_prepare.cpp:557-623`
-
-- [ ] [CRITICAL] Audio block is a non-functional placeholder stub — `_buildAudio()` renders a decorative `Icons.play_arrow` circle that is not wrapped in any `GestureDetector` or audio player widget. AyuGram renders `<audio controls src="...">` so the native HTML5 audio player is embedded and playable. Tapping the Dart play icon does nothing — `instant_view.dart:1031-1081` ← `iv_prepare.cpp:777-788`
-
-- [ ] [CRITICAL] Embed block strips HTML to plain text instead of rendering the actual iframe — `_buildEmbed()` calls `_stripHtml()` on `embedHtml` and displays the result as a plain `Text` widget. AyuGram uses `embedUrl(html->v)` to create a blob URL and injects a real `<iframe src="...">`, allowing YouTube, Twitter, etc. to be rendered. All embedded media is completely broken — `instant_view.dart:798-804` ← `iv_prepare.cpp:631-683`
-
-- [ ] [CRITICAL] Channel "Join" button opens external browser instead of triggering in-app join — pressing "Join" calls `launchUrl(Uri.parse('https://t.me/$username'))`. AyuGram fires `Event::Type::JoinChannel` → `Instance::processJoinChannel()` → joins via the Telegram client, then calls `showJoinedTooltip()` to confirm. The Dart path bypasses the Telegram backend entirely — `instant_view.dart:1017-1024` ← `iv_controller.cpp:1046-1050`
-
-- [ ] [CRITICAL] Photos have no tap-to-expand viewer — `_IvFullPhoto` and the `Image.memory` fallback are bare image widgets with no `GestureDetector`. AyuGram wraps every photo in `<a href="..." data-context="viewer-photoID">` which fires `Event::Type::OpenMedia` to open the full-screen media viewer. Tapping a photo in Dart does nothing — `instant_view.dart:547-565` ← `iv_prepare.cpp:541-547`
-
-- [ ] [MAJOR] Collage layout uses a naive grid column count instead of aspect-ratio-aware layout — `_buildCollage()` uses `GridView.count` with `crossAxisCount = items.length <= 2 ? items.length : (items.length <= 4 ? 2 : 3)`. AyuGram calls `Ui::LayoutMediaGroup()` which computes per-item `left/top/width/height` percentages from actual photo dimensions, matching Telegram Desktop's group layout algorithm exactly — `instant_view.dart:937-956` ← `iv_prepare.cpp:283-334`
-
-- [ ] [MAJOR] Slideshow missing prev/next navigation buttons — `_buildSlideshow()` uses `PageView.builder` (swipe only). AyuGram renders SVG `slideshow-prev` / `slideshow-next` arrow buttons with `onclick="IV.slideshowSlide(this, ±1);"` and a radio-button indicator strip. Navigation arrows are absent in the Dart implementation — `instant_view.dart:959-986` ← `iv_prepare.cpp:337-385`
-
-- [ ] [MAJOR] Zoom is session-only and not persisted — `_zoomFactor` (line 41) lives in widget state and resets on every navigation. AyuGram stores zoom via `Core::App().settings().setIvZoom(value)` (saved to disk) so it survives app restarts. The Dart zoom resets every time the page is closed — `instant_view.dart:41` ← `iv_delegate_impl.cpp:117-119`
-
-- [ ] [MAJOR] Map block renders a placeholder box instead of actual map tiles — `_buildMap()` draws a coloured container with a pin icon and coordinates; tapping opens OpenStreetMap in an external browser. AyuGram renders `<img src="mapUrl(geo, 650, height, zoom)">` using Telegram's own map tile server at proper dimensions and zoom level — `instant_view.dart:1083-1122` ← `iv_prepare.cpp:850-860`
-
-- [ ] [MAJOR] Table missing cell alignment and span attributes — `_buildTable()` renders every cell left-aligned with no colspan/rowspan support. AyuGram emits `text-align:right/center/left`, `vertical-align:bottom/middle/top` styles and `colspan`/`rowspan` attributes per `MTPDpageTableCell` flags — `instant_view.dart:746-769` ← `iv_prepare.cpp:913-942`
-
-- [ ] [MAJOR] Table missing striped row style — `_buildTable()` reads `block['bordered']` but ignores `block['striped']`. AyuGram emits `class="striped"` when `data.is_striped()` is true, giving alternating row shading — `instant_view.dart:739` ← `iv_prepare.cpp:797-813`
-
-- [ ] [MAJOR] Anchor block renders nothing, breaking hash-fragment navigation — `case 'anchor': return const SizedBox.shrink()`. AyuGram emits `<a name="anchorName">` so telegra.ph URLs ending in `#section` scroll to the correct position. In-page anchor targets are completely absent — `instant_view.dart:342-343` ← `iv_prepare.cpp:453-455`
-
-- [ ] [MAJOR] Missing "scroll to top" fixed button — AyuGram injects `<button id="bottom_up" onclick="IV.scrollTo(0);">` (with a custom up-arrow SVG) into every IV page wrapper; it appears when the user scrolls down. The Dart implementation has no equivalent — `instant_view.dart` (absent) ← `iv_controller.cpp:303-307`
-
-- [ ] [MAJOR] Ordered list fallback numbering produces double period — `final num = itemMap['num'] as String? ?? '${entry.key + 1}.'` (fallback includes a trailing period) then `Text('$num.', …)` appends another period, producing "1.." for items that lack a backend-supplied `num` field — `instant_view.dart:687,694` ← `iv_prepare.cpp:819-820`
-
-# emoji_data — Emoji keyword data and search logic
-
-- [ ] [CRITICAL] `loadServerKeywords()` is never wired to the engine — no bridge call fetches `messages.getEmojiKeywords` / `messages.getEmojiKeywordsDifference`; server keyword data is permanently empty — `emoji_data.dart:701` ← `AyuGram/chat_helpers/emoji_keywords.cpp:411-416`
-
-- [ ] [CRITICAL] `isValidEmoji` range `(first >= 0x200D)` at line 661 is overbroad: it matches ZWJ (U+200D) and every codepoint above it, accepting non-emoji characters like en-dash (U+2013), mathematical operators, etc.; the earlier ranges (0x2600, 0x2300, 0x2190) are made unreachable — `emoji_data.dart:661` ← `AyuGram/chat_helpers/emoji_keywords.cpp:78-82` (uses `Ui::Emoji::Find` for exact validation)
-
-- [ ] [CRITICAL] No auto-refresh mechanism — AyuGram refreshes keyword packs every hour (`kRefreshEach = 3,600,000 ms`) via `LangPack::refresh()`; Dart has no timer, no session lifecycle hook, and no trigger to re-fetch stale data — `emoji_data.dart:700-710` ← `AyuGram/chat_helpers/emoji_keywords.cpp:28,386-417`
-
-- [ ] [MAJOR] Single-language flat map instead of per-language pack architecture — AyuGram maintains a `flat_map<QString, LangPack>` querying UI language, system language, input-method languages, and suggested language simultaneously; Dart stores one undifferentiated `Map<String, List<String>>` with no language key — `emoji_data.dart:676` ← `AyuGram/chat_helpers/emoji_keywords.cpp:75,562-585,608-642`
-
-- [ ] [MAJOR] O(n) linear scan over all server keywords per search — AyuGram uses a sorted `std::map` with `lower_bound` for O(log n) prefix matching; Dart iterates every entry in `_serverKeywords` on each call — `emoji_data.dart:804` ← `AyuGram/chat_helpers/emoji_keywords.cpp:482-495`
-
-- [ ] [MAJOR] Missing `maxQueryLength` guard — AyuGram immediately returns empty if `query.size() > _data.maxKeyLength`, avoiding useless scans; no equivalent exists in Dart — `emoji_data.dart:760` ← `AyuGram/chat_helpers/emoji_keywords.cpp:476-479,498-500`
-
-- [ ] [MAJOR] Missing `SkipExactKeyword` filter — AyuGram skips single non-letter characters, "10", and short common English words in exact mode to avoid false positives; Dart performs no such filtering — `emoji_data.dart:760` ← `AyuGram/chat_helpers/emoji_keywords.cpp:55-76,477-478`
-
-- [ ] [MAJOR] Missing `MustAddPostfix` handling — AyuGram appends U+FE0F variation selector to ™ (U+2122), © (U+00A9), and ® (U+00AE) when loading from server data; without this, those emoji are malformed in server-sourced results — `emoji_data.dart:701-710` ← `AyuGram/chat_helpers/emoji_keywords.cpp:47-53,129-131`
-
-- [ ] [MAJOR] `loadState`/`saveState` not connected to any persistence layer — these methods exist but nothing calls them; recent emoji and variant prefs are lost on restart; AyuGram persists via `Core::App().settings()` (global settings store) — `emoji_data.dart:736,750` ← `AyuGram/chat_helpers/emoji_keywords.cpp:654,675-678`
-
 # keyboard_shortcuts — Audit Findings
 
 - [ ] [CRITICAL] `recordRound` handler calls `ChatView.startRecordVoiceRequest` (the same voice-recording callback as `recordVoice`), so round-video recording is never triggered — `keyboard_shortcuts.dart:1349` ← `AyuGram/core/shortcuts.h:74` (`RecordRound` is a distinct `Command` enum value from `RecordVoice:73`; AyuGram dispatches them to separate handlers)
-
-- [ ] [CRITICAL] Chat-switch overlay has no Ctrl-release detection, no arrow-key/Enter/Escape navigation during the switch, and no input-method event filter — the overlay can be opened (Ctrl+Tab) but can't be confirmed or dismissed by releasing Ctrl, navigated with arrow keys/Q, or cancelled with Escape — `keyboard_shortcuts.dart:1085-1091` ← `AyuGram/core/shortcuts.cpp:894-973` (`HandlePossibleChatSwitch` full state machine: tracks `ChatSwitchStarted`, fires `ChatSwitchStream` on every arrow/Q/Escape/Enter event, `CancelChatSwitch` on Ctrl-release, installs an event filter to block InputMethod events during the switch)
 
 - [ ] [MAJOR] Dedicated multimedia `search` and `find` keys are mapped in `_keyNames` (lines 329-330) but have no entries in `_defaultBindings`, so users with multimedia keyboards get no working Search shortcut beyond Ctrl+F — `keyboard_shortcuts.dart:824` (`_defaultBindings` list, no browserSearch/find binding) ← `AyuGram/core/shortcuts.cpp:485-486` (`set(u"search"_q, Command::Search)` and `set(u"find"_q, Command::Search)` registered as defaults)
 
