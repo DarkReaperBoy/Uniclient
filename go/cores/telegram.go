@@ -23887,6 +23887,31 @@ func (t *TelegramCore) CreateChatInviteLink(chatID, label string, expireDate, us
 	return nil, fmt.Errorf("unexpected response type")
 }
 
+func (t *TelegramCore) CreateChatInviteLinkWithSubscription(chatID, label string, expireDate, usageLimit int, requestApproval bool, subscriptionCredits int) (map[string]interface{}, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return nil, err }
+	defer unlock()
+	req := &tg.MessagesExportChatInviteRequest{
+		Peer:          inputPeer,
+		RequestNeeded: requestApproval,
+	}
+	if label != "" { req.SetTitle(label) }
+	if expireDate > 0 { req.SetExpireDate(expireDate) }
+	if usageLimit > 0 && !requestApproval { req.SetUsageLimit(usageLimit) }
+	if subscriptionCredits > 0 {
+		req.SetSubscriptionPricing(tg.StarsSubscriptionPricing{
+			Period: 30 * 24 * 60 * 60,
+			Amount: int64(subscriptionCredits),
+		})
+	}
+	result, err := t.api.MessagesExportChatInvite(t.ctx, req)
+	if err != nil { return nil, err }
+	if inv, ok := result.(*tg.ChatInviteExported); ok {
+		return inviteLinkFromExported(inv), nil
+	}
+	return nil, fmt.Errorf("unexpected response type")
+}
+
 func (t *TelegramCore) EditChatInviteLink(chatID, link, label string, expireDate, usageLimit int, requestApproval bool) (map[string]interface{}, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil { return nil, err }
@@ -23905,6 +23930,10 @@ func (t *TelegramCore) EditChatInviteLink(chatID, link, label string, expireDate
 		return inviteLinkFromExported(inv), nil
 	}
 	return nil, fmt.Errorf("unexpected response type")
+}
+
+func (t *TelegramCore) EditChatInviteLinkWithSubscription(chatID, link, label string, expireDate, usageLimit int, requestApproval bool, subscriptionCredits int) (map[string]interface{}, error) {
+	return t.EditChatInviteLink(chatID, link, label, expireDate, usageLimit, requestApproval)
 }
 
 func (t *TelegramCore) RevokeChatInviteLink(chatID, link string) (map[string]interface{}, error) {
@@ -24494,7 +24523,7 @@ func (t *TelegramCore) CreatePoll(chatID string, question string, options []stri
 	return t.SendPoll(chatID, question, options)
 }
 
-func (t *TelegramCore) CreatePollEx(chatID string, question string, answers []string, multipleChoice, anonymous, quiz bool, correctOption int, solution string) (*Message, error) {
+func (t *TelegramCore) CreatePollWithRevoting(chatID string, question string, answers []string, multipleChoice, anonymous, quiz, allowRevoting bool, correctOption int, solution string) (*Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil { return nil, err }
 	defer unlock()
@@ -24516,6 +24545,9 @@ func (t *TelegramCore) CreatePollEx(chatID string, question string, answers []st
 	if quiz {
 		poll.SetQuiz(true)
 	}
+	if !allowRevoting {
+		poll.SetRevotingDisabled(true)
+	}
 	media := &tg.InputMediaPoll{Poll: poll}
 	if quiz && correctOption >= 0 && correctOption < len(answers) {
 		media.SetCorrectAnswers([]int{correctOption})
@@ -24529,6 +24561,10 @@ func (t *TelegramCore) CreatePollEx(chatID string, question string, answers []st
 	})
 	if err != nil { return nil, err }
 	return t.extractMessageFromUpdates(result, chatID), nil
+}
+
+func (t *TelegramCore) CreatePollEx(chatID string, question string, answers []string, multipleChoice, anonymous, quiz bool, correctOption int, solution string) (*Message, error) {
+	return t.CreatePollWithRevoting(chatID, question, answers, multipleChoice, anonymous, quiz, true, correctOption, solution)
 }
 
 // VotePoll submits a vote for specific options on a poll.

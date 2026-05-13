@@ -2470,7 +2470,7 @@ class EngineService {
     return list.cast<Map<String, dynamic>>();
   }
 
-  Future<Map<String, dynamic>> createChatInviteLink(String accountId, String chatId, {String label = '', int expireDate = 0, int usageLimit = 0, bool requestApproval = false}) async {
+  Future<Map<String, dynamic>> createChatInviteLink(String accountId, String chatId, {String label = '', int expireDate = 0, int usageLimit = 0, bool requestApproval = false, int subscriptionCredits = 0}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
@@ -2478,12 +2478,13 @@ class EngineService {
       'expire_date': expireDate,
       'usage_limit': usageLimit,
       'request_approval': requestApproval,
+      'subscription_credits': subscriptionCredits,
     }));
     final respBytes = await _callAsync('__engine', 'CreateChatInviteLink', Uint8List.fromList(payload));
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> editChatInviteLink(String accountId, String chatId, String link, {String label = '', int expireDate = 0, int usageLimit = 0, bool requestApproval = false}) async {
+  Future<Map<String, dynamic>> editChatInviteLink(String accountId, String chatId, String link, {String label = '', int expireDate = 0, int usageLimit = 0, bool requestApproval = false, int subscriptionCredits = 0}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
@@ -2492,6 +2493,7 @@ class EngineService {
       'expire_date': expireDate,
       'usage_limit': usageLimit,
       'request_approval': requestApproval,
+      'subscription_credits': subscriptionCredits,
     }));
     final respBytes = await _callAsync('__engine', 'EditChatInviteLink', Uint8List.fromList(payload));
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
@@ -2685,6 +2687,7 @@ class EngineService {
     bool multipleChoice = false,
     bool anonymous = true,
     bool quiz = false,
+    bool allowRevoting = true,
     int correctOption = -1,
     String solution = '',
   }) async {
@@ -2696,6 +2699,7 @@ class EngineService {
       'multiple_choice': multipleChoice,
       'anonymous': anonymous,
       'quiz': quiz,
+      'allow_revoting': allowRevoting,
       'correct_option': correctOption,
       'solution': solution,
     }));

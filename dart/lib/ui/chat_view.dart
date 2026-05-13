@@ -5358,7 +5358,8 @@ class _ChatViewState extends State<ChatView>
                       final engine = context.read<EngineService>();
                       engine.createPoll(chat.accountId, chat.chatId, result.question, result.options,
                         multipleChoice: result.multipleChoice, anonymous: result.anonymous,
-                        quiz: result.quiz, correctOption: result.correctOptionIndex, solution: result.solution);
+                        quiz: result.quiz, allowRevoting: result.allowRevoting,
+                        correctOption: result.correctOptionIndex, solution: result.solution);
                     });
                   case 'web_view' || 'simple_web_view':
                     if (btn.url.isNotEmpty) {
@@ -6371,7 +6372,8 @@ class _ChatTopBar extends StatelessWidget {
             engine.createPoll(
               chat.accountId, chat.chatId, result.question, result.options,
               multipleChoice: result.multipleChoice, anonymous: result.anonymous,
-              quiz: result.quiz, correctOption: result.correctOptionIndex, solution: result.solution,
+              quiz: result.quiz, allowRevoting: result.allowRevoting,
+              correctOption: result.correctOptionIndex, solution: result.solution,
             );
           });
         case 'create_todo':
@@ -6381,7 +6383,8 @@ class _ChatTopBar extends StatelessWidget {
             engine.createPoll(
               chat.accountId, chat.chatId, result.question, result.options,
               multipleChoice: result.multipleChoice, anonymous: result.anonymous,
-              quiz: result.quiz, correctOption: result.correctOptionIndex, solution: result.solution,
+              quiz: result.quiz, allowRevoting: result.allowRevoting,
+              correctOption: result.correctOptionIndex, solution: result.solution,
             );
           });
       }
@@ -13967,7 +13970,8 @@ class _ComposeAreaState extends State<_ComposeArea>
     try {
       await engine.createPoll(accountId, chatId, result.question, result.options,
         multipleChoice: result.multipleChoice, anonymous: result.anonymous,
-        quiz: result.quiz, correctOption: result.correctOptionIndex, solution: result.solution);
+        quiz: result.quiz, allowRevoting: result.allowRevoting,
+        correctOption: result.correctOptionIndex, solution: result.solution);
     } catch (e) {
       if (mounted) {
         showTelegramToast(context, 'Failed to create poll: $e');

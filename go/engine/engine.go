@@ -1564,10 +1564,18 @@ func (e *Engine) GetExportedChatInvites(accountID, chatID string, revoked bool, 
 	return nil, fmt.Errorf("platform does not support invite link listing")
 }
 
-func (e *Engine) CreateChatInviteLink(accountID, chatID, label string, expireDate, usageLimit int, requestApproval bool) (map[string]interface{}, error) {
+func (e *Engine) CreateChatInviteLink(accountID, chatID, label string, expireDate, usageLimit int, requestApproval bool, subscriptionCredits int) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type subscriptionCreator interface {
+		CreateChatInviteLinkWithSubscription(chatID, label string, expireDate, usageLimit int, requestApproval bool, subscriptionCredits int) (map[string]interface{}, error)
+	}
+	if subscriptionCredits > 0 {
+		if sc, ok := acc.Core.(subscriptionCreator); ok {
+			return sc.CreateChatInviteLinkWithSubscription(chatID, label, expireDate, usageLimit, requestApproval, subscriptionCredits)
+		}
 	}
 	type creator interface {
 		CreateChatInviteLink(chatID, label string, expireDate, usageLimit int, requestApproval bool) (map[string]interface{}, error)
@@ -1578,10 +1586,18 @@ func (e *Engine) CreateChatInviteLink(accountID, chatID, label string, expireDat
 	return nil, fmt.Errorf("platform does not support invite link creation")
 }
 
-func (e *Engine) EditChatInviteLink(accountID, chatID, link, label string, expireDate, usageLimit int, requestApproval bool) (map[string]interface{}, error) {
+func (e *Engine) EditChatInviteLink(accountID, chatID, link, label string, expireDate, usageLimit int, requestApproval bool, subscriptionCredits int) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type subscriptionEditor interface {
+		EditChatInviteLinkWithSubscription(chatID, link, label string, expireDate, usageLimit int, requestApproval bool, subscriptionCredits int) (map[string]interface{}, error)
+	}
+	if subscriptionCredits > 0 {
+		if se, ok := acc.Core.(subscriptionEditor); ok {
+			return se.EditChatInviteLinkWithSubscription(chatID, link, label, expireDate, usageLimit, requestApproval, subscriptionCredits)
+		}
 	}
 	type editor interface {
 		EditChatInviteLink(chatID, link, label string, expireDate, usageLimit int, requestApproval bool) (map[string]interface{}, error)

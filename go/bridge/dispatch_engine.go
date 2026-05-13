@@ -1392,17 +1392,18 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "CreateChatInviteLink":
 		var params struct {
-			AccountID       string `json:"account_id"`
-			ChatID          string `json:"chat_id"`
-			Label           string `json:"label"`
-			ExpireDate      int    `json:"expire_date"`
-			UsageLimit      int    `json:"usage_limit"`
-			RequestApproval bool   `json:"request_approval"`
+			AccountID           string `json:"account_id"`
+			ChatID              string `json:"chat_id"`
+			Label               string `json:"label"`
+			ExpireDate          int    `json:"expire_date"`
+			UsageLimit          int    `json:"usage_limit"`
+			RequestApproval     bool   `json:"request_approval"`
+			SubscriptionCredits int    `json:"subscription_credits"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		link, err := e.CreateChatInviteLink(params.AccountID, params.ChatID, params.Label, params.ExpireDate, params.UsageLimit, params.RequestApproval)
+		link, err := e.CreateChatInviteLink(params.AccountID, params.ChatID, params.Label, params.ExpireDate, params.UsageLimit, params.RequestApproval, params.SubscriptionCredits)
 		if err != nil {
 			return nil, err
 		}
@@ -1410,18 +1411,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "EditChatInviteLink":
 		var params struct {
-			AccountID       string `json:"account_id"`
-			ChatID          string `json:"chat_id"`
-			Link            string `json:"link"`
-			Label           string `json:"label"`
-			ExpireDate      int    `json:"expire_date"`
-			UsageLimit      int    `json:"usage_limit"`
-			RequestApproval bool   `json:"request_approval"`
+			AccountID           string `json:"account_id"`
+			ChatID              string `json:"chat_id"`
+			Link                string `json:"link"`
+			Label               string `json:"label"`
+			ExpireDate          int    `json:"expire_date"`
+			UsageLimit          int    `json:"usage_limit"`
+			RequestApproval     bool   `json:"request_approval"`
+			SubscriptionCredits int    `json:"subscription_credits"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		link, err := e.EditChatInviteLink(params.AccountID, params.ChatID, params.Link, params.Label, params.ExpireDate, params.UsageLimit, params.RequestApproval)
+		link, err := e.EditChatInviteLink(params.AccountID, params.ChatID, params.Link, params.Label, params.ExpireDate, params.UsageLimit, params.RequestApproval, params.SubscriptionCredits)
 		if err != nil {
 			return nil, err
 		}
@@ -1688,6 +1690,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			MultipleChoice bool     `json:"multiple_choice"`
 			Anonymous      *bool    `json:"anonymous"`
 			Quiz           bool     `json:"quiz"`
+			AllowRevoting  *bool    `json:"allow_revoting"`
 			CorrectOption  int      `json:"correct_option"`
 			Solution       string   `json:"solution"`
 		}
@@ -1698,10 +1701,15 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if params.Anonymous != nil {
 			anon = *params.Anonymous
 		}
+		allowRevoting := true
+		if params.AllowRevoting != nil {
+			allowRevoting = *params.AllowRevoting
+		}
 		msgID, err := e.CreatePollEx(params.AccountID, params.ChatID, params.Question, params.Options, engine.PollOptions{
 			MultipleChoice: params.MultipleChoice,
 			Anonymous:      anon,
 			Quiz:           params.Quiz,
+			AllowRevoting:  allowRevoting,
 			CorrectOption:  params.CorrectOption,
 			Solution:       params.Solution,
 		})

@@ -9590,7 +9590,8 @@ class _InlineButtonState extends State<_InlineButton>
           if (chat == null) return;
           final engine = context.read<EngineService>();
           engine.createPoll(chat.accountId, chat.chatId, result.question, result.options,
-              anonymous: result.anonymous, multipleChoice: result.multipleChoice, quiz: result.quiz);
+              anonymous: result.anonymous, multipleChoice: result.multipleChoice,
+              quiz: result.quiz, allowRevoting: result.allowRevoting);
         });
       case 'request_peer':
         _showPeerSelectionDialog(context);

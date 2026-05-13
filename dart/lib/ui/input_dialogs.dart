@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
@@ -115,6 +117,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
   late final FocusNode _focusNode;
   Timer? _debounce;
   String? _statusText;
+  String? _purchaseUsername;
   bool _isValid = false;
   bool _checking = false;
   bool _saving = false;
@@ -172,6 +175,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     if (username.isEmpty) {
       setState(() {
         _statusText = null;
+        _purchaseUsername = null;
         _isValid = false;
         _checking = false;
       });
@@ -181,6 +185,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     if (username == widget.currentUsername) {
       setState(() {
         _statusText = null;
+        _purchaseUsername = null;
         _isValid = false;
         _checking = false;
       });
@@ -190,6 +195,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     if (username.length < 5) {
       setState(() {
         _statusText = 'Username must be at least 5 characters';
+        _purchaseUsername = null;
         _isValid = false;
         _checking = false;
       });
@@ -199,6 +205,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     if (username.length > 32) {
       setState(() {
         _statusText = 'Username is too long';
+        _purchaseUsername = null;
         _isValid = false;
         _checking = false;
       });
@@ -208,6 +215,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     if (!_usernameRegex.hasMatch(username)) {
       setState(() {
         _statusText = 'Sorry, this username is invalid';
+        _purchaseUsername = null;
         _isValid = false;
         _checking = false;
       });
@@ -216,6 +224,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
 
     setState(() {
       _statusText = null;
+      _purchaseUsername = null;
       _isValid = false;
       _checking = true;
     });
@@ -249,7 +258,11 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
       setState(() {
         _checking = false;
         _isValid = false;
-        if (msg.contains('USERNAME_INVALID')) {
+        _purchaseUsername = null;
+        if (msg.contains('USERNAME_PURCHASE_AVAILABLE')) {
+          _purchaseUsername = username;
+          _statusText = null;
+        } else if (msg.contains('USERNAME_INVALID')) {
           _statusText = 'Sorry, this username is invalid';
         } else if (msg.contains('USERNAME_OCCUPIED')) {
           _statusText = 'Sorry, this username is already taken';
@@ -373,6 +386,25 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
                   Text('Checking...',
                       style: TextStyle(fontSize: 13, color: subColor)),
                 ],
+              )
+            else if (_purchaseUsername != null)
+              RichText(
+                text: TextSpan(
+                  style: TextStyle(fontSize: 13, color: textFg),
+                  children: [
+                    const TextSpan(text: 'This username can be purchased on '),
+                    TextSpan(
+                      text: 'Fragment',
+                      style: TextStyle(color: p.windowActiveTextFg),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () {
+                          launchUrl(Uri.parse(
+                              'https://fragment.com/username/$_purchaseUsername'));
+                        },
+                    ),
+                    const TextSpan(text: '.'),
+                  ],
+                ),
               )
             else if (_statusText != null)
               Text(
@@ -588,16 +620,17 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
       await widget.engine.addContact(account.id, phone, firstName, lastName);
       if (mounted) {
         final chatState = context.read<ChatState>();
-        chatState.loadChats();
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (!mounted) return;
-        final displayName = '$firstName $lastName'.trim();
-        final chats = chatState.chats;
-        final match = chats.where((c) =>
-            c.type == ChatType.dm && c.title.toLowerCase() == displayName.toLowerCase()
-        ).firstOrNull;
-        if (match != null) {
-          chatState.openChat(match);
+        final normalizedPhone = phone.replaceAll(RegExp(r'\D'), '');
+        final contacts = await widget.engine.getContacts(account.id);
+        final contact = contacts.where((c) {
+          final cp = c.phone.replaceAll(RegExp(r'\D'), '');
+          return cp == normalizedPhone || cp.endsWith(normalizedPhone) || normalizedPhone.endsWith(cp);
+        }).firstOrNull;
+        if (contact != null && contact.userId.isNotEmpty) {
+          chatState.loadChats();
+          chatState.openChatById(contact.userId);
+        } else {
+          chatState.loadChats();
         }
         if (mounted) Navigator.of(context).pop(true);
       }
@@ -874,42 +907,52 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
           ),
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 400),
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: filtered.length,
-              itemExtent: 36,
-              itemBuilder: (ctx, i) {
-                final c = filtered[i];
-                final isSelected = c.iso == widget.selected.iso;
-                return InkWell(
-                  onTap: () => widget.onSelect(c),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      children: [
-                        Text(c.flag, style: const TextStyle(fontSize: 18)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            c.name,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: textColor,
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+            child: filtered.isEmpty
+                ? SizedBox(
+                    height: 52,
+                    child: Center(
+                      child: Text(
+                        'No countries found',
+                        style: TextStyle(fontSize: 14, color: subColor),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: filtered.length,
+                    itemExtent: 36,
+                    itemBuilder: (ctx, i) {
+                      final c = filtered[i];
+                      final isSelected = c.iso == widget.selected.iso;
+                      return InkWell(
+                        onTap: () => widget.onSelect(c),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 22, right: 8),
+                          child: Row(
+                            children: [
+                              Text(c.flag, style: const TextStyle(fontSize: 18)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  c.name,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: textColor,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Text('+${c.dialCode}',
+                                  style: TextStyle(fontSize: 13, color: subColor)),
+                            ],
                           ),
                         ),
-                        Text('+${c.dialCode}',
-                            style: TextStyle(fontSize: 13, color: subColor)),
-                      ],
-                    ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
         ],
       ),
@@ -934,6 +977,8 @@ Future<EditInviteLinkResult?> showEditInviteLinkBox(
   int existingExpire = 0,
   int existingUsageLimit = 0,
   bool existingRequestApproval = false,
+  bool isPublic = false,
+  int existingSubscriptionCredits = 0,
 }) {
   final engine = context.read<EngineService>();
   return showTelegramBox<EditInviteLinkResult>(
@@ -946,6 +991,8 @@ Future<EditInviteLinkResult?> showEditInviteLinkBox(
       existingExpire: existingExpire,
       existingUsageLimit: existingUsageLimit,
       existingRequestApproval: existingRequestApproval,
+      isPublic: isPublic,
+      existingSubscriptionCredits: existingSubscriptionCredits,
       engine: engine,
     ),
   );
@@ -959,6 +1006,8 @@ class _EditInviteLinkContent extends StatefulWidget {
   final int existingExpire;
   final int existingUsageLimit;
   final bool existingRequestApproval;
+  final bool isPublic;
+  final int existingSubscriptionCredits;
   final EngineService engine;
 
   const _EditInviteLinkContent({
@@ -969,6 +1018,8 @@ class _EditInviteLinkContent extends StatefulWidget {
     required this.existingExpire,
     required this.existingUsageLimit,
     required this.existingRequestApproval,
+    this.isPublic = false,
+    this.existingSubscriptionCredits = 0,
     required this.engine,
   });
 
@@ -978,11 +1029,14 @@ class _EditInviteLinkContent extends StatefulWidget {
 
 class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
   late final TextEditingController _labelCtrl;
+  late final TextEditingController _creditsCtrl;
   int _expireOption = 0;
   int _usageLimitOption = 0;
   int _customExpireDate = 0;
   int _customUsageLimit = 0;
   bool _requestApproval = false;
+  bool _subscription = false;
+  bool _subscriptionLocked = false;
   bool _saving = false;
 
   static const _kMaxLabelLength = 32;
@@ -1010,6 +1064,13 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
   void initState() {
     super.initState();
     _labelCtrl = TextEditingController(text: widget.existingLabel);
+    _subscriptionLocked = widget.existingSubscriptionCredits > 0;
+    _subscription = _subscriptionLocked;
+    _creditsCtrl = TextEditingController(
+      text: widget.existingSubscriptionCredits > 0
+          ? '${widget.existingSubscriptionCredits}'
+          : '',
+    );
     _requestApproval = widget.existingRequestApproval;
     if (_isEdit) {
       if (widget.existingExpire > 0) {
@@ -1037,6 +1098,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
   @override
   void dispose() {
     _labelCtrl.dispose();
+    _creditsCtrl.dispose();
     super.dispose();
   }
 
@@ -1122,6 +1184,9 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
     final usageLimit = _requestApproval
         ? 0
         : (_usageLimitOption == -1 ? _customUsageLimit : _usageLimitOption);
+    final subscriptionCredits = _subscription
+        ? (int.tryParse(_creditsCtrl.text.trim()) ?? 0)
+        : 0;
 
     try {
       if (_isEdit) {
@@ -1133,6 +1198,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
           expireDate: expireDate,
           usageLimit: usageLimit,
           requestApproval: _requestApproval,
+          subscriptionCredits: subscriptionCredits,
         );
       } else {
         await engine.createChatInviteLink(
@@ -1142,6 +1208,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
           expireDate: expireDate,
           usageLimit: usageLimit,
           requestApproval: _requestApproval,
+          subscriptionCredits: subscriptionCredits,
         );
       }
       if (mounted) {
@@ -1301,6 +1368,73 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
                 ),
               ),
             ],
+            if (!widget.isPublic) ...[
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: (_saving || _subscriptionLocked)
+                    ? () {
+                        if (_subscriptionLocked) {
+                          showTelegramToast(context,
+                              'Subscription links cannot be changed after creation.');
+                        }
+                      }
+                    : () => setState(() {
+                          _subscription = !_subscription;
+                          if (_subscription) _requestApproval = false;
+                        }),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: Checkbox(
+                        value: _subscription,
+                        onChanged: (_saving || _subscriptionLocked)
+                            ? null
+                            : (v) => setState(() {
+                                  _subscription = v ?? false;
+                                  if (_subscription) _requestApproval = false;
+                                }),
+                        activeColor: checkClr,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text('Subscription',
+                          style: TextStyle(fontSize: 14, color: textColor)),
+                    ),
+                  ],
+                ),
+              ),
+              if (_subscription) ...[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.only(left: 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Users will pay star credits to subscribe via this link.',
+                        style: TextStyle(fontSize: 12, color: subColor),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: 180,
+                        child: BoxInputField(
+                          controller: _creditsCtrl,
+                          label: 'Star credits',
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          enabled: !_saving && !_subscriptionLocked,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
             if (_saving) ...[
               const SizedBox(height: 12),
               const Center(
@@ -1334,6 +1468,7 @@ class CreatePollResult {
   final bool multipleChoice;
   final bool anonymous;
   final bool quiz;
+  final bool allowRevoting;
   final int correctOptionIndex;
   final String solution;
 
@@ -1343,6 +1478,7 @@ class CreatePollResult {
     this.multipleChoice = false,
     this.anonymous = true,
     this.quiz = false,
+    this.allowRevoting = true,
     this.correctOptionIndex = -1,
     this.solution = '',
   });
@@ -1365,6 +1501,7 @@ class _CreatePollContent extends StatefulWidget {
 class _CreatePollContentState extends State<_CreatePollContent> {
   static const _kQuestionLimit = 255;
   static const _kOptionLimit = 100;
+  static const _kWarnOptionLimit = 30;
   static const _kSolutionLimit = 200;
   static const _kMaxOptions = 32;
 
@@ -1377,6 +1514,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   bool _multipleChoice = false;
   bool _anonymous = true;
   bool _quiz = false;
+  bool _allowRevoting = true;
   int _correctOption = -1;
 
   @override
@@ -1428,6 +1566,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
       multipleChoice: _multipleChoice,
       anonymous: _anonymous,
       quiz: _quiz,
+      allowRevoting: _allowRevoting,
       correctOptionIndex: _quiz ? _correctOption : -1,
       solution: _quiz ? _solutionCtrl.text.trim() : '',
     ));
@@ -1481,38 +1620,56 @@ class _CreatePollContentState extends State<_CreatePollContent> {
             for (var i = 0; i < _optionCtrls.length; i++)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (_quiz)
-                      SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: Radio<int>(
-                          value: i,
-                          groupValue: _correctOption,
-                          onChanged: (v) => setState(() => _correctOption = v ?? -1),
-                          activeColor: p.windowBgActive,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
+                    Row(
+                      children: [
+                        if (_quiz)
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Radio<int>(
+                              value: i,
+                              groupValue: _correctOption,
+                              onChanged: (v) => setState(() => _correctOption = v ?? -1),
+                              activeColor: p.windowBgActive,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                        if (_quiz) const SizedBox(width: 4),
+                        Expanded(
+                          child: BoxInputField(
+                            controller: _optionCtrls[i],
+                            label: 'Option ${i + 1}',
+                            onChanged: (_) => setState(() {}),
+                            inputFormatters: [LengthLimitingTextInputFormatter(_kOptionLimit)],
+                          ),
                         ),
-                      ),
-                    if (_quiz) const SizedBox(width: 4),
-                    Expanded(
-                      child: BoxInputField(
-                        controller: _optionCtrls[i],
-                        label: 'Option ${i + 1}',
-                        onChanged: (_) => setState(() {}),
-                        inputFormatters: [LengthLimitingTextInputFormatter(_kOptionLimit)],
-                      ),
+                        if (_optionCtrls.length > 2)
+                          SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: IconButton(
+                              icon: Icon(Icons.close, size: 16, color: subColor),
+                              padding: EdgeInsets.zero,
+                              onPressed: () => _removeOption(i),
+                            ),
+                          ),
+                      ],
                     ),
-                    if (_optionCtrls.length > 2)
-                      SizedBox(
-                        width: 32,
-                        height: 32,
-                        child: IconButton(
-                          icon: Icon(Icons.close, size: 16, color: subColor),
-                          padding: EdgeInsets.zero,
-                          onPressed: () => _removeOption(i),
+                    if (_optionCtrls[i].text.length >= _kWarnOptionLimit)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${_optionCtrls[i].text.length}/$_kOptionLimit',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _optionCtrls[i].text.length > _kOptionLimit
+                                ? p.boxTextFgError
+                                : subColor,
+                          ),
                         ),
                       ),
                   ],
@@ -1542,6 +1699,10 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                   _multipleChoice = v ?? false;
                   if (_multipleChoice) _quiz = false;
                 }), checkClr, textColor),
+            const SizedBox(height: 8),
+            _checkRow('Allow Revoting', _allowRevoting,
+                (v) => setState(() => _allowRevoting = v ?? true),
+                checkClr, textColor),
             const SizedBox(height: 8),
             _checkRow('Quiz Mode', _quiz, (v) => setState(() {
               _quiz = v ?? false;
