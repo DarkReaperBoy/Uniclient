@@ -1376,88 +1376,92 @@ class _MemberStoryRingPainter extends CustomPainter {
       isDark != old.isDark;
 }
 
-class _AnimatedEmojiPattern extends StatefulWidget {
+class _AnimatedEmojiPattern extends StatelessWidget {
   final double size;
   final bool isDark;
 
   const _AnimatedEmojiPattern({required this.size, required this.isDark});
 
   @override
-  State<_AnimatedEmojiPattern> createState() => _AnimatedEmojiPatternState();
-}
-
-class _AnimatedEmojiPatternState extends State<_AnimatedEmojiPattern>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (context, _) {
-        return CustomPaint(
-          size: Size(widget.size, widget.size),
-          painter: _EmojiStatusPatternPainter(
-            progress: _ctrl.value,
-            isDark: widget.isDark,
-          ),
-        );
-      },
+    return CustomPaint(
+      size: Size(size, size),
+      painter: _EmojiStatusPatternPainter(isDark: isDark),
     );
   }
 }
 
 class _EmojiStatusPatternPainter extends CustomPainter {
-  final double progress;
   final bool isDark;
 
-  static const int _shapeCount = 7;
-  static const double _shapeSize = 5.0;
+  _EmojiStatusPatternPainter({required this.isDark});
 
-  _EmojiStatusPatternPainter({required this.progress, required this.isDark});
+  static const _kPaddingScale = 0.8;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final orbitRadius = size.width / 2 + 4;
-    final baseAngle = progress * 2 * math.pi;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final aw = size.width * 0.6;
+    final ah = size.height * 0.6;
+    final ax = cx - aw / 2;
+    final ay = cy - ah / 2;
 
+    final p24 = 24.0 * _kPaddingScale;
+    final p16 = 16.0 * _kPaddingScale;
+    final p8 = 8.0 * _kPaddingScale;
+    final p48 = 48.0 * _kPaddingScale;
+    final p96 = 96.0 * _kPaddingScale;
+    final p12 = 12.0 * _kPaddingScale;
+
+    final cos120 = math.cos(120 * math.pi / 180);
+    final cos160 = math.cos(160 * math.pi / 180);
+
+    final points = <_PatternPoint>[
+      _PatternPoint(cx, ay - p24, 20),
+      _PatternPoint(cx, ay + ah + p24, 20),
+      _PatternPoint(ax - p16, cy - ah / 4 - p8, 23),
+      _PatternPoint(ax + aw + p16, cy - ah / 4 - p8, 18),
+      _PatternPoint(ax - p16, cy + ah / 4 + p8, 24),
+      _PatternPoint(ax + aw + p16 - 4, cy + ah / 4 + p8, 24),
+      _PatternPoint(ax - p48, cy, 19),
+      _PatternPoint(ax + aw + p48, cy, 19),
+      _PatternPoint(cx + (aw / 2 + p48) * cos120, cy - (ah / 2 + p48) * 0.5, 17),
+      _PatternPoint(cx + (aw / 2 + p48) * -cos120, cy - (ah / 2 + p48) * 0.5, 17),
+      _PatternPoint(cx + (aw / 2 + p48) * cos160, cy + (ah / 2 + p48) * 0.3, 20),
+      _PatternPoint(cx + (aw / 2 + p48) * -cos160, cy + (ah / 2 + p48) * 0.3, 20),
+      _PatternPoint(ax - p96, cy - ah / 4 - p12, 20),
+      _PatternPoint(ax + aw + p96, cy - ah / 4 + p12, 19),
+      _PatternPoint(ax - p96 + p8, cy + ah / 4, 21),
+      _PatternPoint(ax + aw + p96 - p8, cy + ah / 4, 18),
+      _PatternPoint(ax - p96 - p24, cy, 19),
+      _PatternPoint(ax + aw + p96 + p24, cy, 19),
+    ];
+
+    final maxDist = size.width;
     final paint = Paint()..style = PaintingStyle.fill;
 
-    for (var i = 0; i < _shapeCount; i++) {
-      final angle = baseAngle + (i / _shapeCount) * 2 * math.pi;
-      final pulseFactor = 0.7 + 0.3 * math.sin(baseAngle * 3 + i * 0.8);
-      final x = center.dx + orbitRadius * math.cos(angle);
-      final y = center.dy + orbitRadius * math.sin(angle);
-      final r = _shapeSize * pulseFactor;
-
-      final opacity = (0.25 + 0.2 * pulseFactor).clamp(0.0, 1.0);
+    for (final pt in points) {
+      final dx = pt.x - cx;
+      final dy = pt.y - cy;
+      final dist = math.sqrt(dx * dx + dy * dy);
+      final distAlpha = (1.0 - dist / maxDist).clamp(0.0, 1.0);
+      final opacity = (0.5 * distAlpha * 0.5).clamp(0.05, 0.35);
       paint.color = isDark
           ? Color.fromRGBO(139, 92, 246, opacity)
           : Color.fromRGBO(99, 102, 241, opacity);
-
-      canvas.drawCircle(Offset(x, y), r, paint);
+      final r = pt.size * 0.25;
+      canvas.drawCircle(Offset(pt.x, pt.y), r, paint);
     }
   }
 
   @override
-  bool shouldRepaint(_EmojiStatusPatternPainter old) =>
-      progress != old.progress || isDark != old.isDark;
+  bool shouldRepaint(_EmojiStatusPatternPainter old) => isDark != old.isDark;
+}
+
+class _PatternPoint {
+  final double x, y, size;
+  const _PatternPoint(this.x, this.y, this.size);
 }
 
 class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
@@ -2009,6 +2013,96 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
     }
   }
 
+  List<Widget> _buildInfoSections(BuildContext context) {
+    final sections = <Widget>[
+      const SizedBox(height: 16),
+      _ChatDetails(chat: widget.chat, theme: widget.theme),
+      _MusicMiniPlayer(chatId: widget.chat.chatId, theme: widget.theme),
+      const Divider(height: 24),
+      _NotificationToggle(chat: widget.chat, theme: widget.theme),
+      if (widget.mediaCounts.isNotEmpty) ...[
+        const Divider(height: 24),
+        _SharedMediaSection(
+          counts: widget.mediaCounts,
+          theme: widget.theme,
+          isLayer: widget.isLayer,
+          accountId: widget.chat.accountId,
+          chatId: widget.chat.chatId,
+          onOpenMedia: (type, label) {
+            final panelState = context.findAncestorStateOfType<_InfoPanelState>();
+            panelState?._pushPage(_InfoNavPage(
+              type: _InfoPageType.sharedMedia,
+              mediaType: type,
+              mediaLabel: label,
+            ));
+          },
+        ),
+      ],
+      if (widget.chat.type == ChatType.group ||
+          widget.chat.type == ChatType.topic) ...[
+        const Divider(height: 24),
+        _MembersSection(
+          members: widget.members,
+          loading: widget.loadingMembers,
+          memberCount: widget.chat.memberCount,
+          theme: widget.theme,
+          onMemberTap: widget.onMemberTap,
+          accountId: widget.chat.accountId,
+          chatId: widget.chat.chatId,
+        ),
+      ],
+      if (widget.chat.type == ChatType.group ||
+          widget.chat.type == ChatType.topic) ...[
+        const Divider(height: 24),
+        _GroupActionsSection(
+          chat: widget.chat,
+          theme: widget.theme,
+          members: widget.members,
+        ),
+      ],
+      if (widget.chat.type == ChatType.channel) ...[
+        const Divider(height: 24),
+        _ChannelActionsSection(
+          chat: widget.chat,
+          theme: widget.theme,
+          members: widget.members,
+        ),
+      ],
+      if (widget.chat.type == ChatType.dm &&
+          widget.chat.title != 'Saved Messages') ...[
+        const Divider(height: 24),
+        _DmActionsSection(
+          chat: widget.chat,
+          theme: widget.theme,
+        ),
+      ],
+      if (widget.chat.type == ChatType.dm &&
+          widget.chat.title == 'Saved Messages') ...[
+        const Divider(height: 24),
+        _SavedMediaFilterSection(
+          theme: widget.theme,
+          onOpenMedia: (type, label) {
+            final panelState = context.findAncestorStateOfType<_InfoPanelState>();
+            panelState?._pushPage(_InfoNavPage(
+              type: _InfoPageType.sharedMedia,
+              mediaType: type,
+              mediaLabel: label,
+            ));
+          },
+        ),
+      ],
+      const SizedBox(height: 16),
+    ];
+    return [
+      SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (_, index) => sections[index],
+          childCount: sections.length,
+        ),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final isTopic = widget.chat.type == ChatType.topic;
@@ -2097,87 +2191,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               },
             ),
           ),
-          SliverList(
-            delegate: SliverChildListDelegate([
-              const SizedBox(height: 16),
-              _ChatDetails(chat: widget.chat, theme: widget.theme),
-              _MusicMiniPlayer(chatId: widget.chat.chatId, theme: widget.theme),
-              const Divider(height: 24),
-              _NotificationToggle(chat: widget.chat, theme: widget.theme),
-              if (widget.mediaCounts.isNotEmpty) ...[
-                const Divider(height: 24),
-                _SharedMediaSection(
-                  counts: widget.mediaCounts,
-                  theme: widget.theme,
-                  isLayer: widget.isLayer,
-                  accountId: widget.chat.accountId,
-                  chatId: widget.chat.chatId,
-                  onOpenMedia: (type, label) {
-                    final panelState = context.findAncestorStateOfType<_InfoPanelState>();
-                    panelState?._pushPage(_InfoNavPage(
-                      type: _InfoPageType.sharedMedia,
-                      mediaType: type,
-                      mediaLabel: label,
-                    ));
-                  },
-                ),
-              ],
-              if (widget.chat.type == ChatType.group ||
-                  widget.chat.type == ChatType.topic) ...[
-                const Divider(height: 24),
-                _MembersSection(
-                  members: widget.members,
-                  loading: widget.loadingMembers,
-                  memberCount: widget.chat.memberCount,
-                  theme: widget.theme,
-                  onMemberTap: widget.onMemberTap,
-                  accountId: widget.chat.accountId,
-                  chatId: widget.chat.chatId,
-                ),
-              ],
-              if (widget.chat.type == ChatType.group ||
-                  widget.chat.type == ChatType.topic) ...[
-                const Divider(height: 24),
-                _GroupActionsSection(
-                  chat: widget.chat,
-                  theme: widget.theme,
-                  members: widget.members,
-                ),
-              ],
-              if (widget.chat.type == ChatType.channel) ...[
-                const Divider(height: 24),
-                _ChannelActionsSection(
-                  chat: widget.chat,
-                  theme: widget.theme,
-                  members: widget.members,
-                ),
-              ],
-              if (widget.chat.type == ChatType.dm &&
-                  widget.chat.title != 'Saved Messages') ...[
-                const Divider(height: 24),
-                _DmActionsSection(
-                  chat: widget.chat,
-                  theme: widget.theme,
-                ),
-              ],
-              if (widget.chat.type == ChatType.dm &&
-                  widget.chat.title == 'Saved Messages') ...[
-                const Divider(height: 24),
-                _SavedMediaFilterSection(
-                  theme: widget.theme,
-                  onOpenMedia: (type, label) {
-                    final panelState = context.findAncestorStateOfType<_InfoPanelState>();
-                    panelState?._pushPage(_InfoNavPage(
-                      type: _InfoPageType.sharedMedia,
-                      mediaType: type,
-                      mediaLabel: label,
-                    ));
-                  },
-                ),
-              ],
-              const SizedBox(height: 16),
-            ]),
-          ),
+          ..._buildInfoSections(context),
           SliverToBoxAdapter(child: SizedBox(height: tailPad)),
         ],
       ),
@@ -5668,8 +5682,9 @@ class _MembersSection extends StatefulWidget {
 
 class _MembersSectionState extends State<_MembersSection> {
   bool _searching = false;
-  bool _showAll = false;
+  int _displayLimit = _initialLimit;
   static const _initialLimit = 20;
+  static const _loadMoreStep = 50;
   final _searchCtrl = TextEditingController();
   final _searchFocus = FocusNode();
 
@@ -5795,20 +5810,22 @@ class _MembersSectionState extends State<_MembersSection> {
             child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
           ))
         else if (widget.members != null && widget.members!.isNotEmpty) ...[
-          ...(_showAll || _searching ? filtered : filtered.take(_initialLimit)).map((m) => _MemberRow(
+          ...(_searching ? filtered : filtered.take(_displayLimit)).map((m) => _MemberRow(
             member: m,
             theme: theme,
             onTap: widget.onMemberTap != null ? () => widget.onMemberTap!(m) : null,
             accountId: widget.accountId,
             chatId: widget.chatId,
           )),
-          if (!_showAll && !_searching && filtered.length > _initialLimit)
+          if (!_searching && filtered.length > _displayLimit) ...[
             InkWell(
-              onTap: () => setState(() => _showAll = true),
+              onTap: () => setState(() {
+                _displayLimit = (_displayLimit + _loadMoreStep).clamp(0, filtered.length);
+              }),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                 child: Text(
-                  'Show all ${filtered.length} members',
+                  'Show more (${filtered.length - _displayLimit} remaining)',
                   style: TextStyle(
                     fontSize: 14,
                     color: theme.colorScheme.primary,
@@ -5817,6 +5834,7 @@ class _MembersSectionState extends State<_MembersSection> {
                 ),
               ),
             ),
+          ],
         ] else
           Padding(
             padding: const EdgeInsets.only(left: 18, top: 8, bottom: 8),
@@ -7694,7 +7712,7 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
     return Column(
       children: [
         SizedBox(
-          height: 54,
+          height: 56,
           child: Material(
             color: widget.theme.colorScheme.surface,
             child: Row(
