@@ -1176,12 +1176,6 @@ Audited against AyuGram Desktop C++ source at
 ## _UsernameBoxContent
 
 
-## _CountryPickerContent
-
-- [ ] [MAJOR] Country list shows an empty `ListView` when the search query matches nothing; AyuGram renders a centred "No countries found" label (`tr::lng_country_none`) at `st::noContactsHeight` — `input_dialogs.dart:877-913` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/country_select_box.cpp:353-357`
-
-- [ ] [MAJOR] Country row horizontal padding is `EdgeInsets.symmetric(horizontal: 24)` (24 px both sides); AyuGram spec is `countryRowPadding: margins(22px, 9px, 8px, 0px)` — 22 px left, 8 px right — `input_dialogs.dart:887` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/country_select_box.cpp:391,396` (uses `st::countryRowPadding.left()` / `st::countryRowPadding.right()`)
-
 ## _EditInviteLinkContent
 
 - [ ] [CRITICAL] Subscription invite-link mode is completely absent: no subscription toggle, no credits input. AyuGram's EditInviteLinkBox (when `isPublic` flag is set) exposes a "Subscription" toggle and a `NumberInput` for star credits, then passes `subscriptionCredits` to the API — `input_dialogs.dart:979-1326` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/edit_invite_link.cpp:58,103-146,192`
