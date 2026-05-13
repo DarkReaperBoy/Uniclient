@@ -25261,6 +25261,12 @@ func (t *TelegramCore) GetPaymentForm(chatID, msgID string) (map[string]interfac
 	if result.NativeProvider != "" {
 		form["native_provider"] = result.NativeProvider
 	}
+	if np, ok := result.GetNativeParams(); ok {
+		var nativeParams map[string]interface{}
+		if err := json.Unmarshal([]byte(np.Data), &nativeParams); err == nil {
+			form["native_params"] = nativeParams
+		}
+	}
 	if result.URL != "" {
 		form["url"] = result.URL
 	}
@@ -25434,6 +25440,14 @@ func (t *TelegramCore) SendPaymentForm(chatID, msgID string, formData map[string
 		return err
 	}
 	formID, _ := formData["form_id"].(float64)
+	credentialsData := "{}"
+	if cd, ok := formData["credentials_data"].(string); ok && cd != "" {
+		credentialsData = cd
+	}
+	saveCredentials := false
+	if sc, ok := formData["save_credentials"].(bool); ok {
+		saveCredentials = sc
+	}
 	req := &tg.PaymentsSendPaymentFormRequest{
 		FormID: int64(formID),
 		Invoice: &tg.InputInvoiceMessage{
@@ -25441,18 +25455,106 @@ func (t *TelegramCore) SendPaymentForm(chatID, msgID string, formData map[string
 			MsgID: id,
 		},
 		Credentials: &tg.InputPaymentCredentials{
-			Save: false,
-			Data: tg.DataJSON{Data: "{}"},
+			Save: saveCredentials,
+			Data: tg.DataJSON{Data: credentialsData},
 		},
 	}
 	if tipAmount, ok := formData["tip_amount"].(float64); ok && tipAmount > 0 {
 		req.SetTipAmount(int64(tipAmount))
+	}
+	if infoID, ok := formData["requested_info_id"].(string); ok && infoID != "" {
+		req.SetRequestedInfoID(infoID)
+	}
+	if shippingID, ok := formData["shipping_option_id"].(string); ok && shippingID != "" {
+		req.SetShippingOptionID(shippingID)
 	}
 	_, err = t.api.PaymentsSendPaymentForm(t.ctx, req)
 	if err != nil {
 		return fmt.Errorf("send payment form: %w", err)
 	}
 	return nil
+}
+
+// ValidatePaymentInfo validates the user's payment information (name, phone, email, shipping address)
+// and returns a requested_info_id and available shipping options.
+func (t *TelegramCore) ValidatePaymentInfo(chatID, msgID string, info map[string]interface{}, save bool) (map[string]interface{}, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	id, err := tgMsgID(msgID)
+	if err != nil {
+		return nil, err
+	}
+	reqInfo := tg.PaymentRequestedInfo{}
+	if name, ok := info["name"].(string); ok && name != "" {
+		reqInfo.SetName(name)
+	}
+	if phone, ok := info["phone"].(string); ok && phone != "" {
+		reqInfo.SetPhone(phone)
+	}
+	if email, ok := info["email"].(string); ok && email != "" {
+		reqInfo.SetEmail(email)
+	}
+	if street1, ok := info["street1"].(string); ok && street1 != "" {
+		addr := tg.PostAddress{
+			StreetLine1: street1,
+		}
+		if s2, ok := info["street2"].(string); ok {
+			addr.StreetLine2 = s2
+		}
+		if c, ok := info["city"].(string); ok {
+			addr.City = c
+		}
+		if s, ok := info["state"].(string); ok {
+			addr.State = s
+		}
+		if co, ok := info["country"].(string); ok {
+			addr.CountryISO2 = co
+		}
+		if pc, ok := info["postcode"].(string); ok {
+			addr.PostCode = pc
+		}
+		reqInfo.SetShippingAddress(addr)
+	}
+	req := &tg.PaymentsValidateRequestedInfoRequest{
+		Invoice: &tg.InputInvoiceMessage{
+			Peer:  inputPeer,
+			MsgID: id,
+		},
+		Info: reqInfo,
+	}
+	if save {
+		req.SetSave(true)
+	}
+	result, err := t.api.PaymentsValidateRequestedInfo(t.ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("validate payment info: %w", err)
+	}
+	resp := map[string]interface{}{}
+	if infoID, ok := result.GetID(); ok {
+		resp["id"] = infoID
+	}
+	if options, ok := result.GetShippingOptions(); ok {
+		opts := make([]map[string]interface{}, 0, len(options))
+		for _, opt := range options {
+			prices := make([]map[string]interface{}, 0, len(opt.Prices))
+			for _, p := range opt.Prices {
+				prices = append(prices, map[string]interface{}{
+					"label":  p.Label,
+					"amount": p.Amount,
+				})
+			}
+			opts = append(opts, map[string]interface{}{
+				"id":     opt.ID,
+				"title":  opt.Title,
+				"prices": prices,
+			})
+		}
+		resp["shipping_options"] = opts
+	}
+	return resp, nil
 }
 
 // GetConnectedBots returns business bots connected to this account as simplified maps.

@@ -1099,6 +1099,22 @@ func (e *Engine) GetPaymentReceipt(accountID, chatID, msgID string) (map[string]
 	return g.GetPaymentReceipt(chatID, msgID)
 }
 
+type paymentInfoValidator interface {
+	ValidatePaymentInfo(chatID, msgID string, info map[string]interface{}, save bool) (map[string]interface{}, error)
+}
+
+func (e *Engine) ValidatePaymentInfo(accountID, chatID, msgID string, info map[string]interface{}, save bool) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not connected", accountID)
+	}
+	v, ok := acc.Core.(paymentInfoValidator)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support payment info validation")
+	}
+	return v.ValidatePaymentInfo(chatID, msgID, info, save)
+}
+
 type hideReadMarksGetter interface {
 	GetHideReadMarks() (bool, error)
 }

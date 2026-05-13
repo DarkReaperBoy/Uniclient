@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -122,6 +124,11 @@ class _PaymentPanelState extends State<PaymentPanel>
   String? _savedEmail;
   String? _savedPhone;
   List<Map<String, dynamic>> _shippingPrices = [];
+  List<Map<String, dynamic>> _shippingOptions = [];
+  String? _selectedShippingId;
+  String? _requestedInfoId;
+  String? _credentialsData;
+  String? _cachedPhotoPath;
 
   int _receiptDate = 0;
   int _tipAmount = 0;
@@ -197,11 +204,7 @@ class _PaymentPanelState extends State<PaymentPanel>
           _savedName = saved['name'] as String?;
           _savedEmail = saved['email'] as String?;
           _savedPhone = saved['phone'] as String?;
-          final street1 = saved['street1'] as String? ?? '';
-          final city = saved['city'] as String? ?? '';
-          if (street1.isNotEmpty && city.isNotEmpty) {
-            _shippingAddress = '$street1, $city';
-          }
+          _shippingAddress = _buildFullAddress(saved);
         }
 
         final savedCreds = data['saved_credentials'] as Map<String, dynamic>?;
@@ -214,12 +217,16 @@ class _PaymentPanelState extends State<PaymentPanel>
           _paymentMethod = data['credentials_title'] as String?;
         }
 
-        final shippingOptions = data['shipping_options'] as List<dynamic>?;
-        if (shippingOptions != null && shippingOptions.isNotEmpty) {
+        final shippingOptionsList = data['shipping_options'] as List<dynamic>?;
+        if (shippingOptionsList != null && shippingOptionsList.isNotEmpty) {
+          _shippingOptions = shippingOptionsList
+              .whereType<Map<String, dynamic>>()
+              .toList();
           final selectedId = data['selected_shipping_id'] as String?;
           if (selectedId != null) {
-            for (final opt in shippingOptions) {
-              if (opt is Map<String, dynamic> && opt['id'] == selectedId) {
+            _selectedShippingId = selectedId;
+            for (final opt in _shippingOptions) {
+              if (opt['id'] == selectedId) {
                 _shippingMethod = opt['title'] as String?;
                 _shippingPrices = (opt['prices'] as List<dynamic>?)
                         ?.map((p) => p as Map<String, dynamic>)
@@ -251,11 +258,56 @@ class _PaymentPanelState extends State<PaymentPanel>
     setState(() => _state = _PanelState.submitting);
     final engine = context.read<EngineService>();
     try {
+      if (_requestedInfoId == null && _hasRequestedInfo) {
+        final info = <String, dynamic>{};
+        if (_nameRequested && _savedName != null) info['name'] = _savedName;
+        if (_phoneRequested && _savedPhone != null) info['phone'] = _savedPhone;
+        if (_emailRequested && _savedEmail != null) info['email'] = _savedEmail;
+        if (_shippingRequested && _shippingAddress != null) {
+          final saved = _formData['saved_info'] as Map<String, dynamic>?;
+          if (saved != null) {
+            info['street1'] = saved['street1'] ?? '';
+            info['street2'] = saved['street2'] ?? '';
+            info['city'] = saved['city'] ?? '';
+            info['state'] = saved['state'] ?? '';
+            info['country'] = saved['country'] ?? '';
+            info['postcode'] = saved['postcode'] ?? '';
+          }
+        }
+        final validationResult = await engine.validatePaymentInfo(
+          widget.data.accountId,
+          widget.data.chatId,
+          widget.data.msgId,
+          info,
+          save: true,
+        );
+        if (!mounted) return;
+        _requestedInfoId = validationResult['id'] as String?;
+        final opts = validationResult['shipping_options'] as List<dynamic>?;
+        if (opts != null && opts.isNotEmpty) {
+          setState(() {
+            _shippingOptions = opts.whereType<Map<String, dynamic>>().toList();
+          });
+        }
+      }
+
       final submitData = <String, dynamic>{
         'form_id': _formData['form_id'],
       };
       if (_selectedTip > 0) {
         submitData['tip_amount'] = _selectedTip;
+      }
+      if (_requestedInfoId != null) {
+        submitData['requested_info_id'] = _requestedInfoId;
+      }
+      if (_selectedShippingId != null) {
+        submitData['shipping_option_id'] = _selectedShippingId;
+      }
+      if (_credentialsData != null) {
+        submitData['credentials_data'] = _credentialsData;
+      }
+      if (_termsUrl.isNotEmpty && _termsAccepted) {
+        submitData['accept_terms'] = true;
       }
       await engine.sendPaymentForm(
         widget.data.accountId,
@@ -276,6 +328,9 @@ class _PaymentPanelState extends State<PaymentPanel>
       });
     }
   }
+
+  bool get _hasRequestedInfo =>
+      _nameRequested || _phoneRequested || _emailRequested || _shippingRequested;
 
   void _showTermsDialog() {
     showDialog(
@@ -493,7 +548,7 @@ class _PaymentPanelState extends State<PaymentPanel>
   Widget _buildLoading(Color subFg) {
     return Center(
       child: AnimatedBuilder(
-        animation: Listenable.merge([_spinnerAnim, _progressFade]),
+        animation: _progressFade,
         builder: (_, __) => Opacity(
           opacity: _progressFade.value.clamp(0.0, 1.0),
           child: SizedBox(
@@ -567,11 +622,8 @@ class _PaymentPanelState extends State<PaymentPanel>
         if (_isReceipt && _tipAmount > 0) ...[
           Padding(
             padding: _kPricePadding,
-            child: GestureDetector(
-              onTap: () => _panelChooseTips(currency, accent, fg, isDark),
-              child: _priceRow('Tips', _formatAmount(_tipAmount, currency), fg,
-                  accent, false),
-            ),
+            child: _priceRow('Tips', _formatAmount(_tipAmount, currency), fg,
+                subFg, false),
           ),
         ],
         const SizedBox(height: _kPricesBottomSkip),
@@ -615,17 +667,7 @@ class _PaymentPanelState extends State<PaymentPanel>
                 width: _kThumbSize,
                 height: _kThumbSize,
                 color: const Color(0xFFf0f0f0),
-                child: Image.network(
-                  photoUrl,
-                  width: _kThumbSize,
-                  height: _kThumbSize,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Icon(
-                    Icons.receipt_long,
-                    size: 40,
-                    color: subFg.withValues(alpha: 0.4),
-                  ),
-                ),
+                child: _buildThumbnail(photoUrl, subFg),
               ),
             ),
             const SizedBox(width: _kThumbSkip),
@@ -670,6 +712,26 @@ class _PaymentPanelState extends State<PaymentPanel>
     );
   }
 
+  Widget _buildThumbnail(String photoUrl, Color subFg) {
+    if (_cachedPhotoPath != null) {
+      return Image.file(
+        File(_cachedPhotoPath!),
+        width: _kThumbSize,
+        height: _kThumbSize,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Icon(
+          Icons.receipt_long, size: 40,
+          color: subFg.withValues(alpha: 0.4),
+        ),
+      );
+    }
+    _downloadAndCachePhoto(photoUrl);
+    return Icon(
+      Icons.receipt_long, size: 40,
+      color: subFg.withValues(alpha: 0.4),
+    );
+  }
+
   Widget _buildPricesSection(Color fg, Color subFg, String currency) {
     final totalAmount = _isReceipt
         ? ((_formData['total_amount'] as num?)?.toInt() ?? 0)
@@ -678,6 +740,18 @@ class _PaymentPanelState extends State<PaymentPanel>
     return Column(
       children: [
         for (final price in _prices)
+          Padding(
+            padding: _kPricePadding,
+            child: _priceRow(
+              price['label'] as String? ?? '',
+              _formatAmount(
+                  (price['amount'] as num?)?.toInt() ?? 0, currency),
+              fg,
+              subFg,
+              false,
+            ),
+          ),
+        for (final price in _shippingPrices)
           Padding(
             padding: _kPricePadding,
             child: _priceRow(
@@ -820,7 +894,9 @@ class _PaymentPanelState extends State<PaymentPanel>
       sections.add(_SectionData(
         icon: Icons.phone_outlined,
         label: 'Phone',
-        value: _savedPhone ?? 'Not provided',
+        value: _savedPhone != null
+            ? _formatPhoneDisplay(_savedPhone!)
+            : 'Not provided',
       ));
     }
 
@@ -878,7 +954,7 @@ class _PaymentPanelState extends State<PaymentPanel>
           setState(() => _shippingAddress = v);
         });
       case 'Shipping Method':
-        break;
+        _chooseShippingOption();
       case 'Name':
         _editField('Name', _savedName ?? '', (v) {
           setState(() => _savedName = v);
@@ -898,12 +974,282 @@ class _PaymentPanelState extends State<PaymentPanel>
     final url = _formData['url'] as String?;
     if (url != null && url.isNotEmpty) {
       launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    } else {
-      final nativeParams = _formData['native_params'] as Map<String, dynamic>?;
-      final providerUrl = nativeParams?['url'] as String?;
-      if (providerUrl != null && providerUrl.isNotEmpty) {
-        launchUrl(Uri.parse(providerUrl), mode: LaunchMode.externalApplication);
+      return;
+    }
+    final nativeParams = _formData['native_params'] as Map<String, dynamic>?;
+    final publishableKey = nativeParams?['publishable_key'] as String? ??
+        nativeParams?['publishableKey'] as String?;
+    if (publishableKey != null && publishableKey.isNotEmpty) {
+      _showNativeCardForm(publishableKey, nativeParams!);
+      return;
+    }
+    final providerUrl = nativeParams?['url'] as String?;
+    if (providerUrl != null && providerUrl.isNotEmpty) {
+      launchUrl(Uri.parse(providerUrl), mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _showNativeCardForm(String publishableKey, Map<String, dynamic> nativeParams) {
+    final needCountry = nativeParams['need_country'] == true;
+    final needZip = nativeParams['need_zip'] == true;
+    final needCardholderName = nativeParams['need_cardholder_name'] == true;
+    final cardNumberCtrl = TextEditingController();
+    final expMonthCtrl = TextEditingController();
+    final expYearCtrl = TextEditingController();
+    final cvcCtrl = TextEditingController();
+    final nameCtrl = TextEditingController();
+    final countryCtrl = TextEditingController();
+    final zipCtrl = TextEditingController();
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Card Details'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: cardNumberCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Card Number',
+                    hintText: '4242 4242 4242 4242',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: expMonthCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'MM',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: expYearCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'YY',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: cvcCtrl,
+                        keyboardType: TextInputType.number,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'CVC',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (needCardholderName) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Cardholder Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+                if (needCountry) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: countryCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Country',
+                      hintText: 'US',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+                if (needZip) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: zipCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'ZIP / Postal Code',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      setDialogState(() => isLoading = true);
+                      try {
+                        final token = await _tokenizeCard(
+                          publishableKey: publishableKey,
+                          cardNumber: cardNumberCtrl.text.replaceAll(' ', ''),
+                          expMonth: expMonthCtrl.text,
+                          expYear: expYearCtrl.text,
+                          cvc: cvcCtrl.text,
+                          name: needCardholderName ? nameCtrl.text : null,
+                          country: needCountry ? countryCtrl.text : null,
+                          zip: needZip ? zipCtrl.text : null,
+                        );
+                        if (!mounted) return;
+                        setState(() {
+                          _credentialsData = token;
+                          _paymentMethod = 'Card ****${cardNumberCtrl.text.replaceAll(' ', '').substring(cardNumberCtrl.text.replaceAll(' ', '').length - 4)}';
+                        });
+                        Navigator.of(ctx).pop();
+                      } catch (e) {
+                        setDialogState(() => isLoading = false);
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(content: Text('Card error: $e')),
+                          );
+                        }
+                      }
+                    },
+              child: isLoading
+                  ? const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<String> _tokenizeCard({
+    required String publishableKey,
+    required String cardNumber,
+    required String expMonth,
+    required String expYear,
+    required String cvc,
+    String? name,
+    String? country,
+    String? zip,
+  }) async {
+    final provider = _formData['native_provider'] as String? ?? '';
+    if (provider.toLowerCase().contains('stripe')) {
+      return _tokenizeStripe(
+        publishableKey: publishableKey,
+        cardNumber: cardNumber,
+        expMonth: expMonth,
+        expYear: expYear,
+        cvc: cvc,
+        name: name,
+        country: country,
+        zip: zip,
+      );
+    }
+    if (provider.toLowerCase().contains('smartglocal')) {
+      return _tokenizeSmartGlocal(
+        publishableKey: publishableKey,
+        cardNumber: cardNumber,
+        expMonth: expMonth,
+        expYear: expYear,
+        cvc: cvc,
+      );
+    }
+    throw UnsupportedError('Unsupported native provider: $provider');
+  }
+
+  Future<String> _tokenizeStripe({
+    required String publishableKey,
+    required String cardNumber,
+    required String expMonth,
+    required String expYear,
+    required String cvc,
+    String? name,
+    String? country,
+    String? zip,
+  }) async {
+    final body = <String, String>{
+      'card[number]': cardNumber,
+      'card[exp_month]': expMonth,
+      'card[exp_year]': expYear,
+      'card[cvc]': cvc,
+    };
+    if (name != null && name.isNotEmpty) body['card[name]'] = name;
+    if (country != null && country.isNotEmpty) body['card[address_country]'] = country;
+    if (zip != null && zip.isNotEmpty) body['card[address_zip]'] = zip;
+
+    final client = HttpClient();
+    try {
+      final request = await client.postUrl(Uri.parse('https://api.stripe.com/v1/tokens'));
+      request.headers.set('Authorization', 'Bearer $publishableKey');
+      request.headers.set('Content-Type', 'application/x-www-form-urlencoded');
+      final encodedBody = body.entries
+          .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+      request.write(encodedBody);
+      final response = await request.close();
+      final respBody = await response.transform(utf8.decoder).join();
+      if (response.statusCode != 200) {
+        final err = json.decode(respBody);
+        throw Exception(err['error']?['message'] ?? 'Stripe tokenization failed');
       }
+      final tokenData = json.decode(respBody) as Map<String, dynamic>;
+      return json.encode({'type': 'card', 'id': tokenData['id']});
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<String> _tokenizeSmartGlocal({
+    required String publishableKey,
+    required String cardNumber,
+    required String expMonth,
+    required String expYear,
+    required String cvc,
+  }) async {
+    final body = json.encode({
+      'card': {
+        'number': cardNumber,
+        'expiration_month': expMonth,
+        'expiration_year': expYear,
+        'security_code': cvc,
+      },
+    });
+    final client = HttpClient();
+    try {
+      final request = await client.postUrl(
+        Uri.parse('https://tgb-playground.smart-glocal.com/cds/v1/tokenize/card'),
+      );
+      request.headers.set('X-PUBLIC-TOKEN', publishableKey);
+      request.headers.set('Content-Type', 'application/json');
+      request.write(body);
+      final response = await request.close();
+      final respBody = await response.transform(utf8.decoder).join();
+      if (response.statusCode != 200) {
+        throw Exception('SmartGlocal tokenization failed');
+      }
+      final tokenData = json.decode(respBody) as Map<String, dynamic>;
+      final data = tokenData['data'] as Map<String, dynamic>?;
+      return json.encode({'type': 'card', 'token': data?['token'] ?? ''});
+    } finally {
+      client.close();
     }
   }
 
@@ -934,6 +1280,45 @@ class _PaymentPanelState extends State<PaymentPanel>
             child: const Text('Save'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _chooseShippingOption() {
+    if (_shippingOptions.isEmpty) return;
+    final currency = _formData['currency'] as String? ?? widget.data.currency;
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Shipping Method'),
+        children: _shippingOptions.map((opt) {
+          final title = opt['title'] as String? ?? '';
+          final prices = (opt['prices'] as List<dynamic>?)
+                  ?.whereType<Map<String, dynamic>>()
+                  .toList() ??
+              [];
+          int optTotal = 0;
+          for (final p in prices) {
+            optTotal += (p['amount'] as num?)?.toInt() ?? 0;
+          }
+          final priceStr = _formatAmount(optTotal, currency);
+          return SimpleDialogOption(
+            onPressed: () {
+              setState(() {
+                _selectedShippingId = opt['id'] as String?;
+                _shippingMethod = title;
+                _shippingPrices = prices;
+              });
+              Navigator.of(ctx).pop();
+            },
+            child: ListTile(
+              title: Text(title),
+              trailing: Text(priceStr),
+              selected: _selectedShippingId == opt['id'],
+              contentPadding: EdgeInsets.zero,
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -983,11 +1368,14 @@ class _PaymentPanelState extends State<PaymentPanel>
           TextButton(
             onPressed: () {
               final val = int.tryParse(controller.text);
-              if (val != null && val >= 0 && val <= _maxTip) {
+              if (val != null && val >= 0) {
                 final exp = _currencyExponent(currency);
                 int multiplier = 1;
                 for (int i = 0; i < exp; i++) multiplier *= 10;
-                setState(() => _selectedTip = val * multiplier);
+                final minorVal = val * multiplier;
+                if (_maxTip <= 0 || minorVal <= _maxTip) {
+                  setState(() => _selectedTip = minorVal);
+                }
               }
               Navigator.of(ctx).pop();
             },
@@ -1073,6 +1461,91 @@ class _PaymentPanelState extends State<PaymentPanel>
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year} '
         '${dt.hour.toString().padLeft(2, '0')}:'
         '${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  String? _buildFullAddress(Map<String, dynamic> saved) {
+    final parts = <String>[];
+    final s1 = saved['street1'] as String? ?? '';
+    if (s1.isNotEmpty) parts.add(s1);
+    final s2 = saved['street2'] as String? ?? '';
+    if (s2.isNotEmpty) parts.add(s2);
+    final city = saved['city'] as String? ?? '';
+    if (city.isNotEmpty) parts.add(city);
+    final state = saved['state'] as String? ?? '';
+    if (state.isNotEmpty) parts.add(state);
+    final countryISO = saved['country'] as String? ?? '';
+    if (countryISO.isNotEmpty) {
+      parts.add(_countryName(countryISO));
+    }
+    final postcode = saved['postcode'] as String? ?? '';
+    if (postcode.isNotEmpty) parts.add(postcode);
+    return parts.isEmpty ? null : parts.join(', ');
+  }
+
+  static String _countryName(String iso2) {
+    const countries = {
+      'US': 'United States', 'GB': 'United Kingdom', 'DE': 'Germany',
+      'FR': 'France', 'IT': 'Italy', 'ES': 'Spain', 'CA': 'Canada',
+      'AU': 'Australia', 'JP': 'Japan', 'CN': 'China', 'IN': 'India',
+      'BR': 'Brazil', 'RU': 'Russia', 'KR': 'South Korea', 'MX': 'Mexico',
+      'NL': 'Netherlands', 'SE': 'Sweden', 'NO': 'Norway', 'DK': 'Denmark',
+      'FI': 'Finland', 'PL': 'Poland', 'AT': 'Austria', 'CH': 'Switzerland',
+      'BE': 'Belgium', 'PT': 'Portugal', 'CZ': 'Czech Republic',
+      'IE': 'Ireland', 'NZ': 'New Zealand', 'SG': 'Singapore',
+      'HK': 'Hong Kong', 'TW': 'Taiwan', 'TH': 'Thailand',
+      'MY': 'Malaysia', 'PH': 'Philippines', 'ID': 'Indonesia',
+      'TR': 'Turkey', 'SA': 'Saudi Arabia', 'AE': 'United Arab Emirates',
+      'IL': 'Israel', 'EG': 'Egypt', 'ZA': 'South Africa', 'NG': 'Nigeria',
+      'AR': 'Argentina', 'CL': 'Chile', 'CO': 'Colombia', 'PE': 'Peru',
+      'UA': 'Ukraine', 'RO': 'Romania', 'HU': 'Hungary', 'GR': 'Greece',
+      'IR': 'Iran',
+    };
+    return countries[iso2.toUpperCase()] ?? iso2;
+  }
+
+  static String _formatPhoneDisplay(String phone) {
+    if (phone.isEmpty) return phone;
+    String digits = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    if (!digits.startsWith('+')) digits = '+$digits';
+    if (digits.length <= 4) return digits;
+    if (digits.startsWith('+1') && digits.length == 12) {
+      return '+1 (${digits.substring(2, 5)}) ${digits.substring(5, 8)}-${digits.substring(8)}';
+    }
+    if (digits.startsWith('+44') && digits.length >= 13) {
+      return '+44 ${digits.substring(3, 7)} ${digits.substring(7)}';
+    }
+    if (digits.startsWith('+7') && digits.length == 12) {
+      return '+7 (${digits.substring(2, 5)}) ${digits.substring(5, 8)}-${digits.substring(8, 10)}-${digits.substring(10)}';
+    }
+    final cc = digits.substring(0, digits.length <= 12 ? 2 : 3);
+    final rest = digits.substring(cc.length);
+    final buf = StringBuffer(cc);
+    for (int i = 0; i < rest.length; i++) {
+      if (i > 0 && i % 3 == 0) buf.write(' ');
+      buf.write(rest[i]);
+    }
+    return buf.toString();
+  }
+
+  Future<void> _downloadAndCachePhoto(String url) async {
+    if (_cachedPhotoPath != null) return;
+    try {
+      final client = HttpClient();
+      final request = await client.getUrl(Uri.parse(url));
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final bytes = await response.fold<List<int>>(
+          <int>[],
+          (prev, chunk) => prev..addAll(chunk),
+        );
+        final tmpFile = File('${Directory.systemTemp.path}/payment_thumb_${url.hashCode}.jpg');
+        await tmpFile.writeAsBytes(bytes);
+        if (mounted) {
+          setState(() => _cachedPhotoPath = tmpFile.path);
+        }
+      }
+      client.close();
+    } catch (_) {}
   }
 }
 

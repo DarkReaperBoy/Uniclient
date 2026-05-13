@@ -127,6 +127,13 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   StreamSubscription<UserStatusEvent>? _statusSub;
   StreamSubscription<ChatInfo>? _chatUpdateSub;
   String? _currentPhotoPath;
+  double _videoProgress = 1.0;
+  bool _videoBuffering = false;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration>? _durationSub;
+  StreamSubscription<bool>? _bufferingSub;
+  Duration _videoPosition = Duration.zero;
+  Duration _videoDuration = Duration.zero;
 
   @override
   void initState() {
@@ -211,6 +218,9 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   void dispose() {
     _statusSub?.cancel();
     _chatUpdateSub?.cancel();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
+    _bufferingSub?.cancel();
     _disposeVideoPlayer();
     _scrollController.dispose();
     _scrollNotifier.dispose();
@@ -230,6 +240,25 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       _videoPlayer = player;
       _videoController = VideoController(player);
       player.setPlaylistMode(PlaylistMode.loop);
+      _positionSub = player.stream.position.listen((pos) {
+        if (mounted) {
+          _videoPosition = pos;
+          final progress = _videoDuration.inMilliseconds > 0
+              ? pos.inMilliseconds / _videoDuration.inMilliseconds
+              : 1.0;
+          if ((progress - _videoProgress).abs() > 0.01) {
+            setState(() => _videoProgress = progress);
+          }
+        }
+      });
+      _durationSub = player.stream.duration.listen((dur) {
+        if (mounted) _videoDuration = dur;
+      });
+      _bufferingSub = player.stream.buffering.listen((buffering) {
+        if (mounted && _videoBuffering != buffering) {
+          setState(() => _videoBuffering = buffering);
+        }
+      });
       player.open(Media(_profile!.videoAvatarPath));
     }
   }
@@ -363,12 +392,11 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     ).then((value) {
       if (value == 'new_window' && mounted) {
         Navigator.of(context).pop();
-        final chat = chatState.chats
-            .where((c) =>
-                c.chatId == widget.peerId &&
-                c.accountId == widget.accountId)
-            .firstOrNull;
-        if (chat != null) chatState.openChat(chat);
+        Process.start(
+          Platform.resolvedExecutable,
+          ['--chat', widget.peerId, '--account', widget.accountId],
+          mode: ProcessStartMode.detached,
+        );
       }
     });
   }
@@ -578,75 +606,87 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
 
     final topBarAreaHeight = _kBarPadding * 2 + _kBarHeight;
 
+    final topGradient = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withValues(alpha: _kShadowMaxAlpha),
+            Colors.transparent,
+          ],
+        ),
+      ),
+    );
+    final bottomGradient = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.transparent,
+            Colors.black.withValues(alpha: _kShadowMaxAlpha),
+          ],
+        ),
+      ),
+    );
+    final nameWidget = Text(
+      displayName,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        height: 1.27,
+      ),
+    );
+    final statusWidget = Text(
+      statusText,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: Colors.white.withValues(alpha: 0.7),
+        fontSize: 13,
+      ),
+    );
+
     return SizedBox(
       width: _kCoverSize,
       height: _kCoverSize,
-      child: ValueListenableBuilder<double>(
-        valueListenable: _scrollNotifier,
-        builder: (context, scrollOffset, _) {
-          final fadeEnd = _kCoverSize - _kShadowHeight;
-          double opacity;
-          if (scrollOffset <= 0) {
-            opacity = 1.0;
-          } else if (scrollOffset >= fadeEnd) {
-            opacity = 0.0;
-          } else {
-            opacity = (1.0 - scrollOffset / fadeEnd).clamp(0.0, 1.0);
-          }
-
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                height: topBarAreaHeight + 10,
-                child: Opacity(
-                  opacity: opacity,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: _kShadowMaxAlpha),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: _kShadowHeight,
-                child: Opacity(
-                  opacity: opacity,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: _kShadowMaxAlpha),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              if (_photoCount > 1)
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ValueListenableBuilder<double>(
+            valueListenable: _scrollNotifier,
+            builder: (context, scrollOffset, child) {
+              final fadeEnd = _kCoverSize - _kShadowHeight;
+              final opacity = scrollOffset <= 0
+                  ? 1.0
+                  : scrollOffset >= fadeEnd
+                      ? 0.0
+                      : (1.0 - scrollOffset / fadeEnd).clamp(0.0, 1.0);
+              return Opacity(opacity: opacity, child: child);
+            },
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
                 Positioned(
-                  left: _kBarPadding,
-                  right: _kBarPadding,
-                  top: _kBarPadding,
-                  height: _kBarHeight,
-                  child: Opacity(
-                    opacity: opacity,
+                  left: 0, right: 0, top: 0,
+                  height: topBarAreaHeight + 10,
+                  child: topGradient,
+                ),
+                Positioned(
+                  left: 0, right: 0, bottom: 0,
+                  height: _kShadowHeight,
+                  child: bottomGradient,
+                ),
+                if (_photoCount > 1)
+                  Positioned(
+                    left: _kBarPadding,
+                    right: _kBarPadding,
+                    top: _kBarPadding,
+                    height: _kBarHeight,
                     child: CustomPaint(
                       painter: _PhotoProgressBarsPainter(
                         count: _photoCount,
@@ -654,36 +694,20 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
                         barColor: Colors.white,
                         gap: _kBarGap,
                         inactiveOpacity: _kInactiveBarOpacity,
+                        videoProgress: _videoController != null
+                            ? _videoProgress
+                            : 1.0,
                       ),
                     ),
                   ),
-                ),
-              Positioned(
-                left: _kNameX,
-                right: _kNameX,
-                bottom: _kNameY,
-                child: Opacity(
-                  opacity: opacity,
-                  child: Text(
-                    displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      height: 1.27,
-                    ),
-                  ),
-                ),
-              ),
-              if (additionalStatus.isNotEmpty)
                 Positioned(
-                  left: _kStatusX,
-                  right: _kStatusX,
-                  bottom: _kStatusY + 16,
-                  child: Opacity(
-                    opacity: opacity,
+                  left: _kNameX, right: _kNameX, bottom: _kNameY,
+                  child: nameWidget,
+                ),
+                if (additionalStatus.isNotEmpty)
+                  Positioned(
+                    left: _kStatusX, right: _kStatusX,
+                    bottom: _kStatusY + 16,
                     child: Text(
                       additionalStatus,
                       maxLines: 1,
@@ -694,72 +718,54 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
                       ),
                     ),
                   ),
+                Positioned(
+                  left: _kStatusX, right: _kStatusX, bottom: _kStatusY,
+                  child: statusWidget,
                 ),
-              Positioned(
-                left: _kStatusX,
-                right: _kStatusX,
-                bottom: _kStatusY,
-                child: Opacity(
-                  opacity: opacity,
-                  child: Text(
-                    statusText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 13,
+              ],
+            ),
+          ),
+          if (_photoCount > 1) ...[
+            Positioned(
+              left: 0, top: 0, bottom: 0,
+              width: _kCoverSize / 3,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => _navigatePhoto(-1),
+                  behavior: HitTestBehavior.opaque,
+                ),
+              ),
+            ),
+            Positioned(
+              left: _kCoverSize / 3, top: 0, bottom: 0, right: 0,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => _navigatePhoto(1),
+                  behavior: HitTestBehavior.opaque,
+                ),
+              ),
+            ),
+          ],
+          if (_showRadialLoader || _videoBuffering)
+            Positioned.fill(
+              child: Center(
+                child: AnimatedOpacity(
+                  opacity: (_showRadialLoader || _videoBuffering) ? 1.0 : 0.0,
+                  duration: _kAnimDuration,
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white.withValues(alpha: 0.8),
                     ),
                   ),
                 ),
               ),
-              if (_photoCount > 1) ...[
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: _kCoverSize / 3,
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: () => _navigatePhoto(-1),
-                      behavior: HitTestBehavior.opaque,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: _kCoverSize / 3,
-                  top: 0,
-                  bottom: 0,
-                  right: 0,
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: () => _navigatePhoto(1),
-                      behavior: HitTestBehavior.opaque,
-                    ),
-                  ),
-                ),
-              ],
-              if (_showRadialLoader)
-                Positioned.fill(
-                  child: Center(
-                    child: AnimatedOpacity(
-                      opacity: 1.0,
-                      duration: _kAnimDuration,
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white.withValues(alpha: 0.8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
+            ),
+        ],
       ),
     );
   }
@@ -1183,6 +1189,7 @@ class _PhotoProgressBarsPainter extends CustomPainter {
   final Color barColor;
   final double gap;
   final double inactiveOpacity;
+  final double videoProgress;
 
   _PhotoProgressBarsPainter({
     required this.count,
@@ -1190,6 +1197,7 @@ class _PhotoProgressBarsPainter extends CustomPainter {
     required this.barColor,
     required this.gap,
     required this.inactiveOpacity,
+    this.videoProgress = 1.0,
   });
 
   @override
@@ -1202,14 +1210,30 @@ class _PhotoProgressBarsPainter extends CustomPainter {
     for (int i = 0; i < count; i++) {
       final x = i * (barWidth + gap);
       final isActive = i == activeIndex;
-      final paint = Paint()
-        ..color =
-            barColor.withValues(alpha: isActive ? 1.0 : inactiveOpacity)
+      final bgPaint = Paint()
+        ..color = barColor.withValues(alpha: inactiveOpacity)
         ..style = PaintingStyle.fill;
       canvas.drawRRect(
         RRect.fromLTRBR(x, 0, x + barWidth, size.height, radius),
-        paint,
+        bgPaint,
       );
+      if (isActive) {
+        final fillWidth = barWidth * videoProgress.clamp(0.0, 1.0);
+        if (fillWidth > 0) {
+          final fgPaint = Paint()
+            ..color = barColor
+            ..style = PaintingStyle.fill;
+          canvas.save();
+          canvas.clipRRect(
+            RRect.fromLTRBR(x, 0, x + barWidth, size.height, radius),
+          );
+          canvas.drawRect(
+            Rect.fromLTWH(x, 0, fillWidth, size.height),
+            fgPaint,
+          );
+          canvas.restore();
+        }
+      }
     }
   }
 
@@ -1217,5 +1241,6 @@ class _PhotoProgressBarsPainter extends CustomPainter {
   bool shouldRepaint(_PhotoProgressBarsPainter old) =>
       old.count != count ||
       old.activeIndex != activeIndex ||
-      old.barColor != barColor;
+      old.barColor != barColor ||
+      old.videoProgress != videoProgress;
 }

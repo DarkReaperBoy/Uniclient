@@ -3656,6 +3656,20 @@ class EngineService {
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> validatePaymentInfo(
+    String accountId, String chatId, String msgId,
+    Map<String, dynamic> info, {bool save = false}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+      'info': info,
+      'save': save,
+    }));
+    final respBytes = await _callAsync('__engine', 'ValidatePaymentInfo', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
   Future<bool> getHideReadMarks(String accountId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

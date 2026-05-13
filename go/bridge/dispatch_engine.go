@@ -3071,6 +3071,23 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(receipt)
 
+	case "ValidatePaymentInfo":
+		var params struct {
+			AccountID string                 `json:"account_id"`
+			ChatID    string                 `json:"chat_id"`
+			MsgID     string                 `json:"msg_id"`
+			Info      map[string]interface{} `json:"info"`
+			Save      bool                   `json:"save"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.ValidatePaymentInfo(params.AccountID, params.ChatID, params.MsgID, params.Info, params.Save)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
 	case "GetHideReadMarks":
 		var params struct {
 			AccountID string `json:"account_id"`
