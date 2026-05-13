@@ -901,11 +901,11 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
             constraints: const BoxConstraints(maxHeight: 400),
             child: filtered.isEmpty
                 ? SizedBox(
-                    height: 52,
+                    height: 100,
                     child: Center(
                       child: Text(
                         'No countries found',
-                        style: TextStyle(fontSize: 14, color: subColor),
+                        style: TextStyle(fontSize: 13, color: subColor),
                       ),
                     ),
                   )
@@ -1651,11 +1651,13 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                           ),
                       ],
                     ),
-                    if (_optionCtrls[i].text.length >= _kWarnOptionLimit)
+                    if (_kOptionLimit - _optionCtrls[i].text.length < _kWarnOptionLimit)
                       Align(
                         alignment: Alignment.centerRight,
                         child: Text(
-                          '${_optionCtrls[i].text.length}/$_kOptionLimit',
+                          _optionCtrls[i].text.length <= _kOptionLimit
+                              ? '${_kOptionLimit - _optionCtrls[i].text.length}'
+                              : '−${_optionCtrls[i].text.length - _kOptionLimit}',
                           style: TextStyle(
                             fontSize: 12,
                             color: _optionCtrls[i].text.length > _kOptionLimit
@@ -1693,13 +1695,14 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                 }), checkClr, textColor),
             const SizedBox(height: 8),
             _checkRow('Allow Revoting', _allowRevoting,
-                (v) => setState(() => _allowRevoting = v ?? true),
+                _quiz ? null : (v) => setState(() => _allowRevoting = v ?? true),
                 checkClr, textColor),
             const SizedBox(height: 8),
             _checkRow('Quiz Mode', _quiz, (v) => setState(() {
               _quiz = v ?? false;
               if (_quiz) {
                 _multipleChoice = false;
+                _allowRevoting = false;
               } else {
                 _correctOption = -1;
                 _solutionCtrl.clear();
@@ -1752,10 +1755,10 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     );
   }
 
-  Widget _checkRow(String label, bool value, ValueChanged<bool?> onChanged,
+  Widget _checkRow(String label, bool value, ValueChanged<bool?>? onChanged,
       Color checkColor, Color textColor) {
     return InkWell(
-      onTap: () => onChanged(!value),
+      onTap: onChanged != null ? () => onChanged(!value) : null,
       child: Row(
         children: [
           SizedBox(
