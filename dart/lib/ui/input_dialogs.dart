@@ -1246,6 +1246,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
               enabled: !_saving,
               inputFormatters: [LengthLimitingTextInputFormatter(_kMaxLabelLength)],
             ),
+            if (!_subscriptionLocked) ...[
             const SizedBox(height: 20),
             Text('Expire After',
                 style: TextStyle(
@@ -1360,6 +1361,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
                 ),
               ),
             ],
+            ], // end if (!_subscriptionLocked)
             if (!widget.isPublic) ...[
               const SizedBox(height: 12),
               InkWell(
