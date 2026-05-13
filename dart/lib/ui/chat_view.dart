@@ -159,6 +159,7 @@ class ChatView extends StatefulWidget {
   static VoidCallback? showCodeLanguageDialogRequest;
   static VoidCallback? toggleEmojiPanelRequest;
   static bool Function()? startRecordVoiceRequest;
+  static bool Function()? startRecordRoundRequest;
   static bool Function()? openFilePickerRequest;
   static VoidCallback? clearFormattingRequest;
 
@@ -13032,6 +13033,11 @@ class _ComposeAreaState extends State<_ComposeArea>
       _startRecording(0, 0);
       return true;
     };
+    ChatView.startRecordRoundRequest = () {
+      if (!mounted) return false;
+      _startRecording(0, 0, videoRound: true);
+      return true;
+    };
     ChatView.openFilePickerRequest = () {
       if (!mounted) return false;
       _pickFiles();
@@ -13088,6 +13094,7 @@ class _ComposeAreaState extends State<_ComposeArea>
     _audioRecorder?.stop().catchError((_) {}).whenComplete(() => _audioRecorder?.dispose());
     _audioRecorder = null;
     ChatView.startRecordVoiceRequest = null;
+    ChatView.startRecordRoundRequest = null;
     ChatView.openFilePickerRequest = null;
     _scrollController.dispose();
     _focusNode.dispose();

@@ -179,7 +179,6 @@ class _LanguageBoxState extends State<LanguageBox> {
     appState.addRecentLanguage(langCode);
     _persistLanguagePrefs(appState);
     setState(() => _selectedCode = langCode);
-    Navigator.of(context).pop(langCode);
   }
 
   void _persistLanguagePrefs(AppState appState) {
@@ -231,7 +230,6 @@ class _LanguageBoxState extends State<LanguageBox> {
     final accentColor = p.windowBgActive;
     final hoverColor = p.windowBgOver;
     final dividerColor = p.boxDividerBg;
-    final searchBgColor = p.boxSearchBg;
 
     final appState = context.watch<AppState>();
     final isLoggedIn = appState.activeAccountId.isNotEmpty;
@@ -283,8 +281,9 @@ class _LanguageBoxState extends State<LanguageBox> {
                 isDark: isDark,
                 textColor: textColor,
                 hoverColor: hoverColor,
-                locked: true,
+                locked: !(appState.activeAccount?.isPremium ?? false),
                 onChanged: (v) {
+                  if (!(appState.activeAccount?.isPremium ?? false)) return;
                   appState.setTranslateEntireChats(v);
                   _persistLanguagePrefs(appState);
                 },
@@ -334,35 +333,29 @@ class _LanguageBoxState extends State<LanguageBox> {
               ),
               Container(height: 7, color: dividerColor),
             ],
-            const SizedBox(height: 8),
-            // Search bar
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Container(
-                height: 36,
-                decoration: BoxDecoration(
-                  color: searchBgColor,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  focusNode: _searchFocus,
-                  onChanged: _onSearchChanged,
-                  style: TextStyle(fontSize: 13, color: textColor),
-                  decoration: InputDecoration(
-                    hintText: 'Search',
-                    hintStyle: TextStyle(fontSize: 13, color: subTextColor),
-                    prefixIcon: Icon(Icons.search, size: 18, color: subTextColor),
-                    prefixIconConstraints: const BoxConstraints(minWidth: 36),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                    isDense: true,
+              padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocus,
+                onChanged: _onSearchChanged,
+                style: TextStyle(fontSize: 13, color: textColor),
+                decoration: InputDecoration(
+                  hintText: 'Search languages',
+                  hintStyle: TextStyle(fontSize: 13, color: subTextColor),
+                  prefixIcon: Icon(Icons.search, size: 18, color: subTextColor),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 28),
+                  border: UnderlineInputBorder(
+                    borderSide: BorderSide(color: dividerColor),
                   ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: accentColor),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  isDense: true,
                 ),
               ),
             ),
-            const SizedBox(height: 4),
-            Container(height: 1, color: dividerColor),
             // Language list
             if (_loading)
               const SizedBox(
@@ -858,6 +851,9 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
         _selected.add(langCode);
       }
     });
+  }
+
+  void _save() {
     final appState = context.read<AppState>();
     appState.setSkipTranslationLanguages(_selected.toList());
     final engine = context.read<EngineService>();
@@ -872,6 +868,7 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
         'removedLanguageCodes': appState.removedLanguageCodes,
       });
     }
+    Navigator.of(context).pop();
   }
 
   @override
@@ -980,8 +977,8 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
               child: Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Close', style: TextStyle(color: accentColor)),
+                  onPressed: _save,
+                  child: Text('Save', style: TextStyle(color: accentColor)),
                 ),
               ),
             ),
@@ -1010,45 +1007,36 @@ class _LangEntry {
   });
 }
 
-// Curated list of Google Translate-supported languages (matches AyuGram's
-// TranslationLanguagesList, NOT the Telegram UI language pack list).
+// Exact match of AyuGram's TranslationLanguagesList (choose_language_box.cpp:27-128).
 final List<_LangEntry> _kTranslationLanguages = [
+  'en:English:English', 'ar:Arabic:العربية', 'be:Belarusian:Беларуская',
+  'ca:Catalan:Català', 'zh:Chinese:中文', 'nl:Dutch:Nederlands',
+  'fr:French:Français', 'de:German:Deutsch', 'id:Indonesian:Indonesia',
+  'it:Italian:Italiano', 'ja:Japanese:日本語', 'ko:Korean:한국어',
+  'pl:Polish:Polski', 'pt:Portuguese:Português', 'ru:Russian:Русский',
+  'es:Spanish:Español', 'uk:Ukrainian:Українська',
   'af:Afrikaans:Afrikaans', 'sq:Albanian:Shqip', 'am:Amharic:አማርኛ',
-  'ar:Arabic:العربية', 'hy:Armenian:Հայերեն', 'az:Azerbaijani:Azərbaycan',
-  'eu:Basque:Euskara', 'be:Belarusian:Беларуская', 'bn:Bengali:বাংলা',
-  'bs:Bosnian:Bosanski', 'bg:Bulgarian:Български', 'ca:Catalan:Català',
-  'ceb:Cebuano:Cebuano', 'zh:Chinese:中文', 'co:Corsican:Corsu',
+  'hy:Armenian:Հայերեն', 'az:Azerbaijani:Azərbaycan', 'eu:Basque:Euskara',
+  'bs:Bosnian:Bosanski', 'bg:Bulgarian:Български', 'my:Burmese:မြန်မာ',
   'hr:Croatian:Hrvatski', 'cs:Czech:Čeština', 'da:Danish:Dansk',
-  'nl:Dutch:Nederlands', 'en:English:English', 'eo:Esperanto:Esperanto',
-  'et:Estonian:Eesti', 'fi:Finnish:Suomi', 'fr:French:Français',
-  'fy:Frisian:Frysk', 'gl:Galician:Galego', 'ka:Georgian:ქართული',
-  'de:German:Deutsch', 'el:Greek:Ελληνικά', 'gu:Gujarati:ગુજરાતી',
-  'ht:Haitian Creole:Kreyòl Ayisyen', 'ha:Hausa:Hausa', 'haw:Hawaiian:ʻŌlelo Hawaiʻi',
-  'he:Hebrew:עברית', 'hi:Hindi:हिन्दी', 'hmn:Hmong:Hmong',
-  'hu:Hungarian:Magyar', 'is:Icelandic:Íslenska', 'ig:Igbo:Igbo',
-  'id:Indonesian:Indonesia', 'ga:Irish:Gaeilge', 'it:Italian:Italiano',
-  'ja:Japanese:日本語', 'jv:Javanese:Jawa', 'kn:Kannada:ಕನ್ನಡ',
-  'kk:Kazakh:Қазақ', 'km:Khmer:ខ្មែរ', 'rw:Kinyarwanda:Ikinyarwanda',
-  'ko:Korean:한국어', 'ku:Kurdish:Kurdî', 'ky:Kyrgyz:Кыргызча',
-  'lo:Lao:ລາວ', 'la:Latin:Latina', 'lv:Latvian:Latviešu',
-  'lt:Lithuanian:Lietuvių', 'lb:Luxembourgish:Lëtzebuergesch', 'mk:Macedonian:Македонски',
-  'mg:Malagasy:Malagasy', 'ms:Malay:Melayu', 'ml:Malayalam:മലയാളം',
-  'mt:Maltese:Malti', 'mi:Maori:Māori', 'mr:Marathi:मराठी',
-  'mn:Mongolian:Монгол', 'my:Myanmar:မြန်မာ', 'ne:Nepali:नेपाली',
-  'no:Norwegian:Norsk', 'ny:Nyanja:Chichewa', 'or:Odia:ଓଡ଼ିଆ',
-  'ps:Pashto:پښتو', 'fa:Persian:فارسی', 'pl:Polish:Polski',
-  'pt:Portuguese:Português', 'pa:Punjabi:ਪੰਜਾਬੀ', 'ro:Romanian:Română',
-  'ru:Russian:Русский', 'sm:Samoan:Gagana Sāmoa', 'gd:Scots Gaelic:Gàidhlig',
-  'sr:Serbian:Српски', 'st:Sesotho:Sesotho', 'sn:Shona:Shona',
+  'eo:Esperanto:Esperanto', 'et:Estonian:Eesti', 'fi:Finnish:Suomi',
+  'gd:Gaelic:Gàidhlig', 'gl:Galician:Galego', 'ka:Georgian:ქართული',
+  'el:Greek:Ελληνικά', 'guz:Gusii:Ekegusii', 'ha:Hausa:Hausa',
+  'he:Hebrew:עברית', 'hu:Hungarian:Magyar', 'is:Icelandic:Íslenska',
+  'ig:Igbo:Igbo', 'ga:Irish:Gaeilge', 'kk:Kazakh:Қазақ',
+  'rw:Kinyarwanda:Ikinyarwanda', 'ku:Kurdish:Kurdî', 'lo:Lao:ລາວ',
+  'lv:Latvian:Latviešu', 'lt:Lithuanian:Lietuvių', 'lb:Luxembourgish:Lëtzebuergesch',
+  'mk:Macedonian:Македонски', 'mg:Malagasy:Malagasy', 'ms:Malay:Melayu',
+  'mt:Maltese:Malti', 'mi:Maori:Māori', 'mn:Mongolian:Монгол',
+  'ne:Nepali:नेपाली', 'ps:Pashto:پښتو', 'fa:Persian:فارسی',
+  'ro:Romanian:Română', 'sr:Serbian:Српски', 'sn:Shona:Shona',
   'sd:Sindhi:سنڌي', 'si:Sinhala:සිංහල', 'sk:Slovak:Slovenčina',
-  'sl:Slovenian:Slovenščina', 'so:Somali:Soomaali', 'es:Spanish:Español',
-  'su:Sundanese:Basa Sunda', 'sw:Swahili:Kiswahili', 'sv:Swedish:Svenska',
-  'tl:Tagalog:Tagalog', 'tg:Tajik:Тоҷикӣ', 'ta:Tamil:தமிழ்',
-  'tt:Tatar:Татар', 'te:Telugu:తెలుగు', 'th:Thai:ไทย',
-  'tr:Turkish:Türkçe', 'tk:Turkmen:Türkmençe', 'uk:Ukrainian:Українська',
-  'ur:Urdu:اردو', 'ug:Uyghur:ئۇيغۇرچە', 'uz:Uzbek:Oʻzbek',
-  'vi:Vietnamese:Tiếng Việt', 'cy:Welsh:Cymraeg', 'xh:Xhosa:isiXhosa',
-  'yi:Yiddish:ייִדיש', 'yo:Yoruba:Yorùbá', 'zu:Zulu:isiZulu',
+  'sl:Slovenian:Slovenščina', 'so:Somali:Soomaali', 'su:Sundanese:Basa Sunda',
+  'sw:Swahili:Kiswahili', 'sv:Swedish:Svenska', 'tg:Tajik:Тоҷикӣ',
+  'tt:Tatar:Татар', 'teo:Teso:Kiteso', 'th:Thai:ไทย',
+  'tr:Turkish:Türkçe', 'tk:Turkmen:Türkmençe', 'ur:Urdu:اردو',
+  'uz:Uzbek:Oʻzbek', 'vi:Vietnamese:Tiếng Việt', 'cy:Welsh:Cymraeg',
+  'fy:Western Frisian:Frysk', 'xh:Xhosa:isiXhosa', 'yi:Yiddish:ייִדיש',
 ].map((s) {
   final parts = s.split(':');
   return _LangEntry(

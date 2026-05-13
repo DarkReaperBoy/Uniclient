@@ -824,8 +824,8 @@ class ShortcutSystem {
   static final List<KeyBinding> _defaultBindings = [
     const KeyBinding(LogicalKeyboardKey.keyF, ShortcutCommand.search,
         control: true),
-    const KeyBinding(
-        LogicalKeyboardKey.escape, ShortcutCommand.cancelSearch),
+    const KeyBinding(LogicalKeyboardKey.browserSearch, ShortcutCommand.search),
+    const KeyBinding(LogicalKeyboardKey.find, ShortcutCommand.search),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.tab, ShortcutCommand.chatSwitchOverlay,
           control: true),
@@ -1347,7 +1347,7 @@ class _ShortcutListenerState extends State<ShortcutListener>
     });
 
     sys.registerHandler(ShortcutCommand.recordRound, () {
-      return ChatView.startRecordVoiceRequest?.call() ?? false;
+      return ChatView.startRecordRoundRequest?.call() ?? false;
     });
 
     _audioService = context.read<AudioService>();
