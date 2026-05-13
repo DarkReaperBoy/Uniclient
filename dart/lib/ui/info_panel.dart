@@ -35,6 +35,34 @@ enum InfoWrapMode { side, narrow, layer }
 
 enum _InfoPageType { chatInfo, userProfile, statistics, messageStats, sharedMedia, boosts }
 
+const _userpicColorRemap = [0, 7, 4, 1, 6, 3, 5];
+
+String _userpicInitials(String title) {
+  final t = title.trim();
+  if (t.isEmpty) return '?';
+  final words = t.split(RegExp(r'\s+'));
+  if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
+    return '${words[0][0]}${words[1][0]}'.toUpperCase();
+  }
+  return t[0].toUpperCase();
+}
+
+String _groupStatusText(ChatInfo chat) {
+  if (chat.type == ChatType.channel) {
+    final c = chat.memberCount;
+    if (c >= 1000000) return '${(c / 1000000).toStringAsFixed(1)}M subscribers';
+    if (c >= 1000) return '${(c / 1000).toStringAsFixed(1)}K subscribers';
+    return '$c subscribers';
+  }
+  if ((chat.type == ChatType.group || chat.type == ChatType.topic) && chat.memberCount > 0) {
+    final c = chat.memberCount;
+    if (c >= 1000000) return '${(c / 1000000).toStringAsFixed(1)}M members';
+    if (c >= 1000) return '${(c / 1000).toStringAsFixed(1)}K members';
+    return '$c members';
+  }
+  return '';
+}
+
 class _InfoNavPage {
   final _InfoPageType type;
   final MemberInfo? member;
@@ -486,6 +514,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final String chatId;
   final VoidCallback? onMessageTap;
   final VoidCallback? onCallTap;
+  final Uint8List? avatarBytes;
 
   static const double maxHeight = 236.0;
   static const double minHeight = 56.0;
@@ -521,6 +550,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     this.chatId = '',
     this.onMessageTap,
     this.onCallTap,
+    this.avatarBytes,
   });
 
   @override
@@ -613,25 +643,50 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                               isDark: isDark,
                             ),
                           ),
-                        SizedBox(
-                          width: avatarDisplaySize,
-                          height: avatarDisplaySize,
-                          child: isMyNotes
-                              ? MyNotesUserpic(size: avatarDisplaySize)
-                              : isSelf
-                              ? SavedMessagesUserpic(size: avatarDisplaySize)
-                              : avatarPath.isNotEmpty
-                                  ? ClipOval(
-                                      child: Image.file(
-                                        File(avatarPath),
-                                        width: avatarDisplaySize,
-                                        height: avatarDisplaySize,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            _avatarFallback(avatarColor, initials, avatarDisplaySize),
-                                      ),
-                                    )
-                                  : _avatarFallback(avatarColor, initials, avatarDisplaySize),
+                        GestureDetector(
+                          onTap: (isMyNotes || isSelf || accountId.isEmpty || chatId.isEmpty)
+                              ? null
+                              : () {
+                                  showPeerShortInfoBox(
+                                    context,
+                                    accountId: accountId,
+                                    peerId: chatId,
+                                    peerName: displayName,
+                                    avatarPath: avatarPath,
+                                    peerType: chatType,
+                                  );
+                                },
+                          child: SizedBox(
+                            width: avatarDisplaySize,
+                            height: avatarDisplaySize,
+                            child: isMyNotes
+                                ? MyNotesUserpic(size: avatarDisplaySize)
+                                : isSelf
+                                ? SavedMessagesUserpic(size: avatarDisplaySize)
+                                : avatarPath.isNotEmpty
+                                    ? ClipOval(
+                                        child: Image.file(
+                                          File(avatarPath),
+                                          width: avatarDisplaySize,
+                                          height: avatarDisplaySize,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) =>
+                                              _avatarFallback(avatarColor, initials, avatarDisplaySize),
+                                        ),
+                                      )
+                                    : avatarBytes != null && avatarBytes!.isNotEmpty
+                                        ? ClipOval(
+                                            child: Image.memory(
+                                              avatarBytes!,
+                                              width: avatarDisplaySize,
+                                              height: avatarDisplaySize,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  _avatarFallback(avatarColor, initials, avatarDisplaySize),
+                                            ),
+                                          )
+                                        : _avatarFallback(avatarColor, initials, avatarDisplaySize),
+                          ),
                         ),
                       ],
                     ),
@@ -983,11 +1038,33 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       items: [
         if (data.isMuted)
           const TelegramMenuItem(value: 'unmute', icon: Icon(Icons.notifications), label: 'Unmute')
-        else
+        else ...[
+          const TelegramMenuItem(value: 'mute_1h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 1 hour'),
+          const TelegramMenuItem(value: 'mute_4h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 4 hours'),
+          const TelegramMenuItem(value: 'mute_8h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 8 hours'),
+          const TelegramMenuItem(value: 'mute_2d', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 2 days'),
+          const TelegramMenuItem(value: 'mute_1w', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 1 week'),
           const TelegramMenuItem(value: 'mute_forever', icon: Icon(Icons.notifications_off), label: 'Mute forever', isAttention: true),
+        ],
       ],
     ).then((value) {
-      if (value == 'unmute' || value == 'mute_forever') {
+      if (value == null) return;
+      if (value == 'unmute') {
+        data.onTap?.call();
+        return;
+      }
+      final chatState = context.read<ChatState>();
+      final seconds = switch (value) {
+        'mute_1h' => 3600,
+        'mute_4h' => 4 * 3600,
+        'mute_8h' => 8 * 3600,
+        'mute_2d' => 2 * 24 * 3600,
+        'mute_1w' => 7 * 24 * 3600,
+        _ => 0,
+      };
+      if (seconds > 0) {
+        chatState.muteChat(accountId, chatId, true, durationSeconds: seconds);
+      } else {
         data.onTap?.call();
       }
     });
@@ -1243,8 +1320,8 @@ class _EmojiStatusPatternPainter extends CustomPainter {
   final double progress;
   final bool isDark;
 
-  static const int _shapeCount = 8;
-  static const double _shapeSize = 6.0;
+  static const int _shapeCount = 7;
+  static const double _shapeSize = 5.0;
 
   _EmojiStatusPatternPainter({required this.progress, required this.isDark});
 
@@ -1261,25 +1338,15 @@ class _EmojiStatusPatternPainter extends CustomPainter {
       final pulseFactor = 0.7 + 0.3 * math.sin(baseAngle * 3 + i * 0.8);
       final x = center.dx + orbitRadius * math.cos(angle);
       final y = center.dy + orbitRadius * math.sin(angle);
-      final shapeRadius = _shapeSize * pulseFactor;
+      final r = _shapeSize * pulseFactor;
 
       final opacity = (0.25 + 0.2 * pulseFactor).clamp(0.0, 1.0);
       paint.color = isDark
           ? Color.fromRGBO(139, 92, 246, opacity)
           : Color.fromRGBO(99, 102, 241, opacity);
 
-      _drawDiamond(canvas, Offset(x, y), shapeRadius, paint);
+      canvas.drawCircle(Offset(x, y), r, paint);
     }
-  }
-
-  void _drawDiamond(Canvas canvas, Offset center, double radius, Paint paint) {
-    final path = Path()
-      ..moveTo(center.dx, center.dy - radius)
-      ..lineTo(center.dx + radius * 0.7, center.dy)
-      ..lineTo(center.dx, center.dy + radius)
-      ..lineTo(center.dx - radius * 0.7, center.dy)
-      ..close();
-    canvas.drawPath(path, paint);
   }
 
   @override
@@ -1850,13 +1917,13 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
     final lastSeen = widget.chatState.chatLastSeen(widget.chat);
     final statusText = isDm
         ? (isOnline ? 'online' : formatChatLastSeen(lastSeen))
-        : _AvatarHeader._groupStatusText(widget.chat);
+        : _groupStatusText(widget.chat);
     final statusColor = isDm && isOnline
         ? const Color(0xFF3BA55C)
         : widget.theme.textTheme.bodySmall?.color;
     final palette = context.palette;
     final numId = int.tryParse(widget.chat.chatId) ?? widget.chat.chatId.hashCode.abs();
-    final avatarColor = palette.peerUserpicBg(_AvatarHeader._colorRemap[numId.abs() % 7]);
+    final avatarColor = palette.peerUserpicBg(_userpicColorRemap[numId.abs() % 7]);
     final tailPad = MediaQuery.sizeOf(context).height -
         _FlexibleCoverDelegate.minHeight;
 
@@ -1885,7 +1952,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               statusColor: statusColor,
               avatarPath: widget.chat.avatarPath,
               avatarColor: avatarColor,
-              initials: _AvatarHeader._initials(widget.chat.title),
+              initials: _userpicInitials(widget.chat.title),
               theme: widget.theme,
               onClose: widget.onClose,
               showBackButton: widget.showBackButton,
@@ -2120,9 +2187,34 @@ class _UserProfilePageState extends State<_UserProfilePage> {
     }
   }
 
+  void _showCommonGroupsDialog(BuildContext ctx) {
+    final engine = ctx.read<EngineService>();
+    engine.getCommonChats(widget.chat.accountId, widget.member.userId, limit: 100).then((chats) {
+      if (!mounted || chats.isEmpty) return;
+      showDialog(
+        context: ctx,
+        builder: (dialogCtx) => SimpleDialog(
+          title: Text('${chats.length} group${chats.length == 1 ? '' : 's'} in common'),
+          children: chats.map((c) {
+            final title = c['title'] as String? ?? c['chat_id'] as String? ?? '';
+            final chatId = c['chat_id'] as String? ?? '';
+            return SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(dialogCtx);
+                final chatState = ctx.read<ChatState>();
+                chatState.openChatById(chatId);
+              },
+              child: Text(title),
+            );
+          }).toList(),
+        ),
+      );
+    });
+  }
+
   void _loadCommonGroups() {
     final engine = context.read<EngineService>();
-    engine.getCommonChats(widget.chat.accountId, widget.member.userId, limit: 1).then((chats) {
+    engine.getCommonChats(widget.chat.accountId, widget.member.userId, limit: 100).then((chats) {
       if (mounted) setState(() => _commonGroupsCount = chats.length);
     }).catchError((_) {
       if (mounted) setState(() => _commonGroupsCount = 0);
@@ -2182,9 +2274,9 @@ class _UserProfilePageState extends State<_UserProfilePage> {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final numId = int.tryParse(widget.member.userId) ?? widget.member.userId.hashCode.abs();
-    final color = palette.peerUserpicBg(_AvatarHeader._colorRemap[numId.abs() % 7]);
+    final color = palette.peerUserpicBg(_userpicColorRemap[numId.abs() % 7]);
     final name = widget.member.label;
-    final initials = _AvatarHeader._initials(name);
+    final initials = _userpicInitials(name);
     final statusText = widget.member.isOnline
         ? 'online'
         : widget.member.isBot
@@ -2220,6 +2312,11 @@ class _UserProfilePageState extends State<_UserProfilePage> {
               onClose: widget.onClose,
               showBackButton: widget.showBackButton,
               collapsedTitle: widget.title,
+              avatarBytes: widget.member.avatarB64.isNotEmpty
+                  ? base64Decode(widget.member.avatarB64)
+                  : null,
+              accountId: widget.chat.accountId,
+              chatId: widget.member.userId,
             ),
           ),
           SliverList(
@@ -2261,11 +2358,7 @@ class _UserProfilePageState extends State<_UserProfilePage> {
                       count: _commonGroupsCount,
                       theme: widget.theme,
                       onTap: () {
-                        final panelState = context.findAncestorStateOfType<_InfoPanelState>();
-                        panelState?._pushPage(_InfoNavPage(
-                          type: _InfoPageType.userProfile,
-                          member: widget.member,
-                        ));
+                        _showCommonGroupsDialog(context);
                       },
                     ),
                 ],
@@ -2317,6 +2410,7 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
   bool _loadingMore = false;
   bool _hasMore = true;
   static const _pageSize = 50;
+  final _contentScrollController = ScrollController();
 
   static const _typeToFilter = {
     'photo': 'image', 'video': 'video', 'stories': 'stories',
@@ -2330,18 +2424,19 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
   @override
   void initState() {
     super.initState();
-    widget.scrollController.addListener(_onScroll);
+    _contentScrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
-    widget.scrollController.removeListener(_onScroll);
+    _contentScrollController.removeListener(_onScroll);
+    _contentScrollController.dispose();
     super.dispose();
   }
 
   void _onScroll() {
     if (_loadingMore || !_hasMore) return;
-    final pos = widget.scrollController.position;
+    final pos = _contentScrollController.position;
     if (pos.pixels >= pos.maxScrollExtent - 300) {
       _loadMore();
     }
@@ -2441,7 +2536,7 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
   }
 
   Widget _buildContent() {
-    if (_items == null || _items!.isEmpty) {
+    if (_items.isEmpty) {
       return Center(
         child: Text(
           'No ${widget.title.toLowerCase()} found.',
@@ -2451,7 +2546,7 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
     }
     if (_gridTypes.contains(widget.mediaType)) {
       return SingleChildScrollView(
-        controller: widget.scrollController,
+        controller: _contentScrollController,
         child: _MediaGrid(
           items: _items,
           loading: false,
@@ -2462,7 +2557,7 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
     }
     if (_masonryTypes.contains(widget.mediaType)) {
       return SingleChildScrollView(
-        controller: widget.scrollController,
+        controller: _contentScrollController,
         child: _GifMasonryGrid(
           items: _items,
           loading: false,
@@ -2471,7 +2566,7 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
       );
     }
     return SingleChildScrollView(
-      controller: widget.scrollController,
+      controller: _contentScrollController,
       child: _MediaListView(
         items: _items,
         loading: false,
@@ -2480,143 +2575,6 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
       ),
     );
   }
-}
-
-class _AvatarHeader extends StatelessWidget {
-  final ChatInfo chat;
-  final ThemeData theme;
-  final bool isOnline;
-  final ({String kind, int lastSeenMs}) lastSeen;
-
-  const _AvatarHeader({
-    required this.chat,
-    required this.theme,
-    this.isOnline = false,
-    this.lastSeen = (kind: '', lastSeenMs: 0),
-  });
-
-  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
-    final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
-    final initials = _initials(chat.title);
-
-    final isDm = chat.type == ChatType.dm;
-    final isSavedMessages = chat.title == 'Saved Messages' && isDm;
-    final chatState = context.read<ChatState>();
-    final activeSub = chatState.activeSublist;
-    final String statusText;
-    final Color? statusColor;
-    if (activeSub != null) {
-      statusText = 'Saved Messages';
-      statusColor = theme.textTheme.bodySmall?.color;
-    } else if (isSavedMessages) {
-      final count = chatState.savedSublistsTotalCount;
-      statusText = count > 0 ? '$count chats' : (chatState.savedSublistsLoading ? 'Loading...' : '');
-      statusColor = theme.textTheme.bodySmall?.color;
-    } else if (isDm) {
-      statusText = isOnline ? 'online' : formatChatLastSeen(lastSeen);
-      statusColor = isOnline ? const Color(0xFF3BA55C) : theme.textTheme.bodySmall?.color;
-    } else {
-      statusText = _groupStatusText(chat);
-      statusColor = theme.textTheme.bodySmall?.color;
-    }
-
-    return Column(
-      children: [
-        SizedBox(
-          width: 80,
-          height: 80,
-          child: chatState.activeSublist?.isSelf == true
-              ? const MyNotesUserpic(size: 80)
-              : (chat.title == 'Saved Messages' && chat.type == ChatType.dm)
-              ? const SavedMessagesUserpic(size: 80)
-              : chat.avatarPath.isNotEmpty
-                  ? ClipOval(
-                      child: Image.file(
-                        File(chat.avatarPath),
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _avatarFallback(color, initials),
-                      ),
-                    )
-                  : _avatarFallback(color, initials),
-        ),
-        const SizedBox(height: 12),
-        // Name.
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            activeSub != null
-                ? activeSub.peerName
-                : (chat.title.isNotEmpty ? chat.title : chat.chatId),
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        // Status line: online/last-seen for DMs, member count for groups/channels.
-        if (statusText.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              statusText,
-              style: TextStyle(fontSize: 13, color: statusColor),
-            ),
-          ),
-      ],
-    );
-  }
-
-  static String _groupStatusText(ChatInfo chat) {
-    if (chat.type == ChatType.channel) {
-      return '${_formatCount(chat.memberCount)} subscribers';
-    }
-    if ((chat.type == ChatType.group || chat.type == ChatType.topic) &&
-        chat.memberCount > 0) {
-      return '${_formatCount(chat.memberCount)} members';
-    }
-    return '';
-  }
-
-  static String _formatCount(int count) {
-    if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
-    if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
-    return count.toString();
-  }
-
-  static Widget _avatarFallback(Color color, String initials) {
-    return Container(
-      width: 80,
-      height: 80,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      alignment: Alignment.center,
-      child: Text(
-        initials,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 28,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  static String _initials(String title) {
-    final t = title.trim();
-    if (t.isEmpty) return '?';
-    final words = t.split(RegExp(r'\s+'));
-    if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
-      return '${words[0][0]}${words[1][0]}'.toUpperCase();
-    }
-    return t[0].toUpperCase();
-  }
-
 }
 
 class _MusicMiniPlayer extends StatelessWidget {
@@ -2705,6 +2663,7 @@ class _ChatDetailsState extends State<_ChatDetails> {
   String? _fetchedFor;
   StreamSubscription<ChatInfo>? _chatUpdatedSub;
   int _commonGroupsCount = -1;
+  List<BotCommandInfo> _botCommands = [];
 
   @override
   void didChangeDependencies() {
@@ -2758,13 +2717,46 @@ class _ChatDetailsState extends State<_ChatDetails> {
       if (mounted && p != null) setState(() { _profile = p; _fetched = true; });
     });
     _loadCommonGroups(engine);
+    _loadBotCommands(engine);
+  }
+
+  void _loadBotCommands(EngineService engine) {
+    if (!widget.chat.isBot) return;
+    engine.getChatBotCommands(widget.chat.accountId, widget.chat.chatId).then((cmds) {
+      if (mounted) setState(() => _botCommands = cmds);
+    }).catchError((_) {});
   }
 
   void _loadCommonGroups(EngineService engine) {
-    engine.getCommonChats(widget.chat.accountId, widget.chat.chatId, limit: 1).then((chats) {
+    engine.getCommonChats(widget.chat.accountId, widget.chat.chatId, limit: 100).then((chats) {
       if (mounted) setState(() => _commonGroupsCount = chats.length);
     }).catchError((_) {
       if (mounted) setState(() => _commonGroupsCount = 0);
+    });
+  }
+
+  void _showCommonGroupsDialog(BuildContext ctx) {
+    final engine = ctx.read<EngineService>();
+    engine.getCommonChats(widget.chat.accountId, widget.chat.chatId, limit: 100).then((chats) {
+      if (!mounted || chats.isEmpty) return;
+      showDialog(
+        context: ctx,
+        builder: (dialogCtx) => SimpleDialog(
+          title: Text('${chats.length} group${chats.length == 1 ? '' : 's'} in common'),
+          children: chats.map((c) {
+            final title = c['title'] as String? ?? c['chat_id'] as String? ?? '';
+            final chatId = c['chat_id'] as String? ?? '';
+            return SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(dialogCtx);
+                final chatState = ctx.read<ChatState>();
+                chatState.openChatById(chatId);
+              },
+              child: Text(title),
+            );
+          }).toList(),
+        ),
+      );
     });
   }
 
@@ -2777,7 +2769,14 @@ class _ChatDetailsState extends State<_ChatDetails> {
     const months = ['', 'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December'];
     final m = (month >= 1 && month <= 12) ? months[month] : '$month';
-    if (year > 0) return '$m $day, $year';
+    if (year > 0) {
+      final now = DateTime.now();
+      var age = now.year - year;
+      if (now.month < month || (now.month == month && now.day < day)) {
+        age--;
+      }
+      return '$m $day, $year ($age years old)';
+    }
     return '$m $day';
   }
 
@@ -2848,11 +2847,18 @@ class _ChatDetailsState extends State<_ChatDetails> {
           value: profile.personalChannelName,
           label: 'Personal Channel',
           theme: widget.theme,
+          onTap: profile.personalChannelId.isNotEmpty
+              ? () {
+                  final chatState = context.read<ChatState>();
+                  chatState.openChatById(profile.personalChannelId);
+                }
+              : null,
         ));
-      if (profile.isBot) {
-        for (final cmd in ['help', 'settings', 'privacy']) {
+      if (profile.isBot && _botCommands.isNotEmpty) {
+        for (final cmd in _botCommands) {
           children.add(_BotCommandRow(
-            command: '/$cmd',
+            command: '/${cmd.command}',
+            description: cmd.description,
             theme: widget.theme,
           ));
         }
@@ -2871,6 +2877,9 @@ class _ChatDetailsState extends State<_ChatDetails> {
       children.add(_CommonGroupsRow(
         count: _commonGroupsCount,
         theme: widget.theme,
+        onTap: () {
+          _showCommonGroupsDialog(context);
+        },
       ));
 
     if (children.isEmpty) return const SizedBox.shrink();
@@ -2933,9 +2942,10 @@ class _TextWithLabel extends StatelessWidget {
 
 class _BotCommandRow extends StatelessWidget {
   final String command;
+  final String description;
   final ThemeData theme;
 
-  const _BotCommandRow({required this.command, required this.theme});
+  const _BotCommandRow({required this.command, required this.theme, this.description = ''});
 
   @override
   Widget build(BuildContext context) {
@@ -2950,9 +2960,23 @@ class _BotCommandRow extends StatelessWidget {
           children: [
             Icon(Icons.smart_toy_outlined, size: 18, color: theme.colorScheme.primary),
             const SizedBox(width: 12),
-            Text(
-              command,
-              style: TextStyle(fontSize: 14, color: theme.colorScheme.primary),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    command,
+                    style: TextStyle(fontSize: 14, color: theme.colorScheme.primary),
+                  ),
+                  if (description.isNotEmpty)
+                    Text(
+                      description,
+                      style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
             ),
           ],
         ),
@@ -3348,6 +3372,13 @@ class _ForumTopicsDialogState extends State<_ForumTopicsDialog> {
         widget.chat.chatId,
         _enabled,
       );
+      if (_enabled) {
+        await widget.engine.setForumViewAsMessages(
+          widget.chat.accountId,
+          widget.chat.chatId,
+          _layout == _ForumLayout.list,
+        );
+      }
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -3852,11 +3883,30 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     'gifts': [('all', 'All'), ('unique', 'Unique'), ('limited', 'Limited')],
   };
 
+  Timer? _searchDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchChanged);
+  }
+
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (_expandedGridType != null && _searchActive) {
+        _loadGridItems(_expandedGridType!);
+      }
+    });
   }
 
   void _toggleGrid(String type) {
@@ -3895,10 +3945,21 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
   void _loadGridItems(String type) {
     final engine = context.read<EngineService>();
     try {
-      final items = engine.getSharedMedia(
+      var filterType = _typeToFilter[type] ?? type;
+      if (type == 'gifts' && _activeSubTab.isNotEmpty && _activeSubTab != 'all') {
+        filterType = 'gifts_$_activeSubTab';
+      }
+      var items = engine.getSharedMedia(
         widget.accountId, widget.chatId,
-        mediaType: _typeToFilter[type] ?? type, limit: 50,
+        mediaType: filterType, limit: 50,
       );
+      final query = _searchActive ? _searchController.text.trim().toLowerCase() : '';
+      if (query.isNotEmpty) {
+        items = items.where((item) =>
+          item.fileName.toLowerCase().contains(query) ||
+          item.mimeType.toLowerCase().contains(query)
+        ).toList();
+      }
       if (mounted && _expandedGridType == type) {
         setState(() {
           _gridItems = items;
@@ -4095,7 +4156,10 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
                     : _activeSubTab,
                 accentColor: accentColor,
                 theme: widget.theme,
-                onSelected: (tab) => setState(() => _activeSubTab = tab),
+                onSelected: (tab) {
+                  setState(() => _activeSubTab = tab);
+                  _loadGridItems(type);
+                },
               ),
             if (_expandedGridType == type)
               if (_gridTypes.contains(type))
@@ -4447,7 +4511,7 @@ class _SharedMediaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap ?? () {},
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Row(
@@ -5486,6 +5550,8 @@ class _MembersSection extends StatefulWidget {
 
 class _MembersSectionState extends State<_MembersSection> {
   bool _searching = false;
+  bool _showAll = false;
+  static const _initialLimit = 20;
   final _searchCtrl = TextEditingController();
   final _searchFocus = FocusNode();
 
@@ -5610,15 +5676,30 @@ class _MembersSectionState extends State<_MembersSection> {
             padding: EdgeInsets.all(16),
             child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
           ))
-        else if (widget.members != null && widget.members!.isNotEmpty)
-          ...filtered.map((m) => _MemberRow(
+        else if (widget.members != null && widget.members!.isNotEmpty) ...[
+          ...(_showAll || _searching ? filtered : filtered.take(_initialLimit)).map((m) => _MemberRow(
             member: m,
             theme: theme,
             onTap: widget.onMemberTap != null ? () => widget.onMemberTap!(m) : null,
             accountId: widget.accountId,
             chatId: widget.chatId,
-          ))
-        else
+          )),
+          if (!_showAll && !_searching && filtered.length > _initialLimit)
+            InkWell(
+              onTap: () => setState(() => _showAll = true),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                child: Text(
+                  'Show all ${filtered.length} members',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+        ] else
           Padding(
             padding: const EdgeInsets.only(left: 18, top: 8, bottom: 8),
             child: Text(
@@ -5653,6 +5734,38 @@ class _MemberRow extends StatelessWidget {
     required this.chatId,
     this.onTap,
   });
+
+  static Widget _memberAvatar(MemberInfo member, Color color, String name, double size, double fontSize) {
+    if (member.avatarB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(member.avatarB64);
+        return ClipOval(
+          child: Image.memory(
+            bytes,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _initialsFallback(color, name, size, fontSize),
+          ),
+        );
+      } catch (_) {}
+    }
+    return _initialsFallback(color, name, size, fontSize);
+  }
+
+  static Widget _initialsFallback(Color color, String name, double size, double fontSize) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      alignment: Alignment.center,
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: TextStyle(color: Colors.white, fontSize: fontSize, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -5708,31 +5821,11 @@ class _MemberRow extends StatelessWidget {
                             child: SizedBox(
                               width: 36,
                               height: 36,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                                ),
-                              ),
+                              child: _memberAvatar(member, color, name, 36, 14),
                             ),
                           ),
                         )
-                      : Container(
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                          ),
-                        ),
+                      : _memberAvatar(member, color, name, 42, 16),
                 ),
               ),
             ),
@@ -6373,7 +6466,7 @@ class _StatisticsPageState extends State<_StatisticsPage>
     return Column(
       children: [
         SizedBox(
-          height: 54,
+          height: 56,
           child: Material(
             color: widget.theme.colorScheme.surface,
             child: Row(

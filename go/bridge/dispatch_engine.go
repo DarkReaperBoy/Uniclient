@@ -740,6 +740,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ToggleForum(req.AccountId, req.ChatId, req.Enabled)
 
+	case "SetForumViewAsMessages":
+		var params struct {
+			AccountID    string `json:"account_id"`
+			ChatID       string `json:"chat_id"`
+			AsMessages   bool   `json:"as_messages"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetForumViewAsMessages(params.AccountID, params.ChatID, params.AsMessages)
+
 	case "ClearHistory":
 		var req pb.EngineClearHistoryRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

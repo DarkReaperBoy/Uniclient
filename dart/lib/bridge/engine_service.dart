@@ -2351,6 +2351,15 @@ class EngineService {
     await _callAsync('__engine', 'ToggleForum', req.writeToBuffer());
   }
 
+  Future<void> setForumViewAsMessages(String accountId, String chatId, bool asMessages) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'as_messages': asMessages,
+    }));
+    await _callAsync('__engine', 'SetForumViewAsMessages', Uint8List.fromList(payload));
+  }
+
   Future<void> clearHistory(String accountId, String chatId) async {
     final req = epb.EngineClearHistoryRequest()
       ..accountId = accountId

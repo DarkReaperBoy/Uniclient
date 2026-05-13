@@ -501,6 +501,21 @@ func (e *Engine) ToggleForum(accountID, chatID string, enabled bool) error {
 	return nil
 }
 
+func (e *Engine) SetForumViewAsMessages(accountID, chatID string, asMessages bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type viewToggler interface {
+		ToggleViewForumAsMessages(chatID string, enabled bool) error
+	}
+	vt, ok := acc.Core.(viewToggler)
+	if !ok {
+		return fmt.Errorf("core does not support forum view toggle")
+	}
+	return vt.ToggleViewForumAsMessages(chatID, asMessages)
+}
+
 // ClearHistory deletes the message history for a chat on the server and locally,
 // but keeps the chat visible in the chat list.
 func (e *Engine) ClearHistory(accountID, chatID string) error {
