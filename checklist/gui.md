@@ -1170,31 +1170,6 @@ Audited against AyuGram Desktop C++ source at
 
 ---
 
-## MAJOR Issues
-
-- [ ] [MAJOR] `_SharedMediaSection` gift sub-tab filter (`_SubTabChips` for 'all'/'unique'/'limited') changes `_activeSubTab` state but does NOT re-fetch or filter `_gridItems` — the tab selection is a no-op. The displayed grid always shows all gifts regardless of which tab is selected. — `info_panel.dart:4090-4098`, `4097` (`onSelected: (tab) => setState(() => _activeSubTab = tab)` — no reload)
-
-- [ ] [MAJOR] `_SharedMediaRow` has `onTap: onTap ?? () {}` (line 4450) — when `onTap` is null (i.e. `_expandableTypes` does not contain the media type — but currently all types are in `_expandableTypes`), the InkWell fires silently with no feedback and no action. This is a latent empty-tap stub that will manifest if any type is removed from `_expandableTypes`. — `info_panel.dart:4450`
-
-- [ ] [MAJOR] `_MembersSection` header height is `56` (line 5548) matching the AyuGram `st::infoMembersHeader` value. However the entire `SliverChildListDelegate` for the main chat page (line 1922) renders ALL section widgets eagerly into a single non-lazy list — with potentially hundreds of member rows built at once. AyuGram uses a virtual/lazy widget. The `...filtered.map((m) => _MemberRow(...))` spread at line 5614 is non-lazy. — `info_panel.dart:5614` ← `info/profile/info_profile_members.cpp:128`
-
-- [ ] [MAJOR] `_ChatInfoPage` uses `SliverChildListDelegate` (lines 1922, 2037) rendering all child sections eagerly including `_MembersSection` with all member rows inline. For large groups this builds hundreds of widgets synchronously in a single frame. Should use `SliverChildBuilderDelegate` or convert the members to a separate `SliverList`. — `info_panel.dart:1921-2001`
-
-- [ ] [MAJOR] `_loadCommonGroups` fetches with `limit: 1` (lines 2125 and 2764), so `_commonGroupsCount` is always 0 or 1 — never the real count. AyuGram shows the actual number of common groups (e.g. "5 groups in common"). The label is misleading because if there is 1 common group, the count is `1`, but if there are 5 the count is still shown as `1`. — `info_panel.dart:2125`, `2764`
-
-- [ ] [MAJOR] `_UserProfilePage` avatar is hardcoded to `avatarPath: ''` (line 2216) — even if the member has an avatar, it never loads. The initials/color fallback is always shown for member profiles. — `info_panel.dart:2216`
-
-- [ ] [MAJOR] `_MemberRow` avatar is always the initials fallback (line 5711-5735) — there is no avatar image loading for member rows at all. AyuGram shows real userpic thumbnails in the member list. — `info_panel.dart:5697-5735`
-
-- [ ] [MAJOR] `_StatisticsPage` top bar height is `54` (line 6376) while `_SharedMediaSubPage` top bar is `56` (line 2409) and `_BoostsPage` top bar is also `56` (line 6188). All sub-pages should use a consistent `56px` top bar (matching AyuGram's `st::infoTopBar` height). The 54px Statistics top bar is a 3.5% deviation but visibly inconsistent. — `info_panel.dart:6376`, vs `2409`
-
-- [ ] [MAJOR] `_ChatDetails` `_formatBirthday` does not show age or "N years old" label that AyuGram displays alongside the birthday date. Birthday is shown as plain date string without the age annotation. — `info_panel.dart:2776-2781`
-
-- [ ] [MAJOR] `_AnimatedEmojiPattern` (emoji status background pattern on the cover) uses a custom diamond-shape orbit painter that does not match AyuGram's actual emoji-status pattern implementation. AyuGram renders the actual custom emoji sticker as the pattern element using `Data::CustomEmojiSizeTag`, not arbitrary diamond shapes. The visual output is wrong. — `info_panel.dart:1242-1288` ← `info/profile/info_profile_cover.cpp:topicIconView`
-
-- [ ] [MAJOR] `_AvatarHeader` widget (lines 2485-2619) is a dead widget — it is never used anywhere in `info_panel.dart`. The cover rendering uses `_FlexibleCoverDelegate` directly. This is unused code that was not cleaned up and adds confusion. — `info_panel.dart:2485`
-
-- [ ] [MAJOR] `_ForumTopicsDialog` saves forum enable/disable via `engine.toggleForum()` but ignores the `_layout` (tabs vs list) radio selection entirely — `_layout` is never sent to the engine. The layout preference is a no-op. — `info_panel.dart:3343-3360`
 
 # input_dialogs — Audit
 
