@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 
@@ -31,32 +33,32 @@ const topicIconPalettes = <int, TopicIconPalette>{
   0xFFD67E: TopicIconPalette(
     fillTop: Color(0xFFFFDB5C), fillBottom: Color(0xFFEA5800),
     strokeTop: Color(0xFFF2A807), strokeBottom: Color(0xFFD93A00),
-    highlight: Color(0xFFFFE78A),
+    highlight: Color(0xFFF9FF71),
   ),
   0xCB86DB: TopicIconPalette(
     fillTop: Color(0xFFE57AFF), fillBottom: Color(0xFFA438BB),
     strokeTop: Color(0xFFB239D1), strokeBottom: Color(0xFF7C279A),
-    highlight: Color(0xFFEFA6FF),
+    highlight: Color(0xFFF5BDFF),
   ),
   0x8EEE98: TopicIconPalette(
     fillTop: Color(0xFF97E334), fillBottom: Color(0xFF11B411),
     strokeTop: Color(0xFF48AF18), strokeBottom: Color(0xFF05951A),
-    highlight: Color(0xFFB2F16C),
+    highlight: Color(0xFFC2FF71),
   ),
   0xFF93B2: TopicIconPalette(
     fillTop: Color(0xFFFF7999), fillBottom: Color(0xFFE4215A),
     strokeTop: Color(0xFFF83B72), strokeBottom: Color(0xFFBA0940),
-    highlight: Color(0xFFFFB1C8),
+    highlight: Color(0xFFFFC7D6),
   ),
   0xFB6F5F: TopicIconPalette(
     fillTop: Color(0xFFFF714C), fillBottom: Color(0xFFC61505),
     strokeTop: Color(0xFFE12F1F), strokeBottom: Color(0xFFB40101),
-    highlight: Color(0xFFFF9E87),
+    highlight: Color(0xFFFFB47D),
   ),
   0x9AABAB: TopicIconPalette(
-    fillTop: Color(0xFFA0B0B8), fillBottom: Color(0xFF6D7F8F),
-    strokeTop: Color(0xFF8397A4), strokeBottom: Color(0xFF5A6B78),
-    highlight: Color(0xFFBCCCD4),
+    fillTop: Color(0xFFA5A5A5), fillBottom: Color(0xFF616161),
+    strokeTop: Color(0xFF737373), strokeBottom: Color(0xFF565656),
+    highlight: Color(0xFFB8B8B8),
   ),
 };
 
@@ -116,7 +118,7 @@ String extractTopicLetter(String title) {
   final letterDigit = RegExp(r'[\p{L}\p{N}]', unicode: true);
   for (final char in title.characters) {
     if (char.length > 1) continue;
-    if (letterDigit.hasMatch(char)) return char.toUpperCase();
+    if (letterDigit.hasMatch(char)) return char;
   }
   return '';
 }
@@ -385,20 +387,33 @@ class _GeneralIconPainter extends CustomPainter {
       color != old.color || targetSize != old.targetSize;
 }
 
-// ── Global custom emoji thumbnail cache ──
+// ── Global custom emoji caches ──
 
 final _customEmojiThumbCache = <int, String>{};
+final _customEmojiFileCache = <int, CustomEmojiFileData>{};
+final _customEmojiLottieCache = <int, Uint8List>{};
 final _customEmojiPendingRequests = <int, Future<void>>{};
 
-Future<void> _fetchCustomEmojiThumb(EngineService engine, String accountId, int documentId) async {
-  if (_customEmojiThumbCache.containsKey(documentId)) return;
+Future<void> _fetchCustomEmojiData(EngineService engine, String accountId, int documentId) async {
+  if (_customEmojiFileCache.containsKey(documentId)) return;
   if (_customEmojiPendingRequests.containsKey(documentId)) {
     return _customEmojiPendingRequests[documentId];
   }
   final future = () async {
-    final result = await engine.getCustomEmojiThumbs(accountId, [documentId]);
-    if (result.containsKey(documentId)) {
-      _customEmojiThumbCache[documentId] = result[documentId]!.thumbB64;
+    final files = await engine.getCustomEmojiFiles(accountId, [documentId]);
+    if (files.containsKey(documentId)) {
+      final file = files[documentId]!;
+      _customEmojiFileCache[documentId] = file;
+      if (file.isTgs) {
+        try {
+          _customEmojiLottieCache[documentId] = Uint8List.fromList(gzip.decode(file.fileData));
+        } catch (_) {}
+      }
+    } else {
+      final thumbs = await engine.getCustomEmojiThumbs(accountId, [documentId]);
+      if (thumbs.containsKey(documentId)) {
+        _customEmojiThumbCache[documentId] = thumbs[documentId]!.thumbB64;
+      }
     }
     _customEmojiPendingRequests.remove(documentId);
   }();
@@ -424,28 +439,35 @@ class CustomEmojiTopicIcon extends StatefulWidget {
   State<CustomEmojiTopicIcon> createState() => _CustomEmojiTopicIconState();
 }
 
-class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon> {
+class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
+    with SingleTickerProviderStateMixin {
   static const _slideDuration = Duration(milliseconds: 200);
-  bool _loading = false;
   bool _active = true;
   Timer? _releaseTimer;
+  AnimationController? _lottieController;
 
   @override
   void initState() {
     super.initState();
-    _loadThumb();
+    _loadData();
   }
 
   @override
   void didUpdateWidget(CustomEmojiTopicIcon old) {
     super.didUpdateWidget(old);
-    if (old.documentId != widget.documentId) _loadThumb();
+    if (old.documentId != widget.documentId) {
+      _lottieController?.dispose();
+      _lottieController = null;
+      _loadData();
+    }
   }
 
   @override
   void deactivate() {
     _releaseTimer?.cancel();
     _releaseTimer = Timer(_slideDuration, () {
+      _customEmojiFileCache.remove(widget.documentId);
+      _customEmojiLottieCache.remove(widget.documentId);
       _customEmojiThumbCache.remove(widget.documentId);
       _active = false;
     });
@@ -459,42 +481,86 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon> {
     _releaseTimer = null;
     if (!_active) {
       _active = true;
-      _loadThumb();
+      _loadData();
     }
   }
 
   @override
   void dispose() {
     _releaseTimer?.cancel();
+    _lottieController?.dispose();
     super.dispose();
   }
 
-  void _loadThumb() {
-    if (_customEmojiThumbCache.containsKey(widget.documentId)) return;
-    _loading = true;
-    _fetchCustomEmojiThumb(widget.engine, widget.accountId, widget.documentId).then((_) {
-      if (mounted) setState(() => _loading = false);
+  void _loadData() {
+    _fetchCustomEmojiData(widget.engine, widget.accountId, widget.documentId).then((_) {
+      if (mounted) setState(() {});
     });
+  }
+
+  void _onLottieLoaded(LottieComposition composition) {
+    _lottieController?.dispose();
+    _lottieController = AnimationController(
+      vsync: this,
+      duration: composition.duration,
+    );
+    _lottieController!.repeat();
   }
 
   @override
   Widget build(BuildContext context) {
-    final thumbB64 = _customEmojiThumbCache[widget.documentId];
-    if (thumbB64 == null || thumbB64.isEmpty) {
-      return SizedBox(width: widget.size, height: widget.size);
+    final s = widget.size;
+    final lottieBytes = _customEmojiLottieCache[widget.documentId];
+    if (lottieBytes != null) {
+      return SizedBox(
+        width: s,
+        height: s,
+        child: Lottie.memory(
+          lottieBytes,
+          width: s,
+          height: s,
+          fit: BoxFit.contain,
+          controller: _lottieController,
+          onLoaded: _onLottieLoaded,
+          errorBuilder: (_, __, ___) => _buildFallback(s),
+        ),
+      );
     }
-    final bytes = base64Decode(thumbB64);
-    return SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: Image.memory(
-        Uint8List.fromList(bytes),
-        width: widget.size,
-        height: widget.size,
-        fit: BoxFit.contain,
-        gaplessPlayback: true,
-      ),
-    );
+    final file = _customEmojiFileCache[widget.documentId];
+    if (file != null && (file.isWebp || file.isWebm)) {
+      return SizedBox(
+        width: s,
+        height: s,
+        child: Image.memory(
+          file.fileData,
+          width: s,
+          height: s,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => _buildFallback(s),
+        ),
+      );
+    }
+    return _buildFallback(s);
+  }
+
+  Widget _buildFallback(double s) {
+    final thumbB64 = _customEmojiThumbCache[widget.documentId];
+    if (thumbB64 != null && thumbB64.isNotEmpty) {
+      final bytes = base64Decode(thumbB64);
+      return SizedBox(
+        width: s,
+        height: s,
+        child: Image.memory(
+          Uint8List.fromList(bytes),
+          width: s,
+          height: s,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+        ),
+      );
+    }
+    return SizedBox(width: s, height: s);
   }
 }
 
