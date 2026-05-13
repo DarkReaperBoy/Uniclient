@@ -603,6 +603,7 @@ class _ChatViewState extends State<ChatView>
     _scrollController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
+    EmojiKeywords.instance.stopAutoRefresh();
     _pendingRetryTimer?.cancel();
     _inlineBotDebounce?.cancel();
     _videoTipTimer?.cancel();
@@ -3577,25 +3578,37 @@ class _ChatViewState extends State<ChatView>
   String? _stickerSuggestEmoji;
 
   void _fetchEmojiKeywordsIfNeeded(String accountId) {
-    if (_emojiKeywordsFetched || EmojiKeywords.instance.hasServerData) {
-      _emojiKeywordsFetched = true;
-      return;
-    }
+    if (_emojiKeywordsFetched) return;
     _emojiKeywordsFetched = true;
+    _fetchEmojiKeywordsForLangs(accountId);
+    EmojiKeywords.instance.startAutoRefresh(() => _fetchEmojiKeywordsForLangs(accountId));
+  }
+
+  Future<void> _fetchEmojiKeywordsForLangs(String accountId) async {
     final engine = context.read<EngineService>();
-    engine.getEmojiKeywords(accountId, 'en').then((result) {
-      if (result != null && result.keywords.isNotEmpty) {
-        final kwMap = <String, List<String>>{};
-        for (final entry in result.keywords) {
-          kwMap[entry.keyword] = entry.emoticons;
+    final appState = context.read<AppState>();
+    final langs = <String>{};
+    langs.add(appState.selectedLanguageCode);
+    final systemLocale = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    langs.add(systemLocale);
+    langs.add('en');
+
+    for (final lang in langs) {
+      try {
+        final result = await engine.getEmojiKeywords(accountId, lang);
+        if (result != null && result.keywords.isNotEmpty) {
+          final kwMap = <String, List<String>>{};
+          for (final entry in result.keywords) {
+            kwMap[entry.keyword] = entry.emoticons;
+          }
+          EmojiKeywords.instance.loadServerKeywords(
+            keywords: kwMap,
+            version: result.version,
+            langCode: result.langCode,
+          );
         }
-        EmojiKeywords.instance.loadServerKeywords(
-          keywords: kwMap,
-          version: result.version,
-          langCode: result.langCode,
-        );
-      }
-    }).catchError((_) {});
+      } catch (_) {}
+    }
   }
 
   void _loadStickerSuggestions(String accountId, String emoji) {
