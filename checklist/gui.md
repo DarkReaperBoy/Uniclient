@@ -1195,16 +1195,6 @@ Before findings, confirmed matches (not issues):
 
 ## privacy_settings_screen — Backend Wiring & API Connectivity
 
-- [ ] [CRITICAL] Gift settings toggles (`_giftShowIcon`, `_giftAcceptLimited`, `_giftAcceptUnlimited`, `_giftAcceptUnique`, `_giftAcceptFromChannels`, `_giftAcceptPremium`) update local state but are **never persisted to the engine** — `_save()` in `_EditPrivacyBoxState` calls only `setPrivacySetting()` and `setHideReadMarks()`, no gift preference API call exists — `privacy_settings_screen.dart:2377-2426` ← `AyuGram/settings/settings_privacy_controllers.cpp` (no gift accept wiring present; feature is UI-only stub)
-
-- [ ] [CRITICAL] Fallback (public) photo upload/remove calls `engine.uploadFallbackPhoto()` and `engine.deleteFallbackPhoto()` (lines 2144, 2163) but `hasFallbackPhoto` state is never refreshed after upload/delete — `_hasFallbackPhoto` stays stale, so the "Remove" button can appear/disappear incorrectly — `privacy_settings_screen.dart:2144-2175` ← `AyuGram/settings/settings_privacy_controllers.cpp` (ProfilePhotoPrivacyController refreshes photo state via rpl after every mutation)
-
-- [ ] [CRITICAL] Privacy setting exception lists ("Always Allow" / "Never Allow") are **never pre-fetched** before opening the editor — `_openPrivacyEditor()` passes empty exceptions to `_EditPrivacyBox`, so the counts always show `+0 / -0` on open instead of the real peer counts — `privacy_settings_screen.dart:724-809` ← `AyuGram/settings/settings_privacy_security.cpp` (exception peers loaded from `Rule.always/never` before box opens)
-
-- [ ] [CRITICAL] Cloud password state refresh uses a 60-second polling timer — stale state (password hash, recovery email, pending reset date) shown to user for up to a minute when another session changes 2FA — `privacy_settings_screen.dart:79` ← `AyuGram/settings/settings_privacy_security.cpp` (uses `rpl::distinct_until_changed()` reactive subscription for instant state propagation)
-
-- [ ] [CRITICAL] Account TTL / self-destruction confirmation dialog only fires when toggling from disabled (0) to enabled — changing an already-enabled TTL (e.g. 6 months → 1 month) skips confirmation entirely — `privacy_settings_screen.dart:4822-4868` ← `AyuGram/settings/settings_global_ttl.cpp` (confirmation shown for every value change while TTL is non-zero)
-
 ## privacy_settings_screen — Double-Call Vulnerabilities
 
 - [ ] [MAJOR] Archive-and-Mute row fires `engine.setArchiveSettings()` twice per tap: once in `InkWell.onTap` (line 910) and again in `Switch.onChanged` (line 940) — rapid taps queue duplicate API calls — `privacy_settings_screen.dart:909-960` ← `AyuGram/settings/settings_privacy_security.cpp` (single `toggledChanges()` handler, no duplicate path)
