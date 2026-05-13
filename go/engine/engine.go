@@ -187,6 +187,10 @@ func (e *Engine) Vault() *utils.Vault {
 	return e.vault
 }
 
+func (e *Engine) MediaDir() string {
+	return e.mediaDir
+}
+
 // SetEventCallback sets the function called when async events are pushed to Dart.
 // The callback receives serialized event bytes.
 func (e *Engine) SetEventCallback(cb func([]byte)) {
@@ -1380,6 +1384,52 @@ func (e *Engine) SetChatReactionsMode(accountID, chatID, mode string, emojis []s
 		return r.SetChatReactionsMode(chatID, mode, emojis)
 	}
 	return fmt.Errorf("platform does not support reactions mode")
+}
+
+func (e *Engine) GetAvailableReactions(accountID string) ([]string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type reactionsGetter interface {
+		GetAvailableReactionEmojis() ([]string, error)
+	}
+	rg, ok := acc.Core.(reactionsGetter)
+	if !ok {
+		return []string{"👍", "❤️", "🔥", "🥰", "👏", "😱", "😢", "🎉"}, nil
+	}
+	return rg.GetAvailableReactionEmojis()
+}
+
+func (e *Engine) SendBotRequestedPeer(accountID, chatID string, msgID, buttonID int, peerIDs []string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type peerSender interface {
+		SendBotRequestedPeer(chatID string, msgID int, buttonID int, peerIDs []string) error
+	}
+	ps, ok := acc.Core.(peerSender)
+	if !ok {
+		return fmt.Errorf("platform does not support SendBotRequestedPeer")
+	}
+	return ps.SendBotRequestedPeer(chatID, msgID, buttonID, peerIDs)
+}
+
+func (e *Engine) SendLocation(accountID, chatID string, lat, lon float64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type locationSender interface {
+		SendLocation(chatID string, lat float64, lon float64) (*cores.Message, error)
+	}
+	ls, ok := acc.Core.(locationSender)
+	if !ok {
+		return fmt.Errorf("platform does not support SendLocation")
+	}
+	_, err := ls.SendLocation(chatID, lat, lon)
+	return err
 }
 
 func (e *Engine) UpdateChannelColor(accountID, chatID string, colorIndex int) error {

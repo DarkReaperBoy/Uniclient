@@ -3408,6 +3408,15 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		avatarDir := e.MediaDir() + string(os.PathSeparator) + params.AccountID + string(os.PathSeparator) + "avatars"
+		for i := range reactors {
+			if reactors[i].PeerID != "" {
+				avatarPath := avatarDir + string(os.PathSeparator) + reactors[i].PeerID + ".jpg"
+				if data, readErr := os.ReadFile(avatarPath); readErr == nil {
+					reactors[i].AvatarB64 = base64.StdEncoding.EncodeToString(data)
+				}
+			}
+		}
 		return json.Marshal(map[string]interface{}{
 			"reactors":    reactors,
 			"next_offset": nextOffset,
@@ -4830,6 +4839,46 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return json.Marshal(counts)
+
+	case "GetAvailableReactions":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		emojis, err := e.GetAvailableReactions(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{
+			"reactions": emojis,
+		})
+
+	case "SendBotRequestedPeer":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			ChatID    string   `json:"chat_id"`
+			MsgID     int      `json:"msg_id"`
+			ButtonID  int      `json:"button_id"`
+			PeerIDs   []string `json:"peer_ids"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SendBotRequestedPeer(params.AccountID, params.ChatID, params.MsgID, params.ButtonID, params.PeerIDs)
+
+	case "SendLocationEngine":
+		var params struct {
+			AccountID string  `json:"account_id"`
+			ChatID    string  `json:"chat_id"`
+			Lat       float64 `json:"lat"`
+			Lon       float64 `json:"lon"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SendLocation(params.AccountID, params.ChatID, params.Lat, params.Lon)
 
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)

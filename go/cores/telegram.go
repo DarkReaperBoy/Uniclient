@@ -16716,6 +16716,68 @@ func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit i
 	return reactions, nextOffset, nil
 }
 
+// GetAvailableReactionEmojis returns the list of top/available reaction emoji strings.
+func (t *TelegramCore) GetAvailableReactionEmojis() ([]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	topResult, err := t.api.MessagesGetTopReactions(t.ctx, &tg.MessagesGetTopReactionsRequest{
+		Limit: 50,
+		Hash:  0,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var emojis []string
+	switch r := topResult.(type) {
+	case *tg.MessagesReactions:
+		for _, rx := range r.Reactions {
+			if re, ok := rx.(*tg.ReactionEmoji); ok {
+				emojis = append(emojis, re.Emoticon)
+			}
+		}
+	}
+	if len(emojis) == 0 {
+		emojis = []string{"👍", "❤️", "🔥", "🥰", "👏", "😱", "😢", "🎉"}
+	}
+	return emojis, nil
+}
+
+// SendBotRequestedPeer sends the selected peer(s) to a bot via the proper API.
+func (t *TelegramCore) SendBotRequestedPeer(chatID string, msgID int, buttonID int, peerIDs []string) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	var requestedPeers []tg.InputPeerClass
+	for _, pid := range peerIDs {
+		id, parseErr := strconv.ParseInt(pid, 10, 64)
+		if parseErr != nil {
+			continue
+		}
+		rp, rpUnlock, rpErr := t.withPeer(strconv.FormatInt(id, 10))
+		if rpErr != nil {
+			requestedPeers = append(requestedPeers, &tg.InputPeerUser{UserID: id})
+			continue
+		}
+		rpUnlock()
+		requestedPeers = append(requestedPeers, rp)
+	}
+	if len(requestedPeers) == 0 {
+		return fmt.Errorf("no valid peers to send")
+	}
+	_, err = t.api.MessagesSendBotRequestedPeer(t.ctx, &tg.MessagesSendBotRequestedPeerRequest{
+		Peer:           inputPeer,
+		MsgID:          msgID,
+		ButtonID:       buttonID,
+		RequestedPeers: requestedPeers,
+	})
+	return err
+}
+
 // GetUnreadMentions returns unread messages that mention the user.
 func (t *TelegramCore) GetUnreadMentions(chatID string, limit int) ([]Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)

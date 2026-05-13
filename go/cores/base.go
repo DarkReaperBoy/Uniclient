@@ -319,6 +319,7 @@ type Reaction struct {
 	PeerID     string `json:"peer_id,omitempty"`
 	PeerName   string `json:"peer_name,omitempty"`
 	Date       int    `json:"date,omitempty"`
+	AvatarB64  string `json:"avatar_b64,omitempty"`
 }
 
 // GifInfo holds data for a single saved GIF animation.

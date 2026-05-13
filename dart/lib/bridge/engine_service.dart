@@ -2101,7 +2101,7 @@ class EngineService {
   Future<List<String>> getAvailableReactions(String accountId) async {
     final payload = utf8.encode(json.encode({'account_id': accountId}));
     try {
-      final respBytes = await _callAsync('__engine', 'GetAvailableReactionsEngine', Uint8List.fromList(payload));
+      final respBytes = await _callAsync('__engine', 'GetAvailableReactions', Uint8List.fromList(payload));
       if (respBytes.isEmpty) return [];
       final decoded = json.decode(utf8.decode(respBytes));
       if (decoded is List) return decoded.cast<String>();
@@ -2112,6 +2112,27 @@ class EngineService {
     } catch (_) {
       return [];
     }
+  }
+
+  Future<void> sendBotRequestedPeer(String accountId, String chatId, int msgId, int buttonId, List<String> peerIds) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+      'button_id': buttonId,
+      'peer_ids': peerIds,
+    }));
+    await _callAsync('__engine', 'SendBotRequestedPeer', Uint8List.fromList(payload));
+  }
+
+  Future<void> sendLocation(String accountId, String chatId, double lat, double lon) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'lat': lat,
+      'lon': lon,
+    }));
+    await _callAsync('__engine', 'SendLocationEngine', Uint8List.fromList(payload));
   }
 
   Future<List<Map<String, dynamic>>> getStoryViewers(
@@ -3112,6 +3133,7 @@ class EngineService {
         peerId: (e['peer_id'] as String?) ?? '',
         peerName: (e['peer_name'] as String?) ?? '',
         date: (e['date'] as num?)?.toInt() ?? 0,
+        avatarB64: (e['avatar_b64'] as String?) ?? '',
       )).toList();
       return ReactorsListResult(reactors: reactors, nextOffset: nextOffset);
     } catch (e) {

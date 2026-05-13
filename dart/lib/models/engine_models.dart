@@ -1254,6 +1254,7 @@ class ReactorInfo {
   final String peerId;
   final String peerName;
   final int date;
+  final String avatarB64;
 
   const ReactorInfo({
     required this.emoji,
@@ -1261,6 +1262,7 @@ class ReactorInfo {
     required this.peerId,
     required this.peerName,
     this.date = 0,
+    this.avatarB64 = '',
   });
 
   bool get isCustomEmoji => documentId != 0;

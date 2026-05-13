@@ -180,6 +180,29 @@ class _MessageBubbleState extends State<MessageBubble> {
   Timer? _showTimer;
   Timer? _hideTimer;
 
+  static final Map<String, List<String>> _cachedReactions = {};
+  static final Map<String, bool> _loadingReactions = {};
+
+  List<String> get _availableReactions {
+    final accountId = context.read<AppState>().activeAccountId;
+    return _cachedReactions[accountId] ?? const ['👍', '❤️', '🔥', '🥰', '👏', '😱', '😢', '🎉'];
+  }
+
+  void _ensureReactionsLoaded() {
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isEmpty) return;
+    if (_cachedReactions.containsKey(accountId)) return;
+    if (_loadingReactions[accountId] == true) return;
+    _loadingReactions[accountId] = true;
+    final engine = context.read<EngineService>();
+    engine.getAvailableReactions(accountId).then((reactions) {
+      if (reactions.isNotEmpty) {
+        _cachedReactions[accountId] = reactions;
+      }
+      _loadingReactions[accountId] = false;
+    });
+  }
+
   @override
   void dispose() {
     _showTimer?.cancel();
@@ -189,6 +212,7 @@ class _MessageBubbleState extends State<MessageBubble> {
 
   void _onHoverEnter() {
     if (widget.inSelectionMode) return;
+    _ensureReactionsLoaded();
     _hideTimer?.cancel();
     _showTimer?.cancel();
     _showTimer = Timer(const Duration(milliseconds: 300), () {
@@ -233,6 +257,7 @@ class _MessageBubbleState extends State<MessageBubble> {
         stripOffset: stripPos,
         stripSize: stripSize,
         isDark: isDark,
+        availableReactions: _availableReactions,
         onPick: (emoji) {
           entry.remove();
           _onReactionTap(emoji);
@@ -320,7 +345,7 @@ class _MessageBubbleState extends State<MessageBubble> {
           padding: const EdgeInsets.symmetric(horizontal: 13),
           child: Row(
             children: [
-              _ReactorAvatar(name: reactor.peerName, size: 30),
+              _ReactorAvatar(name: reactor.peerName, size: 30, avatarB64: reactor.avatarB64),
               const SizedBox(width: 14),
               Expanded(
                 child: hasDate
@@ -765,6 +790,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                       onReactionTap: _onReactionTap,
                       onExpandTap: _onExpandReactions,
                       isDark: isDark,
+                      reactions: _availableReactions,
                     ),
                   ),
                 ),
@@ -1067,12 +1093,13 @@ class _MessageBubbleState extends State<MessageBubble> {
                 ),
               if (_hovered && !inSelectionMode)
                 Positioned(
-                  top: 0,
-                  right: isOutgoing ? null : 0,
-                  left: isOutgoing ? 0 : null,
+                  top: -9,
+                  right: isOutgoing ? null : 7,
+                  left: isOutgoing ? 7 : null,
                   child: _ReactionCornerButton(
                     isDark: isDark,
-                    onTap: () => _onReactionTap('❤️'),
+                    emoji: _availableReactions.first,
+                    onTap: () => _onReactionTap(_availableReactions.first),
                   ),
                 ),
               ],
@@ -1360,11 +1387,13 @@ class _SenderNameTapTarget extends StatelessWidget {
 /// Spec §9.3: Per-message corner reaction button — 36x32 pill, 22px emoji, 120ms fade.
 class _ReactionCornerButton extends StatefulWidget {
   final bool isDark;
+  final String emoji;
   final VoidCallback onTap;
 
   const _ReactionCornerButton({
     super.key,
     required this.isDark,
+    this.emoji = '❤️',
     required this.onTap,
   });
 
@@ -1450,8 +1479,8 @@ class _ReactionCornerButtonState extends State<_ReactionCornerButton>
                   ),
                 ],
               ),
-              child: const Center(
-                child: Text('❤️', style: TextStyle(fontSize: 18)),
+              child: Center(
+                child: Text(widget.emoji, style: const TextStyle(fontSize: 18)),
               ),
             ),
           ),
@@ -1466,12 +1495,14 @@ class _ReactionStrip extends StatefulWidget {
   final ValueChanged<String> onReactionTap;
   final VoidCallback onExpandTap;
   final bool isDark;
+  final List<String> reactions;
 
   const _ReactionStrip({
     super.key,
     required this.onReactionTap,
     required this.onExpandTap,
     required this.isDark,
+    this.reactions = const ['👍', '❤️', '🔥', '🥰', '👏', '😱', '😢', '🎉'],
   });
 
   @override
@@ -1487,7 +1518,7 @@ class _ReactionStripState extends State<_ReactionStrip>
   int _flyingIndex = -1;
   AnimationController? _flyController;
 
-  static const _reactions = ['👍', '❤️', '🔥', '🥰', '👏', '😱', '😢', '🎉'];
+  List<String> get _reactions => widget.reactions.take(8).toList();
   static const _stripHeight = 40.0;
   static const _slotSize = 32.0;
   static const _emojiSize = 26.0;
@@ -1670,6 +1701,7 @@ class _ReactionEmojiOverlay extends StatefulWidget {
   final bool isDark;
   final ValueChanged<String> onPick;
   final VoidCallback onDismiss;
+  final List<String> availableReactions;
 
   const _ReactionEmojiOverlay({
     required this.stripOffset,
@@ -1677,6 +1709,7 @@ class _ReactionEmojiOverlay extends StatefulWidget {
     required this.isDark,
     required this.onPick,
     required this.onDismiss,
+    this.availableReactions = const [],
   });
 
   @override
@@ -1710,12 +1743,15 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
     ('Flags', '🏳️'),
   ];
 
-  static const _recentEmoji = [
+  static const _defaultRecentEmoji = [
     '👍', '❤️', '🔥', '🥰', '👏', '😱', '😢', '🎉',
     '🤔', '🥳', '😍', '💯', '🙏', '😂', '❤️‍🔥', '🤣',
   ];
 
-  static const _emojiByCategory = <List<String>>[
+  List<String> get _recentEmoji =>
+      widget.availableReactions.isNotEmpty ? widget.availableReactions : _defaultRecentEmoji;
+
+  List<List<String>> get _emojiByCategory => [
     _recentEmoji,
     ['😀', '😃', '😄', '😁', '😆', '🥹', '😅', '🤣',
      '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍',
@@ -2046,8 +2082,8 @@ class _ReactionList extends StatelessWidget {
     final inactiveLabel = theme.textTheme.bodyMedium?.color ?? Colors.white;
 
     return Wrap(
-      spacing: 3,
-      runSpacing: 3,
+      spacing: 4,
+      runSpacing: 4,
       children: [
         for (final r in reactions)
           GestureDetector(
@@ -2057,7 +2093,7 @@ class _ReactionList extends StatelessWidget {
             child: Container(
               key: reactionKeys[r.isCustomEmoji ? 'custom_${r.documentId}' : r.emoji],
               height: 22,
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              padding: const EdgeInsets.fromLTRB(5, 2, 7, 2),
               decoration: BoxDecoration(
                 color: r.byMe ? activeBg : inactiveBg,
                 borderRadius: BorderRadius.circular(11),
@@ -2075,7 +2111,7 @@ class _ReactionList extends StatelessWidget {
                       altText: r.emoji.isNotEmpty ? r.emoji : '⭐',
                     )
                   else
-                    Text(r.emoji, style: const TextStyle(fontSize: 15)),
+                    Text(r.emoji, style: const TextStyle(fontSize: 18)),
                   const SizedBox(width: 4),
                   Text(
                     _formatCount(r.count),
@@ -2114,11 +2150,30 @@ class _ReactionList extends StatelessWidget {
 class _ReactorAvatar extends StatelessWidget {
   final String name;
   final double size;
+  final String avatarB64;
 
-  const _ReactorAvatar({required this.name, required this.size});
+  const _ReactorAvatar({required this.name, required this.size, this.avatarB64 = ''});
 
   @override
   Widget build(BuildContext context) {
+    if (avatarB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(avatarB64);
+        return ClipOval(
+          child: Image.memory(
+            bytes,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _fallback(context),
+          ),
+        );
+      } catch (_) {}
+    }
+    return _fallback(context);
+  }
+
+  Widget _fallback(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : '?';
     final hue = name.hashCode % 360;
@@ -4167,27 +4222,29 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
     setState(() { _transcribing = true; });
     final engine = context.read<EngineService>();
     final msg = widget.message;
-    final result = await engine.transcribeAudio(msg.accountId, msg.chatId, msg.msgId);
+    var result = await engine.transcribeAudio(msg.accountId, msg.chatId, msg.msgId);
     if (!mounted) return;
     if (result == null) {
       setState(() { _transcribing = false; });
       return;
     }
     if (result.pending) {
-      await Future.delayed(const Duration(seconds: 3));
-      if (!mounted) return;
-      final retry = await engine.transcribeAudio(msg.accountId, msg.chatId, msg.msgId);
-      if (!mounted) return;
-      setState(() {
-        _transcribing = false;
-        _transcriptionText = retry?.text ?? '';
-      });
-    } else {
-      setState(() {
-        _transcribing = false;
-        _transcriptionText = result.text;
-      });
+      var delay = const Duration(seconds: 2);
+      const maxDelay = Duration(seconds: 15);
+      for (var attempt = 0; attempt < 10; attempt++) {
+        await Future.delayed(delay);
+        if (!mounted) return;
+        result = await engine.transcribeAudio(msg.accountId, msg.chatId, msg.msgId);
+        if (!mounted) return;
+        if (result == null || !result.pending) break;
+        delay = Duration(milliseconds: (delay.inMilliseconds * 1.5).toInt().clamp(0, maxDelay.inMilliseconds));
+      }
     }
+    if (!mounted) return;
+    setState(() {
+      _transcribing = false;
+      _transcriptionText = result?.text ?? '';
+    });
   }
 
   String _formatDurationMs(Duration d) {
@@ -9577,11 +9634,7 @@ class _InlineButtonState extends State<_InlineButton>
           chatState.sendMessage(phone);
         }
       case 'request_location':
-        if (!Platform.isAndroid && !Platform.isIOS) {
-          showTelegramToast(context, 'Location sharing is not supported on this platform');
-        } else {
-          showTelegramToast(context, 'Location sharing requires GPS access');
-        }
+        _showLocationDialog(context);
       case 'request_poll':
         showCreatePollBox(context).then((result) {
           if (result == null) return;
@@ -9594,16 +9647,17 @@ class _InlineButtonState extends State<_InlineButton>
               quiz: result.quiz, allowRevoting: result.allowRevoting);
         });
       case 'request_peer':
-        _showPeerSelectionDialog(context);
+        _showPeerSelectionDialog(context, int.tryParse(widget.messageId) ?? 0, btn.buttonId);
       default:
         final chatState = context.read<ChatState>();
         chatState.sendMessage(btn.text);
     }
   }
 
-  void _showPeerSelectionDialog(BuildContext context) {
+  void _showPeerSelectionDialog(BuildContext context, int msgId, int buttonId) {
     final chatState = context.read<ChatState>();
     final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
@@ -9696,7 +9750,116 @@ class _InlineButtonState extends State<_InlineButton>
       },
     ).then((selected) {
       if (selected == null) return;
-      chatState.sendMessage(selected.chatId);
+      final chat = chatState.activeChat;
+      if (chat == null) return;
+      engine.sendBotRequestedPeer(
+        chat.accountId,
+        chat.chatId,
+        msgId,
+        buttonId,
+        [selected.chatId],
+      );
+    });
+  }
+
+  void _showLocationDialog(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final latController = TextEditingController();
+    final lonController = TextEditingController();
+    String? error;
+
+    showDialog<(double, double)?>(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (stateCtx, setDialogState) {
+            return Dialog(
+              backgroundColor: bgColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 340),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Share Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textColor)),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: latController,
+                        style: TextStyle(color: textColor, fontSize: 14),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                        decoration: InputDecoration(
+                          labelText: 'Latitude',
+                          labelStyle: TextStyle(color: subtextColor),
+                          hintText: 'e.g. 51.5074',
+                          hintStyle: TextStyle(color: subtextColor.withValues(alpha: 0.5)),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: lonController,
+                        style: TextStyle(color: textColor, fontSize: 14),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                        decoration: InputDecoration(
+                          labelText: 'Longitude',
+                          labelStyle: TextStyle(color: subtextColor),
+                          hintText: 'e.g. -0.1278',
+                          hintStyle: TextStyle(color: subtextColor.withValues(alpha: 0.5)),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      if (error != null) ...[
+                        const SizedBox(height: 8),
+                        Text(error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                      ],
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(dialogCtx).pop(),
+                            child: Text('Cancel', style: TextStyle(color: subtextColor)),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton(
+                            onPressed: () {
+                              final lat = double.tryParse(latController.text.trim());
+                              final lon = double.tryParse(lonController.text.trim());
+                              if (lat == null || lon == null) {
+                                setDialogState(() => error = 'Enter valid coordinates');
+                                return;
+                              }
+                              if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                                setDialogState(() => error = 'Lat: -90..90, Lon: -180..180');
+                                return;
+                              }
+                              Navigator.of(dialogCtx).pop((lat, lon));
+                            },
+                            child: Text('Send', style: TextStyle(color: context.palette.windowBgActive)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).then((result) {
+      if (result == null) return;
+      final chatState = context.read<ChatState>();
+      final chat = chatState.activeChat;
+      if (chat == null) return;
+      final engine = context.read<EngineService>();
+      engine.sendLocation(chat.accountId, chat.chatId, result.$1, result.$2);
     });
   }
 
