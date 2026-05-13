@@ -564,27 +564,25 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
 
   void _showMyGroupsPopup(BuildContext context, Offset position, {required bool isGroup}) {
     final chatState = context.read<ChatState>();
-    final accountId = context.read<AppState>().activeAccount?.id ?? '';
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccount?.id ?? '';
     final targetType = isGroup ? ChatType.group : ChatType.channel;
     final chats = chatState.chatsForAccount(accountId)
-        .where((c) => c.type == targetType && c.isAdmin)
+        .where((c) => c.type == targetType)
         .toList();
-    if (chats.isEmpty) return;
-    final items = chats.map((c) => TelegramMenuItem<String>(
-      value: c.chatId,
-      icon: Icon(isGroup ? Icons.group : Icons.campaign),
-      label: c.title,
-    )).toList();
-    showTelegramMenu<String>(
+    final title = isGroup ? 'Groups' : 'Channels';
+    Navigator.of(context).pop();
+    showDialog(
       context: context,
-      position: position,
-      items: items,
-    ).then((chatId) {
-      if (chatId == null) return;
-      final chat = chats.firstWhere((c) => c.chatId == chatId);
-      Navigator.of(context).pop();
-      chatState.openChat(chat);
-    });
+      builder: (ctx) => _MyChatsDialog(
+        title: title,
+        chats: chats,
+        onChatSelected: (chat) {
+          Navigator.of(ctx).pop();
+          chatState.openChat(chat);
+        },
+      ),
+    );
   }
 
   void _showAddAccountDialog(BuildContext context, AppState appState,
@@ -1861,4 +1859,175 @@ class _GhostIconPainter extends CustomPainter {
   @override
   bool shouldRepaint(_GhostIconPainter old) =>
       old.bodyColor != bodyColor || old.eyeColor != eyeColor;
+}
+
+class _MyChatsDialog extends StatelessWidget {
+  final String title;
+  final List<ChatInfo> chats;
+  final ValueChanged<ChatInfo> onChatSelected;
+
+  const _MyChatsDialog({
+    required this.title,
+    required this.chats,
+    required this.onChatSelected,
+  });
+
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+
+  static String _initials(String title) {
+    final t = title.trim();
+    if (t.isEmpty) return '?';
+    final words = t.split(RegExp(r'\s+'));
+    if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
+      return '${words[0][0]}${words[1][0]}'.toUpperCase();
+    }
+    return t[0].toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      backgroundColor: palette.boxBg,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 20, 8, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: palette.boxTitleFg,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: palette.boxTitleCloseFg, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
+                    splashRadius: 18,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            if (chats.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 22),
+                child: Text(
+                  'You have no ${title.toLowerCase()} yet.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.only(bottom: 8),
+                  itemCount: chats.length,
+                  itemBuilder: (ctx, i) {
+                    final chat = chats[i];
+                    final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+                    final avatarColor = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
+                    final initials = _initials(chat.title);
+                    final countLabel = chat.type == ChatType.channel
+                        ? (chat.memberCount == 1 ? 'subscriber' : 'subscribers')
+                        : (chat.memberCount == 1 ? 'member' : 'members');
+                    final subtitle = chat.memberCount > 0
+                        ? '${chat.memberCount} $countLabel'
+                        : '';
+                    return InkWell(
+                      onTap: () => onChatSelected(chat),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+                        child: Row(
+                          children: [
+                            _buildAvatar(chat, avatarColor, initials),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    chat.title,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: theme.colorScheme.onSurface,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (subtitle.isNotEmpty)
+                                    Text(
+                                      subtitle,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar(ChatInfo chat, Color color, String initials) {
+    const size = 42.0;
+    if (chat.avatarPath.isNotEmpty) {
+      final file = File(chat.avatarPath);
+      return ClipOval(
+        child: Image.file(
+          file,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackAvatar(color, initials, size),
+        ),
+      );
+    }
+    return _fallbackAvatar(color, initials, size);
+  }
+
+  Widget _fallbackAvatar(Color color, String initials, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.38,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
 }
