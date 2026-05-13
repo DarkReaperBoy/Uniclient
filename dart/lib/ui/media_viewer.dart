@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 import '../models/engine_models.dart';
 import '../bridge/engine_service.dart';
@@ -666,7 +667,8 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   static double _scaleForLevel(int level) {
-    return math.pow(2.0, 3.0 * level / 7.0).toDouble();
+    if (level >= 0) return (level + 1).toDouble();
+    return 1.0 / (-level + 1);
   }
 
   static int _nearestLevel(double scale) {
@@ -758,9 +760,9 @@ class _MediaViewerState extends State<MediaViewer>
         }
       } else {
         if (event.scrollDelta.dy > 0) {
-          _goToPrev();
-        } else if (event.scrollDelta.dy < 0) {
           _goToNext();
+        } else if (event.scrollDelta.dy < 0) {
+          _goToPrev();
         }
       }
     }
@@ -783,6 +785,7 @@ class _MediaViewerState extends State<MediaViewer>
   bool get _controlsVisible => !_controlsAnim.isDismissed;
 
   void _showControls() {
+    _cancelAutoHide();
     _controlsAnim.forward();
     _scheduleAutoHide();
   }
@@ -876,7 +879,7 @@ class _MediaViewerState extends State<MediaViewer>
     if (!_isVideo || _player == null) return;
     _spaceBoostTimer?.cancel();
     _spaceBoostActive = false;
-    _spaceBoostTimer = Timer(const Duration(milliseconds: 300), () {
+    _spaceBoostTimer = Timer(const Duration(milliseconds: 200), () {
       if (!mounted) return;
       _spaceBoostActive = true;
       _preBoostSpeed = _playbackSpeed;
@@ -2408,15 +2411,24 @@ class _MediaViewerState extends State<MediaViewer>
         : typeLabel;
 
     final dt = DateTime.fromMillisecondsSinceEpoch(msg.timestamp);
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final amPm = dt.hour >= 12 ? 'PM' : 'AM';
-    final datePart =
-        '${months[dt.month - 1]} ${dt.day}, ${dt.year} at $hour:${dt.minute.toString().padLeft(2, '0')} $amPm';
-    final dcPart = msg.dcId > 0 ? ' (DC${msg.dcId})' : '';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final msgDay = DateTime(dt.year, dt.month, dt.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final timePart = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    String datePart;
+    if (msgDay == today) {
+      datePart = 'Today at $timePart';
+    } else if (msgDay == yesterday) {
+      datePart = 'Yesterday at $timePart';
+    } else {
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      datePart = '${months[dt.month - 1]} ${dt.day}, ${dt.year} at $timePart';
+    }
+    final dcPart = msg.dcId > 0 ? ', DC${msg.dcId}' : '';
     final dateStr = '$datePart$dcPart';
 
     const headerStyle = TextStyle(
@@ -2525,28 +2537,26 @@ class _MediaViewerState extends State<MediaViewer>
     if (msg.mediaLocalPath.isEmpty) return;
     final sourceFile = File(msg.mediaLocalPath);
     if (!await sourceFile.exists()) return;
-    final downloadsDir =
-        Directory('${Platform.environment['HOME'] ?? '/tmp'}/Downloads');
-    if (!await downloadsDir.exists()) {
-      await downloadsDir.create(recursive: true);
-    }
     final fileName = msg.mediaFileName.isNotEmpty
         ? msg.mediaFileName
         : sourceFile.uri.pathSegments.last;
-    var destPath = '${downloadsDir.path}/$fileName';
+
+    final dirPath = await FilePicker.platform.getDirectoryPath();
+    if (dirPath == null || !mounted) return;
+
+    var destPath = '$dirPath/$fileName';
     var counter = 1;
     while (await File(destPath).exists()) {
-      final ext =
-          fileName.contains('.') ? '.${fileName.split('.').last}' : '';
+      final ext = fileName.contains('.') ? '.${fileName.split('.').last}' : '';
       final base = fileName.contains('.')
           ? fileName.substring(0, fileName.lastIndexOf('.'))
           : fileName;
-      destPath = '${downloadsDir.path}/${base}_($counter)$ext';
+      destPath = '$dirPath/${base}_($counter)$ext';
       counter++;
     }
     await sourceFile.copy(destPath);
     if (!mounted) return;
-    _showSaveToast(downloadsDir.path);
+    _showSaveToast(dirPath);
   }
 
   void _showSaveToast(String downloadsPath) {
@@ -2624,29 +2634,104 @@ class _MediaViewerState extends State<MediaViewer>
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E2C3A),
-        title: const Text('Forward to...', style: TextStyle(color: Colors.white)),
-        content: SizedBox(
-          width: 300,
-          height: 400,
-          child: ListView.builder(
-            itemCount: chats.length,
-            itemBuilder: (_, i) {
-              final chat = chats[i];
-              return ListTile(
-                title: Text(chat.title,
-                    style: const TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  chatState.forwardMessages([msg.msgId], chat.chatId);
-                  showTelegramToast(context, 'Forwarded to ${chat.title}');
-                },
-              );
-            },
-          ),
-        ),
-      ),
+      builder: (ctx) {
+        String searchQuery = '';
+        final selectedChatIds = <String>{};
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final filtered = searchQuery.isEmpty
+                ? chats
+                : chats.where((c) => c.title.toLowerCase().contains(searchQuery.toLowerCase())).toList();
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E2C3A),
+              titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              contentPadding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Forward to...', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  if (selectedChatIds.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: selectedChatIds.map((id) {
+                          final chat = chats.firstWhere((c) => c.chatId == id);
+                          return Chip(
+                            label: Text(chat.title, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                            backgroundColor: const Color(0xFF3390EC),
+                            deleteIconColor: Colors.white70,
+                            onDeleted: () => setDialogState(() => selectedChatIds.remove(id)),
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  TextField(
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      hintText: 'Search chats...',
+                      hintStyle: TextStyle(color: Colors.white38),
+                      prefixIcon: Icon(Icons.search, color: Colors.white38, size: 20),
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                    ),
+                    onChanged: (v) => setDialogState(() => searchQuery = v),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 320,
+                height: 380,
+                child: ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) {
+                    final chat = filtered[i];
+                    final selected = selectedChatIds.contains(chat.chatId);
+                    return ListTile(
+                      dense: true,
+                      leading: selected
+                          ? const Icon(Icons.check_circle, color: Color(0xFF3390EC), size: 20)
+                          : const Icon(Icons.circle_outlined, color: Colors.white38, size: 20),
+                      title: Text(chat.title, style: const TextStyle(color: Colors.white)),
+                      onTap: () {
+                        setDialogState(() {
+                          if (selected) {
+                            selectedChatIds.remove(chat.chatId);
+                          } else {
+                            selectedChatIds.add(chat.chatId);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: selectedChatIds.isEmpty ? null : () {
+                    Navigator.of(ctx).pop();
+                    for (final chatId in selectedChatIds) {
+                      chatState.forwardMessages([msg.msgId], chatId);
+                    }
+                    final count = selectedChatIds.length;
+                    showTelegramToast(context, 'Forwarded to $count chat${count > 1 ? 's' : ''}');
+                  },
+                  child: Text('Send${selectedChatIds.isNotEmpty ? ' (${selectedChatIds.length})' : ''}'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -2755,10 +2840,89 @@ class _MediaViewerState extends State<MediaViewer>
 
   void _shareAtTime(CachedMessage msg) {
     if (!_isVideo || _player == null || _duration == Duration.zero) return;
-    final secs = _position.inSeconds;
-    final text = '${msg.mediaFileName.isNotEmpty ? msg.mediaFileName : "Video"} at ${_formatTime(_position)}';
-    Clipboard.setData(ClipboardData(text: text));
-    if (mounted) showTelegramToast(context, 'Time reference copied');
+    final timeRef = _formatTime(_position);
+    final fileName = msg.mediaFileName.isNotEmpty ? msg.mediaFileName : 'Video';
+    final shareText = '$fileName at $timeRef';
+
+    final chatState = context.read<ChatState>();
+    final chats = chatState.chats;
+    if (chats.isEmpty) {
+      Clipboard.setData(ClipboardData(text: shareText));
+      if (mounted) showTelegramToast(context, 'Time reference copied');
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        String searchQuery = '';
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final filtered = searchQuery.isEmpty
+                ? chats
+                : chats.where((c) => c.title.toLowerCase().contains(searchQuery.toLowerCase())).toList();
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E2C3A),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Share time reference', style: TextStyle(color: Colors.white, fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text(shareText, style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      hintText: 'Search chats...',
+                      hintStyle: TextStyle(color: Colors.white38),
+                      prefixIcon: Icon(Icons.search, color: Colors.white38, size: 20),
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                    ),
+                    onChanged: (v) => setDialogState(() => searchQuery = v),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 300,
+                height: 350,
+                child: ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) {
+                    final chat = filtered[i];
+                    return ListTile(
+                      dense: true,
+                      title: Text(chat.title, style: const TextStyle(color: Colors.white)),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        chatState.openChatById(chat.chatId);
+                        chatState.sendMessage(shareText);
+                        showTelegramToast(context, 'Sent to ${chat.title}');
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: shareText));
+                    Navigator.of(ctx).pop();
+                    showTelegramToast(context, 'Time reference copied');
+                  },
+                  child: const Text('Copy to Clipboard'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showAllMedia(CachedMessage msg) {
@@ -2819,11 +2983,30 @@ class _MediaViewerState extends State<MediaViewer>
     }
   }
 
-  void _viewStatistics(CachedMessage msg) {
+  void _viewStatistics(CachedMessage msg) async {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    Map<String, dynamic> stats = {};
+    try {
+      final msgId = int.tryParse(msg.msgId) ?? 0;
+      stats = await engine.getMessageStats(accountId, msg.chatId, msgId);
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    final views = stats['views'] as int? ?? msg.views;
+    final forwards = stats['forwards'] as int? ?? msg.forwards;
+    final reactions = stats['reactions'] as int? ??
+        (msg.reactions.isNotEmpty ? msg.reactions.fold<int>(0, (sum, r) => sum + r.count) : 0);
+    final publicShares = stats['public_shares'] as int? ?? 0;
 
     showModalBottomSheet(
       context: context,
@@ -2840,11 +3023,15 @@ class _MediaViewerState extends State<MediaViewer>
             children: [
               Text('Statistics', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textColor)),
               const SizedBox(height: 16),
-              _statRow(Icons.visibility_outlined, 'Views', msg.views > 0 ? '${msg.views}' : '—', textColor, subtextColor),
+              _statRow(Icons.visibility_outlined, 'Views', views > 0 ? '$views' : '—', textColor, subtextColor),
               const SizedBox(height: 12),
-              _statRow(Icons.share_outlined, 'Shares', msg.forwards > 0 ? '${msg.forwards}' : '—', textColor, subtextColor),
+              _statRow(Icons.share_outlined, 'Forwards', forwards > 0 ? '$forwards' : '—', textColor, subtextColor),
+              if (publicShares > 0) ...[
+                const SizedBox(height: 12),
+                _statRow(Icons.public, 'Public Shares', '$publicShares', textColor, subtextColor),
+              ],
               const SizedBox(height: 12),
-              _statRow(Icons.favorite_border, 'Reactions', msg.reactions.isNotEmpty ? '${msg.reactions.fold<int>(0, (sum, r) => sum + r.count)}' : '—', textColor, subtextColor),
+              _statRow(Icons.favorite_border, 'Reactions', reactions > 0 ? '$reactions' : '—', textColor, subtextColor),
               const SizedBox(height: 16),
             ],
           ),
@@ -2906,7 +3093,7 @@ class _MediaViewerState extends State<MediaViewer>
         _darkMenuItem('save_as', Icons.save_alt, 'Save As\u2026'),
       if (msg.mediaLocalPath.isNotEmpty)
         _darkMenuItem('show_all', Icons.photo_library, 'Show All Photos'),
-      if (widget.mediaMessages.isEmpty && !_isSelfMedia)
+      if (widget.mediaMessages.isNotEmpty && !_isSelfMedia)
         _darkMenuItem('stealth_mode', Icons.visibility_off_outlined, 'Stealth Mode'),
     ];
   }
@@ -3048,8 +3235,17 @@ class _MediaViewerState extends State<MediaViewer>
           imageFile: file,
           purpose: PhotoEditorPurpose.edit,
           onDone: (editedFile) async {
-            if (mounted) {
-              showTelegramToast(context, 'Photo saved');
+            final dirPath = await FilePicker.platform.getDirectoryPath();
+            if (dirPath == null) return;
+            final fileName = msg.mediaFileName.isNotEmpty
+                ? msg.mediaFileName
+                : 'edited_photo.png';
+            final destPath = '$dirPath/$fileName';
+            try {
+              await editedFile.copy(destPath);
+              if (mounted) showTelegramToast(context, 'Photo saved to $dirPath');
+            } catch (e) {
+              if (mounted) showTelegramToast(context, 'Failed to save photo');
             }
           },
         ),
@@ -3318,10 +3514,12 @@ class _ThumbRow extends StatefulWidget {
 
 class _ThumbRowState extends State<_ThumbRow> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+  int _prevIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _prevIndex = widget.currentIndex;
     _controller = AnimationController(
       vsync: this,
       duration: _kThumbAnimDuration,
@@ -3333,6 +3531,7 @@ class _ThumbRowState extends State<_ThumbRow> with SingleTickerProviderStateMixi
   void didUpdateWidget(_ThumbRow old) {
     super.didUpdateWidget(old);
     if (old.currentIndex != widget.currentIndex) {
+      _prevIndex = old.currentIndex;
       _controller.forward(from: 0.0);
     }
   }
@@ -3348,24 +3547,37 @@ class _ThumbRowState extends State<_ThumbRow> with SingleTickerProviderStateMixi
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
+        final t = _controller.value;
         final startIdx = math.max(0, widget.currentIndex - widget.maxSideThumbs);
         final endIdx = math.min(widget.messages.length - 1, widget.currentIndex + widget.maxSideThumbs);
 
         final children = <Widget>[];
         for (int i = startIdx; i <= endIdx; i++) {
           final isCurrent = i == widget.currentIndex;
-          final targetW = isCurrent ? _kThumbWidthMax : _kThumbWidth;
+          final wasCurrent = i == _prevIndex;
+
+          double width;
+          if (isCurrent) {
+            width = _kThumbWidth + (_kThumbWidthMax - _kThumbWidth) * t;
+          } else if (wasCurrent) {
+            width = _kThumbWidthMax - (_kThumbWidthMax - _kThumbWidth) * t;
+          } else {
+            width = _kThumbWidth;
+          }
 
           if (i > startIdx) {
             final prevIsCurrent = (i - 1) == widget.currentIndex;
-            final gap = (isCurrent || prevIsCurrent) ? _kThumbGapCurrent : _kThumbGap;
+            final prevWasCurrent = (i - 1) == _prevIndex;
+            final targetGap = (isCurrent || prevIsCurrent) ? _kThumbGapCurrent : _kThumbGap;
+            final prevGap = (wasCurrent || prevWasCurrent) ? _kThumbGapCurrent : _kThumbGap;
+            final gap = prevGap + (targetGap - prevGap) * t;
             children.add(SizedBox(width: gap));
           }
 
           children.add(
             _ThumbItem(
               message: widget.messages[i],
-              width: targetW,
+              width: width,
               isCurrent: isCurrent,
               onTap: () => widget.onTap(i),
             ),
@@ -4027,32 +4239,27 @@ class _PipWidgetState extends State<PipOverlayWidget>
 
   Offset _snapPosition(double x, double y, Size screen) {
     double sx = x, sy = y;
-    const innerMargin = 3 * _kPipBorderSkip; // 60px per spec
+    const snapMargin = _kPipBorderSkip;
+    const maxSizeMargin = 3 * _kPipBorderSkip;
 
-    // Left edge: PiP's left within snap area of screen left
     if (x >= -_kPipBorderSnapArea && x < _kPipBorderSnapArea) {
-      sx = innerMargin;
-    }
-    // Right edge: PiP's right within snap area of screen right
-    else if ((x + _width) >= screen.width - _kPipBorderSnapArea &&
+      sx = snapMargin;
+    } else if ((x + _width) >= screen.width - _kPipBorderSnapArea &&
         (x + _width) < screen.width + _kPipBorderSnapArea) {
-      sx = screen.width - _width - innerMargin;
+      sx = screen.width - _width - snapMargin;
     }
 
-    // Top edge
     if (y >= -_kPipBorderSnapArea && y < _kPipBorderSnapArea) {
-      sy = innerMargin;
-    }
-    // Bottom edge
-    else if ((y + _height) >= screen.height - _kPipBorderSnapArea &&
+      sy = snapMargin;
+    } else if ((y + _height) >= screen.height - _kPipBorderSnapArea &&
         (y + _height) < screen.height + _kPipBorderSnapArea) {
-      sy = screen.height - _height - innerMargin;
+      sy = screen.height - _height - snapMargin;
     }
 
-    final maxX = (screen.width - _width - innerMargin).clamp(0.0, double.infinity);
-    final maxY = (screen.height - _height - innerMargin).clamp(0.0, double.infinity);
-    sx = sx.clamp(innerMargin, maxX);
-    sy = sy.clamp(innerMargin, maxY);
+    final maxX = (screen.width - _width - snapMargin).clamp(0.0, double.infinity);
+    final maxY = (screen.height - _height - snapMargin).clamp(0.0, double.infinity);
+    sx = sx.clamp(snapMargin, maxX);
+    sy = sy.clamp(snapMargin, maxY);
     return Offset(sx, sy);
   }
 
@@ -4523,7 +4730,7 @@ const _kStoryBubbleBigTailRotation = -42.29;
 const _kStoryBubbleSmallTailDiameter = 0.110;
 const _kStoryBubbleSmallTailOffset = 0.697;
 const _kStoryBubbleSmallTailRotation = -40.87;
-const _kStoryReactions = ['❤️', '🔥', '👍', '😱', '🎉', '😢', '👏'];
+const _kStoryReactionsFallback = ['❤️', '🔥', '👍', '😱', '🎉', '😢', '👏'];
 
 class _ReactionBubblePainter extends CustomPainter {
   final Color color;
@@ -4660,9 +4867,10 @@ class _LocationChipState extends State<_LocationChip> {
           final lat = widget.area.lat;
           final lng = widget.area.lng;
           if (lat != 0 || lng != 0) {
-            Process.run('xdg-open', [
-              'https://maps.google.com/?q=$lat,$lng',
-            ]);
+            url_launcher.launchUrl(
+              Uri.parse('https://maps.google.com/?q=$lat,$lng'),
+              mode: url_launcher.LaunchMode.externalApplication,
+            );
           }
         },
         child: AnimatedContainer(
@@ -4735,10 +4943,9 @@ class _ReactionAreaState extends State<_ReactionArea>
   @override
   Widget build(BuildContext context) {
     final emoji = widget.area.reaction;
-    if (emoji.isEmpty || emoji.startsWith('custom:')) {
-      return const SizedBox.shrink();
-    }
+    if (emoji.isEmpty) return const SizedBox.shrink();
 
+    final isCustomEmoji = emoji.startsWith('custom:');
     final dark = widget.area.dark;
     final flipped = widget.area.flipped;
     final bgColor = dark ? const Color(0x80000000) : const Color(0x40FFFFFF);
@@ -4772,10 +4979,16 @@ class _ReactionAreaState extends State<_ReactionArea>
                   : bgColor,
             ),
             child: Center(
-              child: Text(
-                emoji,
-                style: TextStyle(fontSize: _kStoryReactionBubbleSize * 0.5),
-              ),
+              child: isCustomEmoji
+                  ? Icon(
+                      Icons.emoji_emotions,
+                      size: _kStoryReactionBubbleSize * 0.45,
+                      color: dark ? Colors.white70 : Colors.black54,
+                    )
+                  : Text(
+                      emoji,
+                      style: TextStyle(fontSize: _kStoryReactionBubbleSize * 0.5),
+                    ),
             ),
           ),
         ),
@@ -5085,6 +5298,7 @@ class _StoryReactionsPanelState extends State<_StoryReactionsPanel>
   late final AnimationController _scaleOutController;
   late final Animation<double> _scaleOutAnim;
   bool _likeHovered = false;
+  List<String> _reactions = List.from(_kStoryReactionsFallback);
 
   @override
   void initState() {
@@ -5100,6 +5314,20 @@ class _StoryReactionsPanelState extends State<_StoryReactionsPanel>
     );
     _scaleOutAnim = Tween<double>(begin: 1.0, end: _kStoryReactionScaleOutTarget)
         .animate(CurvedAnimation(parent: _scaleOutController, curve: Curves.easeOut));
+    _loadReactions();
+  }
+
+  Future<void> _loadReactions() async {
+    try {
+      final engine = context.read<EngineService>();
+      final appState = context.read<AppState>();
+      final accountId = appState.activeAccountId;
+      if (accountId.isEmpty) return;
+      final reactions = await engine.getAvailableReactions(accountId);
+      if (reactions.isNotEmpty && mounted) {
+        setState(() => _reactions = reactions.length > 7 ? reactions.sublist(0, 7) : reactions);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -5129,7 +5357,7 @@ class _StoryReactionsPanelState extends State<_StoryReactionsPanel>
     _scaleOutController.forward(from: 0.0);
     _flyController!.forward().then((_) {
       if (mounted) {
-        widget.onReaction(_kStoryReactions[index]);
+        widget.onReaction(_reactions[index]);
         setState(() {
           _flyingIndex = -1;
           _expanded = false;
@@ -5167,7 +5395,7 @@ class _StoryReactionsPanelState extends State<_StoryReactionsPanel>
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: List.generate(_kStoryReactions.length, (i) {
+                    children: List.generate(_reactions.length, (i) {
                       final isFlying = _flyingIndex == i;
                       final isHovered = _hoveredIndex == i;
                       final baseScale = isFlying
@@ -5207,7 +5435,7 @@ class _StoryReactionsPanelState extends State<_StoryReactionsPanel>
                                                       ),
                                                       child: Center(
                                                         child: Text(
-                                                          _kStoryReactions[i],
+                                                          _reactions[i],
                                                           style: const TextStyle(fontSize: 22),
                                                         ),
                                                       ),
@@ -5217,7 +5445,7 @@ class _StoryReactionsPanelState extends State<_StoryReactionsPanel>
                                               },
                                             )
                                           : Text(
-                                              _kStoryReactions[i],
+                                              _reactions[i],
                                               style: const TextStyle(fontSize: 22),
                                             ),
                                     ),
@@ -5687,6 +5915,7 @@ class _StoriesViewerState extends State<StoriesViewer>
       barrierColor: Colors.transparent,
       builder: (ctx) => _StoryViewsListPopup(
         viewCount: story.views,
+        storyId: story.id,
         position: offset,
       ),
     );
@@ -6633,15 +6862,16 @@ enum _StealthButtonState { nonPremium, cooldown, ready }
 
 Future<void> showStoryStealthModeDialog(
   BuildContext context, {
-  bool isPremium = true,
+  bool? isPremium,
   DateTime? enabledTill,
   DateTime? cooldownTill,
   VoidCallback? onActivate,
 }) {
+  final resolvedPremium = isPremium ?? context.read<AppState>().activeAccount?.isPremium ?? false;
   return showDialog<void>(
     context: context,
     builder: (ctx) => _StealthModeDialog(
-      isPremium: isPremium,
+      isPremium: resolvedPremium,
       enabledTill: enabledTill,
       cooldownTill: cooldownTill,
       onActivate: onActivate,
@@ -6675,8 +6905,12 @@ class _StealthModeDialogState extends State<_StealthModeDialog> {
   void initState() {
     super.initState();
     _now = DateTime.now();
-    if (_buttonState == _StealthButtonState.cooldown) {
-      _countdownTimer = Timer.periodic(_kStealthCountdownInterval, (_) {
+    _startCountdownIfNeeded();
+  }
+
+  void _startCountdownIfNeeded() {
+    if (widget.cooldownTill != null && widget.cooldownTill!.isAfter(_now)) {
+      _countdownTimer ??= Timer.periodic(_kStealthCountdownInterval, (_) {
         setState(() => _now = DateTime.now());
         if (_buttonState != _StealthButtonState.cooldown) {
           _countdownTimer?.cancel();
@@ -7002,19 +7236,67 @@ class _StoryViewsAvatarStack extends StatelessWidget {
 }
 
 // §32.9: "Who Viewed" popup
-class _StoryViewsListPopup extends StatelessWidget {
+class _StoryViewsListPopup extends StatefulWidget {
   final int viewCount;
+  final int storyId;
   final Offset position;
 
   const _StoryViewsListPopup({
     required this.viewCount,
+    required this.storyId,
     required this.position,
   });
 
+  @override
+  State<_StoryViewsListPopup> createState() => _StoryViewsListPopupState();
+}
+
+class _StoryViewsListPopupState extends State<_StoryViewsListPopup> {
   static const _kWidth = 240.0;
   static const _kMaxHeight = 320.0;
   static const _kRadius = 7.0;
   static const _kRowHeight = 48.0;
+
+  List<Map<String, dynamic>> _viewers = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchViewers();
+  }
+
+  Future<void> _fetchViewers() async {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    try {
+      final viewers = await engine.getStoryViewers(accountId, widget.storyId);
+      if (mounted) setState(() { _viewers = viewers; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  static const _kAvatarColors = [
+    Color(0xFF7765CB), Color(0xFF6EC47A), Color(0xFFE67985),
+    Color(0xFFE6A96F), Color(0xFF6AADE6),
+  ];
+
+  String _formatViewerTime(int timestamp) {
+    if (timestamp <= 0) return '';
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -7023,6 +7305,8 @@ class _StoryViewsListPopup extends StatelessWidget {
     final textColor = isDark ? Colors.white : Colors.black87;
     final subtextColor = isDark ? Colors.white54 : Colors.black45;
 
+    final displayCount = _viewers.isNotEmpty ? _viewers.length : widget.viewCount;
+
     return Stack(
       children: [
         GestureDetector(
@@ -7030,8 +7314,8 @@ class _StoryViewsListPopup extends StatelessWidget {
           child: Container(color: Colors.transparent),
         ),
         Positioned(
-          left: position.dx.clamp(16, MediaQuery.sizeOf(context).width - _kWidth - 16),
-          bottom: MediaQuery.sizeOf(context).height - position.dy + 8,
+          left: widget.position.dx.clamp(16, MediaQuery.sizeOf(context).width - _kWidth - 16),
+          bottom: MediaQuery.sizeOf(context).height - widget.position.dy + 8,
           child: Material(
             color: Colors.transparent,
             child: Container(
@@ -7065,7 +7349,7 @@ class _StoryViewsListPopup extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          '$viewCount',
+                          '$displayCount',
                           style: TextStyle(
                             fontSize: 13,
                             color: subtextColor,
@@ -7075,69 +7359,91 @@ class _StoryViewsListPopup extends StatelessWidget {
                     ),
                   ),
                   const Divider(height: 1),
-                  Flexible(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      itemCount: viewCount.clamp(0, 50),
-                      itemBuilder: (ctx, i) {
-                        final colors = [
-                          const Color(0xFF7765CB),
-                          const Color(0xFF6EC47A),
-                          const Color(0xFFE67985),
-                          const Color(0xFFE6A96F),
-                          const Color(0xFF6AADE6),
-                        ];
-                        return SizedBox(
-                          height: _kRowHeight,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 32,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: colors[i % colors.length],
-                                  ),
-                                  child: const Center(
-                                    child: Icon(Icons.person, size: 18, color: Colors.white70),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'Viewer ${i + 1}',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                          color: textColor,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      Text(
-                                        'Just now',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: subtextColor,
+                  if (_loading)
+                    const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: SizedBox(
+                        width: 20, height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54),
+                      )),
+                    )
+                  else if (_viewers.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        widget.viewCount > 0 ? '${widget.viewCount} viewers' : 'No viewers yet',
+                        style: TextStyle(fontSize: 13, color: subtextColor),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        itemCount: _viewers.length,
+                        itemBuilder: (ctx, i) {
+                          final viewer = _viewers[i];
+                          final name = (viewer['name'] as String?) ??
+                              (viewer['first_name'] as String? ?? 'User ${i + 1}');
+                          final timeStr = _formatViewerTime(
+                            (viewer['date'] as int?) ?? 0,
+                          );
+                          return SizedBox(
+                            height: _kRowHeight,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _kAvatarColors[i % _kAvatarColors.length],
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                        style: const TextStyle(
+                                          color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          name,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                            color: textColor,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        if (timeStr.isNotEmpty)
+                                          Text(
+                                            timeStr,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: subtextColor,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

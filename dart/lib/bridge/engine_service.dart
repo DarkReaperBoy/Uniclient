@@ -2098,6 +2098,45 @@ class EngineService {
     await _callAsync('__engine', 'ActivateStealthMode', Uint8List(0));
   }
 
+  Future<List<String>> getAvailableReactions(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetAvailableReactionsEngine', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final decoded = json.decode(utf8.decode(respBytes));
+      if (decoded is List) return decoded.cast<String>();
+      if (decoded is Map && decoded['reactions'] is List) {
+        return (decoded['reactions'] as List).cast<String>();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getStoryViewers(
+    String accountId, int storyId, {String offset = '', int limit = 50}
+  ) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'story_id': storyId,
+      'offset': offset,
+      'limit': limit,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetStoryViewersEngine', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final decoded = json.decode(utf8.decode(respBytes));
+      if (decoded is List) return decoded.cast<Map<String, dynamic>>();
+      if (decoded is Map && decoded['viewers'] is List) {
+        return (decoded['viewers'] as List).cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<List<StoryItem>> fetchPeerStories(String accountId, String peerId) async {
     final req = epb.EngineFetchPeerStoriesRequest()
       ..accountId = accountId
