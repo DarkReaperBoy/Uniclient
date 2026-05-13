@@ -1176,10 +1176,6 @@ Audited against AyuGram Desktop C++ source at
 ## _UsernameBoxContent
 
 
-## _EditInviteLinkContent
-
-- [ ] [CRITICAL] Subscription invite-link mode is completely absent: no subscription toggle, no credits input. AyuGram's EditInviteLinkBox (when `isPublic` flag is set) exposes a "Subscription" toggle and a `NumberInput` for star credits, then passes `subscriptionCredits` to the API — `input_dialogs.dart:979-1326` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/edit_invite_link.cpp:58,103-146,192`
-
 ## _CreatePollContent
 
 - [ ] [MAJOR] "Allow Revoting" toggle is missing from the poll creation UI and from `CreatePollResult`; AyuGram adds a full toggle row (`lng_polls_create_allow_revoting`) and maps it to `PollData::Flag::RevotingDisabled` — `input_dialogs.dart:1331-1349,1377` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/create_poll_box.cpp:2578-2586,2871`
