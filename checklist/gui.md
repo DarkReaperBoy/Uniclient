@@ -1176,28 +1176,6 @@ Audited against AyuGram Desktop C++ source at
 ## _UsernameBoxContent
 
 
-# keyboard_shortcuts — Audit Findings
-
-- [ ] [CRITICAL] `recordRound` handler calls `ChatView.startRecordVoiceRequest` (the same voice-recording callback as `recordVoice`), so round-video recording is never triggered — `keyboard_shortcuts.dart:1349` ← `AyuGram/core/shortcuts.h:74` (`RecordRound` is a distinct `Command` enum value from `RecordVoice:73`; AyuGram dispatches them to separate handlers)
-
-- [ ] [MAJOR] Dedicated multimedia `search` and `find` keys are mapped in `_keyNames` (lines 329-330) but have no entries in `_defaultBindings`, so users with multimedia keyboards get no working Search shortcut beyond Ctrl+F — `keyboard_shortcuts.dart:824` (`_defaultBindings` list, no browserSearch/find binding) ← `AyuGram/core/shortcuts.cpp:485-486` (`set(u"search"_q, Command::Search)` and `set(u"find"_q, Command::Search)` registered as defaults)
-
-- [ ] [MAJOR] Bare `Escape` is registered as a global-scope `cancelSearch` shortcut, so pressing Escape anywhere in the app (inside dialogs, sheets, context menus) also attempts to cancel search — AyuGram does not route cancel-search through the shortcut system at all; the search bar widget handles Escape internally — `keyboard_shortcuts.dart:828` ← `AyuGram/core/shortcuts.cpp:468-535` (`fillDefaults` — no `cancelSearch`/`cancel_search` entry exists; the command name is absent from `CommandByName` map entirely)
-
-# language_box — Audit
-
-- [ ] [CRITICAL] `_selectLanguage` never applies the selected language — stores code in AppState and calls `saveLanguagePrefs` but there is no `LangpackGetLangPack` call, no Flutter locale update, and no `engine.setLanguage()` equivalent; the UI language is never actually changed — `language_box.dart:177-183` ← `language_box.cpp:1386-1392` (`Lang::CurrentCloudManager().switchToLanguage(language)`)
-
-- [ ] [CRITICAL] "Translate Entire Chats" premium gate is broken — `locked: true` is hardcoded unconditionally, the switch is fully operable by anyone, and there is no premium status check or `ShowPremiumPreviewToBuy` call when toggled — `language_box.dart:280-291` ← `language_box.cpp:1439-1470` (`Data::AmPremiumValue` check + `setToggleLocked(!value)`)
-
-- [ ] [CRITICAL] `_kTranslationLanguages` is a manually curated static list of ~100 entries that deviates from AyuGram's `TranslationLanguagesList()` (67 entries from `QLocale::*`); Dart adds ~30 unverified languages (Gujarati, Haitian Creole, Hawaiian, Hindi, Hmong, Javanese, Kannada, Khmer, Latin, Marathi, Punjabi, Samoan, Sesotho, Tagalog, Tamil, Telugu, Uyghur, Yoruba, Zulu, etc.) and is missing AyuGram's `Gusii` and `Teso`; server support for the added languages is not guaranteed — `language_box.dart:1015-1058` ← `choose_language_box.cpp:27-128`
-
-- [ ] [CRITICAL] `_SkipLanguagesEditor` saves every toggle immediately via `engine.saveLanguagePrefs` with a "Close" button only — AyuGram's `ChooseLanguageBox(multiselect=true)` collects all selections and applies them only on "Save"; partial/intermediate state is sent to the engine on each individual checkbox tap — `language_box.dart:849-874, 982-985` ← `choose_language_box.cpp:363-379`
-
-- [ ] [MAJOR] Dialog closes on language selection (`Navigator.of(context).pop(langCode)`) — AyuGram keeps the dialog open and updates the radio button in-place via `inner->changeChosen(currentId())`; the Dart dialog disappears immediately after selection — `language_box.dart:182` ← `language_box.cpp:1379-1392`
-
-- [ ] [MAJOR] Search field is a plain `TextField` in a rounded container; AyuGram uses `Ui::MultiSelect` with `tr::lng_participant_filter()` hint, which has different visual style (no rounded bubble container, different focus behavior, integrated into the box header area via `topContainer`) — `language_box.dart:339-363` ← `language_box.cpp:1339-1344`
-
 ## media_viewer — Critical and Major Issues
 
 - [ ] [CRITICAL] Speed boost hold delay is 300ms but AyuGram uses 200ms (`mediaviewSpeedBoostHoldDelay: 200`) — `media_viewer.dart:879` ← `AyuGram/media/view/media_view.style:249` + `media_view_overlay_widget.cpp:6671`
