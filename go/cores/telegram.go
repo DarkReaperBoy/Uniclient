@@ -25000,6 +25000,166 @@ func (t *TelegramCore) GetSavedRingtones() ([]map[string]interface{}, error) {
 	return tones, nil
 }
 
+// UploadRingtone uploads a custom notification ringtone and saves it.
+func (t *TelegramCore) UploadRingtone(fileName, mimeType string, data []byte) (map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	u := uploader.NewUploader(t.api)
+	upload, err := u.Upload(t.ctx, uploader.NewUpload(fileName, io.NopCloser(bytes.NewReader(data)), int64(len(data))))
+	if err != nil {
+		return nil, fmt.Errorf("upload ringtone file: %w", err)
+	}
+
+	doc, err := t.api.AccountUploadRingtone(t.ctx, &tg.AccountUploadRingtoneRequest{
+		File:     upload,
+		FileName: fileName,
+		MimeType: mimeType,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("account.uploadRingtone: %w", err)
+	}
+
+	d, ok := doc.(*tg.Document)
+	if !ok {
+		return nil, fmt.Errorf("unexpected document type: %T", doc)
+	}
+
+	_, err = t.api.AccountSaveRingtone(t.ctx, &tg.AccountSaveRingtoneRequest{
+		ID:     &tg.InputDocument{ID: d.ID, AccessHash: d.AccessHash, FileReference: d.FileReference},
+		Unsave: false,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("account.saveRingtone: %w", err)
+	}
+
+	name := fileName
+	for _, attr := range d.Attributes {
+		if a, ok := attr.(*tg.DocumentAttributeFilename); ok {
+			name = a.FileName
+			break
+		}
+	}
+	return map[string]interface{}{
+		"id":   d.ID,
+		"name": name,
+	}, nil
+}
+
+// DeleteRingtone unsaves a notification ringtone by document ID.
+func (t *TelegramCore) DeleteRingtone(documentID int64) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+
+	tones, err := t.api.AccountGetSavedRingtones(t.ctx, 0)
+	if err != nil {
+		return fmt.Errorf("get saved ringtones: %w", err)
+	}
+	saved, ok := tones.(*tg.AccountSavedRingtones)
+	if !ok {
+		return fmt.Errorf("no saved ringtones")
+	}
+
+	for _, doc := range saved.Ringtones {
+		d, ok := doc.(*tg.Document)
+		if !ok || d.ID != documentID {
+			continue
+		}
+		_, err := t.api.AccountSaveRingtone(t.ctx, &tg.AccountSaveRingtoneRequest{
+			ID:     &tg.InputDocument{ID: d.ID, AccessHash: d.AccessHash, FileReference: d.FileReference},
+			Unsave: true,
+		})
+		return err
+	}
+	return fmt.Errorf("ringtone %d not found", documentID)
+}
+
+// GetNotificationExceptions returns chats with custom notification settings for a peer type.
+func (t *TelegramCore) GetNotificationExceptions(peerType string) ([]map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	req := &tg.AccountGetNotifyExceptionsRequest{}
+	switch peerType {
+	case "private":
+		req.SetPeer(&tg.InputNotifyUsers{})
+	case "group":
+		req.SetPeer(&tg.InputNotifyChats{})
+	case "channel":
+		req.SetPeer(&tg.InputNotifyBroadcasts{})
+	}
+
+	updates, err := t.api.AccountGetNotifyExceptions(t.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var exceptions []map[string]interface{}
+	switch u := updates.(type) {
+	case *tg.Updates:
+		for _, update := range u.Updates {
+			if ns, ok := update.(*tg.UpdateNotifySettings); ok {
+				exc := map[string]interface{}{
+					"muted":         ns.NotifySettings.MuteUntil > 0,
+					"sound_enabled": !ns.NotifySettings.Silent,
+				}
+				switch p := ns.Peer.(type) {
+				case *tg.NotifyPeer:
+					switch peer := p.Peer.(type) {
+					case *tg.PeerUser:
+						exc["peer_type"] = "user"
+						exc["peer_id"] = peer.UserID
+					case *tg.PeerChat:
+						exc["peer_type"] = "chat"
+						exc["peer_id"] = peer.ChatID
+					case *tg.PeerChannel:
+						exc["peer_type"] = "channel"
+						exc["peer_id"] = peer.ChannelID
+					}
+				}
+				if _, hasPeerID := exc["peer_id"]; hasPeerID {
+					for _, user := range u.Users {
+						if usr, ok := user.(*tg.User); ok && usr.ID == exc["peer_id"] {
+							name := usr.FirstName
+							if usr.LastName != "" {
+								name += " " + usr.LastName
+							}
+							exc["name"] = name
+							break
+						}
+					}
+					for _, chat := range u.Chats {
+						switch c := chat.(type) {
+						case *tg.Chat:
+							if int64(c.ID) == exc["peer_id"] {
+								exc["name"] = c.Title
+							}
+						case *tg.Channel:
+							if int64(c.ID) == exc["peer_id"] {
+								exc["name"] = c.Title
+							}
+						}
+					}
+					exceptions = append(exceptions, exc)
+				}
+			}
+		}
+	}
+	if exceptions == nil {
+		exceptions = []map[string]interface{}{}
+	}
+	return exceptions, nil
+}
+
 // MarkUnread marks a dialog as unread.
 func (t *TelegramCore) MarkUnread(chatID string, unread bool) error {
 	return t.MarkDialogUnread(chatID, unread)

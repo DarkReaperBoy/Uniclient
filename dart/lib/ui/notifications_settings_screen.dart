@@ -192,7 +192,14 @@ class _NotificationsSettingsScreenState
       _NotifToggleRow(
         label: 'All accounts',
         value: appState.notifAllAccountsNotify,
-        onChanged: (v) => appState.setNotifAllAccountsNotify(v),
+        onChanged: (v) {
+          appState.setNotifAllAccountsNotify(v);
+          final engine = context.read<EngineService>();
+          engine.saveLocalNotifyConfig(appState.activeAccountId, {
+            'type': 'all_accounts',
+            'notify_from_all': v,
+          });
+        },
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -239,7 +246,13 @@ class _NotificationsSettingsScreenState
         iconColor: iconColor,
         label: 'Desktop notifications',
         value: appState.notifDesktopNotify,
-        onChanged: (v) => appState.notifDesktopNotify = v,
+        onChanged: (v) {
+          appState.notifDesktopNotify = v;
+          context.read<EngineService>().saveLocalNotifyConfig(
+            appState.activeAccountId,
+            {'type': 'desktop_enabled', 'enabled': v},
+          );
+        },
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -273,7 +286,13 @@ class _NotificationsSettingsScreenState
                 ? 'Bounce the Dock icon'
                 : 'Draw attention to the window',
         value: appState.notifFlashBounce,
-        onChanged: (v) => appState.notifFlashBounce = v,
+        onChanged: (v) {
+          appState.notifFlashBounce = v;
+          context.read<EngineService>().saveLocalNotifyConfig(
+            appState.activeAccountId,
+            {'type': 'flash_bounce_enabled', 'enabled': v},
+          );
+        },
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -283,7 +302,13 @@ class _NotificationsSettingsScreenState
         iconColor: iconColor,
         label: 'Allow sound',
         value: appState.notifAllowSound,
-        onChanged: (v) => appState.notifAllowSound = v,
+        onChanged: (v) {
+          appState.notifAllowSound = v;
+          context.read<EngineService>().saveLocalNotifyConfig(
+            appState.activeAccountId,
+            {'type': 'sound_enabled', 'enabled': v},
+          );
+        },
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -298,6 +323,10 @@ class _NotificationsSettingsScreenState
                 onChanged: (v) {
                   appState.notifVolume = v;
                   _playVolumePreview(v);
+                  context.read<EngineService>().saveLocalNotifyConfig(
+                    appState.activeAccountId,
+                    {'type': 'global_volume', 'volume': v},
+                  );
                 },
                 accentColor: accentColor,
                 isDark: isDark,
@@ -466,7 +495,13 @@ class _NotificationsSettingsScreenState
         label: 'Pinned messages',
         value: context.read<AppState>().notifPinnedMessages,
         onChanged: (v) {
-          context.read<AppState>().setNotifPinnedMessages(v);
+          final appState = context.read<AppState>();
+          appState.setNotifPinnedMessages(v);
+          final engine = context.read<EngineService>();
+          engine.saveLocalNotifyConfig(appState.activeAccountId, {
+            'type': 'pinned_messages',
+            'enabled': v,
+          });
         },
         textColor: textColor,
         accentColor: accentColor,
@@ -538,7 +573,13 @@ class _NotificationsSettingsScreenState
         label: 'Include muted chats in unread count',
         value: context.read<AppState>().notifIncludeMutedChats,
         onChanged: (v) {
-          context.read<AppState>().setNotifIncludeMutedChats(v);
+          final appState = context.read<AppState>();
+          appState.setNotifIncludeMutedChats(v);
+          final engine = context.read<EngineService>();
+          engine.saveLocalNotifyConfig(appState.activeAccountId, {
+            'type': 'include_muted',
+            'include_muted_chats': v,
+          });
         },
         textColor: textColor,
         accentColor: accentColor,
@@ -549,7 +590,13 @@ class _NotificationsSettingsScreenState
           label: 'Include muted chats in folder counters',
           value: context.read<AppState>().notifIncludeMutedInFolders,
           onChanged: (v) {
-            context.read<AppState>().setNotifIncludeMutedInFolders(v);
+            final appState = context.read<AppState>();
+            appState.setNotifIncludeMutedInFolders(v);
+            final engine = context.read<EngineService>();
+            engine.saveLocalNotifyConfig(appState.activeAccountId, {
+              'type': 'include_muted_folders',
+              'include_muted_in_folders': v,
+            });
           },
           textColor: textColor,
           accentColor: accentColor,
@@ -559,7 +606,13 @@ class _NotificationsSettingsScreenState
         label: 'Count unread messages',
         value: context.read<AppState>().notifCountUnreadMessages,
         onChanged: (v) {
-          context.read<AppState>().setNotifCountUnreadMessages(v);
+          final appState = context.read<AppState>();
+          appState.setNotifCountUnreadMessages(v);
+          final engine = context.read<EngineService>();
+          engine.saveLocalNotifyConfig(appState.activeAccountId, {
+            'type': 'count_unread_messages',
+            'count_unread_messages': v,
+          });
         },
         textColor: textColor,
         accentColor: accentColor,
@@ -579,6 +632,8 @@ class _NotificationsSettingsScreenState
     Color hoverBg,
   ) {
     final isWindows = !kIsWeb && Platform.isWindows;
+    final isMacOS = !kIsWeb && Platform.isMacOS;
+    final nativeEnforced = isMacOS;
     final displays = ui.PlatformDispatcher.instance.displays.toList();
     final hasMultipleDisplays = displays.length > 1;
 
@@ -594,19 +649,20 @@ class _NotificationsSettingsScreenState
           ),
         ),
       ),
-      _NoIconToggleRow(
-        label: 'Use native notifications',
-        value: appState.notifUseNative,
-        onChanged: (v) => appState.notifUseNative = v,
-        textColor: textColor,
-        accentColor: accentColor,
-        hoverBg: hoverBg,
-      ),
+      if (!nativeEnforced)
+        _NoIconToggleRow(
+          label: 'Use native notifications',
+          value: appState.notifUseNative,
+          onChanged: (v) => appState.notifUseNative = v,
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
       AnimatedSize(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         alignment: Alignment.topCenter,
-        child: !appState.notifUseNative
+        child: !nativeEnforced && !appState.notifUseNative
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -1481,10 +1537,43 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     } catch (_) {}
   }
 
-  void _loadExceptions() {
-    final chatState = context.read<ChatState>();
+  void _loadExceptions() async {
     final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
     final activeId = appState.activeAccountId;
+    if (activeId.isEmpty) return;
+
+    final peerType = switch (widget.type) {
+      _NotifType.privateChats => 'private',
+      _NotifType.groups => 'group',
+      _NotifType.channels => 'channel',
+      _ => '',
+    };
+    if (peerType.isEmpty) return;
+
+    try {
+      final serverExceptions = await engine.getNotificationExceptions(activeId, peerType: peerType);
+      if (!mounted) return;
+      if (serverExceptions.isNotEmpty) {
+        setState(() {
+          _exceptions.clear();
+          for (final exc in serverExceptions) {
+            final peerId = exc['peer_id'];
+            _exceptions.add(_NotifException(
+              chatId: peerId != null ? peerId.toString() : '',
+              accountId: activeId,
+              name: exc['name'] as String? ?? '',
+              avatarPath: '',
+              isMuted: exc['muted'] as bool? ?? false,
+            ));
+          }
+        });
+        return;
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+    final chatState = context.read<ChatState>();
     final allChats = chatState.chatsForAccount(activeId);
 
     final typeFilter = switch (widget.type) {
@@ -1536,6 +1625,25 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     };
     if (peerType.isNotEmpty) {
       engine.updateDefaultNotifySettings(accountId, peerType: peerType, enabled: _enabled, soundEnabled: soundEnabled);
+    }
+  }
+
+  void _persistVolume(int volume) {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    final peerType = switch (widget.type) {
+      _NotifType.privateChats => 'private',
+      _NotifType.groups => 'group',
+      _NotifType.channels => 'channel',
+      _ => '',
+    };
+    if (peerType.isNotEmpty) {
+      engine.saveLocalNotifyConfig(accountId, {
+        'type': 'per_type_volume',
+        'peer_type': peerType,
+        'volume': volume,
+      });
     }
   }
 
@@ -1645,8 +1753,10 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
                                   ),
                                   _VolumeSliderSection(
                                     volume: _volume,
-                                    onChanged: (v) =>
-                                        setState(() => _volume = v),
+                                    onChanged: (v) {
+                                      setState(() => _volume = v);
+                                      _persistVolume(v);
+                                    },
                                     accentColor: accentColor,
                                     isDark: isDark,
                                     subtitle: widget.type.volumeSubtitle,
@@ -2812,7 +2922,7 @@ class _SplitToggleRow extends StatelessWidget {
   }
 }
 
-enum _ReactionsFrom { everyone, contacts }
+enum _ReactionsFrom { everyone, contacts, none }
 
 class _ReactionsSubPage extends StatefulWidget {
   const _ReactionsSubPage();
@@ -2843,15 +2953,35 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
     if (settings.isNotEmpty && mounted) {
       setState(() {
         _reactionsEnabled = settings['reactions_enabled'] as bool? ?? true;
-        _reactionsFrom = (settings['reactions_from'] as String?) == 'contacts'
-            ? _ReactionsFrom.contacts
-            : _ReactionsFrom.everyone;
+        _reactionsFrom = _parseReactionsFrom(settings['reactions_from'] as String?);
+        if (!_reactionsEnabled) _reactionsFrom = _ReactionsFrom.none;
         _pollVotesEnabled = settings['poll_votes_enabled'] as bool? ?? true;
-        _pollVotesFrom = (settings['poll_votes_from'] as String?) == 'contacts'
-            ? _ReactionsFrom.contacts
-            : _ReactionsFrom.everyone;
+        _pollVotesFrom = _parseReactionsFrom(settings['poll_votes_from'] as String?);
+        if (!_pollVotesEnabled) _pollVotesFrom = _ReactionsFrom.none;
         _showSenderName = settings['show_sender_name'] as bool? ?? true;
       });
+    }
+  }
+
+  static _ReactionsFrom _parseReactionsFrom(String? value) {
+    switch (value) {
+      case 'contacts':
+        return _ReactionsFrom.contacts;
+      case 'none':
+        return _ReactionsFrom.none;
+      default:
+        return _ReactionsFrom.everyone;
+    }
+  }
+
+  static String _reactionsFromToString(_ReactionsFrom from) {
+    switch (from) {
+      case _ReactionsFrom.contacts:
+        return 'contacts';
+      case _ReactionsFrom.none:
+        return 'none';
+      case _ReactionsFrom.everyone:
+        return 'everyone';
     }
   }
 
@@ -2859,12 +2989,14 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
     final appState = context.read<AppState>();
     final engine = context.read<EngineService>();
     final accountId = appState.activeAccountId;
+    final reactionsEnabled = _reactionsFrom != _ReactionsFrom.none;
+    final pollVotesEnabled = _pollVotesFrom != _ReactionsFrom.none;
     engine.setReactionsNotifySettings(
       accountId,
-      reactionsEnabled: _reactionsEnabled,
-      reactionsFrom: _reactionsFrom == _ReactionsFrom.contacts ? 'contacts' : 'everyone',
-      pollVotesEnabled: _pollVotesEnabled,
-      pollVotesFrom: _pollVotesFrom == _ReactionsFrom.contacts ? 'contacts' : 'everyone',
+      reactionsEnabled: reactionsEnabled,
+      reactionsFrom: _reactionsFromToString(reactionsEnabled ? _reactionsFrom : _ReactionsFrom.everyone),
+      pollVotesEnabled: pollVotesEnabled,
+      pollVotesFrom: _reactionsFromToString(pollVotesEnabled ? _pollVotesFrom : _ReactionsFrom.everyone),
       showSenderName: _showSenderName,
     );
   }
@@ -2916,6 +3048,16 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
                     title: Text('From my contacts',
                         style: TextStyle(color: textColor, fontSize: 14)),
                     value: _ReactionsFrom.contacts,
+                    groupValue: selected,
+                    activeColor: accentColor,
+                    onChanged: (v) {
+                      setDialogState(() => selected = v!);
+                    },
+                  ),
+                  RadioListTile<_ReactionsFrom>(
+                    title: Text('Nobody',
+                        style: TextStyle(color: textColor, fontSize: 14)),
+                    value: _ReactionsFrom.none,
                     groupValue: selected,
                     activeColor: accentColor,
                     onChanged: (v) {
@@ -3001,27 +3143,37 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
           _SplitToggleRow(
             icon: Icons.mark_unread_chat_alt,
             label: 'Reactions to my messages',
-            value: _reactionsEnabled,
+            value: _reactionsFrom != _ReactionsFrom.none,
             onToggle: (v) {
-              setState(() => _reactionsEnabled = v);
+              setState(() {
+                if (v) {
+                  _reactionsFrom = _ReactionsFrom.everyone;
+                } else {
+                  _reactionsFrom = _ReactionsFrom.none;
+                }
+                _reactionsEnabled = v;
+              });
               _persistSettings();
             },
-            onTap: _reactionsEnabled
+            onTap: _reactionsFrom != _ReactionsFrom.none
                 ? () => _showFromDialog(
                       context,
                       title: 'Notify about reactions from',
                       current: _reactionsFrom,
                       onChanged: (v) {
-                        setState(() => _reactionsFrom = v);
+                        setState(() {
+                          _reactionsFrom = v;
+                          _reactionsEnabled = v != _ReactionsFrom.none;
+                        });
                         _persistSettings();
                       },
                     )
                 : null,
-            statusOverride: _reactionsEnabled
-                ? (_reactionsFrom == _ReactionsFrom.everyone
+            statusOverride: _reactionsFrom == _ReactionsFrom.none
+                ? 'Disabled'
+                : _reactionsFrom == _ReactionsFrom.everyone
                     ? 'From everyone'
-                    : 'From my contacts')
-                : 'Disabled',
+                    : 'From my contacts',
             textColor: textColor,
             subtextColor: subtextColor,
             accentColor: accentColor,
@@ -3031,27 +3183,37 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
           _SplitToggleRow(
             icon: Icons.poll,
             label: 'Votes in my polls',
-            value: _pollVotesEnabled,
+            value: _pollVotesFrom != _ReactionsFrom.none,
             onToggle: (v) {
-              setState(() => _pollVotesEnabled = v);
+              setState(() {
+                if (v) {
+                  _pollVotesFrom = _ReactionsFrom.everyone;
+                } else {
+                  _pollVotesFrom = _ReactionsFrom.none;
+                }
+                _pollVotesEnabled = v;
+              });
               _persistSettings();
             },
-            onTap: _pollVotesEnabled
+            onTap: _pollVotesFrom != _ReactionsFrom.none
                 ? () => _showFromDialog(
                       context,
                       title: 'Notify about votes from',
                       current: _pollVotesFrom,
                       onChanged: (v) {
-                        setState(() => _pollVotesFrom = v);
+                        setState(() {
+                          _pollVotesFrom = v;
+                          _pollVotesEnabled = v != _ReactionsFrom.none;
+                        });
                         _persistSettings();
                       },
                     )
                 : null,
-            statusOverride: _pollVotesEnabled
-                ? (_pollVotesFrom == _ReactionsFrom.everyone
+            statusOverride: _pollVotesFrom == _ReactionsFrom.none
+                ? 'Disabled'
+                : _pollVotesFrom == _ReactionsFrom.everyone
                     ? 'From everyone'
-                    : 'From my contacts')
-                : 'Disabled',
+                    : 'From my contacts',
             textColor: textColor,
             subtextColor: subtextColor,
             accentColor: accentColor,
@@ -3696,15 +3858,15 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
     }
 
     final fileData = file.bytes;
-    if (fileData != null) {
-      final durationSec = _estimateMp3DurationSec(fileData);
-      if (durationSec != null && durationSec > _kMaxDurationSec) {
-        if (!mounted) return;
-        showTelegramToast(context,
-            'The audio file is too long (${_formatDuration(durationSec)}). '
-            'Maximum allowed duration is ${_formatDuration(_kMaxDurationSec)}.');
-        return;
-      }
+    if (fileData == null) return;
+
+    final durationSec = _estimateMp3DurationSec(fileData);
+    if (durationSec != null && durationSec > _kMaxDurationSec) {
+      if (!mounted) return;
+      showTelegramToast(context,
+          'The audio file is too long (${_formatDuration(durationSec)}). '
+          'Maximum allowed duration is ${_formatDuration(_kMaxDurationSec)}.');
+      return;
     }
 
     final name = (file.name.endsWith('.mp3')
@@ -3713,15 +3875,41 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
         .trim();
     final displayName = name.isEmpty ? 'Audio file' : name;
 
-    setState(() {
-      final tone = _CustomTone(id: _nextId, name: displayName);
-      _tones.add(tone);
-      _selectedId = _nextId;
-      _nextId++;
-    });
+    try {
+      final appState = context.read<AppState>();
+      final engine = context.read<EngineService>();
+      final accountId = appState.activeAccountId;
+      final result = await engine.uploadRingtone(
+        accountId,
+        fileName: file.name,
+        mimeType: 'audio/mpeg',
+        data: fileData,
+      );
+      if (!mounted) return;
+      final toneId = (result['id'] as num?)?.toInt();
+      final toneName = result['name'] as String? ?? displayName;
+      if (toneId != null && toneId > 0) {
+        setState(() {
+          final tone = _CustomTone(id: toneId, name: toneName);
+          _tones.add(tone);
+          _selectedId = toneId;
+          _nextId = _tones.fold<int>(0, (m, t) => t.id > m ? t.id : m) + 1;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      showTelegramToast(context, 'Failed to upload ringtone.');
+    }
   }
 
-  void _deleteTone(int id) {
+  void _deleteTone(int id) async {
+    try {
+      final appState = context.read<AppState>();
+      final engine = context.read<EngineService>();
+      final accountId = appState.activeAccountId;
+      await engine.deleteRingtone(accountId, documentId: id);
+    } catch (_) {}
+    if (!mounted) return;
     setState(() {
       _tones.removeWhere((t) => t.id == id);
       if (_selectedId == id) {

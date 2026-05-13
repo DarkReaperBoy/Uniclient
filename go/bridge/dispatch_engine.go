@@ -4827,6 +4827,60 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(tones)
 
+	case "UploadRingtone":
+		var params struct {
+			AccountID string `json:"account_id"`
+			FileName  string `json:"file_name"`
+			MimeType  string `json:"mime_type"`
+			Data      string `json:"data"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		data, err := base64.StdEncoding.DecodeString(params.Data)
+		if err != nil {
+			return nil, fmt.Errorf("decode ringtone data: %w", err)
+		}
+		result, err := e.UploadRingtone(params.AccountID, params.FileName, params.MimeType, data)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
+	case "DeleteRingtone":
+		var params struct {
+			AccountID  string `json:"account_id"`
+			DocumentID int64  `json:"document_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.DeleteRingtone(params.AccountID, params.DocumentID)
+
+	case "SaveLocalNotifyConfig":
+		var params struct {
+			AccountID string                 `json:"account_id"`
+			Config    map[string]interface{} `json:"config"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SaveLocalNotifyConfig(params.AccountID, params.Config)
+
+	case "GetNotificationExceptions":
+		var params struct {
+			AccountID string `json:"account_id"`
+			PeerType  string `json:"peer_type"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		exceptions, err := e.GetNotificationExceptions(params.AccountID, params.PeerType)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(exceptions)
+
 	case "GetMutedChatsByType":
 		var params struct {
 			AccountID string `json:"account_id"`

@@ -5528,6 +5528,68 @@ class EngineService {
       return {};
     }
   }
+
+  Future<Map<String, dynamic>> uploadRingtone(String accountId, {
+    required String fileName,
+    required String mimeType,
+    required Uint8List data,
+  }) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'file_name': fileName,
+      'mime_type': mimeType,
+      'data': base64Encode(data),
+    }));
+    try {
+      final resp = await _callAsync('__engine', 'UploadRingtone', Uint8List.fromList(payload));
+      if (resp.isEmpty) return {};
+      return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'uploadRingtone failed', e);
+      return {};
+    }
+  }
+
+  Future<void> deleteRingtone(String accountId, {required int documentId}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'document_id': documentId,
+    }));
+    try {
+      await _callAsync('__engine', 'DeleteRingtone', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'deleteRingtone failed', e);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getNotificationExceptions(String accountId, {required String peerType}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'peer_type': peerType,
+    }));
+    try {
+      final resp = await _callAsync('__engine', 'GetNotificationExceptions', Uint8List.fromList(payload));
+      if (resp.isEmpty) return [];
+      final decoded = json.decode(utf8.decode(resp));
+      if (decoded is List) return decoded.cast<Map<String, dynamic>>();
+      return [];
+    } catch (e) {
+      Debug.error('ENGINE', 'getNotificationExceptions failed', e);
+      return [];
+    }
+  }
+
+  Future<void> saveLocalNotifyConfig(String accountId, Map<String, dynamic> config) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'config': config,
+    }));
+    try {
+      await _callAsync('__engine', 'SaveLocalNotifyConfig', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'saveLocalNotifyConfig failed', e);
+    }
+  }
 }
 
 class EngineException implements Exception {

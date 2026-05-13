@@ -1,6 +1,9 @@
 package engine
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type contactSignUpNotifier interface {
 	AccountGetContactSignUpNotification() (bool, error)
@@ -125,6 +128,18 @@ type ringtoneGetter interface {
 	GetSavedRingtones() ([]map[string]interface{}, error)
 }
 
+type ringtoneUploader interface {
+	UploadRingtone(fileName, mimeType string, data []byte) (map[string]interface{}, error)
+}
+
+type ringtoneDeleter interface {
+	DeleteRingtone(documentID int64) error
+}
+
+type notificationExceptionsGetter interface {
+	GetNotificationExceptions(peerType string) ([]map[string]interface{}, error)
+}
+
 func (e *Engine) GetSavedRingtones(accountID string) ([]map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -135,6 +150,58 @@ func (e *Engine) GetSavedRingtones(accountID string) ([]map[string]interface{}, 
 		return []map[string]interface{}{}, nil
 	}
 	return g.GetSavedRingtones()
+}
+
+func (e *Engine) UploadRingtone(accountID, fileName, mimeType string, data []byte) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	u, ok := acc.Core.(ringtoneUploader)
+	if !ok {
+		return nil, fmt.Errorf("core does not support ringtone upload")
+	}
+	return u.UploadRingtone(fileName, mimeType, data)
+}
+
+func (e *Engine) DeleteRingtone(accountID string, documentID int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	d, ok := acc.Core.(ringtoneDeleter)
+	if !ok {
+		return fmt.Errorf("core does not support ringtone deletion")
+	}
+	return d.DeleteRingtone(documentID)
+}
+
+func (e *Engine) GetNotificationExceptions(accountID, peerType string) ([]map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	g, ok := acc.Core.(notificationExceptionsGetter)
+	if !ok {
+		return []map[string]interface{}{}, nil
+	}
+	return g.GetNotificationExceptions(peerType)
+}
+
+func (e *Engine) SaveLocalNotifyConfig(accountID string, config map[string]interface{}) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	configJSON, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+
+	_, err = e.db.Exec(
+		`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?`,
+		"notify_config:"+accountID, string(configJSON), string(configJSON),
+	)
+	return err
 }
 
 func (e *Engine) GetMutedChatsByType(accountID string) (map[string]int, error) {

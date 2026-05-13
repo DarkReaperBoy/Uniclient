@@ -135,6 +135,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV32,
 	migrateV33,
 	migrateV34,
+	migrateV35,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -740,4 +741,12 @@ func migrateV34(tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+func migrateV35(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS kv (
+		key   TEXT PRIMARY KEY,
+		value TEXT NOT NULL DEFAULT ''
+	)`)
+	return err
 }
