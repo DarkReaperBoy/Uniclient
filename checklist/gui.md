@@ -1192,12 +1192,6 @@ Before findings, confirmed matches (not issues):
 ---
 
 
-## notifications_settings_screen — Audit Findings
-
-- [ ] [CRITICAL] Reactions sub-page `_ReactionsFrom` enum only has `everyone` and `contacts` — missing the `None` (nobody) option that AyuGram exposes (`NotifyFrom::None` / `tr::lng_notification_reactions_from_nobody()`). When reactions are disabled via toggle, `_persistSettings()` sends `'everyone'` instead of `'none'` since `_reactionsFrom` defaults to `everyone` and the disabled state is encoded only via the separate `_reactionsEnabled` bool, which is a separate field not mapped to the AyuGram `NotifyFrom::None` semantic. — `notifications_settings_screen.dart:2815` ← `AyuGram/settings/sections/settings_notifications_reactions.cpp:37` — NOTE: UI fix applied (None/Nobody option visible, Disabled state shown), but `AccountSetReactionsNotifySettings` engine call fails with "field sound is nil" — `tg.ReactionsNotifySettings` requires a non-nil `Sound` field; fix: add `Sound: &tg.NotificationSoundDefault{}` to the struct in `SetReactionsNotifySettings()` at `go/cores/telegram.go:24949`
-
-- [ ] [MAJOR] "Reactions to my messages" toggle sends `'everyone'`/`'contacts'` for `reactionsFrom` but when the toggle is turned off, the code sets `_reactionsEnabled = false` yet still sends `reactionsFrom: 'everyone'` (or the cached value) in `_persistSettings()`. AyuGram maps disabled reactions directly to `NotifyFrom::None` for the relevant from-field, not a separate boolean. The engine backend may interpret this incorrectly since `reactionsEnabled=false` + `reactionsFrom='everyone'` is a contradictory state. — `notifications_settings_screen.dart:2858` ← `AyuGram/settings/sections/settings_notifications_reactions.cpp:120` — NOTE: Same engine call failure as item above (sound nil); both items share the same root-cause fix.
-
 # payment_panel — Checkout/Receipt payment panel
 
 - [ ] [CRITICAL] `_editPaymentMethod()` is a broken stub: for native providers (Stripe/SmartGlocal) it tries to `launchUrl(nativeParams['url'])` which is an empty field — native params contain a `publishableKey`, not a URL; no in-app card tokenization exists, so submitting payment will always fail with missing credentials — `payment_panel.dart:897-908` ← `AyuGram/payments/ui/payments_panel.cpp:426-436` (`showEditPaymentMethod` shows native card form or WebView)
