@@ -1195,21 +1195,7 @@ Before findings, confirmed matches (not issues):
 
 ## photo_crop_editor — Photo editor paint tools, text/sticker tools, color picker, and layout
 
-- [ ] [CRITICAL] `_openStickersTool` onTap callback is a pure stub — dismisses the dialog without placing any sticker or emoji on the canvas; the selected emoji value is completely discarded — `photo_crop_editor.dart:496-499` ← `AyuGram/editor/editor_paint.cpp:43-52` (scene-based sticker items via StickersPanelController)
-
-- [ ] [CRITICAL] `_addTextAnnotation` ignores its `text` parameter entirely — instead of creating a text item, it adds a single-point `_PaintTool.pen` stroke at the crop center, making the text tool completely non-functional; the `_TextAnnotation` class defined at line 74 is never instantiated anywhere — `photo_crop_editor.dart:468-478` ← `AyuGram/editor/editor_paint.h:56` (Paint::createTextItem → scene_item_text)
-
-- [ ] [CRITICAL] No color picker UI exists — `_brushColor` is permanently hardcoded to `Color(0xFFFF0000)` (red) with no way to change it in the paint mode; AyuGram's `ColorPicker` class provides a full palette, custom color button, and per-tool selection — `photo_crop_editor.dart:217` ← `AyuGram/editor/color_picker.h` and `AyuGram/editor/editor.style:126-145` (`photoEditorColorButtonSize: 24px`, `photoEditorColorPaletteItemSize: 20px`, `photoEditorColorPaletteGap: 6px`)
-
-- [ ] [CRITICAL] Arrow (`_PaintTool.arrow`) and marker (`_PaintTool.marker`) tools are declared in the enum but `_drawPaintStrokes` renders every stroke identically as a plain pen line — no arrow-head geometry, no marker opacity/size-multiplier, no eraser, no blur tool; AyuGram defines `photoEditorArrowHeadLengthFactor: 2.5`, `photoEditorArrowHeadAngleDegrees: 26`, `photoEditorMarkerOpacity: 0.35`, `photoEditorMarkerSizeMultiplier: 2.5` — `photo_crop_editor.dart:58,1338-1368` ← `AyuGram/editor/editor.style:147-156`
-
-- [ ] [MAJOR] In paint mode the undo/redo bar (`_PaintTopBar`) is placed at the top of the main content area above the image (lines 681-702); in AyuGram `_paintTopButtons` sits just above the bottom control bar, separated only by `photoEditorControlsCenterSkip: 6px`, with both bars residing inside the 146 px controls zone — `photo_crop_editor.dart:681-702` ← `AyuGram/editor/photo_editor_controls.cpp:375-387`
-
-- [ ] [MAJOR] Brush size control is entirely absent; AyuGram has a `photoEditorBrushSizeControlHeight: 280px` expandable vertical slider that controls stroke width interactively — `photo_crop_editor.dart` (no equivalent) ← `AyuGram/editor/editor.style:157-165` (`photoEditorBrushSizeControlHeight: 280px`, collapsed width 2px, expanded top 25px, expanded bottom 4px)
-
-- [ ] [MAJOR] Aspect ratio menu order is wrong: Dart enum lists `ratio3x2, ratio3x4, ratio16x9, ratio9x16` (3:4 before 16:9) but AyuGram adds them as `3:2, 16:9, 3:4, 9:16` (16:9 before 3:4) — `photo_crop_editor.dart:117-128` ← `AyuGram/editor/photo_editor_controls.cpp:513-518`
-
-- [ ] [MAJOR] `_ControlBar` renders as a plain `Row` with no background; AyuGram's `ButtonBar` class renders a fully-rounded pill background for the entire control bar row — `photo_crop_editor.dart:1624-1643` ← `AyuGram/editor/photo_editor_controls.cpp:125-204` (ButtonBar::ButtonBar round-corner QImage bg)
+- [ ] [MAJOR] Brush size control is not an expandable vertical slider; AyuGram has a `photoEditorBrushSizeControlHeight: 280px` expandable vertical slider (collapsed width 2px, expands to 280px tall from the side) — current implementation uses a horizontal slider inline in `_PaintTopBar`, wrong orientation and no collapse/expand behavior — `photo_crop_editor.dart` ← `AyuGram/editor/editor.style:157-165` (`photoEditorBrushSizeControlHeight: 280px`, collapsed width 2px, expanded top 25px, expanded bottom 4px)
 
 # popup_menu — Audit findings
 
