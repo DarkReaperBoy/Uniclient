@@ -1204,28 +1204,6 @@ Before findings, confirmed matches (not issues):
 
 # settings_screen — Settings Screen Audit
 
-- [ ] [CRITICAL] Premium/Stars/Business/Gift buttons open external browser URLs via `xdg-open` instead of navigating to internal settings screens — `settings_screen.dart:361,367,374,381` ← `settings/sections/settings_main.cpp:539,556,585,594` (AyuGram: `showOther(PremiumId())`, `showOther(CreditsId())`, `showOther(BusinessId())`, `Ui::ChooseStarGiftRecipient(controller)`)
-
-- [ ] [CRITICAL] "Choose Emoji" in avatar menu calls `_showEmojiStatusPanel` (sets emoji STATUS) instead of opening the emoji-as-profile-photo picker — `settings_screen.dart:749-750` ← `settings/sections/settings_main.cpp:209-224` (AyuGram: `UserpicButton` with `markup.documentId` for emoji photo; emoji status and emoji avatar are separate features)
-
-- [ ] [CRITICAL] Interface scale "Restart Now" calls `exit(0)` which kills the process without restarting — `settings_screen.dart:1729` ← `settings/sections/settings_main.cpp:1137-1141` (AyuGram: `Core::Restart()` saves settings and relaunches the process)
-
-- [ ] [CRITICAL] "Telegram Stars" row shows no real balance and opens external URL instead of showing credits balance and routing to credits screen — `settings_screen.dart:363-368` ← `settings/sections/settings_main.cpp:546-561` (AyuGram: `session->credits().balanceValue()` displayed as trailing label, navigates to `CreditsId()`)
-
-- [ ] [CRITICAL] Premium section visibility check uses `account?.platform == 'telegram'` instead of server-side `premiumPossible()` capability — `settings_screen.dart:356` ← `settings/sections/settings_main.cpp:528` (AyuGram: `if (!session->premiumPossible()) return;`)
-
-- [ ] [CRITICAL] "Send a Gift" shown unconditionally for all Telegram accounts; should only appear when `premiumCanBuy()` — `settings_screen.dart:376-382` ← `settings/sections/settings_main.cpp:589-596` (AyuGram: `if (session->premiumCanBuy())` gate before adding button)
-
-- [ ] [MAJOR] Scale preview widget shows hardcoded fake chat bubbles ("Alice", "Bob", "Sure, sounds good!", static timestamps) instead of rendering actual app UI at the new scale — `settings_screen.dart:1456-1577` ← `settings/settings_scale_preview.cpp:186-258` (AyuGram: `SetupScalePreview` renders real application window contents at the target scale)
-
-- [ ] [MAJOR] "Devices" row routes to `ActiveSessionsScreen` (sessions only) but AyuGram's "Devices" routes to `CallsId()` which shows both active sessions AND calls/audio settings combined — `settings_screen.dart:296-305` ← `settings/sections/settings_main.cpp:466-470` (AyuGram: `.targetSection = CallsId()` with keywords `sessions`, `calls`)
-
-- [ ] [MAJOR] Folders row visibility uses simple `chatState.hasFolders` with no reactive subscription to appConfig `dialog_filters_enabled`; AyuGram shows Folders when filters exist OR when server config enables dialog filters dynamically — `settings_screen.dart:269` ← `settings/sections/settings_main.cpp:424-455` (AyuGram: `chatsFilters().has() || settings().dialogsFiltersEnabled()` plus reactive `appConfig().refreshed()` stream)
-
-- [ ] [MAJOR] Emoji status panel `loadEmojiStickers()` is called inside the `StatefulBuilder` builder function on every rebuild while `loading == true`, re-triggering async loads on each widget rebuild — `settings_screen.dart:863-871` ← `settings/sections/settings_main.cpp:228-232` (AyuGram: `_emojiStatusPanel.show()` is a single stateful panel, not a dialog rebuilt on every frame)
-
-- [ ] [MAJOR] All `Process.run('xdg-open', ...)` calls (FAQ, Telegram Features, Premium links) have no `Platform.isLinux` guard and will silently fail on macOS and Windows — `settings_screen.dart:361,367,374,381,394,401` ← `settings/sections/settings_main.cpp:611` (AyuGram uses `UrlClickHandler` / Qt `QDesktopServices::openUrl` which is cross-platform)
-
 # shell — Audit findings
 
 ## shell — _ConnectionStateWidget: missing proxy icon
