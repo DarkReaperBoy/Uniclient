@@ -1240,31 +1240,6 @@ Compared `stats_chart.dart` against AyuGram's `statistics/chart_widget.cpp`, `vi
 
 - [ ] [CRITICAL] StackLinear "zoom into pie" transition is a simple `Opacity` crossfade; AyuGram does an animated morph where stacked area paths rotate into pie wedges with simultaneous footer zoom — the entire `StackLinearChartView::processLocalZoom` / `_transition.progress` animation is missing — `stats_chart.dart:389-401,721-724,866-888` ← `AyuGramDesktop/Telegram/SourceFiles/statistics/view/stack_linear_chart_view.cpp:147-551` and `AyuGramDesktop/Telegram/SourceFiles/statistics/chart_widget.cpp:1272-1396`
 
-- [ ] [MAJOR] Y-axis animation speed thresholds are inverted and wrong: Dart applies faster speed (`_kDtHeightSpeed3 = 0.09`) when `ratio > 0.6`, but AyuGram applies the faster speed (`kDtHeightSpeed3 = 0.045*2 = 0.09`) for the **middle** range `0.1 < k < 0.7` (slower for extremes) — `stats_chart.dart:517-523` ← `AyuGramDesktop/Telegram/SourceFiles/statistics/chart_widget.cpp:603-620` (`kDtHeightSpeedThreshold1 = 0.7`, `kDtHeightSpeedThreshold2 = 0.1`)
-
-- [ ] [MAJOR] Footer click-to-center animation uses linear interpolation; AyuGram uses `anim::sineInOut` — `stats_chart.dart:1191-1195` (`_animController.forward(from:0)` with linear `t`) ← `AyuGramDesktop/Telegram/SourceFiles/statistics/chart_widget.cpp:346-358` (`_moveCenterAnimation.start(...anim::sineInOut)`)
-
-- [ ] [MAJOR] Date step computation hardcodes `400.0` for chart width instead of actual widget width, so step labels will be wrong on any chart wider or narrower than 400px — `stats_chart.dart:597` (`final pxPerPoint = 400.0 / (span * (n - 1))`) ← `AyuGramDesktop/Telegram/SourceFiles/statistics/chart_widget.cpp:1019-1026` (uses `_chartArea->width()` and `_bottomLine.chartFullWidth`)
-
-- [ ] [MAJOR] Date label edge fade uses hardcoded `30.0`px instead of `captionMaxWidth / 4` (which is precomputed per font); on charts where label widths differ, edge labels won't fade correctly — `stats_chart.dart:1619` (`const edgeFade = 30.0`) ← `AyuGramDesktop/Telegram/SourceFiles/statistics/chart_widget.cpp:111` (`const auto edgeAlphaSize = captionMaxWidth / 4.`)
-
-- [ ] [MAJOR] Date label crossfade is missing "fast alpha" speed-out for stale steps: AyuGram subtracts `kFastAlphaSpeed = 0.85` from old date lines' alpha to rapidly clear them, preventing lingering stale labels — `stats_chart.dart:1608-1613` (no fast alpha) ← `AyuGramDesktop/Telegram/SourceFiles/statistics/chart_widget.cpp:135-139` (`constexpr auto kFastAlphaSpeed = 0.85`)
-
-- [ ] [MAJOR] Ruler line count is hardcoded to 5 divisions (6 lines), but AyuGram computes it dynamically between `kMinLines=2` and `kMaxLines=6` based on the y-range value, which means over-dense or under-dense grids for many datasets — `stats_chart.dart:1549` (`const rulerCount = 5`) ← `AyuGramDesktop/Telegram/SourceFiles/statistics/chart_rulers_data.cpp:17-18,51-60` (`kMinLines=2`, `kMaxLines=6`, dynamic `n`)
-
-- [ ] [MAJOR] Ruler grid line stroke width is `0.5` in Dart but AyuGram uses `st::lineWidth = 1px` (filled rect, not drawn line), making grid lines half as thick as intended — `stats_chart.dart:1543` (`..strokeWidth = 0.5`) ← `AyuGramDesktop/Telegram/SourceFiles/statistics/view/chart_rulers_view.cpp:89-95` (`p.fillRect(lineRect, st::boxTextFg)` with height `st::lineWidth`)
-
-- [ ] [MAJOR] DoubleLinear ruler scale uses `reduce(math.min/max)` over ALL values in the series, ignoring the visible range; AyuGram computes rulers from `heightLimits` which is the visible-range-bounded animated range — `stats_chart.dart:1693-1696` ← `AyuGramDesktop/Telegram/SourceFiles/statistics/chart_widget.cpp:555-558` and `view/linear_chart_view.cpp:213-225`
-
-- [ ] [MAJOR] DoubleLinear footer: Dart normalizes each line independently (per-line min/max), AyuGram renders the footer using the shared `footerHeightLimits` — both lines use the same scale in the footer — `stats_chart.dart:2011-2038` ← `AyuGramDesktop/Telegram/SourceFiles/statistics/chart_widget.cpp:1094-1111` (`_animationController.currentFooterHeightLimits()` shared for all lines)
-
-- [ ] [MAJOR] Pie chart radius uses `min(cx, cy) * 0.75` where `cy = chartHeight/2 = 100`; AyuGram uses `(rect.width() / 2) * kCircleSizeRatio = width * 0.21`; for a 400×200 chart: Dart radius ≈ 75px vs AyuGram ≈ 84px — `stats_chart.dart:1221` (`math.min(cx, cy) * 0.75`) ← `AyuGramDesktop/Telegram/SourceFiles/statistics/view/stack_linear_chart_view.cpp:24,588` (`kCircleSizeRatio = 0.42`, `side = width/2 * 0.42`)
-
-- [ ] [MAJOR] Pie slice label minimum threshold is `pct >= 3` (3%) in Dart but `kMinPercentage = 0.039` (3.9%) in AyuGram — small slices that AyuGram hides will get labels in Dart — `stats_chart.dart:2198` ← `AyuGramDesktop/Telegram/SourceFiles/statistics/view/stack_linear_chart_view.cpp:704`
-
-- [ ] [MAJOR] Pie slice text is positioned at a fixed `radius * 0.65`; AyuGram uses `side * sqrt(1 - percentage)` so smaller slices push labels outward — `stats_chart.dart:2199` (`radius * 0.65`) ← `AyuGramDesktop/Telegram/SourceFiles/statistics/view/stack_linear_chart_view.cpp:735` (`const auto rText = side * std::sqrt(1. - percentage)`)
-
-- [ ] [MAJOR] Pie slice text has no font scaling — it always renders at `_labelFontSize * animProgress`; AyuGram scales each label by `minScale + percentage * (maxScale - minScale)` so large slices get bigger text, small slices get smaller text — `stats_chart.dart:2204-2210` ← `AyuGramDesktop/Telegram/SourceFiles/statistics/view/stack_linear_chart_view.cpp:719-720,755-766`
 
 # main — PasscodeLockScreen + ThemeRevertOverlay
 
