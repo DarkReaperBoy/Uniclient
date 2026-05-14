@@ -1424,6 +1424,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       },
       onDragDone: (details) {
         final zone = _dragHoveredZone;
+        final mode = _computeDragZoneMode();
         setState(() {
           _isDragOver = false;
           _dragHoveredZone = 0;
@@ -1431,6 +1432,14 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         _dragOverlayAnimCtrl.reverse();
         final paths = details.files.map((f) => f.path).toList();
         if (paths.isNotEmpty) {
+          if (mode == _DragZoneMode.both) {
+            final mimeState = classifyMimeData(paths);
+            if (zone == 1) {
+              setState(() => _sendAsDocuments = true);
+            } else if (zone == 2 && mimeState != MimeDataState.files) {
+              setState(() => _sendAsDocuments = false);
+            }
+          }
           _addDroppedFiles(paths);
         }
       },
