@@ -1,10 +1,12 @@
 import 'dart:convert';
-import 'dart:io' show gzip;
+import 'dart:io' show Directory, File, gzip;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -298,6 +300,9 @@ class _StickerTileState extends State<_StickerTile>
     with SingleTickerProviderStateMixin {
   Uint8List? _lottieData;
   AnimationController? _lottieController;
+  Player? _webmPlayer;
+  VideoController? _webmController;
+  File? _webmTempFile;
   bool _loadingFile = false;
 
   @override
@@ -305,6 +310,8 @@ class _StickerTileState extends State<_StickerTile>
     super.initState();
     if (widget.sticker.isAnimated) {
       _loadAnimatedSticker();
+    } else if (widget.sticker.isVideo) {
+      _loadVideoSticker();
     }
   }
 
@@ -324,6 +331,36 @@ class _StickerTileState extends State<_StickerTile>
     } catch (_) {}
   }
 
+  Future<void> _loadVideoSticker() async {
+    if (_loadingFile) return;
+    _loadingFile = true;
+    final docId = int.tryParse(widget.sticker.fileId);
+    if (docId == null) return;
+    try {
+      final files = await widget.engine.getStickerFiles(
+          widget.accountId, [docId]);
+      final fileData = files[docId];
+      if (fileData != null && fileData.isWebm && mounted) {
+        final dir = Directory.systemTemp;
+        final file = File('${dir.path}/sticker_$docId.webm');
+        await file.writeAsBytes(fileData.fileData, flush: true);
+        _webmTempFile = file;
+        final player = Player();
+        final controller = VideoController(player);
+        await player.open(Media(file.path), play: true);
+        await player.setPlaylistMode(PlaylistMode.loop);
+        if (!mounted) {
+          await player.dispose();
+          return;
+        }
+        setState(() {
+          _webmPlayer = player;
+          _webmController = controller;
+        });
+      }
+    } catch (_) {}
+  }
+
   void _onLottieLoaded(LottieComposition composition) {
     _lottieController?.dispose();
     _lottieController = AnimationController(
@@ -336,6 +373,8 @@ class _StickerTileState extends State<_StickerTile>
   @override
   void dispose() {
     _lottieController?.dispose();
+    _webmPlayer?.dispose();
+    _webmTempFile?.delete().catchError((_) {});
     super.dispose();
   }
 
@@ -350,6 +389,12 @@ class _StickerTileState extends State<_StickerTile>
         fit: BoxFit.contain,
         controller: _lottieController,
         onLoaded: _onLottieLoaded,
+      );
+    } else if (_webmController != null) {
+      child = Video(
+        controller: _webmController!,
+        fit: BoxFit.contain,
+        controls: NoVideoControls,
       );
     } else if (sticker.thumbB64.isNotEmpty) {
       try {
@@ -366,7 +411,7 @@ class _StickerTileState extends State<_StickerTile>
       child = _emojiPlaceholder();
     }
 
-    if (sticker.isVideo && _lottieData == null) {
+    if (sticker.isVideo && _webmController == null && _lottieData == null) {
       child = Stack(
         alignment: Alignment.center,
         children: [
