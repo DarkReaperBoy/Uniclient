@@ -4924,6 +4924,7 @@ class EngineService {
             accountId: event['account_id'] as String? ?? '',
             state: data['state'] as String? ?? '',
             error: data['error'] as String? ?? '',
+            waitSeconds: data['wait_seconds'] as int? ?? 0,
           ));
         }
 

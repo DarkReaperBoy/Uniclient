@@ -44,8 +44,6 @@ class _UniClientShellState extends State<UniClientShell>
   bool _infoOpen = false;
   // Third column width, persisted within [_thirdMin, _thirdMax].
   double _thirdColumnWidth = 360.0;
-  // Whether dialogs column is collapsed to avatar-only mode (spec §1: below 130px).
-  bool _dialogsCollapsed = false;
   bool _layoutLoaded = false;
   bool? _lastVerticalFilters;
   Set<String>? _lastForumViewPrefs;
@@ -64,7 +62,6 @@ class _UniClientShellState extends State<UniClientShell>
   // Spec §1 column constants (window.style:20-24).
   static const _dialogsMin = 260.0;
   static const _dialogsMax = 540.0;
-  static const _dialogsCollapseThreshold = 130.0;
   static const _chatMin = 380.0;
   static const _thirdMin = 292.0;
   static const _thirdMax = 392.0;
@@ -91,7 +88,6 @@ class _UniClientShellState extends State<UniClientShell>
       final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
       _dialogsWidthRatio = (data['dialogsWidthRatio'] as num?)?.toDouble() ?? _dialogsWidthRatio;
       _thirdColumnWidth = (data['thirdColumnWidth'] as num?)?.toDouble() ?? _thirdColumnWidth;
-      _dialogsCollapsed = (data['dialogsCollapsed'] as bool?) ?? _dialogsCollapsed;
       final chatState = context.read<ChatState>();
       chatState.useVerticalFilters = (data['useVerticalFilters'] as bool?) ?? true;
       final forumPrefs = data['forumViewAsMessages'];
@@ -111,7 +107,6 @@ class _UniClientShellState extends State<UniClientShell>
       File(path).writeAsStringSync(jsonEncode({
         'dialogsWidthRatio': _dialogsWidthRatio,
         'thirdColumnWidth': _thirdColumnWidth,
-        'dialogsCollapsed': _dialogsCollapsed,
         'useVerticalFilters': chatState.useVerticalFilters,
         'forumViewAsMessages': chatState.forumViewAsMessagesKeys.toList(),
       }));
@@ -486,9 +481,7 @@ class _UniClientShellState extends State<UniClientShell>
       bool showFilters, ChatState chatState) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final maxDialogs = (bodyWidth - _chatMin).clamp(_dialogsMin, _dialogsMax);
-    final dialogsWidth = _dialogsCollapsed
-        ? 0.0
-        : (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, maxDialogs);
+    final dialogsWidth = (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, maxDialogs);
 
     final columns = Row(
       children: [
@@ -505,7 +498,6 @@ class _UniClientShellState extends State<UniClientShell>
             showHamburger: !showFilters,
             onOpenDrawer: showFilters ? null : () => _openDrawer(context),
             filterSidebarVisible: showFilters,
-            collapsed: _dialogsCollapsed,
           ),
         ),
         _ColumnShadow(),
@@ -515,13 +507,8 @@ class _UniClientShellState extends State<UniClientShell>
           onDrag: (dx) {
             setState(() {
               final raw = (bodyWidth * _dialogsWidthRatio + dx);
-              if (raw < _dialogsCollapseThreshold) {
-                _dialogsCollapsed = true;
-              } else {
-                _dialogsCollapsed = false;
-                final newWidth = raw.clamp(_dialogsMin, maxDialogs);
-                _dialogsWidthRatio = newWidth / bodyWidth;
-              }
+              final newWidth = raw.clamp(_dialogsMin, maxDialogs);
+              _dialogsWidthRatio = newWidth / bodyWidth;
               _saveLayoutPrefs();
             });
           },
@@ -561,14 +548,10 @@ class _UniClientShellState extends State<UniClientShell>
       bool showFilters, ChatState chatState) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Step 1: Start from preferred widths (collapsed = 0, spec §1).
-    var dw = _dialogsCollapsed
-        ? 0.0
-        : (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, _dialogsMax);
+    var dw = (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, _dialogsMax);
     var tw = _thirdColumnWidth.clamp(_thirdMin, _thirdMax);
 
-    // Step 2: Shrink algorithm — if both columns + chat min don't fit.
-    if (!_dialogsCollapsed && dw + tw + _chatMin > bodyWidth) {
+    if (dw + tw + _chatMin > bodyWidth) {
       // Pin chat to 380px minimum, divide the rest proportionally.
       final available = bodyWidth - _chatMin;
       final total = dw + tw;
@@ -605,7 +588,6 @@ class _UniClientShellState extends State<UniClientShell>
             showHamburger: !showFilters,
             onOpenDrawer: showFilters ? null : () => _openDrawer(context),
             filterSidebarVisible: showFilters,
-            collapsed: _dialogsCollapsed,
           ),
         ),
         // Dialogs-chat shadow separator + resize handle.
@@ -616,12 +598,7 @@ class _UniClientShellState extends State<UniClientShell>
           onDrag: (dx) {
             setState(() {
               final raw = dw + dx;
-              if (raw < _dialogsCollapseThreshold) {
-                _dialogsCollapsed = true;
-              } else {
-                _dialogsCollapsed = false;
-                _dialogsWidthRatio = raw.clamp(_dialogsMin, _dialogsMax) / bodyWidth;
-              }
+              _dialogsWidthRatio = raw.clamp(_dialogsMin, _dialogsMax) / bodyWidth;
               _saveLayoutPrefs();
             });
           },
@@ -933,12 +910,6 @@ class _NoAccountsScreen extends StatelessWidget {
   }
 }
 
-/// Spec §35.22: Connection state pill — bottom-left overlay.
-/// Shows spinner after 1000ms delay when not connected. Text "Connecting..."
-/// on hover (or always for disconnected/unstable). Hidden when connected.
-/// 150ms fade animation on show/hide, pill width animates with text.
-/// After kMinimalWaitingStateDuration (4s) in disconnected state, shows
-/// "Reconnect in N s..." countdown with "Try now" retry link.
 class _ConnectionStateWidget extends StatefulWidget {
   final String accountId;
   const _ConnectionStateWidget({required this.accountId});
@@ -948,14 +919,14 @@ class _ConnectionStateWidget extends StatefulWidget {
 }
 
 class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
-    with SingleTickerProviderStateMixin {
-  static const _showDelay = Duration(milliseconds: 1000);
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  static const _kConnectingStateDelay = Duration(milliseconds: 1000);
+  static const _kIgnoreStartConnectingFor = Duration(milliseconds: 3000);
   static const _animDuration = Duration(milliseconds: 150);
   static const _minWaitDuration = Duration(milliseconds: 4000);
-  static const _reconnectIntervalBase = 5;
-  static const _reconnectIntervalMax = 30;
 
-  late final AnimationController _fadeAnim;
+  late final AnimationController _visibilityAnim;
+  late final AnimationController _slideAnim;
   Timer? _showTimer;
   Timer? _waitTimer;
   Timer? _countdownTimer;
@@ -963,32 +934,43 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
   bool _isHovered = false;
   bool _isWaiting = false;
   int _reconnectCountdown = 0;
-  int _reconnectAttempts = 0;
   ConnState? _lastState;
+  DateTime? _connectingStartedAt;
+  final DateTime _appStartTime = DateTime.now();
+  bool _appExposed = true;
 
   @override
   void initState() {
     super.initState();
-    _fadeAnim = AnimationController(vsync: this, duration: _animDuration);
+    _visibilityAnim = AnimationController(vsync: this, duration: _animDuration);
+    _slideAnim = AnimationController(vsync: this, duration: _animDuration);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _showTimer?.cancel();
     _waitTimer?.cancel();
     _countdownTimer?.cancel();
-    _fadeAnim.dispose();
+    _visibilityAnim.dispose();
+    _slideAnim.dispose();
     super.dispose();
   }
 
-  int get _currentReconnectInterval {
-    final interval = _reconnectIntervalBase * (1 << _reconnectAttempts);
-    return interval.clamp(_reconnectIntervalBase, _reconnectIntervalMax);
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final exposed = state == AppLifecycleState.resumed ||
+        state == AppLifecycleState.inactive;
+    if (_appExposed != exposed) {
+      _appExposed = exposed;
+      if (mounted) setState(() {});
+    }
   }
 
-  void _startWaitCountdown() {
+  void _startWaitCountdown(int waitSeconds) {
     _isWaiting = true;
-    _reconnectCountdown = _currentReconnectInterval;
+    _reconnectCountdown = waitSeconds;
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -1012,7 +994,6 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
 
   void _tryReconnect() {
     _cancelWait();
-    _reconnectAttempts++;
     try {
       final engine = context.read<EngineService>();
       engine.connectAccount(widget.accountId);
@@ -1020,40 +1001,83 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
     setState(() {});
   }
 
-  void _syncVisibility(ConnState state) {
+  void _syncVisibility(ConnState state, int engineWaitSeconds) {
     if (state == _lastState) return;
     final oldState = _lastState;
     _lastState = state;
-    final wantVisible = state != ConnState.connected;
+
+    final proxyEnabled = context.read<AppState>().proxyMode > 0;
+    final wantVisible = _appExposed &&
+        (proxyEnabled ||
+            state == ConnState.connecting ||
+            state == ConnState.disconnected ||
+            state == ConnState.unstable);
+
+    if (state == ConnState.connecting &&
+        (oldState == null || oldState == ConnState.connected)) {
+      final now = DateTime.now();
+      if (_connectingStartedAt == null) {
+        _connectingStartedAt = now;
+        _showTimer?.cancel();
+        _showTimer = Timer(_kConnectingStateDelay, () {
+          _showTimer = null;
+          if (!mounted) return;
+          _lastState = null;
+          setState(() {});
+        });
+        return;
+      }
+      final applyAt = _connectingStartedAt!.add(_kConnectingStateDelay);
+      final ignoreUntil = _appStartTime.add(_kIgnoreStartConnectingFor);
+      final earliest = applyAt.isAfter(ignoreUntil) ? applyAt : ignoreUntil;
+      if (now.isBefore(earliest)) {
+        _showTimer?.cancel();
+        _showTimer = Timer(earliest.difference(now), () {
+          _showTimer = null;
+          if (!mounted) return;
+          _lastState = null;
+          setState(() {});
+        });
+        return;
+      }
+    }
+
+    if (state == ConnState.connected) {
+      _connectingStartedAt = null;
+    }
 
     if (wantVisible && !_shouldShow && _showTimer == null) {
-      _showTimer = Timer(_showDelay, () {
-        _showTimer = null;
-        if (!mounted) return;
-        setState(() => _shouldShow = true);
-        _fadeAnim.forward();
-      });
+      _shouldShow = true;
+      _visibilityAnim.forward();
+      _slideAnim.forward();
     } else if (!wantVisible) {
       _showTimer?.cancel();
       _showTimer = null;
       _cancelWait();
-      _reconnectAttempts = 0;
+      _connectingStartedAt = null;
       if (_shouldShow) {
         _shouldShow = false;
-        _fadeAnim.reverse();
+        _visibilityAnim.reverse();
+        _slideAnim.reverse();
       }
     }
 
-    if (state == ConnState.disconnected && oldState != ConnState.disconnected) {
+    if ((state == ConnState.disconnected || state == ConnState.unstable) &&
+        oldState != ConnState.disconnected &&
+        oldState != ConnState.unstable) {
       _cancelWait();
       _waitTimer = Timer(_minWaitDuration, () {
         _waitTimer = null;
         if (!mounted) return;
-        if (_lastState == ConnState.disconnected) {
-          setState(() => _startWaitCountdown());
+        if (_lastState == ConnState.disconnected ||
+            _lastState == ConnState.unstable) {
+          setState(() {
+            final wait = engineWaitSeconds > 0 ? engineWaitSeconds : 5;
+            _startWaitCountdown(wait);
+          });
         }
       });
-    } else if (state != ConnState.disconnected) {
+    } else if (state == ConnState.connected) {
       _cancelWait();
     }
   }
@@ -1063,25 +1087,45 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
     final appState = context.watch<AppState>();
     final state = appState.connStateFor(widget.accountId);
     final p = context.palette;
+    final proxyEnabled = appState.proxyMode > 0;
 
-    _syncVisibility(state);
+    final engineWaitSeconds = appState.connWaitSecondsFor(widget.accountId);
+    _syncVisibility(state, engineWaitSeconds);
 
-    if (!_shouldShow && !_fadeAnim.isAnimating) return const SizedBox.shrink();
+    if (!_shouldShow && !_visibilityAnim.isAnimating) {
+      return const SizedBox.shrink();
+    }
 
-    return FadeTransition(
-      opacity: _fadeAnim,
+    if (!_appExposed) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([_visibilityAnim, _slideAnim]),
+      builder: (context, child) {
+        final slideOffset = (1.0 - _slideAnim.value) * 30.0;
+        return Transform.translate(
+          offset: Offset(0, slideOffset),
+          child: Opacity(
+            opacity: _visibilityAnim.value,
+            child: child,
+          ),
+        );
+      },
       child: Padding(
         padding: const EdgeInsets.all(2),
         child: MouseRegion(
           onEnter: (_) => setState(() => _isHovered = true),
           onExit: (_) => setState(() => _isHovered = false),
-          child: _buildPill(state, p),
+          child: GestureDetector(
+            onTap: () {},
+            behavior: HitTestBehavior.opaque,
+            child: _buildPill(state, p, proxyEnabled),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildPill(ConnState state, TelegramPalette p) {
+  Widget _buildPill(ConnState state, TelegramPalette p, bool proxyEnabled) {
     final showText = _isHovered || _isWaiting;
 
     final String text;
@@ -1140,6 +1184,14 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
                 ),
               ),
             ],
+          ],
+          if (proxyEnabled) ...[
+            const SizedBox(width: 4),
+            Icon(
+              Icons.shield_outlined,
+              size: 16,
+              color: p.windowBgActive,
+            ),
           ],
         ],
       ),

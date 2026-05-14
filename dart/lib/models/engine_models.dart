@@ -1946,7 +1946,8 @@ class ConnStateEvent {
   final String accountId;
   final String state;
   final String error;
-  const ConnStateEvent({this.accountId = '', this.state = '', this.error = ''});
+  final int waitSeconds;
+  const ConnStateEvent({this.accountId = '', this.state = '', this.error = '', this.waitSeconds = 0});
 }
 
 class ChatRemovedEvent {

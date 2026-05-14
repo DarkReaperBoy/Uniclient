@@ -51,8 +51,9 @@ type AuthStateEvent struct {
 }
 
 type ConnStateEvent struct {
-	State string `json:"state"` // "disconnected", "connecting", "connected", "unstable", "auth_required"
-	Error string `json:"error,omitempty"`
+	State       string `json:"state"` // "disconnected", "connecting", "connected", "unstable", "auth_required"
+	Error       string `json:"error,omitempty"`
+	WaitSeconds int    `json:"wait_seconds,omitempty"`
 }
 
 type ChatSnapshotEvent struct {

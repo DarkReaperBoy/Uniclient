@@ -138,6 +138,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   List<AccountInfo> _accounts = [];
   final Map<String, ConnState> _connStates = {};
+  final Map<String, int> _connWaitSeconds = {};
   String _activeAccountId = ''; // currently viewed account (always set when accounts exist)
   AppConfig _config = AppConfig.defaults();
   bool _initialized = false;
@@ -2409,6 +2410,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   ConnState connStateFor(String accountId) =>
       _connStates[accountId] ?? ConnState.disconnected;
 
+  int connWaitSecondsFor(String accountId) =>
+      _connWaitSeconds[accountId] ?? 0;
+
   void debugSetConnState(String accountId, ConnState state) {
     _connStates[accountId] = state;
     notifyListeners();
@@ -2446,6 +2450,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         final newState = ConnState.fromString(event.state);
         final oldState = _connStates[event.accountId];
         _connStates[event.accountId] = newState;
+        _connWaitSeconds[event.accountId] = event.waitSeconds;
         if (newState == ConnState.connected && oldState != ConnState.connected) {
           _accounts = _engine.listAccounts();
         }
