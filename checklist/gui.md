@@ -1240,7 +1240,6 @@ Compared `stats_chart.dart` against AyuGram's `statistics/chart_widget.cpp`, `vi
 
 # sticker_pack_viewer — Audit Findings
 
-- [ ] [CRITICAL] No Lottie (.tgs) or WebM video sticker rendering — Lottie (.tgs) is now animated via `Lottie.memory()`, but WebM video stickers still show a static thumbnail with a play-icon overlay instead of actual video playback; AyuGram calls `setupWebm()` for video stickers — `sticker_pack_viewer.dart:369-378` ← `AyuGram/boxes/sticker_set_box.cpp:2189-2200`
 
 # story_editor — Audit Findings
 
