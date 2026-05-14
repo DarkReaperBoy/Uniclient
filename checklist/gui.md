@@ -1242,35 +1242,6 @@ Compared `stats_chart.dart` against AyuGram's `statistics/chart_widget.cpp`, `vi
 
 
 
-# telegram_toast — Sticker toast fake animation, missing paths, missing button
-
-- [ ] [CRITICAL] Sticker preview renders static base64 PNG + invented scale-pulse animation instead of real animated Lottie/Custom Emoji frames — `telegram_toast.dart:390-438` ← `AyuGramDesktop/Telegram/SourceFiles/history/view/history_view_sticker_toast.cpp:264-353` (`setupEmojiPreview` uses `Ui::CustomEmoji::Instance`, `setupLottiePreview` uses `Lottie::SinglePlayer`; Dart uses `Image.memory(base64Decode(...))` with a fake 600ms scale oscillator `_emojiAnimCtrl` that doesn't exist in AyuGram)
-
-- [ ] [CRITICAL] Missing "saved to emojis" toast variant — `telegram_toast.dart:349-388` ← `AyuGramDesktop/Telegram/SourceFiles/history/view/history_view_sticker_toast.cpp:140-157` (AyuGram uses `static auto counter = 0; toSaved = isEmoji && !(++counter % 2)` so every other emoji toast shows `tr::lng_animated_emoji_saved` with an "Open saved messages" button; Dart `_buildMessage()` has no `toSaved` branch at all)
-
-- [ ] [MAJOR] Missing "View" RoundButton in sticker toast — `telegram_toast.dart:467-484` ← `AyuGramDesktop/Telegram/SourceFiles/history/view/history_view_sticker_toast.cpp:201-252` (AyuGram creates a dedicated `Ui::RoundButton` aligned to the right of the toast that opens `StickerSetBox` or `ShowPremiumPreviewBox` or navigates to Saved Messages; Dart only has a `TapGestureRecognizer` on the pack name text span with a single `onOpenPack` VoidCallback — no button, no branching navigation logic)
-
-- [ ] [MAJOR] No previous sticker toast dismissal when a new one is shown — `telegram_toast.dart:253-268` ← `AyuGramDesktop/Telegram/SourceFiles/history/view/history_view_sticker_toast.cpp:63-77` (AyuGram's `showFor()` calls `strong->hideAnimated()` on the existing weak pointer before showing a new toast for a different document; Dart `showStickerToast()` creates a fresh `OverlayEntry` every call with no check for an existing live toast, so rapid calls stack multiple sticker toasts simultaneously)
-
-- [ ] [MAJOR] Missing TopicIcon section — `telegram_toast.dart:271-291` ← `AyuGramDesktop/Telegram/SourceFiles/history/view/history_view_sticker_toast.h:43-46` (AyuGram has `Section::Message` and `Section::TopicIcon`; TopicIcon path shows `Settings::ShowPremium(window, u"forum_topic_icon"_q)` and changes the toast text; Dart `_StickerToast` only has `isReaction` bool with no TopicIcon concept)
-
-# telegram_tooltip — 8 issues (3 CRITICAL + 5 MAJOR)
-
-- [ ] [CRITICAL] Regular tooltip corner radius is 6px but AyuGram uses `st::roundRadiusSmall = 3px` (100% deviation) — `telegram_tooltip.dart:11` ← `lib_ui/ui/basic.style:104` + `lib_ui/ui/widgets/tooltip.cpp:172`
-
-- [ ] [CRITICAL] `_ArrowPainter` uses absolute screen coordinate (`target.center.dx`) as a local canvas coordinate — the arrow is always drawn at `min(target.center.dx, _kArrowSkip=66)` relative to the widget's own top-left, not over the actual target center. AyuGram adjusts with `areaMiddle = _area.x() + _area.width()/2 - x()` to get a widget-relative position — `telegram_tooltip.dart:428-469` ← `lib_ui/ui/widgets/tooltip.cpp:434-436`
-
-- [ ] [CRITICAL] `ImportantTooltip` font size is 13px but AyuGram's `defaultImportantTooltipLabel` uses `font(11px)` (18% deviation, threshold is 10%) — `telegram_tooltip.dart:515` ← `lib_ui/ui/widgets/widgets.style:1314-1316`
-
-- [ ] [MAJOR] `ImportantTooltip` is missing its slide/position animation — AyuGram interpolates position with `shift` offset using `anim::interpolate` so the tooltip slides in from a shifted position while fading; Dart only has `FadeTransition` — `telegram_tooltip.dart:288-314` ← `lib_ui/ui/widgets/tooltip.cpp:395-401`
-
-- [ ] [MAJOR] `ImportantTooltip` animation uses default linear curve instead of `easeOutCirc` — `AnimationController` has no curve set and `FadeTransition` uses it raw; AyuGram explicitly passes `anim::easeOutCirc` — `telegram_tooltip.dart:238-241` ← `lib_ui/ui/widgets/tooltip.cpp:315`
-
-- [ ] [MAJOR] Regular tooltip font size is 12px but AyuGram's `defaultTooltip` uses `defaultTextStyle` which resolves to `normalFont = font(fsize)` = 13px — `telegram_tooltip.dart:140` ← `lib_ui/ui/basic.style:51-52`
-
-- [ ] [MAJOR] Default hover show-delay is 500ms but AyuGram's `InstallTooltip` uses 1000ms (50% deviation) — `telegram_tooltip.dart:12` ← `lib_ui/ui/widgets/tooltip.cpp:573`
-
-- [ ] [MAJOR] Double-remove race in `showImportantTooltip`: outer `Future.delayed(hideAfter, remove)` at line 529 fires exactly when the tooltip's own `_scheduleHideAfter` timer fires, but without waiting for the 200ms reverse animation — the overlay is removed abruptly before fade-out completes instead of after it — `telegram_tooltip.dart:528-532` ← `lib_ui/ui/widgets/tooltip.cpp:321-323`
 
 # theme_editor — Audit Findings
 
