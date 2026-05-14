@@ -1197,8 +1197,6 @@ Before findings, confirmed matches (not issues):
 
 ## privacy_settings_screen — Missing Feature Gating
 
-- [ ] [CRITICAL] "Charge Stars" messages privacy option can be selected by non-Premium users — no premium lock guard equivalent to the voice messages block at line 2314 — `privacy_settings_screen.dart:6183-6226` ← `AyuGram/settings/settings_privacy_security.cpp` (messagesPremium config check blocks non-premium access to paid messages option)
-
 ## privacy_settings_screen — State & Data Flow
 
 - [ ] [MAJOR] Countdown timer `_countdownTimer` in `_CloudPasswordInputState` is started but not cancelled on widget unmount if disposal races with a pending `setState` call — `_updateCountdownText()` calls `setState` without `mounted` guard — `privacy_settings_screen.dart:3074-3095` ← `AyuGram/settings/settings_privacy_security.cpp` (rpl lifetime subscriptions auto-cancel on destruction)
