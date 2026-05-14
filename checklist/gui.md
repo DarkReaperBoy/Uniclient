@@ -1242,61 +1242,6 @@ Compared `stats_chart.dart` against AyuGram's `statistics/chart_widget.cpp`, `vi
 
 
 
-
-# titlebar — 2 issues
-
-- [ ] [MAJOR] Bottom separator uses `palette.shadowFg` (#00000018) instead of `palette.titleShadow` (#00000003). The palette already has a `titleShadow` field but it is not wired up in the titlebar widget. AyuGram places a `PlainShadow` with `st::titleShadow` (nearly transparent) at the bottom of the title bar; the Dart code uses the much more opaque `shadowFg` color, making the separator line 6× darker than intended — `titlebar.dart:206` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:99` + `ui_platform_window_title.cpp:470`
-
-- [ ] [MAJOR] `_ButtonLayout.consolidated` picks the side with more buttons instead of the side where the close button lives. AyuGram's `TitleLayout::onLeft()` checks `ranges::contains(left, TitleControl::Close)` first and `updateControlsPosition` merges to whichever side holds close; the Dart getter checks `right.length >= left.length`. For a mixed layout like `left=[close], right=[minimize, maximize]`, AyuGram consolidates to left but Dart consolidates to right, reversing the order — `titlebar.dart:29-35` ← `AyuGram/Telegram/lib_ui/ui/platform/ui_platform_window_title.h:68-77` + `ui_platform_window_title.cpp:325-338`
-
-# web_app_panel — Audit Findings
-
-- [ ] [CRITICAL] `_postEventToWebView` uses wrong JS object: `window.Telegram.WebView.receiveEvent` — the correct object is `window.TelegramGameProxy.receiveEvent`. All events sent from the app back to the mini-app are silently dropped, breaking theme updates, viewport reports, button confirmations, popup results, and every other server-to-web event — `web_app_panel.dart:414` ← `attach_bot_webview.cpp:2180`
-
-- [ ] [CRITICAL] `web_app_data_send` drops the bot's payload: Dart just calls `_close()` without reading `data["data"]` or forwarding it to the backend. AyuGram calls `sendDataMessage(arguments)` → `_delegate->botSendData(data.toUtf8())`, then closes. The submitted form data is never delivered — `web_app_panel.dart:268-269` ← `attach_bot_webview.cpp:964-965,1166-1178`
-
-- [ ] [CRITICAL] `web_app_open_tg_link` opens the external browser instead of routing internally: Dart calls `_launchUrl('https://t.me/$path')`. AyuGram calls `_delegate->botHandleLocalUri("https://t.me" + path, true)` which navigates within the app — `web_app_panel.dart:265-267` ← `attach_bot_webview.cpp:1014-1015,1362-1375`
-
-- [ ] [CRITICAL] `web_app_open_link` bypasses URL validation and instant-view routing: Dart calls `_launchUrl(url)` unconditionally. AyuGram calls `botValidateExternalLink(url)` (rejects bad URLs, closes the panel on failure), checks `try_instant_view`, and routes to `botOpenIvLink` accordingly — `web_app_panel.dart:262-264` ← `attach_bot_webview.cpp:1016-1017,1377-1395`
-
-- [ ] [CRITICAL] `open_bot` menu item has no handler: the switch at `_showMenu` has no `case 'open_bot'` clause, so tapping "Open Bot" silently does nothing. AyuGram calls `_delegate->botHandleMenuButton(MenuButton::OpenBot)` — `web_app_panel.dart:546-559` ← `attach_bot_webview.cpp:780-783`
-
-- [ ] [CRITICAL] `web_app_switch_inline_query` is missing entirely: AyuGram calls `_delegate->botSwitchInlineQuery(types, query)` to trigger inline query mode. Dart's `_handleWebAppEvent` switch has no case for it; the command is silently dropped — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:966-967,1180-1210`
-
-- [ ] [CRITICAL] `web_app_request_fullscreen` and `web_app_exit_fullscreen` are missing: AyuGram toggles `_fullscreen`, re-layouts buttons, and calls `sendFullScreen()`. Dart ignores both commands — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:983-996`
-
-- [ ] [CRITICAL] `web_app_request_file_download` is missing: AyuGram calls `_delegate->botDownloadFile({url, name, callback})` and posts `file_download_requested` with status. Dart ignores it — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:990-991,1855-1881`
-
-- [ ] [CRITICAL] `web_app_open_invoice` is missing: AyuGram calls `_delegate->botHandleInvoice(slug)` which triggers the payment flow. Dart ignores it — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:1019-1020,1397-1409`
-
-- [ ] [CRITICAL] `web_app_open_scan_qr_popup` and `web_app_share_to_story` are missing: AyuGram shows a blocking "not supported" popup for QR and story sharing. Dart silently ignores both — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:1022-1024,1466-1490`
-
-- [ ] [CRITICAL] `web_app_request_write_access` is missing: AyuGram shows a permission dialog via `_delegate->botCheckWriteAccess/botAllowWriteAccess` and posts `write_access_requested` with status. Dart ignores it, so mini-apps can never obtain write permission — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:1026-1027,1492-1539`
-
-- [ ] [CRITICAL] `web_app_request_phone` is missing: AyuGram shows a confirmation dialog and calls `_delegate->botSharePhone`, then posts `phone_requested`. Dart ignores it — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:1028-1029,1541-1580`
-
-- [ ] [CRITICAL] `web_app_invoke_custom_method` is missing: AyuGram calls `_delegate->botInvokeCustomMethod` and posts `custom_method_invoked` with the result. Dart ignores it, breaking any mini-app that uses custom bot methods — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:1030-1031,1582-1620`
-
-- [ ] [CRITICAL] `web_app_read_text_from_clipboard` is missing: AyuGram reads the clipboard (with interaction-time guard) and posts `clipboard_text_received`. Dart ignores it — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:1034-1035,1622-1633`
-
-- [ ] [CRITICAL] `web_app_send_prepared_message` and `web_app_request_chat` are missing: AyuGram delegates these to `botSendPreparedMessage` / `botRequestChat` and posts success/failure events. Dart ignores both — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:1042-1045,1212-1260`
-
-- [ ] [CRITICAL] `web_app_set_emoji_status` and `web_app_request_emoji_status_access` are missing: AyuGram calls `botSetEmojiStatus` / `botRequestEmojiStatusAccess` and posts result events. Dart ignores both — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:1046-1049,1261-1303`
-
-- [ ] [CRITICAL] `web_app_device_storage_*` commands are missing: AyuGram handles `save_key`, `get_key`, and `clear`, posting `device_storage_key_saved/received/cleared/failed`. Dart ignores all three — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:1050-1055,1305-1353`
-
-- [ ] [CRITICAL] `web_app_secure_storage_*` commands are missing: AyuGram responds with `secure_storage_failed` (UNSUPPORTED) for all four commands. Dart ignores them so mini-apps receive no response and hang — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:1056-1063,1355-1360`
-
-- [ ] [CRITICAL] `web_app_verify_age` and `share_score` are missing: AyuGram calls `botVerifyAge(age)` / `botHandleMenuButton(ShareGame)`. Dart ignores both — `web_app_panel.dart:225-288` ← `attach_bot_webview.cpp:1064-1076`
-
-- [ ] [MAJOR] Named color keys ignored in `web_app_set_header_color` and `web_app_set_background_color`: `_parseColor` only handles `#rrggbb` hex strings; it returns null for named keys like `"secondary_bg_color"` or `"bottom_bar_bg_color"`. AyuGram's `LookupNamedColor` resolves these to palette colors and sets up live palette-change listeners — `web_app_panel.dart:398-406` ← `attach_bot_webview.cpp:134-141,1763-1853`
-
-- [ ] [MAJOR] `_handleRequestViewport` hardcodes `is_expanded: false` and uses screen size instead of webview content size: AyuGram's `sendViewport` runs `window.innerHeight` inside the webview and always sends `is_expanded: true`. Dart sends the Flutter screen size and always reports the panel as unexpanded — `web_app_panel.dart:332-341` ← `attach_bot_webview.cpp:1125-1130`
-
-- [ ] [MAJOR] Bottom bar label text color uses fixed 40% alpha instead of contrast-adaptive calculation: AyuGram's `overrideBodyColor` computes luminance, picks black or white text, then derives opacity via `(luminance - textLuminance + contrast) / contrast` clamped to 0.5–0.64. Dart hardcodes `alpha: 0.4` regardless of background — `web_app_panel.dart:858-862` ← `attach_bot_webview.cpp:1781-1803`
-
-- [ ] [MAJOR] Button corner radius is 8px but AyuGram uses `callRadius = 6px`: `_WebAppButton` uses `BorderRadius.circular(8)` and `botWebViewBottomButton` inherits from `paymentsPanelSubmit` whose ripple mask is built with `st::callRadius = 6px` — `web_app_panel.dart:923,925` ← `attach_bot_webview.cpp:385-386` / `widgets.style:callRadius: 6px`
-
 # engine_models — Data Model Gaps vs AyuGram
 
 ## GroupCallParticipant — Missing fields & dead field
