@@ -1241,29 +1241,6 @@ Compared `stats_chart.dart` against AyuGram's `statistics/chart_widget.cpp`, `vi
 # sticker_pack_viewer — Audit Findings
 
 
-# story_editor — Audit Findings
-
-## story_editor — Story editor layer
-
-- [ ] [CRITICAL] Sticker picker inserts sticker's emoji text instead of the sticker image — tapping a sticker in the grid calls `widget.onEmojiSelected(sticker.emoji)` which adds a text `_SceneItem` with the emoji character; the actual sticker thumbnail shown in the grid is never placed on the canvas. AyuGram creates an `ItemSticker` scene item backed by the real `DocumentData`. — `story_editor.dart:2787` ← `AyuGram/editor/editor_paint.cpp:145`
-
-- [ ] [CRITICAL] Video canvas preview is a placeholder icon — when `_videoFile != null`, `_buildCanvasContent` renders `Icons.videocam` + filename instead of actual video frames; the user cannot see what they are editing. — `story_editor.dart:628` ← `AyuGram/editor/photo_editor_content.cpp` (AyuGram renders video frames via native player)
-
-- [ ] [CRITICAL] Blur tool draws a blurred-white stroke over content rather than blurring the underlying image — `paint.maskFilter = MaskFilter.blur(BlurStyle.normal, 20)` with `Colors.white24` just adds a fuzzy white overlay. AyuGram supplies a `blurSource` callback that reads and Gaussian-blurs the actual image pixels at the brushed region. — `story_editor.dart:1773` ← `AyuGram/editor/scene/scene_item_canvas.cpp:121` (`strokeColor` returns opaque black for blur; the blur effect is applied via `blurSource`), `AyuGram/editor/editor_paint.cpp:71` (`setBlurSource`)
-
-- [ ] [CRITICAL] `_renderCanvasToBytes` does not reproduce text background styles (filled / outlined) in the exported image — text items are painted as raw `TextPainter` with color only; `_TextBgStyle.filled` (semi-transparent box) and `_TextBgStyle.outlined` (border box) that the user sees live in `_buildItemWidget` are absent from the final PNG upload. — `story_editor.dart:497` ← `AyuGram/editor/scene/scene_item_text.cpp:68` (`ComputeMetrics`, `BuildConnectedBackground`)
-
-- [ ] [MAJOR] Marker tool uses additive alpha blending instead of source-replace compositing — `color.withValues(alpha: 0.35)` with the default `BlendMode.srcOver` lets overlapping strokes accumulate opacity (e.g. second pass goes to ~58%). AyuGram uses `CompositionMode_Source` so re-stroking the same area stays at 35%. — `story_editor.dart:1771` ← `AyuGram/editor/scene/scene_item_canvas.cpp:196`
-
-- [ ] [MAJOR] Undo / redo only covers paint strokes, not scene-item operations — `_undo`/`_redo` (lines 529-543) manipulate `_strokes` / `_redoStack`. Adding, moving, rotating, or deleting `_sceneItems` (text labels, emoji) cannot be undone. AyuGram's undo controller covers the full `Scene` (all item types). — `story_editor.dart:529` ← `AyuGram/editor/controllers/undo_controller.cpp:1`
-
-- [ ] [MAJOR] Full video file read into memory as `Uint8List` before upload — `_videoFile!.readAsBytes()` at line 417 loads the entire video into the Dart heap. Multi-hundred-MB videos will OOM the process; the backend `SendStoryWithPhoto` should accept a file path or streaming source. — `story_editor.dart:417` ← `AyuGram/editor/editor_paint.cpp` (C++ passes media as prepared file reference, not raw bytes)
-
-- [ ] [MAJOR] Scene-item visual centering uses hardcoded −50 / −25 px offsets instead of dynamic widget size — `Positioned(left: item.position.dx * scale - 50, top: item.position.dy * scale - 25)` assumes every item is ~100×50 px. A long text label or large emoji is visually displaced from the tapped position. — `story_editor.dart:716` ← `AyuGram/editor/scene/scene_item_base.cpp` (AyuGram uses `boundingRect()` to center items at their logical position)
-
-- [ ] [MAJOR] Font-size slider expanded top width is 20 px; brush-size slider spec requires 25 px — `_FontSizeSliderPainter` uses `expandedTopW = 20.0` (line 2386) while `_BrushSizeSliderPainter` correctly uses 25.0. Both sliders are the same widget type and should match. — `story_editor.dart:2386` ← `AyuGram/editor/editor.style:160` (`photoEditorBrushSizeControlExpandedTopWidth: 25px`)
-
-- [ ] [MAJOR] Contact picker shows initial-letter placeholder avatar instead of real contact photo — `CircleAvatar` with a blue background and first letter is used for every contact; `ContactInfo` carries photo/avatar data from the engine that is never loaded. — `story_editor.dart:2185` ← `dart/lib/bridge/engine_service.dart:4944` (`_contactInfoFromProto` maps `EngineContactInfo` including avatar fields)
 
 # telegram_toast — Sticker toast fake animation, missing paths, missing button
 
