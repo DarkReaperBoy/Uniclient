@@ -312,79 +312,153 @@ List<Float64List> _computeParticleFrameData(_ParticleParams params) {
   });
 }
 
-Future<SpoilerSpriteSheet> _renderSpriteSheet(SpoilerType type) async {
-  final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
-  final tilePx = (_kCanvasSize * dpr).roundToDouble();
-  final sheetW = (tilePx * _kFramesPerRow).toInt();
-  final sheetH = (tilePx * _kRows).toInt();
-  final isImage = type == SpoilerType.image;
+class _ParticleStamp {
+  final int w, h;
+  final Uint8List alphas;
+  _ParticleStamp(this.w, this.h, this.alphas);
+}
 
-  final frameData = await compute(
-    _computeParticleFrameData,
-    _ParticleParams(tilePx, dpr, type == SpoilerType.text),
-  );
+class _SpriteGenParams {
+  final double tilePx, dpr;
+  final bool isText, isImage;
+  final int sheetW, sheetH;
+  const _SpriteGenParams(
+      this.tilePx, this.dpr, this.isText, this.isImage, this.sheetW, this.sheetH);
+}
 
+List<_ParticleStamp> _buildParticleStamps(double dpr) {
   final sizeRange = _kParticleSizeMax - _kParticleSizeMin;
   final cornerR = _kParticleSizeMin * dpr / 2;
-  final spriteRects = <RRect>[];
+  final mid = _kSpriteVariants ~/ 2;
+  final stamps = <_ParticleStamp>[];
+
   for (int i = 0; i < _kSpriteVariants; i++) {
-    final mid = _kSpriteVariants ~/ 2;
     double w, h;
     if (i < mid) {
       w = (_kParticleSizeMin + (i + 1) / mid * sizeRange) * dpr;
       h = _kParticleSizeMin * dpr;
     } else if (i > mid) {
       w = _kParticleSizeMin * dpr;
-      h = (_kParticleSizeMin + (i - mid) / (_kSpriteVariants - mid - 1) * sizeRange) * dpr;
+      h = (_kParticleSizeMin +
+              (i - mid) / (_kSpriteVariants - mid - 1) * sizeRange) *
+          dpr;
     } else {
       w = _kParticleSizeMin * dpr;
       h = _kParticleSizeMin * dpr;
     }
-    spriteRects.add(RRect.fromRectAndRadius(
-      Rect.fromCenter(center: Offset.zero, width: w, height: h),
-      Radius.circular(cornerR),
-    ));
-  }
 
-  final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, sheetW.toDouble(), sheetH.toDouble()));
-  final paint = Paint()
-    ..color = const Color(0xFFFFFFFF)
-    ..style = PaintingStyle.fill;
+    final pw = (w + 2).ceil();
+    final ph = (h + 2).ceil();
+    final alphas = Uint8List(pw * ph);
+    final cx = pw / 2.0;
+    final cy = ph / 2.0;
+    final hw = w / 2;
+    final hh = h / 2;
+
+    for (int py = 0; py < ph; py++) {
+      for (int px = 0; px < pw; px++) {
+        final qx = (px + 0.5 - cx).abs() - hw + cornerR;
+        final qy = (py + 0.5 - cy).abs() - hh + cornerR;
+        final double d;
+        if (qx > 0 && qy > 0) {
+          d = math.sqrt(qx * qx + qy * qy) - cornerR;
+        } else {
+          d = math.max(qx, qy) - cornerR;
+        }
+        alphas[py * pw + px] = ((0.5 - d).clamp(0.0, 1.0) * 255).round();
+      }
+    }
+    stamps.add(_ParticleStamp(pw, ph, alphas));
+  }
+  return stamps;
+}
+
+Uint8List _generateSpriteSheetPixels(_SpriteGenParams p) {
+  final frameData =
+      _computeParticleFrameData(_ParticleParams(p.tilePx, p.dpr, p.isText));
+  final stamps = _buildParticleStamps(p.dpr);
+  final pixels = Uint8List(p.sheetW * p.sheetH * 4);
+  final stride = p.sheetW * 4;
 
   for (int f = 0; f < _kFrameCount; f++) {
     final col = f % _kFramesPerRow;
     final row = f ~/ _kFramesPerRow;
-    final ox = col * tilePx;
-    final oy = row * tilePx;
-    final tileRect = Rect.fromLTWH(ox, oy, tilePx, tilePx);
+    final tileX = (col * p.tilePx).round();
+    final tileY = (row * p.tilePx).round();
+    final tileW = p.tilePx.round();
+    final tileH = p.tilePx.round();
 
-    canvas.save();
-    canvas.clipRect(tileRect);
-
-    if (isImage) {
-      canvas.drawRect(
-        tileRect,
-        Paint()..color = Color.fromRGBO(0, 0, 0, _kImageSpoilerDarkenAlpha / 255),
-      );
+    if (p.isImage) {
+      final yEnd = math.min(tileY + tileH, p.sheetH);
+      final xEnd = math.min(tileX + tileW, p.sheetW);
+      for (int y = tileY; y < yEnd; y++) {
+        for (int x = tileX; x < xEnd; x++) {
+          pixels[y * stride + x * 4 + 3] = _kImageSpoilerDarkenAlpha;
+        }
+      }
     }
 
     final cmds = frameData[f];
     for (int j = 0; j < cmds.length; j += 4) {
-      paint.color = Color.fromRGBO(255, 255, 255, cmds[j + 2]);
-      canvas.drawRRect(
-        spriteRects[cmds[j + 3].toInt()].shift(Offset(ox + cmds[j], oy + cmds[j + 1])),
-        paint,
-      );
+      final pa = (cmds[j + 2] * 255).round();
+      if (pa <= 0) continue;
+      final si = cmds[j + 3].toInt();
+      if (si < 0 || si >= stamps.length) continue;
+
+      final stamp = stamps[si];
+      final sx = (cmds[j] + tileX - stamp.w * 0.5).round();
+      final sy = (cmds[j + 1] + tileY - stamp.h * 0.5).round();
+      final x0 = math.max(sx, tileX);
+      final y0 = math.max(sy, tileY);
+      final x1 = math.min(sx + stamp.w, math.min(tileX + tileW, p.sheetW));
+      final y1 = math.min(sy + stamp.h, math.min(tileY + tileH, p.sheetH));
+
+      for (int y = y0; y < y1; y++) {
+        for (int x = x0; x < x1; x++) {
+          final sa = stamp.alphas[(y - sy) * stamp.w + (x - sx)];
+          if (sa == 0) continue;
+          final srcA = (sa * pa) ~/ 255;
+          if (srcA == 0) continue;
+
+          final idx = y * stride + x * 4;
+          final dstA = pixels[idx + 3];
+          if (dstA == 0) {
+            pixels[idx] = 255;
+            pixels[idx + 1] = 255;
+            pixels[idx + 2] = 255;
+            pixels[idx + 3] = srcA;
+          } else {
+            final outA = srcA + dstA - (srcA * dstA) ~/ 255;
+            if (outA <= 0) continue;
+            final dstW = dstA * (255 - srcA) ~/ 255;
+            pixels[idx] = (255 * srcA + pixels[idx] * dstW) ~/ outA;
+            pixels[idx + 1] = (255 * srcA + pixels[idx + 1] * dstW) ~/ outA;
+            pixels[idx + 2] = (255 * srcA + pixels[idx + 2] * dstW) ~/ outA;
+            pixels[idx + 3] = outA;
+          }
+        }
+      }
     }
-
-    canvas.restore();
   }
+  return pixels;
+}
 
-  final picture = recorder.endRecording();
-  final image = await picture.toImage(sheetW, sheetH);
-  picture.dispose();
-  return SpoilerSpriteSheet(image, tilePx);
+Future<SpoilerSpriteSheet> _renderSpriteSheet(SpoilerType type) async {
+  final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
+  final tilePx = (_kCanvasSize * dpr).roundToDouble();
+  final sheetW = (tilePx * _kFramesPerRow).toInt();
+  final sheetH = (tilePx * _kRows).toInt();
+
+  final pixels = await compute(
+    _generateSpriteSheetPixels,
+    _SpriteGenParams(tilePx, dpr, type == SpoilerType.text,
+        type == SpoilerType.image, sheetW, sheetH),
+  );
+
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+      pixels, sheetW, sheetH, ui.PixelFormat.rgba8888, completer.complete);
+  return SpoilerSpriteSheet(await completer.future, tilePx);
 }
 
 class SpoilerTilePainter extends CustomPainter {
