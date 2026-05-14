@@ -1,12 +1,16 @@
 import 'dart:convert';
+import 'dart:io' show gzip;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import '../theme/telegram_palette.dart';
+import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../state/chat_state.dart';
+import '../theme/telegram_palette.dart';
 import 'telegram_tooltip.dart';
 
 class StickerPackViewer extends StatefulWidget {
@@ -74,33 +78,34 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
+    final isEmoji = _setInfo?.emojis ?? false;
+    final maxSheetHeight = isEmoji ? 270.0 : 393.0;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final sheetHeight = maxSheetHeight.clamp(0.0, screenHeight * 0.9);
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.3,
-      maxChildSize: 0.9,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          child: Column(
-            children: [
-              _buildHandle(),
-              _buildHeader(textColor, isDark),
-              const Divider(height: 1),
-              Expanded(
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _error != null
-                        ? Center(child: Text(_error!, style: TextStyle(color: textColor)))
-                        : _buildGrid(scrollController),
-              ),
-            ],
-          ),
-        );
-      },
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Container(
+        height: sheetHeight,
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: Column(
+          children: [
+            _buildHandle(),
+            _buildHeader(textColor, isDark),
+            const Divider(height: 1),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(child: Text(_error!, style: TextStyle(color: textColor)))
+                      : _buildGrid(),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -121,7 +126,6 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
   String get _addButtonText {
     final info = _setInfo;
     if (info == null) return 'Add Pack';
-    if (info.installed) return 'Added';
     if (info.emojis) return 'Add Emoji';
     if (info.masks) return 'Add Masks';
     return 'Add Pack';
@@ -136,35 +140,36 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
     return '$n stickers';
   }
 
-  Future<void> _toggleInstall() async {
+  Future<void> _installSet() async {
     final info = _setInfo;
     if (info == null || _installing) return;
     setState(() => _installing = true);
     try {
       final accountId = widget.message.accountId;
-      final success = info.installed
-          ? await widget.engine.uninstallStickerSet(accountId, info.setId, info.accessHash)
-          : await widget.engine.installStickerSet(accountId, info.setId, info.accessHash);
+      final success = await widget.engine.installStickerSet(
+          accountId, info.setId, info.accessHash);
       if (success && mounted) {
-        setState(() {
-          _setInfo = StickerSetInfo(
-            title: info.title,
-            shortName: info.shortName,
-            setId: info.setId,
-            accessHash: info.accessHash,
-            count: info.count,
-            installed: !info.installed,
-            archived: info.archived,
-            animated: info.animated,
-            video: info.video,
-            masks: info.masks,
-            emojis: info.emojis,
-            stickers: info.stickers,
-          );
-        });
+        Navigator.pop(context);
       }
     } catch (_) {}
     if (mounted) setState(() => _installing = false);
+  }
+
+  void _shareSet() {
+    final shortName = _setInfo?.shortName;
+    if (shortName == null || shortName.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: 'https://t.me/addstickers/$shortName'));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Link copied'), duration: Duration(seconds: 2)),
+    );
+  }
+
+  void _sendSticker(StickerInfoItem sticker) {
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    widget.engine.sendSticker(chat.accountId, chat.chatId, sticker.fileId);
+    Navigator.pop(context);
   }
 
   Widget _buildHeader(Color textColor, bool isDark) {
@@ -201,26 +206,43 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
             ),
           ),
           if (info != null && !_loading)
-            TextButton(
-              onPressed: _installing ? null : _toggleInstall,
-              style: TextButton.styleFrom(
-                backgroundColor: installed
-                    ? (isDark ? const Color(0xFF2B5278) : const Color(0xFFE3F2FD))
-                    : context.palette.windowBgActive,
-                foregroundColor: installed ? textColor : Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            if (installed) ...[
+              TextButton(
+                onPressed: _shareSet,
+                style: TextButton.styleFrom(
+                  foregroundColor: context.palette.windowBgActive,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                child: const Text('Share'),
               ),
-              child: _installing
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(_addButtonText),
-            ),
+              const SizedBox(width: 4),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  foregroundColor: textColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                child: const Text('Cancel'),
+              ),
+            ] else
+              TextButton(
+                onPressed: _installing ? null : _installSet,
+                style: TextButton.styleFrom(
+                  backgroundColor: context.palette.windowBgActive,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: _installing
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Text(_addButtonText),
+              ),
         ],
       ),
     );
   }
 
-  Widget _buildGrid(ScrollController scrollController) {
+  Widget _buildGrid() {
     final info = _setInfo;
     final stickers = info?.stickers ?? [];
     if (stickers.isEmpty) {
@@ -234,31 +256,102 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
         : const EdgeInsets.fromLTRB(19, 13, 19, 13);
 
     return GridView.builder(
-      controller: scrollController,
       padding: padding,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        mainAxisSpacing: 4,
-        crossAxisSpacing: 4,
+        mainAxisSpacing: 0,
+        crossAxisSpacing: 0,
+        childAspectRatio: isEmoji ? 42.0 / 39.0 : 1.0,
       ),
       itemCount: stickers.length,
       itemBuilder: (context, index) {
         final sticker = stickers[index];
-        return _StickerTile(sticker: sticker);
+        return _StickerTile(
+          sticker: sticker,
+          accountId: widget.message.accountId,
+          engine: widget.engine,
+          onTap: () => _sendSticker(sticker),
+        );
       },
     );
   }
 }
 
-class _StickerTile extends StatelessWidget {
+class _StickerTile extends StatefulWidget {
   final StickerInfoItem sticker;
+  final String accountId;
+  final EngineService engine;
+  final VoidCallback? onTap;
 
-  const _StickerTile({required this.sticker});
+  const _StickerTile({
+    required this.sticker,
+    required this.accountId,
+    required this.engine,
+    this.onTap,
+  });
+
+  @override
+  State<_StickerTile> createState() => _StickerTileState();
+}
+
+class _StickerTileState extends State<_StickerTile>
+    with SingleTickerProviderStateMixin {
+  Uint8List? _lottieData;
+  AnimationController? _lottieController;
+  bool _loadingFile = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.sticker.isAnimated) {
+      _loadAnimatedSticker();
+    }
+  }
+
+  Future<void> _loadAnimatedSticker() async {
+    if (_loadingFile) return;
+    _loadingFile = true;
+    final docId = int.tryParse(widget.sticker.fileId);
+    if (docId == null) return;
+    try {
+      final files = await widget.engine.getStickerFiles(
+          widget.accountId, [docId]);
+      final fileData = files[docId];
+      if (fileData != null && fileData.isTgs && mounted) {
+        final decompressed = Uint8List.fromList(gzip.decode(fileData.fileData));
+        setState(() => _lottieData = decompressed);
+      }
+    } catch (_) {}
+  }
+
+  void _onLottieLoaded(LottieComposition composition) {
+    _lottieController?.dispose();
+    _lottieController = AnimationController(
+      vsync: this,
+      duration: composition.duration,
+    );
+    _lottieController!.repeat();
+  }
+
+  @override
+  void dispose() {
+    _lottieController?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final sticker = widget.sticker;
     Widget child;
-    if (sticker.thumbB64.isNotEmpty) {
+
+    if (_lottieData != null) {
+      child = Lottie.memory(
+        _lottieData!,
+        fit: BoxFit.contain,
+        controller: _lottieController,
+        onLoaded: _onLottieLoaded,
+      );
+    } else if (sticker.thumbB64.isNotEmpty) {
       try {
         final bytes = _decodeStrippedThumb(sticker.thumbB64);
         child = Image.memory(
@@ -273,11 +366,42 @@ class _StickerTile extends StatelessWidget {
       child = _emojiPlaceholder();
     }
 
-    return TelegramTooltip(
-      message: sticker.emoji,
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: child,
+    if (sticker.isVideo && _lottieData == null) {
+      child = Stack(
+        alignment: Alignment.center,
+        children: [
+          child,
+          Icon(Icons.play_circle_outline, size: 20,
+              color: Colors.white.withValues(alpha: 0.7)),
+        ],
+      );
+    }
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: TelegramTooltip(
+        message: sticker.emoji,
+        child: Padding(
+          padding: const EdgeInsets.all(2),
+          child: Stack(
+            children: [
+              Positioned.fill(child: child),
+              if (sticker.isPremium)
+                Positioned(
+                  right: 2,
+                  bottom: 2,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(Icons.lock, size: 12, color: Colors.white),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -285,7 +409,7 @@ class _StickerTile extends StatelessWidget {
   Widget _emojiPlaceholder() {
     return Center(
       child: Text(
-        sticker.emoji.isNotEmpty ? sticker.emoji : '?',
+        widget.sticker.emoji.isNotEmpty ? widget.sticker.emoji : '?',
         style: const TextStyle(fontSize: 28),
       ),
     );

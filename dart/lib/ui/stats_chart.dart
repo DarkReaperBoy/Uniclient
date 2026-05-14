@@ -1954,16 +1954,11 @@ class _ChartAreaPainter extends CustomPainter {
     const topPad = 10.0;
     final chartH = size.height - topPad - _kBottomCaptionHeight -
         _kBottomCaptionSkip;
+    final chartBottom = topPad + chartH;
     final cx = size.width / 2;
     final cy = size.height / 2;
     const kCircleSizeRatio = 0.42;
-    final side = (size.width / 2) * kCircleSizeRatio;
-
-    double total = 0;
-    for (final (l, _) in rLines) {
-      if (idx < l.values.length) total += l.values[idx];
-    }
-    if (total == 0) total = 1;
+    final pieRadius = (size.width / 2) * kCircleSizeRatio;
 
     final sums = List<double>.filled(n, 0);
     for (int i = 0; i < n; i++) {
@@ -1972,69 +1967,139 @@ class _ChartAreaPainter extends CustomPainter {
       }
     }
 
-    if (t < 1.0) {
-      var prevY = List<double>.filled(n, topPad + chartH);
-      for (final (line, alpha) in rLines.reversed) {
-        final count = math.min(line.values.length, n);
-        final path = Path();
-        final curY = List<double>.from(prevY);
+    double total = 0;
+    for (final (l, _) in rLines) {
+      if (idx < l.values.length) total += l.values[idx];
+    }
+    if (total == 0) total = 1;
 
-        for (int i = 0; i < count; i++) {
-          final x = _dataXToPixel(i, n, size.width);
-          final norm = line.values[i] / (sums[i] == 0 ? 1 : sums[i]);
-          curY[i] = prevY[i] - norm * chartH;
-          if (i == 0) {
-            path.moveTo(x, curY[i]);
-          } else {
-            path.lineTo(x, curY[i]);
-          }
-        }
-        for (int i = count - 1; i >= 0; i--) {
-          path.lineTo(_dataXToPixel(i, n, size.width), prevY[i]);
-        }
-        path.close();
-        canvas.drawPath(
-            path,
-            Paint()
-              ..color = _resolveLineColor(line)
-                  .withValues(alpha: alpha * (1.0 - t)));
-        prevY = curY;
+    // Clip path morphs from chart rectangle to circle
+    canvas.save();
+    if (t > 0 && t < 1.0) {
+      final r = 1.0 + (kCircleSizeRatio - 1.0) * t;
+      final clipSide = (size.width / 2) * r;
+      final cornerRadius = clipSide * t;
+      final clipPath = Path()..addRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(
+            center: Offset(cx, cy),
+            width: clipSide * 2,
+            height: clipSide * 2),
+        Radius.circular(cornerRadius),
+      ));
+      canvas.clipPath(clipPath);
+    }
+
+    // Pre-compute pie wedge angles for each line (in rLines order)
+    final pieStartAngles = List<double>.filled(rLines.length, 0);
+    final pieSweepAngles = List<double>.filled(rLines.length, 0);
+    {
+      double cumAngle = -math.pi / 2;
+      for (int k = 0; k < rLines.length; k++) {
+        final (line, _) = rLines[k];
+        final val = idx < line.values.length ? line.values[idx] : 0.0;
+        final sweep = (val / total) * 2 * math.pi;
+        pieStartAngles[k] = cumAngle;
+        pieSweepAngles[k] = sweep;
+        cumAngle += sweep;
       }
     }
 
-    if (t > 0) {
-      double startAngle = -math.pi / 2;
-      for (int i = 0; i < rLines.length; i++) {
-        final (line, alpha) = rLines[i];
-        final val = idx < line.values.length ? line.values[idx] : 0.0;
-        final sweep = (val / total) * 2 * math.pi;
+    if (t >= 1.0) {
+      // Fully transitioned: draw pie wedges directly
+      for (int k = 0; k < rLines.length; k++) {
+        final (line, alpha) = rLines[k];
+        final sweep = pieSweepAngles[k];
         if (sweep <= 0) continue;
 
-        final midAngle = startAngle + sweep / 2;
+        final midAngle = pieStartAngles[k] + sweep / 2;
         double offsetX = 0, offsetY = 0;
-        if (i == pieHoverSlice && t >= 1.0) {
+        if (k == pieHoverSlice) {
           offsetX = math.cos(midAngle) * 8.0;
           offsetY = math.sin(midAngle) * 8.0;
         }
 
         final rect = Rect.fromCircle(
           center: Offset(cx + offsetX, cy + offsetY),
-          radius: side * t,
+          radius: pieRadius,
         );
-        canvas.drawArc(
-            rect,
-            startAngle,
-            sweep,
-            true,
-            Paint()
-              ..color =
-                  _resolveLineColor(line).withValues(alpha: alpha * t));
-        startAngle += sweep;
+        canvas.drawArc(rect, pieStartAngles[k], sweep, true,
+            Paint()..color = _resolveLineColor(line).withValues(alpha: alpha));
       }
+    } else {
+      // Geometric morph: stacked area paths deform into pie wedge shapes.
+      // Each data point interpolates from its stacked position toward
+      // its corresponding point on the pie wedge arc.
+      var prevStackY = List<double>.filled(n, chartBottom);
 
-      if (t > 0.5) {
-        _paintPieLabelsInternal(canvas, size, rLines, total, side * t, cx, cy, t);
+      // Iterate reversed (bottom layer first) matching stacked area order.
+      // rLines[last] is drawn first (bottom), rLines[0] is drawn last (top).
+      for (int revIdx = rLines.length - 1; revIdx >= 0; revIdx--) {
+        final (line, alpha) = rLines[revIdx];
+        if (alpha <= 0) continue;
+        final count = math.min(line.values.length, n);
+
+        final pieSA = pieStartAngles[revIdx];
+        final pieSW = pieSweepAngles[revIdx];
+
+        // Compute this layer's stacked top positions
+        final topY = List<double>.filled(count, 0);
+        for (int i = 0; i < count; i++) {
+          final norm = line.values[i] / (sums[i] == 0 ? 1 : sums[i]);
+          topY[i] = prevStackY[i] - norm * chartH;
+        }
+
+        final path = Path();
+
+        // Top edge: interpolate from stacked top → outer pie arc
+        for (int i = 0; i < count; i++) {
+          final x0 = _dataXToPixel(i, n, size.width);
+          final y0 = topY[i];
+
+          final frac = count > 1 ? i / (count - 1) : 0.5;
+          final targetAngle = pieSA + frac * pieSW;
+          final x1 = cx + pieRadius * math.cos(targetAngle);
+          final y1 = cy + pieRadius * math.sin(targetAngle);
+
+          final x = x0 + (x1 - x0) * t;
+          final y = y0 + (y1 - y0) * t;
+
+          if (i == 0) {
+            path.moveTo(x, y);
+          } else {
+            path.lineTo(x, y);
+          }
+        }
+
+        // Bottom edge (reverse): interpolate from stacked bottom → pie center
+        for (int i = count - 1; i >= 0; i--) {
+          final x0 = _dataXToPixel(i, n, size.width);
+          final y0 = prevStackY[i];
+
+          final x = x0 + (cx - x0) * t;
+          final y = y0 + (cy - y0) * t;
+
+          path.lineTo(x, y);
+        }
+
+        path.close();
+        canvas.drawPath(path,
+            Paint()..color = _resolveLineColor(line).withValues(alpha: alpha));
+
+        for (int i = 0; i < count; i++) {
+          prevStackY[i] = topY[i];
+        }
       }
+    }
+
+    canvas.restore();
+
+    // Pie labels fade in during the last 40% of the transition
+    const kAlphaTextPart = 0.6;
+    if (t > kAlphaTextPart) {
+      final labelProgress = ((t - kAlphaTextPart) / (1.0 - kAlphaTextPart))
+          .clamp(0.0, 1.0);
+      _paintPieLabelsInternal(
+          canvas, size, rLines, total, pieRadius * t, cx, cy, labelProgress);
     }
 
     if (t < 1.0) {

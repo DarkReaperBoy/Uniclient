@@ -2468,6 +2468,7 @@ class StickerInfoItem {
   final String mimeType;
   final String fileId;
   final bool isFaved;
+  final bool isPremium;
 
   const StickerInfoItem({
     this.emoji = '',
@@ -2477,7 +2478,11 @@ class StickerInfoItem {
     this.mimeType = '',
     this.fileId = '',
     this.isFaved = false,
+    this.isPremium = false,
   });
+
+  bool get isAnimated => mimeType == 'application/x-tgsticker';
+  bool get isVideo => mimeType == 'video/webm';
 
   StickerInfoItem copyWith({bool? isFaved}) => StickerInfoItem(
     emoji: emoji,
@@ -2487,6 +2492,7 @@ class StickerInfoItem {
     mimeType: mimeType,
     fileId: fileId,
     isFaved: isFaved ?? this.isFaved,
+    isPremium: isPremium,
   );
 }
 

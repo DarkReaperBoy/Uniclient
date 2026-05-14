@@ -11,6 +11,10 @@ class TrStrings {
   static String lngThemeKeepChanges() => 'Keep Changes';
   static String lngThemeRevert() => 'Revert';
 
+  // Passcode lock (window_lock_widgets.cpp)
+  static String lngPasscodeWrong() => 'Wrong passcode';
+  static String lngFloodError() => 'Too many tries. Please try again later.';
+
   // Notification grouping (notifications_manager.cpp)
   static String lngForwardMessages(int count) =>
       '$count forwarded message${count == 1 ? '' : 's'}';
