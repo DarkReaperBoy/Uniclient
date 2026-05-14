@@ -1206,10 +1206,6 @@ Before findings, confirmed matches (not issues):
 
 # shell — Audit findings
 
-## shell — _ConnectionStateWidget: wrong reconnect countdown source
-
-- [ ] [MAJOR] `waitTillRetry` countdown uses local exponential backoff (`5 × 2^attempts`, capped 30s) instead of the engine-reported MTP retry interval — AyuGram reads the actual wait from `(-dcstate / 1000) + 1` directly off the MTP state; Dart will display wrong reconnect times — `shell.dart:984-1001` ← `window_connecting_widget.cpp:324-326,456-460`
-
 ## shell — _ConnectionStateWidget: missing startup grace period
 
 - [ ] [MAJOR] Missing `kIgnoreStartConnectingFor` 3-second startup grace period — AyuGram suppresses the first Connected→Connecting transition for 3 s after app start; Dart only has the 1000 ms `_showDelay`, causing spurious "Connecting…" flashes during initial login — `shell.dart:952,1029-1035` ← `window_connecting_widget.cpp:30,338-350`
