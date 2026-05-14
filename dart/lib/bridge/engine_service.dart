@@ -4941,6 +4941,23 @@ class EngineService {
     }
   }
 
+  Future<Map<String, dynamic>?> callGeneric(
+      String accountId, String method, Map<String, dynamic> params) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      ...params,
+    }));
+    try {
+      final respBytes = await _callAsync(
+          '__engine', method, Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>?;
+    } catch (e) {
+      Debug.error('ENGINE', 'callGeneric($method) failed', e);
+      rethrow;
+    }
+  }
+
   /// Handle raw BridgeEvent bytes from Go.
   void _handleBridgeEvent(Uint8List bytes) {
     try {

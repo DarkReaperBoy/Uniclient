@@ -204,12 +204,15 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                             final chatState = context.read<ChatState>();
                             final url = await chatState.requestBotWebView(bot.id);
                             if (context.mounted) {
+                              final acctId = context.read<AppState>().activeAccountId;
                               WebAppPanel.open(
                                 context,
                                 data: WebAppPanelData(
                                   botName: bot.name,
                                   botUsername: '',
                                   url: url,
+                                  accountId: acctId,
+                                  botId: bot.id,
                                 ),
                               );
                             }

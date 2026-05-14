@@ -28,10 +28,14 @@ class _ButtonLayout {
 
   _ButtonLayout get consolidated {
     if (left.isEmpty || right.isEmpty) return this;
-    if (right.length >= left.length) {
+    if (left.contains(_ButtonType.close)) {
+      return _ButtonLayout(left: [...left, ...right], right: const []);
+    } else if (right.contains(_ButtonType.close)) {
       return _ButtonLayout(left: const [], right: [...left, ...right]);
+    } else if (left.length > right.length) {
+      return _ButtonLayout(left: [...left, ...right], right: const []);
     }
-    return _ButtonLayout(left: [...left, ...right], right: const []);
+    return _ButtonLayout(left: const [], right: [...left, ...right]);
   }
 
   static List<_ButtonType> _parseButtons(String side) {
@@ -203,7 +207,7 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
 
     final palette = context.palette;
     final bgColor = _isActive ? palette.titleBgActive : palette.titleBg;
-    final sepColor = palette.shadowFg;
+    final sepColor = palette.titleShadow;
 
     final effectiveLayout =
         _oneSideControls ? _layout.consolidated : _layout;

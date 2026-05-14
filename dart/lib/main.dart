@@ -956,6 +956,8 @@ class _UniClientAppState extends State<UniClientApp>
               botUsername: cmd['botUsername'] as String? ?? 'testbot',
               isVerified: cmd['isVerified'] == true,
               url: cmd['url'] as String? ?? '',
+              accountId: cmd['accountId'] as String? ?? '',
+              botId: cmd['botId'] as String? ?? '',
             ));
           }
 

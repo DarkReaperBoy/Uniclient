@@ -3,9 +3,13 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../bridge/engine_service.dart';
+import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
 
 const _kPanelWidth = 384.0;
@@ -24,6 +28,7 @@ const _kBottomSkipH = 12.0;
 const _kBottomSkipV = 8.0;
 const _kCornerRadius = 12.0;
 const _kPanelShadowBlur = 16.0;
+const _kButtonRadius = 6.0;
 
 enum WebAppLoadingState { preOpen, chromeOnly, loading, ready, error }
 
@@ -55,6 +60,8 @@ class WebAppPanelData {
   final Color? headerColor;
   final Color? bgColor;
   final Color? bottomBarColor;
+  final String accountId;
+  final String botId;
 
   const WebAppPanelData({
     required this.botName,
@@ -64,6 +71,8 @@ class WebAppPanelData {
     this.headerColor,
     this.bgColor,
     this.bottomBarColor,
+    this.accountId = '',
+    this.botId = '',
   });
 }
 
@@ -106,6 +115,7 @@ class _WebAppPanelState extends State<WebAppPanel>
   bool _backAllowed = false;
   bool _hasSettingsButton = false;
   bool _closeNeedConfirmation = false;
+  bool _fullscreen = false;
 
   WebAppButtonConfig _mainButton = const WebAppButtonConfig();
   WebAppButtonConfig _secondaryButton = const WebAppButtonConfig();
@@ -120,6 +130,27 @@ class _WebAppPanelState extends State<WebAppPanel>
 
   WebViewController? _webController;
   bool _webViewAvailable = false;
+
+  final Map<String, String?> _deviceStorage = {};
+
+  String get _accountId {
+    if (widget.data.accountId.isNotEmpty) return widget.data.accountId;
+    try {
+      return context.read<AppState>().activeAccountId;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String get _botId => widget.data.botId;
+
+  EngineService? get _engine {
+    try {
+      return context.read<EngineService>();
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   void initState() {
@@ -233,22 +264,21 @@ class _WebAppPanelState extends State<WebAppPanel>
       case 'web_app_setup_secondary_button':
         _handleSetupButton(data, isMain: false);
       case 'web_app_setup_back_button':
-        setState(() => _backAllowed = data['is_visible'] as bool? ?? _backAllowed);
-      case 'web_app_setup_settings_button':
         setState(
-            () => _hasSettingsButton = data['is_visible'] as bool? ?? _hasSettingsButton);
+            () => _backAllowed = data['is_visible'] as bool? ?? _backAllowed);
+      case 'web_app_setup_settings_button':
+        setState(() =>
+            _hasSettingsButton =
+                data['is_visible'] as bool? ?? _hasSettingsButton);
       case 'web_app_setup_closing_behavior':
         _closeNeedConfirmation =
             data['need_confirmation'] as bool? ?? false;
       case 'web_app_set_header_color':
-        final c = _parseColor(data['color'] ?? data['color_key']);
-        if (c != null && mounted) setState(() => _headerColor = c);
+        _handleSetHeaderColor(data);
       case 'web_app_set_background_color':
-        final c = _parseColor(data['color']);
-        if (c != null && mounted) setState(() => _bgColor = c);
+        _handleSetBackgroundColor(data);
       case 'web_app_set_bottom_bar_color':
-        final c = _parseColor(data['color']);
-        if (c != null && mounted) setState(() => _bottomBarColor = c);
+        _handleSetBottomBarColor(data);
       case 'web_app_request_theme':
         _handleRequestTheme();
       case 'web_app_request_viewport':
@@ -260,15 +290,69 @@ class _WebAppPanelState extends State<WebAppPanel>
         _postEventToWebView('content_safe_area_changed',
             {'top': 0, 'bottom': 0, 'left': 0, 'right': 0});
       case 'web_app_open_link':
-        final url = data['url'] as String? ?? '';
-        if (url.isNotEmpty) _launchUrl(url);
+        _handleOpenLink(data);
       case 'web_app_open_tg_link':
-        final path = data['path_full'] as String? ?? '';
-        if (path.isNotEmpty) _launchUrl('https://t.me/$path');
+        _handleOpenTgLink(data);
       case 'web_app_data_send':
-        _close();
+        _handleDataSend(data);
+      case 'web_app_switch_inline_query':
+        _handleSwitchInlineQuery(data);
       case 'web_app_open_popup':
         _handleOpenPopup(data);
+      case 'web_app_open_invoice':
+        _handleOpenInvoice(data);
+      case 'web_app_open_scan_qr_popup':
+        _handleOpenScanQrPopup();
+      case 'web_app_share_to_story':
+        _handleShareToStory();
+      case 'web_app_request_write_access':
+        _handleRequestWriteAccess();
+      case 'web_app_request_phone':
+        _handleRequestPhone();
+      case 'web_app_invoke_custom_method':
+        _handleInvokeCustomMethod(data);
+      case 'web_app_read_text_from_clipboard':
+        _handleReadClipboard(data);
+      case 'web_app_send_prepared_message':
+        _handleSendPreparedMessage(data);
+      case 'web_app_request_chat':
+        _handleRequestChat(data);
+      case 'web_app_set_emoji_status':
+        _handleSetEmojiStatus(data);
+      case 'web_app_request_emoji_status_access':
+        _handleRequestEmojiStatusAccess();
+      case 'web_app_device_storage_save_key':
+        _handleDeviceStorageSaveKey(data);
+      case 'web_app_device_storage_get_key':
+        _handleDeviceStorageGetKey(data);
+      case 'web_app_device_storage_clear':
+        _handleDeviceStorageClear(data);
+      case 'web_app_secure_storage_save_key':
+      case 'web_app_secure_storage_get_key':
+      case 'web_app_secure_storage_restore_key':
+      case 'web_app_secure_storage_clear':
+        _postEventToWebView('secure_storage_failed', {
+          'req_id': data['req_id'] ?? '',
+          'error': 'UNSUPPORTED',
+        });
+      case 'web_app_request_fullscreen':
+        if (!_fullscreen) {
+          setState(() => _fullscreen = true);
+        }
+        _postEventToWebView('fullscreen_changed', {'is_fullscreen': _fullscreen});
+      case 'web_app_exit_fullscreen':
+        if (_fullscreen) {
+          setState(() => _fullscreen = false);
+        }
+        _postEventToWebView('fullscreen_changed', {'is_fullscreen': _fullscreen});
+      case 'web_app_request_file_download':
+        _handleRequestFileDownload(data);
+      case 'web_app_verify_age':
+        _handleVerifyAge(data);
+      case 'share_score':
+        _engine?.callGeneric(
+            _accountId, 'BotHandleMenuButton',
+            {'bot_id': _botId, 'action': 'share_game'});
       case 'web_app_check_location':
         _postEventToWebView('location_checked', {'available': false});
       case 'web_app_request_location':
@@ -287,6 +371,570 @@ class _WebAppPanelState extends State<WebAppPanel>
         _postEventToWebView('gyroscope_failed', {'error': 'UNSUPPORTED'});
     }
   }
+
+  // ── Event handlers ──
+
+  void _handleSetHeaderColor(Map<String, dynamic> data) {
+    final c = _parseColor(data['color']) ?? _resolveNamedColor(data['color_key']);
+    if (c != null && mounted) setState(() => _headerColor = c);
+  }
+
+  void _handleSetBackgroundColor(Map<String, dynamic> data) {
+    final c = _parseColor(data['color']) ?? _resolveNamedColor(data['color_key']);
+    if (c != null && mounted) setState(() => _bgColor = c);
+  }
+
+  void _handleSetBottomBarColor(Map<String, dynamic> data) {
+    final c = _parseColor(data['color']) ?? _resolveNamedColor(data['color_key']);
+    if (c != null && mounted) setState(() => _bottomBarColor = c);
+  }
+
+  void _handleOpenLink(Map<String, dynamic> data) {
+    final url = data['url'] as String? ?? '';
+    if (url.isEmpty) return;
+    final tryIv = data['try_instant_view'] as bool? ?? false;
+    final engine = _engine;
+    if (engine != null && _accountId.isNotEmpty) {
+      engine.callGeneric(
+        _accountId,
+        'BotValidateExternalLink',
+        {'url': url},
+      ).then((result) {
+        if (result == null) {
+          _close();
+          return;
+        }
+        if (tryIv) {
+          engine.callGeneric(
+              _accountId, 'BotOpenIvLink', {'url': url});
+        } else {
+          _launchUrl(url);
+        }
+      }).catchError((_) {
+        _launchUrl(url);
+      });
+    } else {
+      _launchUrl(url);
+    }
+  }
+
+  void _handleOpenTgLink(Map<String, dynamic> data) {
+    final path = data['path_full'] as String? ?? '';
+    if (path.isEmpty) {
+      _close();
+      return;
+    }
+    final engine = _engine;
+    if (engine != null && _accountId.isNotEmpty) {
+      engine.callGeneric(
+        _accountId,
+        'BotHandleLocalUri',
+        {'uri': 'https://t.me$path', 'from_bot': true},
+      ).catchError((_) {});
+    }
+  }
+
+  void _handleDataSend(Map<String, dynamic> data) {
+    final payload = data['data'] as String? ?? '';
+    if (payload.isEmpty) {
+      _close();
+      return;
+    }
+    final engine = _engine;
+    if (engine != null && _accountId.isNotEmpty) {
+      engine.callGeneric(
+        _accountId,
+        'BotSendData',
+        {'bot_id': _botId, 'data': payload},
+      ).catchError((_) {});
+    }
+    _close();
+  }
+
+  void _handleSwitchInlineQuery(Map<String, dynamic> data) {
+    if (!data.containsKey('query')) {
+      _close();
+      return;
+    }
+    final query = data['query'] as String? ?? '';
+    final validTypes = {'users', 'bots', 'groups', 'channels'};
+    final typeArray = (data['chat_types'] as List?)?.cast<String>() ?? [];
+    final types = <String>[];
+    for (final type in typeArray) {
+      if (validTypes.contains(type)) {
+        types.add(type);
+      } else {
+        types.clear();
+        break;
+      }
+    }
+    final engine = _engine;
+    if (engine != null && _accountId.isNotEmpty) {
+      engine.callGeneric(
+        _accountId,
+        'BotSwitchInlineQuery',
+        {'bot_id': _botId, 'query': query, 'chat_types': types},
+      ).catchError((_) {});
+    }
+  }
+
+  void _handleOpenInvoice(Map<String, dynamic> data) {
+    final slug = data['slug'] as String? ?? '';
+    if (slug.isEmpty) {
+      _close();
+      return;
+    }
+    final engine = _engine;
+    if (engine != null && _accountId.isNotEmpty) {
+      engine.callGeneric(
+        _accountId,
+        'BotHandleInvoice',
+        {'bot_id': _botId, 'slug': slug},
+      ).catchError((_) {});
+    }
+  }
+
+  void _handleOpenScanQrPopup() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: const Text('QR code scanning is not supported on this platform.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleShareToStory() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: const Text('Sharing to stories is not supported on this platform.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleRequestWriteAccess() {
+    if (!mounted) return;
+    final engine = _engine;
+    if (engine == null || _accountId.isEmpty) {
+      _postEventToWebView('write_access_requested', {'status': 'cancelled'});
+      return;
+    }
+    engine.callGeneric(
+      _accountId,
+      'BotCheckWriteAccess',
+      {'bot_id': _botId},
+    ).then((result) {
+      if (!mounted) return;
+      if (result != null && result['allowed'] == true) {
+        _postEventToWebView('write_access_requested', {'status': 'allowed'});
+        return;
+      }
+      showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Allow sending messages'),
+          content: Text(
+              'Do you want to allow ${widget.data.botName} to send you messages?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Allow'),
+            ),
+          ],
+        ),
+      ).then((confirmed) {
+        if (!mounted) return;
+        if (confirmed == true) {
+          engine.callGeneric(
+            _accountId,
+            'BotAllowWriteAccess',
+            {'bot_id': _botId},
+          ).then((_) {
+            if (mounted) {
+              _postEventToWebView(
+                  'write_access_requested', {'status': 'allowed'});
+            }
+          }).catchError((_) {
+            if (mounted) {
+              _postEventToWebView(
+                  'write_access_requested', {'status': 'cancelled'});
+            }
+          });
+        } else {
+          _postEventToWebView(
+              'write_access_requested', {'status': 'cancelled'});
+        }
+      });
+    }).catchError((_) {
+      if (mounted) {
+        _postEventToWebView(
+            'write_access_requested', {'status': 'cancelled'});
+      }
+    });
+  }
+
+  void _handleRequestPhone() {
+    if (!mounted) return;
+    final engine = _engine;
+    if (engine == null || _accountId.isEmpty) {
+      _postEventToWebView('phone_requested', {'status': 'cancelled'});
+      return;
+    }
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Share phone number'),
+        content: Text(
+            '${widget.data.botName} wants to know your phone number. Do you want to share it?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Share'),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (!mounted) return;
+      if (confirmed == true) {
+        engine.callGeneric(
+          _accountId,
+          'BotSharePhone',
+          {'bot_id': _botId},
+        ).then((_) {
+          if (mounted) {
+            _postEventToWebView('phone_requested', {'status': 'sent'});
+          }
+        }).catchError((_) {
+          if (mounted) {
+            _postEventToWebView('phone_requested', {'status': 'cancelled'});
+          }
+        });
+      } else {
+        _postEventToWebView('phone_requested', {'status': 'cancelled'});
+      }
+    });
+  }
+
+  void _handleInvokeCustomMethod(Map<String, dynamic> data) {
+    final reqId = data['req_id'];
+    if (reqId == null) return;
+    final method = data['method'] as String? ?? '';
+    final params = data['params'] as Map<String, dynamic>? ?? {};
+    final engine = _engine;
+    if (engine == null || _accountId.isEmpty) {
+      _postEventToWebView('custom_method_invoked', {
+        'req_id': reqId,
+        'error': 'ENGINE_UNAVAILABLE',
+      });
+      return;
+    }
+    engine.callGeneric(
+      _accountId,
+      'BotInvokeCustomMethod',
+      {'bot_id': _botId, 'method': method, 'params': params},
+    ).then((result) {
+      if (!mounted) return;
+      final response = <String, dynamic>{'req_id': reqId};
+      if (result != null && result.containsKey('result')) {
+        response['result'] = result['result'];
+      } else if (result != null && result.containsKey('error')) {
+        response['error'] = result['error'];
+      } else {
+        response['result'] = result;
+      }
+      _postEventToWebView('custom_method_invoked', response);
+    }).catchError((e) {
+      if (mounted) {
+        _postEventToWebView('custom_method_invoked', {
+          'req_id': reqId,
+          'error': e.toString(),
+        });
+      }
+    });
+  }
+
+  void _handleReadClipboard(Map<String, dynamic> data) async {
+    final reqId = data['req_id'];
+    if (reqId == null) return;
+    final result = <String, dynamic>{'req_id': reqId};
+    try {
+      final clipData = await Clipboard.getData(Clipboard.kTextPlain);
+      if (clipData?.text != null) {
+        result['data'] = clipData!.text;
+      }
+    } catch (_) {}
+    _postEventToWebView('clipboard_text_received', result);
+  }
+
+  void _handleSendPreparedMessage(Map<String, dynamic> data) {
+    final id = data['id'] as String? ?? '';
+    if (id.isEmpty) {
+      _close();
+      return;
+    }
+    final engine = _engine;
+    if (engine == null || _accountId.isEmpty) {
+      _postEventToWebView('prepared_message_failed', {'error': 'ENGINE_UNAVAILABLE'});
+      return;
+    }
+    engine.callGeneric(
+      _accountId,
+      'BotSendPreparedMessage',
+      {'bot_id': _botId, 'id': id},
+    ).then((result) {
+      if (!mounted) return;
+      if (result != null && result['error'] != null) {
+        _postEventToWebView('prepared_message_failed', {
+          'error': result['error'].toString(),
+        });
+      } else {
+        _postEventToWebView('prepared_message_sent');
+      }
+    }).catchError((e) {
+      if (mounted) {
+        _postEventToWebView('prepared_message_failed', {
+          'error': e.toString(),
+        });
+      }
+    });
+  }
+
+  void _handleRequestChat(Map<String, dynamic> data) {
+    final reqId = data['req_id'] as String? ?? '';
+    if (reqId.isEmpty) return;
+    final engine = _engine;
+    if (engine == null || _accountId.isEmpty) {
+      _postEventToWebView('requested_chat_failed', {
+        'req_id': reqId,
+        'error': 'ENGINE_UNAVAILABLE',
+      });
+      return;
+    }
+    engine.callGeneric(
+      _accountId,
+      'BotRequestChat',
+      {'bot_id': _botId, 'req_id': reqId, ...data},
+    ).then((result) {
+      if (!mounted) return;
+      if (result != null && result['error'] != null) {
+        _postEventToWebView('requested_chat_failed', {
+          'req_id': reqId,
+          'error': result['error'].toString(),
+        });
+      } else {
+        _postEventToWebView('requested_chat_sent', {'req_id': reqId});
+      }
+    }).catchError((e) {
+      if (mounted) {
+        _postEventToWebView('requested_chat_failed', {
+          'req_id': reqId,
+          'error': e.toString(),
+        });
+      }
+    });
+  }
+
+  void _handleSetEmojiStatus(Map<String, dynamic> data) {
+    final emojiId = data['custom_emoji_id']?.toString() ?? '';
+    final duration = (data['duration'] as num?)?.toInt() ?? 0;
+    if (emojiId.isEmpty || emojiId == '0') {
+      _postEventToWebView('emoji_status_failed', {
+        'error': 'SUGGESTED_EMOJI_INVALID',
+      });
+      return;
+    }
+    if (duration < 0) {
+      _postEventToWebView('emoji_status_failed', {
+        'error': 'DURATION_INVALID',
+      });
+      return;
+    }
+    final engine = _engine;
+    if (engine == null || _accountId.isEmpty) {
+      _postEventToWebView('emoji_status_failed', {
+        'error': 'ENGINE_UNAVAILABLE',
+      });
+      return;
+    }
+    engine.callGeneric(
+      _accountId,
+      'BotSetEmojiStatus',
+      {
+        'bot_id': _botId,
+        'custom_emoji_id': emojiId,
+        'duration': duration,
+      },
+    ).then((result) {
+      if (!mounted) return;
+      if (result != null && result['error'] != null) {
+        _postEventToWebView('emoji_status_failed', {
+          'error': result['error'].toString(),
+        });
+      } else {
+        _postEventToWebView('emoji_status_set');
+      }
+    }).catchError((e) {
+      if (mounted) {
+        _postEventToWebView('emoji_status_failed', {
+          'error': e.toString(),
+        });
+      }
+    });
+  }
+
+  void _handleRequestEmojiStatusAccess() {
+    final engine = _engine;
+    if (engine == null || _accountId.isEmpty) {
+      _postEventToWebView('emoji_status_access_requested', {
+        'status': 'cancelled',
+      });
+      return;
+    }
+    engine.callGeneric(
+      _accountId,
+      'BotRequestEmojiStatusAccess',
+      {'bot_id': _botId},
+    ).then((result) {
+      if (!mounted) return;
+      final allowed = result != null && result['allowed'] == true;
+      _postEventToWebView('emoji_status_access_requested', {
+        'status': allowed ? 'allowed' : 'cancelled',
+      });
+    }).catchError((_) {
+      if (mounted) {
+        _postEventToWebView('emoji_status_access_requested', {
+          'status': 'cancelled',
+        });
+      }
+    });
+  }
+
+  void _handleDeviceStorageSaveKey(Map<String, dynamic> data) {
+    final reqId = data['req_id'] ?? '';
+    final keyObj = data['key'];
+    final valueObj = data['value'];
+    if (keyObj is! String) {
+      _postEventToWebView('device_storage_failed', {
+        'req_id': reqId,
+        'error': 'KEY_INVALID',
+      });
+      return;
+    }
+    if (valueObj == null) {
+      _deviceStorage.remove(keyObj);
+      _postEventToWebView('device_storage_key_saved', {'req_id': reqId});
+    } else if (valueObj is! String) {
+      _postEventToWebView('device_storage_failed', {
+        'req_id': reqId,
+        'error': 'VALUE_INVALID',
+      });
+    } else {
+      if (_deviceStorage.length >= 1000 && !_deviceStorage.containsKey(keyObj)) {
+        _postEventToWebView('device_storage_failed', {
+          'req_id': reqId,
+          'error': 'QUOTA_EXCEEDED',
+        });
+      } else {
+        _deviceStorage[keyObj] = valueObj;
+        _postEventToWebView('device_storage_key_saved', {'req_id': reqId});
+      }
+    }
+  }
+
+  void _handleDeviceStorageGetKey(Map<String, dynamic> data) {
+    final reqId = data['req_id'] ?? '';
+    final keyObj = data['key'];
+    if (keyObj is! String) {
+      _postEventToWebView('device_storage_failed', {
+        'req_id': reqId,
+        'error': 'KEY_INVALID',
+      });
+      return;
+    }
+    final value = _deviceStorage[keyObj];
+    _postEventToWebView('device_storage_key_received', {
+      'req_id': reqId,
+      'value': value,
+    });
+  }
+
+  void _handleDeviceStorageClear(Map<String, dynamic> data) {
+    final reqId = data['req_id'] ?? '';
+    _deviceStorage.clear();
+    _postEventToWebView('device_storage_cleared', {'req_id': reqId});
+  }
+
+  void _handleRequestFileDownload(Map<String, dynamic> data) {
+    final url = data['url'] as String? ?? '';
+    final name = data['file_name'] as String? ?? '';
+    if (url.isEmpty || name.isEmpty) {
+      _close();
+      return;
+    }
+    final engine = _engine;
+    if (engine != null && _accountId.isNotEmpty) {
+      engine.callGeneric(
+        _accountId,
+        'BotDownloadFile',
+        {'bot_id': _botId, 'url': url, 'file_name': name},
+      ).then((result) {
+        if (!mounted) return;
+        final started = result != null && result['started'] == true;
+        _postEventToWebView('file_download_requested', {
+          'status': started ? 'downloading' : 'cancelled',
+        });
+      }).catchError((_) {
+        if (mounted) {
+          _postEventToWebView('file_download_requested', {
+            'status': 'cancelled',
+          });
+        }
+      });
+    } else {
+      _postEventToWebView('file_download_requested', {
+        'status': 'cancelled',
+      });
+    }
+  }
+
+  void _handleVerifyAge(Map<String, dynamic> data) {
+    final passed = data['passed'] as bool? ?? false;
+    final detected = data['age'];
+    final valid = passed && detected is num;
+    final age = valid ? detected.toInt() : 0;
+    final engine = _engine;
+    if (engine != null && _accountId.isNotEmpty && age > 0) {
+      engine.callGeneric(
+        _accountId,
+        'BotVerifyAge',
+        {'bot_id': _botId, 'age': age},
+      ).catchError((_) {});
+    }
+  }
+
+  // ── Button setup ──
 
   void _handleSetupButton(Map<String, dynamic> data, {required bool isMain}) {
     setState(() {
@@ -331,13 +979,20 @@ class _WebAppPanelState extends State<WebAppPanel>
 
   void _handleRequestViewport() {
     if (!mounted) return;
-    final size = MediaQuery.of(context).size;
     _postEventToWebView('viewport_changed', {
-      'height': size.height.round(),
-      'width': size.width.round(),
+      'height': 0,
+      'width': 0,
       'is_state_stable': _loadingState == WebAppLoadingState.ready,
-      'is_expanded': false,
+      'is_expanded': true,
     });
+    _webController?.runJavaScript('''
+(function(){
+  if(window.TelegramGameProxy){
+    window.TelegramGameProxy.receiveEvent('viewport_changed',
+      {height:window.innerHeight,width:window.innerWidth,is_state_stable:true,is_expanded:true});
+  }
+})();
+''');
   }
 
   void _handleOpenPopup(Map<String, dynamic> data) {
@@ -369,6 +1024,8 @@ class _WebAppPanelState extends State<WebAppPanel>
       _postEventToWebView('popup_closed', {'button_id': buttonId ?? ''});
     });
   }
+
+  // ── Color helpers ──
 
   Map<String, String> _buildThemeParams(TelegramPalette palette) {
     return {
@@ -402,7 +1059,36 @@ class _WebAppPanelState extends State<WebAppPanel>
       final intVal = int.tryParse(str.substring(1, 7), radix: 16);
       if (intVal != null) return Color(0xFF000000 | intVal);
     }
-    return null;
+    return _resolveNamedColor(str);
+  }
+
+  Color? _resolveNamedColor(dynamic key) {
+    if (key == null) return null;
+    final name = key.toString();
+    if (!mounted) return null;
+    final palette = context.palette;
+    switch (name) {
+      case 'bg_color':
+        return palette.windowBg;
+      case 'secondary_bg_color':
+        return palette.boxDividerBg;
+      case 'bottom_bar_bg_color':
+        return palette.windowBg;
+      case 'text_color':
+        return palette.windowFg;
+      case 'hint_color':
+        return palette.windowSubTextFg;
+      case 'link_color':
+        return palette.windowActiveTextFg;
+      case 'button_color':
+        return palette.windowBgActive;
+      case 'button_text_color':
+        return palette.windowFgActive;
+      case 'header_bg_color':
+        return _headerColor ?? palette.windowBg;
+      default:
+        return null;
+    }
   }
 
   void _postEventToWebView(String event, [Map<String, dynamic>? data]) {
@@ -411,8 +1097,8 @@ class _WebAppPanelState extends State<WebAppPanel>
     final jsonData = data != null ? jsonEncode(data) : '{}';
     try {
       controller.runJavaScript(
-        "if(window.Telegram&&window.Telegram.WebView)"
-        "{window.Telegram.WebView.receiveEvent('$event',$jsonData);}",
+        "if(window.TelegramGameProxy)"
+        "{window.TelegramGameProxy.receiveEvent('$event',$jsonData);}",
       );
     } catch (_) {}
   }
@@ -545,6 +1231,15 @@ class _WebAppPanelState extends State<WebAppPanel>
 
     if (result == null || !mounted) return;
     switch (result) {
+      case 'open_bot':
+        final engine = _engine;
+        if (engine != null && _accountId.isNotEmpty) {
+          engine.callGeneric(
+            _accountId,
+            'BotHandleMenuButton',
+            {'bot_id': _botId, 'action': 'open_bot'},
+          ).catchError((_) {});
+        }
       case 'settings':
         _postEventToWebView('settings_button_pressed');
       case 'reload':
@@ -575,6 +1270,19 @@ class _WebAppPanelState extends State<WebAppPanel>
     final uri = Uri.parse(url.startsWith('http') ? url : 'https://$url');
     url_launcher.launchUrl(uri,
         mode: url_launcher.LaunchMode.externalApplication);
+  }
+
+  Color _computeBottomLabelColor(Color bgColor) {
+    final luminance = 0.2126 * bgColor.r
+        + 0.7152 * bgColor.g
+        + 0.0722 * bgColor.b;
+    final textColor = (luminance > 0.5) ? Colors.black : Colors.white;
+    final textLuminance = (luminance > 0.5) ? 0.0 : 1.0;
+    const contrast = 2.5;
+    final adaptiveOpacity =
+        (luminance - textLuminance + contrast) / contrast;
+    final opacity = adaptiveOpacity.clamp(0.5, 0.64);
+    return textColor.withValues(alpha: opacity);
   }
 
   @override
@@ -738,7 +1446,6 @@ class _WebAppPanelState extends State<WebAppPanel>
       );
     }
 
-    // Platform fallback: webview not available, URL opened in browser
     return Container(
       color: bg,
       child: Center(
@@ -836,6 +1543,8 @@ class _WebAppPanelState extends State<WebAppPanel>
       }
     }
 
+    final labelColor = _computeBottomLabelColor(bottomBg);
+
     return Container(
       color: bottomBg,
       child: Column(
@@ -856,9 +1565,7 @@ class _WebAppPanelState extends State<WebAppPanel>
                   : '',
               style: TextStyle(
                 fontSize: 12,
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.4)
-                    : Colors.black.withValues(alpha: 0.4),
+                color: labelColor,
               ),
             ),
           ),
@@ -920,9 +1627,9 @@ class _WebAppButton extends StatelessWidget {
       width: double.infinity,
       child: Material(
         color: active ? bgColor : bgColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(_kButtonRadius),
         child: InkWell(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(_kButtonRadius),
           splashColor: rippleColor.withValues(alpha: 0.3),
           onTap: active ? onPressed : null,
           child: Center(

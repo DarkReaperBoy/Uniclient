@@ -9617,6 +9617,8 @@ class _InlineButtonState extends State<_InlineButton>
               botUsername: '',
               isVerified: chat?.isVerified ?? false,
               url: btn.url,
+              accountId: chat?.accountId ?? '',
+              botId: chat?.chatId ?? '',
             ),
           );
         }

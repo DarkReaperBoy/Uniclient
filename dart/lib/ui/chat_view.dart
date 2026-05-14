@@ -13414,6 +13414,8 @@ class _ComposeAreaState extends State<_ComposeArea>
         botUsername: '',
         isVerified: chat.isVerified,
         url: url,
+        accountId: chat.accountId,
+        botId: chat.chatId,
       ),
     );
   }
