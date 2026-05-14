@@ -19791,6 +19791,73 @@ func (t *TelegramCore) CreateCloudThemeWithData(title, slug string, themeData []
 	return info, nil
 }
 
+func (t *TelegramCore) UpdateCloudThemeWithData(themeID int64, title, slug string, themeData []byte) (*CloudThemeInfo, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	u := uploader.NewUploader(t.api)
+	upload, err := u.Upload(t.ctx, uploader.NewUpload(slug+".tdesktop-theme", io.NopCloser(bytes.NewReader(themeData)), int64(len(themeData))))
+	if err != nil {
+		return nil, fmt.Errorf("upload theme file: %w", err)
+	}
+
+	doc, err := t.api.AccountUploadTheme(t.ctx, &tg.AccountUploadThemeRequest{
+		File:     upload,
+		FileName: slug + ".tdesktop-theme",
+		MimeType: "application/x-tgtheme-tdesktop",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("account upload theme: %w", err)
+	}
+
+	d, ok := doc.(*tg.Document)
+	if !ok {
+		return nil, fmt.Errorf("unexpected document type: %T", doc)
+	}
+
+	req := &tg.AccountUpdateThemeRequest{
+		Format: "tdesktop",
+		Theme:  &tg.InputTheme{ID: themeID},
+		Slug:   slug,
+		Title:  title,
+	}
+	req.SetSlug(slug)
+	req.SetTitle(title)
+	req.SetDocument(&tg.InputDocument{
+		ID:            d.ID,
+		AccessHash:    d.AccessHash,
+		FileReference: d.FileReference,
+	})
+
+	theme, err := t.api.AccountUpdateTheme(t.ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("account update theme: %w", err)
+	}
+
+	info := &CloudThemeInfo{
+		ID:        theme.ID,
+		Title:     theme.Title,
+		Slug:      theme.Slug,
+		IsCreator: theme.Creator,
+	}
+	if len(theme.Settings) > 0 {
+		s := theme.Settings[0]
+		info.AccentColor = s.AccentColor
+		switch s.BaseTheme.(type) {
+		case *tg.BaseThemeNight, *tg.BaseThemeTinted:
+			info.IsDark = true
+		}
+		if len(s.MessageColors) > 0 {
+			info.SentColor = s.MessageColors[0]
+		}
+		info.RecvColor = info.AccentColor
+	}
+	return info, nil
+}
+
 // AccountGetTmpPassword generates a temporary password for payments.
 func (t *TelegramCore) AccountGetTmpPassword(request *tg.AccountGetTmpPasswordRequest) (*tg.AccountTmpPassword, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

@@ -9,6 +9,7 @@ import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
 import '../theme/theme_file.dart';
@@ -21,11 +22,13 @@ import '../theme/theme_preview.dart';
 class ThemeEditorScreen extends StatefulWidget {
   final TelegramPalette palette;
   final void Function(TelegramPalette palette) onPaletteChanged;
+  final CloudThemeInfo? cloudTheme;
 
   const ThemeEditorScreen({
     super.key,
     required this.palette,
     required this.onPaletteChanged,
+    this.cloudTheme,
   });
 
   @override
@@ -48,6 +51,13 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   bool _sortedByAccent = false;
   String? _themeFilePath;
 
+  List<_ListItem>? _cachedItems;
+
+  String? _editingToken;
+  Color? _editingColor;
+  final _hexEditController = TextEditingController();
+  final _menuButtonKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +74,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     _searchController.dispose();
     _scrollController.dispose();
     _listFocusNode.dispose();
+    _hexEditController.dispose();
     super.dispose();
   }
 
@@ -74,7 +85,11 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
       _searchController.clear();
       return;
     }
-    setState(() => _filter = text.toLowerCase());
+    setState(() {
+      _filter = text.toLowerCase();
+      _focusedIndex = -1;
+      _cachedItems = null;
+    });
   }
 
   void _sortByAccentDistance() {
@@ -92,6 +107,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     setState(() {
       _colorMap = newMap;
       _sortedByAccent = true;
+      _cachedItems = null;
     });
   }
 
@@ -103,15 +119,27 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     return minDh / 360.0 + ds + dl;
   }
 
+  static final _searchSplitter = RegExp(r'[\s\-_+.,;:!#@()\[\]{}<>]+');
+
+  bool _matchesFilter(String key) {
+    if (_filter.isEmpty) return true;
+    final desc = _tokenDescription(key) ?? '';
+    final hex = _colorToHexString(_colorMap[key]!);
+    final ref = _referenceChain[key] ?? '';
+    final searchText = '$key $ref $desc $hex'.toLowerCase();
+    final searchWords = searchText.split(_searchSplitter).where((w) => w.isNotEmpty);
+    final queryWords = _filter.split(_searchSplitter).where((w) => w.isNotEmpty);
+    return queryWords.every((qw) => searchWords.any((sw) => sw.startsWith(qw)));
+  }
+
   List<_ListItem> get _listItems {
+    if (_cachedItems != null) return _cachedItems!;
     final allEntries = _colorMap.entries.toList();
     final existing = <MapEntry<String, Color>>[];
     final newTokens = <MapEntry<String, Color>>[];
 
     for (final entry in allEntries) {
-      if (_filter.isNotEmpty && !entry.key.toLowerCase().contains(_filter)) {
-        continue;
-      }
+      if (!_matchesFilter(entry.key)) continue;
       if (_explicitTokens.contains(entry.key)) {
         existing.add(entry);
       } else {
@@ -132,6 +160,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
         items.add(_ListItem.entry(e));
       }
     }
+    _cachedItems = items;
     return items;
   }
 
@@ -141,11 +170,21 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
       _currentPalette = paletteFromMap(_colorMap, widget.palette);
       _isDirty = true;
       _explicitTokens.add(token);
+      _cachedItems = null;
     });
     widget.onPaletteChanged(_currentPalette);
   }
 
-  void _openColorPicker(String token, Color currentColor) async {
+  void _openColorPicker(String token, Color currentColor) {
+    if (_editingToken == token) return;
+    setState(() {
+      _editingToken = token;
+      _editingColor = currentColor;
+      _hexEditController.text = _colorToHexString(currentColor);
+    });
+  }
+
+  void _openColorPickerDialog(String token, Color currentColor) async {
     final result = await showColorPickerBox(
       context: context,
       initialColor: currentColor,
@@ -154,7 +193,40 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     );
     if (result != null && mounted) {
       _updateColor(token, result);
+      if (_editingToken == token) {
+        setState(() {
+          _editingColor = result;
+          _hexEditController.text = _colorToHexString(result);
+        });
+      }
     }
+  }
+
+  void _closeInlineEditor() {
+    setState(() {
+      _editingToken = null;
+      _editingColor = null;
+    });
+  }
+
+  void _applyHexEdit() {
+    if (_editingToken == null) return;
+    final hex = _hexEditController.text.trim();
+    final color = _parseHexColor(hex);
+    if (color != null) {
+      _updateColor(_editingToken!, color);
+      setState(() => _editingColor = color);
+    }
+  }
+
+  Color? _parseHexColor(String hex) {
+    var h = hex.replaceAll('#', '');
+    if (h.length == 6) h = 'FF$h';
+    if (h.length == 8) {
+      final v = int.tryParse(h, radix: 16);
+      if (v != null) return Color(v);
+    }
+    return null;
   }
 
   void _handleClose() async {
@@ -199,11 +271,17 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   }
 
   void _handleSaveToCloud() async {
+    final existingCloud = widget.cloudTheme;
+    final existingMeta = existingCloud != null && existingCloud.id != 0
+        ? CloudThemeMeta(id: existingCloud.id, accessHash: 0)
+        : null;
+
     final result = await showDialog<_CloudSaveResult>(
       context: context,
       builder: (ctx) => _SaveThemeBox(
         palette: _currentPalette,
         cloudSave: true,
+        cloudMeta: existingMeta,
       ),
     );
     if (result == null || !mounted) return;
@@ -224,15 +302,26 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
         cloudMeta: result.cloudMeta,
       ));
 
-      await engine.createCloudTheme(
-        accountId,
-        result.title,
-        result.slug,
-        themeBytes,
-      );
+      final isUpdate = existingCloud != null && existingCloud.id != 0 && existingCloud.isCreator;
+      if (isUpdate) {
+        await engine.updateCloudTheme(
+          accountId,
+          existingCloud.id,
+          result.title,
+          result.slug,
+          themeBytes,
+        );
+      } else {
+        await engine.createCloudTheme(
+          accountId,
+          result.title,
+          result.slug,
+          themeBytes,
+        );
+      }
       if (mounted) {
         setState(() => _isDirty = false);
-        showTelegramToast(context, 'Theme uploaded to cloud');
+        showTelegramToast(context, isUpdate ? 'Theme updated' : 'Theme uploaded to cloud');
       }
     } catch (e) {
       if (mounted) {
@@ -267,59 +356,60 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
           : _colorMap.keys.toSet();
       _isDirty = true;
       _sortedByAccent = false;
+      _cachedItems = null;
       if (file.path != null) _themeFilePath = file.path;
     });
     widget.onPaletteChanged(_currentPalette);
   }
 
-  void _showMenuDialog() {
-    final isDark = _currentPalette.isDark;
-    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF5F5F5) : Colors.black;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        backgroundColor: bgColor,
-        title: Text('Theme Options',
-            style: TextStyle(
-                color: textColor,
-                fontSize: 17,
-                fontWeight: FontWeight.w600)),
-        children: [
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _handleExport();
-            },
-            child: Text('Export Theme', style: TextStyle(color: textColor)),
-          ),
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _handleImport();
-            },
-            child: Text('Import Theme', style: TextStyle(color: textColor)),
-          ),
-          SimpleDialogOption(
-            onPressed: _themeFilePath != null
-                ? () {
-                    Navigator.pop(ctx);
-                    _showInFolder();
-                  }
-                : null,
-            child: Text(
-              'Show in Folder',
-              style: TextStyle(
-                color: _themeFilePath != null
-                    ? textColor
-                    : textColor.withAlpha(100),
-              ),
-            ),
-          ),
-        ],
+  void _showMenu() {
+    final RenderBox? button = _menuButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (button == null) return;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
       ),
+      Offset.zero & overlay.size,
     );
+
+    final isDark = _currentPalette.isDark;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : Colors.black;
+    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+
+    showMenu<String>(
+      context: context,
+      position: position,
+      color: bgColor,
+      items: [
+        PopupMenuItem<String>(
+          value: 'export',
+          child: Text('Export Theme', style: TextStyle(color: textColor)),
+        ),
+        PopupMenuItem<String>(
+          value: 'import',
+          child: Text('Import Theme', style: TextStyle(color: textColor)),
+        ),
+        PopupMenuItem<String>(
+          value: 'show',
+          enabled: _themeFilePath != null,
+          child: Text('Show in Folder', style: TextStyle(
+            color: _themeFilePath != null ? textColor : textColor.withAlpha(100),
+          )),
+        ),
+      ],
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'export':
+          _handleExport();
+        case 'import':
+          _handleImport();
+        case 'show':
+          _showInFolder();
+      }
+    });
   }
 
   void _showInFolder() {
@@ -334,12 +424,16 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     }
   }
 
-  String _generatePalettePreview() {
-    final buf = StringBuffer();
-    for (final entry in _colorMap.entries) {
-      buf.writeln('${entry.key}: ${_colorToHexString(entry.value)};');
-    }
-    return buf.toString();
+  double _estimateRowHeight(String? token) {
+    final hasDesc = token != null && (_tokenDescription(token)?.isNotEmpty ?? false);
+    const base = _kRowMarginTop + _kSwatchHeight + _kRowMarginBottom;
+    if (!hasDesc) return base;
+    return base + _kDescriptionSkip + 28.0;
+  }
+
+  double _estimateItemHeight(_ListItem item) {
+    if (item.type == _ListItemType.header) return 42.0;
+    return _estimateRowHeight(item.entry?.key);
   }
 
   void _handleKeyEvent(KeyEvent event) {
@@ -353,24 +447,34 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
       setState(() {
         _focusedIndex = (_focusedIndex + 1).clamp(0, entryItems.length - 1);
       });
-      _ensureVisible(_focusedIndex);
+      _ensureVisible(_focusedIndex, items);
     } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       setState(() {
         _focusedIndex = (_focusedIndex - 1).clamp(0, entryItems.length - 1);
       });
-      _ensureVisible(_focusedIndex);
+      _ensureVisible(_focusedIndex, items);
     } else if (event.logicalKey == LogicalKeyboardKey.pageDown) {
+      final viewport = _scrollController.hasClients
+          ? _scrollController.position.viewportDimension
+          : 400.0;
+      final defaultHeight = _estimateRowHeight(null);
+      final skipCount = max(1, (viewport / defaultHeight).ceil());
       setState(() {
         _focusedIndex =
-            (_focusedIndex + 10).clamp(0, entryItems.length - 1);
+            (_focusedIndex + skipCount).clamp(0, entryItems.length - 1);
       });
-      _ensureVisible(_focusedIndex);
+      _ensureVisible(_focusedIndex, items);
     } else if (event.logicalKey == LogicalKeyboardKey.pageUp) {
+      final viewport = _scrollController.hasClients
+          ? _scrollController.position.viewportDimension
+          : 400.0;
+      final defaultHeight = _estimateRowHeight(null);
+      final skipCount = max(1, (viewport / defaultHeight).ceil());
       setState(() {
         _focusedIndex =
-            (_focusedIndex - 10).clamp(0, entryItems.length - 1);
+            (_focusedIndex - skipCount).clamp(0, entryItems.length - 1);
       });
-      _ensureVisible(_focusedIndex);
+      _ensureVisible(_focusedIndex, items);
     } else if (event.logicalKey == LogicalKeyboardKey.enter) {
       if (_focusedIndex >= 0 && _focusedIndex < entryItems.length) {
         final entry = entryItems[_focusedIndex].entry!;
@@ -379,20 +483,143 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     }
   }
 
-  void _ensureVisible(int index) {
-    const estimatedRowHeight = 71.0;
-    final offset = index * estimatedRowHeight;
+  void _ensureVisible(int entryIndex, List<_ListItem> items) {
+    if (!_scrollController.hasClients) return;
+    var offset = 0.0;
+    var currentEntryIdx = -1;
+    double targetOffset = 0;
+    double targetHeight = _estimateRowHeight(null);
+
+    for (final item in items) {
+      final h = _estimateItemHeight(item);
+      if (item.type == _ListItemType.entry) {
+        currentEntryIdx++;
+        if (currentEntryIdx == entryIndex) {
+          targetOffset = offset;
+          targetHeight = h;
+          break;
+        }
+      }
+      offset += h;
+    }
+
     final viewportExtent = _scrollController.position.viewportDimension;
     final current = _scrollController.offset;
-    if (offset < current) {
-      _scrollController.animateTo(offset,
+    if (targetOffset < current) {
+      _scrollController.animateTo(targetOffset,
           duration: const Duration(milliseconds: 100), curve: Curves.easeOut);
-    } else if (offset + estimatedRowHeight > current + viewportExtent) {
+    } else if (targetOffset + targetHeight > current + viewportExtent) {
       _scrollController.animateTo(
-          offset + estimatedRowHeight - viewportExtent,
+          targetOffset + targetHeight - viewportExtent,
           duration: const Duration(milliseconds: 100),
           curve: Curves.easeOut);
     }
+  }
+
+  Widget _buildInlineColorEditor() {
+    final token = _editingToken!;
+    final color = _editingColor!;
+    final bgColor = _currentPalette.topBarBg;
+    final textColor = _currentPalette.windowBoldFg;
+    final subtextColor = _currentPalette.windowSubTextFg;
+    final accentColor = _currentPalette.windowBgActive;
+    final shadowColor = _currentPalette.shadowFg;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border(top: BorderSide(color: shadowColor, width: 1)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  token,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.close, color: subtextColor, size: 18),
+                onPressed: _closeInlineEditor,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: shadowColor),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 36,
+                  child: TextField(
+                    controller: _hexEditController,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 13,
+                      fontFamily: 'monospace',
+                    ),
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      filled: true,
+                      fillColor: _currentPalette.isDark
+                          ? const Color(0xFF242F3D)
+                          : const Color(0xFFF1F3F5),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: BorderSide(color: accentColor, width: 1),
+                      ),
+                    ),
+                    onSubmitted: (_) => _applyHexEdit(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                icon: Icon(Icons.check, color: accentColor, size: 20),
+                onPressed: _applyHexEdit,
+                tooltip: 'Apply',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              ),
+              IconButton(
+                icon: Icon(Icons.palette_outlined, color: accentColor, size: 20),
+                onPressed: () => _openColorPickerDialog(token, color),
+                tooltip: 'Full editor',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -447,8 +674,9 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                   tooltip: _showPreview ? 'Hide Preview' : 'Show Preview',
                 ),
                 IconButton(
+                  key: _menuButtonKey,
                   icon: Icon(Icons.more_vert, color: textColor, size: 22),
-                  onPressed: _showMenuDialog,
+                  onPressed: _showMenu,
                   tooltip: 'Options',
                 ),
               ],
@@ -525,6 +753,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                   entryIndex++;
                   final entry = item.entry!;
                   final isFocused = entryIndex == _focusedIndex;
+                  final isEditing = _editingToken == entry.key;
                   final desc = _tokenDescription(entry.key);
 
                   return _PaletteEntryRow(
@@ -533,7 +762,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                     referenceName: _referenceChain[entry.key],
                     description: desc,
                     backgroundColor:
-                        isFocused ? bgOver : bgColor,
+                        isEditing ? accentColor.withAlpha(30) : (isFocused ? bgOver : bgColor),
                     textColor: textColor,
                     subtextColor: subtextColor,
                     hoverColor: bgOver,
@@ -549,7 +778,8 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
               ),
             ),
           ),
-          // Full-width save bar at bottom
+          if (_editingToken != null && _editingColor != null)
+            _buildInlineColorEditor(),
           Container(
             decoration: BoxDecoration(
               color: accentColor,
@@ -1073,6 +1303,7 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
         isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F3F5);
 
     final thumbSize = _computeThumbnailSize(context);
+    final isUpdate = widget.cloudMeta != null && widget.cloudMeta!.id != 0;
 
     return Dialog(
       backgroundColor: boxBg,
@@ -1089,10 +1320,10 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 17, 22, 0),
                 child: Text(
-                  widget.cloudSave
-                      ? 'Upload Theme'
-                      : widget.cloudMeta != null
-                          ? 'Save Theme'
+                  isUpdate
+                      ? 'Update Theme'
+                      : widget.cloudSave
+                          ? 'Upload Theme'
                           : 'Create a new theme',
                   style: TextStyle(
                     fontSize: 17,
@@ -1305,7 +1536,7 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                         ),
                       ),
                       child: Text(
-                        widget.cloudSave ? 'Upload' : 'Save',
+                        isUpdate ? 'Update' : (widget.cloudSave ? 'Upload' : 'Save'),
                         style: const TextStyle(fontSize: 14),
                       ),
                     ),

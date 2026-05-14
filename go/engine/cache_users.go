@@ -1287,6 +1287,25 @@ func (e *Engine) CreateCloudTheme(accountID, title, slug string, themeData []byt
 	return c.CreateCloudThemeWithData(title, slug, themeData)
 }
 
+type cloudThemeUpdater interface {
+	UpdateCloudThemeWithData(themeID int64, title, slug string, themeData []byte) (*cores.CloudThemeInfo, error)
+}
+
+func (e *Engine) UpdateCloudTheme(accountID string, themeID int64, title, slug string, themeData []byte) (*cores.CloudThemeInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	c, ok := acc.Core.(cloudThemeUpdater)
+	if !ok {
+		return nil, fmt.Errorf("core does not support cloud theme update")
+	}
+	return c.UpdateCloudThemeWithData(themeID, title, slug, themeData)
+}
+
 type cloudThemeInstaller interface {
 	InstallCloudTheme(themeID int64, isDark bool) error
 }

@@ -2037,6 +2037,7 @@ class _CloudThemeCardState extends State<_CloudThemeCard> {
               ThemeEditorScreen(
                 palette: palette,
                 onPaletteChanged: (_) {},
+                cloudTheme: widget.theme,
               ),
             ),
           );
