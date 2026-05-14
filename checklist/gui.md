@@ -1207,9 +1207,6 @@ Before findings, confirmed matches (not issues):
 # shell — Audit findings
 
 
-## shell — _ConnectionStateWidget: widget not interactive
-
-- [x] [MAJOR] Connecting pill is not a button — AyuGram wraps the whole widget in `AbstractButton` which opens `ProxiesBoxController` when clicked; Dart has no click handler on the pill container — `shell.dart:1094-1147` ← `window_connecting_widget.cpp:508-510`
 
 ## shell — _ConnectionStateWidget: missing slide-up position animation
 
