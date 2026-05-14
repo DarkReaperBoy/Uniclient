@@ -241,15 +241,33 @@ _ToastPosition _positionForAttach(ToastAttach attach) {
 
 // ─── Sticker / Emoji Pack Toast — spec §36.15 ──────────────────────────────
 
+enum StickerToastSection { message, topicIcon }
+
+OverlayEntry? _activeStickerEntry;
+int _stickerToastCounter = 0;
+
 void showStickerToast(
   BuildContext context, {
   required String packName,
   int packCount = 0,
   bool isReaction = false,
+  bool isEmoji = true,
+  StickerToastSection section = StickerToastSection.message,
   String stickerEmoji = '',
   String stickerThumbB64 = '',
   VoidCallback? onOpenPack,
+  VoidCallback? onOpenSavedMessages,
+  VoidCallback? onShowPremium,
 }) {
+  _activeStickerEntry?.remove();
+  _activeStickerEntry = null;
+
+  final effectiveIsEmoji =
+      section == StickerToastSection.topicIcon || isEmoji;
+  final toSaved = effectiveIsEmoji &&
+      section == StickerToastSection.message &&
+      (++_stickerToastCounter % 2 == 0);
+
   final overlay = Overlay.of(context, rootOverlay: true);
   late final OverlayEntry entry;
   entry = OverlayEntry(
@@ -257,14 +275,21 @@ void showStickerToast(
       packName: packName,
       packCount: packCount,
       isReaction: isReaction,
+      isEmoji: effectiveIsEmoji,
+      toSaved: toSaved,
+      section: section,
       stickerEmoji: stickerEmoji,
       stickerThumbB64: stickerThumbB64,
       onOpenPack: onOpenPack,
+      onOpenSavedMessages: onOpenSavedMessages,
+      onShowPremium: onShowPremium,
       onDone: () {
         entry.remove();
+        if (_activeStickerEntry == entry) _activeStickerEntry = null;
       },
     ),
   );
+  _activeStickerEntry = entry;
   overlay.insert(entry);
 }
 
@@ -272,18 +297,28 @@ class _StickerToast extends StatefulWidget {
   final String packName;
   final int packCount;
   final bool isReaction;
+  final bool isEmoji;
+  final bool toSaved;
+  final StickerToastSection section;
   final String stickerEmoji;
   final String stickerThumbB64;
   final VoidCallback? onOpenPack;
+  final VoidCallback? onOpenSavedMessages;
+  final VoidCallback? onShowPremium;
   final VoidCallback onDone;
 
   const _StickerToast({
     required this.packName,
     required this.packCount,
     required this.isReaction,
+    required this.isEmoji,
+    required this.toSaved,
+    required this.section,
     this.stickerEmoji = '',
     this.stickerThumbB64 = '',
     this.onOpenPack,
+    this.onOpenSavedMessages,
+    this.onShowPremium,
     required this.onDone,
   });
 
@@ -292,9 +327,8 @@ class _StickerToast extends StatefulWidget {
 }
 
 class _StickerToastState extends State<_StickerToast>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
-  late final AnimationController _emojiAnimCtrl;
   Timer? _holdTimer;
   bool _hiding = false;
 
@@ -306,10 +340,6 @@ class _StickerToastState extends State<_StickerToast>
       duration: const Duration(milliseconds: _kFadeInMs),
       reverseDuration: const Duration(milliseconds: _kFadeOutMs),
     );
-    _emojiAnimCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..repeat(reverse: true);
     _ctrl.forward().then((_) {
       if (!mounted) return;
       _holdTimer = Timer(const Duration(milliseconds: 3000), _startHide);
@@ -328,7 +358,6 @@ class _StickerToastState extends State<_StickerToast>
   void dispose() {
     _holdTimer?.cancel();
     _ctrl.dispose();
-    _emojiAnimCtrl.dispose();
     super.dispose();
   }
 
@@ -345,6 +374,30 @@ class _StickerToastState extends State<_StickerToast>
       fontWeight: FontWeight.w600,
       decoration: TextDecoration.underline,
     );
+
+    if (widget.toSaved) {
+      return [
+        TextSpan(text: widget.packName, style: bold),
+        const TextSpan(text: '\n', style: normal),
+        const TextSpan(
+            text: 'Saved to your animated emoji.', style: normal),
+      ];
+    }
+
+    if (widget.section == StickerToastSection.topicIcon) {
+      return [
+        TextSpan(text: widget.packName, style: bold),
+        const TextSpan(text: '\n', style: normal),
+        const TextSpan(
+            text: 'This icon is from the ', style: normal),
+        TextSpan(
+          text: '${widget.packName} pack',
+          style: link,
+          recognizer: TapGestureRecognizer()..onTap = widget.onOpenPack,
+        ),
+        const TextSpan(text: '.', style: normal),
+      ];
+    }
 
     if (widget.isReaction) {
       return [
@@ -364,7 +417,8 @@ class _StickerToastState extends State<_StickerToast>
       return [
         TextSpan(text: 'Animated Emoji', style: bold),
         const TextSpan(text: '\n', style: normal),
-        const TextSpan(text: 'This message contains emoji from ', style: normal),
+        const TextSpan(
+            text: 'This message contains emoji from ', style: normal),
         TextSpan(
           text: '${widget.packCount} packs',
           style: link,
@@ -377,7 +431,8 @@ class _StickerToastState extends State<_StickerToast>
     return [
       TextSpan(text: 'Animated Emoji', style: bold),
       const TextSpan(text: '\n', style: normal),
-      const TextSpan(text: 'This message contains emoji from the ', style: normal),
+      const TextSpan(
+          text: 'This message contains emoji from the ', style: normal),
       TextSpan(
         text: '${widget.packName} pack',
         style: link,
@@ -387,59 +442,59 @@ class _StickerToastState extends State<_StickerToast>
     ];
   }
 
-  Widget _buildAnimatedPreview() {
+  Widget _buildPreview() {
     const previewSize = 36.0;
 
     if (widget.stickerThumbB64.isNotEmpty) {
       try {
         final bytes = base64Decode(widget.stickerThumbB64);
-        return AnimatedBuilder(
-          animation: _emojiAnimCtrl,
-          builder: (context, child) {
-            final scale = 0.9 + 0.1 * _emojiAnimCtrl.value;
-            return Transform.scale(scale: scale, child: child);
-          },
-          child: Image.memory(
-            Uint8List.fromList(bytes),
-            width: previewSize,
-            height: previewSize,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => _buildAnimatedEmoji(previewSize),
-          ),
+        return Image.memory(
+          Uint8List.fromList(bytes),
+          width: previewSize,
+          height: previewSize,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => _buildEmojiText(previewSize),
         );
       } catch (_) {
-        return _buildAnimatedEmoji(previewSize);
+        return _buildEmojiText(previewSize);
       }
     }
-    return _buildAnimatedEmoji(previewSize);
+    return _buildEmojiText(previewSize);
   }
 
-  Widget _buildAnimatedEmoji(double size) {
+  Widget _buildEmojiText(double size) {
     final emoji = widget.stickerEmoji.isNotEmpty
         ? widget.stickerEmoji
         : (widget.isReaction ? '✨' : '😀');
-    return AnimatedBuilder(
-      animation: _emojiAnimCtrl,
-      builder: (context, child) {
-        final scale = 0.85 + 0.15 * _emojiAnimCtrl.value;
-        return Transform.scale(scale: scale, child: child);
-      },
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: Center(
-          child: Text(
-            emoji,
-            style: TextStyle(fontSize: size * 0.72, decoration: TextDecoration.none),
-          ),
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Center(
+        child: Text(
+          emoji,
+          style: TextStyle(
+              fontSize: size * 0.72, decoration: TextDecoration.none),
         ),
       ),
     );
   }
 
+  VoidCallback? get _viewCallback {
+    if (widget.toSaved) return widget.onOpenSavedMessages;
+    if (widget.section == StickerToastSection.topicIcon) {
+      return widget.onShowPremium;
+    }
+    return widget.onOpenPack;
+  }
+
+  String get _viewButtonText =>
+      widget.toSaved ? 'Open' : 'View';
+
   @override
   Widget build(BuildContext context) {
     const stickerMaxWidth = 380.0;
+    final viewCb = _viewCallback;
+
     final toastChild = Container(
       constraints: const BoxConstraints(maxWidth: stickerMaxWidth),
       padding: _kPadding,
@@ -452,7 +507,7 @@ class _StickerToastState extends State<_StickerToast>
         children: [
           Padding(
             padding: const EdgeInsets.only(right: 10),
-            child: _buildAnimatedPreview(),
+            child: _buildPreview(),
           ),
           Flexible(
             child: Text.rich(
@@ -460,6 +515,25 @@ class _StickerToastState extends State<_StickerToast>
               textAlign: TextAlign.left,
             ),
           ),
+          if (viewCb != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                viewCb();
+                _startHide();
+              },
+              child: Text(
+                _viewButtonText,
+                style: const TextStyle(
+                  color: Color(0xFF6AB2F2),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.none,
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

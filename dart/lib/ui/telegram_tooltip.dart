@@ -8,8 +8,8 @@ import '../theme/telegram_palette.dart';
 
 const double _kMaxWidth = 800.0;
 const int _kMaxLines = 12;
-const double _kCornerRadius = 6.0;
-const Duration _kShowDelay = Duration(milliseconds: 500);
+const double _kCornerRadius = 3.0;
+const Duration _kShowDelay = Duration(milliseconds: 1000);
 const Duration _kHideDelay = Duration(milliseconds: 10);
 const EdgeInsets _kPadding = EdgeInsets.fromLTRB(5, 2, 5, 2);
 const Offset _kShift = Offset(-20, 20);
@@ -137,7 +137,7 @@ class _TooltipOverlay extends StatelessWidget {
             maxLines: _kMaxLines,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               color: palette.tooltipFg,
               height: 1.3,
             ),
@@ -200,7 +200,6 @@ const double _kArrowHeight = 4.0;
 const double _kImportantRadius = 4.0;
 const double _kImportantShift = 12.0;
 const double _kArrowSkipMin = 24.0;
-const double _kArrowSkip = 66.0;
 const EdgeInsets _kImportantPadding = EdgeInsets.fromLTRB(10, 3, 10, 5);
 const EdgeInsets _kImportantMargin = EdgeInsets.all(4);
 const Duration _kImportantDuration = Duration(milliseconds: 200);
@@ -230,6 +229,7 @@ class ImportantTooltip extends StatefulWidget {
 class _ImportantTooltipState extends State<ImportantTooltip>
     with SingleTickerProviderStateMixin {
   late final AnimationController _anim;
+  late final CurvedAnimation _curvedAnim;
   Timer? _hideTimer;
 
   @override
@@ -238,6 +238,11 @@ class _ImportantTooltipState extends State<ImportantTooltip>
     _anim = AnimationController(
       vsync: this,
       duration: _kImportantDuration,
+    );
+    _curvedAnim = CurvedAnimation(
+      parent: _anim,
+      curve: Curves.easeOutCirc,
+      reverseCurve: Curves.easeOutCirc,
     );
     if (widget.visible) {
       _anim.forward();
@@ -273,6 +278,7 @@ class _ImportantTooltipState extends State<ImportantTooltip>
   @override
   void dispose() {
     _hideTimer?.cancel();
+    _curvedAnim.dispose();
     _anim.dispose();
     super.dispose();
   }
@@ -283,34 +289,57 @@ class _ImportantTooltipState extends State<ImportantTooltip>
     final screen = MediaQuery.of(context).size;
 
     final side = _resolveSide(widget.targetRect, screen);
-    final arrowPos = _arrowPosition(widget.targetRect, side);
 
-    return FadeTransition(
-      opacity: _anim,
-      child: CustomSingleChildLayout(
-        delegate: _ImportantTooltipDelegate(
-          targetRect: widget.targetRect,
+    final tooltipContent = CustomSingleChildLayout(
+      delegate: _ImportantTooltipDelegate(
+        targetRect: widget.targetRect,
+        side: side,
+        shift: _kImportantShift,
+        screenSize: screen,
+      ),
+      child: CustomPaint(
+        foregroundPainter: _ArrowPainter(
+          color: palette.importantTooltipBg,
           side: side,
-          shift: _kImportantShift,
+          targetRect: widget.targetRect,
           screenSize: screen,
         ),
-        child: CustomPaint(
-          foregroundPainter: _ArrowPainter(
+        child: Container(
+          margin: _arrowMargin(side),
+          padding: _kImportantPadding,
+          decoration: BoxDecoration(
             color: palette.importantTooltipBg,
-            side: side,
-            arrowPosition: arrowPos,
+            borderRadius: BorderRadius.circular(_kImportantRadius),
           ),
-          child: Container(
-            margin: _arrowMargin(side),
-            padding: _kImportantPadding,
-            decoration: BoxDecoration(
-              color: palette.importantTooltipBg,
-              borderRadius: BorderRadius.circular(_kImportantRadius),
-            ),
-            child: widget.child,
-          ),
+          child: widget.child,
         ),
       ),
+    );
+
+    return AnimatedBuilder(
+      animation: _curvedAnim,
+      builder: (context, child) {
+        final progress = _curvedAnim.value;
+        final isVertical =
+            side == TooltipSide.top || side == TooltipSide.bottom;
+        final shiftDir =
+            (side == TooltipSide.top || side == TooltipSide.left)
+                ? -1.0
+                : 1.0;
+        final slideOffset =
+            _kImportantShift * (1.0 - progress) * shiftDir;
+        return Opacity(
+          opacity: progress,
+          child: Transform.translate(
+            offset: Offset(
+              isVertical ? 0.0 : slideOffset,
+              isVertical ? slideOffset : 0.0,
+            ),
+            child: child,
+          ),
+        );
+      },
+      child: tooltipContent,
     );
   }
 
@@ -329,17 +358,6 @@ class _ImportantTooltipState extends State<ImportantTooltip>
       case TooltipSide.left:
         if (target.left - _kImportantShift - 100 > 0) return side;
         return TooltipSide.right;
-    }
-  }
-
-  double _arrowPosition(Rect target, TooltipSide side) {
-    switch (side) {
-      case TooltipSide.top:
-      case TooltipSide.bottom:
-        return target.center.dx;
-      case TooltipSide.left:
-      case TooltipSide.right:
-        return target.center.dy;
     }
   }
 
@@ -410,61 +428,67 @@ class _ImportantTooltipDelegate extends SingleChildLayoutDelegate {
 class _ArrowPainter extends CustomPainter {
   final Color color;
   final TooltipSide side;
-  final double arrowPosition;
+  final Rect targetRect;
+  final Size screenSize;
 
   _ArrowPainter({
     required this.color,
     required this.side,
-    required this.arrowPosition,
+    required this.targetRect,
+    required this.screenSize,
   });
+
+  double _relativeArrow(Size widgetSize) {
+    if (side == TooltipSide.left || side == TooltipSide.right) {
+      final tooltipY = (targetRect.center.dy - widgetSize.height / 2).clamp(
+        _kImportantMargin.top,
+        screenSize.height - widgetSize.height - _kImportantMargin.bottom,
+      );
+      return targetRect.center.dy - tooltipY;
+    }
+    final tooltipX = (targetRect.center.dx - widgetSize.width / 2).clamp(
+      _kImportantMargin.left,
+      screenSize.width - widgetSize.width - _kImportantMargin.right,
+    );
+    return targetRect.center.dx - tooltipX;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
     final path = Path();
+    final arrowRel = _relativeArrow(size);
 
     switch (side) {
       case TooltipSide.bottom:
-        final cx = (arrowPosition - 0).clamp(
-          _kArrowSkipMin,
-          size.width - _kArrowSkipMin,
-        );
-        final tipX = math.min(cx, _kArrowSkip);
-        path.moveTo(tipX - _kArrowHalfWidth, _kArrowHeight);
-        path.lineTo(tipX, 0);
-        path.lineTo(tipX + _kArrowHalfWidth, _kArrowHeight);
+        final cx = arrowRel.clamp(
+            _kArrowSkipMin, size.width - _kArrowSkipMin);
+        path.moveTo(cx - _kArrowHalfWidth, _kArrowHeight);
+        path.lineTo(cx, 0);
+        path.lineTo(cx + _kArrowHalfWidth, _kArrowHeight);
         path.close();
       case TooltipSide.top:
-        final cx = (arrowPosition - 0).clamp(
-          _kArrowSkipMin,
-          size.width - _kArrowSkipMin,
-        );
-        final tipX = math.min(cx, _kArrowSkip);
+        final cx = arrowRel.clamp(
+            _kArrowSkipMin, size.width - _kArrowSkipMin);
         final bottom = size.height;
-        path.moveTo(tipX - _kArrowHalfWidth, bottom - _kArrowHeight);
-        path.lineTo(tipX, bottom);
-        path.lineTo(tipX + _kArrowHalfWidth, bottom - _kArrowHeight);
+        path.moveTo(cx - _kArrowHalfWidth, bottom - _kArrowHeight);
+        path.lineTo(cx, bottom);
+        path.lineTo(cx + _kArrowHalfWidth, bottom - _kArrowHeight);
         path.close();
       case TooltipSide.right:
-        final cy = (arrowPosition - 0).clamp(
-          _kArrowSkipMin,
-          size.height - _kArrowSkipMin,
-        );
-        final tipY = math.min(cy, _kArrowSkip);
-        path.moveTo(_kArrowHeight, tipY - _kArrowHalfWidth);
-        path.lineTo(0, tipY);
-        path.lineTo(_kArrowHeight, tipY + _kArrowHalfWidth);
+        final cy = arrowRel.clamp(
+            _kArrowSkipMin, size.height - _kArrowSkipMin);
+        path.moveTo(_kArrowHeight, cy - _kArrowHalfWidth);
+        path.lineTo(0, cy);
+        path.lineTo(_kArrowHeight, cy + _kArrowHalfWidth);
         path.close();
       case TooltipSide.left:
-        final cy = (arrowPosition - 0).clamp(
-          _kArrowSkipMin,
-          size.height - _kArrowSkipMin,
-        );
-        final tipY = math.min(cy, _kArrowSkip);
+        final cy = arrowRel.clamp(
+            _kArrowSkipMin, size.height - _kArrowSkipMin);
         final right = size.width;
-        path.moveTo(right - _kArrowHeight, tipY - _kArrowHalfWidth);
-        path.lineTo(right, tipY);
-        path.lineTo(right - _kArrowHeight, tipY + _kArrowHalfWidth);
+        path.moveTo(right - _kArrowHeight, cy - _kArrowHalfWidth);
+        path.lineTo(right, cy);
+        path.lineTo(right - _kArrowHeight, cy + _kArrowHalfWidth);
         path.close();
     }
 
@@ -475,7 +499,8 @@ class _ArrowPainter extends CustomPainter {
   bool shouldRepaint(_ArrowPainter oldDelegate) =>
       color != oldDelegate.color ||
       side != oldDelegate.side ||
-      arrowPosition != oldDelegate.arrowPosition;
+      targetRect != oldDelegate.targetRect ||
+      screenSize != oldDelegate.screenSize;
 }
 
 void showImportantTooltip({
@@ -512,7 +537,7 @@ void showImportantTooltip({
             child: Text(
               message,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 11,
                 color: palette.importantTooltipFg,
                 height: 1.3,
               ),
@@ -524,10 +549,4 @@ void showImportantTooltip({
   );
 
   overlay.insert(entry);
-
-  if (hideAfter != null) {
-    Future.delayed(hideAfter, () {
-      if (entry.mounted) remove();
-    });
-  }
 }
