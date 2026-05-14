@@ -1230,25 +1230,6 @@ Before findings, confirmed matches (not issues):
 
 - [x] [MAJOR] `RecordVoice` and `RecordRound` are grouped with formatting commands in group 9 "Format & Edit" — AyuGram places them in a dedicated separator group between the Send group and `ShowAdminLog` — `shortcuts_settings_screen.dart:85-102` ← `AyuGram/settings/sections/settings_shortcuts.cpp:113-116`
 
-# spoiler_animation — 9 issues (0 CRITICAL, 9 MAJOR)
-
-- [ ] [MAJOR] `addPersistentFrameCallback` is registered once and never removed — fires on every vsync forever even when `_activeCount == 0`; the C++ `SpoilerAnimationManager` destroys itself via `destroyIfEmpty()` when the list empties, stopping the timer completely — `spoiler_animation.dart:67` ← `spoiler_mess.cpp:327-332`
-
-- [ ] [MAJOR] Sprite sheet cache written to `/tmp/uniclient_spoiler_cache/` — `/tmp` is ephemeral (wiped on reboot); AyuGram stores in `Integration::Instance().emojiCacheFolder() + "/spoiler"` (persistent app-data directory) — `spoiler_animation.dart:137,156` ← `spoiler_mess.cpp:196-199`
-
-- [ ] [MAJOR] Cache deserialization has no version header or integrity hash: accepts any PNG without checking `kVersion`, frame count, canvas size, or XXHash32 digest; stale or corrupt cache loaded silently — `spoiler_animation.dart:143-147` ← `spoiler_mess.cpp:721-778`
-
-- [ ] [MAJOR] Tile painting uses local-widget origin (0,0) — `Rect.fromLTWH(tx * tile, ty * tile, ...)` — instead of a global `originShift`; AyuGram's `FillSpoilerRect` accepts `QPoint originShift` so all spoilers on the same row share continuous particle phase; Dart tiles restart at (0,0) per-widget, breaking phase continuity across adjacent spoilers — `spoiler_animation.dart:373-393` ← `spoiler_mess.cpp:431-508`
-
-- [ ] [MAJOR] Image spoiler darkening (`kImageSpoilerDarkenAlpha = 32`) is applied at every paint call as an extra `canvas.drawRect` — AyuGram bakes it into the sprite sheet once during `PreloadImageSpoiler` postprocessing, paying zero cost at render time — `spoiler_animation.dart:348-352` ← `spoiler_mess.cpp:846-868`
-
-- [ ] [MAJOR] Sprite sheet generation draws 60 frames on the main isolate via `await Future.delayed(Duration.zero)` in a loop — only the particle math is offloaded to `compute()`; AyuGram runs the entire generation (particle math + raster) on a background thread via `crl::async` with no main-thread involvement — `spoiler_animation.dart:256-309` ← `spoiler_mess.cpp:260-278`
-
-- [ ] [MAJOR] `canvas.saveLayer(rect, Paint())` called on every `paint()` invocation for any rounded-corner spoiler — `saveLayer` allocates an offscreen GPU texture per call per frame (60fps); AyuGram composes corners using a pre-allocated `cornerCache QImage` with manual `CompositionMode_DestinationIn`, avoiding offscreen allocation — `spoiler_animation.dart:342` ← `spoiler_mess.cpp:510-623`
-
-- [ ] [MAJOR] `shouldRepaint` omits `tintColor` and `isMedia` from the equality check — if the theme color changes or `isMedia` flips, the painter does not repaint until `frame` or `revealProgress` happens to change — `spoiler_animation.dart:408-412` ← `spoiler_mess.cpp:642-650`
-
-- [ ] [MAJOR] `SpoilerColorCache` is keyed on `color.value` including alpha (`tintColor.withValues(alpha: opacity * 0.85)`); during a reveal animation `opacity` changes every frame, producing a unique alpha per frame that evicts live entries from the 24-slot LRU — AyuGram colorises once via `SpoilerMessCached(mask, color)` and caches a full pre-tinted image, not a per-frame filter — `spoiler_animation.dart:422-437` ← `spoiler_mess.cpp:642-650`
 
 # stats_chart — Statistics Chart Widget Audit
 
