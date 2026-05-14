@@ -1232,6 +1232,43 @@ class EngineService {
     }
   }
 
+  Future<int> sendStoryWithVideoFile(
+    String accountId,
+    String caption,
+    String videoFilePath, {
+    String privacy = 'everyone',
+    int durationHours = 24,
+    bool saveToProfile = true,
+    bool allowSharing = true,
+    List<String> selectedContactIds = const [],
+    double trimStart = 0.0,
+    double trimEnd = 1.0,
+  }) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'caption': caption,
+      'video_file_path': videoFilePath,
+      'privacy': privacy,
+      'duration_hours': durationHours,
+      'save_to_profile': saveToProfile,
+      'allow_sharing': allowSharing,
+      'selected_contact_ids': selectedContactIds,
+      'trim_start': trimStart,
+      'trim_end': trimEnd,
+    }));
+    try {
+      final resp = await _callAsync('__engine', 'SendStoryWithVideo', Uint8List.fromList(payload));
+      if (resp.isNotEmpty) {
+        final data = json.decode(utf8.decode(resp));
+        return data['story_id'] as int? ?? 0;
+      }
+      return 0;
+    } catch (e) {
+      Debug.error('ENGINE', 'sendStoryWithVideoFile failed', e);
+      rethrow;
+    }
+  }
+
   // ── Custom emoji thumbnails (for forum topic icons) ──
 
   Future<Map<int, CustomEmojiThumbData>> getCustomEmojiThumbs(String accountId, List<int> documentIds) async {

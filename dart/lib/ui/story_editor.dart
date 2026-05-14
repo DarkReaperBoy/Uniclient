@@ -75,6 +75,9 @@ class _SceneItem {
   _TextAlign textAlign;
   _TextBgStyle textBgStyle;
   String fontFamily;
+  Uint8List? stickerImageBytes;
+  int stickerWidth;
+  int stickerHeight;
 
   _SceneItem({
     required this.position,
@@ -87,7 +90,12 @@ class _SceneItem {
     this.textAlign = _TextAlign.center,
     this.textBgStyle = _TextBgStyle.none,
     this.fontFamily = 'sans-serif',
+    this.stickerImageBytes,
+    this.stickerWidth = 0,
+    this.stickerHeight = 0,
   });
+
+  bool get isSticker => stickerImageBytes != null && stickerImageBytes!.isNotEmpty;
 }
 
 class _PaintStroke {
@@ -102,6 +110,32 @@ class _PaintStroke {
     required this.width,
     required this.tool,
   });
+}
+
+sealed class _UndoAction {}
+
+class _StrokeAction extends _UndoAction {
+  final _PaintStroke stroke;
+  _StrokeAction(this.stroke);
+}
+
+class _AddItemAction extends _UndoAction {
+  final _SceneItem item;
+  _AddItemAction(this.item);
+}
+
+class _RemoveItemAction extends _UndoAction {
+  final _SceneItem item;
+  final int index;
+  _RemoveItemAction(this.item, this.index);
+}
+
+class _MoveItemAction extends _UndoAction {
+  final _SceneItem item;
+  Offset savedPosition;
+  double savedScale;
+  double savedRotation;
+  _MoveItemAction(this.item, this.savedPosition, this.savedScale, this.savedRotation);
 }
 
 Future<void> showStoryEditor(BuildContext context) async {
@@ -142,7 +176,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   double _brushSizeRatio = 0.3;
   Color _brushColor = const Color(0xFFEA2739);
   final List<_PaintStroke> _strokes = [];
-  final List<_PaintStroke> _redoStack = [];
+  final List<_UndoAction> _undoStack = [];
+  final List<_UndoAction> _redoStack = [];
   List<Offset>? _currentStrokePoints;
   bool _showColorPalette = false;
   bool _brushSliderExpanded = false;
@@ -166,6 +201,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   double _trimStart = 0.0;
   double _trimEnd = 1.0;
   Duration _videoDuration = Duration.zero;
+  ui.Image? _videoCoverFrame;
 
   // Post stage state
   final TextEditingController _captionController = TextEditingController();
@@ -300,6 +336,15 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       if (mounted) {
         setState(() => _videoDuration = duration);
       }
+      await Future.delayed(const Duration(milliseconds: 300));
+      final coverBytes = await player.screenshot();
+      if (coverBytes != null && coverBytes.isNotEmpty && mounted) {
+        try {
+          final codec = await ui.instantiateImageCodec(coverBytes);
+          final frame = await codec.getNextFrame();
+          if (mounted) setState(() => _videoCoverFrame = frame.image);
+        } catch (_) {}
+      }
       _extractVideoThumbnails(file, duration);
     } finally {
       await player.dispose();
@@ -412,14 +457,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       if (accountId == null) throw Exception('No active account');
       final engine = context.read<EngineService>();
 
-      Uint8List mediaBytes;
-      if (_videoFile != null) {
-        mediaBytes = await _videoFile!.readAsBytes();
-        setState(() => _uploadProgress = 0.15);
-      } else {
-        mediaBytes = await _renderCanvasToBytes();
-        setState(() => _uploadProgress = 0.15);
-      }
+      setState(() => _uploadProgress = 0.15);
 
       progressTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
         if (!mounted) return;
@@ -430,18 +468,32 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
         });
       });
 
-      await engine.sendStoryWithPhoto(
-        accountId,
-        _captionController.text,
-        mediaBytes,
-        privacy: _privacy.name,
-        durationHours: _durationHours,
-        saveToProfile: _saveToProfile,
-        allowSharing: _allowSharing,
-        selectedContactIds: _selectedContactIds,
-        trimStart: _trimStart,
-        trimEnd: _trimEnd,
-      );
+      if (_videoFile != null) {
+        await engine.sendStoryWithVideoFile(
+          accountId,
+          _captionController.text,
+          _videoFile!.path,
+          privacy: _privacy.name,
+          durationHours: _durationHours,
+          saveToProfile: _saveToProfile,
+          allowSharing: _allowSharing,
+          selectedContactIds: _selectedContactIds,
+          trimStart: _trimStart,
+          trimEnd: _trimEnd,
+        );
+      } else {
+        final mediaBytes = await _renderCanvasToBytes();
+        await engine.sendStoryWithPhoto(
+          accountId,
+          _captionController.text,
+          mediaBytes,
+          privacy: _privacy.name,
+          durationHours: _durationHours,
+          saveToProfile: _saveToProfile,
+          allowSharing: _allowSharing,
+          selectedContactIds: _selectedContactIds,
+        );
+      }
 
       progressTimer.cancel();
       setState(() {
@@ -467,6 +519,10 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       final src = Rect.fromLTWH(0, 0, _loadedImage!.width.toDouble(), _loadedImage!.height.toDouble());
       final dst = Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight);
       canvas.drawImageRect(_loadedImage!, src, dst, Paint());
+    } else if (_hasMedia && _videoCoverFrame != null) {
+      final src = Rect.fromLTWH(0, 0, _videoCoverFrame!.width.toDouble(), _videoCoverFrame!.height.toDouble());
+      final dst = Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight);
+      canvas.drawImageRect(_videoCoverFrame!, src, dst, Paint());
     } else {
       final colors = _gradientBackgrounds[_gradientIndex % _gradientBackgrounds.length];
       final gradient = LinearGradient(
@@ -480,7 +536,23 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       );
     }
 
-    canvas.saveLayer(Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight), Paint());
+    final canvasBounds = Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight);
+    for (final stroke in _strokes) {
+      if (stroke.tool == _BrushTool.blur) {
+        final blurPath = Path();
+        final r = stroke.width / 2;
+        for (final pt in stroke.points) {
+          blurPath.addOval(Rect.fromCircle(center: pt, radius: r));
+        }
+        canvas.save();
+        canvas.clipPath(blurPath);
+        canvas.saveLayer(canvasBounds, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10));
+        canvas.drawPaint(Paint()..color = const Color(0x00000000));
+        canvas.restore();
+        canvas.restore();
+      }
+    }
+    canvas.saveLayer(canvasBounds, Paint());
     for (final stroke in _strokes) {
       _StrokePainter.paintStroke(canvas, stroke.points, stroke.color, stroke.width, stroke.tool, 1.0);
     }
@@ -494,19 +566,64 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       );
       canvas.scale(item.scale);
       canvas.rotate(item.rotation);
-      if (item.isText && item.text.isNotEmpty) {
+      if (item.isSticker) {
+        try {
+          final codec = await ui.instantiateImageCodec(item.stickerImageBytes!);
+          final frame = await codec.getNextFrame();
+          final stickerImg = frame.image;
+          final sw = item.stickerWidth > 0 ? item.stickerWidth.toDouble() : stickerImg.width.toDouble();
+          final sh = item.stickerHeight > 0 ? item.stickerHeight.toDouble() : stickerImg.height.toDouble();
+          final displaySize = 120.0;
+          final sScale = displaySize / math.max(sw, sh);
+          final dw = sw * sScale;
+          final dh = sh * sScale;
+          canvas.drawImageRect(
+            stickerImg,
+            Rect.fromLTWH(0, 0, stickerImg.width.toDouble(), stickerImg.height.toDouble()),
+            Rect.fromLTWH(-dw / 2, -dh / 2, dw, dh),
+            Paint(),
+          );
+        } catch (_) {}
+      } else if (item.isText && item.text.isNotEmpty) {
         final tp = TextPainter(
           text: TextSpan(
             text: item.text,
             style: TextStyle(
-              color: item.color,
+              color: item.textBgStyle == _TextBgStyle.filled ? Colors.white : item.color,
               fontSize: item.fontSize,
               fontFamily: item.fontFamily,
+              fontWeight: FontWeight.bold,
+              shadows: item.textBgStyle == _TextBgStyle.shadowed
+                  ? [const Shadow(color: Color(0x73000000), blurRadius: 6, offset: Offset(0, 2))]
+                  : null,
             ),
           ),
           textDirection: TextDirection.ltr,
         )..layout(maxWidth: _canvasWidth * 0.8);
-        tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+        final textOffset = Offset(-tp.width / 2, -tp.height / 2);
+        if (item.textBgStyle == _TextBgStyle.filled) {
+          final bgRect = Rect.fromLTWH(
+            textOffset.dx - 8, textOffset.dy - 4,
+            tp.width + 16, tp.height + 8,
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(bgRect, const Radius.circular(6)),
+            Paint()..color = item.color.withValues(alpha: 0.4),
+          );
+        } else if (item.textBgStyle == _TextBgStyle.outlined) {
+          final bgRect = Rect.fromLTWH(
+            textOffset.dx - 8, textOffset.dy - 4,
+            tp.width + 16, tp.height + 8,
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(bgRect, const Radius.circular(6)),
+            Paint()
+              ..color = item.color
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.5,
+          );
+        }
+        tp.paint(canvas, textOffset);
       } else if (!item.isText && item.text.isNotEmpty) {
         final tp = TextPainter(
           text: TextSpan(
@@ -527,19 +644,55 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   }
 
   void _undo() {
-    if (_strokes.isNotEmpty) {
-      setState(() {
-        _redoStack.add(_strokes.removeLast());
-      });
-    }
+    if (_undoStack.isEmpty) return;
+    final action = _undoStack.removeLast();
+    setState(() {
+      switch (action) {
+        case _StrokeAction(:final stroke):
+          _strokes.remove(stroke);
+        case _AddItemAction(:final item):
+          _sceneItems.remove(item);
+        case _RemoveItemAction(:final item, :final index):
+          _sceneItems.insert(index.clamp(0, _sceneItems.length), item);
+        case _MoveItemAction action:
+          final curPos = action.item.position;
+          final curScale = action.item.scale;
+          final curRot = action.item.rotation;
+          action.item.position = action.savedPosition;
+          action.item.scale = action.savedScale;
+          action.item.rotation = action.savedRotation;
+          action.savedPosition = curPos;
+          action.savedScale = curScale;
+          action.savedRotation = curRot;
+      }
+      _redoStack.add(action);
+    });
   }
 
   void _redo() {
-    if (_redoStack.isNotEmpty) {
-      setState(() {
-        _strokes.add(_redoStack.removeLast());
-      });
-    }
+    if (_redoStack.isEmpty) return;
+    final action = _redoStack.removeLast();
+    setState(() {
+      switch (action) {
+        case _StrokeAction(:final stroke):
+          _strokes.add(stroke);
+        case _AddItemAction(:final item):
+          _sceneItems.add(item);
+        case _RemoveItemAction(:final item):
+          _sceneItems.remove(item);
+        case _MoveItemAction action:
+          final curPos = action.item.position;
+          final curScale = action.item.scale;
+          final curRot = action.item.rotation;
+          action.item.position = action.savedPosition;
+          action.item.scale = action.savedScale;
+          action.item.rotation = action.savedRotation;
+          action.savedPosition = curPos;
+          action.savedScale = curScale;
+          action.savedRotation = curRot;
+      }
+      _undoStack.add(action);
+    });
   }
 
   double get _effectiveBrushWidth {
@@ -602,6 +755,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
                       fit: StackFit.expand,
                       children: [
                         _buildCanvasContent(scale),
+                        ..._buildBlurLayers(scale),
                         if (_mode == _EditorMode.paint) _buildPaintLayer(scale),
                         ..._buildSceneItems(scale),
                       ],
@@ -626,22 +780,26 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       );
     }
     if (_hasMedia && _videoFile != null) {
+      if (_videoCoverFrame != null) {
+        return RawImage(
+          image: _videoCoverFrame,
+          fit: BoxFit.cover,
+          width: _canvasWidth * scale,
+          height: _canvasHeight * scale,
+        );
+      }
+      if (_videoThumbnails.isNotEmpty && _videoThumbnails.first != null) {
+        return RawImage(
+          image: _videoThumbnails.first,
+          fit: BoxFit.cover,
+          width: _canvasWidth * scale,
+          height: _canvasHeight * scale,
+        );
+      }
       return Container(
         color: Colors.black,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.videocam, color: Colors.white38, size: 64),
-              const SizedBox(height: 8),
-              Text(
-                _videoFile!.path.split('/').last,
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
+        child: const Center(
+          child: CircularProgressIndicator(color: Colors.white38, strokeWidth: 2),
         ),
       );
     }
@@ -657,7 +815,36 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     );
   }
 
+  List<Widget> _buildBlurLayers(double scale) {
+    final blurStrokes = _strokes.where((s) => s.tool == _BrushTool.blur).toList();
+    final layers = <Widget>[];
+    for (final stroke in blurStrokes) {
+      layers.add(ClipPath(
+        clipper: _BlurStrokeClipper(stroke.points, stroke.width, scale),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: const SizedBox.expand(),
+        ),
+      ));
+    }
+    if (_mode == _EditorMode.paint &&
+        _currentBrush == _BrushTool.blur &&
+        _currentStrokePoints != null &&
+        _currentStrokePoints!.length > 1) {
+      layers.add(ClipPath(
+        clipper: _BlurStrokeClipper(_currentStrokePoints!, _effectiveBrushWidth, scale),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: const SizedBox.expand(),
+        ),
+      ));
+    }
+    return layers;
+  }
+
   Widget _buildPaintLayer(double scale) {
+    final nonBlurStrokes = _strokes.where((s) => s.tool != _BrushTool.blur).toList();
+    final showCurrentNonBlur = _currentBrush != _BrushTool.blur ? _currentStrokePoints : null;
     return Listener(
       onPointerDown: (e) => _startStroke(e.localPosition, scale),
       onPointerMove: (e) => _continueStroke(e.localPosition, scale),
@@ -667,8 +854,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
         valueListenable: _strokesNotifier,
         builder: (_, __, ___) => CustomPaint(
           painter: _StrokePainter(
-            strokes: _strokes,
-            currentPoints: _currentStrokePoints,
+            strokes: nonBlurStrokes,
+            currentPoints: showCurrentNonBlur,
             currentColor: _brushColor,
             currentWidth: _effectiveBrushWidth,
             currentTool: _currentBrush,
@@ -683,7 +870,6 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   void _startStroke(Offset pos, double scale) {
     setState(() {
       _currentStrokePoints = [pos / scale];
-      _redoStack.clear();
     });
   }
 
@@ -696,13 +882,16 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
 
   void _endStroke() {
     if (_currentStrokePoints != null && _currentStrokePoints!.length > 1) {
+      final stroke = _PaintStroke(
+        points: List.from(_currentStrokePoints!),
+        color: _brushColor,
+        width: _effectiveBrushWidth,
+        tool: _currentBrush,
+      );
       setState(() {
-        _strokes.add(_PaintStroke(
-          points: List.from(_currentStrokePoints!),
-          color: _brushColor,
-          width: _effectiveBrushWidth,
-          tool: _currentBrush,
-        ));
+        _strokes.add(stroke);
+        _undoStack.add(_StrokeAction(stroke));
+        _redoStack.clear();
         _currentStrokePoints = null;
       });
     } else {
@@ -710,33 +899,60 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     }
   }
 
+  Offset? _itemDragStartPos;
+  double? _itemDragStartScale;
+  double? _itemDragStartRot;
+
   List<Widget> _buildSceneItems(double scale) {
     return _sceneItems.map((item) {
       return Positioned(
-        left: item.position.dx * scale - 50,
-        top: item.position.dy * scale - 25,
-        child: GestureDetector(
-          onTap: () {
-            if (item.isText) {
+        left: item.position.dx * scale,
+        top: item.position.dy * scale,
+        child: FractionalTranslation(
+          translation: const Offset(-0.5, -0.5),
+          child: GestureDetector(
+            onTap: () {
+              if (item.isText) {
+                setState(() {
+                  _editingTextItem = item;
+                  _textEditController.text = item.text;
+                });
+              }
+            },
+            onPanStart: (d) {
+              setState(() => _selectedItem = item);
+              _itemDragStartPos = item.position;
+              _itemDragStartScale = item.scale;
+              _itemDragStartRot = item.rotation;
+            },
+            onPanUpdate: (d) {
               setState(() {
-                _editingTextItem = item;
-                _textEditController.text = item.text;
+                item.position += d.delta / scale;
               });
-            }
-          },
-          onPanStart: (d) {
-            setState(() => _selectedItem = item);
-          },
-          onPanUpdate: (d) {
-            setState(() {
-              item.position += d.delta / scale;
-            });
-          },
-          child: Transform.rotate(
-            angle: item.rotation,
-            child: Transform.scale(
-              scale: item.scale,
-              child: _buildItemWidget(item),
+            },
+            onPanEnd: (_) {
+              if (_selectedItem != null && _itemDragStartPos != null) {
+                final moved = _selectedItem!.position != _itemDragStartPos! ||
+                    _selectedItem!.scale != _itemDragStartScale! ||
+                    _selectedItem!.rotation != _itemDragStartRot!;
+                if (moved) {
+                  _undoStack.add(_MoveItemAction(
+                    _selectedItem!,
+                    _itemDragStartPos!,
+                    _itemDragStartScale!,
+                    _itemDragStartRot!,
+                  ));
+                  _redoStack.clear();
+                }
+              }
+              _itemDragStartPos = null;
+            },
+            child: Transform.rotate(
+              angle: item.rotation,
+              child: Transform.scale(
+                scale: item.scale,
+                child: _buildItemWidget(item),
+              ),
             ),
           ),
         ),
@@ -745,6 +961,23 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   }
 
   Widget _buildItemWidget(_SceneItem item) {
+    if (item.isSticker) {
+      return Container(
+        decoration: _selectedItem == item
+            ? BoxDecoration(border: Border.all(color: Colors.white54, width: 1))
+            : null,
+        child: Image.memory(
+          item.stickerImageBytes!,
+          width: 120,
+          height: 120,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => Text(
+            item.text.isNotEmpty ? item.text : '?',
+            style: const TextStyle(fontSize: 64),
+          ),
+        ),
+      );
+    }
     if (!item.isText) return const SizedBox.shrink();
     final align = item.textAlign == _TextAlign.left
         ? TextAlign.left
@@ -824,6 +1057,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       );
       setState(() {
         _sceneItems.add(item);
+        _undoStack.add(_AddItemAction(item));
+        _redoStack.clear();
         _editingTextItem = item;
         _textEditController.text = '';
       });
@@ -832,10 +1067,13 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     }
   }
 
+  Offset? _scaleStartPos;
+
   void _onItemScaleStart(ScaleStartDetails details) {
     if (_selectedItem != null) {
       _initialScale = _selectedItem!.scale;
       _initialRotation = _selectedItem!.rotation;
+      _scaleStartPos = _selectedItem!.position;
     }
   }
 
@@ -854,8 +1092,22 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   }
 
   void _onItemScaleEnd(ScaleEndDetails details) {
+    if (_selectedItem != null && _initialScale != null && _scaleStartPos != null) {
+      final changed = _selectedItem!.scale != _initialScale! ||
+          _selectedItem!.rotation != _initialRotation!;
+      if (changed) {
+        _undoStack.add(_MoveItemAction(
+          _selectedItem!,
+          _scaleStartPos!,
+          _initialScale!,
+          _initialRotation!,
+        ));
+        _redoStack.clear();
+      }
+    }
     _initialScale = null;
     _initialRotation = null;
+    _scaleStartPos = null;
   }
 
   Widget _buildBrushSizeSlider() {
@@ -934,7 +1186,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           if (_mode == _EditorMode.paint) ...[
             _buildTopBarButton(
               icon: Icons.undo,
-              onTap: _strokes.isNotEmpty ? _undo : null,
+              onTap: _undoStack.isNotEmpty ? _undo : null,
             ),
             const SizedBox(width: 8),
             _buildTopBarButton(
@@ -1604,7 +1856,11 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     if (_editingTextItem != null) {
       final text = _textEditController.text.trim();
       if (text.isEmpty) {
-        _sceneItems.remove(_editingTextItem);
+        final idx = _sceneItems.indexOf(_editingTextItem!);
+        final removed = _editingTextItem!;
+        _sceneItems.remove(removed);
+        _undoStack.add(_RemoveItemAction(removed, idx));
+        _redoStack.clear();
       } else {
         _editingTextItem!.text = text;
         _editingTextItem!.color = _brushColor;
@@ -1674,17 +1930,45 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
             _canvasWidth / 2,
             _canvasHeight / 2,
           );
+          final item = _SceneItem(
+            position: center,
+            isText: true,
+            text: emoji,
+            color: Colors.white,
+            fontSize: 64,
+            textAlign: _TextAlign.center,
+            textBgStyle: _TextBgStyle.none,
+            fontFamily: 'sans-serif',
+          );
           setState(() {
-            _sceneItems.add(_SceneItem(
-              position: center,
-              isText: true,
-              text: emoji,
-              color: Colors.white,
-              fontSize: 64,
-              textAlign: _TextAlign.center,
-              textBgStyle: _TextBgStyle.none,
-              fontFamily: 'sans-serif',
-            ));
+            _sceneItems.add(item);
+            _undoStack.add(_AddItemAction(item));
+            _redoStack.clear();
+          });
+        },
+        onStickerSelected: (sticker) {
+          Navigator.pop(ctx);
+          final center = Offset(
+            _canvasWidth / 2,
+            _canvasHeight / 2,
+          );
+          Uint8List? imageBytes;
+          if (sticker.thumbB64.isNotEmpty) {
+            try {
+              imageBytes = Uint8List.fromList(base64Decode(sticker.thumbB64));
+            } catch (_) {}
+          }
+          final item = _SceneItem(
+            position: center,
+            stickerImageBytes: imageBytes,
+            stickerWidth: sticker.width,
+            stickerHeight: sticker.height,
+            text: sticker.emoji,
+          );
+          setState(() {
+            _sceneItems.add(item);
+            _undoStack.add(_AddItemAction(item));
+            _redoStack.clear();
           });
         },
       ),
@@ -1714,8 +1998,12 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     } else if (event.logicalKey == LogicalKeyboardKey.delete ||
         event.logicalKey == LogicalKeyboardKey.backspace) {
       if (_selectedItem != null && _editingTextItem == null) {
+        final idx = _sceneItems.indexOf(_selectedItem!);
+        final removed = _selectedItem!;
         setState(() {
-          _sceneItems.remove(_selectedItem);
+          _sceneItems.remove(removed);
+          _undoStack.add(_RemoveItemAction(removed, idx));
+          _redoStack.clear();
           _selectedItem = null;
         });
       }
@@ -1756,11 +2044,15 @@ class _StrokePainter extends CustomPainter {
 
   static void paintStroke(Canvas canvas, List<Offset> points, Color color, double width, _BrushTool tool, double scale) {
     if (points.length < 2) return;
+    if (tool == _BrushTool.blur) return;
+
     final paint = Paint()
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke
       ..strokeWidth = width * scale;
+
+    final isMarker = tool == _BrushTool.marker;
 
     switch (tool) {
       case _BrushTool.pen:
@@ -1769,15 +2061,18 @@ class _StrokePainter extends CustomPainter {
         break;
       case _BrushTool.marker:
         paint.color = color.withValues(alpha: 0.35);
+        paint.blendMode = BlendMode.src;
         break;
       case _BrushTool.blur:
-        paint.color = Colors.white24;
-        paint.maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
         break;
       case _BrushTool.eraser:
         paint.color = Colors.transparent;
         paint.blendMode = BlendMode.clear;
         break;
+    }
+
+    if (isMarker) {
+      canvas.saveLayer(null, Paint()..blendMode = BlendMode.srcOver);
     }
 
     final smoothed = _smoothPoints(points);
@@ -1829,6 +2124,9 @@ class _StrokePainter extends CustomPainter {
         ..lineTo(last.dx, last.dy)
         ..lineTo(p2.dx, p2.dy);
       canvas.drawPath(arrowPath, paint..style = PaintingStyle.stroke);
+    }
+    if (isMarker) {
+      canvas.restore();
     }
   }
 
@@ -2185,12 +2483,17 @@ class _ContactPickerDialogState extends State<_ContactPickerDialog> {
                                   CircleAvatar(
                                     radius: 18,
                                     backgroundColor: const Color(0xFF4DB8FF),
-                                    child: Text(
-                                      c.displayName.isNotEmpty
-                                          ? c.displayName[0].toUpperCase()
-                                          : '?',
-                                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                                    ),
+                                    backgroundImage: c.avatarB64.isNotEmpty
+                                        ? MemoryImage(Uint8List.fromList(base64Decode(c.avatarB64)))
+                                        : null,
+                                    child: c.avatarB64.isEmpty
+                                        ? Text(
+                                            c.displayName.isNotEmpty
+                                                ? c.displayName[0].toUpperCase()
+                                                : '?',
+                                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                                          )
+                                        : null,
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -2383,7 +2686,7 @@ class _FontSizeSliderPainter extends CustomPainter {
     final bottomY = size.height - 24.0;
     final height = bottomY - topY;
 
-    final expandedTopW = expanded ? 20.0 : 2.0;
+    final expandedTopW = expanded ? 25.0 : 2.0;
     final expandedBottomW = expanded ? 4.0 : 2.0;
     final alpha = expanded ? 176 : 96;
 
@@ -2400,7 +2703,7 @@ class _FontSizeSliderPainter extends CustomPainter {
     canvas.drawPath(path, paint);
 
     final handleY = bottomY - height * ratio;
-    final handleR = 4 + (20 - 4) * ratio;
+    final handleR = 4 + (25 - 4) * ratio;
     canvas.drawCircle(
       Offset(cx, handleY),
       handleR / 2,
@@ -2581,8 +2884,9 @@ class _VideoTrimPainter extends CustomPainter {
 
 class _StickerPickerPanel extends StatefulWidget {
   final ValueChanged<String> onEmojiSelected;
+  final ValueChanged<StickerInfoItem>? onStickerSelected;
 
-  const _StickerPickerPanel({required this.onEmojiSelected});
+  const _StickerPickerPanel({required this.onEmojiSelected, this.onStickerSelected});
 
   @override
   State<_StickerPickerPanel> createState() => _StickerPickerPanelState();
@@ -2785,12 +3089,40 @@ class _StickerPickerPanelState extends State<_StickerPickerPanel> {
           );
         }
         return GestureDetector(
-          onTap: () => widget.onEmojiSelected(
-            sticker.emoji.isNotEmpty ? sticker.emoji : '?',
-          ),
+          onTap: () {
+            if (widget.onStickerSelected != null) {
+              widget.onStickerSelected!(sticker);
+            } else {
+              widget.onEmojiSelected(
+                sticker.emoji.isNotEmpty ? sticker.emoji : '?',
+              );
+            }
+          },
           child: stickerWidget,
         );
       },
     );
   }
+}
+
+class _BlurStrokeClipper extends CustomClipper<Path> {
+  final List<Offset> points;
+  final double width;
+  final double scale;
+
+  _BlurStrokeClipper(this.points, this.width, this.scale);
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    final r = width * scale / 2;
+    for (final pt in points) {
+      path.addOval(Rect.fromCircle(center: Offset(pt.dx * scale, pt.dy * scale), radius: r));
+    }
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant _BlurStrokeClipper old) =>
+      old.points != points || old.width != width || old.scale != scale;
 }
