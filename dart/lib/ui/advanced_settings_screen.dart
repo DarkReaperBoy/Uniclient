@@ -15,6 +15,10 @@ import 'chat_export.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
 
+void showProxiesDialog(BuildContext context) {
+  showDialog(context: context, builder: (_) => const _ProxiesBox());
+}
+
 /// Advanced settings page (§14.7). Opened from Settings → Advanced row.
 /// Build order per §14.7.0: 11 sections separated by skip+divider+skip.
 class AdvancedSettingsScreen extends StatefulWidget {

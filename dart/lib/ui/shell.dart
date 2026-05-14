@@ -11,6 +11,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
 import '../state/chat_state.dart';
+import 'advanced_settings_screen.dart' show showProxiesDialog;
 import 'auth_screen.dart';
 import 'chat_export.dart';
 import 'chat_list_panel.dart';
@@ -1113,10 +1114,11 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
       child: Padding(
         padding: const EdgeInsets.all(2),
         child: MouseRegion(
+          cursor: SystemMouseCursors.click,
           onEnter: (_) => setState(() => _isHovered = true),
           onExit: (_) => setState(() => _isHovered = false),
           child: GestureDetector(
-            onTap: () {},
+            onTap: () => showProxiesDialog(context),
             behavior: HitTestBehavior.opaque,
             child: _buildPill(state, p, proxyEnabled),
           ),
