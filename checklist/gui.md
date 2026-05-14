@@ -1206,10 +1206,6 @@ Before findings, confirmed matches (not issues):
 
 # shell — Audit findings
 
-## shell — _ConnectionStateWidget: missing proxy icon
-
-- [ ] [CRITICAL] `_ConnectionStateWidget` has no proxy icon — AyuGram always renders a `ProxyIcon` widget (on/off states) inside the connecting pill when proxy is enabled; Dart implementation has no proxy icon at all — `shell.dart:1084` ← `window_connecting_widget.cpp:505-515` + `window.style:189-190`
-
 ## shell — _ConnectionStateWidget: wrong reconnect countdown source
 
 - [ ] [MAJOR] `waitTillRetry` countdown uses local exponential backoff (`5 × 2^attempts`, capped 30s) instead of the engine-reported MTP retry interval — AyuGram reads the actual wait from `(-dcstate / 1000) + 1` directly off the MTP state; Dart will display wrong reconnect times — `shell.dart:984-1001` ← `window_connecting_widget.cpp:324-326,456-460`
