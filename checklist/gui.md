@@ -1199,37 +1199,7 @@ Before findings, confirmed matches (not issues):
 
 ## privacy_settings_screen — State & Data Flow
 
-- [ ] [MAJOR] Countdown timer `_countdownTimer` in `_CloudPasswordInputState` is started but not cancelled on widget unmount if disposal races with a pending `setState` call — `_updateCountdownText()` calls `setState` without `mounted` guard — `privacy_settings_screen.dart:3074-3095` ← `AyuGram/settings/settings_privacy_security.cpp` (rpl lifetime subscriptions auto-cancel on destruction)
-
-- [ ] [MAJOR] Blocked users pagination: `_loadMore()` triggers on scroll position `>= maxScrollExtent - 200` but no visual "loading more" indicator shown while `_loadingMore == true` — user has no feedback that more data is being fetched — `privacy_settings_screen.dart:6463-6532` ← `AyuGram/settings/settings_blocked_peers.cpp` (PeerListContent has built-in loading row at bottom)
-
-- [ ] [MAJOR] Block user contact picker FutureBuilder at line 6590 (`_loadContacts()`) has **no error builder** — if `engine.getContacts()` throws, the dialog shows an empty list with no error message or retry option — `privacy_settings_screen.dart:6589-6641` ← `AyuGram/settings/settings_blocked_peers.cpp:BlockedBoxController::BlockNewPeer` (shows error toast on failure)
-
-- [ ] [MAJOR] Last Seen "Hide Read Time" toggle only renders when `_selected != 'everyone'` (controlled by AnimatedSize/visibility around line 2615) — AyuGram shows this toggle unconditionally so users who keep Last Seen set to Everyone can still hide read receipts — `privacy_settings_screen.dart:2615-2654` ← `AyuGram/settings/settings_privacy_controllers.cpp` (LastSeenPrivacyController shows hide-read-time unconditionally)
-
-- [ ] [MAJOR] Login email change dialog (`_showChangeLoginEmailDialog`) awaits `engine.setCloudPasswordEmail()` with no timeout or cancellation — if the network hangs, the "Saving…" spinner runs forever and the user cannot dismiss or retry — `privacy_settings_screen.dart:2145-2252` ← `AyuGram/settings/settings_privacy_security.cpp` (cloud password flows use lifetime-bound requests that cancel on close)
-
-- [ ] [MAJOR] Star price slider in `_MessagesPrivacyBox` reads `_sliderIndex` from a discrete `_starsValues` list but the label in the main privacy section (`_messagesChargeStars`) is fetched once on load (line 226) and never refreshed after `_save()` completes — the section subtitle stays stale until the next full reload — `privacy_settings_screen.dart:54,226,6112-6130` ← `AyuGram/settings/settings_privacy_security.cpp` (GlobalPrivacy reactive state updates label immediately after save)
-
 # reactions_detail — Reactions Detail Panel Audit
-
-- [ ] [CRITICAL] Custom emoji in tab pills rendered as `Icon(Icons.star)` stub instead of actual animated custom emoji — `reactions_detail.dart:638` ← `history_view_reactions_tabs.cpp:57-62` (factory renders real `CustomEmoji` animation using `Data::ReactionEntityData`)
-
-- [ ] [CRITICAL] Custom emoji in reactor rows rendered as `Icon(Icons.star)` stub instead of actual animated custom emoji — `reactions_detail.dart:736` ← `history_view_reactions_list.cpp:162-166` (Row uses `Ui::Text::CustomEmoji` from factory)
-
-- [ ] [MAJOR] Avatar photo position wrong: Dart uses `left: 18` but AyuGram style specifies `photoPosition: point(12px, 6px)` — 50% deviation — `reactions_detail.dart:703` ← `lib_ui/ui/widgets/widgets.style:1419`
-
-- [ ] [MAJOR] Name and status text position shifted right: Dart uses `left: 79` but AyuGram style specifies `namePosition: point(68px, 11px)` and `statusPosition: point(68px, 31px)` — applies to both `_ReactorRow` and `_ReadParticipantRow` — `reactions_detail.dart:713` ← `lib_ui/ui/widgets/widgets.style:1421-1425`
-
-- [ ] [MAJOR] "All reactions" tab uses `Icons.waving_hand` icon; AyuGram uses `reactionsTabAll` (`menu/read_reactions` icon, a heart/like icon) — `reactions_detail.dart:511` ← `history_view_reactions_tabs.cpp:88-100` and `ui/chat/chat.style:862`
-
-- [ ] [MAJOR] Read tab icon never adapts for audio/video: Dart always uses `Icons.done_all`; AyuGram switches to `reactionsTabPlayed` (`menu/read_audio`) when `WhoReadType == Watched || Listened`, and `reactionsTabChecks` (`menu/read_ticks`) for normal read — `reactions_detail.dart:504` ← `history_view_reactions_tabs.cpp:88-100` and `ui/chat/chat.style:864-867`
-
-- [ ] [MAJOR] `_ReactorRow` shows no status/subtitle text below username; AyuGram's `defaultPeerListItem` renders status at `statusPosition: point(68px, 31px)` — reaction reactor rows should show user status/handle — `reactions_detail.dart:679` ← `lib_ui/ui/widgets/widgets.style:1425`
-
-- [ ] [MAJOR] Tab switch clears all loaded data and re-fetches from API on every tab change; AyuGram keeps the fully-loaded `_all` list in memory and filters it locally when switching to a per-reaction tab, only fetching if the filtered offset is non-empty — `reactions_detail.dart:254-264` ← `history_view_reactions_list.cpp:247-280`
-
-- [ ] [MAJOR] `_ReactorAvatarState._photoCache` is a static unbounded map that grows forever across widget instances with no eviction policy — `reactions_detail.dart:870` ← AyuGram uses per-session data layer with proper lifecycle management
 
 ## send_files_box — groupFiles ignored, sendLargePhotos not forwarded, caption on wrong file, sendAsSticker dropped, reply header missing, price tag overlay missing
 
