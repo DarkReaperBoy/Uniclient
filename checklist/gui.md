@@ -1238,42 +1238,9 @@ Compared `stats_chart.dart` against AyuGram's `statistics/chart_widget.cpp`, `vi
 
 ---
 
-- [ ] [CRITICAL] StackLinear "zoom into pie" transition is a simple `Opacity` crossfade; AyuGram does an animated morph where stacked area paths rotate into pie wedges with simultaneous footer zoom — the entire `StackLinearChartView::processLocalZoom` / `_transition.progress` animation is missing — `stats_chart.dart:389-401,721-724,866-888` ← `AyuGramDesktop/Telegram/SourceFiles/statistics/view/stack_linear_chart_view.cpp:147-551` and `AyuGramDesktop/Telegram/SourceFiles/statistics/chart_widget.cpp:1272-1396`
-
-
-# main — PasscodeLockScreen + ThemeRevertOverlay
-
-- [ ] [CRITICAL] System unlock button placed below the submit button instead of overlaid at bottom-right of the input field — `main.dart:2525-2542` ← `window_lock_widgets.cpp:190-192` (`button->moveToRight(0, size.height() - button->height())` positions it inside the passcode input widget's own bounds, not as a separate row)
-
-- [ ] [MAJOR] `_inputFieldHeight = 55.0` hardcoded but AyuGram's `passcodeInput` inherits from `introPhone → introCountry` which has `heightMin: 61px`; error text and submit button are positioned 6 px too high — `main.dart:2219,2492,2506` ← `boxes.style:292-293`, `intro.style:126`
-
-- [ ] [MAJOR] System unlock button size is 48×48, AyuGram specifies 32×36 — `main.dart:2531-2532` ← `boxes.style:313-315` (`passcodeSystemUnlock: IconButton { width: 32px; height: 36px; }`)
-
-- [ ] [MAJOR] Passcode error messages hardcoded in English (`"Wrong passcode"`, `"Too many tries. Please try again later."`) instead of using `TrStrings` localization — `main.dart:2333,2343,2374` ← `window_lock_widgets.cpp:287` (`tr::lng_passcode_wrong`), `window_lock_widgets.cpp:265` (`tr::lng_flood_error`)
-
-- [ ] [MAJOR] Passcode screen background color hardcoded as raw hex (`0xFF17212B` / `0xFFFFFFFF`) instead of palette token; won't update when accent/custom theme changes — `main.dart:2399` ← `window_lock_widgets.cpp:245-250` (uses `st::windowBg` / `st::windowFg` palette entries)
-
-- [ ] [MAJOR] Passcode error text color hardcoded as raw hex (`0xFFE53935` / `0xFFD32F2F`) instead of palette token `boxTextFgError`; won't adapt to custom themes — `main.dart:2403` ← `window_lock_widgets.cpp:254-255` (`st::boxTextFgError`)
-
-- [ ] [MAJOR] Visibility-toggle eye icon added to passcode input — not present in AyuGram spec; `MaskedInputField` is always obscured with no toggle — `main.dart:2465-2471` ← `window_lock_widgets.cpp:100` (`passcodeInput: InputField(introPhone)` / `MaskedInputField`)
-
 # sticker_pack_viewer — Audit Findings
 
-- [ ] [CRITICAL] Sticker tiles have no tap handler — tapping a sticker does nothing; AyuGram's `chosen()` sends the sticker to the active chat via `_show->processChosenSticker()` — `sticker_pack_viewer.dart:276` ← `AyuGram/boxes/sticker_set_box.cpp:1658-1673`
-
-- [ ] [CRITICAL] Box stays open after successful install instead of closing; AyuGram's `installDone()` fires `_setInstalled` signal which triggers `closeBox()` — `sticker_pack_viewer.dart:148-164` ← `AyuGram/boxes/sticker_set_box.cpp:595`
-
-- [ ] [CRITICAL] Installed sets show an "Added" uninstall-toggle button; AyuGram shows "Share" + "Cancel" for installed non-official sets (no inline uninstall) — `sticker_pack_viewer.dart:204-217` ← `AyuGram/boxes/sticker_set_box.cpp:1041-1047`
-
-- [ ] [CRITICAL] No Lottie (.tgs) or WebM video sticker rendering — every sticker shown as a static stripped-JPEG thumbnail only; AyuGram calls `setupLottie()` / `setupWebm()` for animated and video stickers — `sticker_pack_viewer.dart:261-274` ← `AyuGram/boxes/sticker_set_box.cpp:2179-2200`
-
-- [ ] [MAJOR] Emoji grid cells are 1:1 squares (default `childAspectRatio`); AyuGram `emojiSetSize` is 42×39px (ratio ≈ 1.077) — `sticker_pack_viewer.dart:239-243` ← `AyuGram/chat_helpers/chat_helpers.style:420`
-
-- [ ] [MAJOR] Grid uses 4px `mainAxisSpacing` and `crossAxisSpacing` between cells; AyuGram packs cells tightly with zero inter-cell gap (only outer padding) — `sticker_pack_viewer.dart:241-242` ← `AyuGram/boxes/sticker_set_box.cpp:2068-2069`
-
-- [ ] [MAJOR] Sheet `maxChildSize: 0.9` allows up to 90% of screen height; AyuGram constrains the box to `stickersMaxHeight` (320px) or `emojiSetMaxHeight` (197px) — `sticker_pack_viewer.dart:79-80` ← `AyuGram/boxes/sticker_set_box.cpp:574-575` + `AyuGram/chat_helpers/chat_helpers.style:415,419`
-
-- [ ] [MAJOR] No premium sticker lock mark rendered on restricted stickers; AyuGram applies a premium-lock overlay during `paintSticker()` for non-premium users — `sticker_pack_viewer.dart:258-282` ← `AyuGram/boxes/sticker_set_box.cpp:2326-2444`
+- [ ] [CRITICAL] No Lottie (.tgs) or WebM video sticker rendering — Lottie (.tgs) is now animated via `Lottie.memory()`, but WebM video stickers still show a static thumbnail with a play-icon overlay instead of actual video playback; AyuGram calls `setupWebm()` for video stickers — `sticker_pack_viewer.dart:369-378` ← `AyuGram/boxes/sticker_set_box.cpp:2189-2200`
 
 # story_editor — Audit Findings
 
