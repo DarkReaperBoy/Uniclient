@@ -1243,30 +1243,6 @@ Compared `stats_chart.dart` against AyuGram's `statistics/chart_widget.cpp`, `vi
 
 
 
-# theme_editor — Audit Findings
-
-## theme_editor — Theme Editor Screen
-
-- [ ] [CRITICAL] `ThemeEditorScreen` has no `CloudTheme` parameter; when editing an existing cloud theme the editor has no access to `cloud.id` / `cloud.accessHash`, so it can never call update-theme (always creates a new one instead) — `theme_editor.dart:21-33` ← `AyuGramDesktop/window/themes/window_theme_editor.cpp:663-668` (`Editor::Editor(…, const Data::CloudTheme &cloud)` requires the cloud theme to be passed in)
-
-- [ ] [CRITICAL] `_handleSaveToCloud` always calls `engine.createCloudTheme` regardless of whether the theme already exists; AyuGram calls `SaveTheme` which checks `cloud.id` and dispatches `MTPaccount_UpdateTheme` vs `MTPaccount_CreateTheme` — `theme_editor.dart:201-241` ← `AyuGramDesktop/window/themes/window_theme_editor_box.cpp:499-612` (`SavePreparedTheme` create/update split)
-
-- [ ] [CRITICAL] Search filter only checks if `entry.key` contains the query string; AyuGram builds a full-text search index over token name + copyOf + description + hex value string and uses word-prefix matching — `theme_editor.dart:112` (`!entry.key.toLowerCase().contains(_filter)`) ← `AyuGramDesktop/window/themes/window_theme_editor_block.cpp:157-170, 385-420` (`fillSearchIndex` + `searchByQuery`)
-
-- [ ] [MAJOR] `_focusedIndex` is never reset when the search filter changes; AyuGram calls `setSelected(-1)` and `setPressed(-1)` whenever `_searchQuery` changes, so the focused item always tracks the filtered list — `theme_editor.dart:77` (`setState(() => _filter = text.toLowerCase())`) ← `AyuGramDesktop/window/themes/window_theme_editor_block.cpp:391-393` (`setSelected(-1); setPressed(-1)`)
-
-- [ ] [MAJOR] Page Up / Page Down keyboard handling uses a hardcoded skip of `±10` items; AyuGram computes skip count as `ceilclamp(scroll->height(), defaultRowHeight, 1, scroll->height())` so it always skips exactly one viewport worth of rows — `theme_editor.dart:362-373` ← `AyuGramDesktop/window/themes/window_theme_editor.cpp:893-896` + `AyuGramDesktop/window/themes/window_theme_editor.cpp:530-538` (`selectSkipPage`)
-
-- [ ] [MAJOR] `_ensureVisible` uses a hardcoded `estimatedRowHeight = 71.0`; rows with a description are taller (AyuGram computes actual per-row heights), so scroll-to-selected will overshoot/undershoot for rows with descriptions — `theme_editor.dart:383` ← `AyuGramDesktop/window/themes/window_theme_editor_block.cpp:534-545` (dynamic row height = margin + sampleSize + descriptionSkip + textHeight + margin)
-
-- [ ] [MAJOR] Color picker always opens a new dialog on row tap; AyuGram keeps a single persistent `ColorEditor` panel open and calls `editor->showColor(row.value())` when a new row is activated while the editor is already open — `theme_editor.dart:541-546` ← `AyuGramDesktop/window/themes/window_theme_editor_block.cpp:313-317` (`_context->colorEditor.editor->showColor(row.value())`)
-
-- [ ] [MAJOR] Options menu opens a blocking `SimpleDialog` modal; AyuGram opens a non-modal animated `DropdownMenu` that appears in the top-right corner (origin `TopRight`) and does not block the rest of the editor — `theme_editor.dart:275-323` (`showDialog` + `SimpleDialog`) ← `AyuGramDesktop/window/themes/window_theme_editor.cpp:721-761` (`Ui::DropdownMenu`, `showAnimated(PanelAnimation::Origin::TopRight)`)
-
-- [ ] [MAJOR] `_listItems` getter recomputes the full filtered/grouped list on every `build()` call (every setState); for a 350-token palette this runs O(n) every frame while typing in the search box — `theme_editor.dart:106-136` (no caching, called directly in `build()` at line 406) ← `AyuGramDesktop/window/themes/window_theme_editor_block.cpp:385-425` (AyuGram caches `_searchResults` and only recomputes on query change)
-
-- [ ] [MAJOR] `_SaveThemeBox` is never passed `cloudMeta` in the cloud-save flow (`_handleSaveToCloud` at line 204 passes no `cloudMeta` argument); this means the `_CloudSaveResult.cloudMeta` is always `null`, so cloud theme ID/accessHash for updates is always discarded — `theme_editor.dart:201-209` ← `AyuGramDesktop/window/themes/window_theme_editor_box.cpp:781-900` (`SaveThemeBox` receives the full `Data::CloudTheme &cloud` including id and accessHash)
-
 # titlebar — 2 issues
 
 - [ ] [MAJOR] Bottom separator uses `palette.shadowFg` (#00000018) instead of `palette.titleShadow` (#00000003). The palette already has a `titleShadow` field but it is not wired up in the titlebar widget. AyuGram places a `PlainShadow` with `st::titleShadow` (nearly transparent) at the bottom of the title bar; the Dart code uses the much more opaque `shadowFg` color, making the separator line 6× darker than intended — `titlebar.dart:206` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:99` + `ui_platform_window_title.cpp:470`
