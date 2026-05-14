@@ -1244,10 +1244,6 @@ Compared `stats_chart.dart` against AyuGram's `statistics/chart_widget.cpp`, `vi
 
 # engine_models — Data Model Gaps vs AyuGram
 
-## CachedMessage.copyWith — Fields silently dropped on update
-
-- [x] [MAJOR] `mediaUnread` and `ttlSeconds` are absent from `copyWith` parameter list and body (`engine_models.dart:947–1171`). Any `copyWith` call (e.g. on `MsgEdited` event) resets both to defaults (`false` / `0`), silently losing the TTL-media state. AyuGram always preserves these across message updates — `engine_models.dart:947` ← `AyuGram/data/data_group_call.h:38` (general data preservation principle; no direct AyuGram counterpart file, this is a Dart-internal correctness issue)
-
 ## StoryItem — Missing fields from AyuGram data_story.h
 
 - [x] [MAJOR] `noForwards` missing from `StoryItem` — AyuGram `data_story.h:299` has `_noForwards` flag that prevents users from re-sharing / saving a story. Go engine's `storyItem` struct (`telegram.go:16778`) does not expose it. Dart model cannot enforce the restriction — `engine_models.dart:2851` ← `AyuGram/data/data_story.h:299`
