@@ -1,12 +1,15 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
+import 'custom_emoji_cache.dart';
 import 'info_panel.dart';
 import 'shell.dart';
 
@@ -83,7 +86,11 @@ const _kPerPageMore = 100;
 
 class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   List<ReactorInfo> _allReactors = [];
+  List<ReactorInfo> _masterReactors = [];
+  String _masterNextOffset = '';
   List<ReadParticipantInfo> _readParticipants = [];
+  List<ReadParticipantInfo> _cachedReadParticipants = [];
+  ReadPrivacyState _cachedPrivacyState = ReadPrivacyState.none;
   int _readCount = 0;
   bool _loading = true;
   bool _loadingMore = false;
@@ -153,11 +160,21 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
       return;
     }
     if (_selectedTab == _ReactionTabBar.kReadTab) {
+      if (_cachedReadParticipants.isNotEmpty) {
+        setState(() {
+          _readParticipants = _cachedReadParticipants;
+          _privacyState = _cachedPrivacyState;
+          _loading = false;
+        });
+        return;
+      }
       try {
         final result = await engine.getMessageReadParticipantsDetailed(
           widget.message.accountId, widget.message.chatId, widget.message.msgId,
         );
         if (mounted) {
+          _cachedReadParticipants = result.participants;
+          _cachedPrivacyState = result.privacyState;
           setState(() {
             _readParticipants = result.participants;
             _privacyState = result.privacyState;
@@ -167,6 +184,14 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
       } catch (_) {
         if (mounted) setState(() => _loading = false);
       }
+      return;
+    }
+    if (_selectedTab != null && _masterReactors.isNotEmpty) {
+      setState(() {
+        _allReactors = _masterReactors;
+        _nextOffset = _masterNextOffset;
+        _loading = false;
+      });
       return;
     }
     try {
@@ -180,6 +205,10 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
         reactionFilter: reactionFilter,
       );
       if (mounted) {
+        if (_selectedTab == null) {
+          _masterReactors = List.of(result.reactors);
+          _masterNextOffset = result.nextOffset;
+        }
         setState(() {
           _allReactors = result.reactors;
           _nextOffset = result.nextOffset;
@@ -212,6 +241,10 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
         reactionFilter: reactionFilter,
       );
       if (mounted) {
+        if (_selectedTab == null) {
+          _masterReactors.addAll(result.reactors);
+          _masterNextOffset = result.nextOffset;
+        }
         setState(() {
           _allReactors.addAll(result.reactors);
           _nextOffset = result.nextOffset;
@@ -253,11 +286,27 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
 
   void _onTabSelected(String? tab) {
     if (tab == _selectedTab) return;
+    final isReadTab = tab == _ReactionTabBar.kReadTab;
+    final wasReadTab = _selectedTab == _ReactionTabBar.kReadTab;
+
+    if (!isReadTab && !wasReadTab && _masterReactors.isNotEmpty) {
+      setState(() {
+        _selectedTab = tab;
+        _allReactors = _masterReactors;
+        _nextOffset = _masterNextOffset;
+        _loading = false;
+      });
+      return;
+    }
+
     setState(() {
       _selectedTab = tab;
-      _allReactors = [];
-      _readParticipants = [];
-      _nextOffset = '';
+      if (isReadTab) {
+        _readParticipants = [];
+      } else {
+        _allReactors = [];
+        _nextOffset = '';
+      }
       _loading = true;
     });
     _loadReactors();
@@ -317,6 +366,8 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
               readCount: _readCount,
               palette: palette,
               onTabSelected: _onTabSelected,
+              mediaType: widget.message.mediaType,
+              accountId: widget.message.accountId,
             ),
           Divider(height: 1, color: palette.windowFg.withValues(alpha: 0.08)),
           if (_loading)
@@ -475,6 +526,8 @@ class _ReactionTabBar extends StatelessWidget {
   final int readCount;
   final TelegramPalette palette;
   final ValueChanged<String?> onTabSelected;
+  final int mediaType;
+  final String accountId;
 
   static const kReadTab = '__read__';
 
@@ -485,7 +538,15 @@ class _ReactionTabBar extends StatelessWidget {
     this.readCount = 0,
     required this.palette,
     required this.onTabSelected,
+    this.mediaType = 0,
+    this.accountId = '',
   });
+
+  IconData get _readTabIcon {
+    if (mediaType == 2 || mediaType == 5) return Icons.play_arrow;
+    if (mediaType == 3 || mediaType == 4) return Icons.headphones;
+    return Icons.done_all;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -501,14 +562,14 @@ class _ReactionTabBar extends StatelessWidget {
         children: [
           if (readCount > 0)
             _TabPill(
-              iconData: Icons.done_all,
+              iconData: _readTabIcon,
               label: _formatCountDecimal(readCount),
               isSelected: selectedTab == kReadTab,
               palette: palette,
               onTap: () => onTabSelected(kReadTab),
             ),
           _TabPill(
-            iconData: Icons.waving_hand,
+            iconData: Icons.favorite,
             label: _formatCountDecimal(totalCount),
             isSelected: selectedTab == null,
             palette: palette,
@@ -518,6 +579,7 @@ class _ReactionTabBar extends StatelessWidget {
             _TabPill(
               emoji: r.isCustomEmoji ? null : r.emoji,
               customEmojiDocId: r.isCustomEmoji ? r.documentId : null,
+              accountId: accountId,
               label: _formatCountDecimal(r.count),
               isSelected: selectedTab == _reactionTabKey(r),
               palette: palette,
@@ -532,6 +594,7 @@ class _ReactionTabBar extends StatelessWidget {
 class _TabPill extends StatefulWidget {
   final String? emoji;
   final int? customEmojiDocId;
+  final String accountId;
   final IconData? iconData;
   final String label;
   final bool isSelected;
@@ -541,6 +604,7 @@ class _TabPill extends StatefulWidget {
   const _TabPill({
     this.emoji,
     this.customEmojiDocId,
+    this.accountId = '',
     this.iconData,
     required this.label,
     required this.isSelected,
@@ -635,7 +699,11 @@ class _TabPillState extends State<_TabPill> with SingleTickerProviderStateMixin 
                             child: widget.emoji != null
                                 ? Text(widget.emoji!, style: const TextStyle(fontSize: 18))
                                 : widget.customEmojiDocId != null
-                                    ? Icon(Icons.star, color: fg, size: 18)
+                                    ? _InlineCustomEmoji(
+                                        documentId: widget.customEmojiDocId!,
+                                        accountId: widget.accountId,
+                                        size: 18,
+                                      )
                                     : Icon(widget.iconData!, color: fg, size: 18),
                           ),
                         ),
@@ -674,7 +742,7 @@ class _TabPillState extends State<_TabPill> with SingleTickerProviderStateMixin 
   }
 }
 
-// §42.5.1: 58px row, 46px avatar at (18,6), name at (79,11), status at (79,31),
+// §42.5.1: 58px row, 46px avatar at (12,6), name at (68,11), status at (68,31),
 // right emoji 18x18 at R27 margin
 class _ReactorRow extends StatelessWidget {
   final ReactorInfo reactor;
@@ -693,6 +761,9 @@ class _ReactorRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasReactionVisual = showEmoji && (reactor.emoji.isNotEmpty || reactor.isCustomEmoji);
+    final dateStr = reactor.date > 0 ? formatReadDateLocal(reactor.date) : '';
+
     return InkWell(
       onTap: onTap,
       child: SizedBox(
@@ -700,7 +771,7 @@ class _ReactorRow extends StatelessWidget {
         child: Stack(
           children: [
             Positioned(
-              left: 18,
+              left: 12,
               top: 6,
               child: _ReactorAvatar(
                 name: reactor.peerName,
@@ -710,9 +781,9 @@ class _ReactorRow extends StatelessWidget {
               ),
             ),
             Positioned(
-              left: 79,
-              top: 11,
-              right: showEmoji && (reactor.emoji.isNotEmpty || reactor.isCustomEmoji) ? 54 : 18,
+              left: 68,
+              top: dateStr.isNotEmpty ? 11.0 : 20.0,
+              right: hasReactionVisual ? 54 : 18,
               child: Text(
                 reactor.peerName.isNotEmpty ? reactor.peerName : 'User',
                 overflow: TextOverflow.ellipsis,
@@ -724,7 +795,22 @@ class _ReactorRow extends StatelessWidget {
                 ),
               ),
             ),
-            if (showEmoji && (reactor.emoji.isNotEmpty || reactor.isCustomEmoji))
+            if (dateStr.isNotEmpty)
+              Positioned(
+                left: 68,
+                top: 31,
+                right: hasReactionVisual ? 54 : 18,
+                child: Text(
+                  dateStr,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: palette.windowSubTextFg,
+                  ),
+                ),
+              ),
+            if (hasReactionVisual)
               Positioned(
                 right: 27,
                 top: 20,
@@ -733,7 +819,11 @@ class _ReactorRow extends StatelessWidget {
                   height: 18,
                   child: Center(
                     child: reactor.isCustomEmoji
-                        ? Icon(Icons.star, size: 16, color: palette.windowFg)
+                        ? _InlineCustomEmoji(
+                            documentId: reactor.documentId,
+                            accountId: accountId,
+                            size: 16,
+                          )
                         : Text(
                             reactor.emoji,
                             style: const TextStyle(fontSize: 16),
@@ -775,7 +865,7 @@ class _ReadParticipantRow extends StatelessWidget {
         child: Stack(
           children: [
             Positioned(
-              left: 18, top: 6,
+              left: 12, top: 6,
               child: _ReactorAvatar(
                 name: name,
                 size: 46,
@@ -784,7 +874,7 @@ class _ReadParticipantRow extends StatelessWidget {
               ),
             ),
             Positioned(
-              left: 79,
+              left: 68,
               top: hasDate ? 11.0 : 20.0,
               right: 18,
               child: Text(
@@ -800,7 +890,7 @@ class _ReadParticipantRow extends StatelessWidget {
             ),
             if (hasDate)
               Positioned(
-                left: 79,
+                left: 68,
                 top: 31,
                 right: 18,
                 child: Row(
@@ -867,6 +957,7 @@ class _ReactorAvatar extends StatefulWidget {
 
 class _ReactorAvatarState extends State<_ReactorAvatar> {
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+  static const _maxCacheSize = 200;
   static final _photoCache = <String, String?>{};
 
   String? _photoPath;
@@ -876,6 +967,12 @@ class _ReactorAvatarState extends State<_ReactorAvatar> {
   void initState() {
     super.initState();
     _loadPhoto();
+  }
+
+  static void _evictIfNeeded() {
+    while (_photoCache.length > _maxCacheSize) {
+      _photoCache.remove(_photoCache.keys.first);
+    }
   }
 
   Future<void> _loadPhoto() async {
@@ -892,6 +989,7 @@ class _ReactorAvatarState extends State<_ReactorAvatar> {
       final engine = context.read<EngineService>();
       final path = await engine.getUserPhotoAtIndex(widget.accountId, widget.peerId, 0);
       _photoCache[cacheKey] = path;
+      _evictIfNeeded();
       if (mounted) setState(() { _photoPath = path; _loaded = true; });
     } catch (_) {
       if (mounted) setState(() => _loaded = true);
@@ -1052,5 +1150,153 @@ class _ReadPrivacyNotice extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ── Inline custom emoji widget for reaction tabs and reactor rows ──
+
+Uint8List _gzipDecodeReactions(Uint8List data) =>
+    Uint8List.fromList(gzip.decode(data));
+
+class _InlineCustomEmoji extends StatefulWidget {
+  final int documentId;
+  final String accountId;
+  final double size;
+
+  const _InlineCustomEmoji({
+    required this.documentId,
+    required this.accountId,
+    this.size = 18,
+  });
+
+  @override
+  State<_InlineCustomEmoji> createState() => _InlineCustomEmojiState();
+}
+
+class _InlineCustomEmojiState extends State<_InlineCustomEmoji>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _lottieCtrl;
+  Uint8List? _decompressedLottie;
+  bool _requested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.normal);
+    CustomEmojiCache.instance.addListener(_onCacheUpdate);
+    _requestIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(covariant _InlineCustomEmoji old) {
+    super.didUpdateWidget(old);
+    if (old.documentId != widget.documentId) {
+      CustomEmojiCache.instance.release(old.documentId, EmojiSizeTag.normal);
+      CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.normal);
+      _decompressedLottie = null;
+      _requested = false;
+      _requestIfNeeded();
+    }
+  }
+
+  @override
+  void dispose() {
+    CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    CustomEmojiCache.instance.release(widget.documentId, EmojiSizeTag.normal);
+    _lottieCtrl?.dispose();
+    super.dispose();
+  }
+
+  void _onCacheUpdate() {
+    if (!mounted) return;
+    final file = CustomEmojiCache.instance.getFile(widget.documentId);
+    if (file != null && file.isTgs && _decompressedLottie == null) {
+      _decompressLottie(file.fileData);
+    }
+    setState(() {});
+  }
+
+  void _requestIfNeeded() {
+    if (_requested) return;
+    _requested = true;
+    final cache = CustomEmojiCache.instance;
+    if (widget.accountId.isEmpty) return;
+    final engine = context.read<EngineService>();
+    if (!cache.hasAnyPreview(widget.documentId) &&
+        !cache.isPending(widget.documentId) &&
+        !cache.hasFailed(widget.documentId)) {
+      cache.request(widget.documentId, widget.accountId, engine);
+    }
+    if (cache.getFile(widget.documentId) == null &&
+        !cache.isFilePending(widget.documentId)) {
+      cache.requestFile(widget.documentId, widget.accountId, engine);
+    }
+  }
+
+  Future<void> _decompressLottie(Uint8List data) async {
+    try {
+      final result = await compute(_gzipDecodeReactions, data);
+      if (mounted) setState(() => _decompressedLottie = result);
+    } catch (_) {}
+  }
+
+  void _onLottieLoaded(LottieComposition c) {
+    _lottieCtrl?.dispose();
+    _lottieCtrl = AnimationController(vsync: this, duration: c.duration);
+    _lottieCtrl!.addStatusListener((s) {
+      if (s == AnimationStatus.completed) _lottieCtrl!.forward(from: 0);
+    });
+    _lottieCtrl!.forward();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.size;
+    final cache = CustomEmojiCache.instance;
+    final file = cache.getFile(widget.documentId);
+
+    if (file != null) {
+      if (file.isTgs && _decompressedLottie != null) {
+        return SizedBox(
+          width: s, height: s,
+          child: Lottie.memory(
+            _decompressedLottie!,
+            width: s, height: s,
+            fit: BoxFit.contain,
+            controller: _lottieCtrl,
+            onLoaded: _onLottieLoaded,
+            errorBuilder: (_, __, ___) => SizedBox(width: s, height: s),
+          ),
+        );
+      }
+      if (file.isWebp) {
+        return SizedBox(
+          width: s, height: s,
+          child: Image.memory(
+            file.fileData,
+            width: s, height: s,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => SizedBox(width: s, height: s),
+          ),
+        );
+      }
+    }
+
+    final thumb = cache.getThumb(widget.documentId);
+    if (thumb != null) {
+      return SizedBox(
+        width: s, height: s,
+        child: Image.memory(
+          thumb,
+          width: s, height: s,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => SizedBox(width: s, height: s),
+        ),
+      );
+    }
+
+    return SizedBox(width: s, height: s);
   }
 }
