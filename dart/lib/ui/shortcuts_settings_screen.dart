@@ -19,12 +19,9 @@ const _commandGroups = <List<(ShortcutCommand, String)>>[
   // 2. Search
   [
     (ShortcutCommand.search, 'Search'),
-    (ShortcutCommand.cancelSearch, 'Cancel Search'),
   ],
   // 3. Chat Nav
   [
-    (ShortcutCommand.chatSwitchOverlay, 'Recent Chats'),
-    (ShortcutCommand.chatSwitchOverlayReverse, 'Recent Chats (Reverse)'),
     (ShortcutCommand.chatPrevious, 'Previous Chat'),
     (ShortcutCommand.chatNext, 'Next Chat'),
     (ShortcutCommand.chatFirst, 'First Chat'),
@@ -69,10 +66,10 @@ const _commandGroups = <List<(ShortcutCommand, String)>>[
   // 7. Chat Actions
   [
     (ShortcutCommand.readChat, 'Mark as Read'),
-    (ShortcutCommand.showChatMenu, 'Chat Menu'),
-    (ShortcutCommand.showChatPreview, 'Chat Preview'),
     (ShortcutCommand.archiveChat, 'Archive Chat'),
     (ShortcutCommand.showScheduled, 'Scheduled Messages'),
+    (ShortcutCommand.showChatMenu, 'Chat Menu'),
+    (ShortcutCommand.showChatPreview, 'Chat Preview'),
   ],
   // 8. Send
   [
@@ -80,25 +77,10 @@ const _commandGroups = <List<(ShortcutCommand, String)>>[
     (ShortcutCommand.messageSilently, 'Send Silently'),
     (ShortcutCommand.messageScheduled, 'Schedule Message'),
   ],
-  // 9. Format & Edit
+  // 9. Record
   [
     (ShortcutCommand.recordVoice, 'Record Voice'),
     (ShortcutCommand.recordRound, 'Record Video Message'),
-    (ShortcutCommand.formatBold, 'Bold'),
-    (ShortcutCommand.formatItalic, 'Italic'),
-    (ShortcutCommand.formatUnderline, 'Underline'),
-    (ShortcutCommand.formatStrike, 'Strikethrough'),
-    (ShortcutCommand.formatCode, 'Monospace'),
-    (ShortcutCommand.formatBlockquote, 'Blockquote'),
-    (ShortcutCommand.formatSpoiler, 'Spoiler'),
-    (ShortcutCommand.formatClear, 'Clear Formatting'),
-    (ShortcutCommand.formatLink, 'Create Link'),
-    (ShortcutCommand.formatDate, 'Insert Date'),
-    (ShortcutCommand.editLastMessage, 'Edit Last Message'),
-    (ShortcutCommand.replyPrevious, 'Reply to Previous'),
-    (ShortcutCommand.replyNext, 'Reply to Next'),
-    (ShortcutCommand.openFilePicker, 'Send File'),
-    (ShortcutCommand.pastePlainText, 'Paste as Plain Text'),
   ],
   // 10. Admin Log
   [
@@ -130,12 +112,29 @@ final _modifierKeys = {
   LogicalKeyboardKey.metaRight,
 };
 
-final _functionKeys = {
-  LogicalKeyboardKey.f1, LogicalKeyboardKey.f2, LogicalKeyboardKey.f3,
-  LogicalKeyboardKey.f4, LogicalKeyboardKey.f5, LogicalKeyboardKey.f6,
-  LogicalKeyboardKey.f7, LogicalKeyboardKey.f8, LogicalKeyboardKey.f9,
-  LogicalKeyboardKey.f10, LogicalKeyboardKey.f11, LogicalKeyboardKey.f12,
+final _serviceKeys = {
+  LogicalKeyboardKey.escape, LogicalKeyboardKey.tab,
+  LogicalKeyboardKey.backspace, LogicalKeyboardKey.enter,
+  LogicalKeyboardKey.insert, LogicalKeyboardKey.delete,
+  LogicalKeyboardKey.pause, LogicalKeyboardKey.printScreen,
+  LogicalKeyboardKey.home, LogicalKeyboardKey.end,
+  LogicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowUp,
+  LogicalKeyboardKey.arrowRight, LogicalKeyboardKey.arrowDown,
+  LogicalKeyboardKey.pageUp, LogicalKeyboardKey.pageDown,
+  LogicalKeyboardKey.capsLock, LogicalKeyboardKey.numLock,
+  LogicalKeyboardKey.scrollLock,
 };
+
+bool _allowWithoutModifiers(LogicalKeyboardKey key) {
+  if (_serviceKeys.contains(key)) return false;
+  if (_modifierKeys.contains(key)) return false;
+  final label = key.keyLabel;
+  if (label.length == 1) {
+    final c = label.codeUnitAt(0);
+    if (c >= 0x20 && c <= 0x7E) return false;
+  }
+  return true;
+}
 
 class ShortcutsSettingsScreen extends StatefulWidget {
   const ShortcutsSettingsScreen({super.key});
@@ -257,6 +256,31 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
     _startRecording(cmd, newIndex);
   }
 
+  void _showContextMenu(ShortcutCommand cmd, Offset globalPosition) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final menuText = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    showMenu<void>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx, globalPosition.dy,
+        globalPosition.dx, globalPosition.dy,
+      ),
+      items: [
+        PopupMenuItem<void>(
+          onTap: () => _addAnotherBinding(cmd),
+          child: Row(
+            children: [
+              Icon(Icons.add, size: 20, color: menuText),
+              const SizedBox(width: 12),
+              Text('Add another binding',
+                style: TextStyle(fontSize: 14, color: menuText)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   void _resetToDefaults() {
     if (_isRecording) _cancelRecording();
     setState(() {
@@ -305,7 +329,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
     }
 
     final hasModifier = hwCtrl || alt || hwMeta;
-    if (!hasModifier && !shift && !_functionKeys.contains(key)) {
+    if (!hasModifier && !shift && !_allowWithoutModifiers(key)) {
       _cancelRecording();
       return;
     }
@@ -434,7 +458,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
           textColor: textColor,
           hoverBg: hoverBg,
           onTap: () => _startRecording(cmd, 0),
-          onSecondaryTap: () => _addAnotherBinding(cmd),
+          onSecondaryTapUp: (pos) => _showContextMenu(cmd, pos),
         ),
       ];
     }
@@ -456,7 +480,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
         textColor: textColor,
         hoverBg: hoverBg,
         onTap: () => _startRecording(cmd, i),
-        onSecondaryTap: () => _addAnotherBinding(cmd),
+        onSecondaryTapUp: (pos) => _showContextMenu(cmd, pos),
       ));
     }
 
@@ -470,7 +494,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
         textColor: textColor,
         hoverBg: hoverBg,
         onTap: () {},
-        onSecondaryTap: () {},
+        onSecondaryTapUp: (_) {},
       ));
     }
 
@@ -526,7 +550,7 @@ class _ShortcutRow extends StatelessWidget {
   final Color textColor;
   final Color hoverBg;
   final VoidCallback onTap;
-  final VoidCallback onSecondaryTap;
+  final void Function(Offset globalPosition) onSecondaryTapUp;
 
   const _ShortcutRow({
     required this.label,
@@ -538,13 +562,13 @@ class _ShortcutRow extends StatelessWidget {
     required this.textColor,
     required this.hoverBg,
     required this.onTap,
-    required this.onSecondaryTap,
+    required this.onSecondaryTapUp,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onSecondaryTapUp: (_) => onSecondaryTap(),
+      onSecondaryTapUp: (details) => onSecondaryTapUp(details.globalPosition),
       child: InkWell(
         onTap: onTap,
         hoverColor: hoverBg,
