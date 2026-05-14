@@ -1335,14 +1335,18 @@ func (x *CallSession) GetMeta() map[string]string {
 }
 
 type CallParticipant struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	IsMuted       bool                   `protobuf:"varint,3,opt,name=is_muted,json=isMuted,proto3" json:"is_muted,omitempty"`
-	IsSpeaking    bool                   `protobuf:"varint,4,opt,name=is_speaking,json=isSpeaking,proto3" json:"is_speaking,omitempty"`
-	HasVideo      bool                   `protobuf:"varint,5,opt,name=has_video,json=hasVideo,proto3" json:"has_video,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	UserId           string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DisplayName      string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	IsMuted          bool                   `protobuf:"varint,3,opt,name=is_muted,json=isMuted,proto3" json:"is_muted,omitempty"`
+	IsSpeaking       bool                   `protobuf:"varint,4,opt,name=is_speaking,json=isSpeaking,proto3" json:"is_speaking,omitempty"`
+	HasVideo         bool                   `protobuf:"varint,5,opt,name=has_video,json=hasVideo,proto3" json:"has_video,omitempty"`
+	CanSelfUnmute    bool                   `protobuf:"varint,6,opt,name=can_self_unmute,json=canSelfUnmute,proto3" json:"can_self_unmute,omitempty"`
+	RaisedHandRating int64                  `protobuf:"varint,7,opt,name=raised_hand_rating,json=raisedHandRating,proto3" json:"raised_hand_rating,omitempty"`
+	Volume           int32                  `protobuf:"varint,8,opt,name=volume,proto3" json:"volume,omitempty"`
+	AudioLevel       float64                `protobuf:"fixed64,9,opt,name=audio_level,json=audioLevel,proto3" json:"audio_level,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *CallParticipant) Reset() {
@@ -1408,6 +1412,34 @@ func (x *CallParticipant) GetHasVideo() bool {
 		return x.HasVideo
 	}
 	return false
+}
+
+func (x *CallParticipant) GetCanSelfUnmute() bool {
+	if x != nil {
+		return x.CanSelfUnmute
+	}
+	return false
+}
+
+func (x *CallParticipant) GetRaisedHandRating() int64 {
+	if x != nil {
+		return x.RaisedHandRating
+	}
+	return 0
+}
+
+func (x *CallParticipant) GetVolume() int32 {
+	if x != nil {
+		return x.Volume
+	}
+	return 0
+}
+
+func (x *CallParticipant) GetAudioLevel() float64 {
+	if x != nil {
+		return x.AudioLevel
+	}
+	return 0
 }
 
 type Folder struct {
@@ -2126,14 +2158,19 @@ const file_proto_models_proto_rawDesc = "" +
 	"\x04meta\x18\a \x03(\v2 .uniclient.CallSession.MetaEntryR\x04meta\x1a7\n" +
 	"\tMetaEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa6\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb5\x02\n" +
 	"\x0fCallParticipant\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x19\n" +
 	"\bis_muted\x18\x03 \x01(\bR\aisMuted\x12\x1f\n" +
 	"\vis_speaking\x18\x04 \x01(\bR\n" +
 	"isSpeaking\x12\x1b\n" +
-	"\thas_video\x18\x05 \x01(\bR\bhasVideo\"G\n" +
+	"\thas_video\x18\x05 \x01(\bR\bhasVideo\x12&\n" +
+	"\x0fcan_self_unmute\x18\x06 \x01(\bR\rcanSelfUnmute\x12,\n" +
+	"\x12raised_hand_rating\x18\a \x01(\x03R\x10raisedHandRating\x12\x16\n" +
+	"\x06volume\x18\b \x01(\x05R\x06volume\x12\x1f\n" +
+	"\vaudio_level\x18\t \x01(\x01R\n" +
+	"audioLevel\"G\n" +
 	"\x06Folder\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +

@@ -171,11 +171,15 @@ message CallSession {
 }
 
 message CallParticipant {
-  string user_id      = 1;
-  string display_name = 2;
-  bool   is_muted     = 3;
-  bool   is_speaking  = 4;
-  bool   has_video    = 5;
+  string user_id           = 1;
+  string display_name      = 2;
+  bool   is_muted          = 3;
+  bool   is_speaking       = 4;
+  bool   has_video         = 5;
+  bool   can_self_unmute   = 6;
+  int64  raised_hand_rating = 7;
+  int32  volume            = 8;
+  double audio_level       = 9;
 }
 
 message Folder {

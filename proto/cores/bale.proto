@@ -1535,6 +1535,14 @@ message BaleTerminateSessionRequest {
 message BaleTerminateSessionResponse {
 }
 
+message BaleToggleCameraRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message BaleToggleCameraResponse {
+}
+
 message BaleUnbanMemberRequest {
   string chat_id = 1;
   string user_id = 2;

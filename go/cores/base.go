@@ -493,11 +493,15 @@ type CallSession struct {
 
 // CallParticipant represents a user in a call with their audio/video state.
 type CallParticipant struct {
-	UserID      string `json:"user_id"`
-	DisplayName string `json:"display_name"`
-	IsMuted     bool   `json:"is_muted"`
-	IsSpeaking  bool   `json:"is_speaking"`
-	HasVideo    bool   `json:"has_video"`
+	UserID           string  `json:"user_id"`
+	DisplayName      string  `json:"display_name"`
+	IsMuted          bool    `json:"is_muted"`
+	IsSpeaking       bool    `json:"is_speaking"`
+	HasVideo         bool    `json:"has_video"`
+	CanSelfUnmute    bool    `json:"can_self_unmute"`
+	RaisedHandRating int64   `json:"raised_hand_rating,omitempty"`
+	Volume           int     `json:"volume,omitempty"`
+	AudioLevel       float64 `json:"audio_level,omitempty"`
 }
 
 // Folder represents a named collection of chats for organizing the dialog list.

@@ -2190,6 +2190,14 @@ message TeamspeakTerminateSessionRequest {
 message TeamspeakTerminateSessionResponse {
 }
 
+message TeamspeakToggleCameraRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message TeamspeakToggleCameraResponse {
+}
+
 message TeamspeakUnbanMemberRequest {
   string param_1 = 1;
   string user_id = 2;

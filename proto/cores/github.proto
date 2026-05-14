@@ -1932,6 +1932,14 @@ message GithubTerminateSessionRequest {
 message GithubTerminateSessionResponse {
 }
 
+message GithubToggleCameraRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message GithubToggleCameraResponse {
+}
+
 message GithubTransferRepoRequest {
   string owner = 1;
   string repo = 2;

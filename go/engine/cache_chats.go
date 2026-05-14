@@ -1410,12 +1410,16 @@ type GroupCallInfo struct {
 
 // GroupCallParticipant is a single participant in a group call.
 type GroupCallParticipant struct {
-	UserID      string `json:"user_id"`
-	DisplayName string `json:"display_name"`
-	IsMuted     bool   `json:"is_muted"`
-	IsSpeaking  bool   `json:"is_speaking"`
-	HasVideo    bool   `json:"has_video"`
-	AvatarPath  string `json:"avatar_path,omitempty"`
+	UserID           string  `json:"user_id"`
+	DisplayName      string  `json:"display_name"`
+	IsMuted          bool    `json:"is_muted"`
+	IsSpeaking       bool    `json:"is_speaking"`
+	HasVideo         bool    `json:"has_video"`
+	AvatarPath       string  `json:"avatar_path,omitempty"`
+	CanSelfUnmute    bool    `json:"can_self_unmute"`
+	RaisedHandRating int64   `json:"raised_hand_rating,omitempty"`
+	Volume           int     `json:"volume,omitempty"`
+	AudioLevel       float64 `json:"audio_level,omitempty"`
 }
 
 // GetGroupCall checks whether a chat has an active group call and returns its info.
@@ -1458,11 +1462,15 @@ func (e *Engine) GetGroupCall(accountID, chatID string) (*GroupCallInfo, error) 
 	}
 	for _, p := range cs.Participants {
 		info.Participants = append(info.Participants, GroupCallParticipant{
-			UserID:      p.UserID,
-			DisplayName: p.DisplayName,
-			IsMuted:     p.IsMuted,
-			IsSpeaking:  p.IsSpeaking,
-			HasVideo:    p.HasVideo,
+			UserID:           p.UserID,
+			DisplayName:      p.DisplayName,
+			IsMuted:          p.IsMuted,
+			IsSpeaking:       p.IsSpeaking,
+			HasVideo:         p.HasVideo,
+			CanSelfUnmute:    p.CanSelfUnmute,
+			RaisedHandRating: p.RaisedHandRating,
+			Volume:           p.Volume,
+			AudioLevel:       p.AudioLevel,
 		})
 	}
 	if info.ParticipantsCount == 0 && len(info.Participants) > 0 {

@@ -3054,6 +3054,14 @@ message XmppTerminateSessionRequest {
 message XmppTerminateSessionResponse {
 }
 
+message XmppToggleCameraRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message XmppToggleCameraResponse {
+}
+
 message XmppUnbanFromMUCRequest {
   string room_j_id = 1;
   string user_j_id = 2;

@@ -1883,6 +1883,14 @@ message MatrixTimestampToEventResponse {
   bytes result_1 = 1;
 }
 
+message MatrixToggleCameraRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message MatrixToggleCameraResponse {
+}
+
 message MatrixUnbanMemberRequest {
   string chat_id = 1;
   string user_id = 2;

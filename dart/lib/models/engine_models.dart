@@ -1062,6 +1062,8 @@ class CachedMessage {
     int? scheduleDate,
     bool? isSilent,
     int? scheduleRepeatPeriod,
+    bool? mediaUnread,
+    int? ttlSeconds,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -1177,6 +1179,8 @@ class CachedMessage {
     scheduleDate: scheduleDate ?? this.scheduleDate,
     isSilent: isSilent ?? this.isSilent,
     scheduleRepeatPeriod: scheduleRepeatPeriod ?? this.scheduleRepeatPeriod,
+    mediaUnread: mediaUnread ?? this.mediaUnread,
+    ttlSeconds: ttlSeconds ?? this.ttlSeconds,
   );
 
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;
@@ -2160,6 +2164,9 @@ class GroupCallParticipant {
   final bool isSpeaking;
   final bool hasVideo;
   final String avatarPath;
+  final bool canSelfUnmute;
+  final int raisedHandRating;
+  final int volume;
   final double audioLevel;
 
   const GroupCallParticipant({
@@ -2169,6 +2176,9 @@ class GroupCallParticipant {
     this.isSpeaking = false,
     this.hasVideo = false,
     this.avatarPath = '',
+    this.canSelfUnmute = false,
+    this.raisedHandRating = 0,
+    this.volume = 0,
     this.audioLevel = 0.0,
   });
 
@@ -2179,6 +2189,9 @@ class GroupCallParticipant {
     isSpeaking: j['is_speaking'] as bool? ?? false,
     hasVideo: j['has_video'] as bool? ?? false,
     avatarPath: j['avatar_path'] as String? ?? '',
+    canSelfUnmute: j['can_self_unmute'] as bool? ?? false,
+    raisedHandRating: (j['raised_hand_rating'] as num?)?.toInt() ?? 0,
+    volume: (j['volume'] as num?)?.toInt() ?? 0,
     audioLevel: (j['audio_level'] as num?)?.toDouble() ?? 0.0,
   );
 }
@@ -2932,8 +2945,12 @@ class StoryItem {
   final int height;
   final int duration;
   final int views;
+  final int forwards;
+  final int reactions;
   final bool pinned;
   final bool edited;
+  final bool noForwards;
+  final int expires;
   final StoryPrivacy privacy;
   final String fwdFromName;
   final String fwdFromPeerId;
@@ -2952,8 +2969,12 @@ class StoryItem {
     this.height = 0,
     this.duration = 0,
     this.views = 0,
+    this.forwards = 0,
+    this.reactions = 0,
     this.pinned = false,
     this.edited = false,
+    this.noForwards = false,
+    this.expires = 0,
     this.privacy = StoryPrivacy.public,
     this.fwdFromName = '',
     this.fwdFromPeerId = '',
@@ -2965,6 +2986,7 @@ class StoryItem {
   bool get isVideo => mediaType == 'video';
   bool get hasMedia => localPath.isNotEmpty;
   bool get isRepost => fwdFromName.isNotEmpty || fwdFromPeerId.isNotEmpty;
+  bool get isExpired => expires > 0 && DateTime.now().millisecondsSinceEpoch ~/ 1000 >= expires;
 
   factory StoryItem.fromJson(Map<String, dynamic> j) {
     final fileRef = j['file_ref'] as Map<String, dynamic>? ?? {};
@@ -2986,8 +3008,12 @@ class StoryItem {
       height: (fileRef['height'] as num?)?.toInt() ?? 0,
       duration: (fileRef['duration'] as num?)?.toInt() ?? 0,
       views: (j['views'] as num?)?.toInt() ?? 0,
+      forwards: (j['forwards'] as num?)?.toInt() ?? 0,
+      reactions: (j['reactions'] as num?)?.toInt() ?? 0,
       pinned: j['pinned'] as bool? ?? false,
       edited: j['edited'] as bool? ?? false,
+      noForwards: j['no_forwards'] as bool? ?? false,
+      expires: (j['expires'] as num?)?.toInt() ?? 0,
       privacy: priv,
       fwdFromName: j['fwd_from_name'] as String? ?? '',
       fwdFromPeerId: j['fwd_from_peer_id'] as String? ?? '',

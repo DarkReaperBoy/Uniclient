@@ -918,12 +918,16 @@ message EngineGetOnlineCountResponse {
 // ═══════════════════════════════════════════════════════════════════════
 
 message EngineGroupCallParticipant {
-  string user_id      = 1;
-  string display_name = 2;
-  bool   is_muted     = 3;
-  bool   is_speaking  = 4;
-  bool   has_video    = 5;
-  string avatar_path  = 6;
+  string user_id            = 1;
+  string display_name       = 2;
+  bool   is_muted           = 3;
+  bool   is_speaking        = 4;
+  bool   has_video          = 5;
+  string avatar_path        = 6;
+  bool   can_self_unmute    = 7;
+  int64  raised_hand_rating = 8;
+  int32  volume             = 9;
+  double audio_level        = 10;
 }
 
 message EngineGroupCallInfo {

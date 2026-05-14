@@ -1696,6 +1696,14 @@ message MumbleTerminateSessionRequest {
 message MumbleTerminateSessionResponse {
 }
 
+message MumbleToggleCameraRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message MumbleToggleCameraResponse {
+}
+
 message MumbleTriggerContextActionRequest {
   string action = 1;
   uint32 session = 2;

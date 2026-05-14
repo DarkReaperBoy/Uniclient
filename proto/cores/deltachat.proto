@@ -1940,6 +1940,14 @@ message DeltachatTerminateSessionRequest {
 message DeltachatTerminateSessionResponse {
 }
 
+message DeltachatToggleCameraRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message DeltachatToggleCameraResponse {
+}
+
 message DeltachatUnbanMemberRequest {
   string chat_id = 1;
   string user_id = 2;

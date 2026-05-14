@@ -590,6 +590,8 @@ func CallSessionToProto(c *cores.CallSession) *pb.CallSession {
 		parts[i] = &pb.CallParticipant{
 			UserId: p.UserID, DisplayName: p.DisplayName,
 			IsMuted: p.IsMuted, IsSpeaking: p.IsSpeaking, HasVideo: p.HasVideo,
+			CanSelfUnmute: p.CanSelfUnmute, RaisedHandRating: p.RaisedHandRating,
+			Volume: int32(p.Volume), AudioLevel: p.AudioLevel,
 		}
 	}
 	return &pb.CallSession{

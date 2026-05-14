@@ -2168,12 +2168,16 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			}
 			for _, p := range info.Participants {
 				gc.Participants = append(gc.Participants, &pb.EngineGroupCallParticipant{
-					UserId:      p.UserID,
-					DisplayName: p.DisplayName,
-					IsMuted:     p.IsMuted,
-					IsSpeaking:  p.IsSpeaking,
-					HasVideo:    p.HasVideo,
-					AvatarPath:  p.AvatarPath,
+					UserId:           p.UserID,
+					DisplayName:      p.DisplayName,
+					IsMuted:          p.IsMuted,
+					IsSpeaking:       p.IsSpeaking,
+					HasVideo:         p.HasVideo,
+					AvatarPath:       p.AvatarPath,
+					CanSelfUnmute:    p.CanSelfUnmute,
+					RaisedHandRating: p.RaisedHandRating,
+					Volume:           int32(p.Volume),
+					AudioLevel:       p.AudioLevel,
 				})
 			}
 			resp.GroupCall = gc

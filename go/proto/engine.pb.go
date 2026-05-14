@@ -7840,15 +7840,19 @@ func (x *EngineGetOnlineCountResponse) GetOnlineCount() int32 {
 }
 
 type EngineGroupCallParticipant struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	IsMuted       bool                   `protobuf:"varint,3,opt,name=is_muted,json=isMuted,proto3" json:"is_muted,omitempty"`
-	IsSpeaking    bool                   `protobuf:"varint,4,opt,name=is_speaking,json=isSpeaking,proto3" json:"is_speaking,omitempty"`
-	HasVideo      bool                   `protobuf:"varint,5,opt,name=has_video,json=hasVideo,proto3" json:"has_video,omitempty"`
-	AvatarPath    string                 `protobuf:"bytes,6,opt,name=avatar_path,json=avatarPath,proto3" json:"avatar_path,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	UserId           string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DisplayName      string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	IsMuted          bool                   `protobuf:"varint,3,opt,name=is_muted,json=isMuted,proto3" json:"is_muted,omitempty"`
+	IsSpeaking       bool                   `protobuf:"varint,4,opt,name=is_speaking,json=isSpeaking,proto3" json:"is_speaking,omitempty"`
+	HasVideo         bool                   `protobuf:"varint,5,opt,name=has_video,json=hasVideo,proto3" json:"has_video,omitempty"`
+	AvatarPath       string                 `protobuf:"bytes,6,opt,name=avatar_path,json=avatarPath,proto3" json:"avatar_path,omitempty"`
+	CanSelfUnmute    bool                   `protobuf:"varint,7,opt,name=can_self_unmute,json=canSelfUnmute,proto3" json:"can_self_unmute,omitempty"`
+	RaisedHandRating int64                  `protobuf:"varint,8,opt,name=raised_hand_rating,json=raisedHandRating,proto3" json:"raised_hand_rating,omitempty"`
+	Volume           int32                  `protobuf:"varint,9,opt,name=volume,proto3" json:"volume,omitempty"`
+	AudioLevel       float64                `protobuf:"fixed64,10,opt,name=audio_level,json=audioLevel,proto3" json:"audio_level,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *EngineGroupCallParticipant) Reset() {
@@ -7921,6 +7925,34 @@ func (x *EngineGroupCallParticipant) GetAvatarPath() string {
 		return x.AvatarPath
 	}
 	return ""
+}
+
+func (x *EngineGroupCallParticipant) GetCanSelfUnmute() bool {
+	if x != nil {
+		return x.CanSelfUnmute
+	}
+	return false
+}
+
+func (x *EngineGroupCallParticipant) GetRaisedHandRating() int64 {
+	if x != nil {
+		return x.RaisedHandRating
+	}
+	return 0
+}
+
+func (x *EngineGroupCallParticipant) GetVolume() int32 {
+	if x != nil {
+		return x.Volume
+	}
+	return 0
+}
+
+func (x *EngineGroupCallParticipant) GetAudioLevel() float64 {
+	if x != nil {
+		return x.AudioLevel
+	}
+	return 0
 }
 
 type EngineGroupCallInfo struct {
@@ -14171,7 +14203,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\"A\n" +
 	"\x1cEngineGetOnlineCountResponse\x12!\n" +
-	"\fonline_count\x18\x01 \x01(\x05R\vonlineCount\"\xd2\x01\n" +
+	"\fonline_count\x18\x01 \x01(\x05R\vonlineCount\"\xe1\x02\n" +
 	"\x1aEngineGroupCallParticipant\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x19\n" +
@@ -14180,7 +14212,13 @@ const file_proto_engine_proto_rawDesc = "" +
 	"isSpeaking\x12\x1b\n" +
 	"\thas_video\x18\x05 \x01(\bR\bhasVideo\x12\x1f\n" +
 	"\vavatar_path\x18\x06 \x01(\tR\n" +
-	"avatarPath\"\xef\x01\n" +
+	"avatarPath\x12&\n" +
+	"\x0fcan_self_unmute\x18\a \x01(\bR\rcanSelfUnmute\x12,\n" +
+	"\x12raised_hand_rating\x18\b \x01(\x03R\x10raisedHandRating\x12\x16\n" +
+	"\x06volume\x18\t \x01(\x05R\x06volume\x12\x1f\n" +
+	"\vaudio_level\x18\n" +
+	" \x01(\x01R\n" +
+	"audioLevel\"\xef\x01\n" +
 	"\x13EngineGroupCallInfo\x12\x17\n" +
 	"\acall_id\x18\x01 \x01(\tR\x06callId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x14\n" +

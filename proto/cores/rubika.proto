@@ -2086,6 +2086,14 @@ message RubikaTerminateSessionRequest {
 message RubikaTerminateSessionResponse {
 }
 
+message RubikaToggleCameraRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message RubikaToggleCameraResponse {
+}
+
 message RubikaTranscribeVoiceRequest {
   string chat_id = 1;
   string msg_id = 2;

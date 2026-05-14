@@ -3027,6 +3027,14 @@ message IrcTlineRequest {
 message IrcTlineResponse {
 }
 
+message IrcToggleCameraRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message IrcToggleCameraResponse {
+}
+
 message IrcTsctlRequest {
   string subcmd = 1;
 }

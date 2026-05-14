@@ -581,11 +581,22 @@ func (t *TelegramCore) initClient() {
 					}
 				}
 			}
+			vol := 0
+			if v, ok := p.GetVolume(); ok {
+				vol = v
+			}
+			rhr := int64(0)
+			if r, ok := p.GetRaiseHandRating(); ok {
+				rhr = r
+			}
 			participants = append(participants, CallParticipant{
-				UserID:      userID,
-				DisplayName: displayName,
-				IsMuted:     p.Muted,
-				HasVideo:    p.VideoJoined,
+				UserID:           userID,
+				DisplayName:      displayName,
+				IsMuted:          p.Muted,
+				HasVideo:         p.VideoJoined,
+				CanSelfUnmute:    p.CanSelfUnmute,
+				RaisedHandRating: rhr,
+				Volume:           vol,
 			})
 		}
 		// If video endpoints changed, update SFU subscription
@@ -17125,8 +17136,12 @@ func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 		MediaType     string           `json:"media_type"`
 		FileRef       FileRef          `json:"file_ref"`
 		Views         int              `json:"views"`
+		Forwards      int              `json:"forwards,omitempty"`
+		Reactions     int              `json:"reactions,omitempty"`
 		Pinned        bool             `json:"pinned"`
 		Edited        bool             `json:"edited"`
+		NoForwards    bool             `json:"no_forwards,omitempty"`
+		Expires       int              `json:"expires,omitempty"`
 		Privacy       string           `json:"privacy"`
 		FwdFromName   string           `json:"fwd_from_name,omitempty"`
 		FwdFromPeerID string           `json:"fwd_from_peer_id,omitempty"`
@@ -17149,17 +17164,25 @@ func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 			privacy = "contacts"
 		}
 		item := storyItem{
-			ID:      si.ID,
-			Date:    si.Date,
-			Pinned:  si.Pinned,
-			Edited:  si.Edited,
-			Privacy: privacy,
+			ID:         si.ID,
+			Date:       si.Date,
+			Pinned:     si.Pinned,
+			Edited:     si.Edited,
+			NoForwards: si.Noforwards,
+			Expires:    si.ExpireDate,
+			Privacy:    privacy,
 		}
 		if caption, ok := si.GetCaption(); ok {
 			item.Caption = caption
 		}
 		if views, ok := si.GetViews(); ok {
 			item.Views = views.ViewsCount
+			if fc, ok := views.GetForwardsCount(); ok {
+				item.Forwards = fc
+			}
+			if rc, ok := views.GetReactionsCount(); ok {
+				item.Reactions = rc
+			}
 		}
 
 		switch md := si.Media.(type) {
