@@ -1206,9 +1206,6 @@ Before findings, confirmed matches (not issues):
 
 # shell — Audit findings
 
-## shell — _ConnectionStateWidget: missing startup grace period
-
-- [ ] [MAJOR] Missing `kIgnoreStartConnectingFor` 3-second startup grace period — AyuGram suppresses the first Connected→Connecting transition for 3 s after app start; Dart only has the 1000 ms `_showDelay`, causing spurious "Connecting…" flashes during initial login — `shell.dart:952,1029-1035` ← `window_connecting_widget.cpp:30,338-350`
 
 ## shell — _ConnectionStateWidget: widget not interactive
 
