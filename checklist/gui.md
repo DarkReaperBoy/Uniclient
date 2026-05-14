@@ -1209,29 +1209,29 @@ Before findings, confirmed matches (not issues):
 
 ## shell — _ConnectionStateWidget: widget not interactive
 
-- [ ] [MAJOR] Connecting pill is not a button — AyuGram wraps the whole widget in `AbstractButton` which opens `ProxiesBoxController` when clicked; Dart has no click handler on the pill container — `shell.dart:1094-1147` ← `window_connecting_widget.cpp:508-510`
+- [x] [MAJOR] Connecting pill is not a button — AyuGram wraps the whole widget in `AbstractButton` which opens `ProxiesBoxController` when clicked; Dart has no click handler on the pill container — `shell.dart:1094-1147` ← `window_connecting_widget.cpp:508-510`
 
 ## shell — _ConnectionStateWidget: missing slide-up position animation
 
-- [ ] [MAJOR] Connecting widget uses only FadeTransition; AyuGram also animates the widget's Y position from `height - connectingMargin.top (2px)` (off-screen) up to its visible position using `anim::interpolate`; Dart has no positional animation — `shell.dart:1071` ← `window_connecting_widget.cpp:267-271`
+- [x] [MAJOR] Connecting widget uses only FadeTransition; AyuGram also animates the widget's Y position from `height - connectingMargin.top (2px)` (off-screen) up to its visible position using `anim::interpolate`; Dart has no positional animation — `shell.dart:1071` ← `window_connecting_widget.cpp:267-271`
 
 ## shell — _ConnectionStateWidget: missing exposed-window guard
 
-- [ ] [MAJOR] `_syncVisibility` shows the widget unconditionally; AyuGram only marks `visible = true` when `state.exposed` (window handle is exposed/on-screen) — widget must stay hidden when the window is minimised or off-screen — `shell.dart:1023-1044` ← `window_connecting_widget.cpp:310,443-447`
+- [x] [MAJOR] `_syncVisibility` shows the widget unconditionally; AyuGram only marks `visible = true` when `state.exposed` (window handle is exposed/on-screen) — widget must stay hidden when the window is minimised or off-screen — `shell.dart:1023-1044` ← `window_connecting_widget.cpp:310,443-447`
 
 ## shell — _dialogsCollapsed mode has no AyuGram equivalent
 
-- [ ] [MAJOR] Dragging the dialogs resize handle below 130 px collapses the column to 0 width (`_dialogsCollapsed = true`); AyuGram enforces `columnMinimalWidthLeft = 260 px` as an absolute floor and has no avatar-only collapsed state — the column either exists at ≥ 260 px or the layout switches to OneColumn — `shell.dart:67,519-525,619-624` ← `window_session_controller.cpp:2528,2547-2554`
+- [x] [MAJOR] Dragging the dialogs resize handle below 130 px collapses the column to 0 width (`_dialogsCollapsed = true`); AyuGram enforces `columnMinimalWidthLeft = 260 px` as an absolute floor and has no avatar-only collapsed state — the column either exists at ≥ 260 px or the layout switches to OneColumn — `shell.dart:67,519-525,619-624` ← `window_session_controller.cpp:2528,2547-2554`
 
 # shortcuts_settings_screen — Audit Findings
 
-- [ ] [CRITICAL] Settings screen exposes 18 commands not present in AyuGram's settings UI: `cancelSearch`, `chatSwitchOverlay`, `chatSwitchOverlayReverse`, `formatBold`, `formatItalic`, `formatUnderline`, `formatStrike`, `formatCode`, `formatBlockquote`, `formatSpoiler`, `formatClear`, `formatLink`, `formatDate`, `editLastMessage`, `replyPrevious`, `replyNext`, `openFilePicker`, `pastePlainText` — none of these appear in `Entries()` in AyuGram; format shortcuts are fixed/non-configurable in Telegram Desktop — `shortcuts_settings_screen.dart:11-120` ← `AyuGram/settings/sections/settings_shortcuts.cpp:60-127`
+- [x] [CRITICAL] Settings screen exposes 18 commands not present in AyuGram's settings UI: `cancelSearch`, `chatSwitchOverlay`, `chatSwitchOverlayReverse`, `formatBold`, `formatItalic`, `formatUnderline`, `formatStrike`, `formatCode`, `formatBlockquote`, `formatSpoiler`, `formatClear`, `formatLink`, `formatDate`, `editLastMessage`, `replyPrevious`, `replyNext`, `openFilePicker`, `pastePlainText` — none of these appear in `Entries()` in AyuGram; format shortcuts are fixed/non-configurable in Telegram Desktop — `shortcuts_settings_screen.dart:11-120` ← `AyuGram/settings/sections/settings_shortcuts.cpp:60-127`
 
-- [ ] [MAJOR] Right-click on a shortcut row directly calls `_addAnotherBinding` with no popup menu — AyuGram shows a `PopupMenu` with an "Add another binding" action item before starting recording — `shortcuts_settings_screen.dart:437,459,473` ← `AyuGram/settings/sections/settings_shortcuts.cpp:305-326`
+- [x] [MAJOR] Right-click on a shortcut row directly calls `_addAnotherBinding` with no popup menu — AyuGram shows a `PopupMenu` with an "Add another binding" action item before starting recording — `shortcuts_settings_screen.dart:437,459,473` ← `AyuGram/settings/sections/settings_shortcuts.cpp:305-326`
 
-- [ ] [MAJOR] `_onRecordingKeyEvent` only permits modifier-free key presses for F1–F12 (`_functionKeys`), but AyuGram's `AllowWithoutModifiers` permits any key with code >= 0x80 that is not a service key (covers media keys, numpad, Insert, Pause, Print Screen, etc.) — `shortcuts_settings_screen.dart:307-310` ← `AyuGram/core/shortcuts.cpp:1014-1046`
+- [x] [MAJOR] `_onRecordingKeyEvent` only permits modifier-free key presses for F1–F12 (`_functionKeys`), but AyuGram's `AllowWithoutModifiers` permits any key with code >= 0x80 that is not a service key (covers media keys, numpad, Insert, Pause, Print Screen, etc.) — `shortcuts_settings_screen.dart:307-310` ← `AyuGram/core/shortcuts.cpp:1014-1046`
 
-- [ ] [MAJOR] `RecordVoice` and `RecordRound` are grouped with formatting commands in group 9 "Format & Edit" — AyuGram places them in a dedicated separator group between the Send group and `ShowAdminLog` — `shortcuts_settings_screen.dart:85-102` ← `AyuGram/settings/sections/settings_shortcuts.cpp:113-116`
+- [x] [MAJOR] `RecordVoice` and `RecordRound` are grouped with formatting commands in group 9 "Format & Edit" — AyuGram places them in a dedicated separator group between the Send group and `ShowAdminLog` — `shortcuts_settings_screen.dart:85-102` ← `AyuGram/settings/sections/settings_shortcuts.cpp:113-116`
 
 # spoiler_animation — 9 issues (0 CRITICAL, 9 MAJOR)
 

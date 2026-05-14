@@ -45,6 +45,7 @@ import 'notifications/notification_system.dart';
 import 'ui/notification_popup.dart';
 import 'ui/compose_entities.dart';
 import 'ui/custom_emoji_cache.dart';
+import 'ui/spoiler_animation.dart';
 import 'data/emoji_data.dart';
 import 'l10n/strings.dart';
 import 'package:media_kit/media_kit.dart';
@@ -281,6 +282,7 @@ class _UniClientAppState extends State<UniClientApp>
     }
 
     await CustomEmojiCache.instance.initDiskCache(cacheDir);
+    SpoilerAnimationManager.setCacheDir(cacheDir);
 
     // Initialize emoji keywords with validation and load persisted state.
     EmojiKeywords.instance.init();

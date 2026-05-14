@@ -21,6 +21,9 @@ const double _kParticleSizeMax = 2.0;
 const int _kAutoPauseTimeoutMs = 1000;
 const int _kColorCacheCapacity = 24;
 const double kSpoilerHiddenOpacity = 0.5;
+const int _kCacheVersion = 2;
+const int _kCacheHeaderSize = 20;
+const int _kImageSpoilerDarkenAlpha = 32;
 
 enum SpoilerType { text, image }
 
@@ -40,6 +43,9 @@ class SpoilerAnimationManager {
   SpoilerAnimationManager._();
   static final instance = SpoilerAnimationManager._();
 
+  static String _cacheDir = '';
+  static void setCacheDir(String dir) => _cacheDir = dir;
+
   SpoilerSpriteSheet? _textSheet;
   SpoilerSpriteSheet? _imageSheet;
   bool _textGenerating = false;
@@ -49,7 +55,7 @@ class SpoilerAnimationManager {
   final _imageCompleters = <Completer<SpoilerSpriteSheet>>[];
 
   int _activeCount = 0;
-  bool _callbackScheduled = false;
+  bool _ticking = false;
   int _currentFrame = 0;
   final _listeners = <VoidCallback>{};
 
@@ -62,10 +68,7 @@ class SpoilerAnimationManager {
 
   void register() {
     _activeCount++;
-    if (!_callbackScheduled) {
-      _callbackScheduled = true;
-      SchedulerBinding.instance.addPersistentFrameCallback(_onFrame);
-    }
+    _ensureTicking();
   }
 
   void unregister() {
@@ -73,15 +76,27 @@ class SpoilerAnimationManager {
     if (_activeCount < 0) _activeCount = 0;
   }
 
+  void _ensureTicking() {
+    if (_ticking || _activeCount <= 0) return;
+    _ticking = true;
+    SchedulerBinding.instance.scheduleFrameCallback(_onFrame);
+  }
+
   void _onFrame(Duration timestamp) {
+    _ticking = false;
     if (_activeCount <= 0 || _listeners.isEmpty) return;
-    if (powerSavingPaused) return;
-    final frame = (timestamp.inMilliseconds ~/ 33) % _kFrameCount;
-    if (frame != _currentFrame) {
-      _currentFrame = frame;
-      for (final cb in List.of(_listeners)) {
-        cb();
+    if (!powerSavingPaused) {
+      final frame = (timestamp.inMilliseconds ~/ 33) % _kFrameCount;
+      if (frame != _currentFrame) {
+        _currentFrame = frame;
+        for (final cb in List.of(_listeners)) {
+          cb();
+        }
       }
+    }
+    if (_activeCount > 0) {
+      _ticking = true;
+      SchedulerBinding.instance.scheduleFrameCallback(_onFrame);
     }
   }
 
@@ -130,14 +145,49 @@ class SpoilerAnimationManager {
   }
 }
 
+String _spoilerCacheDir() {
+  if (SpoilerAnimationManager._cacheDir.isEmpty) return '';
+  return '${SpoilerAnimationManager._cacheDir}/spoiler';
+}
+
+int _fnv1a32(Uint8List data) {
+  int hash = 0x811c9dc5;
+  for (int i = 0; i < data.length; i++) {
+    hash ^= data[i];
+    hash = (hash * 0x01000193) & 0xFFFFFFFF;
+  }
+  return hash;
+}
+
 Future<SpoilerSpriteSheet?> _loadSpoilerCache(
     SpoilerType type, double expectedTileSize) async {
+  final cacheBase = _spoilerCacheDir();
+  if (cacheBase.isEmpty) return null;
   try {
     final name = type == SpoilerType.text ? 'text' : 'image';
-    final file = File('/tmp/uniclient_spoiler_cache/$name.png');
+    final file = File('$cacheBase/$name.bin');
     if (!file.existsSync()) return null;
-    final pngBytes = await file.readAsBytes();
-    final codec = await ui.instantiateImageCodec(pngBytes);
+    final bytes = await file.readAsBytes();
+    if (bytes.length <= _kCacheHeaderSize) return null;
+
+    final header = ByteData.sublistView(bytes, 0, _kCacheHeaderSize);
+    final version = header.getUint32(0, Endian.little);
+    final framesCount = header.getUint32(4, Endian.little);
+    final canvasSize = header.getUint32(8, Endian.little);
+    final dataLen = header.getUint32(12, Endian.little);
+    final storedHash = header.getUint32(16, Endian.little);
+
+    if (version != _kCacheVersion ||
+        framesCount != _kFrameCount ||
+        canvasSize != expectedTileSize.round() ||
+        _kCacheHeaderSize + dataLen != bytes.length) {
+      return null;
+    }
+
+    final pngData = Uint8List.sublistView(bytes, _kCacheHeaderSize);
+    if (_fnv1a32(pngData) != storedHash) return null;
+
+    final codec = await ui.instantiateImageCodec(pngData);
     final frame = await codec.getNextFrame();
     final image = frame.image;
     final tileSize = image.width.toDouble() / _kFramesPerRow;
@@ -152,15 +202,30 @@ Future<SpoilerSpriteSheet?> _loadSpoilerCache(
 }
 
 Future<void> _saveSpoilerCache(SpoilerType type, ui.Image image) async {
+  final cacheBase = _spoilerCacheDir();
+  if (cacheBase.isEmpty) return;
   try {
-    final dir = Directory('/tmp/uniclient_spoiler_cache');
+    final dir = Directory(cacheBase);
     if (!dir.existsSync()) dir.createSync(recursive: true);
     final name = type == SpoilerType.text ? 'text' : 'image';
-    final file = File('${dir.path}/$name.png');
+    final file = File('${dir.path}/$name.bin');
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (byteData != null) {
-      await file.writeAsBytes(byteData.buffer.asUint8List());
-    }
+    if (byteData == null) return;
+
+    final pngData = byteData.buffer.asUint8List();
+    final tileSize = image.width ~/ _kFramesPerRow;
+
+    final header = ByteData(_kCacheHeaderSize);
+    header.setUint32(0, _kCacheVersion, Endian.little);
+    header.setUint32(4, _kFrameCount, Endian.little);
+    header.setUint32(8, tileSize, Endian.little);
+    header.setUint32(12, pngData.length, Endian.little);
+    header.setUint32(16, _fnv1a32(pngData), Endian.little);
+
+    final out = Uint8List(_kCacheHeaderSize + pngData.length);
+    out.setRange(0, _kCacheHeaderSize, header.buffer.asUint8List());
+    out.setRange(_kCacheHeaderSize, out.length, pngData);
+    await file.writeAsBytes(out);
   } catch (_) {}
 }
 
@@ -252,6 +317,7 @@ Future<SpoilerSpriteSheet> _renderSpriteSheet(SpoilerType type) async {
   final tilePx = (_kCanvasSize * dpr).roundToDouble();
   final sheetW = (tilePx * _kFramesPerRow).toInt();
   final sheetH = (tilePx * _kRows).toInt();
+  final isImage = type == SpoilerType.image;
 
   final frameData = await compute(
     _computeParticleFrameData,
@@ -291,9 +357,17 @@ Future<SpoilerSpriteSheet> _renderSpriteSheet(SpoilerType type) async {
     final row = f ~/ _kFramesPerRow;
     final ox = col * tilePx;
     final oy = row * tilePx;
+    final tileRect = Rect.fromLTWH(ox, oy, tilePx, tilePx);
 
     canvas.save();
-    canvas.clipRect(Rect.fromLTWH(ox, oy, tilePx, tilePx));
+    canvas.clipRect(tileRect);
+
+    if (isImage) {
+      canvas.drawRect(
+        tileRect,
+        Paint()..color = Color.fromRGBO(0, 0, 0, _kImageSpoilerDarkenAlpha / 255),
+      );
+    }
 
     final cmds = frameData[f];
     for (int j = 0; j < cmds.length; j += 4) {
@@ -305,7 +379,6 @@ Future<SpoilerSpriteSheet> _renderSpriteSheet(SpoilerType type) async {
     }
 
     canvas.restore();
-    await Future.delayed(Duration.zero);
   }
 
   final picture = recorder.endRecording();
@@ -321,6 +394,7 @@ class SpoilerTilePainter extends CustomPainter {
   final Color? tintColor;
   final bool isMedia;
   final BorderRadius? borderRadius;
+  final Offset originShift;
 
   SpoilerTilePainter({
     required this.sheet,
@@ -329,6 +403,7 @@ class SpoilerTilePainter extends CustomPainter {
     this.tintColor,
     this.isMedia = false,
     this.borderRadius,
+    this.originShift = Offset.zero,
   });
 
   @override
@@ -338,18 +413,11 @@ class SpoilerTilePainter extends CustomPainter {
     final rect = Offset.zero & size;
     final hasCorners = borderRadius != null && borderRadius != BorderRadius.zero;
 
+    canvas.save();
     if (hasCorners) {
-      canvas.saveLayer(rect, Paint());
+      canvas.clipRRect(borderRadius!.toRRect(rect));
     } else {
-      canvas.save();
       canvas.clipRect(rect);
-    }
-
-    if (isMedia) {
-      canvas.drawRect(
-        rect,
-        Paint()..color = Color.fromRGBO(0, 0, 0, (32 / 255) * opacity),
-      );
     }
 
     final src = sheet.frameRect(frame.clamp(0, _kFrameCount - 1));
@@ -357,59 +425,33 @@ class SpoilerTilePainter extends CustomPainter {
 
     final paint = Paint();
     if (tintColor != null) {
-      paint.colorFilter = SpoilerColorCache.instance.getFilter(
-        tintColor!.withValues(alpha: opacity * 0.85),
-      );
+      paint.colorFilter = SpoilerColorCache.instance.getFilter(tintColor!);
+      paint.color = Color.fromRGBO(255, 255, 255, opacity * 0.85);
     } else {
       paint.color = Color.fromRGBO(255, 255, 255, opacity * 0.85);
       paint.blendMode = BlendMode.srcOver;
     }
 
-    final fullTilesX = (size.width / tile).floor();
-    final fullTilesY = (size.height / tile).floor();
-    final edgeW = size.width - fullTilesX * tile;
-    final edgeH = size.height - fullTilesY * tile;
-
-    for (int ty = 0; ty < fullTilesY; ty++) {
-      for (int tx = 0; tx < fullTilesX; tx++) {
+    final ox = -(originShift.dx % tile);
+    final oy = -(originShift.dy % tile);
+    for (double y = oy; y < size.height; y += tile) {
+      for (double x = ox; x < size.width; x += tile) {
         canvas.drawImageRect(sheet.image, src,
-            Rect.fromLTWH(tx * tile, ty * tile, tile, tile), paint);
-      }
-      if (edgeW > 0) {
-        final edgeSrc = Rect.fromLTWH(src.left, src.top, edgeW, tile);
-        canvas.drawImageRect(sheet.image, edgeSrc,
-            Rect.fromLTWH(fullTilesX * tile, ty * tile, edgeW, tile), paint);
-      }
-    }
-    if (edgeH > 0) {
-      final edgeSrcH = Rect.fromLTWH(src.left, src.top, tile, edgeH);
-      for (int tx = 0; tx < fullTilesX; tx++) {
-        canvas.drawImageRect(sheet.image, edgeSrcH,
-            Rect.fromLTWH(tx * tile, fullTilesY * tile, tile, edgeH), paint);
-      }
-      if (edgeW > 0) {
-        final cornerSrc = Rect.fromLTWH(src.left, src.top, edgeW, edgeH);
-        canvas.drawImageRect(sheet.image, cornerSrc,
-            Rect.fromLTWH(fullTilesX * tile, fullTilesY * tile, edgeW, edgeH), paint);
+            Rect.fromLTWH(x, y, tile, tile), paint);
       }
     }
 
-    if (hasCorners) {
-      final rrect = borderRadius!.toRRect(rect);
-      canvas.drawRRect(rrect, Paint()
-        ..blendMode = BlendMode.dstIn
-        ..color = const Color(0xFFFFFFFF));
-      canvas.restore();
-    } else {
-      canvas.restore();
-    }
+    canvas.restore();
   }
 
   @override
   bool shouldRepaint(SpoilerTilePainter old) =>
       old.frame != frame ||
       old.revealProgress != revealProgress ||
-      old.borderRadius != borderRadius;
+      old.borderRadius != borderRadius ||
+      old.tintColor != tintColor ||
+      old.isMedia != isMedia ||
+      old.originShift != originShift;
 }
 
 class SpoilerColorCache {
@@ -420,14 +462,15 @@ class SpoilerColorCache {
   final _order = <int>[];
 
   ColorFilter getFilter(Color color) {
-    final key = color.value;
+    final opaque = color.withValues(alpha: 1.0);
+    final key = opaque.value;
     final existing = _cache[key];
     if (existing != null) {
       _order.remove(key);
       _order.add(key);
       return existing;
     }
-    final filter = ColorFilter.mode(color, BlendMode.srcIn);
+    final filter = ColorFilter.mode(opaque, BlendMode.srcIn);
     _cache[key] = filter;
     _order.add(key);
     while (_cache.length > _kColorCacheCapacity) {
@@ -448,27 +491,29 @@ void tileSpoilerOnRects(
   int frame,
   List<Rect> rects,
   Color tintColor,
-  double opacity,
-) {
+  double opacity, {
+  Offset originShift = Offset.zero,
+}) {
   if (opacity <= 0 || rects.isEmpty) return;
   final src = sheet.frameRect(frame.clamp(0, _kFrameCount - 1));
   final tile = sheet.tileSize;
   final paint = Paint()
-    ..colorFilter = SpoilerColorCache.instance.getFilter(
-      tintColor.withValues(alpha: opacity * 0.85),
-    );
+    ..colorFilter = SpoilerColorCache.instance.getFilter(tintColor)
+    ..color = Color.fromRGBO(255, 255, 255, opacity * 0.85);
 
   for (final rect in rects) {
     canvas.save();
     canvas.clipRect(rect);
-    final startTX = (rect.left / tile).floor();
-    final endTX = (rect.right / tile).ceil();
-    final startTY = (rect.top / tile).floor();
-    final endTY = (rect.bottom / tile).ceil();
+    final shiftX = originShift.dx % tile;
+    final shiftY = originShift.dy % tile;
+    final startTX = ((rect.left - shiftX) / tile).floor();
+    final endTX = ((rect.right - shiftX) / tile).ceil();
+    final startTY = ((rect.top - shiftY) / tile).floor();
+    final endTY = ((rect.bottom - shiftY) / tile).ceil();
     for (int ty = startTY; ty < endTY; ty++) {
       for (int tx = startTX; tx < endTX; tx++) {
         canvas.drawImageRect(sheet.image, src,
-            Rect.fromLTWH(tx * tile, ty * tile, tile, tile), paint);
+            Rect.fromLTWH(shiftX + tx * tile, shiftY + ty * tile, tile, tile), paint);
       }
     }
     canvas.restore();
