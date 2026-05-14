@@ -17917,6 +17917,19 @@ func (t *TelegramCore) UploadProfilePhoto(pngData []byte) error {
 	return err
 }
 
+// SetEmojiProfilePhoto sets a custom emoji as the user's profile photo.
+func (t *TelegramCore) SetEmojiProfilePhoto(documentID int64) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	req := &tg.PhotosUploadProfilePhotoRequest{}
+	req.SetVideoEmojiMarkup(&tg.VideoSizeEmojiMarkup{
+		EmojiID:          documentID,
+		BackgroundColors: []int{0x6B93FF, 0x976FFF, 0xE46ACE, 0xFFB743},
+	})
+	_, err := t.api.PhotosUploadProfilePhoto(t.ctx, req)
+	return err
+}
+
 // UploadFallbackPhoto uploads a public fallback photo visible to non-contacts.
 func (t *TelegramCore) UploadFallbackPhoto(pngData []byte) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
@@ -18217,6 +18230,69 @@ func (t *TelegramCore) GetConfcallSizeLimit() (int, error) {
 		}
 	}
 	return 200, nil
+}
+
+func (t *TelegramCore) GetStarsBalance() (int64, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 0, ErrAuth }
+	result, err := t.api.PaymentsGetStarsStatus(t.ctx, &tg.PaymentsGetStarsStatusRequest{
+		Peer: &tg.InputPeerSelf{},
+	})
+	if err != nil { return 0, err }
+	return result.Balance.GetAmount(), nil
+}
+
+func (t *TelegramCore) GetPremiumStatus() (premiumPossible bool, premiumCanBuy bool, err error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return false, false, ErrAuth }
+	blocked := false
+	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	if err == nil {
+		if cfg, ok := result.(*tg.HelpAppConfig); ok {
+			if jv := cfg.Config; jv != nil {
+				if obj, ok2 := jv.(*tg.JSONObject); ok2 {
+					for _, kv := range obj.Value {
+						if kv.Key == "premium_purchase_blocked" {
+							if b, ok3 := kv.Value.(*tg.JSONBool); ok3 {
+								blocked = b.Value
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	premiumPossible = !blocked
+	selfPremium := false
+	users, err2 := t.api.UsersGetUsers(t.ctx, []tg.InputUserClass{&tg.InputUserSelf{}})
+	if err2 == nil && len(users) > 0 {
+		if u, ok := users[0].(*tg.User); ok {
+			selfPremium = u.Premium
+		}
+	}
+	premiumCanBuy = premiumPossible && !selfPremium
+	return premiumPossible, premiumCanBuy, nil
+}
+
+func (t *TelegramCore) GetDialogFiltersEnabled() (bool, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return false, ErrAuth }
+	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	if err != nil { return false, nil }
+	cfg, ok := result.(*tg.HelpAppConfig)
+	if !ok { return false, nil }
+	if jv := cfg.Config; jv != nil {
+		if obj, ok2 := jv.(*tg.JSONObject); ok2 {
+			for _, kv := range obj.Value {
+				if kv.Key == "dialog_filters_enabled" {
+					if b, ok3 := kv.Value.(*tg.JSONBool); ok3 {
+						return b.Value, nil
+					}
+				}
+			}
+		}
+	}
+	return false, nil
 }
 
 func (t *TelegramCore) GetFolderLimits() (freeLimit, premiumLimit int, err error) {

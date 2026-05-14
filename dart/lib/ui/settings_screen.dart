@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/engine_models.dart';
 import '../bridge/engine_service.dart';
@@ -26,6 +27,10 @@ import 'privacy_settings_screen.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
 import '../theme/telegram_palette.dart';
+
+void _openUrl(String url) {
+  launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+}
 
 const _kLanguageNames = <String, String>{
   'af': 'Afrikaans', 'sq': 'Shqip', 'am': 'አማርኛ', 'ar': 'العربية',
@@ -47,8 +52,50 @@ const _kLanguageNames = <String, String>{
 /// Settings page (§14). Opened from hamburger drawer "Settings" row.
 /// Scrollable panel with profile header at top, then settings navigation rows.
 /// Matches AyuGram Desktop's Settings page layout.
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _premiumPossible = false;
+  bool _premiumCanBuy = false;
+  int _starsBalance = 0;
+  bool _dialogFiltersEnabled = false;
+  bool _premiumLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPremiumData();
+  }
+
+  Future<void> _loadPremiumData() async {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null || account.platform != 'telegram') return;
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
+    final results = await Future.wait([
+      engine.getPremiumStatus(accountId),
+      engine.getStarsBalance(accountId),
+      engine.getDialogFiltersEnabled(accountId),
+    ]);
+
+    if (!mounted) return;
+    final premiumStatus = results[0] as ({bool premiumPossible, bool premiumCanBuy});
+    setState(() {
+      _premiumPossible = premiumStatus.premiumPossible;
+      _premiumCanBuy = premiumStatus.premiumCanBuy;
+      _starsBalance = results[1] as int;
+      _dialogFiltersEnabled = results[2] as bool;
+      _premiumLoaded = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +105,6 @@ class SettingsScreen extends StatelessWidget {
     final account = appState.activeAccount;
     final chatState = context.watch<ChatState>();
 
-    // Colors matching spec §14.
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final dividerColor = isDark
         ? const Color(0xFF101921)
@@ -266,7 +312,7 @@ class SettingsScreen extends StatelessWidget {
               );
             },
           ),
-          if (chatState.hasFolders)
+          if (chatState.hasFolders || _dialogFiltersEnabled)
             _SettingsRow(
               icon: Icons.folder,
               iconBg: const Color(0xFF2196F3),
@@ -300,7 +346,7 @@ class SettingsScreen extends StatelessWidget {
             isDark: isDark,
             onTap: () {
               Navigator.of(context).push(
-                settingsPageRoute(const ActiveSessionsScreen()),
+                settingsPageRoute(const _DevicesScreen()),
               );
             },
           ),
@@ -353,33 +399,72 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
-          if (account?.platform == 'telegram') ...[
+          if (_premiumPossible || (!_premiumLoaded && account?.platform == 'telegram')) ...[
             _PremiumRow(
               icon: Icons.workspace_premium,
               label: 'Telegram Premium',
               isDark: isDark,
-              onTap: () => Process.run('xdg-open', ['https://t.me/premium']),
+              onTap: () {
+                Navigator.of(context).push(
+                  settingsPageRoute(_PremiumInfoScreen(
+                    accountId: appState.activeAccountId,
+                    isPremium: account?.isPremium ?? false,
+                  )),
+                );
+              },
             ),
             _PremiumRow(
               icon: Icons.star_border,
               label: 'Telegram Stars',
               isDark: isDark,
-              onTap: () => Process.run('xdg-open', ['https://t.me/stars']),
+              trailing: _starsBalance > 0
+                  ? Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(
+                        '$_starsBalance',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: context.palette.windowBgActive,
+                        ),
+                      ),
+                    )
+                  : null,
+              onTap: () {
+                Navigator.of(context).push(
+                  settingsPageRoute(_CreditsScreen(
+                    accountId: appState.activeAccountId,
+                    balance: _starsBalance,
+                  )),
+                );
+              },
             ),
             _SettingsRow(
               icon: Icons.diamond_outlined,
               iconBg: const Color(0xFF3A3A5C),
               label: 'Telegram Business',
               isDark: isDark,
-              onTap: () => Process.run('xdg-open', ['https://t.me/business']),
+              onTap: () {
+                Navigator.of(context).push(
+                  settingsPageRoute(_BusinessScreen(
+                    accountId: appState.activeAccountId,
+                  )),
+                );
+              },
             ),
-            _PremiumRow(
-              icon: Icons.card_giftcard,
-              label: 'Send a Gift',
-              isDark: isDark,
-              showNewBadge: true,
-              onTap: () => Process.run('xdg-open', ['https://t.me/gifts']),
-            ),
+            if (_premiumCanBuy || !_premiumLoaded)
+              _PremiumRow(
+                icon: Icons.card_giftcard,
+                label: 'Send a Gift',
+                isDark: isDark,
+                showNewBadge: true,
+                onTap: () {
+                  Navigator.of(context).push(
+                    settingsPageRoute(_GiftCatalogScreen(
+                      accountId: appState.activeAccountId,
+                    )),
+                  );
+                },
+              ),
           ],
           // §14.8: skip+divider+skip before Help section.
           const SizedBox(height: 7),
@@ -391,14 +476,14 @@ class SettingsScreen extends StatelessWidget {
             iconBg: context.palette.windowBgActive,
             label: 'Telegram FAQ',
             isDark: isDark,
-            onTap: () => Process.run('xdg-open', ['https://telegram.org/faq']),
+            onTap: () => _openUrl('https://telegram.org/faq'),
           ),
           _SettingsRow(
             icon: Icons.info_outline,
             iconBg: context.palette.windowBgActive,
             label: 'Telegram Features',
             isDark: isDark,
-            onTap: () => Process.run('xdg-open', ['https://telegram.org/blog']),
+            onTap: () => _openUrl('https://telegram.org/blog'),
           ),
           _SettingsRow(
             icon: Icons.chat_outlined,
@@ -466,7 +551,7 @@ class SettingsScreen extends StatelessWidget {
       confirmText: 'Ask a Volunteer',
       cancelText: 'Cancel',
       onConfirm: () {
-        Process.run('xdg-open', ['tg://support']);
+        _openUrl('tg://support');
       },
     );
   }
@@ -747,7 +832,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
           }
         }
       case 'emoji':
-        if (context.mounted) _showEmojiStatusPanel(context);
+        if (context.mounted) _showEmojiAvatarPicker(context);
       case 'remove':
         await engine.deleteProfilePhotos(accountId);
         if (context.mounted) showTelegramToast(context, 'Photo removed');
@@ -814,6 +899,144 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     showTelegramToast(context, 'Link copied: $link');
   }
 
+  void _showEmojiAvatarPicker(BuildContext context) {
+    final isDark = widget.isDark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = context.palette.windowBgActive;
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+
+    List<StickerInfoItem> stickerItems = [];
+    bool loading = true;
+    bool loadTriggered = false;
+
+    Future<List<StickerInfoItem>> loadEmojis() async {
+      try {
+        final sets = await engine.getInstalledEmojiSets(accountId);
+        final items = <StickerInfoItem>[];
+        final seenIds = <String>{};
+        for (final s in sets) {
+          for (final sticker in s.stickers) {
+            if (seenIds.add(sticker.fileId) && sticker.fileId.isNotEmpty) {
+              items.add(sticker);
+            }
+          }
+        }
+        if (items.isNotEmpty) return items.take(64).toList();
+      } catch (_) {}
+      return [];
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          if (!loadTriggered) {
+            loadTriggered = true;
+            loadEmojis().then((items) {
+              if (ctx.mounted) {
+                setDialogState(() {
+                  stickerItems = items;
+                  loading = false;
+                });
+              }
+            });
+          }
+          return Dialog(
+            backgroundColor: bgColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 340, maxHeight: 480),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Choose Emoji Avatar',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (loading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (stickerItems.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Center(
+                          child: Text(
+                            'No custom emoji installed',
+                            style: TextStyle(color: textColor.withValues(alpha: 0.5)),
+                          ),
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 6,
+                            mainAxisSpacing: 4,
+                            crossAxisSpacing: 4,
+                          ),
+                          itemCount: stickerItems.length,
+                          itemBuilder: (ctx, i) {
+                            final s = stickerItems[i];
+                            final hasThumb = s.thumbB64.isNotEmpty;
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () {
+                                Navigator.of(ctx).pop();
+                                engine.uploadProfilePhoto(accountId, '', documentId: s.fileId);
+                                showTelegramToast(context, 'Emoji avatar set');
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: hasThumb
+                                    ? Image.memory(
+                                        base64Decode(s.thumbB64),
+                                        fit: BoxFit.contain,
+                                      )
+                                    : Center(
+                                        child: Text(
+                                          s.emoji,
+                                          style: const TextStyle(fontSize: 28),
+                                        ),
+                                      ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: Text('Cancel', style: TextStyle(color: accentColor)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _showEmojiStatusPanel(BuildContext context) {
     final isDark = widget.isDark;
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
@@ -838,6 +1061,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     int selectedDuration = 0;
     List<StickerInfoItem> stickerItems = [];
     bool loading = true;
+    bool loadTriggered = false;
 
     Future<List<StickerInfoItem>> loadEmojiStickers() async {
       try {
@@ -860,7 +1084,8 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
-          if (loading) {
+          if (!loadTriggered) {
+            loadTriggered = true;
             loadEmojiStickers().then((items) {
               if (ctx.mounted) {
                 setDialogState(() {
@@ -1450,132 +1675,17 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection>
           alignment: Alignment.topLeft,
           child: SizedBox(
             width: previewWidth / scaleFactor - 24 / scaleFactor,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: nameFg.withValues(alpha: 0.7),
-                      ),
-                      child: Center(
-                        child: Text('A',
-                          style: TextStyle(
-                            fontSize: 15, color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-                        decoration: BoxDecoration(
-                          color: incomingBg,
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(2),
-                            topRight: Radius.circular(12),
-                            bottomLeft: Radius.circular(12),
-                            bottomRight: Radius.circular(12),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Alice',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: nameFg,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Container(
-                              padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                              decoration: BoxDecoration(
-                                color: replyBg,
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border(
-                                  left: BorderSide(color: replyBar, width: 2),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Bob',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: nameFg,
-                                    ),
-                                  ),
-                                  Text('Sure, sounds good!',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: textFg.withValues(alpha: 0.7),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Let me know when you\'re free tomorrow',
-                              style: TextStyle(fontSize: 13, color: textFg),
-                            ),
-                            const SizedBox(height: 2),
-                            Align(
-                              alignment: Alignment.bottomRight,
-                              child: Text('12:42',
-                                style: TextStyle(fontSize: 11, color: timeFg),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-                    constraints: BoxConstraints(
-                      maxWidth: (previewWidth / scaleFactor - 24 / scaleFactor) * 0.75,
-                    ),
-                    decoration: BoxDecoration(
-                      color: bubbleBg,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(12),
-                        topRight: Radius.circular(2),
-                        bottomLeft: Radius.circular(12),
-                        bottomRight: Radius.circular(12),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Sounds great, see you then!',
-                          style: TextStyle(fontSize: 13, color: textFg),
-                        ),
-                        const SizedBox(height: 2),
-                        Text('12:43',
-                          style: TextStyle(fontSize: 11, color: timeFg),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+            child: _ScalePreviewContent(
+              isDark: isDark,
+              bubbleBg: bubbleBg,
+              incomingBg: incomingBg,
+              nameFg: nameFg,
+              textFg: textFg,
+              timeFg: timeFg,
+              replyBar: replyBar,
+              replyBg: replyBg,
+              maxBubbleWidth: (previewWidth / scaleFactor - 24 / scaleFactor) * 0.75,
+              appState: widget.appState,
             ),
           ),
         ),
@@ -1726,11 +1836,776 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection>
       onConfirm: () {
         setState(() => _committedScale = newScale);
         widget.appState.setUiScalePercent(newScale);
-        exit(0);
+        final exe = Platform.resolvedExecutable;
+        Process.start(exe, [], mode: ProcessStartMode.detached).then((_) {
+          exit(0);
+        });
       },
       onCancel: () {
         setState(() => _scalePercent = _committedScale);
       },
+    );
+  }
+}
+
+class _ScalePreviewContent extends StatelessWidget {
+  final bool isDark;
+  final Color bubbleBg;
+  final Color incomingBg;
+  final Color nameFg;
+  final Color textFg;
+  final Color timeFg;
+  final Color replyBar;
+  final Color replyBg;
+  final double maxBubbleWidth;
+  final AppState appState;
+
+  const _ScalePreviewContent({
+    required this.isDark,
+    required this.bubbleBg,
+    required this.incomingBg,
+    required this.nameFg,
+    required this.textFg,
+    required this.timeFg,
+    required this.replyBar,
+    required this.replyBg,
+    required this.maxBubbleWidth,
+    required this.appState,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final account = appState.activeAccount;
+    final userName = account?.displayName ?? 'User';
+    final initial = userName.isNotEmpty ? userName.characters.first.toUpperCase() : 'U';
+    final now = TimeOfDay.now();
+    final timeStr = '${now.hour}:${now.minute.toString().padLeft(2, '0')}';
+    final prevMin = (now.minute - 1).clamp(0, 59);
+    final prevTimeStr = '${now.hour}:${prevMin.toString().padLeft(2, '0')}';
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: nameFg.withValues(alpha: 0.7),
+              ),
+              child: Center(
+                child: Text(initial,
+                  style: const TextStyle(
+                    fontSize: 15, color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+                decoration: BoxDecoration(
+                  color: incomingBg,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(2),
+                    topRight: Radius.circular(12),
+                    bottomLeft: Radius.circular(12),
+                    bottomRight: Radius.circular(12),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(userName,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: nameFg,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                      decoration: BoxDecoration(
+                        color: replyBg,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border(
+                          left: BorderSide(color: replyBar, width: 2),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('You',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: nameFg,
+                            ),
+                          ),
+                          Text('How does this look?',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: textFg.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'This is how messages will look at this scale',
+                      style: TextStyle(fontSize: 13, color: textFg),
+                    ),
+                    const SizedBox(height: 2),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: Text(prevTimeStr,
+                        style: TextStyle(fontSize: 11, color: timeFg),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+            constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+            decoration: BoxDecoration(
+              color: bubbleBg,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(2),
+                bottomLeft: Radius.circular(12),
+                bottomRight: Radius.circular(12),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'Looks great! Thanks for checking.',
+                  style: TextStyle(fontSize: 13, color: textFg),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(timeStr,
+                      style: TextStyle(fontSize: 11, color: timeFg),
+                    ),
+                    const SizedBox(width: 3),
+                    Icon(Icons.done_all, size: 14, color: timeFg),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DevicesScreen extends StatelessWidget {
+  const _DevicesScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = context.palette.windowBgActive;
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: bgColor,
+        appBar: AppBar(
+          backgroundColor: bgColor,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: textColor),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          title: Text('Devices', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+          bottom: TabBar(
+            labelColor: accentColor,
+            unselectedLabelColor: textColor.withValues(alpha: 0.5),
+            indicatorColor: accentColor,
+            tabs: const [
+              Tab(text: 'Sessions'),
+              Tab(text: 'Calls'),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [
+            ActiveSessionsScreen(embedded: true),
+            _CallsSettingsTab(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CallsSettingsTab extends StatelessWidget {
+  const _CallsSettingsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final accentColor = context.palette.windowBgActive;
+
+    return ListView(
+      children: [
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Text('Audio', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
+        ),
+        const SizedBox(height: 8),
+        _DeviceSettingRow(
+          label: 'Output device',
+          value: 'Default',
+          isDark: isDark,
+          onTap: () {},
+        ),
+        _DeviceSettingRow(
+          label: 'Input device',
+          value: 'Default',
+          isDark: isDark,
+          onTap: () {},
+        ),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Text('Calls', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+          child: Text(
+            'Use peer-to-peer with',
+            style: TextStyle(fontSize: 14, color: textColor),
+          ),
+        ),
+        for (final option in ['Everyone', 'My contacts', 'Nobody'])
+          InkWell(
+            onTap: () {},
+            hoverColor: hoverBg,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(
+                    option == 'My contacts' ? Icons.radio_button_checked : Icons.radio_button_off,
+                    size: 20,
+                    color: option == 'My contacts' ? accentColor : subtextColor,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(option, style: TextStyle(fontSize: 14, color: textColor)),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _DeviceSettingRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _DeviceSettingRow({
+    required this.label,
+    required this.value,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(fontSize: 14, color: textColor)),
+                  const SizedBox(height: 2),
+                  Text(value, style: TextStyle(fontSize: 13, color: subtextColor)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 20, color: subtextColor),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumInfoScreen extends StatefulWidget {
+  final String accountId;
+  final bool isPremium;
+
+  const _PremiumInfoScreen({required this.accountId, required this.isPremium});
+
+  @override
+  State<_PremiumInfoScreen> createState() => _PremiumInfoScreenState();
+}
+
+class _PremiumInfoScreenState extends State<_PremiumInfoScreen> {
+  List<String> _features = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPremiumInfo();
+  }
+
+  Future<void> _loadPremiumInfo() async {
+    _features = [
+      'Increased limits for channels, folders and pins',
+      'Faster downloads and no speed limits',
+      'Voice-to-text conversion for voice messages',
+      'No ads in public channels',
+      'Unique reactions and stickers',
+      'Custom emoji and profile colors',
+      'Premium badges and animated profile photos',
+      'Real-time translation of messages',
+    ];
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('Telegram Premium', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6B93FF), Color(0xFF976FFF), Color(0xFFE46ACE)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.workspace_premium, size: 48, color: Colors.white),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.isPremium ? 'You have Premium' : 'Telegram Premium',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.isPremium ? 'Enjoy all premium features' : 'Unlock exclusive features',
+                        style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.8)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text('Features', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: accentColor)),
+                const SizedBox(height: 8),
+                for (final f in _features)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        Icon(Icons.star, size: 20, color: const Color(0xFF976FFF)),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(f, style: TextStyle(fontSize: 14, color: textColor))),
+                      ],
+                    ),
+                  ),
+                if (!widget.isPremium) ...[
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accentColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () => _openUrl('https://t.me/premium'),
+                      child: const Text('Subscribe to Premium', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+class _CreditsScreen extends StatefulWidget {
+  final String accountId;
+  final int balance;
+
+  const _CreditsScreen({required this.accountId, required this.balance});
+
+  @override
+  State<_CreditsScreen> createState() => _CreditsScreenState();
+}
+
+class _CreditsScreenState extends State<_CreditsScreen> {
+  late int _balance;
+
+  @override
+  void initState() {
+    super.initState();
+    _balance = widget.balance;
+    _refreshBalance();
+  }
+
+  Future<void> _refreshBalance() async {
+    final engine = context.read<EngineService>();
+    final balance = await engine.getStarsBalance(widget.accountId);
+    if (mounted) setState(() => _balance = balance);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('Telegram Stars', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.star, size: 48, color: const Color(0xFFFFB743)),
+                const SizedBox(height: 8),
+                Text(
+                  '$_balance',
+                  style: TextStyle(fontSize: 36, fontWeight: FontWeight.w700, color: textColor),
+                ),
+                const SizedBox(height: 4),
+                Text('Stars Balance', style: TextStyle(fontSize: 14, color: subtextColor)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () => _openUrl('https://t.me/stars'),
+              child: const Text('Buy Stars', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('About Telegram Stars', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: accentColor)),
+          const SizedBox(height: 8),
+          Text(
+            'Use Telegram Stars to buy digital goods and services in bots and mini apps, unlock paid content from channels, send paid reactions, and more.',
+            style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BusinessScreen extends StatelessWidget {
+  final String accountId;
+
+  const _BusinessScreen({required this.accountId});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+
+    final features = [
+      ('Business Hours', 'Set working hours so clients know when to reach you', Icons.schedule),
+      ('Business Location', 'Display your business address on your profile', Icons.location_on),
+      ('Greeting Messages', 'Send automatic greeting messages to new clients', Icons.waving_hand),
+      ('Away Messages', 'Automatically reply when you are unavailable', Icons.flight),
+      ('Quick Replies', 'Set up shortcuts for frequently used messages', Icons.flash_on),
+      ('Chatbot Integration', 'Connect a Telegram bot to manage conversations', Icons.smart_toy),
+      ('Custom Start Page', 'Customize your chat intro with an image and text', Icons.view_agenda),
+    ];
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('Telegram Business', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF3A3A5C), Color(0xFF5C5C8A)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                const Icon(Icons.diamond_outlined, size: 48, color: Colors.white),
+                const SizedBox(height: 8),
+                const Text('Telegram Business', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
+                const SizedBox(height: 4),
+                Text('Tools for businesses on Telegram', style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.8))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          for (final (name, desc, icon) in features)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icon, size: 24, color: accentColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+                        const SizedBox(height: 2),
+                        Text(desc, style: TextStyle(fontSize: 13, color: subtextColor)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () => _openUrl('https://t.me/business'),
+              child: const Text('Learn More', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GiftCatalogScreen extends StatefulWidget {
+  final String accountId;
+
+  const _GiftCatalogScreen({required this.accountId});
+
+  @override
+  State<_GiftCatalogScreen> createState() => _GiftCatalogScreenState();
+}
+
+class _GiftCatalogScreenState extends State<_GiftCatalogScreen> {
+  List<StarGiftItem> _gifts = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGifts();
+  }
+
+  Future<void> _loadGifts() async {
+    final engine = context.read<EngineService>();
+    final result = await engine.getStarGifts(widget.accountId);
+    if (mounted) {
+      setState(() {
+        _gifts = result?.gifts ?? [];
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('Send a Gift', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _gifts.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.card_giftcard, size: 48, color: subtextColor),
+                      const SizedBox(height: 12),
+                      Text('No gifts available', style: TextStyle(fontSize: 16, color: subtextColor)),
+                    ],
+                  ),
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.all(12),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: 0.8,
+                  ),
+                  itemCount: _gifts.length,
+                  itemBuilder: (ctx, i) {
+                    final gift = _gifts[i];
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF5F5F5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (gift.thumbB64.isNotEmpty)
+                            Image.memory(
+                              base64Decode(gift.thumbB64),
+                              width: 60,
+                              height: 60,
+                              fit: BoxFit.contain,
+                            )
+                          else
+                            Icon(Icons.card_giftcard, size: 48, color: accentColor),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star, size: 14, color: Color(0xFFFFB743)),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${gift.stars}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: textColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (gift.remaining > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                '${gift.remaining} left',
+                                style: TextStyle(fontSize: 11, color: subtextColor),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
     );
   }
 }

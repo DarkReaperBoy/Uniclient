@@ -3286,6 +3286,24 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.UploadProfilePhoto(params.AccountID, params.FilePath)
 
+	case "SetEmojiProfilePhoto":
+		var params struct {
+			AccountID  string `json:"account_id"`
+			DocumentID int64  `json:"document_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		acc := e.GetAccountCore(params.AccountID)
+		if acc == nil {
+			return nil, fmt.Errorf("account not found")
+		}
+		tgCore, ok := acc.(*cores.TelegramCore)
+		if !ok {
+			return nil, fmt.Errorf("emoji profile photo not supported for this platform")
+		}
+		return nil, tgCore.SetEmojiProfilePhoto(params.DocumentID)
+
 	case "UploadFallbackPhoto":
 		var params struct {
 			AccountID string `json:"account_id"`
@@ -4107,6 +4125,78 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, fmt.Errorf("gift settings not supported for this platform")
 		}
 		return nil, tgCore.SetGiftSettings(params.ShowIcon, params.AcceptLimited, params.AcceptUnlimited, params.AcceptUnique, params.AcceptChannels, params.AcceptPremium)
+
+	case "GetStarsBalance":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		acc := e.GetAccountCore(params.AccountID)
+		if acc == nil {
+			return nil, fmt.Errorf("account not found")
+		}
+		tgCore, ok := acc.(*cores.TelegramCore)
+		if !ok {
+			return json.Marshal(map[string]interface{}{"balance": 0})
+		}
+		balance, err := tgCore.GetStarsBalance()
+		if err != nil {
+			return json.Marshal(map[string]interface{}{"balance": 0})
+		}
+		return json.Marshal(map[string]interface{}{"balance": balance})
+
+	case "GetPremiumStatus":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		acc := e.GetAccountCore(params.AccountID)
+		if acc == nil {
+			return nil, fmt.Errorf("account not found")
+		}
+		tgCore, ok := acc.(*cores.TelegramCore)
+		if !ok {
+			return json.Marshal(map[string]interface{}{
+				"premium_possible": false,
+				"premium_can_buy":  false,
+			})
+		}
+		possible, canBuy, err := tgCore.GetPremiumStatus()
+		if err != nil {
+			return json.Marshal(map[string]interface{}{
+				"premium_possible": false,
+				"premium_can_buy":  false,
+			})
+		}
+		return json.Marshal(map[string]interface{}{
+			"premium_possible": possible,
+			"premium_can_buy":  canBuy,
+		})
+
+	case "GetDialogFiltersEnabled":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		acc := e.GetAccountCore(params.AccountID)
+		if acc == nil {
+			return nil, fmt.Errorf("account not found")
+		}
+		tgCore, ok := acc.(*cores.TelegramCore)
+		if !ok {
+			return json.Marshal(map[string]interface{}{"enabled": false})
+		}
+		enabled, err := tgCore.GetDialogFiltersEnabled()
+		if err != nil {
+			return json.Marshal(map[string]interface{}{"enabled": false})
+		}
+		return json.Marshal(map[string]interface{}{"enabled": enabled})
 
 	case "GetConnectedBots":
 		var params struct {

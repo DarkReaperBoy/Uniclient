@@ -171,7 +171,8 @@ _DeviceInfo _classifyDevice(String device, String platform, String appName, {int
 }
 
 class ActiveSessionsScreen extends StatefulWidget {
-  const ActiveSessionsScreen({super.key});
+  final bool embedded;
+  const ActiveSessionsScreen({super.key, this.embedded = false});
 
   @override
   State<ActiveSessionsScreen> createState() => _ActiveSessionsScreenState();
@@ -751,25 +752,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final otherSessions = _cachedOtherSessions;
     final incompleteSessions = _cachedIncompleteSessions;
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: bgColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: textColor),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Active Sessions',
-          style: TextStyle(
-            color: textColor,
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      body: _loading
+    final body = _loading
           ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -853,7 +836,29 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                     child: _buildAutoTerminateSection(textColor, subtextColor, dividerColor, accentColor),
                   ),
               ],
-            ),
+            );
+
+    if (widget.embedded) return body;
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Active Sessions',
+          style: TextStyle(
+            color: textColor,
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: body,
     );
   }
 

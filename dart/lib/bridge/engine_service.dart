@@ -3771,6 +3771,45 @@ class EngineService {
     }
   }
 
+  Future<int> getStarsBalance(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetStarsBalance', Uint8List.fromList(payload));
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (data['balance'] as num?)?.toInt() ?? 0;
+    } catch (e) {
+      Debug.error('ENGINE', 'getStarsBalance failed', e);
+      return 0;
+    }
+  }
+
+  Future<({bool premiumPossible, bool premiumCanBuy})> getPremiumStatus(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetPremiumStatus', Uint8List.fromList(payload));
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (
+        premiumPossible: data['premium_possible'] as bool? ?? false,
+        premiumCanBuy: data['premium_can_buy'] as bool? ?? false,
+      );
+    } catch (e) {
+      Debug.error('ENGINE', 'getPremiumStatus failed', e);
+      return (premiumPossible: false, premiumCanBuy: false);
+    }
+  }
+
+  Future<bool> getDialogFiltersEnabled(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetDialogFiltersEnabled', Uint8List.fromList(payload));
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return data['enabled'] as bool? ?? false;
+    } catch (e) {
+      Debug.error('ENGINE', 'getDialogFiltersEnabled failed', e);
+      return false;
+    }
+  }
+
   Future<List<CloudThemeInfo>> getCloudThemes(String accountId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -3837,7 +3876,18 @@ class EngineService {
     }
   }
 
-  Future<void> uploadProfilePhoto(String accountId, String filePath) async {
+  Future<void> uploadProfilePhoto(String accountId, String filePath, {String documentId = ''}) async {
+    if (documentId.isNotEmpty) {
+      final docIdInt = int.tryParse(documentId) ?? 0;
+      if (docIdInt != 0) {
+        final payload = utf8.encode(json.encode({
+          'account_id': accountId,
+          'document_id': docIdInt,
+        }));
+        await _callAsync('__engine', 'SetEmojiProfilePhoto', Uint8List.fromList(payload));
+        return;
+      }
+    }
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'file_path': filePath,
