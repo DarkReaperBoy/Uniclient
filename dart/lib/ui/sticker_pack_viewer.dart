@@ -279,6 +279,27 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
   }
 }
 
+class _VideoPlayerPool extends ChangeNotifier {
+  static final instance = _VideoPlayerPool._();
+  _VideoPlayerPool._();
+
+  int _active = 0;
+  static const maxActive = 3;
+
+  bool tryAcquire() {
+    if (_active >= maxActive) return false;
+    _active++;
+    return true;
+  }
+
+  void release() {
+    if (_active > 0) {
+      _active--;
+      notifyListeners();
+    }
+  }
+}
+
 class _StickerTile extends StatefulWidget {
   final StickerInfoItem sticker;
   final String accountId;
@@ -304,6 +325,8 @@ class _StickerTileState extends State<_StickerTile>
   VideoController? _webmController;
   File? _webmTempFile;
   bool _loadingFile = false;
+  bool _acquiredSlot = false;
+  bool _waitingForSlot = false;
 
   @override
   void initState() {
@@ -311,7 +334,40 @@ class _StickerTileState extends State<_StickerTile>
     if (widget.sticker.isAnimated) {
       _loadAnimatedSticker();
     } else if (widget.sticker.isVideo) {
+      _tryLoadVideo();
+    }
+  }
+
+  void _tryLoadVideo() {
+    if (_acquiredSlot || _loadingFile) return;
+    if (_VideoPlayerPool.instance.tryAcquire()) {
+      _acquiredSlot = true;
+      if (_waitingForSlot) {
+        _waitingForSlot = false;
+        _VideoPlayerPool.instance.removeListener(_onSlotAvailable);
+      }
       _loadVideoSticker();
+    } else if (!_waitingForSlot) {
+      _waitingForSlot = true;
+      _VideoPlayerPool.instance.addListener(_onSlotAvailable);
+    }
+  }
+
+  void _onSlotAvailable() {
+    if (!mounted || _acquiredSlot) {
+      if (_waitingForSlot) {
+        _waitingForSlot = false;
+        _VideoPlayerPool.instance.removeListener(_onSlotAvailable);
+      }
+      return;
+    }
+    _tryLoadVideo();
+  }
+
+  void _releaseSlot() {
+    if (_acquiredSlot) {
+      _acquiredSlot = false;
+      _VideoPlayerPool.instance.release();
     }
   }
 
@@ -335,7 +391,10 @@ class _StickerTileState extends State<_StickerTile>
     if (_loadingFile) return;
     _loadingFile = true;
     final docId = int.tryParse(widget.sticker.fileId);
-    if (docId == null) return;
+    if (docId == null) {
+      _releaseSlot();
+      return;
+    }
     try {
       final files = await widget.engine.getStickerFiles(
           widget.accountId, [docId]);
@@ -351,14 +410,19 @@ class _StickerTileState extends State<_StickerTile>
         await player.setPlaylistMode(PlaylistMode.loop);
         if (!mounted) {
           await player.dispose();
+          _releaseSlot();
           return;
         }
         setState(() {
           _webmPlayer = player;
           _webmController = controller;
         });
+      } else {
+        _releaseSlot();
       }
-    } catch (_) {}
+    } catch (_) {
+      _releaseSlot();
+    }
   }
 
   void _onLottieLoaded(LottieComposition composition) {
@@ -372,8 +436,12 @@ class _StickerTileState extends State<_StickerTile>
 
   @override
   void dispose() {
+    if (_waitingForSlot) {
+      _VideoPlayerPool.instance.removeListener(_onSlotAvailable);
+    }
     _lottieController?.dispose();
     _webmPlayer?.dispose();
+    _releaseSlot();
     _webmTempFile?.delete().catchError((_) {});
     super.dispose();
   }
