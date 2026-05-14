@@ -236,6 +236,11 @@ const _kDtHeightSpeed2 = 0.06;
 const _kDtHeightSpeed3 = 0.09;
 const _kFilterSpeedDivisor = 1.2;
 const _kInstantSnapRatio = 0.97;
+const _kDtHeightSpeedThreshold1 = 0.7;
+const _kDtHeightSpeedThreshold2 = 0.1;
+const _kFastAlphaSpeed = 0.85;
+
+double _sineInOut(double t) => 0.5 - 0.5 * math.cos(math.pi * t);
 const _kDateLabelFrameSpeed = 1.0 / 12.0;
 
 class StatsChartWidget extends StatefulWidget {
@@ -303,6 +308,8 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
 
   late AnimationController _shakeController;
 
+  double _chartWidth = 400.0;
+
   StatsChartData? _serverZoomedData;
   bool _serverZoomLoading = false;
   late AnimationController _serverZoomAnim;
@@ -325,7 +332,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
       vsync: this,
       duration: const Duration(milliseconds: _kXExpandDuration),
     )..addListener(() {
-        final t = _animController.value;
+        final t = _sineInOut(_animController.value);
         setState(() {
           _rangeStart = _animFromStart + (_animToStart - _animFromStart) * t;
           _rangeEnd = _animFromEnd + (_animToEnd - _animFromEnd) * t;
@@ -514,12 +521,14 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
         return;
       }
 
-      if (ratio > 0.6) {
-        _ySpeed = _kDtHeightSpeed3;
-      } else if (ratio > 0.3) {
+      if (_yFromFilter) {
+        _ySpeed = _kDtHeightSpeed1 / _kFilterSpeedDivisor;
+      } else if (ratio > _kDtHeightSpeedThreshold1) {
+        _ySpeed = _kDtHeightSpeed1;
+      } else if (ratio < _kDtHeightSpeedThreshold2) {
         _ySpeed = _kDtHeightSpeed2;
       } else {
-        _ySpeed = _kDtHeightSpeed1;
+        _ySpeed = _kDtHeightSpeed3;
       }
 
       if (_yProgress >= 1.0) {
@@ -594,7 +603,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     if (n < 2) return 1;
     final span = _rangeEnd - _rangeStart;
     if (span <= 0) return 1;
-    final pxPerPoint = 400.0 / (span * (n - 1));
+    final pxPerPoint = _chartWidth / (span * (n - 1));
     final minSpacing = 70.0;
     int step = 1;
     while (step * pxPerPoint < minSpacing && step < n) {
@@ -633,8 +642,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     bool dirty = false;
 
     if (_yProgress < 1.0) {
-      double speed = _ySpeed * fpsM;
-      if (_yFromFilter) speed /= _kFilterSpeedDivisor;
+      final speed = _ySpeed * fpsM;
       _yProgress = (_yProgress + speed).clamp(0.0, 1.0);
       if (_yProgress > _kInstantSnapRatio) _yProgress = 1.0;
       _rulerCrossfade = Curves.easeInCubic.transform(_yProgress);
@@ -833,59 +841,53 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
           height: _kChartHeight,
           child: LayoutBuilder(builder: (ctx, box) {
             final w = box.maxWidth;
+            _chartWidth = w;
+            final isStackLinear = widget.data.chartType == 'StackLinear';
+            final chartPainter = _ChartAreaPainter(
+              data: widget.data,
+              isDark: isDark,
+              rangeStart: _rangeStart,
+              rangeEnd: _rangeEnd,
+              selectedIndex: _selectedIndex,
+              lineVisible: _lineVisible,
+              lineAlphas: _lineAlphas,
+              rulerCrossfade: _rulerCrossfade,
+              prevRulerMn: _prevRulerMn,
+              prevRulerMx: _prevRulerMx,
+              animatedYMn: _animatedYMn,
+              animatedYMx: _animatedYMx,
+              dateLabelAlpha: _dateLabelAlpha,
+              prevDateStep: _prevDateStep,
+              curDateStep: _curDateStep,
+              pieProgress: isStackLinear ? pieT : 0.0,
+              pieDataIndex: isStackLinear ? _pieDataIndex : null,
+              pieHoverSlice: _pieHoverSlice,
+            );
             return Stack(
               clipBehavior: Clip.none,
               children: [
-                Opacity(
-                  opacity: 1.0 - pieT,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTapDown: (d) => _onChartTap(d, w),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (d) {
+                    if (_isPieActive) {
+                      _onPieHover(d.localPosition, w);
+                    } else {
+                      _onChartTap(d, w);
+                    }
+                  },
+                  child: MouseRegion(
+                    onHover: _isPieActive
+                        ? (e) => _onPieHover(e.localPosition, w)
+                        : null,
+                    onExit: _isPieActive
+                        ? (_) => setState(() => _pieHoverSlice = -1)
+                        : null,
                     child: CustomPaint(
                       size: Size(w, _kChartHeight),
-                      painter: _ChartAreaPainter(
-                        data: widget.data,
-                        isDark: isDark,
-                        rangeStart: _rangeStart,
-                        rangeEnd: _rangeEnd,
-                        selectedIndex: _selectedIndex,
-                        lineVisible: _lineVisible,
-                        lineAlphas: _lineAlphas,
-                        rulerCrossfade: _rulerCrossfade,
-                        prevRulerMn: _prevRulerMn,
-                        prevRulerMx: _prevRulerMx,
-                        animatedYMn: _animatedYMn,
-                        animatedYMx: _animatedYMx,
-                        dateLabelAlpha: _dateLabelAlpha,
-                        prevDateStep: _prevDateStep,
-                        curDateStep: _curDateStep,
-                      ),
+                      painter: chartPainter,
                     ),
                   ),
                 ),
-                if (pieT > 0 && _pieDataIndex != null)
-                  Opacity(
-                    opacity: pieT,
-                    child: MouseRegion(
-                      onHover: (e) => _onPieHover(e.localPosition, w),
-                      onExit: (_) => setState(() => _pieHoverSlice = -1),
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTapDown: (d) => _onPieHover(d.localPosition, w),
-                        child: CustomPaint(
-                          size: Size(w, _kChartHeight),
-                          painter: _PieChartPainter(
-                            data: widget.data,
-                            dataIndex: _pieDataIndex!,
-                            lineVisible: _lineVisible,
-                            isDark: isDark,
-                            hoverSlice: _pieHoverSlice,
-                            animProgress: pieT,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                 if (_selectedIndex != null && !_isPieActive)
                   _buildTooltip(w, isDark),
               ],
@@ -1440,6 +1442,9 @@ class _ChartAreaPainter extends CustomPainter {
   final double dateLabelAlpha;
   final int prevDateStep;
   final int curDateStep;
+  final double pieProgress;
+  final int? pieDataIndex;
+  final int pieHoverSlice;
 
   _ChartAreaPainter({
     required this.data,
@@ -1457,6 +1462,9 @@ class _ChartAreaPainter extends CustomPainter {
     this.dateLabelAlpha = 1.0,
     this.prevDateStep = 1,
     this.curDateStep = 1,
+    this.pieProgress = 0.0,
+    this.pieDataIndex,
+    this.pieHoverSlice = -1,
   });
 
   static const _months = [
@@ -1471,6 +1479,38 @@ class _ChartAreaPainter extends CustomPainter {
       .where((l) => (lineAlphas[l.id] ?? 0) > 0.01)
       .map((l) => (l, lineAlphas[l.id] ?? 1.0))
       .toList();
+
+  (double, double) _lineRange(ChartLine line, int si, int ei) {
+    double mn = double.infinity, mx = double.negativeInfinity;
+    for (int i = si; i <= ei && i < line.values.length; i++) {
+      if (line.values[i] < mn) mn = line.values[i];
+      if (line.values[i] > mx) mx = line.values[i];
+    }
+    if (mn == double.infinity) { mn = 0; mx = 1; }
+    if (mx == mn) mx = mn + 1;
+    return (mn, mx);
+  }
+
+  static int _computeRulerLineCount(double mn, double mx) {
+    const kMinLines = 2;
+    const kMaxLines = 6;
+    final range = (mx - mn).abs();
+    if (range == 0) return kMinLines;
+    final v = range > 100 ? _roundRuler(range) : range;
+    if (v < kMaxLines) {
+      return math.max(2, v.toInt() + 1);
+    } else if (v / 2 < kMaxLines) {
+      var n = (v ~/ 2) + 1;
+      if (v.toInt() % 2 != 0) n++;
+      return n.clamp(kMinLines, kMaxLines);
+    }
+    return kMaxLines;
+  }
+
+  static double _roundRuler(double maxValue) {
+    final k = (maxValue / 5).toInt();
+    return (k % 10 == 0) ? maxValue : (((maxValue ~/ 10) + 1) * 10).toDouble();
+  }
 
   double _dataXToPixel(int i, int n, double width) {
     if (n <= 1) return width / 2;
@@ -1541,12 +1581,12 @@ class _ChartAreaPainter extends CustomPainter {
         : Colors.black.withValues(alpha: 0.6 * alpha);
     final gridPaint = Paint()
       ..color = gridColor
-      ..strokeWidth = 0.5;
+      ..strokeWidth = 1.0;
 
     final leftLabelColor = leftColor?.withValues(alpha: alpha) ?? defaultLabelColor;
     final rightLabelColor = rightColor?.withValues(alpha: alpha) ?? defaultLabelColor;
 
-    const rulerCount = 5;
+    final rulerCount = _computeRulerLineCount(mn, mx);
     for (int i = 0; i <= rulerCount; i++) {
       final y = top + chartH * (1 - i / rulerCount);
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
@@ -1598,25 +1638,31 @@ class _ChartAreaPainter extends CustomPainter {
               color: isDark ? Colors.white60 : Colors.black54)),
       textDirection: TextDirection.ltr,
     )..layout();
-    final minSpacing = sampleTp.width + 20;
+    final captionMaxWidth = sampleTp.width + 20;
 
     int step = 1;
-    while (step * pxPerPoint < minSpacing && step < n) {
+    while (step * pxPerPoint < captionMaxWidth && step < n) {
       step *= 2;
     }
 
+    final edgeFade = captionMaxWidth / 4;
+
     if (prevDateStep != curDateStep && dateLabelAlpha < 1.0) {
-      _paintDateLabelsAtStep(canvas, size, prevDateStep, 1.0 - dateLabelAlpha);
-      _paintDateLabelsAtStep(canvas, size, curDateStep, dateLabelAlpha);
+      final prevAlpha = math.max((1.0 - dateLabelAlpha) - _kFastAlphaSpeed, 0.0);
+      _paintDateLabelsAtStep(
+          canvas, size, prevDateStep, prevAlpha, edgeFade);
+      _paintDateLabelsAtStep(
+          canvas, size, curDateStep, dateLabelAlpha, edgeFade);
     } else {
-      _paintDateLabelsAtStep(canvas, size, step, dateLabelAlpha);
+      _paintDateLabelsAtStep(
+          canvas, size, step, dateLabelAlpha, edgeFade);
     }
   }
 
-  void _paintDateLabelsAtStep(Canvas canvas, Size size, int step, double baseAlpha) {
+  void _paintDateLabelsAtStep(Canvas canvas, Size size, int step,
+      double baseAlpha, double edgeFade) {
     final n = data.timestamps.length;
     if (n < 2 || step < 1) return;
-    const edgeFade = 30.0;
     final y = size.height - _kBottomCaptionHeight;
     final si = (rangeStart * (n - 1)).floor().clamp(0, n - 1);
     final ei = (rangeEnd * (n - 1)).ceil().clamp(0, n - 1);
@@ -1690,10 +1736,10 @@ class _ChartAreaPainter extends CustomPainter {
     final isDouble = data.chartType == 'DoubleLinear' && visLines.length == 2;
     if (isDouble) {
       final l0 = visLines[0], l1 = visLines[1];
-      final l0Mn = l0.values.reduce(math.min);
-      final l0Mx = l0.values.reduce(math.max) == l0Mn ? l0Mn + 1 : l0.values.reduce(math.max);
-      final l1Mn = l1.values.reduce(math.min);
-      final l1Mx = l1.values.reduce(math.max) == l1Mn ? l1Mn + 1 : l1.values.reduce(math.max);
+      final si = (rangeStart * (n - 1)).floor().clamp(0, n - 1);
+      final ei = (rangeEnd * (n - 1)).ceil().clamp(0, n - 1);
+      final (l0Mn, l0Mx) = _lineRange(l0, si, ei);
+      final (l1Mn, l1Mx) = _lineRange(l1, si, ei);
       _drawRulerSet(canvas, size, topPad, chartH, l0Mn, l0Mx, 1.0,
           leftColor: _resolveLineColor(l0), rightColor: _resolveLineColor(l1),
           rightMn: l1Mn, rightMx: l1Mx);
@@ -1708,9 +1754,11 @@ class _ChartAreaPainter extends CustomPainter {
     for (final (line, alpha) in rLines) {
       double lineMn = renderMn, lineMx = renderMx;
       if (isDouble) {
-        lineMn = line.values.reduce(math.min);
-        lineMx = line.values.reduce(math.max);
-        if (lineMx == lineMn) lineMx = lineMn + 1;
+        final si = (rangeStart * (n - 1)).floor().clamp(0, n - 1);
+        final ei = (rangeEnd * (n - 1)).ceil().clamp(0, n - 1);
+        final (lMn, lMx) = _lineRange(line, si, ei);
+        lineMn = lMn;
+        lineMx = lMx;
       }
       final range = lineMx - lineMn;
       if (range == 0) continue;
@@ -1846,6 +1894,11 @@ class _ChartAreaPainter extends CustomPainter {
   }
 
   void _paintStackLinear(Canvas canvas, Size size) {
+    if (pieProgress > 0 && pieDataIndex != null) {
+      _paintStackLinearMorphToPie(canvas, size);
+      return;
+    }
+
     final rLines = _renderLines;
     if (rLines.isEmpty || data.timestamps.isEmpty) return;
 
@@ -1890,6 +1943,164 @@ class _ChartAreaPainter extends CustomPainter {
     _paintDateLabels(canvas, size);
   }
 
+  void _paintStackLinearMorphToPie(Canvas canvas, Size size) {
+    final rLines = _renderLines;
+    if (rLines.isEmpty || data.timestamps.isEmpty) return;
+
+    final t = pieProgress;
+    final idx = pieDataIndex!;
+    final n = data.timestamps.length;
+
+    const topPad = 10.0;
+    final chartH = size.height - topPad - _kBottomCaptionHeight -
+        _kBottomCaptionSkip;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    const kCircleSizeRatio = 0.42;
+    final side = (size.width / 2) * kCircleSizeRatio;
+
+    double total = 0;
+    for (final (l, _) in rLines) {
+      if (idx < l.values.length) total += l.values[idx];
+    }
+    if (total == 0) total = 1;
+
+    final sums = List<double>.filled(n, 0);
+    for (int i = 0; i < n; i++) {
+      for (final (l, _) in rLines) {
+        if (i < l.values.length) sums[i] += l.values[i];
+      }
+    }
+
+    if (t < 1.0) {
+      var prevY = List<double>.filled(n, topPad + chartH);
+      for (final (line, alpha) in rLines.reversed) {
+        final count = math.min(line.values.length, n);
+        final path = Path();
+        final curY = List<double>.from(prevY);
+
+        for (int i = 0; i < count; i++) {
+          final x = _dataXToPixel(i, n, size.width);
+          final norm = line.values[i] / (sums[i] == 0 ? 1 : sums[i]);
+          curY[i] = prevY[i] - norm * chartH;
+          if (i == 0) {
+            path.moveTo(x, curY[i]);
+          } else {
+            path.lineTo(x, curY[i]);
+          }
+        }
+        for (int i = count - 1; i >= 0; i--) {
+          path.lineTo(_dataXToPixel(i, n, size.width), prevY[i]);
+        }
+        path.close();
+        canvas.drawPath(
+            path,
+            Paint()
+              ..color = _resolveLineColor(line)
+                  .withValues(alpha: alpha * (1.0 - t)));
+        prevY = curY;
+      }
+    }
+
+    if (t > 0) {
+      double startAngle = -math.pi / 2;
+      for (int i = 0; i < rLines.length; i++) {
+        final (line, alpha) = rLines[i];
+        final val = idx < line.values.length ? line.values[idx] : 0.0;
+        final sweep = (val / total) * 2 * math.pi;
+        if (sweep <= 0) continue;
+
+        final midAngle = startAngle + sweep / 2;
+        double offsetX = 0, offsetY = 0;
+        if (i == pieHoverSlice && t >= 1.0) {
+          offsetX = math.cos(midAngle) * 8.0;
+          offsetY = math.sin(midAngle) * 8.0;
+        }
+
+        final rect = Rect.fromCircle(
+          center: Offset(cx + offsetX, cy + offsetY),
+          radius: side * t,
+        );
+        canvas.drawArc(
+            rect,
+            startAngle,
+            sweep,
+            true,
+            Paint()
+              ..color =
+                  _resolveLineColor(line).withValues(alpha: alpha * t));
+        startAngle += sweep;
+      }
+
+      if (t > 0.5) {
+        _paintPieLabelsInternal(canvas, size, rLines, total, side * t, cx, cy, t);
+      }
+    }
+
+    if (t < 1.0) {
+      _paintDateLabels(canvas, size);
+    }
+  }
+
+  void _paintPieLabelsInternal(Canvas canvas, Size size,
+      List<(ChartLine, double)> rLines, double total, double side,
+      double cx, double cy, double t) {
+    const baseFontSize = 14.0;
+    final maxScale = side / (baseFontSize * 2);
+    final minScale = maxScale * 0.3;
+    const kMinPercentage = 0.039;
+    const kPieAngleOffset = 90.0;
+
+    double startAngleDeg = -180.0;
+    final idx = pieDataIndex!;
+    for (int i = 0; i < rLines.length; i++) {
+      final (line, _) = rLines[i];
+      final val = idx < line.values.length ? line.values[idx] : 0.0;
+      final percentage = val / total;
+      final sweepDeg = percentage * 360.0;
+      if (sweepDeg <= 0 || percentage <= kMinPercentage) {
+        startAngleDeg += sweepDeg;
+        continue;
+      }
+
+      final rText = side * math.sqrt(1.0 - percentage);
+      final textAngle = startAngleDeg + kPieAngleOffset + sweepDeg / 2;
+      final textRadians = textAngle * math.pi / 180.0;
+      final scale = (maxScale == minScale)
+          ? 0.0
+          : minScale + percentage * (maxScale - minScale);
+
+      final pct = (percentage * 100).round();
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '$pct%',
+          style: const TextStyle(
+            fontSize: baseFontSize,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final textXShift = tp.width / 2;
+      final textYShift = tp.height / 2;
+
+      final labelCx = cx +
+          (rText - textXShift * (1.0 - scale)) * math.cos(textRadians);
+      final labelCy = cy +
+          (rText - textYShift * (1.0 - scale)) * math.sin(textRadians);
+
+      canvas.save();
+      canvas.translate(labelCx, labelCy);
+      canvas.scale(scale * t, scale * t);
+      canvas.translate(-labelCx, -labelCy);
+      tp.paint(canvas, Offset(labelCx - textXShift, labelCy - textYShift));
+      canvas.restore();
+
+      startAngleDeg += sweepDeg;
+    }
+  }
+
   static String _formatShort(double v) {
     final a = v.abs();
     if (a >= 1e6) return '${(v / 1e6).toStringAsFixed(1)}M';
@@ -1913,7 +2124,10 @@ class _ChartAreaPainter extends CustomPainter {
       animatedYMx != old.animatedYMx ||
       dateLabelAlpha != old.dateLabelAlpha ||
       prevDateStep != old.prevDateStep ||
-      curDateStep != old.curDateStep;
+      curDateStep != old.curDateStep ||
+      pieProgress != old.pieProgress ||
+      pieDataIndex != old.pieDataIndex ||
+      pieHoverSlice != old.pieHoverSlice;
 }
 
 class _FooterPainter extends CustomPainter {
@@ -2008,15 +2222,35 @@ class _FooterPainter extends CustomPainter {
 
     switch (data.chartType) {
       case 'Linear' || 'DoubleLinear':
+        final isDouble = data.chartType == 'DoubleLinear';
+        double sharedMn = double.infinity, sharedMx = double.negativeInfinity;
+        if (isDouble) {
+          for (final line in lines) {
+            if ((lineAlphas[line.id] ?? 1.0) < 0.01) continue;
+            for (final v in line.values) {
+              if (v < sharedMn) sharedMn = v;
+              if (v > sharedMx) sharedMx = v;
+            }
+          }
+          if (sharedMn == double.infinity) { sharedMn = 0; sharedMx = 1; }
+          if (sharedMx == sharedMn) sharedMx = sharedMn + 1;
+        }
         for (final line in lines) {
           final alpha = lineAlphas[line.id] ?? 1.0;
           if (alpha < 0.01) continue;
-          double mn = double.infinity, mx = double.negativeInfinity;
-          for (final v in line.values) {
-            if (v < mn) mn = v;
-            if (v > mx) mx = v;
+          double mn, mx;
+          if (isDouble) {
+            mn = sharedMn;
+            mx = sharedMx;
+          } else {
+            mn = double.infinity;
+            mx = double.negativeInfinity;
+            for (final v in line.values) {
+              if (v < mn) mn = v;
+              if (v > mx) mx = v;
+            }
+            if (mx == mn) mx = mn + 1;
           }
-          if (mx == mn) mx = mn + 1;
           final count = math.min(line.values.length, n);
           if (count < 2) continue;
           final path = Path();
@@ -2137,91 +2371,3 @@ class _FooterPainter extends CustomPainter {
       animatedFooterYMax != old.animatedFooterYMax;
 }
 
-class _PieChartPainter extends CustomPainter {
-  final StatsChartData data;
-  final int dataIndex;
-  final Map<String, bool> lineVisible;
-  final bool isDark;
-  final int hoverSlice;
-  final double animProgress;
-
-  static const _popOut = 8.0;
-  static const _labelFontSize = 20.0;
-
-  _PieChartPainter({
-    required this.data,
-    required this.dataIndex,
-    required this.lineVisible,
-    required this.isDark,
-    required this.hoverSlice,
-    required this.animProgress,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final lines =
-        data.lines.where((l) => lineVisible[l.id] ?? true).toList();
-    if (lines.isEmpty) return;
-
-    double total = 0;
-    for (final l in lines) {
-      if (dataIndex < l.values.length) total += l.values[dataIndex];
-    }
-    if (total == 0) return;
-
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final radius = math.min(cx, cy) * 0.75 * animProgress;
-
-    double startAngle = -math.pi / 2;
-    for (int i = 0; i < lines.length; i++) {
-      final val =
-          dataIndex < lines[i].values.length ? lines[i].values[dataIndex] : 0.0;
-      final sweep = (val / total) * 2 * math.pi;
-      if (sweep <= 0) continue;
-
-      final midAngle = startAngle + sweep / 2;
-      double offsetX = 0, offsetY = 0;
-      if (i == hoverSlice) {
-        offsetX = math.cos(midAngle) * _popOut * animProgress;
-        offsetY = math.sin(midAngle) * _popOut * animProgress;
-      }
-
-      final rect = Rect.fromCircle(
-        center: Offset(cx + offsetX, cy + offsetY),
-        radius: radius,
-      );
-      canvas.drawArc(rect, startAngle, sweep, true, Paint()..color = _resolveLineColor(lines[i]));
-
-      if (animProgress > 0.5) {
-        final pct = (val / total * 100).round();
-        if (pct >= 3) {
-          final labelR = radius * 0.65;
-          final lx = cx + offsetX + math.cos(midAngle) * labelR;
-          final ly = cy + offsetY + math.sin(midAngle) * labelR;
-          final tp = TextPainter(
-            text: TextSpan(
-              text: '$pct%',
-              style: TextStyle(
-                fontSize: _labelFontSize * animProgress,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-            textDirection: TextDirection.ltr,
-          )..layout();
-          tp.paint(canvas, Offset(lx - tp.width / 2, ly - tp.height / 2));
-        }
-      }
-
-      startAngle += sweep;
-    }
-  }
-
-  @override
-  bool shouldRepaint(_PieChartPainter old) =>
-      dataIndex != old.dataIndex ||
-      hoverSlice != old.hoverSlice ||
-      animProgress != old.animProgress ||
-      lineVisible != old.lineVisible;
-}
