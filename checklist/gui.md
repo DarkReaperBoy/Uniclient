@@ -1201,31 +1201,6 @@ Before findings, confirmed matches (not issues):
 
 # reactions_detail — Reactions Detail Panel Audit
 
-## send_files_box — groupFiles ignored, sendLargePhotos not forwarded, caption on wrong file, sendAsSticker dropped, reply header missing, price tag overlay missing
-
-- [ ] [CRITICAL] `groupFiles` flag collected in `SendFilesResult` but never passed to engine — `_uploadFiles` loop calls `uploadFile` for each file individually with no grouping, so the "Group files" checkbox is a complete no-op — `send_files_box.dart:3978-3993` ← `send_files_box.cpp:2427-2449` (`DivideByGroups` + grouped album send)
-
-- [ ] [CRITICAL] `sendLargePhotos` flag from `SendFilesResult` never forwarded to engine — `_uploadFiles` loop in `chat_view.dart:3978-3993` does not pass it to `uploadFile`, and `engine_service.dart:3710` has no such parameter, so photos are always compressed regardless of the "Send in high quality" toggle — `send_files_box.dart:1240` ← `send_files_box.cpp:2393-2394` (`item.sendLargePhotos = way.sendLargePhotos()`)
-
-- [ ] [CRITICAL] `sendAsSticker` flag from `SendFilesResult` is never handled in `chat_view.dart` — the "Send as sticker" menu item calls `_send(asSticker: true)` and `SendFilesResult.sendAsSticker` is set, but `_uploadFiles` never reads it, so the file is always uploaded as a regular photo document — `send_files_box.dart:1215-1248` ← `send_files_box.cpp:1193-1216` (AyuGram converts image to WEBP sticker inline before calling `send()`)
-
-- [ ] [CRITICAL] Caption placement wrong for document-group albums — Dart always assigns the main caption to file at index 0 (`i == 0 ? result.caption : ''`) but AyuGram assigns it to the LAST file in the last group for non-PhotoVideo albums (and FIRST file only for PhotoVideo/photo albums) — `send_files_box.dart:3979-3980` ← `send_files_box.cpp:2440-2446`
-
-- [ ] [CRITICAL] Reply-to header (`ReplyPillHeader`) is entirely absent from the Dart implementation — AyuGram renders a reply pill above the file preview when the user is replying; Dart has no `_replyTo` or reply header widget at all — `send_files_box.dart` (missing) ← `send_files_box.cpp:672-718` + `send_files_box_reply_header.h/cpp`
-
-- [ ] [CRITICAL] Paid media price tag overlay is missing — AyuGram renders a centered `_priceTag` widget overlaid on the file preview when `starsPerMessage > 0`; Dart only changes the send button label text but shows no visual overlay on the preview — `send_files_box.dart:1722-1730` ← `send_files_box.cpp:1075-1133` (`refreshPriceTag` / `_priceTag` widget)
-
-- [ ] [CRITICAL] Rename dialog missing max-length enforcement — both `_doRename` (line 2047) and `_AlbumPreviewState._renameFile` (line 2386) show a plain `TextField` with no `maxLength`, allowing names longer than `kMaxDisplayNameLength` (64). AyuGram enforces `maxNameLength = 64 - extension.size()` and shows an error on overflow — `send_files_box.dart:2047-2069` / `send_files_box.dart:2386-2409` ← `send_files_box.cpp:132-177` (`RenameFileBox`)
-
-- [ ] [MAJOR] Album layout two-image stacked formula diverges from AyuGram — for `ww` aspect-ratio pair, Dart uses `h0 = (maxH-sp) * r0 / (r0+r1)` (proportional split) whereas AyuGram uses `h = min(w/r0, min(w/r1, (maxH-sp)/2))` (equal-height capped at half of available height), producing visually different row heights — `send_files_box.dart:2594-2599` ← `grouped_layout.cpp:196-214` (`layoutTwoTopBottom`)
-
-- [ ] [MAJOR] Clipboard paste is Wayland-only (`wl-paste`) — `_handleCaptionPaste` calls `Process.run('wl-paste', ...)`, which fails silently on X11 and non-Linux platforms; AyuGram uses Qt's cross-platform `QMimeData` clipboard API — `send_files_box.dart:618-628` ← `send_files_box.cpp:2086-2108` (`addFiles` via `QMimeData`)
-
-- [ ] [MAJOR] Spoiler particle painter uses a fixed random seed (`math.Random(42)`) — all spoiler overlays produce the exact same particle layout; only the phase animation varies. AyuGram uses a proper per-frame random particle system — `send_files_box.dart:3331` ← (no direct AyuGram line, but AyuGram uses the `Ui::SpoilerAnimation` system with true randomness)
-
-- [ ] [MAJOR] `captionEntitiesJson` is only forwarded for the first file (`i == 0 ? result.captionEntitiesJson : ''`) — per-file captions added via the edit-caption dialog have no entity/markup support (plain text only), whereas AyuGram stores `TextWithTags` per file and forwards full markup — `send_files_box.dart:3981` ← `send_files_box.cpp:1570-1598` (`EditFileCaptionBox` with `TextWithTags`)
-
-- [ ] [MAJOR] Drag zone mode uses current file list state instead of the MIME data type of the dragged content — Dart computes `_computeDragZoneMode()` from `_files` contents at drag-enter time, but AyuGram evaluates the dragged `QMimeData` state (`PhotoFiles`/`MediaFiles`/`Files`/`Image`) to decide which drop zones to show — `send_files_box.dart:1116-1121` ← `send_files_box.cpp:849-877` (`setupDragArea` / `computeState`)
 
 # settings_screen — Settings Screen Audit
 
