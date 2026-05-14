@@ -4054,7 +4054,7 @@ class EngineService {
     await _callAsync('__engine', 'PinMessage', req.writeToBuffer());
   }
 
-  Future<String> uploadFile(String accountId, String chatId, String filePath, {String caption = '', String captionEntities = '', bool silent = false, int scheduleDate = 0, bool spoiler = false, bool sendAsDocument = false, bool captionAbove = false, String videoCoverPath = ''}) async {
+  Future<String> uploadFile(String accountId, String chatId, String filePath, {String caption = '', String captionEntities = '', bool silent = false, int scheduleDate = 0, bool spoiler = false, bool sendAsDocument = false, bool captionAbove = false, String videoCoverPath = '', bool sendLargePhotos = false, bool sendAsSticker = false, String replyToMsgId = '', String groupId = ''}) async {
     final req = epb.EngineUploadFileRequest()
       ..accountId = accountId
       ..chatId = chatId
@@ -4066,7 +4066,11 @@ class EngineService {
       ..sendAsDocument = sendAsDocument
       ..captionAbove = captionAbove
       ..captionEntities = captionEntities
-      ..videoCoverPath = videoCoverPath;
+      ..videoCoverPath = videoCoverPath
+      ..sendLargePhotos = sendLargePhotos
+      ..sendAsSticker = sendAsSticker
+      ..replyToMsgId = replyToMsgId
+      ..groupId = groupId;
     final resp = epb.EngineUploadFileResponse.fromBuffer(
       await _callAsync('__engine', 'UploadFile', req.writeToBuffer()),
     );

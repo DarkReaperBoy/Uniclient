@@ -4867,6 +4867,10 @@ type EngineUploadFileRequest struct {
 	CaptionEntities string                 `protobuf:"bytes,10,opt,name=caption_entities,json=captionEntities,proto3" json:"caption_entities,omitempty"`
 	VideoCoverPath  string                 `protobuf:"bytes,11,opt,name=video_cover_path,json=videoCoverPath,proto3" json:"video_cover_path,omitempty"`
 	Duration        int32                  `protobuf:"varint,12,opt,name=duration,proto3" json:"duration,omitempty"`
+	SendLargePhotos bool                   `protobuf:"varint,13,opt,name=send_large_photos,json=sendLargePhotos,proto3" json:"send_large_photos,omitempty"`
+	SendAsSticker   bool                   `protobuf:"varint,14,opt,name=send_as_sticker,json=sendAsSticker,proto3" json:"send_as_sticker,omitempty"`
+	ReplyToMsgId    string                 `protobuf:"bytes,15,opt,name=reply_to_msg_id,json=replyToMsgId,proto3" json:"reply_to_msg_id,omitempty"`
+	GroupId         string                 `protobuf:"bytes,16,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -4983,6 +4987,34 @@ func (x *EngineUploadFileRequest) GetDuration() int32 {
 		return x.Duration
 	}
 	return 0
+}
+
+func (x *EngineUploadFileRequest) GetSendLargePhotos() bool {
+	if x != nil {
+		return x.SendLargePhotos
+	}
+	return false
+}
+
+func (x *EngineUploadFileRequest) GetSendAsSticker() bool {
+	if x != nil {
+		return x.SendAsSticker
+	}
+	return false
+}
+
+func (x *EngineUploadFileRequest) GetReplyToMsgId() string {
+	if x != nil {
+		return x.ReplyToMsgId
+	}
+	return ""
+}
+
+func (x *EngineUploadFileRequest) GetGroupId() string {
+	if x != nil {
+		return x.GroupId
+	}
+	return ""
 }
 
 type EngineUploadFileResponse struct {
@@ -13866,7 +13898,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
 	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x16\n" +
-	"\x06pinned\x18\x04 \x01(\bR\x06pinned\"\x9f\x03\n" +
+	"\x06pinned\x18\x04 \x01(\bR\x06pinned\"\xb5\x04\n" +
 	"\x17EngineUploadFileRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -13881,7 +13913,11 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x10caption_entities\x18\n" +
 	" \x01(\tR\x0fcaptionEntities\x12(\n" +
 	"\x10video_cover_path\x18\v \x01(\tR\x0evideoCoverPath\x12\x1a\n" +
-	"\bduration\x18\f \x01(\x05R\bduration\"1\n" +
+	"\bduration\x18\f \x01(\x05R\bduration\x12*\n" +
+	"\x11send_large_photos\x18\r \x01(\bR\x0fsendLargePhotos\x12&\n" +
+	"\x0fsend_as_sticker\x18\x0e \x01(\bR\rsendAsSticker\x12%\n" +
+	"\x0freply_to_msg_id\x18\x0f \x01(\tR\freplyToMsgId\x12\x19\n" +
+	"\bgroup_id\x18\x10 \x01(\tR\agroupId\"1\n" +
 	"\x18EngineUploadFileResponse\x12\x15\n" +
 	"\x06msg_id\x18\x01 \x01(\tR\x05msgId\"6\n" +
 	"\x19EngineRetryPendingRequest\x12\x19\n" +

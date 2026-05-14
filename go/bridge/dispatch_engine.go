@@ -833,6 +833,10 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			CaptionAbove:    req.CaptionAbove,
 			VideoCoverPath:  req.VideoCoverPath,
 			Duration:        int(req.Duration),
+			SendLargePhotos: req.SendLargePhotos,
+			SendAsSticker:   req.SendAsSticker,
+			ReplyToMsgID:    req.ReplyToMsgId,
+			GroupID:         req.GroupId,
 		})
 		if err != nil {
 			return nil, err

@@ -568,6 +568,10 @@ message EngineUploadFileRequest {
   string caption_entities  = 10;
   string video_cover_path  = 11;
   int32  duration          = 12;
+  bool   send_large_photos = 13;
+  bool   send_as_sticker   = 14;
+  string reply_to_msg_id   = 15;
+  string group_id          = 16;
 }
 
 message EngineUploadFileResponse {

@@ -1510,11 +1510,11 @@ class ChatState extends ChangeNotifier {
     return localId;
   }
 
-  Future<String?> uploadFile(String filePath, {String caption = '', String captionEntities = '', bool silent = false, int scheduleDate = 0, bool spoiler = false, bool sendAsDocument = false, bool captionAbove = false, String videoCoverPath = ''}) async {
+  Future<String?> uploadFile(String filePath, {String caption = '', String captionEntities = '', bool silent = false, int scheduleDate = 0, bool spoiler = false, bool sendAsDocument = false, bool captionAbove = false, String videoCoverPath = '', bool sendLargePhotos = false, bool sendAsSticker = false, String replyToMsgId = '', String groupId = ''}) async {
     final chat = _activeChat;
     if (chat == null) return null;
     clearOpenedUnread();
-    final msgId = await _engine.uploadFile(chat.accountId, chat.chatId, filePath, caption: caption, captionEntities: captionEntities, silent: silent, scheduleDate: scheduleDate, spoiler: spoiler, sendAsDocument: sendAsDocument, captionAbove: captionAbove, videoCoverPath: videoCoverPath);
+    final msgId = await _engine.uploadFile(chat.accountId, chat.chatId, filePath, caption: caption, captionEntities: captionEntities, silent: silent, scheduleDate: scheduleDate, spoiler: spoiler, sendAsDocument: sendAsDocument, captionAbove: captionAbove, videoCoverPath: videoCoverPath, sendLargePhotos: sendLargePhotos, sendAsSticker: sendAsSticker, replyToMsgId: replyToMsgId, groupId: groupId);
     _refreshMessages();
     return msgId;
   }

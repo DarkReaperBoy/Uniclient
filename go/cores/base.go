@@ -779,6 +779,10 @@ type UploadOptions struct {
 	SendAsDocument  bool
 	CaptionAbove    bool
 	VideoCoverPath  string
+	SendLargePhotos bool
+	SendAsSticker   bool
+	ReplyToMsgID    string
+	GroupID         string
 }
 
 // UploadWithOptionsSupporter allows uploading files with extra metadata.

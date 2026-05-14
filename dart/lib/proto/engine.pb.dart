@@ -6631,6 +6631,10 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     $core.String? captionEntities,
     $core.String? videoCoverPath,
     $core.int? duration,
+    $core.bool? sendLargePhotos,
+    $core.bool? sendAsSticker,
+    $core.String? replyToMsgId,
+    $core.String? groupId,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -6669,6 +6673,18 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     if (duration != null) {
       $result.duration = duration;
     }
+    if (sendLargePhotos != null) {
+      $result.sendLargePhotos = sendLargePhotos;
+    }
+    if (sendAsSticker != null) {
+      $result.sendAsSticker = sendAsSticker;
+    }
+    if (replyToMsgId != null) {
+      $result.replyToMsgId = replyToMsgId;
+    }
+    if (groupId != null) {
+      $result.groupId = groupId;
+    }
     return $result;
   }
   EngineUploadFileRequest._() : super();
@@ -6688,6 +6704,10 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     ..aOS(10, _omitFieldNames ? '' : 'captionEntities')
     ..aOS(11, _omitFieldNames ? '' : 'videoCoverPath')
     ..a<$core.int>(12, _omitFieldNames ? '' : 'duration', $pb.PbFieldType.O3)
+    ..aOB(13, _omitFieldNames ? '' : 'sendLargePhotos')
+    ..aOB(14, _omitFieldNames ? '' : 'sendAsSticker')
+    ..aOS(15, _omitFieldNames ? '' : 'replyToMsgId')
+    ..aOS(16, _omitFieldNames ? '' : 'groupId')
     ..hasRequiredFields = false
   ;
 
@@ -6819,6 +6839,42 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
   $core.bool hasDuration() => $_has(11);
   @$pb.TagNumber(12)
   void clearDuration() => clearField(12);
+
+  @$pb.TagNumber(13)
+  $core.bool get sendLargePhotos => $_getBF(12);
+  @$pb.TagNumber(13)
+  set sendLargePhotos($core.bool v) { $_setBool(12, v); }
+  @$pb.TagNumber(13)
+  $core.bool hasSendLargePhotos() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearSendLargePhotos() => clearField(13);
+
+  @$pb.TagNumber(14)
+  $core.bool get sendAsSticker => $_getBF(13);
+  @$pb.TagNumber(14)
+  set sendAsSticker($core.bool v) { $_setBool(13, v); }
+  @$pb.TagNumber(14)
+  $core.bool hasSendAsSticker() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearSendAsSticker() => clearField(14);
+
+  @$pb.TagNumber(15)
+  $core.String get replyToMsgId => $_getSZ(14);
+  @$pb.TagNumber(15)
+  set replyToMsgId($core.String v) { $_setString(14, v); }
+  @$pb.TagNumber(15)
+  $core.bool hasReplyToMsgId() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearReplyToMsgId() => clearField(15);
+
+  @$pb.TagNumber(16)
+  $core.String get groupId => $_getSZ(15);
+  @$pb.TagNumber(16)
+  set groupId($core.String v) { $_setString(15, v); }
+  @$pb.TagNumber(16)
+  $core.bool hasGroupId() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearGroupId() => clearField(16);
 }
 
 class EngineUploadFileResponse extends $pb.GeneratedMessage {

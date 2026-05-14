@@ -76,6 +76,7 @@ class SendFilesResult {
   final bool sendLargePhotos;
   final bool captionAbove;
   final Map<int, String> perFileCaptions;
+  final Map<int, String> perFileCaptionEntities;
   final bool ctrlShiftEnter;
   final bool sendAsSticker;
   final Map<int, String> videoCoverPaths;
@@ -93,6 +94,7 @@ class SendFilesResult {
     this.sendLargePhotos = true,
     this.captionAbove = false,
     this.perFileCaptions = const {},
+    this.perFileCaptionEntities = const {},
     this.ctrlShiftEnter = false,
     this.sendAsSticker = false,
     this.videoCoverPaths = const {},
@@ -236,6 +238,8 @@ Future<SendFilesResult?> showSendFilesBox(
   bool? overrideGroupFiles,
   List<MemberInfo> members = const [],
   bool isBroadcast = false,
+  String? replyToName,
+  String? replyToText,
 }) {
   return showGeneralDialog<SendFilesResult>(
     context: context,
@@ -270,6 +274,8 @@ Future<SendFilesResult?> showSendFilesBox(
       overrideGroupFiles: overrideGroupFiles,
       members: members,
       isBroadcast: isBroadcast,
+      replyToName: replyToName,
+      replyToText: replyToText,
     ),
   );
 }
@@ -284,6 +290,8 @@ class _SendFilesBoxDialog extends StatefulWidget {
   final bool? overrideGroupFiles;
   final List<MemberInfo> members;
   final bool isBroadcast;
+  final String? replyToName;
+  final String? replyToText;
 
   const _SendFilesBoxDialog({
     required this.filePaths,
@@ -295,6 +303,8 @@ class _SendFilesBoxDialog extends StatefulWidget {
     this.overrideGroupFiles,
     this.members = const [],
     this.isBroadcast = false,
+    this.replyToName,
+    this.replyToText,
   });
 
   @override
@@ -614,40 +624,18 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       _files.any((f) => f.isMediaType);
 
   Future<void> _handleCaptionPaste() async {
-    try {
-      final result = await Process.run('wl-paste', ['--list-types']);
-      final types = result.stdout.toString();
-      if (types.contains('image/png') || types.contains('image/jpeg')) {
-        if (widget.isSlowMode && _files.isNotEmpty) {
-          showTelegramToast(context, 'Only one file can be sent in slow mode');
-          return;
-        }
-        final tmpDir = Directory.systemTemp;
-        final ext = types.contains('image/png') ? 'png' : 'jpg';
-        final tmpFile = File('${tmpDir.path}/uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.$ext');
-        final pasteResult = await Process.run('wl-paste', ['--type', 'image/$ext'],
-            stdoutEncoding: null);
-        if (pasteResult.exitCode == 0 && pasteResult.stdout is List<int>) {
-          await tmpFile.writeAsBytes(pasteResult.stdout as List<int>);
-          if (await tmpFile.exists() && await tmpFile.length() > 0) {
-            setState(() {
-              final name = tmpFile.uri.pathSegments.last;
-              if (widget.isSlowMode) {
-                _files.clear();
-              }
-              _files.add(_PreparedFile(
-                path: tmpFile.path,
-                name: name,
-                size: tmpFile.lengthSync(),
-                type: _detectType(name),
-              ));
-            });
-            _loadImageDimensions();
-            return;
-          }
-        }
-      }
-    } catch (_) {}
+    if (Platform.isLinux || Platform.isMacOS) {
+      try {
+        final pasted = await _tryClipboardImage();
+        if (pasted) return;
+      } catch (_) {}
+    }
+    if (Platform.isWindows) {
+      try {
+        final pasted = await _tryClipboardImageWindows();
+        if (pasted) return;
+      } catch (_) {}
+    }
     // Fallback: just let normal paste happen
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text != null && data!.text!.isNotEmpty) {
@@ -665,6 +653,73 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         );
       }
     }
+  }
+
+  Future<bool> _tryClipboardImage() async {
+    String? types;
+    String clipTool = 'wl-paste';
+    // Try Wayland first
+    try {
+      final r = await Process.run('wl-paste', ['--list-types']);
+      if (r.exitCode == 0) types = r.stdout.toString();
+    } catch (_) {}
+    // Fallback to X11
+    if (types == null || (!types.contains('image/png') && !types.contains('image/jpeg'))) {
+      try {
+        final r = await Process.run('xclip', ['-selection', 'clipboard', '-t', 'TARGETS', '-o']);
+        if (r.exitCode == 0) {
+          types = r.stdout.toString();
+          clipTool = 'xclip';
+        }
+      } catch (_) {}
+    }
+    if (types == null) return false;
+    if (!types.contains('image/png') && !types.contains('image/jpeg')) return false;
+    if (widget.isSlowMode && _files.isNotEmpty) {
+      if (mounted) showTelegramToast(context, 'Only one file can be sent in slow mode');
+      return true;
+    }
+    final ext = types.contains('image/png') ? 'png' : 'jpg';
+    final tmpFile = File('${Directory.systemTemp.path}/uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.$ext');
+    ProcessResult pasteResult;
+    if (clipTool == 'wl-paste') {
+      pasteResult = await Process.run('wl-paste', ['--type', 'image/$ext'], stdoutEncoding: null);
+    } else {
+      pasteResult = await Process.run('xclip', ['-selection', 'clipboard', '-t', 'image/$ext', '-o'], stdoutEncoding: null);
+    }
+    if (pasteResult.exitCode == 0 && pasteResult.stdout is List<int>) {
+      await tmpFile.writeAsBytes(pasteResult.stdout as List<int>);
+      if (await tmpFile.exists() && await tmpFile.length() > 0) {
+        setState(() {
+          final name = tmpFile.uri.pathSegments.last;
+          if (widget.isSlowMode) _files.clear();
+          _files.add(_PreparedFile(path: tmpFile.path, name: name, size: tmpFile.lengthSync(), type: _detectType(name)));
+        });
+        _loadImageDimensions();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<bool> _tryClipboardImageWindows() async {
+    final r = await Process.run('powershell', ['-Command', 'Get-Clipboard -Format Image | ForEach-Object { \$_.Save("${Directory.systemTemp.path}\\uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.png") }']);
+    if (r.exitCode != 0) return false;
+    final tmpFile = File('${Directory.systemTemp.path}\\uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.png');
+    if (await tmpFile.exists() && await tmpFile.length() > 0) {
+      if (widget.isSlowMode && _files.isNotEmpty) {
+        if (mounted) showTelegramToast(context, 'Only one file can be sent in slow mode');
+        return true;
+      }
+      setState(() {
+        final name = tmpFile.uri.pathSegments.last;
+        if (widget.isSlowMode) _files.clear();
+        _files.add(_PreparedFile(path: tmpFile.path, name: name, size: tmpFile.lengthSync(), type: _detectType(name)));
+      });
+      _loadImageDimensions();
+      return true;
+    }
+    return false;
   }
 
   Future<void> _showEditCaptionDialog(int fileIndex) async {
@@ -1114,10 +1169,8 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   _DragZoneMode _computeDragZoneMode() {
-    if (!_sendAsDocuments && _files.any((f) => f.isMediaType)) {
-      return _DragZoneMode.both;
-    }
-    return _DragZoneMode.documentOnly;
+    if (_sendAsDocuments) return _DragZoneMode.documentOnly;
+    return _DragZoneMode.both;
   }
 
   bool get _hasPaidPrice => widget.starsPerMessage > 0;
@@ -1438,26 +1491,93 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                     const SizedBox(height: 8),
+                    if (widget.replyToName != null && widget.replyToName!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: accentFg.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.reply, size: 16, color: accentFg),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text.rich(
+                                  TextSpan(children: [
+                                    TextSpan(
+                                      text: widget.replyToName!,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: accentFg,
+                                      ),
+                                    ),
+                                    if (widget.replyToText != null && widget.replyToText!.isNotEmpty) ...[
+                                      TextSpan(
+                                        text: '  ${widget.replyToText!}',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: subFg,
+                                        ),
+                                      ),
+                                    ],
+                                  ]),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     if (showMediaPreview && mediaFiles.isNotEmpty)
-                      _MediaPreview(
-                        files: mediaFiles,
-                        allFiles: _files,
-                        onRemove: (file) {
-                          final idx = _files.indexOf(file);
-                          if (idx >= 0) _removeFile(idx);
-                        },
-                        onToggleSpoiler: (file) {
-                          final idx = _files.indexOf(file);
-                          if (idx >= 0) _toggleSpoiler(idx);
-                        },
-                        onReorder: _reorderMediaFiles,
-                        onReplace: _replaceFile,
-                        onRename: _renameFile,
-                        onEditCaption: _editFileCaption,
-                        canSpoiler: _canSpoiler,
-                        sendLargePhotos: _sendLargePhotos,
-                        isBroadcast: widget.isBroadcast,
-                        isSelfChat: widget.isSelfChat,
+                      Stack(
+                        children: [
+                          _MediaPreview(
+                            files: mediaFiles,
+                            allFiles: _files,
+                            onRemove: (file) {
+                              final idx = _files.indexOf(file);
+                              if (idx >= 0) _removeFile(idx);
+                            },
+                            onToggleSpoiler: (file) {
+                              final idx = _files.indexOf(file);
+                              if (idx >= 0) _toggleSpoiler(idx);
+                            },
+                            onReorder: _reorderMediaFiles,
+                            onReplace: _replaceFile,
+                            onRename: _renameFile,
+                            onEditCaption: _editFileCaption,
+                            canSpoiler: _canSpoiler,
+                            sendLargePhotos: _sendLargePhotos,
+                            isBroadcast: widget.isBroadcast,
+                            isSelfChat: widget.isSelfChat,
+                          ),
+                          if (_hasPaidPrice)
+                            Positioned.fill(
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xCC000000),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    '⭐ ${widget.starsPerMessage}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     if (showMediaPreview && mediaFiles.isNotEmpty &&
                         (gifFiles.isNotEmpty || docFiles.isNotEmpty))
@@ -2045,7 +2165,11 @@ class _SingleMediaPreview extends StatelessWidget {
   }
 
   void _doRename(BuildContext context) {
-    final ctrl = TextEditingController(text: file.name);
+    final dotIdx = file.name.lastIndexOf('.');
+    final ext = dotIdx > 0 ? file.name.substring(dotIdx) : '';
+    final nameOnly = dotIdx > 0 ? file.name.substring(0, dotIdx) : file.name;
+    final maxNameLen = (_kMaxDisplayNameLength - ext.length).clamp(0, _kMaxDisplayNameLength);
+    final ctrl = TextEditingController(text: nameOnly);
     showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -2053,6 +2177,7 @@ class _SingleMediaPreview extends StatelessWidget {
         content: TextField(
           controller: ctrl,
           autofocus: true,
+          maxLength: maxNameLen,
           onSubmitted: (v) => Navigator.of(ctx).pop(v),
         ),
         actions: [
@@ -2064,8 +2189,11 @@ class _SingleMediaPreview extends StatelessWidget {
         ],
       ),
     ).then((newName) {
-      if (newName != null && newName.isNotEmpty && newName != file.name) {
-        onRename?.call(fileIndex, newName);
+      if (newName != null && newName.isNotEmpty) {
+        final fullName = '$newName$ext';
+        if (fullName != file.name) {
+          onRename?.call(fileIndex, fullName);
+        }
       }
     });
   }
@@ -2384,7 +2512,11 @@ class _AlbumPreviewState extends State<_AlbumPreview>
   }
 
   void _renameFile(int idx, _PreparedFile file) {
-    final ctrl = TextEditingController(text: file.name);
+    final dotIdx = file.name.lastIndexOf('.');
+    final ext = dotIdx > 0 ? file.name.substring(dotIdx) : '';
+    final nameOnly = dotIdx > 0 ? file.name.substring(0, dotIdx) : file.name;
+    final maxNameLen = (_kMaxDisplayNameLength - ext.length).clamp(0, _kMaxDisplayNameLength);
+    final ctrl = TextEditingController(text: nameOnly);
     showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -2392,6 +2524,7 @@ class _AlbumPreviewState extends State<_AlbumPreview>
         content: TextField(
           controller: ctrl,
           autofocus: true,
+          maxLength: maxNameLen,
           onSubmitted: (v) => Navigator.of(ctx).pop(v),
         ),
         actions: [
@@ -2403,8 +2536,11 @@ class _AlbumPreviewState extends State<_AlbumPreview>
         ],
       ),
     ).then((newName) {
-      if (newName != null && newName.isNotEmpty && newName != file.name) {
-        widget.onRename?.call(idx, newName);
+      if (newName != null && newName.isNotEmpty) {
+        final fullName = '$newName$ext';
+        if (fullName != file.name) {
+          widget.onRename?.call(idx, fullName);
+        }
       }
     });
   }
@@ -2591,11 +2727,10 @@ List<_LayoutRect> _computeAlbumRects(List<double> ratios) {
     final avg = (cr[0] + cr[1]) / 2;
 
     if (p == 'ww' && avg > 1.4 && (cr[1] - cr[0]).abs() < 0.2) {
-      final h0 = (maxH - sp) / (1 + cr[1] / cr[0]);
-      final h1 = maxH - sp - h0;
+      final h = math.min(maxW / cr[0], math.min(maxW / cr[1], (maxH - sp) / 2)).roundToDouble();
       return [
-        _LayoutRect(0, Rect.fromLTWH(0, 0, maxW, h0), c(true, true, false, false)),
-        _LayoutRect(1, Rect.fromLTWH(0, h0 + sp, maxW, h1), c(false, false, true, true)),
+        _LayoutRect(0, Rect.fromLTWH(0, 0, maxW, h), c(true, true, false, false)),
+        _LayoutRect(1, Rect.fromLTWH(0, h + sp, maxW, h), c(false, false, true, true)),
       ];
     }
 
@@ -3278,7 +3413,7 @@ class _HdBadge extends StatelessWidget {
 }
 
 class _SpoilerOverlay extends StatefulWidget {
-  const _SpoilerOverlay();
+  const _SpoilerOverlay({super.key});
 
   @override
   State<_SpoilerOverlay> createState() => _SpoilerOverlayState();
@@ -3287,10 +3422,12 @@ class _SpoilerOverlay extends StatefulWidget {
 class _SpoilerOverlayState extends State<_SpoilerOverlay>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
+  late int _seed;
 
   @override
   void initState() {
     super.initState();
+    _seed = identityHashCode(this);
     _ctrl = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
@@ -3309,7 +3446,7 @@ class _SpoilerOverlayState extends State<_SpoilerOverlay>
       animation: _ctrl,
       builder: (context, child) {
         return CustomPaint(
-          painter: _SpoilerParticlePainter(_ctrl.value),
+          painter: _SpoilerParticlePainter(_ctrl.value, seed: _seed),
           child: child,
         );
       },
@@ -3323,12 +3460,13 @@ class _SpoilerOverlayState extends State<_SpoilerOverlay>
 
 class _SpoilerParticlePainter extends CustomPainter {
   final double phase;
-  _SpoilerParticlePainter(this.phase);
+  final int seed;
+  _SpoilerParticlePainter(this.phase, {this.seed = 0});
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = const Color(0x40FFFFFF);
-    final rng = math.Random(42);
+    final rng = math.Random(seed);
     const count = 80;
     for (int i = 0; i < count; i++) {
       final baseX = rng.nextDouble();

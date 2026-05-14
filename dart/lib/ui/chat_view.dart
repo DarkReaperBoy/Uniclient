@@ -4024,6 +4024,15 @@ class _ChatViewState extends State<ChatView>
     final chat = chatState.activeChat;
     final appState = context.read<AppState>();
     final isSelf = chat != null && chat.title == 'Saved Messages' && chat.type == ChatType.dm;
+    String? replyName;
+    String? replyText;
+    if (_replyToId != null) {
+      final replyMsg = chatState.messages.where((m) => m.msgId == _replyToId).firstOrNull;
+      if (replyMsg != null) {
+        replyName = replyMsg.senderName.isNotEmpty ? replyMsg.senderName : replyMsg.senderId;
+        replyText = replyMsg.contentText;
+      }
+    }
     final result = await showSendFilesBox(
       context,
       filePaths: paths,
@@ -4035,6 +4044,8 @@ class _ChatViewState extends State<ChatView>
       overrideGroupFiles: appState.rememberedGroupFiles,
       members: _acMembers,
       isBroadcast: chat?.type == ChatType.channel,
+      replyToName: replyName,
+      replyToText: replyText,
     );
     if (result == null || result.paths.isEmpty) return;
     if (result.remember) {
@@ -4044,10 +4055,18 @@ class _ChatViewState extends State<ChatView>
     final scheduleDate = result.scheduledDate != null
         ? result.scheduledDate!.millisecondsSinceEpoch ~/ 1000
         : 0;
+    final isDocGroup = result.sendAsDocuments;
+    final lastIdx = result.paths.length - 1;
+    final groupId = result.groupFiles && result.paths.length > 1
+        ? 'album_${DateTime.now().millisecondsSinceEpoch}'
+        : '';
+    final replyId = _replyToId ?? '';
     for (var i = 0; i < result.paths.length; i++) {
+      final captionIdx = isDocGroup ? lastIdx : 0;
       final caption = result.perFileCaptions[i] ??
-          (i == 0 ? result.caption : '');
-      final entities = i == 0 ? result.captionEntitiesJson : '';
+          (i == captionIdx ? result.caption : '');
+      final entities = result.perFileCaptionEntities[i] ??
+          (i == captionIdx ? result.captionEntitiesJson : '');
       final hasSpoiler = i < result.spoilers.length && result.spoilers[i];
       chatState.uploadFile(
         result.paths[i],
@@ -4059,7 +4078,14 @@ class _ChatViewState extends State<ChatView>
         sendAsDocument: result.sendAsDocuments,
         captionAbove: result.captionAbove,
         videoCoverPath: result.videoCoverPaths[i] ?? '',
+        sendLargePhotos: result.sendLargePhotos,
+        sendAsSticker: result.sendAsSticker,
+        replyToMsgId: i == 0 ? replyId : '',
+        groupId: groupId,
       );
+    }
+    if (replyId.isNotEmpty) {
+      setState(() => _replyToId = null);
     }
   }
 
