@@ -107,6 +107,8 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     super.initState();
     widget.manager.onShow = _onShow;
     widget.manager.onDismiss = _onDismissExternal;
+    widget.manager.onStartHiding = _onStartHiding;
+    widget.manager.onUpdateDisplay = _onUpdateDisplay;
     widget.manager.onHideAllChanged = _updateHideAllVisibility;
     widget.manager.isStickyCheck = _isPopupSticky;
   }
@@ -123,12 +125,15 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     if (oldWidget.manager != widget.manager) {
       widget.manager.onShow = _onShow;
       widget.manager.onDismiss = _onDismissExternal;
+      widget.manager.onStartHiding = _onStartHiding;
+      widget.manager.onUpdateDisplay = _onUpdateDisplay;
       widget.manager.onHideAllChanged = _updateHideAllVisibility;
       widget.manager.isStickyCheck = _isPopupSticky;
     }
   }
 
   void _onShow(DefaultNotificationItem item) {
+    if (_popups.any((p) => p.id == item.id)) return;
     final popup = _PopupState(id: item.id, item: item);
     _hasReceivedInput = false;
     setState(() {
@@ -140,6 +145,17 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       setState(() => popup.opacity = 1.0);
       _startHideCountdown(popup);
     });
+  }
+
+  void _onStartHiding(String id) {
+    final popup = _popups.where((p) => p.id == id).firstOrNull;
+    if (popup == null || popup.hovered || popup.replyOpen) return;
+    _startSlowHide(popup);
+  }
+
+  void _onUpdateDisplay(DefaultNotificationItem item) {
+    if (!mounted) return;
+    setState(() {});
   }
 
   void _onUserInput() {
@@ -225,11 +241,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
 
   void _onHoverEnter(_PopupState popup) {
     popup.hovered = true;
-    popup.hideWaitTimer?.cancel();
-    if (popup.hiding) {
-      popup.hiding = false;
-      popup.hideAnimTimer?.cancel();
-    }
+    widget.manager.stopAllHiding();
     for (final p in _popups) {
       p.hideWaitTimer?.cancel();
       if (p.hiding && !p.replyOpen) {
@@ -247,6 +259,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
   void _onHoverExit(_PopupState popup) {
     popup.hovered = false;
     if (_anyReplyOpen()) return;
+    widget.manager.startAllHiding();
     for (final p in _popups) {
       if (!p.hovered && !p.replyOpen) {
         _startHideCountdown(p);

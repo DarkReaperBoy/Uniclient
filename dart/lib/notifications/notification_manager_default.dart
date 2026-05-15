@@ -9,6 +9,9 @@ typedef NotificationTapCallback = void Function(
 typedef NotificationDisplayCallback = void Function(
     DefaultNotificationItem item);
 typedef NotificationDismissCallback = void Function(String id);
+typedef NotificationStartHidingCallback = void Function(String id);
+typedef NotificationUpdateDisplayCallback = void Function(
+    DefaultNotificationItem item);
 
 class DefaultNotificationItem {
   final String id;
@@ -44,6 +47,8 @@ class DefaultManager extends NotificationManager {
   NotificationTapCallback? onTap;
   NotificationDisplayCallback? onShow;
   NotificationDismissCallback? onDismiss;
+  NotificationStartHidingCallback? onStartHiding;
+  NotificationUpdateDisplayCallback? onUpdateDisplay;
   VoidCallbackNoArgs? onHideAllChanged;
   bool Function(String id)? isStickyCheck;
 
@@ -125,7 +130,8 @@ class DefaultManager extends NotificationManager {
   void _startDismissTimer(String id) {
     _dismissTimers[id]?.cancel();
     _dismissTimers[id] = Timer(_dismissDuration, () {
-      dismiss(id);
+      _dismissTimers.remove(id);
+      onStartHiding?.call(id);
     });
   }
 
@@ -146,8 +152,10 @@ class DefaultManager extends NotificationManager {
   }
 
   void resumeDismissTimer(String id) {
+    _dismissTimers[id]?.cancel();
     _dismissTimers[id] = Timer(_dismissDuration, () {
-      dismiss(id);
+      _dismissTimers.remove(id);
+      onStartHiding?.call(id);
     });
   }
 
@@ -269,6 +277,13 @@ class DefaultManager extends NotificationManager {
   }
 
   @override
+  void updateAll() {
+    for (final item in _active) {
+      onUpdateDisplay?.call(item);
+    }
+  }
+
+  @override
   void clearAll() => hideAll();
 
   @override
@@ -281,9 +296,10 @@ class DefaultManager extends NotificationManager {
       dismiss(excess.id);
     }
 
-    for (final item in _active) {
-      onShow?.call(item);
+    while (_queue.isNotEmpty && _active.length < _maxVisible) {
+      _displayItem(_queue.removeFirst());
     }
+    onHideAllChanged?.call();
   }
 
   @override
