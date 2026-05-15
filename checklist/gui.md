@@ -329,15 +329,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 
 # call_screen — GroupCallPanel & MinimisedCallBar audit
 
-- [ ] [CRITICAL] Raise-hand is not wired to the engine — `engine.raiseHand()` is now called in Dart but `dispatchEngine()` in `go/bridge/dispatch_engine.go` has no `RaiseHand` case and returns "unknown engine method: RaiseHand". The raise-hand flag is never sent to Telegram. — `call_screen.dart:1127-1128` / `go/bridge/dispatch_engine.go` ← `calls/group/calls_group_call.cpp:3891,3928` (sendSelfUpdate with RaiseHand / f_raise_hand flag)
-
-- [ ] [CRITICAL] `leaveGroupCall` Go bridge handler missing — `engine.leaveGroupCall()` is called in Dart but `dispatchEngine()` has no `LeaveGroupCall` case (it exists only in `dispatch_gen.go` for account-specific routing, not `__engine`). Non-manager leave is still a no-op on the backend. — `call_screen.dart:1122-1144` / `go/bridge/dispatch_engine.go` ← `calls/group/calls_group_panel.cpp:616`
-
-- [ ] [CRITICAL] Noise suppression toggle still cosmetic — `engine.setNoiseSuppression()` is called in Dart but `dispatchEngine()` has no `SetNoiseSuppression` case. The toggle saves to `AppState` only; no effect on call audio pipeline. — `call_screen.dart:1407-1413` / `go/bridge/dispatch_engine.go` ← `calls/group/calls_group_settings.cpp`
-
-- [ ] [CRITICAL] macOS/Windows output device enumeration still broken — `engine.getAudioDevices()` is called but `dispatchEngine()` has no `GetAudioDevices` case, so it returns empty and only 'Default' is shown. Real device names cannot be enumerated on macOS or Windows. — `call_screen.dart:1292-1301` / `go/bridge/dispatch_engine.go` ← AyuGram uses OS-native audio device APIs
-
-- [ ] [MAJOR] `_showGroupCallMenu` still missing "Join As" and "Leave/End call" — menu now has [Start Recording, Share Screen, Invite members, Settings] but AyuGram's spec requires [Join As, Start/Stop Recording, Screen Share toggle, Settings, Leave/End call]. — `call_screen.dart:1196-1267` ← `calls/group/calls_group_menu.cpp:519-616`
 
 # calls_screen — Audit Findings
 
