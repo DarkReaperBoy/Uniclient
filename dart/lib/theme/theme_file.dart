@@ -7,6 +7,7 @@ import 'telegram_palette.dart';
 
 const _maxThemeFileSize = 5 * 1024 * 1024; // 5 MB
 const _maxPaletteFileSize = 1 * 1024 * 1024; // 1 MB
+const _kBackgroundMaxPixels = 40 * 1024 * 1024; // 40 megapixels, matches AyuGram kBackgroundSizeLimit
 
 class ThemeFileData {
   final TelegramPalette palette;
@@ -205,11 +206,51 @@ bool _looksLikeZip(Uint8List bytes) =>
     bytes[2] == 0x03 &&
     bytes[3] == 0x04;
 
+bool _isValidBackgroundImage(Uint8List bytes) {
+  if (bytes.length < 8) return false;
+  final isJpeg = bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF;
+  final isPng = bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E &&
+      bytes[3] == 0x47 && bytes[4] == 0x0D && bytes[5] == 0x0A &&
+      bytes[6] == 0x1A && bytes[7] == 0x0A;
+  if (!isJpeg && !isPng) return false;
+  final dims = _readImageDimensions(bytes);
+  if (dims == null) return false;
+  final (w, h) = dims;
+  if (w <= 0 || h <= 0 || w * h > _kBackgroundMaxPixels) return false;
+  return true;
+}
+
+(int, int)? _readImageDimensions(Uint8List bytes) {
+  if (bytes.length < 24) return null;
+  if (bytes[0] == 0x89 && bytes[1] == 0x50) {
+    final w = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+    final h = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+    return (w > 0 && h > 0) ? (w, h) : null;
+  }
+  if (bytes[0] == 0xFF && bytes[1] == 0xD8) {
+    var i = 2;
+    while (i + 9 < bytes.length) {
+      if (bytes[i] != 0xFF) { i++; continue; }
+      final marker = bytes[i + 1];
+      if (marker == 0xC0 || marker == 0xC2) {
+        final h = (bytes[i + 5] << 8) | bytes[i + 6];
+        final w = (bytes[i + 7] << 8) | bytes[i + 8];
+        return (w > 0 && h > 0) ? (w, h) : null;
+      }
+      if (marker == 0xD9 || marker == 0xDA) break;
+      final len = (bytes[i + 2] << 8) | bytes[i + 3];
+      i += 2 + len;
+    }
+  }
+  return null;
+}
+
 ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
   final Archive archive;
   try {
     archive = ZipDecoder().decodeBytes(bytes);
-  } catch (_) {
+  } catch (e) {
+    debugPrint('THEME: ZIP decode failed: $e');
     return null;
   }
 
@@ -243,7 +284,12 @@ ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
 
   Uint8List? bgBytes;
   if (bgFile != null) {
-    bgBytes = Uint8List.fromList(bgFile.content as List<int>);
+    final raw = Uint8List.fromList(bgFile.content as List<int>);
+    if (_isValidBackgroundImage(raw)) {
+      bgBytes = raw;
+    } else {
+      debugPrint('THEME: background image rejected (invalid format or oversized)');
+    }
   }
 
   return ThemeFileData(
@@ -1416,7 +1462,8 @@ ThemeCacheData buildThemeCache(Uint8List themeFileBytes, ThemeFileData parsed) {
           break;
         }
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('THEME: ZIP re-parse for cache checksum failed: $e');
       paletteChecksum = contentChecksum;
     }
   } else {
@@ -1446,7 +1493,8 @@ bool validateThemeCache(ThemeCacheData cache, Uint8List themeFileBytes) {
           return getCrc32(file.content as List<int>) == cache.paletteChecksum;
         }
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('THEME: cache validation ZIP re-parse failed: $e');
       return false;
     }
   }
@@ -1473,17 +1521,23 @@ void saveThemeCache(String configDir, ThemeCacheData cache) {
 
   try {
     File('$configDir/theme_cache.json').writeAsStringSync(jsonEncode(json));
-  } catch (_) {}
+  } catch (e) {
+    debugPrint('THEME: failed to write theme_cache.json: $e');
+  }
 
   if (cache.backgroundImage != null) {
     try {
       File('$configDir/theme_cache_bg.dat').writeAsBytesSync(cache.backgroundImage!);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('THEME: failed to write theme_cache_bg.dat: $e');
+    }
   } else {
     try {
       final f = File('$configDir/theme_cache_bg.dat');
       if (f.existsSync()) f.deleteSync();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('THEME: failed to delete theme_cache_bg.dat: $e');
+    }
   }
 }
 
@@ -1528,7 +1582,8 @@ ThemeCacheData? loadThemeCache(String configDir) {
       contentChecksum: contentChecksum,
       cloudMeta: cloudMeta,
     );
-  } catch (_) {
+  } catch (e) {
+    debugPrint('THEME: failed to load theme cache: $e');
     return null;
   }
 }
@@ -1537,9 +1592,13 @@ void clearThemeCache(String configDir) {
   try {
     final f = File('$configDir/theme_cache.json');
     if (f.existsSync()) f.deleteSync();
-  } catch (_) {}
+  } catch (e) {
+    debugPrint('THEME: failed to clear theme_cache.json: $e');
+  }
   try {
     final f = File('$configDir/theme_cache_bg.dat');
     if (f.existsSync()) f.deleteSync();
-  } catch (_) {}
+  } catch (e) {
+    debugPrint('THEME: failed to clear theme_cache_bg.dat: $e');
+  }
 }
