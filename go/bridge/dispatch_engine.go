@@ -2008,6 +2008,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			AccountID string `json:"account_id"`
 			ChatID    string `json:"chat_id"`
 			FilePath  string `json:"file_path"`
+			IsVideo   bool   `json:"is_video"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
@@ -2020,7 +2021,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				return nil, readErr
 			}
 		}
-		return nil, e.EditChannelPhoto(params.AccountID, params.ChatID, photoData)
+		return nil, e.EditChannelPhoto(params.AccountID, params.ChatID, photoData, params.IsVideo)
 
 	case "DeleteChannelPhoto":
 		var params struct {

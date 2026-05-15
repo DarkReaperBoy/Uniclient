@@ -45,20 +45,30 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   bool _saving = false;
   String? _avatarPath;
   bool _avatarRemoved = false;
+  bool _avatarIsVideo = false;
   bool _antispamEnabled = false;
   bool _antispamLoaded = false;
   bool _historyHidden = false;
   bool _historyLoaded = false;
+  bool _canEditPreHistoryHidden = true;
   bool _signMessages = false;
   bool _signMessagesLoaded = false;
   bool _signProfiles = false;
   bool _autoTranslateDisabled = true;
   bool _autoTranslateLoaded = false;
+  int _autoTranslateMinLevel = 0;
   bool _forumEnabled = false;
   String _linkedChatId = '';
   bool _hasPublicUsername = false;
   int _pendingRequestsCount = 0;
   int _boostLevel = 0;
+  int _forumMinMembers = 200;
+  bool _noForwards = false;
+  bool _joinToSend = false;
+  bool _joinRequest = false;
+  bool _origNoForwards = false;
+  bool _origJoinToSend = false;
+  bool _origJoinRequest = false;
 
   bool get _isChannel => widget.chat.type == ChatType.channel;
   bool get _isBot => widget.chat.isBot;
@@ -120,15 +130,24 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         setState(() {
           _historyHidden = flags['pre_history_hidden'] == true;
           _historyLoaded = true;
+          _canEditPreHistoryHidden = flags['can_edit_pre_history_hidden'] as bool? ?? true;
           _signMessages = flags['signatures'] == true;
           _signProfiles = flags['signature_profiles'] == true;
           _signMessagesLoaded = true;
           _autoTranslateDisabled = flags['no_translations'] == true;
           _autoTranslateLoaded = true;
+          _autoTranslateMinLevel = (flags['auto_translate_min_level'] as int?) ?? 0;
           _linkedChatId = (flags['linked_chat_id'] as String?) ?? '';
           _hasPublicUsername = flags['has_username'] == true;
           _pendingRequestsCount = (flags['pending_requests_count'] as int?) ?? 0;
           _boostLevel = (flags['boost_level'] as int?) ?? 0;
+          _forumMinMembers = (flags['forum_upgrade_participants_min'] as int?) ?? 200;
+          _noForwards = flags['no_forwards'] == true;
+          _joinToSend = flags['join_to_send'] == true;
+          _joinRequest = flags['join_request'] == true;
+          _origNoForwards = _noForwards;
+          _origJoinToSend = _joinToSend;
+          _origJoinRequest = _joinRequest;
         });
       }
     } catch (_) {
@@ -391,6 +410,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     setState(() {
       _avatarPath = path;
       _avatarRemoved = false;
+      _avatarIsVideo = false;
     });
   }
 
@@ -405,6 +425,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     setState(() {
       _avatarPath = path;
       _avatarRemoved = false;
+      _avatarIsVideo = true;
     });
   }
 
@@ -412,6 +433,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     setState(() {
       _avatarRemoved = true;
       _avatarPath = null;
+      _avatarIsVideo = false;
     });
   }
 
@@ -460,8 +482,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     final showHistoryVis = !_isChannel
         && !_hasPublicUsername
         && !_forumEnabled
-        && _linkedChatId.isEmpty;
-    final topicsLocked = !chat.isForum && chat.memberCount < 200
+        && _linkedChatId.isEmpty
+        && _canEditPreHistoryHidden;
+    final topicsLocked = (!chat.isForum && chat.memberCount < _forumMinMembers)
         || _linkedChatId.isNotEmpty;
 
     return Column(
@@ -472,12 +495,17 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           value: isPrivate ? 'Private' : 'Public',
           textColor: textColor,
           subTextColor: subTextColor,
-          onTap: () => showEditPeerTypeBox(
-            context,
-            accountId: chat.accountId,
-            chatId: chat.chatId,
-            isChannel: _isChannel,
-          ),
+          onTap: () async {
+            final changed = await showEditPeerTypeBox(
+              context,
+              accountId: chat.accountId,
+              chatId: chat.chatId,
+              isChannel: _isChannel,
+            );
+            if (changed == true && mounted) {
+              _loadChatFullInfo();
+            }
+          },
         ),
         _EditRow(
           icon: _isChannel ? Icons.forum_outlined : Icons.groups_outlined,
@@ -514,9 +542,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
               subTextColor: subTextColor,
               onTap: topicsLocked
                   ? () => showTelegramToast(context,
-                      topicsLocked && _linkedChatId.isNotEmpty
+                      _linkedChatId.isNotEmpty
                           ? 'Cannot enable topics with a linked discussion group.'
-                          : 'Group needs at least 200 members to enable topics.')
+                          : 'Group needs at least $_forumMinMembers members to enable topics.')
                   : () => _toggleTopics(),
             ),
         ],
@@ -763,11 +791,10 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     }
   }
 
-  static const int _autoTranslateMinLevel = 3;
-
   Future<void> _toggleAutoTranslate() async {
-    if (_autoTranslateDisabled && _boostLevel < _autoTranslateMinLevel) {
-      showTelegramToast(context, 'This channel needs more boosts to enable Auto-Translation (level $_boostLevel/$_autoTranslateMinLevel).');
+    final minLevel = _autoTranslateMinLevel > 0 ? _autoTranslateMinLevel : 3;
+    if (_autoTranslateDisabled && _boostLevel < minLevel) {
+      showTelegramToast(context, 'This channel needs more boosts to enable Auto-Translation (level $_boostLevel/$minLevel).');
       return;
     }
     final engine = context.read<EngineService>();
@@ -836,32 +863,92 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final accentColor = PaletteProvider.of(context).windowBgActive;
-    String selected = 'all';
 
-    final result = await showDialog<String>(
+    List<String> availableReactions = [];
+    try {
+      availableReactions = await engine.getAvailableReactions(widget.chat.accountId);
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    String mode = 'all';
+    final selectedEmojis = <String>{};
+
+    final result = await showDialog<(String, List<String>)>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: bgColor,
           title: Text('Reactions', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final opt in [('all', 'All Reactions'), ('none', 'No Reactions')])
-                RadioListTile<String>(
-                  value: opt.$1,
-                  groupValue: selected,
-                  title: Text(opt.$2, style: TextStyle(color: textColor, fontSize: 14)),
-                  activeColor: accentColor,
-                  onChanged: (v) => setDialogState(() => selected = v!),
-                  dense: true,
-                ),
-            ],
+          content: SizedBox(
+            width: 340,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final opt in [('all', 'All Reactions'), ('some', 'Some Reactions'), ('none', 'No Reactions')])
+                  RadioListTile<String>(
+                    value: opt.$1,
+                    groupValue: mode,
+                    title: Text(opt.$2, style: TextStyle(color: textColor, fontSize: 14)),
+                    activeColor: accentColor,
+                    onChanged: (v) => setDialogState(() => mode = v!),
+                    dense: true,
+                  ),
+                if (mode == 'some' && availableReactions.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Select allowed reactions:',
+                    style: TextStyle(color: subTextColor, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 200),
+                    child: SingleChildScrollView(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: availableReactions.map((emoji) {
+                          final isSelected = selectedEmojis.contains(emoji);
+                          return GestureDetector(
+                            onTap: () => setDialogState(() {
+                              if (isSelected) {
+                                selectedEmojis.remove(emoji);
+                              } else {
+                                selectedEmojis.add(emoji);
+                              }
+                            }),
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: isSelected ? accentColor.withValues(alpha: 0.2) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isSelected ? accentColor : (isDark ? Colors.white24 : Colors.black12),
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(emoji, style: const TextStyle(fontSize: 20)),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: TextStyle(color: subTextColor))),
             TextButton(
-              onPressed: () => Navigator.pop(ctx, selected),
+              onPressed: () {
+                if (mode == 'some' && selectedEmojis.isEmpty) {
+                  showTelegramToast(ctx, 'Select at least one reaction');
+                  return;
+                }
+                Navigator.pop(ctx, (mode, selectedEmojis.toList()));
+              },
               child: Text('Save', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
             ),
           ],
@@ -870,7 +957,12 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     );
     if (result == null || !mounted) return;
     try {
-      await engine.setChatReactionsMode(widget.chat.accountId, widget.chat.chatId, result);
+      await engine.setChatReactionsMode(
+        widget.chat.accountId,
+        widget.chat.chatId,
+        result.$1,
+        emojis: result.$2,
+      );
       if (mounted) showTelegramToast(context, 'Reactions updated');
     } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed: $e');
@@ -986,10 +1078,141 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     }
   }
 
+  Widget _buildBotManageSection(Color textColor, Color subTextColor) {
+    final engine = context.read<EngineService>();
+    return Column(
+      children: [
+        if (_hasPublicUsername)
+          _EditRow(
+            icon: Icons.link,
+            label: 'Public Links',
+            value: '',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            onTap: () async {
+              try {
+                final username = await engine.getChatUsername(widget.chat.accountId, widget.chat.chatId);
+                if (mounted && username.isNotEmpty) {
+                  showTelegramToast(context, 'Bot link: t.me/$username');
+                }
+              } catch (e) {
+                if (mounted) showTelegramToast(context, 'Failed: $e');
+              }
+            },
+          ),
+        _EditRow(
+          icon: Icons.monetization_on_outlined,
+          label: 'Currency Balance',
+          value: '',
+          textColor: textColor,
+          subTextColor: subTextColor,
+          onTap: () => showTelegramToast(context, 'Currency balance management is available in BotFather'),
+        ),
+        _EditRow(
+          icon: Icons.stars_outlined,
+          label: 'Credits Balance',
+          value: '',
+          textColor: textColor,
+          subTextColor: subTextColor,
+          onTap: () => showTelegramToast(context, 'Credits balance management is available in BotFather'),
+        ),
+        _EditRow(
+          icon: Icons.handshake_outlined,
+          label: 'Affiliate Program',
+          value: '',
+          textColor: textColor,
+          subTextColor: subTextColor,
+          onTap: () => _showAffiliateProgramDialog(textColor, subTextColor),
+        ),
+        _EditRow(
+          icon: Icons.info_outline,
+          label: 'Edit Intro',
+          value: '',
+          textColor: textColor,
+          subTextColor: subTextColor,
+          onTap: () => showTelegramToast(context, 'Edit bot intro via BotFather /setdescription'),
+        ),
+        _EditRow(
+          icon: Icons.code,
+          label: 'Edit Commands',
+          value: '',
+          textColor: textColor,
+          subTextColor: subTextColor,
+          onTap: () => showTelegramToast(context, 'Edit bot commands via BotFather /setcommands'),
+        ),
+        _EditRow(
+          icon: Icons.settings_outlined,
+          label: 'Edit Settings',
+          value: '',
+          textColor: textColor,
+          subTextColor: subTextColor,
+          onTap: () => showTelegramToast(context, 'Edit bot settings via BotFather /mybots'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showAffiliateProgramDialog(Color textColor, Color subTextColor) async {
+    final engine = context.read<EngineService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+
+    Map<String, dynamic> affiliateInfo = {};
+    try {
+      final fullInfo = await engine.getFullChatInfo(
+        widget.chat.accountId,
+        widget.chat.chatId,
+      );
+      affiliateInfo = fullInfo['star_ref_program'] as Map<String, dynamic>? ?? {};
+    } catch (_) {}
+    if (!mounted) return;
+
+    final hasProgram = affiliateInfo.isNotEmpty;
+    final commission = affiliateInfo['commission_permille'] as int? ?? 0;
+    final duration = affiliateInfo['duration_months'] as int? ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Affiliate Program', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (hasProgram) ...[
+              Text('Commission: ${(commission / 10).toStringAsFixed(1)}%',
+                style: TextStyle(color: textColor, fontSize: 14)),
+              if (duration > 0)
+                Text('Duration: $duration months',
+                  style: TextStyle(color: textColor, fontSize: 14)),
+              if (duration == 0)
+                Text('Duration: Lifetime',
+                  style: TextStyle(color: textColor, fontSize: 14)),
+            ] else
+              Text('No affiliate program configured.',
+                style: TextStyle(color: subTextColor, fontSize: 14)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Close', style: TextStyle(color: subTextColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAdminControlsSection(Color textColor, Color subTextColor) {
     final memberCount = widget.chat.memberCount;
     final adminCount =
         widget.members?.where((m) => m.role == 'admin' || m.role == 'creator' || m.role == 'owner').length ?? 0;
+
+    if (_isBot) {
+      return _buildBotManageSection(textColor, subTextColor);
+    }
 
     return Column(
       children: [
@@ -1024,6 +1247,15 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           subTextColor: subTextColor,
           onTap: () => _showInviteLink(),
         ),
+        if (_isChannel)
+          _EditRow(
+            icon: Icons.handshake_outlined,
+            label: 'Affiliate Program',
+            value: '',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            onTap: () => _showAffiliateProgramDialog(textColor, subTextColor),
+          ),
         _EditRow(
           icon: Icons.admin_panel_settings_outlined,
           label: 'Administrators',
@@ -1078,7 +1310,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
               accountId: widget.chat.accountId,
               chatId: widget.chat.chatId,
               isChannel: _isChannel,
-              initialTab: _MemberTab.members,
+              initialTab: _MemberTab.requests,
             ),
           ),
         _EditRow(
@@ -1287,6 +1519,28 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           widget.chat.accountId,
           widget.chat.chatId,
           _avatarPath!,
+          isVideo: _avatarIsVideo,
+        );
+      }
+      if (_noForwards != _origNoForwards) {
+        await engine.toggleNoForwards(
+          widget.chat.accountId,
+          widget.chat.chatId,
+          _noForwards,
+        );
+      }
+      if (_joinToSend != _origJoinToSend) {
+        await engine.toggleJoinToSend(
+          widget.chat.accountId,
+          widget.chat.chatId,
+          _joinToSend,
+        );
+      }
+      if (_joinRequest != _origJoinRequest) {
+        await engine.toggleJoinRequest(
+          widget.chat.accountId,
+          widget.chat.chatId,
+          _joinRequest,
         );
       }
       if (mounted) Navigator.pop(context, true);
@@ -5495,7 +5749,7 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
 // §26.7–26.8  Member List with Role Tabs
 // ═══════════════════════════════════════════════════════════════════════
 
-enum _MemberTab { members, admins, restricted, kicked }
+enum _MemberTab { members, admins, restricted, kicked, requests }
 
 void showMemberListScreen(
   BuildContext context, {
@@ -5605,6 +5859,8 @@ class _MemberListScreenState extends State<_MemberListScreen>
         return 'restricted';
       case _MemberTab.kicked:
         return 'kicked';
+      case _MemberTab.requests:
+        return 'requests';
     }
   }
 
@@ -5691,6 +5947,7 @@ class _MemberListScreenState extends State<_MemberListScreen>
                 unselectedLabelColor: subColor,
                 indicatorColor: accentColor,
                 indicatorSize: TabBarIndicatorSize.label,
+                isScrollable: true,
                 labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                 unselectedLabelStyle: const TextStyle(fontSize: 13),
                 tabs: [
@@ -5698,6 +5955,7 @@ class _MemberListScreenState extends State<_MemberListScreen>
                   const Tab(text: 'Admins'),
                   const Tab(text: 'Restricted'),
                   const Tab(text: 'Removed'),
+                  const Tab(text: 'Requests'),
                 ],
               ),
               Divider(height: 1, color: dividerColor),

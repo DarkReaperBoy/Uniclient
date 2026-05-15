@@ -3008,11 +3008,12 @@ class EngineService {
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
-  Future<void> editChannelPhoto(String accountId, String chatId, String filePath) async {
+  Future<void> editChannelPhoto(String accountId, String chatId, String filePath, {bool isVideo = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'file_path': filePath,
+      'is_video': isVideo,
     }));
     await _callAsync('__engine', 'EditChannelPhoto', Uint8List.fromList(payload));
   }

@@ -1488,10 +1488,19 @@ func (e *Engine) GetParticipantInfo(accountID, chatID, userID string) (*cores.Us
 	return nil, fmt.Errorf("platform does not support participant info")
 }
 
-func (e *Engine) EditChannelPhoto(accountID, chatID string, photoData []byte) error {
+func (e *Engine) EditChannelPhoto(accountID, chatID string, photoData []byte, isVideo bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	if isVideo {
+		type videoEditor interface {
+			EditChannelVideoPhoto(chatID string, videoData []byte) error
+		}
+		if ed, ok := acc.Core.(videoEditor); ok {
+			return ed.EditChannelVideoPhoto(chatID, photoData)
+		}
+		return fmt.Errorf("platform does not support video channel photos")
 	}
 	type editor interface {
 		EditChannelPhoto(chatID string, photoData []byte) error

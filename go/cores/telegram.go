@@ -18700,6 +18700,26 @@ func (t *TelegramCore) EditChannelPhoto(chatID string, photoData []byte) error {
 	return err
 }
 
+// EditChannelVideoPhoto sets an animated video profile photo for a channel or supergroup.
+func (t *TelegramCore) EditChannelVideoPhoto(chatID string, videoData []byte) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return fmt.Errorf("not a channel") }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	u := uploader.NewUploader(t.api)
+	upload, err := u.Upload(t.ctx, uploader.NewUpload("video.mp4", io.NopCloser(bytes.NewReader(videoData)), int64(len(videoData))))
+	if err != nil { return fmt.Errorf("upload: %w", err) }
+	photo := &tg.InputChatUploadedPhoto{}
+	photo.SetVideo(upload)
+	photo.SetVideoStartTs(0.0)
+	_, err = t.api.ChannelsEditPhoto(t.ctx, &tg.ChannelsEditPhotoRequest{
+		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		Photo: photo,
+	})
+	return err
+}
+
 // CreateForumTopic creates a new topic in a forum supergroup.
 func (t *TelegramCore) CreateForumTopic(chatID string, title string) (int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
