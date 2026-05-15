@@ -227,9 +227,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 
 
 
-## ayu_appearance_page — Font selector dialog title deviates from AyuGram ("Monospace Font" vs "Customize Font")
-
-- [ ] [MAJOR] The Dart font selector dialog sets the title as `'Monospace Font'` (line 735). AyuGram's `FontSelectorBox` uses `tr::ayu_CustomizeFontTitle()` = `"Customize Font"`. — `ayu_appearance_page.dart:735` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/boxes/font_selector.cpp:890`
 
 ## ayu_appearance_page — Font selector uses text-field search (fc-list/PowerShell) instead of QFontDatabase
 
