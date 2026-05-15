@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -153,35 +156,87 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   }
 
   Future<void> _enumerateDevices() async {
-    if (!Platform.isLinux) return;
     try {
       final cameras = <String>[];
       final mics = <String>[];
-      final v4l2 = await Process.run('v4l2-ctl', ['--list-devices']);
-      if (v4l2.exitCode == 0) {
-        for (final line in (v4l2.stdout as String).split('\n')) {
-          final trimmed = line.trim();
-          if (trimmed.isNotEmpty && !trimmed.startsWith('/dev/')) {
-            final name = trimmed.replaceAll(RegExp(r'\s*\(.*\)\s*:?\s*$'), '');
+
+      if (Platform.isLinux) {
+        final v4l2 = await Process.run('v4l2-ctl', ['--list-devices']);
+        if (v4l2.exitCode == 0) {
+          for (final line in (v4l2.stdout as String).split('\n')) {
+            final trimmed = line.trim();
+            if (trimmed.isNotEmpty && !trimmed.startsWith('/dev/')) {
+              final name = trimmed.replaceAll(RegExp(r'\s*\(.*\)\s*:?\s*$'), '');
+              if (name.isNotEmpty) cameras.add(name);
+            }
+          }
+        }
+        final pactl = await Process.run('pactl', ['list', 'sources', 'short']);
+        if (pactl.exitCode == 0) {
+          for (final line in (pactl.stdout as String).split('\n')) {
+            if (line.trim().isEmpty) continue;
+            final parts = line.split('\t');
+            if (parts.length >= 2) {
+              final name = parts[1];
+              if (name.contains('.monitor')) continue;
+              mics.add(name
+                  .replaceAll('alsa_input.', '')
+                  .replaceAll('.analog-stereo', ' (Analog Stereo)')
+                  .replaceAll('_', ' '));
+            }
+          }
+        }
+      } else if (Platform.isMacOS) {
+        final spAudio = await Process.run(
+            'system_profiler', ['SPAudioDataType', '-json']);
+        if (spAudio.exitCode == 0) {
+          try {
+            final data = json.decode(spAudio.stdout as String) as Map<String, dynamic>;
+            final items = (data['SPAudioDataType'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+            for (final item in items) {
+              final name = item['_name'] as String? ?? '';
+              if (name.isEmpty) continue;
+              final inputs = item['coreaudio_input_source'] as String?;
+              if (inputs != null && inputs.isNotEmpty) mics.add(name);
+              final outputs = item['coreaudio_output_source'] as String?;
+              if (outputs != null && outputs.isNotEmpty) cameras.add(name);
+            }
+          } catch (_) {}
+        }
+        final avCam = await Process.run('system_profiler', ['SPCameraDataType', '-json']);
+        if (avCam.exitCode == 0) {
+          try {
+            final data = json.decode(avCam.stdout as String) as Map<String, dynamic>;
+            final items = (data['SPCameraDataType'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+            for (final item in items) {
+              final name = item['_name'] as String? ?? '';
+              if (name.isNotEmpty) cameras.add(name);
+            }
+          } catch (_) {}
+        }
+      } else if (Platform.isWindows) {
+        final ps = await Process.run('powershell', [
+          '-NoProfile', '-Command',
+          'Get-CimInstance Win32_SoundDevice | Select-Object -ExpandProperty Name',
+        ]);
+        if (ps.exitCode == 0) {
+          for (final line in (ps.stdout as String).split('\n')) {
+            final name = line.trim();
+            if (name.isNotEmpty) mics.add(name);
+          }
+        }
+        final psCam = await Process.run('powershell', [
+          '-NoProfile', '-Command',
+          'Get-CimInstance Win32_PnPEntity | Where-Object { \$_.PNPClass -eq "Camera" } | Select-Object -ExpandProperty Name',
+        ]);
+        if (psCam.exitCode == 0) {
+          for (final line in (psCam.stdout as String).split('\n')) {
+            final name = line.trim();
             if (name.isNotEmpty) cameras.add(name);
           }
         }
       }
-      final pactl = await Process.run('pactl', ['list', 'sources', 'short']);
-      if (pactl.exitCode == 0) {
-        for (final line in (pactl.stdout as String).split('\n')) {
-          if (line.trim().isEmpty) continue;
-          final parts = line.split('\t');
-          if (parts.length >= 2) {
-            final name = parts[1];
-            if (name.contains('.monitor')) continue;
-            mics.add(name
-                .replaceAll('alsa_input.', '')
-                .replaceAll('.analog-stereo', ' (Analog Stereo)')
-                .replaceAll('_', ' '));
-          }
-        }
-      }
+
       if (mounted) {
         setState(() {
           _cameraDevices = ['Default', ...cameras];
@@ -380,6 +435,10 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
       final result = await engine.createConferenceCall(accountId);
       if (result == null || !mounted) return;
 
+      if (widget.info.callId.isNotEmpty) {
+        await engine.endCall(accountId, widget.info.callId);
+      }
+
       for (final userId in selectedIds) {
         await engine.sendMessage(accountId, userId, result.inviteLink);
       }
@@ -398,6 +457,11 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     } else if (action == 'link') {
       final result = await engine.createConferenceCall(accountId);
       if (result == null || !mounted) return;
+
+      if (widget.info.callId.isNotEmpty) {
+        await engine.endCall(accountId, widget.info.callId);
+      }
+
       showConfirmBox(
         context,
         title: 'Conference Call Created',
@@ -448,11 +512,15 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
       items: items,
     );
     if (result == null || !mounted) return;
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
     setState(() {
       if (result.startsWith('cam_')) {
         _selectedCameraDevice = result.substring(4);
+        engine.setCallAudioDevice(accountId, 'video_input', result.substring(4));
       } else if (result.startsWith('mic_')) {
         _selectedMicDevice = result.substring(4);
+        engine.setCallAudioDevice(accountId, 'audio_input', result.substring(4));
       }
     });
   }
@@ -508,66 +576,73 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
         return;
       }
 
-      final pixels = byteData.buffer.asUint8List();
-      int totalR = 0, totalG = 0, totalB = 0;
-      int darkR = 0, darkG = 0, darkB = 0;
-      int darkCount = 0;
-      final pixelCount = pixels.length ~/ 4;
-      final step = math.max(1, pixelCount ~/ 200);
+      final pixels = Uint8List.fromList(byteData.buffer.asUint8List());
+      final result = await Isolate.run(() => _samplePixelColors(pixels));
+      if (!mounted) return;
 
-      for (int i = 0; i < pixels.length; i += step * 4) {
-        final r = pixels[i];
-        final g = pixels[i + 1];
-        final b = pixels[i + 2];
-        totalR += r;
-        totalG += g;
-        totalB += b;
-        final luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-        if (luminance < 128) {
-          darkR += r;
-          darkG += g;
-          darkB += b;
-          darkCount++;
-        }
-      }
-
-      final samples = pixelCount ~/ step;
-      if (samples == 0) {
+      if (result == null) {
         _setFallbackColors();
         return;
       }
 
-      final avgColor = Color.fromARGB(
-        255,
-        (totalR ~/ samples).clamp(0, 255),
-        (totalG ~/ samples).clamp(0, 255),
-        (totalB ~/ samples).clamp(0, 255),
-      );
-
-      Color darkColor;
-      if (darkCount > 0) {
-        darkColor = Color.fromARGB(
-          255,
-          (darkR ~/ darkCount).clamp(0, 255),
-          (darkG ~/ darkCount).clamp(0, 255),
-          (darkB ~/ darkCount).clamp(0, 255),
-        );
-      } else {
-        final hsl = HSLColor.fromColor(avgColor);
-        darkColor = hsl.withLightness((hsl.lightness * 0.4).clamp(0.0, 1.0)).toColor();
-      }
-
-      if (mounted) {
-        setState(() {
-          _dominantColors = [
-            _darkenColor(avgColor, 0.6),
-            _darkenColor(darkColor, 0.7),
-          ];
-        });
-      }
+      setState(() {
+        _dominantColors = [
+          _darkenColor(result.$1, 0.6),
+          _darkenColor(result.$2, 0.7),
+        ];
+      });
     } catch (_) {
       _setFallbackColors();
     }
+  }
+
+  static (Color, Color)? _samplePixelColors(Uint8List pixels) {
+    int totalR = 0, totalG = 0, totalB = 0;
+    int darkR = 0, darkG = 0, darkB = 0;
+    int darkCount = 0;
+    final pixelCount = pixels.length ~/ 4;
+    final step = math.max(1, pixelCount ~/ 200);
+
+    for (int i = 0; i < pixels.length; i += step * 4) {
+      final r = pixels[i];
+      final g = pixels[i + 1];
+      final b = pixels[i + 2];
+      totalR += r;
+      totalG += g;
+      totalB += b;
+      final luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (luminance < 128) {
+        darkR += r;
+        darkG += g;
+        darkB += b;
+        darkCount++;
+      }
+    }
+
+    final samples = pixelCount ~/ step;
+    if (samples == 0) return null;
+
+    final avgColor = Color.fromARGB(
+      255,
+      (totalR ~/ samples).clamp(0, 255),
+      (totalG ~/ samples).clamp(0, 255),
+      (totalB ~/ samples).clamp(0, 255),
+    );
+
+    Color darkColor;
+    if (darkCount > 0) {
+      darkColor = Color.fromARGB(
+        255,
+        (darkR ~/ darkCount).clamp(0, 255),
+        (darkG ~/ darkCount).clamp(0, 255),
+        (darkB ~/ darkCount).clamp(0, 255),
+      );
+    } else {
+      final hsl = HSLColor.fromColor(avgColor);
+      darkColor = hsl.withLightness((hsl.lightness * 0.4).clamp(0.0, 1.0)).toColor();
+    }
+
+    return (avgColor, darkColor);
   }
 
   static Color _darkenColor(Color c, double factor) {
@@ -2054,7 +2129,7 @@ class _OutgoingPreview extends StatelessWidget {
   static const _minSize = Size(360, 120);
   static const _maxSize = Size(1620, 540);
   static const _hMin = 400.0;
-  static const _hDefault = 720.0;
+  static const _hDefault = CallPanel.defaultHeight;
 
   @override
   Widget build(BuildContext context) {
