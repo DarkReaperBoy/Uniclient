@@ -225,9 +225,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 
 # ayu_appearance_page — Audit Findings
 
-## ayu_appearance_page — Avatar corners restart prompt shown as SnackBar instead of restart confirm dialog
-
-- [ ] [MAJOR] When the user finishes dragging the slider (`onChangeEnd`), the Dart code shows a transient SnackBar: `'Restart to apply avatar corners'` (line 315-319). AyuGram shows a proper `MakeConfirmBox` dialog with "Restart Now" / "Later" buttons (via `ShowRestartPrompt`) that actually calls `Core::Restart()` if confirmed. A SnackBar with no action is not equivalent — it cannot restart the app. — `ayu_appearance_page.dart:314-319` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_appearance.cpp:170-173` and `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_ayu_utils.cpp:36-44`
 
 ## ayu_appearance_page — Missing divider description text after Hide Notification Badge toggle
 
