@@ -89,7 +89,10 @@ class AyuForward {
   static bool isForwarding(String peerId) {
     final p = _activeForwards[peerId];
     if (p == null) return false;
-    return p.phase != AyuForwardPhase.finished && !p.isCancelled;
+    return p.phase != AyuForwardPhase.finished
+        && p.chunkIndex < p.totalChunks
+        && !p.isCancelled
+        && ((p.totalChunks > 0 && p.totalCount > 0) || p.phase == AyuForwardPhase.downloading);
   }
 
   static void startNativeForward(String toChatId, ForwardProgress progress, int total) {
