@@ -651,8 +651,8 @@ class _ThemePreviewPainter extends CustomPainter {
       Paint()..color = palette.shadowFg,
     );
 
-    // Attach icon (left side, 44px zone)
-    _drawMaterialIcon(canvas, Icons.add, left + 10, composeY + 11, 24, palette.historyComposeIconFg);
+    // Attach icon (left side, 44px zone — AyuGram: "chat/input_attach")
+    _drawMaterialIcon(canvas, Icons.attach_file, left + 10, composeY + 11, 24, palette.historyComposeIconFg);
 
     // Text input field background
     const fieldLeft = 44.0;
@@ -679,11 +679,11 @@ class _ThemePreviewPainter extends CustomPainter {
       canvas, Icons.sentiment_satisfied_alt,
       emojiX, emojiCY - 11, 22, palette.historyComposeIconFg,
     );
-    // Circle outline around emoji icon (matches AyuGram historyEmojiCircleFg)
+    // Circle outline: AyuGram historyEmojiCircle=20x20, historyEmojiCircleFg=historyComposeIconFg
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(emojiX + 11, emojiCY), width: 23, height: 23),
+      Rect.fromCenter(center: Offset(emojiX + 11, emojiCY), width: 20, height: 20),
       Paint()
-        ..color = palette.historyComposeIconFg.withValues(alpha: 0.35)
+        ..color = palette.historyComposeIconFg
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5
         ..strokeCap = StrokeCap.round,
