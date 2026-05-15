@@ -653,7 +653,7 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
         families = await _loadViaFcList();
       }
       if (families == null && Platform.isMacOS) {
-        families = await _loadViaMacOSScan();
+        families = await _loadViaMacOSFontManager();
       }
       if (families == null && Platform.isWindows) {
         families = await _loadViaWindowsPowerShell();
@@ -691,33 +691,28 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
     return null;
   }
 
-  Future<List<String>?> _loadViaMacOSScan() async {
+  Future<List<String>?> _loadViaMacOSFontManager() async {
     try {
-      final dirs = [
-        '/Library/Fonts',
-        '/System/Library/Fonts',
-        '/System/Library/Fonts/Supplemental',
-        '${Platform.environment['HOME']}/Library/Fonts',
-      ];
-      final families = <String>{};
-      for (final dirPath in dirs) {
-        final dir = Directory(dirPath);
-        if (!await dir.exists()) continue;
-        await for (final entity in dir.list()) {
-          if (entity is File) {
-            final name = entity.uri.pathSegments.last;
-            final ext = name.split('.').last.toLowerCase();
-            if (ext == 'ttf' || ext == 'otf' || ext == 'ttc') {
-              final family = name.substring(0, name.length - ext.length - 1)
-                  .replaceAll(RegExp(r'[-_]'), ' ')
-                  .replaceAll(RegExp(r'\s+(Regular|Bold|Italic|Light|Medium|Thin|Black|Heavy|Condensed|Expanded|Oblique|Semibold|Demibold|ExtraBold|ExtraLight|UltraLight|UltraBold|Book|Roman)$', caseSensitive: false), '');
-              if (family.isNotEmpty) families.add(family);
-            }
-          }
+      final result = await Process.run('osascript', [
+        '-l', 'JavaScript',
+        '-e',
+        'ObjC.import("AppKit");'
+        'var fm = \$.NSFontManager.sharedFontManager;'
+        'var arr = fm.availableFontFamilies;'
+        'var out = [];'
+        'for (var i = 0; i < arr.count; i++) out.push(arr.objectAtIndex(i).js);'
+        'out.sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase())});'
+        'out.join("\\n");',
+      ]);
+      if (result.exitCode == 0) {
+        final families = <String>{};
+        for (final line in (result.stdout as String).split('\n')) {
+          final trimmed = line.trim();
+          if (trimmed.isNotEmpty) families.add(trimmed);
         }
-      }
-      if (families.isNotEmpty) {
-        return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        if (families.isNotEmpty) {
+          return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        }
       }
     } catch (_) {}
     return null;
