@@ -226,10 +226,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 # ayu_appearance_page — Audit Findings
 
 
-## ayu_appearance_page — "Read Receipts (LRead)" label deviates from AyuGram ("Read on Local")
-
-- [ ] [MAJOR] The Dart label is `'Read Receipts (LRead)'` (line 163). AyuGram uses `ayu_LReadMessages` = `"Read on Local"`. — `ayu_appearance_page.dart:163` ← `AyuGramDesktop/Telegram/Resources/langs/lang.strings:8241`
-
 ## ayu_appearance_page — "Story Reads (SRead)" label deviates from AyuGram ("Read on Server")
 
 - [ ] [MAJOR] The Dart label is `'Story Reads (SRead)'` (line 169). AyuGram uses `ayu_SReadMessages` = `"Read on Server"`. — `ayu_appearance_page.dart:169` ← `AyuGramDesktop/Telegram/Resources/langs/lang.strings:8242`
