@@ -3877,6 +3877,8 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
   double _dateBadgeOpacity = 0.0;
   Timer? _dateHideTimer;
   String _currentDateLabel = '';
+  final Map<int, GlobalKey> _itemKeys = {};
+  final GlobalKey _listAreaKey = GlobalKey();
 
   @override
   void initState() {
@@ -3914,7 +3916,10 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
       );
       if (!mounted) return;
       setState(() {
-        if (!append) _events.clear();
+        if (!append) {
+          _events.clear();
+          _itemKeys.clear();
+        }
         _events.addAll(events);
         _hasMore = events.length >= limit;
         _loading = false;
@@ -3939,16 +3944,34 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
     _updateDateBadge();
   }
 
+  GlobalKey _getItemKey(int index) =>
+      _itemKeys.putIfAbsent(index, () => GlobalKey());
+
   void _updateDateBadge() {
     if (_events.isEmpty) return;
     _dateHideTimer?.cancel();
 
-    final offset = _scrollCtrl.position.pixels;
-    final maxExtent = _scrollCtrl.position.maxScrollExtent;
-    final index = maxExtent > 0
-        ? ((offset / maxExtent) * (_events.length - 1)).round().clamp(0, _events.length - 1)
-        : 0;
-    final event = _events[index];
+    final containerRender =
+        _listAreaKey.currentContext?.findRenderObject() as RenderBox?;
+    if (containerRender == null) return;
+
+    int firstVisibleIndex = 0;
+    for (int i = 0; i < _events.length; i++) {
+      final key = _itemKeys[i];
+      if (key?.currentContext == null) continue;
+      final renderBox =
+          key!.currentContext!.findRenderObject() as RenderBox?;
+      if (renderBox == null || !renderBox.attached) continue;
+      final localPos = containerRender.globalToLocal(
+        renderBox.localToGlobal(Offset.zero),
+      );
+      if (localPos.dy + renderBox.size.height > 0) {
+        firstVisibleIndex = i;
+        break;
+      }
+    }
+
+    final event = _events[firstVisibleIndex];
     final date = DateTime.fromMillisecondsSinceEpoch(event.date * 1000);
     final newLabel = _formatDateHeader(date);
 
@@ -4150,6 +4173,7 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
 
   Widget _buildEventList(TelegramPalette palette, bool isDark, Color textColor, Color subTextColor) {
     return Stack(
+      key: _listAreaKey,
       children: [
         ListView.builder(
           controller: _scrollCtrl,
@@ -4165,6 +4189,7 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
             final event = _events[i];
             final showDateHeader = i == 0 || !_isSameDay(_events[i - 1].dateTime, event.dateTime);
             return Column(
+              key: _getItemKey(i),
               children: [
                 if (showDateHeader) _buildDateSeparator(event.dateTime, isDark),
                 _AdminLogEventTile(
@@ -4212,7 +4237,6 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
 
   Widget _buildDateSeparator(DateTime date, bool isDark) {
     final label = _formatDateHeader(date);
-    _currentDateLabel = label;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Center(
