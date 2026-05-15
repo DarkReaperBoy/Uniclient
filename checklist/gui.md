@@ -228,9 +228,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 
 
 
-## ayu_appearance_page — Drawer toggle icons missing from all drawer element rows
-
-- [ ] [MAJOR] Every drawer toggle in AyuGram has an associated `.icon` field (e.g., `&st::menuIconProfile`, `&st::menuIconBot`, `&st::menuIconGroups`, etc.) that renders a leading icon on the setting row. The Dart `addSettingToggle` calls for all drawer items (lines 121-193) pass no icon — `AyuSectionBuilder.addSettingToggle` has no icon parameter at all. All drawer items render without their icons. — `ayu_appearance_page.dart:121-193` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_appearance.cpp:283-373`
 
 # ayu_chats_page — Critical structural gaps vs AyuGram source
 
