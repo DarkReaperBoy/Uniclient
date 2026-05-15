@@ -71,21 +71,6 @@ Audited against AyuGram Desktop notification composition logic (notifications_ma
 
 **Status: READY FOR PRODUCTION**
 
-# app_state — AyuGram Settings State Audit
-
-## app_state — Ghost mode, AyuGram settings, window prefs
-
-- [ ] [MAJOR] `ContextMenuVisibility` enum values are inverted from AyuGram: Dart defines `0=visible, 1=hidden, 2=visibleWithModifier` but AyuGram defines `Hidden=0, Visible=1, VisibleWithModifier=2`. All 7 context menu fields store opposite integer values from the canonical enum. The stored integer `0` in Dart means "visible" but AyuGram reads it as `Hidden`. — `app_state.dart:310-316` ← `ayu_settings.h:35-39`
-
-- [ ] [MAJOR] `_replaceBottomInfoWithIcons` (default `true`) is entirely missing from Dart state. AyuGram actively uses it to replace the timestamp/read tick bottom info with icons in message bubbles — it is wired to the message preview component and has a full getter, setter, serialization, and settings UI entry. The Dart has no field, no getter, no setter, no persistence key for it. — `app_state.dart` (absent) ← `ayu_settings.h:300,645`, `ayu_settings.cpp:721-722,1092,1192`, `ayu/ui/settings/settings_chats.cpp:155-196`, `ayu/ui/components/message_preview.cpp:123`
-
-- [ ] [MAJOR] `_adaptiveCoverColor` (default `true`) is entirely missing from Dart state. AyuGram uses it to adapt the saved-music player cover color; it is read in three places in `saved_music.cpp`. The Dart has no field, no getter, no setter, and no persistence key for it. — `app_state.dart` (absent) ← `ayu_settings.h:348,694`, `ayu_settings.cpp:1022-1023,1140,1240`, `ayu/ui/components/saved_music.cpp:276,304,335`
-
-- [ ] [MAJOR] `_simpleQuotes` (Dart) vs `_simpleQuotesAndReplies` (AyuGram): Dart truncates the name and drops "AndReplies", which is semantically narrower. AyuGram applies the setting to both quote blocks (`chat_style.cpp:53`) AND reply headers (`history_view_reply.cpp:857`) AND web-page quotes (`history_view_web_page.cpp:986`). Dart's narrower name suggests it may be applied only to quote blocks, missing the reply rendering path. — `app_state.dart:278` ← `ayu_settings.h:298`, `ayu_settings.cpp:709-710,1090,1190`, `history/view/history_view_reply.cpp:857`, `ui/chat/chat_style.cpp:53`
-
-- [ ] [MAJOR] `_spoofClientAsAndroid` (Dart) vs `_spoofWebviewAsAndroid` (AyuGram): Dart broadens the scope — "client" implies spoofing the full Telegram client UA, whereas AyuGram's field specifically only spoofs the embedded webview UA. These are different behaviors; spoofing the client UA would affect server-side feature negotiation, while spoofing the webview UA only affects web content rendered inside bots/mini-apps. — `app_state.dart:329` ← `ayu_settings.h:287,371-372,632`, `ayu_settings.cpp:632`
-
-- [ ] [MAJOR] `_showDrawerThemeToggle` (Dart) vs `_showNightModeToggleInDrawer` (AyuGram, default `true`): Dart renames the setting to a generic "theme toggle" while AyuGram's is specifically a "night mode toggle". In AyuGram the drawer toggle cycles the night/light theme state; renaming it to "theme" implies it might be wired to a broader theme picker. The persistence key `showDrawerThemeToggle` also diverges from AyuGram's key `showNightModeToggleInDrawer` — any future import/export or cross-platform sync will fail to match. — `app_state.dart:283` ← `ayu_settings.h:329,413`, `ayu_settings.cpp:674`
 
 # audio_service — Listen tracker bugs vs AyuGram
 
