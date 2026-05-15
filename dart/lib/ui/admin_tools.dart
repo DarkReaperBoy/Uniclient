@@ -1969,10 +1969,13 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
         rights[f.key] = f.banned;
       }
       rights['slowmode_seconds'] = _slowmodeValues[_slowmodeIndex];
-      rights['boosts_unrestrict'] = _boostsUnrestrict;
-      rights['charge_stars'] = _chargeStars;
       await engine.setDefaultBannedRights(widget.accountId, widget.chatId, rights);
       await engine.setSlowMode(widget.accountId, widget.chatId, _slowmodeValues[_slowmodeIndex]);
+      await engine.setBoostsUnrestrict(widget.accountId, widget.chatId, _boostsUnrestrict);
+      await engine.updatePaidMessagesPrice(
+        widget.accountId, widget.chatId, _chargeStars,
+        broadcastEnabled: widget.isChannel && _chargeStars > 0,
+      );
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -2070,13 +2073,11 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
                         style: TextStyle(fontSize: 12, color: subTextColor),
                       ),
                     ),
-                    if (widget.isChannel || _chargeStars > 0) ...[
-                      Divider(height: 1, color: dividerColor),
-                      const SizedBox(height: 12),
-                      _buildSectionHeader('Charge Stars', headerColor),
-                      const SizedBox(height: 4),
-                      _buildChargeStarsSection(accentColor, textColor, subTextColor),
-                    ],
+                    Divider(height: 1, color: dividerColor),
+                    const SizedBox(height: 12),
+                    _buildSectionHeader('Charge Stars', headerColor),
+                    const SizedBox(height: 4),
+                    _buildChargeStarsSection(accentColor, textColor, subTextColor),
                     Divider(height: 1, color: dividerColor),
                     const SizedBox(height: 12),
                     _buildAddExceptionButton(accentColor, textColor),

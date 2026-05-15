@@ -15728,6 +15728,19 @@ func (t *TelegramCore) UpdatePaidMessagesPrice(chatID string, stars int64, broad
 	return err
 }
 
+func (t *TelegramCore) SetBoostsUnrestrict(chatID string, boosts int) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return fmt.Errorf("not a channel") }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	_, err = t.api.ChannelsSetBoostsToUnblockRestrictions(t.ctx, &tg.ChannelsSetBoostsToUnblockRestrictionsRequest{
+		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		Boosts:  boosts,
+	})
+	return err
+}
+
 func (t *TelegramCore) EditChannelTitle(chatID string, title string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ErrAuth }

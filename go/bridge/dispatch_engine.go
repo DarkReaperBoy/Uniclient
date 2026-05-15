@@ -1962,6 +1962,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.UpdateChannelColor(params.AccountID, params.ChatID, params.ColorIndex)
 
+	case "SetBoostsUnrestrict":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Boosts    int    `json:"boosts"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetBoostsUnrestrict(params.AccountID, params.ChatID, params.Boosts)
+
 	case "UpdatePaidMessagesPrice":
 		var params struct {
 			AccountID        string `json:"account_id"`

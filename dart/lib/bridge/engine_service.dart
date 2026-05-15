@@ -2977,6 +2977,15 @@ class EngineService {
     await _callAsync('__engine', 'UpdateChannelColor', Uint8List.fromList(payload));
   }
 
+  Future<void> setBoostsUnrestrict(String accountId, String chatId, int boosts) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'boosts': boosts,
+    }));
+    await _callAsync('__engine', 'SetBoostsUnrestrict', Uint8List.fromList(payload));
+  }
+
   Future<void> updatePaidMessagesPrice(String accountId, String chatId, int stars, {bool broadcastEnabled = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

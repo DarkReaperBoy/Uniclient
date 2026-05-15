@@ -1460,6 +1460,20 @@ func (e *Engine) UpdatePaidMessagesPrice(accountID, chatID string, stars int64, 
 	return fmt.Errorf("platform does not support paid messages price")
 }
 
+func (e *Engine) SetBoostsUnrestrict(accountID, chatID string, boosts int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type boostsUpdater interface {
+		SetBoostsUnrestrict(chatID string, boosts int) error
+	}
+	if bu, ok := acc.Core.(boostsUpdater); ok {
+		return bu.SetBoostsUnrestrict(chatID, boosts)
+	}
+	return fmt.Errorf("platform does not support boosts unrestrict")
+}
+
 func (e *Engine) GetFullChat(accountID, chatID string) (*cores.Dialog, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
