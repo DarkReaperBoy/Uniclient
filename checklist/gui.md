@@ -190,19 +190,6 @@ The preview will give users an inaccurate impression of how their theme will act
 
 # active_sessions_screen — Audit Findings
 
-## active_sessions_screen — Active sessions settings screen
-
-- [ ] [MAJOR] Lottie animation starts immediately on asset load (`_onLottieLoaded` calls `..forward()`) instead of waiting for the dialog to finish showing. AyuGram defers start until `showFinished` fires. If the asset loads fast, animation may finish before the dialog is visible — `active_sessions_screen.dart:1255` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:379`
-
-- [ ] [MAJOR] Lottie icon size inside big userpic is wrong: Dart uses `size * 0.62 = 43.4px` but AyuGram specifies `st::sessionBigLottieSize = 52px` (~16.5% too small) — `active_sessions_screen.dart:1282` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:317` (`st::sessionBigLottieSize`)
-
-- [ ] [MAJOR] Platform/System field swap in bridge: `TelegramCore.GetActiveSessions` assigns `Platform = a.SystemVersion` and `SystemName = a.Platform`, so `session['system']` in Dart receives the platform label (e.g. "Windows") while `session['platform']` receives the OS version string (e.g. "Win 10.0"). The "System" info row in `_showSessionInfoBox` therefore shows `session['system']` = a.Platform instead of the full system version string that AyuGram shows — `active_sessions_screen.dart:578` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:461` (`data.system`)
-
-- [ ] [MAJOR] `_formatFullDate` uses a hardcoded English format (`"Jan 15, 2024 at 10:30"`) instead of the localized `langDateTimeFull` that AyuGram uses. The session info box date label is therefore unlocalized — `active_sessions_screen.dart:729` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:443`
-
-- [ ] [MAJOR] `setCustomDeviceModel` call is not awaited in `_showRenameDialog` (line 718): if the engine call fails the UI update still happens silently, error is lost. Should be `await engine.setCustomDeviceModel(...)` with error handling — `active_sessions_screen.dart:718` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:152`
-
-- [ ] [MAJOR] Empty-state placeholder only shown when both `otherSessions` and `incompleteSessions` are empty (`line 830`). AyuGram shows `tr::lng_sessions_other_desc()` whenever `_list` (other sessions) count is 0, even when incomplete sessions are present. When a user has only incomplete sessions but no active other sessions, Dart skips the placeholder text entirely — `active_sessions_screen.dart:830` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:1029`
 
 # admin_tools — Audit Findings
 
