@@ -640,7 +640,7 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
   }
 }
 
-class _MessagePreviewStandalone extends StatefulWidget {
+class _MessagePreviewStandalone extends StatelessWidget {
   final int bubbleRadius;
   final bool showTail;
   final bool simpleQuotesAndReplies;
@@ -664,34 +664,19 @@ class _MessagePreviewStandalone extends StatefulWidget {
   });
 
   @override
-  State<_MessagePreviewStandalone> createState() =>
-      _MessagePreviewStandaloneState();
-}
-
-class _MessagePreviewStandaloneState extends State<_MessagePreviewStandalone>
-    with SingleTickerProviderStateMixin {
-  @override
   Widget build(BuildContext context) {
-    final radiusLarge = widget.bubbleRadius.toDouble();
-    final radiusSmall = widget.showTail
+    final p = context.palette;
+    final radiusLarge = bubbleRadius.toDouble();
+    final radiusSmall = showTail
         ? (radiusLarge * 6 / 16).clamp(0.0, 6.0)
         : radiusLarge;
-    final inBg =
-        widget.isDark ? const Color(0xFF24292E) : const Color(0xFFFFFFFF);
-    final outBg =
-        widget.isDark ? const Color(0xFF265E8C) : const Color(0xFFEFFEDE);
-    final textColor = widget.isDark
-        ? Colors.white.withValues(alpha: 0.87)
-        : Colors.black87;
-    final metaColor =
-        widget.isDark ? const Color(0xFF6D8DA0) : const Color(0xFF5E9E5E);
-    final quoteBarColor = widget.simpleQuotesAndReplies
-        ? (widget.isDark ? const Color(0xFF65B9F4) : const Color(0xFF168ACD))
-        : const Color(0xFF4FAD2D);
-    final quoteNameColor = widget.simpleQuotesAndReplies
-        ? (widget.isDark ? const Color(0xFF65B9F4) : const Color(0xFF168ACD))
-        : const Color(0xFF4FAD2D);
-    final deletedOpacity = widget.semiTransparentDeleted ? 0.7 : 1.0;
+    final nameColor = simpleQuotesAndReplies
+        ? p.windowBgActive
+        : p.historyPeer4NameFg;
+    final quoteBarColor = simpleQuotesAndReplies
+        ? p.windowBgActive
+        : p.msgOutReplyBarColor;
+    final deletedOpacity = semiTransparentDeleted ? 0.7 : 1.0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
@@ -702,7 +687,7 @@ class _MessagePreviewStandaloneState extends State<_MessagePreviewStandalone>
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: widget.isDark
+            color: isDark
                 ? const Color(0xFF0E1621)
                 : const Color(0xFFF0F0F0),
             borderRadius: BorderRadius.circular(8),
@@ -717,7 +702,7 @@ class _MessagePreviewStandaloneState extends State<_MessagePreviewStandalone>
                   padding: const EdgeInsets.symmetric(
                       horizontal: 11, vertical: 6),
                   decoration: BoxDecoration(
-                    color: inBg,
+                    color: p.msgInBg,
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(radiusLarge),
                       topRight: Radius.circular(radiusLarge),
@@ -725,12 +710,11 @@ class _MessagePreviewStandaloneState extends State<_MessagePreviewStandalone>
                       bottomRight: Radius.circular(radiusLarge),
                     ),
                     boxShadow: [
-                      if (!widget.isDark)
-                        const BoxShadow(
-                          color: Color(0x18000000),
-                          blurRadius: 2,
-                          offset: Offset(0, 1),
-                        ),
+                      BoxShadow(
+                        color: p.msgInShadow,
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
+                      ),
                     ],
                   ),
                   child: Column(
@@ -741,16 +725,17 @@ class _MessagePreviewStandaloneState extends State<_MessagePreviewStandalone>
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: quoteNameColor)),
+                              color: nameColor)),
                       const SizedBox(height: 2),
                       Text('Update wehn?',
-                          style: TextStyle(fontSize: 13, color: textColor)),
+                          style: TextStyle(
+                              fontSize: 13, color: p.historyTextInFg)),
                       const SizedBox(height: 2),
                       Align(
                         alignment: Alignment.centerRight,
                         child: Text('12:00',
-                            style:
-                                TextStyle(fontSize: 11, color: metaColor)),
+                            style: TextStyle(
+                                fontSize: 11, color: p.msgInDateFg)),
                       ),
                     ],
                   ),
@@ -772,7 +757,7 @@ class _MessagePreviewStandaloneState extends State<_MessagePreviewStandalone>
                           padding: const EdgeInsets.symmetric(
                               horizontal: 11, vertical: 6),
                           decoration: BoxDecoration(
-                            color: outBg,
+                            color: p.msgOutBg,
                             borderRadius: BorderRadius.only(
                               topLeft: Radius.circular(radiusLarge),
                               topRight: Radius.circular(radiusLarge),
@@ -780,12 +765,11 @@ class _MessagePreviewStandaloneState extends State<_MessagePreviewStandalone>
                               bottomRight: Radius.circular(radiusSmall),
                             ),
                             boxShadow: [
-                              if (!widget.isDark)
-                                const BoxShadow(
-                                  color: Color(0x18000000),
-                                  blurRadius: 2,
-                                  offset: Offset(0, 1),
-                                ),
+                              BoxShadow(
+                                color: p.msgOutShadow,
+                                blurRadius: 2,
+                                offset: const Offset(0, 1),
+                              ),
                             ],
                           ),
                           child: Column(
@@ -800,7 +784,7 @@ class _MessagePreviewStandaloneState extends State<_MessagePreviewStandalone>
                                     left: BorderSide(
                                         width: 2, color: quoteBarColor),
                                   ),
-                                  color: widget.simpleQuotesAndReplies
+                                  color: simpleQuotesAndReplies
                                       ? Colors.transparent
                                       : quoteBarColor.withValues(alpha: 0.1),
                                   borderRadius: const BorderRadius.only(
@@ -815,52 +799,52 @@ class _MessagePreviewStandaloneState extends State<_MessagePreviewStandalone>
                                         style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
-                                            color: quoteNameColor)),
+                                            color: nameColor)),
                                     Text('Update wehn?',
                                         style: TextStyle(
                                             fontSize: 12,
-                                            color: textColor.withValues(
-                                                alpha: 0.7))),
+                                            color: p.historyTextOutFg
+                                                .withValues(alpha: 0.7))),
                                   ],
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                   'You need to go outside and touch some grass...',
-                                  style:
-                                      TextStyle(fontSize: 13, color: textColor)),
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      color: p.historyTextOutFg)),
                               const SizedBox(height: 2),
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   const Spacer(),
-                                  ..._buildMarks(textColor, metaColor),
+                                  ..._buildMarks(p.msgOutDateFg),
                                   Text('12:01',
                                       style: TextStyle(
-                                          fontSize: 11, color: metaColor)),
+                                          fontSize: 11,
+                                          color: p.msgOutDateFg)),
                                   const SizedBox(width: 3),
                                   Icon(Icons.done_all,
-                                      size: 14, color: metaColor),
+                                      size: 14, color: p.msgOutDateFg),
                                 ],
                               ),
                             ],
                           ),
                         ),
                       ),
-                      if (!widget.hideFastShare) ...[
+                      if (!hideFastShare) ...[
                         const SizedBox(width: 4),
                         Container(
                           width: 30,
                           height: 30,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: widget.isDark
-                                ? const Color(0x66000000)
-                                : const Color(0x40000000),
+                            color: p.msgServiceBg,
                           ),
-                          child: const Icon(Icons.shortcut,
-                              size: 16, color: Colors.white),
+                          child: Icon(Icons.shortcut,
+                              size: 16, color: p.msgServiceFg),
                         ),
                       ],
                     ],
@@ -874,9 +858,9 @@ class _MessagePreviewStandaloneState extends State<_MessagePreviewStandalone>
     );
   }
 
-  List<Widget> _buildMarks(Color textColor, Color metaColor) {
+  List<Widget> _buildMarks(Color metaColor) {
     final marks = <Widget>[];
-    if (widget.replaceMarksWithIcons) {
+    if (replaceMarksWithIcons) {
       marks.add(Padding(
         padding: const EdgeInsets.only(right: 3),
         child: Icon(Icons.delete_outline, size: 12, color: metaColor),
@@ -886,17 +870,17 @@ class _MessagePreviewStandaloneState extends State<_MessagePreviewStandalone>
         child: Icon(Icons.edit, size: 12, color: metaColor),
       ));
     } else {
-      if (widget.deletedMark.isNotEmpty) {
+      if (deletedMark.isNotEmpty) {
         marks.add(Padding(
           padding: const EdgeInsets.only(right: 3),
-          child: Text(widget.deletedMark,
+          child: Text(deletedMark,
               style: TextStyle(fontSize: 11, color: metaColor)),
         ));
       }
-      if (widget.editedMark.isNotEmpty) {
+      if (editedMark.isNotEmpty) {
         marks.add(Padding(
           padding: const EdgeInsets.only(right: 3),
-          child: Text(widget.editedMark,
+          child: Text(editedMark,
               style: TextStyle(fontSize: 11, color: metaColor)),
         ));
       } else {
