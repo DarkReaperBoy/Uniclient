@@ -225,10 +225,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 
 # ayu_appearance_page — Audit Findings
 
-## ayu_appearance_page — Avatar corners slider calls onChanged on every drag step (live rebuild storm)
-
-- [ ] [MAJOR] The Dart slider's `onChanged` fires `widget.onCornersChanged(newVal)` on every frame during dragging (line 308), which triggers `AppState.notifyListeners()` + `_saveWindowPrefs()` on every position update. AyuGram only calls `AyuSettings::getInstance().setAvatarCorners(val)` without persisting during drag — persistence is only done in `onFinalChanged` (the equivalent of `onChangeEnd`). Calling `_saveWindowPrefs()` on every drag step is a major performance issue (disk I/O on every frame). — `ayu_appearance_page.dart:305-310` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_appearance.cpp:164-173`
-
 ## ayu_appearance_page — Avatar corners restart prompt shown as SnackBar instead of restart confirm dialog
 
 - [ ] [MAJOR] When the user finishes dragging the slider (`onChangeEnd`), the Dart code shows a transient SnackBar: `'Restart to apply avatar corners'` (line 315-319). AyuGram shows a proper `MakeConfirmBox` dialog with "Restart Now" / "Later" buttons (via `ShowRestartPrompt`) that actually calls `Core::Restart()` if confirmed. A SnackBar with no action is not equivalent — it cannot restart the app. — `ayu_appearance_page.dart:314-319` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_appearance.cpp:170-173` and `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_ayu_utils.cpp:36-44`
