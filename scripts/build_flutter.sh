@@ -18,7 +18,7 @@ DART_DIR="$(cd "$(dirname "$0")/../dart" && pwd)"
 
 # Build-time constants injected via --dart-define / -D
 BUILD_DATE="$(date +%Y-%m-%d)"
-APP_VERSION="0.1.0"
+APP_VERSION="$(grep '^version:' "$DART_DIR/pubspec.yaml" | sed 's/version: *//;s/-.*//')"
 APP_STAGE="alpha"        # "alpha", "beta", or "" for release
 APP_STAGE_NUM=""          # alpha number (e.g. "2"), or "" to omit
 

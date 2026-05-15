@@ -67,7 +67,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
               width: TgTokens.settingsCloudPasswordIconSize,
               height: TgTokens.settingsCloudPasswordIconSize,
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(5),
                 child: Image.asset(
                   'assets/icons/ayu/$selectedIcon.png',
                   fit: BoxFit.contain,
@@ -75,7 +75,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: logoColor,
                       borderRadius: BorderRadius.circular(
-                          (TgTokens.settingsCloudPasswordIconSize - 24) / 2),
+                          (TgTokens.settingsCloudPasswordIconSize - 10) / 2),
                     ),
                     child: Center(
                       child: Icon(
@@ -132,7 +132,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
           ),
 
           _FlatCategoryButton(
-            icon: Icons.emoji_emotions,
+            icon: Icons.favorite_border,
             label: 'AyuGram',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const GhostSettingsPage()),
@@ -144,7 +144,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
             onTap: () => _pushPage(context, appState, const AyuFiltersPage()),
           ),
           _FlatCategoryButton(
-            icon: Icons.visibility,
+            icon: Icons.grid_view,
             label: 'General',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const AyuGeneralPage()),
@@ -184,7 +184,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
           ),
 
           _LinkButton(
-            icon: Icons.podcasts,
+            icon: Icons.campaign,
             label: 'Channel',
             rightLabel: '@ayugram',
             isDark: isDark,
@@ -205,7 +205,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
             onTap: () => _openUrl('https://translate.ayugram.one'),
           ),
           _LinkButton(
-            icon: Icons.language,
+            icon: Icons.travel_explore,
             label: 'Documentation',
             rightLabel: 'docs.ayugram.one',
             isDark: isDark,
@@ -256,7 +256,18 @@ class AyuGramSettingsScreen extends StatelessWidget {
       _openUrl('https://t.me/$username');
       return;
     }
+    final overlay = OverlayEntry(
+      builder: (_) => const Center(
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: CircularProgressIndicator(strokeWidth: 3),
+        ),
+      ),
+    );
+    Overlay.of(context).insert(overlay);
     engine.resolveUsername(accountId, username).then((chatId) {
+      overlay.remove();
       if (chatId != null && chatId.isNotEmpty && context.mounted) {
         final chatState = context.read<ChatState>();
         chatState.openChatById(chatId);
@@ -264,13 +275,22 @@ class AyuGramSettingsScreen extends StatelessWidget {
       } else {
         _openUrl('https://t.me/$username');
       }
+    }).catchError((_) {
+      overlay.remove();
+      _openUrl('https://t.me/$username');
     });
   }
 
   static String _appVersion() {
     const version =
         String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
-    return version;
+    const stage =
+        String.fromEnvironment('APP_STAGE', defaultValue: '');
+    const stageNum =
+        String.fromEnvironment('APP_STAGE_NUM', defaultValue: '');
+    if (stage.isEmpty) return version;
+    if (stageNum.isEmpty) return '$version-$stage';
+    return '$version-$stage.$stageNum';
   }
 }
 
