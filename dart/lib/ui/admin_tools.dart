@@ -791,10 +791,112 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     }
   }
 
+  Future<void> _showBoostRequiredDialog(int currentLevel, int requiredLevel) async {
+    final engine = context.read<EngineService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+
+    Map<String, dynamic>? boostData;
+    try {
+      boostData = await engine.getBoosts(widget.chat.accountId, widget.chat.chatId);
+    } catch (_) {}
+    if (!mounted) return;
+
+    final boosts = boostData?['boosts'] as int? ?? 0;
+    final currentLevelBoosts = boostData?['current_level_boosts'] as int? ?? 0;
+    final nextLevelBoosts = boostData?['next_level_boosts'] as int? ?? 0;
+    final boostUrl = boostData?['boost_url'] as String? ?? '';
+
+    final progress = nextLevelBoosts > currentLevelBoosts
+        ? (boosts - currentLevelBoosts) / (nextLevelBoosts - currentLevelBoosts)
+        : 0.0;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Column(
+          children: [
+            Icon(Icons.translate, size: 48, color: accentColor),
+            const SizedBox(height: 12),
+            Text('Enable Auto-Translation',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF2b3945) : const Color(0xFFe9ecef),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Level $currentLevel',
+                        style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w600)),
+                      if (nextLevelBoosts > 0)
+                        Text('Level ${currentLevel + 1}',
+                          style: TextStyle(color: subTextColor, fontSize: 13)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress.clamp(0.0, 1.0),
+                      backgroundColor: isDark ? const Color(0xFF1a2633) : const Color(0xFFd4d8dc),
+                      valueColor: AlwaysStoppedAnimation(accentColor),
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('$boosts / ${nextLevelBoosts > 0 ? nextLevelBoosts : '?'} boosts',
+                    style: TextStyle(color: subTextColor, fontSize: 12)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Your channel needs to reach Level $requiredLevel to enable auto-translation.\n\n'
+              'Ask your subscribers to boost your channel.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: subTextColor, fontSize: 14),
+            ),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          if (boostUrl.isNotEmpty)
+            TextButton.icon(
+              icon: Icon(Icons.copy, size: 16, color: accentColor),
+              label: Text('Copy Boost Link', style: TextStyle(color: accentColor)),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: boostUrl));
+                showTelegramToast(ctx, 'Boost link copied');
+              },
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Close', style: TextStyle(color: subTextColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _toggleAutoTranslate() async {
     final minLevel = _autoTranslateMinLevel > 0 ? _autoTranslateMinLevel : 3;
     if (_autoTranslateDisabled && _boostLevel < minLevel) {
-      showTelegramToast(context, 'This channel needs more boosts to enable Auto-Translation (level $_boostLevel/$minLevel).');
+      _showBoostRequiredDialog(_boostLevel, minLevel);
       return;
     }
     final engine = context.read<EngineService>();
@@ -1148,6 +1250,14 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           subTextColor: subTextColor,
           onTap: () => showTelegramToast(context, 'Edit bot settings via BotFather /mybots'),
         ),
+        _EditRow(
+          icon: Icons.verified_outlined,
+          label: 'Verify Accounts',
+          value: '',
+          textColor: textColor,
+          subTextColor: subTextColor,
+          onTap: () => _showVerifyAccountsDialog(textColor, subTextColor),
+        ),
       ],
     );
   }
@@ -1202,6 +1312,118 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showVerifyAccountsDialog(Color textColor, Color subTextColor) async {
+    final engine = context.read<EngineService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+
+    List<ContactInfo> contacts = [];
+    try {
+      contacts = await engine.getContacts(widget.chat.accountId);
+    } catch (_) {}
+    if (!mounted) return;
+
+    final searchCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        var filtered = List<ContactInfo>.from(contacts);
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            backgroundColor: bgColor,
+            title: Text('Verify Accounts', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+            content: SizedBox(
+              width: 320,
+              height: 400,
+              child: Column(
+                children: [
+                  Text(
+                    'Select accounts to grant or revoke custom verification badge from this bot.',
+                    style: TextStyle(color: subTextColor, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: searchCtrl,
+                    style: TextStyle(color: textColor),
+                    decoration: InputDecoration(
+                      hintText: 'Search users...',
+                      hintStyle: TextStyle(color: subTextColor.withValues(alpha: 0.5)),
+                      prefixIcon: Icon(Icons.search, color: subTextColor),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onChanged: (q) {
+                      setDialogState(() {
+                        final ql = q.toLowerCase();
+                        filtered = contacts.where((c) =>
+                          c.displayName.toLowerCase().contains(ql) ||
+                          c.username.toLowerCase().contains(ql)
+                        ).toList();
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? Center(child: Text('No contacts found', style: TextStyle(color: subTextColor)))
+                        : ListView.builder(
+                            itemCount: filtered.length,
+                            itemBuilder: (ctx, i) {
+                              final c = filtered[i];
+                              return ListTile(
+                                dense: true,
+                                leading: Icon(
+                                  c.isVerified ? Icons.verified : Icons.person_outline,
+                                  color: c.isVerified ? accentColor : subTextColor,
+                                  size: 20,
+                                ),
+                                title: Text(
+                                  c.displayName.isNotEmpty ? c.displayName : c.username.isNotEmpty ? '@${c.username}' : c.userId,
+                                  style: TextStyle(color: textColor, fontSize: 14),
+                                ),
+                                subtitle: c.username.isNotEmpty
+                                    ? Text('@${c.username}', style: TextStyle(color: subTextColor, fontSize: 12))
+                                    : null,
+                                onTap: () async {
+                                  try {
+                                    await engine.callGeneric(
+                                      widget.chat.accountId,
+                                      'BotsSetCustomVerification',
+                                      {
+                                        'bot_id': widget.chat.chatId,
+                                        'peer_id': c.userId,
+                                        'enabled': !c.isVerified,
+                                      },
+                                    );
+                                    if (ctx.mounted) {
+                                      showTelegramToast(ctx, c.isVerified ? 'Verification removed' : 'Verification added');
+                                    }
+                                  } catch (e) {
+                                    if (ctx.mounted) showTelegramToast(ctx, 'Failed: $e');
+                                  }
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Close', style: TextStyle(color: subTextColor)),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
