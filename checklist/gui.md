@@ -193,10 +193,6 @@ The preview will give users an inaccurate impression of how their theme will act
 
 # admin_tools — Audit Findings
 
-## admin_tools — _EditRestrictedBox
-
-- [ ] [MAJOR] `_buildRankField` is rendered and `_rankCtrl` exists (line 2119, 2657-2674) but `_onSave()` (lines 2223-2245) does NOT pass the rank/custom title to `engine.restrictMemberWithRights()`. The custom title entered by the admin is silently discarded on save — `admin_tools.dart:2223-2245`
-
 ## admin_tools — _AdminLogScreen
 
 - [ ] [MAJOR] Date badge position calculation (lines 3492-3506) uses a linear interpolation of scroll position divided by maxScrollExtent to estimate which event is visible — this is an approximation that breaks for variable-height items and when items have date separators interspersed. The badge will show the wrong date when items have different heights. AyuGram tracks visible items via a proper item-position-to-date mapping — `admin_tools.dart:3487-3506`
