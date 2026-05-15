@@ -1961,6 +1961,74 @@ class EngineService {
     }
   }
 
+  Future<List<String>> getAudioDevices(String accountId, String type) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'type': type,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetAudioDevices', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final result = json.decode(utf8.decode(respBytes));
+      if (result is List) return result.map((e) => e.toString()).toList();
+      return [];
+    } catch (e) {
+      Debug.error('ENGINE', 'getAudioDevices failed', e);
+      return [];
+    }
+  }
+
+  Future<void> leaveGroupCall(String accountId, String callId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+    }));
+    try {
+      await _callAsync('__engine', 'LeaveGroupCall', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'leaveGroupCall failed', e);
+    }
+  }
+
+  Future<void> raiseHand(String accountId, String callId, bool raised) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'raised': raised,
+    }));
+    try {
+      await _callAsync('__engine', 'RaiseHand', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'raiseHand failed', e);
+    }
+  }
+
+  Future<void> setNoiseSuppression(String accountId, String callId, bool enabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'enabled': enabled,
+    }));
+    try {
+      await _callAsync('__engine', 'SetNoiseSuppression', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'setNoiseSuppression failed', e);
+    }
+  }
+
+  Future<void> inviteToGroupCall(String accountId, String callId, List<String> userIds) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'user_ids': userIds,
+    }));
+    try {
+      await _callAsync('__engine', 'InviteToGroupCall', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'inviteToGroupCall failed', e);
+    }
+  }
+
   Future<void> toggleCamera(String accountId, String callId, bool enabled) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

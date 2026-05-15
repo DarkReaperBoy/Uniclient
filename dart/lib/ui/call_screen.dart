@@ -58,7 +58,7 @@ class GroupCallPanel extends StatefulWidget {
   static const defaultWidthNarrow = 380.0;
   static const defaultWidthRtmp = 720.0;
   static const defaultHeight = 520.0;
-  static const sidebarWidth = 260.0;
+  static const sidebarWidth = 204.0;
 
   @override
   State<GroupCallPanel> createState() => _GroupCallPanelState();
@@ -288,7 +288,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
 
   Widget _buildBottomControls() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 113),
       decoration: const BoxDecoration(
         border: Border(
           top: BorderSide(color: Color(0x20FFFFFF), width: 1),
@@ -438,8 +438,8 @@ class _SpeakerBlobAvatarState extends State<_SpeakerBlobAvatar>
     with SingleTickerProviderStateMixin {
   static const _minRadius = 27.0;
   static const _maxRadius = 29.0;
-  static const _minorScale = 0.545;
-  static const _majorScale = 0.605;
+  static const _minorScale = 0.414;
+  static const _majorScale = 0.138;
   static const _minorVertices = 6;
   static const _majorVertices = 8;
   static const _userpicMinScale = 0.8;
@@ -515,31 +515,40 @@ class _SpeakerBlobAvatarState extends State<_SpeakerBlobAvatar>
         _userpicMinScale + (1.0 - _userpicMinScale) * _currentLevel;
     final blobSize = _maxRadius * 2 + 4;
 
+    const avatarSize = 36.0;
+
     if (!widget.isSpeaking && _currentLevel < 0.001) {
       return SizedBox(
-        width: blobSize,
-        height: blobSize,
+        width: avatarSize,
+        height: avatarSize,
         child: Center(child: widget.child),
       );
     }
 
     return RepaintBoundary(
       child: SizedBox(
-        width: blobSize,
-        height: blobSize,
+        width: avatarSize,
+        height: avatarSize,
         child: Stack(
+          clipBehavior: Clip.none,
           alignment: Alignment.center,
           children: [
-            CustomPaint(
-              size: Size(blobSize, blobSize),
-              painter: _BlobPainter(
-                majorBlob: _majorBlob,
-                minorBlob: _minorBlob,
-                radius: radius,
-                majorScale: _majorScale,
-                minorScale: _minorScale,
-                color: const Color(0xFF4DC920),
-                level: _currentLevel,
+            Positioned.fill(
+              left: -(blobSize - avatarSize) / 2,
+              top: -(blobSize - avatarSize) / 2,
+              right: -(blobSize - avatarSize) / 2,
+              bottom: -(blobSize - avatarSize) / 2,
+              child: CustomPaint(
+                size: Size(blobSize, blobSize),
+                painter: _BlobPainter(
+                  majorBlob: _majorBlob,
+                  minorBlob: _minorBlob,
+                  radius: radius,
+                  majorScale: _majorScale,
+                  minorScale: _minorScale,
+                  color: const Color(0xFF4DC920),
+                  level: _currentLevel,
+                ),
               ),
             ),
             Transform.scale(
@@ -861,6 +870,9 @@ class _BigMuteButtonState extends State<_BigMuteButton>
     final level = _pulseLevel;
     final showBlob = widget.state == MuteButtonState.unmuted && level > 0.001;
 
+    const hitWidth = 68.0;
+    const hitHeight = 79.0;
+
     return GestureDetector(
       onTap: () => _handleTap(context),
       child: Column(
@@ -868,9 +880,10 @@ class _BigMuteButtonState extends State<_BigMuteButton>
         children: [
           RepaintBoundary(
             child: SizedBox(
-              width: blobSize,
-              height: blobSize,
+              width: hitWidth,
+              height: hitHeight,
               child: Stack(
+                clipBehavior: Clip.none,
                 alignment: Alignment.center,
                 children: [
                   if (showBlob)
@@ -1120,14 +1133,29 @@ void showGroupCallPanel(
                         },
                       );
                     } else {
+                      final engine = sbCtx.read<EngineService>();
+                      final accountId = sbCtx.read<AppState>().activeAccountId;
+                      final callId = info.callId;
+                      if (callId.isNotEmpty) {
+                        engine.leaveGroupCall(accountId, callId);
+                      }
                       Navigator.of(ctx).pop();
                     }
                   },
                   onToggleMute: () {
+                    final engine = sbCtx.read<EngineService>();
+                    final accountId = sbCtx.read<AppState>().activeAccountId;
+                    final callId = info.callId;
                     if (forceMuted && !raisedHand) {
                       setSbState(() => raisedHand = true);
+                      if (callId.isNotEmpty) {
+                        engine.raiseHand(accountId, callId, true);
+                      }
                     } else if (!forceMuted) {
                       setSbState(() => selfMuted = !selfMuted);
+                      if (callId.isNotEmpty) {
+                        engine.setCallMuted(accountId, callId, !selfMuted);
+                      }
                     }
                     onToggleMute?.call();
                   },
@@ -1153,7 +1181,7 @@ void showGroupCallPanel(
                     }
                   },
                   onOpenMenu: () {
-                    _showGroupCallMenu(ctx);
+                    _showGroupCallMenu(ctx, callId: info.callId);
                   },
                 );
               },
@@ -1165,7 +1193,7 @@ void showGroupCallPanel(
   );
 }
 
-void _showGroupCallMenu(BuildContext context) {
+void _showGroupCallMenu(BuildContext context, {String callId = ''}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF1E2530),
@@ -1173,40 +1201,67 @@ void _showGroupCallMenu(BuildContext context) {
       borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
     ),
     builder: (ctx) {
-      return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.volume_up, color: Colors.white70),
-              title: const Text('Sound', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(ctx);
-                _showSoundDevicePicker(context);
-              },
+      return StatefulBuilder(
+        builder: (ctx2, setSheetState) {
+          final appState = ctx2.read<AppState>();
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.fiber_manual_record, color: Colors.redAccent),
+                  title: const Text('Start Recording',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(ctx2);
+                    final engine = context.read<EngineService>();
+                    final accountId = appState.activeAccountId;
+                    if (callId.isNotEmpty) {
+                      engine.toggleScreenSharing(accountId, callId, false);
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.screen_share, color: Colors.white70),
+                  title: const Text('Share Screen',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () async {
+                    Navigator.pop(ctx2);
+                    final result = await showScreenShareChooser(context);
+                    if (result != null && context.mounted) {
+                      final engine = context.read<EngineService>();
+                      final accountId = context.read<AppState>().activeAccountId;
+                      if (callId.isNotEmpty) {
+                        await engine.toggleScreenSharing(accountId, callId, true,
+                            sourceId: result.id, withAudio: result.withAudio);
+                      }
+                    }
+                  },
+                ),
+                ListTile(
+                  leading:
+                      const Icon(Icons.person_add, color: Colors.white70),
+                  title: const Text('Invite members',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(ctx2);
+                    _showInviteMembersFromMenu(context, callId: callId);
+                  },
+                ),
+                ListTile(
+                  leading:
+                      const Icon(Icons.settings, color: Colors.white70),
+                  title: const Text('Settings',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(ctx2);
+                    _showCallSettingsFromMenu(context);
+                  },
+                ),
+              ],
             ),
-            ListTile(
-              leading:
-                  const Icon(Icons.person_add, color: Colors.white70),
-              title: const Text('Invite members',
-                  style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(ctx);
-                _showInviteMembersFromMenu(context);
-              },
-            ),
-            ListTile(
-              leading:
-                  const Icon(Icons.settings, color: Colors.white70),
-              title: const Text('Settings',
-                  style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(ctx);
-                _showCallSettingsFromMenu(context);
-              },
-            ),
-          ],
-        ),
+          );
+        },
       );
     },
   );
@@ -1234,10 +1289,15 @@ Future<void> _showSoundDevicePicker(BuildContext context) async {
         }
       }
     } catch (_) {}
-  } else if (Platform.isMacOS) {
-    devices.addAll(['Built-in Output', 'Headphones']);
-  } else if (Platform.isWindows) {
-    devices.addAll(['Speakers', 'Headphones']);
+  } else if (Platform.isMacOS || Platform.isWindows) {
+    try {
+      final engine = context.read<EngineService>();
+      final accountId = appState.activeAccountId;
+      final devList = await engine.getAudioDevices(accountId, 'output');
+      if (devList.isNotEmpty) {
+        devices.addAll(devList);
+      }
+    } catch (_) {}
   }
 
   if (!context.mounted) return;
@@ -1271,6 +1331,9 @@ Future<void> _showSoundDevicePicker(BuildContext context) async {
                 title: Text(d, style: const TextStyle(color: Colors.white)),
                 onTap: () {
                   appState.setCallOutputDevice(d);
+                  final engine = context.read<EngineService>();
+                  final accountId = appState.activeAccountId;
+                  engine.setCallAudioDevice(accountId, 'output', d);
                   Navigator.pop(ctx);
                 },
               ),
@@ -1281,7 +1344,7 @@ Future<void> _showSoundDevicePicker(BuildContext context) async {
   );
 }
 
-Future<void> _showInviteMembersFromMenu(BuildContext context) async {
+Future<void> _showInviteMembersFromMenu(BuildContext context, {String callId = ''}) async {
   final engine = context.read<EngineService>();
   final accountId = context.read<AppState>().activeAccountId;
 
@@ -1370,11 +1433,8 @@ Future<void> _showInviteMembersFromMenu(BuildContext context) async {
 
   if (selectedIds.isEmpty || !context.mounted) return;
 
-  final result = await engine.createConferenceCall(accountId);
-  if (result == null || !context.mounted) return;
-
-  for (final userId in selectedIds) {
-    await engine.sendMessage(accountId, userId, result.inviteLink);
+  if (callId.isNotEmpty) {
+    await engine.inviteToGroupCall(accountId, callId, selectedIds.toList());
   }
 }
 
@@ -1410,6 +1470,9 @@ void _showCallSettingsFromMenu(BuildContext context) {
                     setSheetState(() {
                       appState.setCallNoiseSuppression(v);
                     });
+                    final engine = context.read<EngineService>();
+                    final accountId = appState.activeAccountId;
+                    engine.setNoiseSuppression(accountId, '', v);
                   },
                 ),
                 ListTile(
@@ -2155,12 +2218,32 @@ class _CallBarHangupButton extends StatelessWidget {
   void _handleTap(BuildContext context) {
     if (isCanManage) {
       _showLeaveOrEndDialog(context,
-        onLeave: () => onTap?.call(),
+        onLeave: () {
+          final engine = context.read<EngineService>();
+          final appState = context.read<AppState>();
+          final accountId = appState.activeAccountId;
+          if (accountId.isNotEmpty) {
+            engine.leaveGroupCall(accountId, '');
+          }
+          onTap?.call();
+        },
         onEndForAll: () async {
+          final engine = context.read<EngineService>();
+          final appState = context.read<AppState>();
+          final accountId = appState.activeAccountId;
+          if (accountId.isNotEmpty) {
+            await engine.endGroupCall(accountId, '');
+          }
           onTap?.call();
         },
       );
     } else {
+      final engine = context.read<EngineService>();
+      final appState = context.read<AppState>();
+      final accountId = appState.activeAccountId;
+      if (accountId.isNotEmpty) {
+        engine.leaveGroupCall(accountId, '');
+      }
       onTap?.call();
     }
   }
