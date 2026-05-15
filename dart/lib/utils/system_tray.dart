@@ -274,6 +274,21 @@ class SystemTray {
     }
   }
 
+  /// Apply a new app icon at runtime. Updates both the window icon and
+  /// the tray icon. [iconName] is the asset name (e.g. 'alt', 'discord')
+  /// or empty string for the default icon.
+  Future<void> updateAppIcon(String iconName) async {
+    try {
+      await _channel.invokeMethod<void>('updateAppIcon', {
+        'icon': iconName.isEmpty ? 'default' : iconName,
+      });
+    } on MissingPluginException {
+      // Not implemented on native side yet.
+    } catch (e) {
+      Debug.log('TRAY', 'updateAppIcon failed: $e');
+    }
+  }
+
   /// Update the monochrome tray icon setting on the native side,
   /// then refresh the icon. Matches AyuGram's
   /// trayIconMonochromeChanges → updateIconCounters() subscription.

@@ -132,6 +132,8 @@ class _UniClientAppState extends State<UniClientApp>
   VoidCallback? _accountsSyncListener;
   VoidCallback? _trayIconSyncListener;
   VoidCallback? _monochromeSyncListener;
+  VoidCallback? _appIconSyncListener;
+  String _lastAppIcon = '';
   AppState? _appStateRef;
   ChatState? _chatStateRef;
   Timer? _debugCmdTimer;
@@ -339,6 +341,17 @@ class _UniClientAppState extends State<UniClientApp>
         _tray.updateMonochromeIcon(appState.monochromeTrayIcon);
       };
       appState.addListener(_monochromeSyncListener!);
+
+      // React to app icon changes: update window + tray icon at runtime.
+      _lastAppIcon = appState.appIcon;
+      _tray.updateAppIcon(appState.appIcon);
+      _appIconSyncListener = () {
+        if (appState.appIcon != _lastAppIcon) {
+          _lastAppIcon = appState.appIcon;
+          _tray.updateAppIcon(appState.appIcon);
+        }
+      };
+      appState.addListener(_appIconSyncListener!);
 
       // §50.3: Streamer Mode tray toggle — sync item visibility + state.
       _appStateRef = appState;
@@ -1938,6 +1951,9 @@ class _UniClientAppState extends State<UniClientApp>
     }
     if (_monochromeSyncListener != null && _appStateRef != null) {
       _appStateRef!.removeListener(_monochromeSyncListener!);
+    }
+    if (_appIconSyncListener != null && _appStateRef != null) {
+      _appStateRef!.removeListener(_appIconSyncListener!);
     }
     if (_chatStateRef != null) _chatStateRef!.onNotification = null;
     // Persist emoji keywords state (recent emojis, variant prefs).

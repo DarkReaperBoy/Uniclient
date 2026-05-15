@@ -30,13 +30,15 @@ class AyuAppearancePage extends StatelessWidget {
       onChanged: (v) => appState.setAppIcon(v),
       isDark: isDark,
     ));
-    if (Platform.isWindows || Platform.isMacOS)
+    if (Platform.isWindows || Platform.isMacOS) {
       b.addSettingToggle(
         label: 'Hide notification badge',
-        subtitle: 'Hides the unread count on the taskbar and tray icon',
         value: appState.hideNotificationBadge,
         onChanged: (v) => appState.setHideNotificationBadge(v),
       );
+      b.addDescription(
+          'Hides the notification counter on the app icon in the taskbar and tray.');
+    }
 
     b.addSectionDivider();
 
@@ -52,7 +54,7 @@ class AyuAppearancePage extends StatelessWidget {
     b.addSectionDivider();
 
     b.addSettingToggle(
-      label: 'Material Design switches',
+      label: 'MD3 Switch Style',
       subtitle: 'Use Material-style toggle switches throughout',
       value: appState.materialSwitches,
       onChanged: (v) => appState.setMaterialSwitches(v),
@@ -122,6 +124,7 @@ class AyuAppearancePage extends StatelessWidget {
       subtitle: 'Show My Profile in drawer',
       value: appState.showMyProfileInDrawer,
       onChanged: (v) => appState.setShowMyProfileInDrawer(v),
+      icon: Icons.person_outline,
     );
     if (appState.menuBots.isNotEmpty)
       b.addSettingToggle(
@@ -129,60 +132,70 @@ class AyuAppearancePage extends StatelessWidget {
         subtitle: 'Show menu bots in drawer',
         value: appState.showBotsInDrawer,
         onChanged: (v) => appState.setShowBotsInDrawer(v),
+        icon: Icons.smart_toy_outlined,
       );
     b.addSettingToggle(
       label: 'New Group',
       subtitle: 'Show New Group in drawer',
       value: appState.showNewGroupInDrawer,
       onChanged: (v) => appState.setShowNewGroupInDrawer(v),
+      icon: Icons.group_outlined,
     );
     b.addSettingToggle(
       label: 'New Channel',
       subtitle: 'Show New Channel in drawer',
       value: appState.showNewChannelInDrawer,
       onChanged: (v) => appState.setShowNewChannelInDrawer(v),
+      icon: Icons.campaign_outlined,
     );
     b.addSettingToggle(
       label: 'Contacts',
       subtitle: 'Show Contacts in drawer',
       value: appState.showContactsInDrawer,
       onChanged: (v) => appState.setShowContactsInDrawer(v),
+      icon: Icons.person_add_outlined,
     );
     b.addSettingToggle(
       label: 'Calls',
       subtitle: 'Show Calls in drawer',
       value: appState.showCallsInDrawer,
       onChanged: (v) => appState.setShowCallsInDrawer(v),
+      icon: Icons.phone_outlined,
     );
     b.addSettingToggle(
       label: 'Saved Messages',
       subtitle: 'Show Saved Messages in drawer',
       value: appState.showSavedMessagesInDrawer,
       onChanged: (v) => appState.setShowSavedMessagesInDrawer(v),
+      icon: Icons.bookmark_outline,
     );
     b.addSettingToggle(
-      label: 'Read Receipts (LRead)',
-      subtitle: 'Show Read Receipts toggle in drawer',
+      label: 'Read on Local',
+      subtitle: 'Show Read on Local toggle in drawer',
       value: appState.showLReadToggleInDrawer,
       onChanged: (v) => appState.setShowLReadToggleInDrawer(v),
+      icon: Icons.done_all,
     );
     b.addSettingToggle(
-      label: 'Story Reads (SRead)',
-      subtitle: 'Show Story Reads toggle in drawer',
+      label: 'Read on Server',
+      subtitle: 'Show Read on Server toggle in drawer',
       value: appState.showSReadToggleInDrawer,
       onChanged: (v) => appState.setShowSReadToggleInDrawer(v),
+      icon: Icons.cloud_done_outlined,
     );
     b.addSettingToggle(
       label: 'Night Mode',
       subtitle: 'Show Night Mode toggle in drawer',
       value: appState.showNightModeToggleInDrawer,
       onChanged: (v) => appState.setShowNightModeToggleInDrawer(v),
+      icon: Icons.dark_mode_outlined,
     );
     b.addSettingToggle(
       label: 'Ghost Mode',
       subtitle: 'Show Ghost Mode toggle in drawer',
       value: appState.showGhostToggleInDrawer,
       onChanged: (v) => appState.setShowGhostToggleInDrawer(v),
+      icon: Icons.visibility_off_outlined,
     );
     if (Platform.isWindows || Platform.isMacOS)
       b.addSettingToggle(
@@ -190,6 +203,7 @@ class AyuAppearancePage extends StatelessWidget {
         subtitle: 'Show Streamer Mode toggle in drawer',
         value: appState.showStreamerToggleInDrawer,
         onChanged: (v) => appState.setShowStreamerToggleInDrawer(v),
+        icon: Icons.live_tv_outlined,
       );
 
     b.addSkip(24);
@@ -242,6 +256,35 @@ class _AvatarCornersSectionState extends State<_AvatarCornersSection> {
       _localCorners = widget.corners;
       _committedCorners = widget.corners;
     }
+  }
+
+  void _showRestartDialog(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor =
+        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restart Required'),
+        content: const Text(
+            'The avatar corners change will be applied after restarting the app.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Later', style: TextStyle(color: accentColor)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              exit(0);
+            },
+            child: Text('Restart Now',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, color: accentColor)),
+          ),
+        ],
+      ),
+    );
   }
 
   String get _badgeText {
@@ -303,31 +346,34 @@ class _AvatarCornersSectionState extends State<_AvatarCornersSection> {
               max: _kMax.toDouble(),
               divisions: _kMax,
               onChanged: (v) {
-                final newVal = v.round();
-                setState(() => _localCorners = newVal);
-                widget.onCornersChanged(newVal);
+                setState(() => _localCorners = v.round());
               },
               onChangeEnd: (v) {
                 final newVal = v.round();
+                widget.onCornersChanged(newVal);
                 if (newVal == _committedCorners) return;
                 _committedCorners = newVal;
-                ScaffoldMessenger.of(context)
-                  ..hideCurrentSnackBar()
-                  ..showSnackBar(const SnackBar(
-                    content: Text('Restart to apply avatar corners'),
-                    duration: Duration(seconds: 2),
-                  ));
+                _showRestartDialog(context);
               },
             ),
           ),
         ),
         _ToggleRow(
           label: 'Single corner radius',
-          subtitle: 'Forums will have the same avatar shape as chats',
           value: widget.singleCornerRadius,
           onChanged: widget.onSingleCornerRadiusChanged,
           isDark: widget.isDark,
           useMaterial: widget.useMaterial,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+          child: Text(
+              'Forums will have the same avatar shape as chats.',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: widget.isDark
+                      ? const Color(0xFF6D7F8F)
+                      : const Color(0xFF999999))),
         ),
       ],
     );
@@ -413,16 +459,18 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
         Color(0xFFA695E7), Color(0xFFED9B9B),
       ];
       final colorIdx = 'AyuGramReleases'.hashCode.abs() % colors.length;
-      avatarContent = Container(
-        width: photoSize,
-        height: photoSize,
-        color: colors[colorIdx],
-        alignment: Alignment.center,
-        child: const Text('A',
-            style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w500)),
+      avatarContent = ClipOval(
+        child: Container(
+          width: photoSize,
+          height: photoSize,
+          color: colors[colorIdx],
+          alignment: Alignment.center,
+          child: const Text('A',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w500)),
+        ),
       );
     }
 
@@ -608,11 +656,7 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
       if (mounted) setState(() { _systemFonts = ['', ...families!]; _loadingFonts = false; });
     } else if (mounted) {
       setState(() {
-        _systemFonts = [
-          '', 'Cascadia Mono', 'JetBrains Mono', 'Fira Code',
-          'Source Code Pro', 'Inconsolata', 'Ubuntu Mono', 'Hack',
-          'Roboto Mono', 'IBM Plex Mono', 'Cousine',
-        ];
+        _systemFonts = [''];
         _loadingFonts = false;
       });
     }
@@ -732,7 +776,7 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Monospace Font',
+              Text('Customize Font',
                   style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,

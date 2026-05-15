@@ -399,6 +399,51 @@ static void tray_method_call_handler(FlMethodChannel* channel,
     }
 #endif
     fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "updateAppIcon") == 0) {
+    FlValue* args = fl_method_call_get_args(method_call);
+    if (fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+      FlValue* icon_val = fl_value_lookup_string(args, "icon");
+      if (icon_val && fl_value_get_type(icon_val) == FL_VALUE_TYPE_STRING) {
+        const gchar* icon_name = fl_value_get_string(icon_val);
+        gchar* exe_path = g_file_read_link("/proc/self/exe", NULL);
+        if (exe_path) {
+          gchar* exe_dir = g_path_get_dirname(exe_path);
+          gchar* icon_file = g_strdup_printf("%s.png", icon_name);
+          gchar* icon_path = g_build_filename(
+              exe_dir, "data", "flutter_assets", "assets", "icons",
+              "ayu", icon_file, NULL);
+          if (g_file_test(icon_path, G_FILE_TEST_EXISTS)) {
+            if (self->window) {
+              GError* error = NULL;
+              GdkPixbuf* pixbuf = gdk_pixbuf_new_from_file(icon_path, &error);
+              if (pixbuf) {
+                gtk_window_set_icon(self->window, pixbuf);
+                g_object_unref(pixbuf);
+              }
+              if (error) g_error_free(error);
+            }
+#ifdef HAVE_APPINDICATOR
+            if (self->indicator) {
+              gchar* ayu_icon_dir = g_build_filename(
+                  exe_dir, "data", "flutter_assets", "assets", "icons",
+                  "ayu", NULL);
+              gchar* bare_name = g_strdup(icon_name);
+              app_indicator_set_icon_theme_path(self->indicator, ayu_icon_dir);
+              app_indicator_set_icon_full(self->indicator, bare_name,
+                                         "UniClient");
+              g_free(bare_name);
+              g_free(ayu_icon_dir);
+            }
+#endif
+          }
+          g_free(icon_path);
+          g_free(icon_file);
+          g_free(exe_dir);
+          g_free(exe_path);
+        }
+      }
+    }
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
   } else if (g_strcmp0(method, "isAvailable") == 0) {
 #ifdef HAVE_APPINDICATOR
     g_autoptr(FlValue) result = fl_value_new_bool(TRUE);

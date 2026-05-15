@@ -34,6 +34,7 @@ class AyuSectionBuilder {
     required bool value,
     required ValueChanged<bool> onChanged,
     bool showBetaBadge = false,
+    IconData? icon,
   }) {
     _children.add(_AyuSettingToggle(
       label: label,
@@ -43,6 +44,7 @@ class AyuSectionBuilder {
       isDark: isDark,
       useMaterial: useMaterial,
       showBetaBadge: showBetaBadge,
+      icon: icon,
     ));
   }
 
@@ -210,6 +212,7 @@ class _AyuSettingToggle extends StatelessWidget {
   final bool isDark;
   final bool useMaterial;
   final bool showBetaBadge;
+  final IconData? icon;
 
   const _AyuSettingToggle({
     required this.label,
@@ -219,6 +222,7 @@ class _AyuSettingToggle extends StatelessWidget {
     required this.isDark,
     this.useMaterial = false,
     this.showBetaBadge = false,
+    this.icon,
   });
 
   @override
@@ -229,6 +233,13 @@ class _AyuSettingToggle extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
         child: Row(
           children: [
+            if (icon != null) ...[
+              Icon(icon, size: 20,
+                  color: isDark
+                      ? const Color(0xFF8A9AA5)
+                      : const Color(0xFF737373)),
+              const SizedBox(width: 14),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
