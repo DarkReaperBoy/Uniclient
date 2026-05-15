@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../theme/telegram_palette.dart';
 
 import 'ayu_toggle.dart';
+import 'confirm_box.dart';
 
 class AyuSectionBuilder {
   final List<Widget> _children = [];
@@ -177,20 +178,36 @@ class _BetaBadgeOverlay extends StatelessWidget {
   final String badge;
   final bool isDark;
   final Widget child;
+  final String? labelText;
 
   const _BetaBadgeOverlay({
     required this.badge,
     required this.isDark,
     required this.child,
+    this.labelText,
   });
 
   @override
   Widget build(BuildContext context) {
+    double leftOffset = 22;
+    if (labelText != null) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: labelText,
+          style: const TextStyle(fontSize: 14),
+        ),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      leftOffset += tp.width + 4;
+    } else {
+      leftOffset += 4;
+    }
     return Stack(
       children: [
         child,
         Positioned(
-          left: 22 + 200,
+          left: leftOffset,
           top: 0,
           bottom: 0,
           child: Align(
@@ -206,8 +223,8 @@ class _BetaBadgeOverlay extends StatelessWidget {
                 ),
                 child: Text(badge,
                     style: const TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
                         color: Colors.white)),
               );
             }),
@@ -280,8 +297,8 @@ class _AyuSettingToggle extends StatelessWidget {
                             ),
                             child: const Text('BETA',
                                 style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
                                     color: Colors.white)),
                           );
                         }),
@@ -447,35 +464,82 @@ class _AyuChooseButton extends StatelessWidget {
   }
 
   void _showChoiceDialog(BuildContext context) {
-    final bgColor = isDark ? const Color(0xFF1B2836) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final accentColor =
-        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
-    showDialog(
+    showTelegramBox(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        title: Text(label,
-            style: TextStyle(
-                fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
-        contentPadding: const EdgeInsets.only(top: 12, bottom: 8),
-        content: Column(
+      builder: (ctx) => _SingleChoiceBox(
+        title: label,
+        items: items,
+        currentValue: value,
+        onChanged: (v) {
+          onChanged(v);
+          Navigator.of(ctx).pop();
+        },
+      ),
+    );
+  }
+}
+
+class _SingleChoiceBox extends StatelessWidget {
+  final String title;
+  final Map<int, String> items;
+  final int currentValue;
+  final ValueChanged<int> onChanged;
+
+  const _SingleChoiceBox({
+    required this.title,
+    required this.items,
+    required this.currentValue,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return TelegramBox(
+      title: title,
+      content: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: items.entries.map((e) => RadioListTile<int>(
-            title: Text(e.value,
-                style: TextStyle(fontSize: 14, color: textColor)),
-            value: e.key,
-            groupValue: value,
-            activeColor: accentColor,
-            onChanged: (v) {
-              if (v != null) {
-                onChanged(v);
-                Navigator.of(ctx).pop();
-              }
-            },
-          )).toList(),
+          children: items.entries.map((e) {
+            final selected = e.key == currentValue;
+            return InkWell(
+              onTap: () => onChanged(e.key),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(e.value,
+                          style: TextStyle(fontSize: 14, color: p.boxTextFg)),
+                    ),
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: selected
+                              ? p.windowBgActive
+                              : p.boxTextFg.withValues(alpha: 0.3),
+                          width: selected ? 6 : 2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
         ),
       ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
     );
   }
 }
@@ -542,74 +606,83 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
     final accentColor = widget.isDark
         ? const Color(0xFF6AB2F2)
         : const Color(0xFF3390EC);
+    final textColor = widget.isDark ? Colors.white : Colors.black87;
+    final dividerColor = widget.isDark
+        ? const Color(0xFF2B3C4C)
+        : const Color(0xFFD5D5D5);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InkWell(
-          onTap: () => setState(() => _open = !_open),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: !hasMaster && checkedCount > 0
-                      ? Text.rich(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _open = !_open),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
                           TextSpan(
-                            children: [
-                              TextSpan(
-                                text: widget.label,
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    color: widget.isDark
-                                        ? Colors.white
-                                        : Colors.black87),
-                              ),
-                              TextSpan(
-                                text: '  $checkedCount/$totalCount',
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: widget.isDark
-                                        ? Colors.white
-                                        : Colors.black87),
-                              ),
-                            ],
+                            text: widget.label,
+                            style: TextStyle(fontSize: 14, color: textColor),
                           ),
-                        )
-                      : Text(widget.label,
-                          style: TextStyle(
-                              fontSize: 14,
-                              color: widget.isDark
-                                  ? Colors.white
-                                  : Colors.black87)),
-                ),
-                if (hasMaster) ...[
-                  const SizedBox(width: 12),
-                  AyuToggle(
-                    value: toggleValue,
-                    onChanged: (v) {
-                      for (final child in widget.children) {
-                        if (!child.isLocked && child.value != v) {
-                          child.onChanged(v);
-                        }
-                      }
-                      widget.onMasterToggle!(v);
-                    },
-                    isMaterial: widget.useMaterial,
-                  ),
-                ] else
-                  AnimatedRotation(
-                    turns: _open ? 0.5 : 0.0,
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeOutCubic,
-                    child: Icon(
-                      Icons.expand_more,
-                      size: 20,
-                      color: accentColor,
+                          TextSpan(
+                            text: '  $checkedCount/$totalCount',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: textColor),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-              ],
-            ),
+                ),
+              ),
+              if (hasMaster) ...[
+                Container(
+                  width: 1,
+                  height: 20,
+                  color: dividerColor,
+                ),
+                SizedBox(
+                  width: 70,
+                  child: Center(
+                    child: AyuToggle(
+                      value: toggleValue,
+                      onChanged: (v) {
+                        for (final child in widget.children) {
+                          if (!child.isLocked && child.value != v) {
+                            child.onChanged(v);
+                          }
+                        }
+                        widget.onMasterToggle!(v);
+                      },
+                      isMaterial: widget.useMaterial,
+                    ),
+                  ),
+                ),
+              ] else
+                InkWell(
+                  onTap: () => setState(() => _open = !_open),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: AnimatedRotation(
+                      turns: _open ? 0.5 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutCubic,
+                      child: Icon(
+                        Icons.expand_more,
+                        size: 20,
+                        color: accentColor,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         AnimatedSize(
