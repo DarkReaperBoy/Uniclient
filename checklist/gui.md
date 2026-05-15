@@ -233,22 +233,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 
 ## Missing UI Controls (Feature Hidden from User)
 
-- [ ] **[CRITICAL]** Missing `replaceMarksWithIcons` toggle control — `ayu_chats_page.dart:111` receives setting from appState but no UI control to change it ← `settings_chats.cpp:154-160` adds `ayu.addSettingToggle()` for `replaceBottomInfoWithIcons`
-  - Setting IS being used in the _MessagePreview widget (line 684-692 in _buildMarks shows icons when true)
-  - User has NO way to toggle this in the UI
-  - AyuGram exposes this as a visible toggle
-
-- [ ] **[CRITICAL]** Missing `deletedMark` editor button — `ayu_chats_page.dart:112` receives setting from appState, displayed in preview (line 697-699), but no UI button to edit it ← `settings_chats.cpp:163-178` adds `builder.addButton()` that opens `EditMarkBox` dialog
-  - User cannot edit the deleted message mark text
-  - Default value "🧹" is hardcoded in AyuGram (ayu_settings.h:646) and presumably in Dart AppState, but unreachable
-
-- [ ] **[CRITICAL]** Missing `editedMark` editor button — `ayu_chats_page.dart:113` receives setting from appState, displayed in preview (line 702-706), but no UI button to edit it ← `settings_chats.cpp:180-195` adds `builder.addButton()` that opens `EditMarkBox` dialog with default "edited"
-  - User cannot edit the edited message mark text
-  - Falls back to hardcoded text "edited" (line 710) when editedMark is empty
-
-- [ ] **[CRITICAL]** Missing `semiTransparentDeletedMessages` toggle control — `ayu_chats_page.dart:110` receives setting from appState and affects preview opacity (line 531: `opacity = semiTransparentDeleted ? 0.7 : 1.0`), but no UI control to change it ← `settings_chats.cpp:221-227` adds `ayu.addSettingToggle()` for `semiTransparentDeletedMessages` with beta badge
-  - Setting controls message visibility (line 593-614) but user cannot toggle it
-  - AyuGram marks this as beta feature with badge
 
 ## Structural Issues (Wrong Organization)
 
