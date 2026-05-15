@@ -152,17 +152,6 @@ This is a **data layer module with 5 critical/major issues**:
 
 ## MAJOR Issues
 
-- [ ] **[MAJOR] Photo placeholder uses hardcoded gradient instead of loading actual image** — `theme_preview.dart:594-608` shows a static blue gradient via `LinearGradient` with colors `[0xFF6BA3D6, 0xFF3D7AB5, 0xFF2B5E8C]` hardcoded, whereas `window_theme_preview.cpp:382` loads the actual theme image from `":/gui/art/themeimage.jpg"`. This breaks visual fidelity — users won't see what their actual photos will look like in the theme preview.
-
-- [ ] **[MAJOR] Icons (search, call, menu, attach) are manually drawn instead of using theme icon resources** — `theme_preview.dart:717-742` manually draws search/call/menu icons with Path and strokeWidth, whereas `window_theme_preview.cpp:538-542` uses styled icon resources (`st::topBarMenuToggle.icon[_palette]`, `st::topBarCall.icon[_palette]`, `st::topBarSearch.icon[_palette]`). If a theme changes icon style, the preview won't update — it will always show the hardcoded manual drawings.
-
-- [ ] **[MAJOR] Emoji button uses manual drawing instead of styled button** — `theme_preview.dart:660-688` manually draws an emoji face outline with hardcoded circle and path coordinates, whereas `window_theme_preview.cpp:576-604` uses the proper style button system (`st::historyAttachEmoji.inner`) with correct padding/width/height from the theme style. Manual drawing won't scale correctly if theme button sizes change.
-
-- [ ] **[MAJOR] Microphone icon is static stroke drawing, not animated** — `theme_preview.dart:699-712` draws static microphone outline with RRect and lines, whereas `window_theme_preview.cpp:570-575` uses animated Lottie icon (`Lottie::MakeIcon` with `":/animations/chat/voice_to_video.tgs"`). Preview shows no animation where AyuGram shows an animated icon.
-
-- [ ] **[MAJOR] Pin icon is manually drawn, not themed** — `theme_preview.dart:792-808` draws pin with manual Path strokes, whereas `window_theme_preview.cpp:771-775` uses `Dialogs::ThreeStateIcon(st::dialogsPinnedIcon, row.active, row.selected)[_palette]`. Theme pin icon changes won't appear in preview.
-
-- [ ] **[MAJOR] Check marks (sent/received) are manually drawn, not styled** — `theme_preview.dart:810-835` draws checkmarks with hardcoded Path coordinates and `strokeWidth = 1.5`, whereas `window_theme_preview.cpp:994-1004` uses themed icon resources (`st::historySentIcon`, `st::historyReceivedIcon`) with proper style. Theme check color/style changes won't appear in preview.
 
 ## Summary
 
