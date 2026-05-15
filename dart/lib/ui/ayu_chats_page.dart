@@ -87,33 +87,44 @@ class AyuChatsPage extends StatelessWidget {
       value: appState.showMessageShot,
       onChanged: (v) => appState.setShowMessageShot(v),
     );
-    b.addSettingToggle(
-      label: 'Hide side "Share" button',
-      subtitle: 'Hide the circular forward button on messages',
-      value: appState.hideFastShare,
-      onChanged: (v) => appState.setHideFastShare(v),
-    );
+    b.addDescription(
+        'Generate and share styled screenshots of messages.');
 
     b.addSectionDivider();
 
-    // Messages (§54.11)
+    // Messages / Marks (§54.11) — matches AyuGram BuildMarks()
     b.addSectionTitle('Messages');
-    b.addWidget(_WideMultiplierSlider(
-      value: appState.wideMultiplier,
-      onChanged: (v) => appState.setWideMultiplier(v),
-      isDark: isDark,
-    ));
-    b.addWidget(_BubbleRadiusSection(
-      value: appState.bubbleRadius,
+    b.addWidget(_MessagePreviewStandalone(
+      bubbleRadius: appState.bubbleRadius,
       showTail: !appState.removeTail,
       simpleQuotesAndReplies: appState.simpleQuotesAndReplies,
       semiTransparentDeleted: appState.semiTransparentDeleted,
       replaceMarksWithIcons: appState.replaceMarksWithIcons,
       deletedMark: appState.deletedMark,
       editedMark: appState.editedMark,
-      onChanged: (v) => appState.setBubbleRadius(v),
       isDark: isDark,
     ));
+    b.addSettingToggle(
+      label: 'Replace marks with icons',
+      value: appState.replaceMarksWithIcons,
+      onChanged: (v) => appState.setReplaceMarksWithIcons(v),
+    );
+    if (!appState.replaceMarksWithIcons) {
+      b.addWidget(_EditMarkButton(
+        label: 'Deleted mark text',
+        currentValue: appState.deletedMark,
+        defaultValue: '\u{1F9F9}',
+        onSaved: (v) => appState.setDeletedMark(v),
+        isDark: isDark,
+      ));
+      b.addWidget(_EditMarkButton(
+        label: 'Edited mark text',
+        currentValue: appState.editedMark,
+        defaultValue: 'edited',
+        onSaved: (v) => appState.setEditedMark(v),
+        isDark: isDark,
+      ));
+    }
     b.addSettingToggle(
       label: 'Remove message tail',
       subtitle: 'Clean rounded rectangles without tail accent',
@@ -121,11 +132,41 @@ class AyuChatsPage extends StatelessWidget {
       onChanged: (v) => appState.setRemoveTail(v),
     );
     b.addSettingToggle(
+      label: 'Hide side "Share" button',
+      subtitle: 'Hide the circular forward button on messages',
+      value: appState.hideFastShare,
+      onChanged: (v) => appState.setHideFastShare(v),
+    );
+    b.addSettingToggle(
       label: 'Simple quotes and replies',
       subtitle: 'Uniform reply bar style without colorful accents',
       value: appState.simpleQuotesAndReplies,
       onChanged: (v) => appState.setSimpleQuotesAndReplies(v),
     );
+    b.addSettingToggle(
+      label: 'Semi-transparent deleted messages',
+      value: appState.semiTransparentDeleted,
+      onChanged: (v) => appState.setSemiTransparentDeleted(v),
+      showBetaBadge: true,
+    );
+
+    b.addSectionDivider();
+
+    // Bubble radius & wide multiplier — matches AyuGram BuildWideMessagesMultiplier()
+    // Order: messageBubbleRadius first, then wideMultiplier
+    b.addWidget(_BubbleRadiusSlider(
+      value: appState.bubbleRadius,
+      onChanged: (v) => appState.setBubbleRadius(v),
+      isDark: isDark,
+    ));
+
+    b.addSectionDivider();
+
+    b.addWidget(_WideMultiplierSlider(
+      value: appState.wideMultiplier,
+      onChanged: (v) => appState.setWideMultiplier(v),
+      isDark: isDark,
+    ));
 
     b.addSectionDivider();
 
@@ -354,34 +395,22 @@ class _WideMultiplierSliderState extends State<_WideMultiplierSlider> {
   }
 }
 
-class _BubbleRadiusSection extends StatefulWidget {
+class _BubbleRadiusSlider extends StatefulWidget {
   final int value;
-  final bool showTail;
-  final bool simpleQuotesAndReplies;
-  final bool semiTransparentDeleted;
-  final bool replaceMarksWithIcons;
-  final String deletedMark;
-  final String editedMark;
   final ValueChanged<int> onChanged;
   final bool isDark;
 
-  const _BubbleRadiusSection({
+  const _BubbleRadiusSlider({
     required this.value,
-    required this.showTail,
-    required this.simpleQuotesAndReplies,
-    required this.semiTransparentDeleted,
-    required this.replaceMarksWithIcons,
-    required this.deletedMark,
-    required this.editedMark,
     required this.onChanged,
     required this.isDark,
   });
 
   @override
-  State<_BubbleRadiusSection> createState() => _BubbleRadiusSectionState();
+  State<_BubbleRadiusSlider> createState() => _BubbleRadiusSliderState();
 }
 
-class _BubbleRadiusSectionState extends State<_BubbleRadiusSection> {
+class _BubbleRadiusSliderState extends State<_BubbleRadiusSlider> {
   late int _localValue;
   late int _committedValue;
 
@@ -393,7 +422,7 @@ class _BubbleRadiusSectionState extends State<_BubbleRadiusSection> {
   }
 
   @override
-  void didUpdateWidget(_BubbleRadiusSection old) {
+  void didUpdateWidget(_BubbleRadiusSlider old) {
     super.didUpdateWidget(old);
     if (old.value != widget.value) {
       _localValue = widget.value;
@@ -403,97 +432,215 @@ class _BubbleRadiusSectionState extends State<_BubbleRadiusSection> {
 
   @override
   Widget build(BuildContext context) {
-    final radiusLarge = _localValue.toDouble();
-    final radiusSmall = widget.showTail
-        ? (radiusLarge * 6 / 16).clamp(0.0, 6.0)
-        : radiusLarge;
+    final accentColor = context.palette.windowBgActive;
+    final textColor = widget.isDark ? Colors.white : Colors.black87;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text('Message Bubble Radius',
-                        style: TextStyle(
-                            fontSize: 14,
-                            color: widget.isDark
-                                ? Colors.white
-                                : Colors.black87)),
-                  ),
-                  Text('$_localValue',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: context.palette.windowBgActive)),
-                ],
+              Expanded(
+                child: Text('Message Bubble Radius',
+                    style: TextStyle(fontSize: 14, color: textColor)),
               ),
-              SliderTheme(
-                data: SliderThemeData(
-                  activeTrackColor: context.palette.windowBgActive,
-                  inactiveTrackColor: widget.isDark
-                      ? const Color(0xFF2B3C4C)
-                      : const Color(0xFFD5D5D5),
-                  thumbColor: context.palette.windowBgActive,
-                  overlayColor: const Color(0x2940A7E3),
-                  trackHeight: 3,
-                  thumbShape:
-                      const RoundSliderThumbShape(enabledThumbRadius: 7.5),
-                ),
-                child: Slider(
-                  value: _localValue.toDouble(),
-                  min: 0,
-                  max: 16,
-                  divisions: 16,
-                  onChanged: (v) =>
-                      setState(() => _localValue = v.round()),
-                  onChangeEnd: (v) {
-                    final newVal = v.round();
-                    if (newVal == _committedValue) return;
-                    showConfirmBox(
-                      context,
-                      title: 'Restart Required',
-                      text:
-                          'Bubble radius will be applied after restarting.',
-                      confirmText: 'Apply',
-                      cancelText: 'Cancel',
-                      onConfirm: () {
-                        _committedValue = newVal;
-                        widget.onChanged(newVal);
-                      },
-                      onCancel: () =>
-                          setState(() => _localValue = _committedValue),
-                    );
-                  },
-                ),
-              ),
+              Text('$_localValue',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: accentColor)),
             ],
           ),
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: accentColor,
+              inactiveTrackColor: widget.isDark
+                  ? const Color(0xFF2B3C4C)
+                  : const Color(0xFFD5D5D5),
+              thumbColor: accentColor,
+              overlayColor: const Color(0x2940A7E3),
+              trackHeight: 3,
+              thumbShape:
+                  const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+            ),
+            child: Slider(
+              value: _localValue.toDouble(),
+              min: 0,
+              max: 16,
+              divisions: 16,
+              onChanged: (v) => setState(() => _localValue = v.round()),
+              onChangeEnd: (v) {
+                final newVal = v.round();
+                if (newVal == _committedValue) return;
+                showConfirmBox(
+                  context,
+                  title: 'Restart Required',
+                  text: 'Bubble radius will be applied after restarting.',
+                  confirmText: 'Apply',
+                  cancelText: 'Cancel',
+                  onConfirm: () {
+                    _committedValue = newVal;
+                    widget.onChanged(newVal);
+                  },
+                  onCancel: () =>
+                      setState(() => _localValue = _committedValue),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditMarkButton extends StatelessWidget {
+  final String label;
+  final String currentValue;
+  final String defaultValue;
+  final ValueChanged<String> onSaved;
+  final bool isDark;
+
+  const _EditMarkButton({
+    required this.label,
+    required this.currentValue,
+    required this.defaultValue,
+    required this.onSaved,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final valueColor =
+        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    final displayValue = currentValue.isEmpty ? defaultValue : currentValue;
+
+    return InkWell(
+      onTap: () => _showEditMarkBox(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(fontSize: 14, color: textColor)),
+            ),
+            Text(displayValue,
+                style: TextStyle(fontSize: 14, color: valueColor)),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right,
+                size: 20,
+                color: isDark
+                    ? const Color(0xFF5A6A78)
+                    : const Color(0xFFCBCBCB)),
+          ],
         ),
-        _MessagePreview(
-          radiusLarge: radiusLarge,
-          radiusSmall: radiusSmall,
-          showTail: widget.showTail,
-          simpleQuotesAndReplies: widget.simpleQuotesAndReplies,
-          semiTransparentDeleted: widget.semiTransparentDeleted,
-          replaceMarksWithIcons: widget.replaceMarksWithIcons,
-          deletedMark: widget.deletedMark,
-          editedMark: widget.editedMark,
-          isDark: widget.isDark,
+      ),
+    );
+  }
+
+  void _showEditMarkBox(BuildContext context) {
+    showTelegramBox(
+      context: context,
+      builder: (ctx) => _EditMarkBoxContent(
+        title: label,
+        currentValue: currentValue,
+        defaultValue: defaultValue,
+        onSaved: onSaved,
+      ),
+    );
+  }
+}
+
+class _EditMarkBoxContent extends StatefulWidget {
+  final String title;
+  final String currentValue;
+  final String defaultValue;
+  final ValueChanged<String> onSaved;
+
+  const _EditMarkBoxContent({
+    required this.title,
+    required this.currentValue,
+    required this.defaultValue,
+    required this.onSaved,
+  });
+
+  @override
+  State<_EditMarkBoxContent> createState() => _EditMarkBoxContentState();
+}
+
+class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    widget.onSaved(_controller.text);
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+
+    return TelegramBox(
+      title: widget.title,
+      onConfirm: _save,
+      content: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+        child: TextField(
+          controller: _controller,
+          autofocus: true,
+          style: TextStyle(fontSize: 14, color: p.boxTextFg),
+          decoration: InputDecoration(
+            hintText: widget.title,
+            hintStyle: TextStyle(
+                fontSize: 14, color: p.boxTextFg.withValues(alpha: 0.4)),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: p.windowBgActive),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: p.windowBgActive, width: 2),
+            ),
+          ),
+        ),
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'Reset',
+          isLeft: true,
+          onPressed: () {
+            _controller.text = widget.defaultValue;
+          },
+        ),
+        TelegramBoxButton(
+          text: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        TelegramBoxButton(
+          text: 'Save',
+          onPressed: _save,
         ),
       ],
     );
   }
 }
 
-class _MessagePreview extends StatelessWidget {
-  final double radiusLarge;
-  final double radiusSmall;
+class _MessagePreviewStandalone extends StatelessWidget {
+  final int bubbleRadius;
   final bool showTail;
   final bool simpleQuotesAndReplies;
   final bool semiTransparentDeleted;
@@ -502,9 +649,8 @@ class _MessagePreview extends StatelessWidget {
   final String editedMark;
   final bool isDark;
 
-  const _MessagePreview({
-    required this.radiusLarge,
-    required this.radiusSmall,
+  const _MessagePreviewStandalone({
+    required this.bubbleRadius,
     required this.showTail,
     required this.simpleQuotesAndReplies,
     required this.semiTransparentDeleted,
@@ -516,6 +662,10 @@ class _MessagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final radiusLarge = bubbleRadius.toDouble();
+    final radiusSmall = showTail
+        ? (radiusLarge * 6 / 16).clamp(0.0, 6.0)
+        : radiusLarge;
     final inBg = isDark ? const Color(0xFF24292E) : const Color(0xFFFFFFFF);
     final outBg = isDark ? const Color(0xFF265E8C) : const Color(0xFFEFFEDE);
     final textColor =
@@ -650,7 +800,8 @@ class _MessagePreview extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text('You need to touch some grass.',
+                      Text(
+                          'You need to go outside and touch some grass...',
                           style:
                               TextStyle(fontSize: 13, color: textColor)),
                       const SizedBox(height: 2),
