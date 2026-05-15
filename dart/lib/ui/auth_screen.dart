@@ -1487,13 +1487,14 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
   static const _cellGap = 10.0;
   static const _borderWidth = 4.0;
   static const _digitFontSize = 20.0;
-  static const _cornerRadius = 3.0;
+  static const _cornerRadius = 6.0;
 
   late List<String> _digits;
   int _focusedIndex = 0;
   late List<AnimationController> _digitAnimControllers;
   late List<Animation<double>> _fadeAnims;
   late List<Animation<Offset>> _slideAnims;
+  late List<bool> _isDeleting;
   late AnimationController _shakeController;
   late FocusNode _focusNode;
   Timer? _callTimer;
@@ -1506,6 +1507,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
   void initState() {
     super.initState();
     _digits = List.filled(widget.digitCount, '');
+    _isDeleting = List.filled(widget.digitCount, false);
     _digitAnimControllers = List.generate(widget.digitCount, (_) {
       return AnimationController(
         duration: const Duration(milliseconds: 120),
@@ -1627,6 +1629,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
     if (_submitted) return;
     if (_focusedIndex >= widget.digitCount) return;
     setState(() {
+      _isDeleting[_focusedIndex] = false;
       _digits[_focusedIndex] = digit;
       _digitAnimControllers[_focusedIndex].forward(from: 0);
       if (_focusedIndex < widget.digitCount - 1) {
@@ -1642,9 +1645,17 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
       _focusedIndex--;
     }
     if (_digits[_focusedIndex].isNotEmpty) {
+      final idx = _focusedIndex;
       setState(() {
-        _digitAnimControllers[_focusedIndex].reverse();
-        _digits[_focusedIndex] = '';
+        _isDeleting[idx] = true;
+      });
+      _digitAnimControllers[idx].reverse().then((_) {
+        if (mounted) {
+          setState(() {
+            _digits[idx] = '';
+            _isDeleting[idx] = false;
+          });
+        }
       });
     }
   }
@@ -1880,6 +1891,16 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
                         child: AnimatedBuilder(
                           animation: _digitAnimControllers[i],
                           builder: (context, child) {
+                            final value = _digitAnimControllers[i].value;
+                            if (_isDeleting[i]) {
+                              return Opacity(
+                                opacity: value * value,
+                                child: Transform.scale(
+                                  scale: value,
+                                  child: child,
+                                ),
+                              );
+                            }
                             final fade = _fadeAnims[i].value;
                             final slide = _slideAnims[i].value;
                             return Opacity(
