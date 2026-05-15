@@ -234,25 +234,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 ## Missing UI Controls (Feature Hidden from User)
 
 
-## Structural Issues (Wrong Organization)
-
-- [ ] **[MAJOR]** Conditional visibility not implemented for deleted/edited mark buttons — `ayu_chats_page.dart:682-716` always renders marks, never checks `replaceMarksWithIcons` to conditionally show/hide buttons ← `settings_chats.cpp:162-197` wraps edit buttons in `builder.scope()` that hides them when `replaceBottomInfoWithIcons` is true via `| rpl::map([](bool v) { return !v; })`
-  - In AyuGram: if user enables "replace marks with icons", the edit buttons disappear
-  - In Dart: no such conditional visibility exists
-
-- [ ] **[MAJOR]** `hideFastShare` toggle misplaced — `ayu_chats_page.dart:90-95` is in the "Channels" section alongside `channelBottomButton` and `quickAdminShortcuts` ← `settings_chats.cpp:206-212` places it in `BuildMarks()` section after `removeMessageTail`, not in `BuildGroupsAndChannels()`
-  - Dart groups it with channel settings; AyuGram groups it with message display settings
-  - This affects discoverability and logical organization
-
-- [ ] **[MAJOR]** Slider order reversed — `ayu_chats_page.dart:101-116` shows `_WideMultiplierSlider` (wideMultiplier) BEFORE `_BubbleRadiusSection` (bubbleRadius) ← `settings_chats.cpp:249-289` in `BuildWideMessagesMultiplier()` adds `messageBubbleRadius` slider first (line 249), then `wideMultiplier` slider (line 274)
-  - AyuGram order: messageBubbleRadius → wideMultiplier
-  - Dart order: wideMultiplier → bubbleRadius (via _BubbleRadiusSection)
-  - Preview placement differs: AyuGram preview added FIRST in BuildMarks (line 142-151), then sliders; Dart preview is INSIDE _BubbleRadiusSection AFTER slider
-
-- [ ] **[MAJOR]** Missing subsection titles for organization — `ayu_chats_page.dart:24,71,100,133,150,197` use generic `b.addSectionTitle()` ← `settings_chats.cpp:38,95,139,299,379,435` uses `builder.addSubsectionTitle()` for each logical section
-  - AyuGram uses Telegram's subsection styling for visual hierarchy
-  - Dart collapses structure into flat list
-
 ## Implementation Differences
 
 - [ ] **[MAJOR]** MessagePreview widget is too simplified — `ayu_chats_page.dart:494-716` is a simple Flutter stateless widget rendering hardcoded bubble shapes ← `message_preview.cpp:52-235` is a complex C++ widget that:
