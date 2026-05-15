@@ -236,19 +236,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 
 ## Implementation Differences
 
-- [ ] **[MAJOR]** MessagePreview widget is too simplified — `ayu_chats_page.dart:494-716` is a simple Flutter stateless widget rendering hardcoded bubble shapes ← `message_preview.cpp:52-235` is a complex C++ widget that:
-  - Uses real Telegram message rendering engine via `HistoryView::GenerateItem()` (line 69-74)
-  - Creates actual `MessageItem` with deletion state (line 79-93)
-  - Applies real message edition with date (line 99-110)
-  - Listens to 7 setting changes and auto-refreshes (line 122-139: replaceBottomInfoWithIcons, deletedMark, editedMark, removeMessageTail, hideFastShare, simpleQuotesAndReplies, semiTransparentDeletedMessages)
-  - Animates height changes (line 202-224)
-  - Renders using actual Telegram chat theme with context (line 157-170)
-  - Paints "fast share" button overlay (line 173-191) when not hidden
-  - Dart version does not listen to setting changes, only takes static parameters
-
-- [ ] **[MINOR]** Hardcoded preview text differs — `ayu_chats_page.dart:577,653` shows "Update wehn?" and "You need to touch some grass." ← `message_preview.cpp:74,89` uses "Update wehn?" and "You need to go outside and touch some grass..."
-  - Dart has shortened/simplified versions
-  - Not a functional issue, just cosmetic inconsistency
 
 ## Root Cause
 
