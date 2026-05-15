@@ -1041,11 +1041,10 @@ class _ShadowBanRowState extends State<_ShadowBanRow> {
           setState(() {
             _resolvedName = chat.title;
             _attempted = true;
-            if (chat.avatarPath.isNotEmpty) {
-              _avatarPath = chat.avatarPath;
-              _avatarExists = File(chat.avatarPath).existsSync();
-            }
           });
+          if (chat.avatarPath.isNotEmpty) {
+            _updateAvatarExists(chat.avatarPath);
+          }
         }
         return;
       }
@@ -1062,15 +1061,22 @@ class _ShadowBanRowState extends State<_ShadowBanRow> {
         });
         engine.downloadSingleAvatar(accountId, idStr).then((path) {
           if (mounted && path != null && path.isNotEmpty) {
-            setState(() {
-              _avatarPath = path;
-              _avatarExists = File(path).existsSync();
-            });
+            _updateAvatarExists(path);
           }
         });
       });
     } else {
       if (mounted) setState(() => _attempted = true);
+    }
+  }
+
+  Future<void> _updateAvatarExists(String path) async {
+    final exists = await File(path).exists();
+    if (mounted) {
+      setState(() {
+        _avatarPath = path;
+        _avatarExists = exists;
+      });
     }
   }
 
@@ -1621,6 +1627,10 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
             '${peersToResolve.isNotEmpty ? ', resolved ${peersToResolve.length} dialog${peersToResolve.length != 1 ? "s" : ""}' : ''}')),
       );
     } on FormatException {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Failed to import filters')),
+      );
+    } on TypeError {
       messenger.showSnackBar(
         const SnackBar(content: Text('Failed to import filters')),
       );

@@ -52,8 +52,8 @@ class RegexFilter {
   };
 
   factory RegexFilter.fromJson(Map<String, dynamic> j) => RegexFilter(
-    id: j['id'] as String? ?? '',
-    text: j['text'] as String? ?? '',
+    id: (j['id']?.toString()) ?? '',
+    text: (j['text']?.toString()) ?? '',
     enabled: j['enabled'] as bool? ?? true,
     reversed: j['reversed'] as bool? ?? false,
     caseInsensitive: j['caseInsensitive'] as bool? ?? false,
