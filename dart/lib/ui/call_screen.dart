@@ -1204,18 +1204,27 @@ void _showGroupCallMenu(BuildContext context, {String callId = ''}) {
       return StatefulBuilder(
         builder: (ctx2, setSheetState) {
           final appState = ctx2.read<AppState>();
+          final engine = context.read<EngineService>();
+          final accountId = appState.activeAccountId;
           return SafeArea(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                ListTile(
+                  leading: const Icon(Icons.person_outline, color: Colors.white70),
+                  title: const Text('Join As...',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(ctx2);
+                    _showJoinAsChooser(context, callId: callId);
+                  },
+                ),
                 ListTile(
                   leading: const Icon(Icons.fiber_manual_record, color: Colors.redAccent),
                   title: const Text('Start Recording',
                       style: TextStyle(color: Colors.white)),
                   onTap: () {
                     Navigator.pop(ctx2);
-                    final engine = context.read<EngineService>();
-                    final accountId = appState.activeAccountId;
                     if (callId.isNotEmpty) {
                       engine.toggleScreenSharing(accountId, callId, false);
                     }
@@ -1229,23 +1238,11 @@ void _showGroupCallMenu(BuildContext context, {String callId = ''}) {
                     Navigator.pop(ctx2);
                     final result = await showScreenShareChooser(context);
                     if (result != null && context.mounted) {
-                      final engine = context.read<EngineService>();
-                      final accountId = context.read<AppState>().activeAccountId;
                       if (callId.isNotEmpty) {
                         await engine.toggleScreenSharing(accountId, callId, true,
                             sourceId: result.id, withAudio: result.withAudio);
                       }
                     }
-                  },
-                ),
-                ListTile(
-                  leading:
-                      const Icon(Icons.person_add, color: Colors.white70),
-                  title: const Text('Invite members',
-                      style: TextStyle(color: Colors.white)),
-                  onTap: () {
-                    Navigator.pop(ctx2);
-                    _showInviteMembersFromMenu(context, callId: callId);
                   },
                 ),
                 ListTile(
@@ -1258,10 +1255,76 @@ void _showGroupCallMenu(BuildContext context, {String callId = ''}) {
                     _showCallSettingsFromMenu(context);
                   },
                 ),
+                const Divider(color: Color(0xFF2C3640), height: 1),
+                ListTile(
+                  leading: const Icon(Icons.call_end, color: Colors.redAccent),
+                  title: const Text('Leave Call',
+                      style: TextStyle(color: Colors.redAccent)),
+                  onTap: () {
+                    Navigator.pop(ctx2);
+                    if (callId.isNotEmpty) {
+                      engine.leaveGroupCall(accountId, callId);
+                    }
+                    Navigator.of(context).pop();
+                  },
+                ),
               ],
             ),
           );
         },
+      );
+    },
+  );
+}
+
+void _showJoinAsChooser(BuildContext context, {String callId = ''}) {
+  final appState = context.read<AppState>();
+  final accounts = appState.accounts;
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF1E2530),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+    ),
+    builder: (ctx) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Join As',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600)),
+            ),
+            ...accounts.map((acc) => ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: const Color(0xFF3390EC),
+                    radius: 18,
+                    child: Text(
+                      (acc.displayName.isNotEmpty ? acc.displayName[0] : '?')
+                          .toUpperCase(),
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ),
+                  title: Text(acc.displayName,
+                      style: const TextStyle(color: Colors.white)),
+                  subtitle: acc.username.isNotEmpty
+                      ? Text('@${acc.username}',
+                          style: const TextStyle(
+                              color: Colors.white54, fontSize: 12))
+                      : null,
+                  trailing: acc.id == appState.activeAccountId
+                      ? const Icon(Icons.check_circle, color: Color(0xFF3390EC))
+                      : null,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                  },
+                )),
+          ],
+        ),
       );
     },
   );

@@ -4972,6 +4972,52 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetCallsDisabledHere(params.AccountID, params.Disabled)
 
+	case "LeaveGroupCall":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.LeaveGroupCall(params.AccountID, params.CallID)
+
+	case "RaiseHand":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+			Raised    bool   `json:"raised"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.RaiseHand(params.AccountID, params.CallID, params.Raised)
+
+	case "SetNoiseSuppression":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetNoiseSuppression(params.AccountID, params.CallID, params.Enabled)
+
+	case "GetAudioDevices":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Type      string `json:"type"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		devices, err := e.GetAudioDevices(params.AccountID, params.Type)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(devices)
+
 	case "UpdateDefaultNotifySettings":
 		var params struct {
 			AccountID    string `json:"account_id"`

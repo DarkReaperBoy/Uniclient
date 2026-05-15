@@ -52,6 +52,7 @@ type AppConfig struct {
 	CallOutputDevice string `json:"call_output_device,omitempty"`
 	CallInputDevice  string `json:"call_input_device,omitempty"`
 	CallCameraDevice string `json:"call_camera_device,omitempty"`
+	NoiseSuppression bool   `json:"noise_suppression,omitempty"`
 }
 
 // DefaultConfig returns an AppConfig populated with sensible defaults.

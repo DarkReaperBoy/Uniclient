@@ -1686,6 +1686,64 @@ func (e *Engine) EndGroupCall(accountID, callID string) error {
 	return fmt.Errorf("core does not support EndGroupCall")
 }
 
+func (e *Engine) LeaveGroupCall(accountID, callID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type groupCallLeaver interface {
+		LeaveGroupCall(callID string) error
+	}
+	if gc, ok := acc.Core.(groupCallLeaver); ok {
+		return gc.LeaveGroupCall(callID)
+	}
+	return fmt.Errorf("core does not support LeaveGroupCall")
+}
+
+func (e *Engine) RaiseHand(accountID, callID string, raised bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type handRaiser interface {
+		RaiseHand(callID string, raised bool) error
+	}
+	if hr, ok := acc.Core.(handRaiser); ok {
+		return hr.RaiseHand(callID, raised)
+	}
+	return fmt.Errorf("core does not support RaiseHand")
+}
+
+func (e *Engine) SetNoiseSuppression(accountID, callID string, enabled bool) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.config.NoiseSuppression = enabled
+	return e.vault.SetConfig(e.config)
+}
+
+func (e *Engine) GetAudioDevices(accountID, deviceType string) ([]string, error) {
+	var devices []string
+	switch deviceType {
+	case "output":
+		devices = e.enumerateAudioDevices("output")
+	case "input":
+		devices = e.enumerateAudioDevices("input")
+	default:
+		return nil, fmt.Errorf("unknown device type: %s", deviceType)
+	}
+	return devices, nil
+}
+
+func (e *Engine) enumerateAudioDevices(deviceType string) []string {
+	return []string{}
+}
+
 func (e *Engine) SetCallMuted(accountID, callID string, muted bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

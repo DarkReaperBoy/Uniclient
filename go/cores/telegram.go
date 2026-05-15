@@ -8860,6 +8860,40 @@ func (t *TelegramCore) SetGroupCallMuted(callID string, muted bool) error {
 	return nil
 }
 
+// RaiseHand raises or lowers our hand in a group call.
+func (t *TelegramCore) RaiseHand(callID string, raised bool) error {
+	t.mu.RLock()
+	if !t.authed || t.api == nil {
+		t.mu.RUnlock()
+		return ErrAuth
+	}
+	t.mu.RUnlock()
+
+	cid, err := strconv.ParseInt(callID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid call ID: %w", err)
+	}
+
+	t.mu.RLock()
+	call := t.activeCalls[cid]
+	t.mu.RUnlock()
+	if call == nil || !call.isGroupCall {
+		return fmt.Errorf("no active group call %s", callID)
+	}
+
+	req := &tg.PhoneEditGroupCallParticipantRequest{
+		Call:        &tg.InputGroupCall{ID: cid, AccessHash: call.accessHash},
+		Participant: &tg.InputPeerSelf{},
+	}
+	req.SetRaiseHand(raised)
+	_, err = t.api.PhoneEditGroupCallParticipant(t.ctx, req)
+	if err != nil {
+		return fmt.Errorf("phone.editGroupCallParticipant: %w", err)
+	}
+	fmt.Printf("[tg-group] RaiseHand: raised=%v in group call %s\n", raised, callID)
+	return nil
+}
+
 // SendCallRating sends call quality feedback after a call ends.
 // rating: 1-5 stars, comment: optional text feedback.
 func (t *TelegramCore) SendCallRating(callID string, rating int, comment string) error {
