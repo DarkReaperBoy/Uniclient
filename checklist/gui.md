@@ -71,13 +71,6 @@ Audited against AyuGram Desktop notification composition logic (notifications_ma
 
 **Status: READY FOR PRODUCTION**
 
-# auth_state — Audit findings
-
-## auth_state — Auth state management
-
-- [ ] [MAJOR] `_handleAuthEvent` constructs a sparse `AuthStateData` that drops all UI-critical fields — when the engine pushes an auth state event (e.g. QR code refresh, external auth completion), the handler at line 188 rebuilds `_currentAuth` with only `accountId`, `state`, `label`, and `error`, silently zeroing `qrData`, `qrExpiresIn`, `options`, `codeLength`, `timeoutSecs`, `canResend`, `hasRecovery`, `sentTo`, `fieldType`, `hint`, `platform`, `displayName`, `avatarB64`, and `recoverable`. The QR widget loses its token, the OTP widget loses its digit count, and the method chooser loses its options list. AyuGram preserves full state through `getData()` which flows through every step transition intact — `auth_state.dart:188` ← `intro_widget.cpp:557`
-
-- [ ] [MAJOR] SRP_ID_INVALID retry (first occurrence) calls `_engine.submitAuthInput` again with the same stale password (line 114) rather than first fetching fresh SRP parameters from the server. AyuGram's `handleSrpIdInvalid` calls `requestPasswordData()` which issues `MTPaccount_GetPassword` to obtain a new `SRP_ID` before re-attempting the password check. Since the Go engine returned SRP_ID_INVALID to the Dart layer (it did not self-heal internally), the Dart retry with the same unchanged input will hit the server with the same expired `SRP_ID` and likely fail again — `auth_state.dart:114` ← `intro_password_check.cpp:177`
 
 # ayu_forward — Forward state machine logic diverges from C++
 
