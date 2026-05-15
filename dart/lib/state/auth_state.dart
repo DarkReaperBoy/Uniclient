@@ -17,10 +17,6 @@ class AuthState extends ChangeNotifier {
   bool _submitting = false;
   String? _error;
 
-  // SRP_ID_INVALID rate limiting — 60s time gate matching AyuGram.
-  DateTime? _lastSrpIdInvalidTime;
-  static const _srpIdInvalidTimeout = Duration(seconds: 60);
-
   StreamSubscription<AuthStateEvent>? _sub;
   Timer? _autoPollTimer;
   bool _autoInputBusy = false;
@@ -101,32 +97,22 @@ class AuthState extends ChangeNotifier {
       if (result?.state == 'error') {
         final rawError = result!.error.isNotEmpty ? result.error : result.message;
         if (rawError.contains('SRP_ID_INVALID')) {
-          final now = DateTime.now();
-          if (_lastSrpIdInvalidTime != null &&
-              now.difference(_lastSrpIdInvalidTime!) < _srpIdInvalidTimeout) {
-            _error = 'Server error. Please try again later.';
-            Debug.log('AUTH', 'SRP_ID_INVALID twice within 60s — giving up');
-          } else {
-            _lastSrpIdInvalidTime = now;
-            Debug.log('AUTH', 'SRP_ID_INVALID — auto-retrying');
-            _currentAuth = auth;
-            notifyListeners();
-            final retry = await _engine.submitAuthInput(auth.accountId, input);
-            _currentAuth = retry;
-            _submitting = false;
-            if (retry?.state == 'error') {
-              final retryErr = retry!.error.isNotEmpty ? retry.error : retry.message;
-              _error = retryErr.contains('SRP_ID_INVALID')
-                  ? 'Server error. Please try again later.'
-                  : retryErr;
-            }
-          }
+          // The Go engine already retries once with fresh SRP params internally.
+          // If it still fails, restore the 2FA input state so the user can re-enter.
+          _currentAuth = AuthStateData(
+            accountId: auth.accountId,
+            platform: auth.platform,
+            state: '2fa',
+            label: auth.label.isNotEmpty ? auth.label : 'Two-Factor Password',
+            hint: auth.hint,
+            hasRecovery: auth.hasRecovery,
+            sentTo: auth.sentTo,
+          );
+          _error = 'Password verification failed. Please try again.';
+          Debug.log('AUTH', 'SRP_ID_INVALID — restored 2FA state for re-entry');
         } else {
-          _lastSrpIdInvalidTime = null;
           _error = rawError;
         }
-      } else {
-        _lastSrpIdInvalidTime = null;
       }
 
       Debug.log('AUTH', 'submitInput → state=${result?.state} label=${result?.label}');
@@ -146,7 +132,6 @@ class AuthState extends ChangeNotifier {
     _currentAuth = null;
     _submitting = false;
     _error = null;
-    _lastSrpIdInvalidTime = null;
     _stopAutoPoll();
     notifyListeners();
     // Yield to let the engine process the cancel before starting new auth.
@@ -185,7 +170,7 @@ class AuthState extends ChangeNotifier {
     Debug.log('AUTH', 'event: account=${event.accountId} state=${event.state} error=${event.error}');
     if (_currentAuth == null || _currentAuth!.accountId != event.accountId) return;
 
-    _currentAuth = AuthStateData(
+    _currentAuth = event.fullData ?? AuthStateData(
       accountId: event.accountId,
       state: event.state,
       label: event.prompt,

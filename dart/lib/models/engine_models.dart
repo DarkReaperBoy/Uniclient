@@ -1943,7 +1943,8 @@ class AuthStateEvent {
   final String state;
   final String prompt;
   final String error;
-  const AuthStateEvent({this.accountId = '', this.state = '', this.prompt = '', this.error = ''});
+  final AuthStateData? fullData;
+  const AuthStateEvent({this.accountId = '', this.state = '', this.prompt = '', this.error = '', this.fullData});
 }
 
 class ConnStateEvent {

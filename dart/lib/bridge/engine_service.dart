@@ -4982,11 +4982,14 @@ class EngineService {
     switch (type) {
       case 'auth_state':
         if (data is Map<String, dynamic>) {
+          final acctId = event['account_id'] as String? ?? '';
+          final fullJson = <String, dynamic>{...data, 'account_id': acctId};
           _authStateController.add(AuthStateEvent(
-            accountId: event['account_id'] as String? ?? '',
+            accountId: acctId,
             state: data['state'] as String? ?? '',
-            prompt: data['prompt'] as String? ?? '',
+            prompt: data['label'] as String? ?? '',
             error: data['error'] as String? ?? '',
+            fullData: AuthStateData.fromJson(fullJson),
           ));
         }
 
