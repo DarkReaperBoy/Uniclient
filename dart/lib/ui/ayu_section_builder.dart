@@ -112,13 +112,14 @@ class AyuSectionBuilder {
     ));
   }
 
-  void addBetaBadge(String text) {
+  void addBetaBadge(String text, {required String labelText}) {
     if (_children.isEmpty) return;
     final lastWidget = _children.removeLast();
     _children.add(_BetaBadgeOverlay(
       badge: text,
       isDark: isDark,
       child: lastWidget,
+      labelText: labelText,
     ));
   }
 
@@ -294,7 +295,7 @@ class _AyuSettingToggle extends StatelessWidget {
                                     isDark ? Colors.white : Colors.black87)),
                       ),
                       if (showBetaBadge) ...[
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 4),
                         Builder(builder: (context) {
                           final badgeColor = context.palette.windowBgActive;
                           return Container(
@@ -654,23 +655,30 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
               if (hasMaster) ...[
                 Container(
                   width: 1,
-                  height: 20,
+                  height: 18,
                   color: dividerColor,
                 ),
-                SizedBox(
-                  width: 70,
-                  child: Center(
-                    child: AyuToggle(
-                      value: toggleValue,
-                      onChanged: (v) {
-                        for (final child in widget.children) {
-                          if (!child.isLocked && child.value != v) {
-                            child.onChanged(v);
-                          }
-                        }
-                        widget.onMasterToggle!(v);
-                      },
-                      isMaterial: widget.useMaterial,
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    final v = !toggleValue;
+                    for (final child in widget.children) {
+                      if (!child.isLocked && child.value != v) {
+                        child.onChanged(v);
+                      }
+                    }
+                    widget.onMasterToggle!(v);
+                  },
+                  child: SizedBox(
+                    width: 70,
+                    child: Center(
+                      child: IgnorePointer(
+                        child: AyuToggle(
+                          value: toggleValue,
+                          onChanged: (_) {},
+                          isMaterial: widget.useMaterial,
+                        ),
+                      ),
                     ),
                   ),
                 ),
