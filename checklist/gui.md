@@ -225,10 +225,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 
 # ayu_appearance_page — Audit Findings
 
-## ayu_appearance_page — App icon change not applied to tray/taskbar at runtime
-
-- [ ] [CRITICAL] Selecting an icon calls `appState.setAppIcon(v)` which only persists the preference but never actually applies the new icon to the running app (no tray update, no taskbar icon swap, no badge counter refresh). In AyuGram, `applyIcon()` is called on every icon selection, which executes `Window::OverrideApplicationIcon(...)`, `Core::App().refreshApplicationIcon()`, `Core::App().tray().updateIconCounters()`, and `Core::App().domain().notifyUnreadBadgeChanged()`. The Dart `setAppIcon` setter at line 902 does none of this — it only writes to prefs. — `ayu_appearance_page.dart:939` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/components/icon_picker.cpp:42-51,169-181`
-
 ## ayu_appearance_page — Avatar corners slider calls onChanged on every drag step (live rebuild storm)
 
 - [ ] [MAJOR] The Dart slider's `onChanged` fires `widget.onCornersChanged(newVal)` on every frame during dragging (line 308), which triggers `AppState.notifyListeners()` + `_saveWindowPrefs()` on every position update. AyuGram only calls `AyuSettings::getInstance().setAvatarCorners(val)` without persisting during drag — persistence is only done in `onFinalChanged` (the equivalent of `onChangeEnd`). Calling `_saveWindowPrefs()` on every drag step is a major performance issue (disk I/O on every frame). — `ayu_appearance_page.dart:305-310` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_appearance.cpp:164-173`
