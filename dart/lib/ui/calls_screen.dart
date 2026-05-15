@@ -65,6 +65,7 @@ class _CallsBox extends StatefulWidget {
 class _CallsBoxState extends State<_CallsBox> {
   List<_ActiveGroupCallEntry> _activeGroupCalls = [];
   StreamSubscription<GroupCallStateEvent>? _groupCallSub;
+  StreamSubscription<CallStateEvent>? _callStateSub;
 
   List<CallHistoryEntry> _callHistory = [];
   List<_CallGroup> _groupedCalls = [];
@@ -83,12 +84,14 @@ class _CallsBoxState extends State<_CallsBox> {
     _loadCallHistory();
     final engine = context.read<EngineService>();
     _groupCallSub = engine.onGroupCallState.listen(_onGroupCallEvent);
+    _callStateSub = engine.onCallState.listen(_onCallStateEvent);
     _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _groupCallSub?.cancel();
+    _callStateSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -168,33 +171,95 @@ class _CallsBoxState extends State<_CallsBox> {
     return groups;
   }
 
+  static const _kGroupCallScanLimit = 20;
+  bool _initialGroupCallLoadDone = false;
+
   Future<void> _loadActiveGroupCalls() async {
     final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
     final accountId = appState.activeAccountId;
     final chats = engine.getChatList(accountId: accountId, limit: 200);
-    final pinned = chats.where((c) => c.isPinned);
-    final nonPinned = chats.where((c) => !c.isPinned);
-    final candidates = [...pinned, ...nonPinned]
-        .where((c) => c.type == ChatType.group || c.type == ChatType.channel)
+    final pinned = chats
+        .where((c) => c.isPinned && (c.type == ChatType.group || c.type == ChatType.channel))
         .toList();
+    final nonPinned = chats
+        .where((c) => !c.isPinned && (c.type == ChatType.group || c.type == ChatType.channel))
+        .take(_kGroupCallScanLimit)
+        .toList();
+    final candidates = [...pinned, ...nonPinned];
 
-    final entries = <_ActiveGroupCallEntry>[];
-    for (final chat in candidates) {
+    final futures = candidates.map((chat) async {
       try {
         final gc = await engine.getGroupCall(accountId, chat.chatId);
         if (gc != null && gc.active) {
-          entries.add(_ActiveGroupCallEntry(chat: chat, callInfo: gc));
+          return _ActiveGroupCallEntry(chat: chat, callInfo: gc);
         }
       } catch (_) {}
-    }
+      return null;
+    });
+    final results = await Future.wait(futures);
+    final entries = results.whereType<_ActiveGroupCallEntry>().toList();
     if (mounted) {
       setState(() => _activeGroupCalls = entries);
+      _initialGroupCallLoadDone = true;
     }
   }
 
   void _onGroupCallEvent(GroupCallStateEvent event) {
-    _loadActiveGroupCalls();
+    if (!_initialGroupCallLoadDone) return;
+    _updateGroupCallEntry(event);
+  }
+
+  Future<void> _updateGroupCallEntry(GroupCallStateEvent event) async {
+    final info = event.info;
+    if (!info.active) {
+      if (mounted) {
+        setState(() {
+          _activeGroupCalls.removeWhere((e) => e.callInfo.callId == info.callId);
+        });
+      }
+      return;
+    }
+    final idx = _activeGroupCalls.indexWhere((e) => e.callInfo.callId == info.callId);
+    if (idx >= 0) {
+      if (mounted) {
+        setState(() {
+          _activeGroupCalls[idx] = _ActiveGroupCallEntry(
+            chat: _activeGroupCalls[idx].chat, callInfo: info);
+        });
+      }
+    } else {
+      final engine = context.read<EngineService>();
+      final accountId = context.read<AppState>().activeAccountId;
+      final chats = engine.getChatList(accountId: accountId, limit: 200);
+      final chat = chats.cast<ChatInfo?>().firstWhere(
+        (c) => c!.chatId == info.chatId, orElse: () => null);
+      if (chat != null && mounted) {
+        setState(() {
+          _activeGroupCalls.add(_ActiveGroupCallEntry(chat: chat, callInfo: info));
+        });
+      }
+    }
+  }
+
+  void _onCallStateEvent(CallStateEvent event) {
+    final state = event.call.state;
+    if (state == 'ended' || state == 'busy' || state == 'failed' || state == 'missed') {
+      _refreshCallHistory();
+    }
+  }
+
+  Future<void> _refreshCallHistory() async {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    final entries = await engine.getCallHistory(accountId, limit: _kFirstPage);
+    if (mounted) {
+      setState(() {
+        _callHistory = entries;
+        _groupedCalls = _groupCallEntries(_callHistory);
+        _hasMore = entries.length >= _kFirstPage;
+      });
+    }
   }
 
   // §34.11: Clear Call History — uses TelegramBox (was AlertDialog)
@@ -519,21 +584,26 @@ class _GroupCallRowState extends State<_GroupCallRow> {
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
-  String _chatTypeLabel(ChatInfo chat) {
-    switch (chat.type) {
-      case ChatType.channel:
-        return 'channel';
-      case ChatType.group:
-        return 'group';
-      default:
-        return 'chat';
+  String _statusLabel() {
+    final chat = widget.entry.chat;
+    final gc = widget.entry.callInfo;
+    final typeStr = switch (chat.type) {
+      ChatType.channel => 'channel',
+      ChatType.group => 'group',
+      _ => 'chat',
+    };
+    final count = gc.participantsCount;
+    if (count > 0) {
+      final noun = count == 1 ? 'participant' : 'participants';
+      return '$typeStr · $count $noun';
     }
+    return typeStr;
   }
 
   @override
   Widget build(BuildContext context) {
     final chat = widget.entry.chat;
-    final isChannel = chat.type == ChatType.channel;
+    final hasGroupCall = chat.type == ChatType.channel || chat.type == ChatType.group;
     final p = context.palette;
     final hoverBg = p.windowBgOver;
 
@@ -585,7 +655,7 @@ class _GroupCallRowState extends State<_GroupCallRow> {
               Positioned(
                 left: 74,
                 top: 9,
-                right: isChannel ? 52 : 16,
+                right: hasGroupCall ? 52 : 16,
                 child: Text(
                   chat.title,
                   style: TextStyle(
@@ -600,15 +670,14 @@ class _GroupCallRowState extends State<_GroupCallRow> {
               Positioned(
                 left: 74,
                 top: 30,
-                right: isChannel ? 52 : 16,
+                right: hasGroupCall ? 52 : 16,
                 child: Text(
-                  _chatTypeLabel(chat),
+                  _statusLabel(),
                   style: TextStyle(fontSize: 13, color: p.boxTitleAdditionalFg),
                   maxLines: 1,
                 ),
               ),
-              // §34.3: Right action button — 40x56 with ripple at (0,8)
-              if (isChannel)
+              if (hasGroupCall)
                 Positioned(
                   right: 12,
                   top: 0,
@@ -881,6 +950,7 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
   bool _lastSelectWithVideo = false;
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  Set<String> _alreadyInIds = {};
 
   int _confcallSizeLimit = 200;
 
@@ -889,6 +959,7 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
     super.initState();
     _loadContacts();
     _loadConfcallSizeLimit();
+    _loadAlreadyInParticipants();
   }
 
   Future<void> _loadConfcallSizeLimit() async {
@@ -898,6 +969,20 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
     if (mounted && limit != _confcallSizeLimit) {
       setState(() => _confcallSizeLimit = limit);
     }
+  }
+
+  Future<void> _loadAlreadyInParticipants() async {
+    if (widget.prioritize.isEmpty) return;
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    try {
+      final gc = await engine.getGroupCall(accountId, '');
+      if (gc != null && mounted) {
+        setState(() {
+          _alreadyInIds = gc.participants.map((p) => p.userId).toSet();
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -988,9 +1073,8 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
       } else {
         final result = await engine.createConferenceCall(accountId);
         if (result != null && result.inviteLink.isNotEmpty) {
-          for (final userId in _selectedIds) {
-            await engine.sendMessage(accountId, userId, result.inviteLink);
-          }
+          await engine.inviteToConferenceCall(
+            accountId, result.callId, _selectedIds.toList());
           if (mounted) {
             Navigator.of(context).pop(true);
             _showLinkBox(context, result.inviteLink,
@@ -1270,12 +1354,14 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
     Color accentColor,
     Color hoverBg,
   ) {
+    final alreadyIn = _alreadyInIds.contains(contact.userId);
     final selected = _selectedIds.contains(contact.userId);
     final isVideo = _selectedVideo[contact.userId] ?? false;
     return _ConfInviteRow(
       contact: contact,
       selected: selected,
       isVideo: isVideo,
+      alreadyIn: alreadyIn,
       isDark: isDark,
       textColor: textColor,
       subtextColor: subtextColor,
@@ -1588,6 +1674,7 @@ class _ConfInviteRow extends StatefulWidget {
   final ContactInfo contact;
   final bool selected;
   final bool isVideo;
+  final bool alreadyIn;
   final bool isDark;
   final Color textColor;
   final Color subtextColor;
@@ -1601,6 +1688,7 @@ class _ConfInviteRow extends StatefulWidget {
     required this.contact,
     required this.selected,
     required this.isVideo,
+    this.alreadyIn = false,
     required this.isDark,
     required this.textColor,
     required this.subtextColor,
@@ -1640,26 +1728,30 @@ class _ConfInviteRowState extends State<_ConfInviteRow> {
     final numId = int.tryParse(c.userId) ?? c.userId.hashCode.abs();
     final avatarColor = p.peerUserpicBg(_colorRemap[numId.abs() % 7]);
     final initials = _getInitials(c.displayName);
-    final statusText = _lastSeenLabel(c);
-    final statusColor = c.isOnline ? widget.accentColor : widget.subtextColor;
+    final alreadyIn = widget.alreadyIn;
+    final statusText = alreadyIn ? 'already in this call' : _lastSeenLabel(c);
+    final statusColor = alreadyIn
+        ? widget.subtextColor
+        : (c.isOnline ? widget.accentColor : widget.subtextColor);
     final avatarCorner = context.watch<AppState>().avatarCorners;
-    // §34.17.2: createCallListItem — 40px avatar at (12,6), name at (63,7)
     const avatarSize = 40.0;
     final avatarRadius = avatarSize / 2 * (avatarCorner / 23.0);
 
     final inactiveIconColor =
         widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final rowOpacity = alreadyIn ? 0.5 : 1.0;
 
-    return MouseRegion(
+    return Opacity(
+      opacity: rowOpacity,
+      child: MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        // §34.17.2: 52px row height
+        onTap: alreadyIn ? null : widget.onTap,
         child: Container(
           height: 52,
-          color: _hovered ? widget.hoverBg : Colors.transparent,
+          color: _hovered && !alreadyIn ? widget.hoverBg : Colors.transparent,
           child: Stack(
             children: [
               // Avatar at (12, 6)
@@ -1717,65 +1809,76 @@ class _ConfInviteRowState extends State<_ConfInviteRow> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              // §34.17.3: Video element button (36x52)
-              Positioned(
-                right: 64,
-                top: 0,
-                child: SizedBox(
-                  width: 36,
-                  height: 52,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: widget.onVideoTap,
-                    icon: Icon(
-                      Icons.videocam,
-                      size: 20,
-                      color: widget.selected && widget.isVideo
-                          ? widget.accentColor
-                          : inactiveIconColor,
+              if (!alreadyIn) ...[
+                Positioned(
+                  right: 64,
+                  top: 0,
+                  child: SizedBox(
+                    width: 36,
+                    height: 52,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: widget.onVideoTap,
+                      icon: Icon(
+                        Icons.videocam,
+                        size: 20,
+                        color: widget.selected && widget.isVideo
+                            ? widget.accentColor
+                            : inactiveIconColor,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              // §34.17.3: Audio element button (36x52)
-              Positioned(
-                right: 28,
-                top: 0,
-                child: SizedBox(
-                  width: 36,
-                  height: 52,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: widget.onAudioTap,
-                    icon: Icon(
-                      Icons.call,
-                      size: 20,
-                      color: widget.selected && !widget.isVideo
-                          ? widget.accentColor
-                          : inactiveIconColor,
+                Positioned(
+                  right: 28,
+                  top: 0,
+                  child: SizedBox(
+                    width: 36,
+                    height: 52,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: widget.onAudioTap,
+                      icon: Icon(
+                        Icons.call,
+                        size: 20,
+                        color: widget.selected && !widget.isVideo
+                            ? widget.accentColor
+                            : inactiveIconColor,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              // Selection checkmark
-              Positioned(
-                right: 4,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: widget.selected
-                      ? Icon(Icons.check_circle,
-                          size: 22, color: widget.accentColor)
-                      : Icon(Icons.radio_button_unchecked,
-                          size: 22,
-                          color: widget.isDark
-                              ? const Color(0xFF3E546A)
-                              : const Color(0xFFD0D0D0)),
+              ],
+              if (!alreadyIn)
+                Positioned(
+                  right: 4,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: widget.selected
+                        ? Icon(Icons.check_circle,
+                            size: 22, color: widget.accentColor)
+                        : Icon(Icons.radio_button_unchecked,
+                            size: 22,
+                            color: widget.isDark
+                                ? const Color(0xFF3E546A)
+                                : const Color(0xFFD0D0D0)),
+                  ),
                 ),
-              ),
+              if (alreadyIn)
+                Positioned(
+                  right: 4,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Icon(Icons.check_circle,
+                        size: 22, color: inactiveIconColor),
+                  ),
+                ),
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -1930,10 +2033,10 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
       case 'show_in_chat':
         final chatState = context.read<ChatState>();
         chatState.openChatById(group.peerId);
-        final newestTimestamp = group.newest.timestamp * 1000;
-        Future.delayed(const Duration(milliseconds: 300), () {
-          chatState.jumpToMessage(newestTimestamp);
-        });
+        chatState.jumpToMessage(
+          group.newest.timestamp * 1000,
+          highlightMsgId: group.newest.msgId,
+        );
         Navigator.of(context).pop();
         break;
     }
@@ -1980,11 +2083,10 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
         onTap: () {
           final chatState = context.read<ChatState>();
           chatState.openChatById(group.peerId);
-          final newestTimestamp = group.newest.timestamp * 1000;
-          Future.delayed(const Duration(milliseconds: 300), () {
-            chatState.jumpToMessage(newestTimestamp,
-                highlightMsgId: group.newest.msgId);
-          });
+          chatState.jumpToMessage(
+            group.newest.timestamp * 1000,
+            highlightMsgId: group.newest.msgId,
+          );
           Navigator.of(context).pop();
         },
         onSecondaryTapUp: (details) =>
@@ -2180,23 +2282,26 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
           _cameraDevices = ['Default', ...cameras];
         });
       }
-    } else if (Platform.isMacOS) {
-      if (mounted) {
-        setState(() {
-          _outputDevices = ['Default', 'Built-in Output', 'Headphones'];
-          _inputDevices = ['Default', 'Built-in Microphone'];
-          _cameraDevices = ['Default', 'FaceTime HD Camera'];
-        });
-      }
-    } else if (Platform.isWindows) {
-      if (mounted) {
-        setState(() {
-          _outputDevices = ['Default', 'Speakers', 'Headphones'];
-          _inputDevices = ['Default', 'Microphone'];
-          _cameraDevices = ['Default', 'Integrated Camera'];
-        });
-      }
+    } else {
+      await _enumerateViaEngine();
     }
+  }
+
+  Future<void> _enumerateViaEngine() async {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    try {
+      final outputs = await engine.getAudioDevices(accountId, 'output');
+      final inputs = await engine.getAudioDevices(accountId, 'input');
+      final cameras = await engine.getAudioDevices(accountId, 'camera');
+      if (mounted) {
+        setState(() {
+          _outputDevices = ['Default', ...outputs.where((d) => d != 'Default')];
+          _inputDevices = ['Default', ...inputs.where((d) => d != 'Default')];
+          _cameraDevices = ['Default', ...cameras.where((d) => d != 'Default')];
+        });
+      }
+    } catch (_) {}
   }
 
   Future<List<String>> _pactlList(String type) async {
@@ -2734,15 +2839,24 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
   }
 
   Future<void> _startCapture() async {
-    if (!Platform.isLinux && !Platform.isMacOS) return;
-    final candidates = Platform.isLinux
-        ? [
-            ['parec', '--raw', '--format=s16le', '--rate=16000', '--channels=1'],
-            ['pw-record', '--rate', '16000', '--channels', '1', '--format', 's16', '-'],
-          ]
-        : [
-            ['rec', '-t', 'raw', '-b', '16', '-r', '16000', '-c', '1', '-e', 'signed-integer', '-'],
-          ];
+    final List<List<String>> candidates;
+    if (Platform.isLinux) {
+      candidates = [
+        ['parec', '--raw', '--format=s16le', '--rate=16000', '--channels=1'],
+        ['pw-record', '--rate', '16000', '--channels', '1', '--format', 's16', '-'],
+      ];
+    } else if (Platform.isMacOS) {
+      candidates = [
+        ['rec', '-t', 'raw', '-b', '16', '-r', '16000', '-c', '1', '-e', 'signed-integer', '-'],
+      ];
+    } else if (Platform.isWindows) {
+      candidates = [
+        ['ffmpeg', '-f', 'dshow', '-i', 'audio=default', '-f', 's16le', '-ar', '16000', '-ac', '1', '-'],
+        ['ffmpeg', '-f', 'wasapi', '-i', 'default', '-f', 's16le', '-ar', '16000', '-ac', '1', '-'],
+      ];
+    } else {
+      return;
+    }
     for (final candidate in candidates) {
       try {
         _captureProcess = await Process.start(candidate[0], candidate.sublist(1));
