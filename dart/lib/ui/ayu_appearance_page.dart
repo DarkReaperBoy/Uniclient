@@ -451,24 +451,25 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
     final previewColor =
         widget.isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
 
-    Widget avatarContent;
+    Widget avatarWidget;
     if (_userpicBytes != null) {
-      avatarContent = Image.memory(
-        _userpicBytes!,
-        width: photoSize,
-        height: photoSize,
-        fit: BoxFit.cover,
+      avatarWidget = ClipRRect(
+        borderRadius: BorderRadius.circular(avatarRadius),
+        child: Image.memory(
+          _userpicBytes!,
+          width: photoSize,
+          height: photoSize,
+          fit: BoxFit.cover,
+        ),
       );
     } else {
-      // EmptyUserpic fallback: colored circle with channel initial
-      // Color derived from channel name hash, matching Telegram's palette
       const colors = [
         Color(0xFFE17076), Color(0xFF7BC862), Color(0xFF65AADD),
         Color(0xFFEE7AE6), Color(0xFF6EC9CB), Color(0xFFFAA774),
         Color(0xFFA695E7), Color(0xFFED9B9B),
       ];
       final colorIdx = 'AyuGramReleases'.hashCode.abs() % colors.length;
-      avatarContent = ClipOval(
+      avatarWidget = ClipOval(
         child: Container(
           width: photoSize,
           height: photoSize,
@@ -500,13 +501,10 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Row(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(avatarRadius),
-                  child: SizedBox(
-                    width: photoSize,
-                    height: photoSize,
-                    child: avatarContent,
-                  ),
+                SizedBox(
+                  width: photoSize,
+                  height: photoSize,
+                  child: avatarWidget,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
