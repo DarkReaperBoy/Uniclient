@@ -4185,7 +4185,6 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
       msgTimestamp: msg.timestamp,
       accountId: msg.accountId,
       docId: msg.mediaRemoteRef,
-      mediaExtra: msg.mediaExtra,
     );
   }
 
@@ -4202,7 +4201,6 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
         msgTimestamp: msg.timestamp,
         accountId: msg.accountId,
         docId: msg.mediaRemoteRef,
-        mediaExtra: msg.mediaExtra,
       ).then((_) {
         Future.delayed(const Duration(milliseconds: 100), () {
           audio.seek(localX / totalWidth);
@@ -4594,6 +4592,15 @@ class _AudioIndicatorState extends State<_AudioIndicator> {
       return;
     }
     if (message.mediaLocalPath.isEmpty) return;
+    int accessHash = 0;
+    List<int> fileRef = const [];
+    final extraParts = message.mediaExtra.split(':');
+    if (extraParts.length == 2) {
+      accessHash = int.tryParse(extraParts[0]) ?? 0;
+      try {
+        fileRef = base64.decode(extraParts[1]);
+      } catch (_) {}
+    }
     audio.playVoice(message.mediaLocalPath, message.msgId,
       chatId: message.chatId,
       performer: message.audioPerformer,
@@ -4601,7 +4608,9 @@ class _AudioIndicatorState extends State<_AudioIndicator> {
       msgTimestamp: message.timestamp,
       accountId: message.accountId,
       docId: message.mediaRemoteRef,
-      mediaExtra: message.mediaExtra,
+      accessHash: accessHash,
+      fileRef: fileRef,
+      isSong: true,
     );
   }
 

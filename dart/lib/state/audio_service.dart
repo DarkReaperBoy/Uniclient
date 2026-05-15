@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 
@@ -21,7 +20,9 @@ class AudioService extends ChangeNotifier {
   int _currentMsgTimestamp = 0;
   String _currentAccountId = '';
   String _currentDocId = '';
-  String _currentMediaExtra = '';
+  int _currentAccessHash = 0;
+  List<int> _currentFileRef = const [];
+  bool _isSong = false;
   final List<StreamSubscription> _subs = [];
 
   DateTime? _listenStartTime;
@@ -63,7 +64,9 @@ class AudioService extends ChangeNotifier {
     int msgTimestamp = 0,
     String accountId = '',
     String docId = '',
-    String mediaExtra = '',
+    int accessHash = 0,
+    List<int> fileRef = const [],
+    bool isSong = false,
   }) async {
     if (_currentMsgId == msgId && _player != null) {
       togglePlayback();
@@ -81,7 +84,9 @@ class AudioService extends ChangeNotifier {
     _currentMsgTimestamp = msgTimestamp;
     _currentAccountId = accountId;
     _currentDocId = docId;
-    _currentMediaExtra = mediaExtra;
+    _currentAccessHash = accessHash;
+    _currentFileRef = fileRef;
+    _isSong = isSong;
     _position = Duration.zero;
     _duration = Duration.zero;
     _playing = false;
@@ -115,6 +120,7 @@ class AudioService extends ChangeNotifier {
       if (_player != player || !v) return;
       _accumulateListenTime();
       _reportListenIfNeeded();
+      _accumulatedMs = 0;
       _playing = false;
       _position = Duration.zero;
       notifyListeners();
@@ -157,7 +163,9 @@ class AudioService extends ChangeNotifier {
     _currentMsgTimestamp = 0;
     _currentAccountId = '';
     _currentDocId = '';
-    _currentMediaExtra = '';
+    _currentAccessHash = 0;
+    _currentFileRef = const [];
+    _isSong = false;
     _playing = false;
     _position = Duration.zero;
     _duration = Duration.zero;
@@ -178,36 +186,50 @@ class AudioService extends ChangeNotifier {
     _pauseTimer?.cancel();
     _pauseTimer = Timer(const Duration(seconds: _pauseTimeoutSec), () {
       _reportListenIfNeeded();
-      _accumulatedMs = 0;
     });
   }
 
   void _reportListenIfNeeded() {
+    if (!_isSong) {
+      _accumulatedMs = 0;
+      return;
+    }
     if (_accumulatedMs < _minListenMs) return;
-    if (_currentAccountId.isEmpty || _currentDocId.isEmpty || _currentMediaExtra.isEmpty) return;
+    if (_currentAccountId.isEmpty || _currentDocId.isEmpty) return;
+    if (_currentAccessHash == 0 && _currentFileRef.isEmpty) return;
 
     final docIdInt = int.tryParse(_currentDocId);
     if (docIdInt == null) return;
 
-    final parts = _currentMediaExtra.split(':');
-    if (parts.length != 2) return;
-    final accessHash = int.tryParse(parts[0]);
-    if (accessHash == null) return;
+    final duration = (_accumulatedMs / 1000).round();
+    _accumulatedMs = 0;
 
-    List<int> fileRef;
     try {
-      fileRef = base64.decode(parts[1]);
-    } catch (_) {
-      return;
+      _engine.reportMusicListen(
+        _currentAccountId,
+        docIdInt,
+        _currentAccessHash,
+        _currentFileRef,
+        duration,
+      );
+    } on EngineException catch (e) {
+      if (e.message.contains('FILE_REFERENCE')) {
+        debugPrint('AudioService: FILE_REFERENCE error, retrying once');
+        try {
+          _engine.reportMusicListen(
+            _currentAccountId,
+            docIdInt,
+            _currentAccessHash,
+            _currentFileRef,
+            duration,
+          );
+        } catch (retryErr) {
+          debugPrint('AudioService: retry failed: $retryErr');
+        }
+      } else {
+        debugPrint('AudioService: reportMusicListen failed: $e');
+      }
     }
-
-    _engine.reportMusicListen(
-      _currentAccountId,
-      docIdInt,
-      accessHash,
-      fileRef,
-      (_accumulatedMs / 1000).round(),
-    );
   }
 
   @override
