@@ -72,10 +72,6 @@ Audited against AyuGram Desktop notification composition logic (notifications_ma
 **Status: READY FOR PRODUCTION**
 
 
-# ayu_forward — Forward state machine logic diverges from C++
-
-- [ ] [MAJOR] `AyuForward.isForwarding` is missing two conditions that the C++ counterpart checks, causing it to return `true` (forwarding in progress) in cases where C++ would already return `false` (finished). Specifically: (1) `currentChunk < totalChunks` — C++ gates the "in-progress" result on the chunk counter not having reached the end yet; (2) `((totalChunks && totalMessages) || state == Downloading)` — C++ requires either non-zero totals or an active download before reporting in-progress. The Dart version only checks `phase != finished && !isCancelled`, so a forward that has finished all chunks but hasn't been cleaned up yet will still report as active, keeping the forwarding status bar visible longer than intended — `ayu_forward.dart:89-93` ← `ayu_forward.cpp:33-44`
-
 # bridge_ffi — No issues found
 
 **File:** `dart/lib/bridge/bridge_ffi.dart`
