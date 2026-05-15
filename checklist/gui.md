@@ -253,10 +253,6 @@ This blocks users from accessing 4 major customization features that are fully i
 - Settings definitions: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/ayu/ayu_settings.h:276,300-302,452-453,500-505,622,645-647`
 - MessagePreview impl: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/ayu/ui/components/message_preview.cpp:52-235`
 
-# ayu_other_page — 1 remaining issue
-
-- [ ] [MAJOR] Donate amounts and username hardcoded as compile-time constants (`_donateAmountUsd = '5'`, `_donateAmountTon = '10'`, `_donateAmountRub = '300'`, `_donateUsername = 'RadianceTG'`) instead of being read from RCManager remote config; AyuGram fetches these dynamically and they can change server-side — `ayu_other_page.dart:437-440` ← `donate_info_box.cpp:179-203` + `rc_manager.h:64-78`
-
 # ayu_section_builder — Audit Findings
 
 ## Reference files
