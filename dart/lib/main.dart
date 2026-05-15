@@ -130,10 +130,10 @@ class _UniClientAppState extends State<UniClientApp>
   VoidCallback? _streamerSyncListener;
   VoidCallback? _ghostSyncListener;
   VoidCallback? _accountsSyncListener;
+  VoidCallback? _trayIconSyncListener;
+  VoidCallback? _monochromeSyncListener;
   AppState? _appStateRef;
   ChatState? _chatStateRef;
-  bool _rememberedSoundNotifyFromTray = false;
-  bool _rememberedFlashBounceNotifyFromTray = false;
   Timer? _debugCmdTimer;
   final _navigatorKey = GlobalKey<NavigatorState>();
 
@@ -313,14 +313,32 @@ class _UniClientAppState extends State<UniClientApp>
     }
 
     // Initialize system tray after engine is ready (desktop-only, §13.5).
+    // Only create the tray icon when showTrayIcon is true (WorkMode != WindowOnly).
     if (!kIsWeb) {
-      await _tray.init();
+      await _tray.init(showTrayIcon: appState.showTrayIcon);
       _tray.onQuit = () => exit(0);
 
-      // Fix: wire onWindowHidden so Dart tracks visibility state.
       _tray.onWindowHidden = () {
         Debug.log('TRAY', 'window hidden — updating visibility state');
       };
+
+      _tray.onWindowShown = () {
+        Debug.log('TRAY', 'window shown from tray — refreshing state');
+        _tray.updateIconCounters();
+      };
+
+      // React to showTrayIcon setting changes: create/destroy icon.
+      _trayIconSyncListener = () {
+        _tray.updateTrayIconVisibility(appState.showTrayIcon);
+      };
+      appState.addListener(_trayIconSyncListener!);
+
+      // React to monochrome tray icon setting changes.
+      _tray.updateMonochromeIcon(appState.monochromeTrayIcon);
+      _monochromeSyncListener = () {
+        _tray.updateMonochromeIcon(appState.monochromeTrayIcon);
+      };
+      appState.addListener(_monochromeSyncListener!);
 
       // §50.3: Streamer Mode tray toggle — sync item visibility + state.
       _appStateRef = appState;
@@ -353,7 +371,10 @@ class _UniClientAppState extends State<UniClientApp>
 
       // Tray accounts menu — populate with logged-in accounts for switching.
       // Matches AyuGram's TrayAccountsMenu::Fill: only shown when >1 account.
-      _tray.onAccountSwitch = (accountId) {
+      _tray.onAccountSwitch = (accountId, {bool ctrlPressed = false}) {
+        if (ctrlPressed) {
+          Debug.log('TRAY', 'Ctrl+click account $accountId — separate window requested');
+        }
         appState.setActiveAccountId(accountId);
         chatState.switchAccount(accountId);
       };
@@ -368,38 +389,17 @@ class _UniClientAppState extends State<UniClientApp>
       // restores when re-enabling.
       _tray.onNotificationsToggle = () {
         final current = _notifSystem.settings;
-        final toggled = !current.desktopNotify;
-        bool? newSound;
-        bool? newFlash;
-        if (toggled) {
-          if (_rememberedSoundNotifyFromTray && !current.allowSound) {
-            newSound = true;
-            _rememberedSoundNotifyFromTray = false;
-          }
-          if (_rememberedFlashBounceNotifyFromTray && !current.flashBounce) {
-            newFlash = true;
-            _rememberedFlashBounceNotifyFromTray = false;
-          }
-        } else {
-          if (current.allowSound) {
-            newSound = false;
-            _rememberedSoundNotifyFromTray = true;
-          } else {
-            _rememberedSoundNotifyFromTray = false;
-          }
-          if (current.flashBounce) {
-            newFlash = false;
-            _rememberedFlashBounceNotifyFromTray = true;
-          } else {
-            _rememberedFlashBounceNotifyFromTray = false;
-          }
-        }
+        final result = _tray.toggleSoundNotifications(
+          currentDesktopNotify: current.desktopNotify,
+          currentSoundNotify: current.allowSound,
+          currentFlashBounce: current.flashBounce,
+        );
         _notifSystem.updateSettings(current.copyWith(
-          desktopNotify: toggled,
-          allowSound: newSound,
-          flashBounce: newFlash,
+          desktopNotify: result.desktopNotify,
+          allowSound: result.soundNotify,
+          flashBounce: result.flashBounce,
         ));
-        _tray.updateNotificationsItem(enabled: toggled);
+        _tray.updateNotificationsItem(enabled: result.desktopNotify);
       };
 
       // Track unread count changes and update tray tooltip + badge (§37.11).
@@ -492,18 +492,27 @@ class _UniClientAppState extends State<UniClientApp>
       _tray.updateAccountsMenu([]);
       return;
     }
-    const kMaxNameLength = 30;
     _tray.updateAccountsMenu(accounts.map((a) {
-      var name = a.displayName.isNotEmpty ? a.displayName : a.username;
-      if (name.length > kMaxNameLength) {
-        name = '${name.substring(0, kMaxNameLength)}…';
-      }
-      return {
+      final name = a.displayName.isNotEmpty ? a.displayName : a.username;
+      final initials = _accountInitials(name);
+      final colorIndex = name.isEmpty ? 0 : name.codeUnitAt(0) % 8;
+      return <String, dynamic>{
         'id': a.id,
         'name': name,
         'avatarPath': a.avatarPath,
+        'initials': initials,
+        'colorIndex': colorIndex,
       };
     }).toList());
+  }
+
+  static String _accountInitials(String name) {
+    if (name.isEmpty) return '?';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name[0].toUpperCase();
   }
 
   void _onNotifTap(String accountId, String chatId) {
@@ -1923,6 +1932,12 @@ class _UniClientAppState extends State<UniClientApp>
     }
     if (_accountsSyncListener != null && _appStateRef != null) {
       _appStateRef!.removeListener(_accountsSyncListener!);
+    }
+    if (_trayIconSyncListener != null && _appStateRef != null) {
+      _appStateRef!.removeListener(_trayIconSyncListener!);
+    }
+    if (_monochromeSyncListener != null && _appStateRef != null) {
+      _appStateRef!.removeListener(_monochromeSyncListener!);
     }
     if (_chatStateRef != null) _chatStateRef!.onNotification = null;
     // Persist emoji keywords state (recent emojis, variant prefs).

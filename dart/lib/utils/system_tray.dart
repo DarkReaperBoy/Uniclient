@@ -10,6 +10,8 @@ import 'debug.dart';
 /// = false and all calls are silently ignored.
 class SystemTray {
   static const _channel = MethodChannel('com.uniclient.app/tray');
+  static const _kMaxAccountNameLength = 30;
+  static const _kEllipsis = '…';
 
   /// Global hook invoked by `Ctrl+W` (Telegram Desktop spec §24.4
   /// `close_telegram`). Wired to `SystemTray.hideWindow` after `init()`.
@@ -30,11 +32,19 @@ class SystemTray {
   static Future<void> Function()? quitAppRequest;
 
   bool _available = false;
+  bool _iconCreated = false;
   int _lastUnread = -1;
   bool _windowVisible = true;
+  int _lastTrayClickTime = 0;
+
+  bool _rememberedSoundNotifyFromTray = false;
+  bool _rememberedFlashBounceNotifyFromTray = false;
 
   /// Whether the native tray icon is active.
-  bool get isAvailable => _available;
+  bool get isAvailable => _available && _iconCreated;
+
+  /// Whether the native platform supports tray icons at all.
+  bool get platformSupported => _available;
 
   /// Whether the main window is currently visible (not hidden to tray).
   bool get windowVisible => _windowVisible;
@@ -46,6 +56,12 @@ class SystemTray {
   /// (minimized to tray).
   void Function()? onWindowHidden;
 
+  /// Callback invoked when the window is shown from the tray (restore).
+  /// AyuGram's showFromTrayRequests() drives post-show actions:
+  /// updateGlobalMenu(), activate(), unreadCounterChangedHook(),
+  /// updateIconCounters().
+  void Function()? onWindowShown;
+
   /// Callback invoked when the user clicks the Streamer Mode tray item.
   void Function()? onStreamerToggle;
 
@@ -56,14 +72,18 @@ class SystemTray {
   void Function()? onNotificationsToggle;
 
   /// Callback invoked when the user switches accounts from the tray menu.
-  void Function(String accountId)? onAccountSwitch;
+  /// [ctrlPressed] mirrors AyuGram's `base::IsCtrlPressed()` check —
+  /// when true, the caller should open a separate window for that account
+  /// instead of switching the active account in the current window.
+  void Function(String accountId, {bool ctrlPressed})? onAccountSwitch;
 
   /// Initialize the tray.  Call once after the engine is running.
-  /// No-op on Flutter Web — native tray is desktop-only (§13.5).
-  Future<void> init() async {
+  /// [showTrayIcon] controls whether the tray icon is created (false =
+  /// WorkMode::WindowOnly). No-op on Flutter Web — native tray is
+  /// desktop-only (§13.5).
+  Future<void> init({bool showTrayIcon = true}) async {
     if (kIsWeb) return;
 
-    // Listen for native → Dart calls (onQuit, onWindowHidden).
     _channel.setMethodCallHandler(_handleNativeCall);
 
     try {
@@ -75,16 +95,52 @@ class SystemTray {
       _available = false;
     }
 
-    // Register global hide-window hook for Ctrl+W shortcut.
+    if (_available && showTrayIcon) {
+      await _createIcon();
+    }
+
     hideWindowRequest = hideWindow;
-
-    // Register global minimize-window hook for Ctrl+M shortcut. Doesn't
-    // depend on tray availability — minimize is a plain GTK window action.
     minimizeWindowRequest = minimizeWindow;
-
-    // Register global quit hook for Ctrl+Q shortcut. Doesn't depend on
-    // tray availability — quit tears down the main window.
     quitAppRequest = quitApp;
+  }
+
+  /// Create the tray icon on the native side.
+  Future<void> _createIcon() async {
+    if (!_available || _iconCreated) return;
+    try {
+      await _channel.invokeMethod<void>('createIcon');
+      _iconCreated = true;
+      Debug.log('TRAY', 'icon created');
+    } on MissingPluginException {
+      _iconCreated = true;
+    } catch (e) {
+      Debug.log('TRAY', 'createIcon failed: $e');
+    }
+  }
+
+  /// Destroy the tray icon on the native side.
+  Future<void> _destroyIcon() async {
+    if (!_iconCreated) return;
+    try {
+      await _channel.invokeMethod<void>('destroyIcon');
+      _iconCreated = false;
+      Debug.log('TRAY', 'icon destroyed');
+    } on MissingPluginException {
+      _iconCreated = false;
+    } catch (e) {
+      Debug.log('TRAY', 'destroyIcon failed: $e');
+    }
+  }
+
+  /// React to the showTrayIcon setting changing. Creates or destroys
+  /// the icon, matching AyuGram's workModeValue subscription.
+  Future<void> updateTrayIconVisibility(bool show) async {
+    if (!_available) return;
+    if (show && !_iconCreated) {
+      await _createIcon();
+    } else if (!show && _iconCreated) {
+      await _destroyIcon();
+    }
   }
 
   /// Flash the taskbar icon / bounce the dock icon (§37.10).
@@ -101,7 +157,7 @@ class SystemTray {
   /// Update the tray tooltip. Always uses the bare app name — unread count
   /// is communicated via the icon badge only, matching AyuGram behavior.
   Future<void> updateUnread(int count) async {
-    if (!_available || count == _lastUnread) return;
+    if (!isAvailable || count == _lastUnread) return;
     _lastUnread = count;
     try {
       await _channel.invokeMethod<void>('setTooltip', 'UniClient');
@@ -112,7 +168,7 @@ class SystemTray {
 
   /// Update the notifications toggle tray item label.
   Future<void> updateNotificationsItem({required bool enabled}) async {
-    if (!_available) return;
+    if (!isAvailable) return;
     try {
       await _channel.invokeMethod<void>('setNotificationsTrayItem', {
         'enabled': enabled,
@@ -122,9 +178,52 @@ class SystemTray {
     }
   }
 
+  /// Toggle desktop notifications from the tray menu, matching AyuGram's
+  /// Tray::toggleSoundNotifications(). Saves sound and flash-bounce state
+  /// when disabling, restores when re-enabling.
+  ///
+  /// Returns updated values: `(desktopNotify, soundNotify?, flashBounce?)`.
+  /// Null sound/flash means unchanged.
+  ({bool desktopNotify, bool? soundNotify, bool? flashBounce})
+      toggleSoundNotifications({
+    required bool currentDesktopNotify,
+    required bool currentSoundNotify,
+    required bool currentFlashBounce,
+  }) {
+    final toggled = !currentDesktopNotify;
+    bool? newSound;
+    bool? newFlash;
+
+    if (toggled) {
+      if (_rememberedSoundNotifyFromTray && !currentSoundNotify) {
+        newSound = true;
+        _rememberedSoundNotifyFromTray = false;
+      }
+      if (_rememberedFlashBounceNotifyFromTray && !currentFlashBounce) {
+        newFlash = true;
+        _rememberedFlashBounceNotifyFromTray = false;
+      }
+    } else {
+      if (currentSoundNotify) {
+        newSound = false;
+        _rememberedSoundNotifyFromTray = true;
+      } else {
+        _rememberedSoundNotifyFromTray = false;
+      }
+      if (currentFlashBounce) {
+        newFlash = false;
+        _rememberedFlashBounceNotifyFromTray = true;
+      } else {
+        _rememberedFlashBounceNotifyFromTray = false;
+      }
+    }
+
+    return (desktopNotify: toggled, soundNotify: newSound, flashBounce: newFlash);
+  }
+
   /// Render an unread-count badge overlay on the tray icon.
   Future<void> updateBadge(int count, {bool muted = false}) async {
-    if (!_available) return;
+    if (!isAvailable) return;
     try {
       await _channel.invokeMethod<void>('setUnreadBadge', {
         'count': count,
@@ -137,7 +236,7 @@ class SystemTray {
 
   /// Show or hide the Streamer Mode tray item, updating its label.
   Future<void> updateStreamerItem(bool show, bool enabled) async {
-    if (!_available) return;
+    if (!isAvailable) return;
     try {
       await _channel.invokeMethod<void>('setStreamerTrayItem', {
         'show': show,
@@ -150,7 +249,7 @@ class SystemTray {
 
   /// Show or hide the Ghost Mode tray item, updating its label.
   Future<void> updateGhostItem(bool show, bool enabled) async {
-    if (!_available) return;
+    if (!isAvailable) return;
     try {
       await _channel.invokeMethod<void>('setGhostTrayItem', {
         'show': show,
@@ -161,9 +260,37 @@ class SystemTray {
     }
   }
 
+  /// Refresh the tray icon (re-render badge/monochrome state).
+  /// Called after the window is restored from tray, matching AyuGram's
+  /// updateIconCounters() in showFromTrayRequests subscribers.
+  Future<void> updateIconCounters() async {
+    if (!isAvailable) return;
+    try {
+      await _channel.invokeMethod<void>('updateIconCounters');
+    } on MissingPluginException {
+      // Not implemented on native side yet.
+    } catch (e) {
+      Debug.log('TRAY', 'updateIconCounters failed: $e');
+    }
+  }
+
+  /// Update the monochrome tray icon setting on the native side,
+  /// then refresh the icon. Matches AyuGram's
+  /// trayIconMonochromeChanges → updateIconCounters() subscription.
+  Future<void> updateMonochromeIcon(bool monochrome) async {
+    if (!isAvailable) return;
+    try {
+      await _channel.invokeMethod<void>('setMonochrome', {
+        'monochrome': monochrome,
+      });
+    } catch (e) {
+      Debug.log('TRAY', 'setMonochrome failed: $e');
+    }
+  }
+
   /// Show the main window.
   Future<void> showWindow() async {
-    if (!_available) return;
+    if (!isAvailable) return;
     try {
       await _channel.invokeMethod<void>('showWindow');
       _windowVisible = true;
@@ -174,7 +301,7 @@ class SystemTray {
 
   /// Hide the main window.
   Future<void> hideWindow() async {
-    if (!_available) return;
+    if (!isAvailable) return;
     try {
       await _channel.invokeMethod<void>('hideWindow');
       _windowVisible = false;
@@ -216,9 +343,17 @@ class SystemTray {
     }
   }
 
-  /// Toggle window visibility.
+  /// Toggle window visibility. Guarded against double-clicks matching
+  /// AyuGram's `_lastTrayClickTime` + `QApplication::doubleClickInterval()`
+  /// check.
   Future<void> toggleVisibility() async {
-    if (!_available) return;
+    if (!isAvailable) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_lastTrayClickTime > 0 &&
+        (now - _lastTrayClickTime) < _kDoubleClickIntervalMs) {
+      return;
+    }
+    _lastTrayClickTime = now;
     try {
       await _channel.invokeMethod<void>('toggleVisibility');
       _windowVisible = !_windowVisible;
@@ -227,14 +362,31 @@ class SystemTray {
     }
   }
 
+  static const _kDoubleClickIntervalMs = 400;
+
   /// Populate the tray context menu with per-account entries for switching.
   /// Only shown when multiple accounts are logged in, matching AyuGram's
   /// TrayAccountsMenu::Fill behavior.
-  Future<void> updateAccountsMenu(List<Map<String, String>> accounts) async {
-    if (!_available) return;
+  ///
+  /// Each entry should contain:
+  ///   - `id`: account ID
+  ///   - `name`: display name (truncated to 30 chars + ellipsis if needed)
+  ///   - `avatarPath`: path to on-disk avatar file (may be empty)
+  ///   - `avatarBase64`: base64-encoded PNG userpic thumbnail for native rendering
+  ///   - `initials`: fallback initials for placeholder userpic generation
+  ///   - `colorIndex`: int index for placeholder background color
+  Future<void> updateAccountsMenu(List<Map<String, dynamic>> accounts) async {
+    if (!isAvailable) return;
+    final truncated = accounts.map((a) {
+      final name = a['name'] as String? ?? '';
+      final safeName = name.length > _kMaxAccountNameLength
+          ? '${name.substring(0, _kMaxAccountNameLength)}$_kEllipsis'
+          : name;
+      return <String, dynamic>{...a, 'name': safeName};
+    }).toList();
     try {
       await _channel.invokeMethod<void>('setAccountsMenu', {
-        'accounts': accounts,
+        'accounts': truncated,
       });
     } on MissingPluginException {
       // Native side doesn't implement it yet.
@@ -256,6 +408,7 @@ class SystemTray {
       case 'onWindowShown':
         Debug.log('TRAY', 'window shown from tray');
         _windowVisible = true;
+        onWindowShown?.call();
       case 'onStreamerToggle':
         Debug.log('TRAY', 'streamer toggle requested from tray menu');
         onStreamerToggle?.call();
@@ -266,9 +419,33 @@ class SystemTray {
         Debug.log('TRAY', 'notifications toggle requested from tray menu');
         onNotificationsToggle?.call();
       case 'onAccountSwitch':
-        final accountId = call.arguments as String?;
-        Debug.log('TRAY', 'account switch requested: $accountId');
-        if (accountId != null) onAccountSwitch?.call(accountId);
+        final args = call.arguments;
+        String? accountId;
+        bool ctrlPressed = false;
+        if (args is Map) {
+          accountId = args['accountId'] as String?;
+          ctrlPressed = args['ctrlPressed'] as bool? ?? false;
+        } else if (args is String) {
+          accountId = args;
+        }
+        Debug.log('TRAY', 'account switch requested: $accountId (ctrl=$ctrlPressed)');
+        if (accountId != null) {
+          onAccountSwitch?.call(accountId, ctrlPressed: ctrlPressed);
+        }
+      case 'onTrayIconClick':
+        final now = DateTime.now().millisecondsSinceEpoch;
+        if (_lastTrayClickTime > 0 &&
+            (now - _lastTrayClickTime) < _kDoubleClickIntervalMs) {
+          return;
+        }
+        _lastTrayClickTime = now;
+        if (_windowVisible) {
+          _windowVisible = false;
+          onWindowHidden?.call();
+        } else {
+          _windowVisible = true;
+          onWindowShown?.call();
+        }
       default:
         Debug.log('TRAY', 'unknown native call: ${call.method}');
     }
