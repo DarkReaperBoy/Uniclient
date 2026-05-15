@@ -192,7 +192,7 @@ class NotificationSystem {
     if (wantNative && nativeNotificationsSupported()) {
       targetType = ManagerType.native;
     } else if (wantNative && !nativeNotificationsSupported()) {
-      targetType = ManagerType.dummy;
+      targetType = ManagerType.defaultPopup;
     } else {
       targetType = ManagerType.defaultPopup;
     }
@@ -247,10 +247,7 @@ class NotificationSystem {
     // Buffer notifications with unknown mute state for later processing
     if (effectiveData.muteStateUnknown) {
       final key = '${effectiveData.accountId}:${effectiveData.chatId}';
-      final existing = _settingWaiters[key];
-      if (existing == null || effectiveData.timestamp < existing.timestamp) {
-        _settingWaiters[key] = effectiveData;
-      }
+      _settingWaiters.putIfAbsent(key, () => effectiveData);
       return;
     }
 
@@ -373,7 +370,7 @@ class NotificationSystem {
       return a.groupedId == b.groupedId;
     }
     if (a.forwardFrom.isNotEmpty && b.forwardFrom.isNotEmpty) {
-      return a.forwardFrom == b.forwardFrom &&
+      return a.senderId == b.senderId &&
           (a.timestamp - b.timestamp).abs() <= 2;
     }
     return false;
@@ -409,7 +406,7 @@ class NotificationSystem {
         if (n.groupedId.isNotEmpty) {
           albumGroups.putIfAbsent(n.groupedId, () => []).add(n);
         } else if (n.forwardFrom.isNotEmpty && n.forwardCount <= 1) {
-          final fwdKey = n.forwardFrom;
+          final fwdKey = n.senderId;
           final existing = forwardGroups[fwdKey];
           if (existing != null &&
               existing.isNotEmpty &&
@@ -549,6 +546,13 @@ class NotificationSystem {
     _manager.clearForChat(accountId, chatId);
     _whenMaps.remove('$accountId:$chatId');
     _lastAlertPerThread.remove('$accountId:$chatId');
+    _settingWaiters.remove('$accountId:$chatId');
+    _groupedBuffer.removeWhere(
+        (n) => n.accountId == accountId && n.chatId == chatId);
+    if (_groupedBuffer.isEmpty) {
+      _groupedTimer?.cancel();
+      _groupedTimer = null;
+    }
   }
 
   void clearIncomingFromChat(String accountId, String chatId) {
@@ -578,6 +582,7 @@ class NotificationSystem {
     _manager.clearAll();
     _whenMaps.clear();
     _lastAlertPerThread.clear();
+    _settingWaiters.clear();
   }
 
   void dispose() {

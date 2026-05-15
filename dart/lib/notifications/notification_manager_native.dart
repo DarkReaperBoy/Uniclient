@@ -184,6 +184,16 @@ class NativeManager extends NotificationManager {
     return p.basenameWithoutExtension(Platform.resolvedExecutable);
   }
 
+  static String _getInitials(String title) {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) return '?';
+    final words = trimmed.split(RegExp(r'\s+'));
+    if (words.length >= 2) {
+      return '${words[0][0]}${words[1][0]}'.toUpperCase();
+    }
+    return words[0][0].toUpperCase();
+  }
+
   Future<String?> _generatePlaceholderUserpic(String title) async {
     try {
       final cacheDir = p.join(Directory.systemTemp.path, 'uniclient_userpics');
@@ -203,6 +213,19 @@ class NativeManager extends NotificationManager {
       final c = palette[hash.abs() % palette.length];
       final image = img.Image(width: 64, height: 64);
       img.fill(image, color: img.ColorRgba8(c[0], c[1], c[2], 255));
+
+      final initials = _getInitials(title);
+      final font = img.arial24;
+      int textW = 0;
+      for (final cu in initials.codeUnits) {
+        final ch = font.characters[cu];
+        if (ch != null) textW += ch.xAdvance;
+      }
+      final x = (64 - textW) ~/ 2;
+      final y = (64 - font.lineHeight) ~/ 2;
+      img.drawString(image, initials,
+          font: font, x: x, y: y,
+          color: img.ColorRgba8(255, 255, 255, 255));
 
       final outPath = p.join(cacheDir, 'placeholder_${hash.toRadixString(16)}.png');
       await File(outPath).writeAsBytes(Uint8List.fromList(img.encodePng(image)));
@@ -384,6 +407,10 @@ class NativeManager extends NotificationManager {
     if (newOwner.isNotEmpty) {
       Debug.log('NOTIF', 'Notification service restarted, reconnecting');
       _reconnect();
+    } else {
+      Debug.log('NOTIF', 'Notification service died, clearing stale IDs');
+      _notifications.clear();
+      _nativeIdToData.clear();
     }
   }
 
@@ -458,7 +485,6 @@ class NativeManager extends NotificationManager {
 
     final hints = <DBusValue, DBusValue>{
       DBusString('category'): DBusVariant(DBusString('im.received')),
-      DBusString('urgency'): DBusVariant(DBusByte(1)),
     };
 
     if (_capabilities.contains('action-icons')) {
@@ -502,7 +528,6 @@ class NativeManager extends NotificationManager {
         hints[DBusString('sound-file')] =
             DBusVariant(DBusString(soundPath));
       }
-      hints[DBusString('suppress-sound')] = DBusVariant(DBusBoolean(false));
     } else {
       hints[DBusString('suppress-sound')] = DBusVariant(DBusBoolean(true));
     }
@@ -579,16 +604,8 @@ class NativeManager extends NotificationManager {
       final height = resized.height;
       final rowstride = width * 4;
 
-      final rgbaBytes = <DBusValue>[];
-      for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-          final pixel = resized.getPixel(x, y);
-          rgbaBytes.add(DBusByte(pixel.r.toInt()));
-          rgbaBytes.add(DBusByte(pixel.g.toInt()));
-          rgbaBytes.add(DBusByte(pixel.b.toInt()));
-          rgbaBytes.add(DBusByte(pixel.a.toInt()));
-        }
-      }
+      final rawBytes = Uint8List.fromList(resized.toUint8List());
+      final dbusBytes = rawBytes.map((b) => DBusByte(b)).toList();
 
       return DBusStruct([
         DBusInt32(width),
@@ -597,7 +614,7 @@ class NativeManager extends NotificationManager {
         DBusBoolean(true),
         DBusInt32(8),
         DBusInt32(4),
-        DBusArray(DBusSignature('y'), rgbaBytes),
+        DBusArray(DBusSignature('y'), dbusBytes),
       ]);
     } catch (e) {
       Debug.log('NOTIF', 'Image hint build failed: $e');
@@ -605,11 +622,42 @@ class NativeManager extends NotificationManager {
     }
   }
 
+  StreamSubscription<DBusSignal>? _portalActionSub;
+
+  void _ensurePortalActionListener() {
+    if (_portalActionSub != null) return;
+    final dbus = _dbus;
+    if (dbus == null) return;
+    _portalActionSub = DBusSignalStream(
+      dbus,
+      interface: 'org.freedesktop.portal.Notification',
+      name: 'ActionInvoked',
+      path: DBusObjectPath('/org/freedesktop/portal/desktop'),
+    ).listen((signal) {
+      if (signal.values.length < 3) return;
+      final notifId = signal.values[0].asString();
+      final action = signal.values[1].asString();
+      final parts = notifId.split('_');
+      if (parts.length < 3) return;
+      final accountId = parts[0];
+      final chatId = parts[1];
+      Debug.log('NOTIF', 'Portal ActionInvoked: $action for $notifId');
+      switch (action) {
+        case 'default':
+        case 'app.notification-activate':
+          onAction?.call(accountId, chatId, 'open');
+        case 'app.notification-mark-as-read':
+          onAction?.call(accountId, chatId, 'markRead');
+      }
+    });
+  }
+
   Future<void> _showFlatpakPortalNotification(
       NotificationData data, NotificationSettings settings) async {
     try {
       final dbus = _dbus ?? DBusClient.session();
       if (_dbus == null) _dbus = dbus;
+      _ensurePortalActionListener();
       final portalProxy = DBusRemoteObject(
         dbus,
         name: 'org.freedesktop.portal.Desktop',
@@ -617,16 +665,42 @@ class NativeManager extends NotificationManager {
       );
       final notifId = '${data.accountId}_${data.chatId}_${data.messageId}';
       final title = data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName;
+
+      final notifDict = <DBusValue, DBusValue>{
+        DBusString('title'): DBusVariant(DBusString(title)),
+        DBusString('body'): DBusVariant(DBusString(data.text)),
+        DBusString('priority'): DBusVariant(DBusString('normal')),
+        DBusString('default-action'): DBusVariant(DBusString('app.notification-activate')),
+        DBusString('default-action-target'):
+            DBusVariant(DBusArray(DBusSignature('s'), [
+              DBusString(data.accountId),
+              DBusString(data.chatId),
+              DBusString(data.messageId),
+            ])),
+      };
+
+      if (!data.hideMarkAsRead) {
+        notifDict[DBusString('buttons')] = DBusVariant(
+          DBusArray(DBusSignature('a{sv}'), [
+            DBusDict(DBusSignature('s'), DBusSignature('v'), {
+              DBusString('label'): DBusVariant(DBusString('Mark as Read')),
+              DBusString('action'): DBusVariant(DBusString('app.notification-mark-as-read')),
+              DBusString('target'): DBusVariant(DBusArray(DBusSignature('s'), [
+                DBusString(data.accountId),
+                DBusString(data.chatId),
+                DBusString(data.messageId),
+              ])),
+            }),
+          ]),
+        );
+      }
+
       await portalProxy.callMethod(
         'org.freedesktop.portal.Notification',
         'AddNotification',
         [
           DBusString(notifId),
-          DBusDict(DBusSignature('s'), DBusSignature('v'), {
-            DBusString('title'): DBusVariant(DBusString(title)),
-            DBusString('body'): DBusVariant(DBusString(data.text)),
-            DBusString('priority'): DBusVariant(DBusString('normal')),
-          }),
+          DBusDict(DBusSignature('s'), DBusSignature('v'), notifDict),
         ],
       );
       Debug.log('NOTIF', 'Flatpak portal notification sent: $title');
@@ -753,6 +827,7 @@ class NativeManager extends NotificationManager {
     _replySub?.cancel();
     _activationTokenSub?.cancel();
     _serviceWatcherSub?.cancel();
+    _portalActionSub?.cancel();
     clearAll();
     _userpicCache.dispose();
     _dbus?.close();
