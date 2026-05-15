@@ -222,9 +222,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 
 # auth_screen — Auth screen audit
 
-- [ ] [MAJOR] OTP digit cell corner radius is 3px but AyuGram uses `st::boxRadius` (6px) — `dart/lib/ui/auth_screen.dart:1490` ← `AyuGram/Telegram/lib_ui/ui/layers/layers.style:38` + `AyuGram/Telegram/SourceFiles/intro/intro_code_input.cpp:128`
-
-- [ ] [MAJOR] OTP digit deletion animation is wrong — Dart reverses the appear animation (digit slides down and fades linearly via `controller.reverse()`); AyuGram scales the digit down from center with quadratic opacity (`progress * progress`) when `digit == kDigitNone` — `dart/lib/ui/auth_screen.dart:1646` ← `AyuGram/Telegram/SourceFiles/intro/intro_code_input.cpp:97-103`
 
 # ayu_appearance_page — Audit Findings
 
