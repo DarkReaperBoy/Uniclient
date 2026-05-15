@@ -109,7 +109,7 @@ class ChatState extends ChangeNotifier {
   static const _kFirstPerPage = 20;
   static const _kPerPage = 100;
   static const _kLoadedSublistsMinCount = 20;
-  static const _kRecentSublistsMax = 6;
+  static const _kRecentSublistsMax = 5;
 
   // §31.6–31.7: Saved reaction tags + selection state
   List<SavedReactionTagInfo> _savedReactionTags = [];
@@ -1047,11 +1047,8 @@ class ChatState extends ChangeNotifier {
   }
 
   void openChatById(String chatId) {
-    final chat = _chats.firstWhere(
-      (c) => c.chatId == chatId,
-      orElse: () => _chats.first,
-    );
-    if (chat.chatId == chatId) openChat(chat);
+    final idx = _chats.indexWhere((c) => c.chatId == chatId);
+    if (idx >= 0) openChat(_chats[idx]);
   }
 
   static void _sortTopics(List<ForumTopic> topics) {
