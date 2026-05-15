@@ -38,24 +38,6 @@ The FFI/WASM bridge implementation is production-quality with no critical, major
 
 **Status: READY FOR PRODUCTION** ✓
 
-# system_tray — System tray bridge (Flutter ↔ native appindicator)
-
-- [ ] [CRITICAL] `onWindowShown` native event has no callback — when the tray menu restores the window, Dart updates `_windowVisible` but exposes no `onWindowShown` callback for callers to react. AyuGram's `showFromTrayRequests()` drives critical post-show actions: `updateGlobalMenu()`, `activate()`, `unreadCounterChangedHook()`, and `updateIconCounters()`. None of those can be triggered by the caller if there is no callback. — `system_tray.dart:256-258` ← `tray.cpp:183-190` + `main_window.cpp:591-600`
-
-- [ ] [CRITICAL] Account switch tray entries lack userpic thumbnail data — `updateAccountsMenu` sends a `List<Map<String, String>>` with no image data, so the native runner cannot render userpic thumbnails next to account names. AyuGram passes `Ui::MakeUserpicThumbnail(user, true)` with `st::notifyMacPhotoSize` for every account entry. — `system_tray.dart:236-237` ← `tray_accounts_menu.cpp:76-77`
-
-- [ ] [CRITICAL] WorkMode setting (`WindowOnly`) not respected — AyuGram calls `_tray.createIcon()` only when `workMode != WorkMode::WindowOnly`; it also destroys/recreates the icon reactively when the setting changes. The Dart `init()` creates the tray whenever `_available` is true, completely ignoring the user's window-only preference. — `system_tray.dart:63-88` ← `tray.cpp:32-50` + `core_settings.h:112-115`
-
-- [ ] [MAJOR] Ctrl+click on account tray item should open a separate window — AyuGram checks `base::IsCtrlPressed()` and calls `Core::App().ensureSeparateWindowFor({ strong })` instead of a normal activate. The Dart `onAccountSwitch` callback carries no modifier-key information, making this behaviour impossible to implement at the call site. — `system_tray.dart:271` ← `tray_accounts_menu.cpp:70-72`
-
-- [ ] [MAJOR] Notification toggle doesn't persist sound/flash-bounce settings — AyuGram's `toggleSoundNotifications()` saves `rememberedSoundNotifyFromTray` and `rememberedFlashBounceNotifyFromTray` before disabling, and restores them when re-enabling. The Dart `onNotificationsToggle` is a bare callback with none of this state-persistence logic present at any layer. — `system_tray.dart:265-267` ← `tray.cpp:209-253`
-
-- [ ] [MAJOR] Tray icon double-click prevention is absent — AyuGram guards against a second icon click within `QApplication::doubleClickInterval()` via `_lastTrayClickTime`. The Dart has no equivalent guard; rapid clicks fire multiple show/hide cycles. — `system_tray.dart` (no equivalent) ← `tray.cpp:67-76`
-
-- [ ] [MAJOR] Account names not truncated to 30 characters before sending to native — AyuGram enforces `constexpr auto kMaxLength = 30` with `Ui::kQEllipsis`. The Dart sends raw account names of arbitrary length, which may overflow the tray menu item on constrained desktops. — `system_tray.dart:236` ← `tray_accounts_menu.cpp:53-64`
-
-- [ ] [MAJOR] Monochrome icon mode not integrated with settings — AyuGram subscribes to `trayIconMonochromeChanges()` (default `true`) and re-renders the icon via `updateIconCounters()`. The Dart has no monochrome setting, no change subscription, and passes no monochrome flag to the native side; the tray icon will always use the full-colour path. — `system_tray.dart` (no equivalent) ← `tray.cpp:52-55` + `tray_linux.cpp:90,125-126`
-
 # web_drop_web — Web drag-drop zone (web platform)
 
 - [ ] [MAJOR] `_handleDrop` returns early without calling `onDrop` or `onDragLeave` when `dt.files.length == 0` (e.g. user drops a URL, link, or text selection). `_active` and `_enterCount` are reset internally but the caller's overlay (`_dragOverlayAnimCtrl` in `chat_view.dart`) only dismisses itself inside the `onDrop` callback — so the drag overlay stays permanently visible until the user does another drag-out. AyuGram unconditionally hides both drag areas on every drop event before inspecting the payload — `web_drop_web.dart:137` ← `history_drag_area.cpp:209-215`
