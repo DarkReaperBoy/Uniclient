@@ -1,10 +1,12 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'telegram_palette.dart';
 
-class ThemePreviewImage extends StatelessWidget {
+class ThemePreviewImage extends StatefulWidget {
   final TelegramPalette palette;
   final double width;
   final double height;
@@ -17,18 +19,48 @@ class ThemePreviewImage extends StatelessWidget {
   });
 
   @override
+  State<ThemePreviewImage> createState() => _ThemePreviewImageState();
+}
+
+class _ThemePreviewImageState extends State<ThemePreviewImage> {
+  ui.Image? _photoImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadThemeImage();
+  }
+
+  Future<void> _loadThemeImage() async {
+    try {
+      final data = await rootBundle.load('assets/images/themeimage.jpg');
+      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+      final frame = await codec.getNextFrame();
+      if (mounted) {
+        setState(() => _photoImage = frame.image);
+      }
+    } catch (_) {
+      // Fallback to gradient if image can't be loaded
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      size: Size(width, height),
-      painter: _ThemePreviewPainter(palette: palette),
+      size: Size(widget.width, widget.height),
+      painter: _ThemePreviewPainter(
+        palette: widget.palette,
+        photoImage: _photoImage,
+      ),
     );
   }
 }
 
 class _ThemePreviewPainter extends CustomPainter {
   final TelegramPalette palette;
+  final ui.Image? photoImage;
 
-  _ThemePreviewPainter({required this.palette});
+  _ThemePreviewPainter({required this.palette, this.photoImage});
 
   static const double _dialogsWidth = 312;
   static const double _topBarHeight = 54;
@@ -57,21 +89,8 @@ class _ThemePreviewPainter extends CustomPainter {
       Paint()..color = palette.dialogsBg,
     );
 
-    // Hamburger menu icon (3 lines)
-    final menuIconColor = palette.dialogsMenuIconFg;
-    final menuPaint = Paint()
-      ..color = menuIconColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round;
-    const menuX = 7.0 + 12.0;
-    const menuCY = 27.0;
-    canvas.drawLine(
-        const Offset(menuX, menuCY - 7), const Offset(menuX + 18, menuCY - 7), menuPaint);
-    canvas.drawLine(
-        const Offset(menuX, menuCY), const Offset(menuX + 18, menuCY), menuPaint);
-    canvas.drawLine(
-        const Offset(menuX, menuCY + 7), const Offset(menuX + 18, menuCY + 7), menuPaint);
+    // Hamburger menu icon
+    _drawMaterialIcon(canvas, Icons.menu, 12, 15, 24, palette.dialogsMenuIconFg);
 
     // Search filter field
     const filterLeft = 58.0;
@@ -86,7 +105,7 @@ class _ThemePreviewPainter extends CustomPainter {
     _drawText(canvas, 'Search', filterLeft + 14, filterTop + 8, 13,
         palette.windowSubTextFg, FontWeight.normal);
 
-    // 8 dialog rows (AyuGram has 8 named + 1 empty)
+    // 8 dialog rows
     const names = [
       'Eva Summer',
       'Alexandra Smith',
@@ -111,9 +130,8 @@ class _ThemePreviewPainter extends CustomPainter {
     const unreadCounts = [0, 2, 2, 0, 0, 0, 0, 0];
     const mutedFlags = [false, false, true, false, false, false, false, false];
     const pinnedFlags = [true, false, false, false, false, false, false, false];
-    const statusFlags = [0, 0, 0, 0, 0, 2, 2, 0]; // 0=none, 2=received
+    const statusFlags = [0, 0, 0, 0, 0, 2, 2, 0];
     const activeIndex = 0;
-    const isGroup = [false, false, false, true, true, false, false, false];
 
     const double startY = 54;
 
@@ -165,7 +183,7 @@ class _ThemePreviewPainter extends CustomPainter {
       if (statusFlags[i] > 0) {
         final checkFg = isActive ? palette.dialogsTextFgActive : palette.dialogsSentIconFg;
         final checkX = _dialogsWidth - 10 - _estimateTextWidth(times[i], 12) - 20;
-        _drawCheck(canvas, checkX, y + 12, checkFg, statusFlags[i] == 2);
+        _drawCheckIcon(canvas, checkX, y + 10, checkFg, statusFlags[i] == 2);
       }
 
       // Timestamp
@@ -201,10 +219,8 @@ class _ThemePreviewPainter extends CustomPainter {
 
       // Pin icon
       if (pinnedFlags[i] && unreadCounts[i] == 0) {
-        final pinX = _dialogsWidth - 22.0;
-        final pinY = y + 38;
         final pinColor = isActive ? palette.dialogsTextFgActive : palette.dialogsDateFg;
-        _drawPinIcon(canvas, pinX, pinY, pinColor);
+        _drawMaterialIcon(canvas, Icons.push_pin, _dialogsWidth - 26, y + 34, 16, pinColor);
       }
     }
 
@@ -235,7 +251,7 @@ class _ThemePreviewPainter extends CustomPainter {
       Paint()..color = palette.shadowFg,
     );
 
-    // Top bar: name and status (no avatar in AyuGram preview)
+    // Top bar: name and status
     _drawText(canvas, 'Eva Summer', left + 17, 8, 15,
         palette.dialogsNameFg, FontWeight.w600);
     _drawText(canvas, 'online', left + 17, 32, 13,
@@ -243,24 +259,15 @@ class _ThemePreviewPainter extends CustomPainter {
 
     // Top bar: right-aligned icons (search, call, menu)
     final iconFg = palette.dialogsMenuIconFg;
-    final iconPaint = Paint()
-      ..color = iconFg
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
 
     // Menu toggle (rightmost, 44px zone)
-    const menuRight = 903.0;
-    _drawMenuDotsIcon(canvas, menuRight - 28, 19, iconPaint);
+    _drawMaterialIcon(canvas, Icons.more_vert, 903 - 36, 15, 24, iconFg);
 
-    // Call icon (next, 40px zone with 4px skip)
-    const callRight = menuRight - 44 - 4;
-    _drawCallIcon(canvas, callRight - 28, 17, iconPaint);
+    // Call icon
+    _drawMaterialIcon(canvas, Icons.call, 903 - 44 - 4 - 36, 15, 24, iconFg);
 
-    // Search icon (next, 40px zone)
-    const searchRight = callRight - 40;
-    _drawSearchIcon(canvas, searchRight - 26, 18, iconPaint);
+    // Search icon
+    _drawMaterialIcon(canvas, Icons.search, 903 - 44 - 4 - 40 - 34, 15, 24, iconFg);
 
     // Message area
     _drawMessageArea(canvas, left, chatWidth);
@@ -272,12 +279,9 @@ class _ThemePreviewPainter extends CustomPainter {
   void _drawMessageArea(Canvas canvas, double left, double chatWidth) {
     final areaBottom = 584.0 - _composeHeight;
 
-    // Paint bottom-up like AyuGram does
     var historyBottom = areaBottom - 8.0;
 
     // Bubble 6 (bottom): incoming with reply
-    // "We are too smart for this world. 🤣😂" at 11:00
-    // Reply: "Alex Cassio" → "Mark Twain said that ☝️"
     historyBottom = _drawTextBubbleBottomUp(
       canvas, left, chatWidth, historyBottom,
       text: 'We are too smart for this world. \u{1f923}\u{1f602}',
@@ -292,7 +296,6 @@ class _ThemePreviewPainter extends CustomPainter {
     historyBottom -= 6;
 
     // Bubble 5: outgoing, attached top, tail
-    // "Mark Twain said that ☝️" at 10:00
     historyBottom = _drawTextBubbleBottomUp(
       canvas, left, chatWidth, historyBottom,
       text: 'Mark Twain said that \u{261d}\u{fe0f}',
@@ -306,7 +309,6 @@ class _ThemePreviewPainter extends CustomPainter {
     historyBottom -= 2;
 
     // Bubble 4: outgoing, no tail, attached bottom
-    // "Twenty years from now..." at 10:00
     historyBottom = _drawTextBubbleBottomUp(
       canvas, left, chatWidth, historyBottom,
       text: 'Twenty years from now you will be more\ndisappointed by the things that you didn\'t\ndo than by the ones you did do. \u{1f9d0}',
@@ -328,7 +330,6 @@ class _ThemePreviewPainter extends CustomPainter {
     historyBottom -= 6;
 
     // Bubble 1: photo bubble (incoming)
-    // "To reach a port, we must sail. 🥸" at 7:00
     _drawPhotoBubbleBottomUp(canvas, left, chatWidth, historyBottom);
   }
 
@@ -445,9 +446,7 @@ class _ThemePreviewPainter extends CustomPainter {
     _drawText(canvas, time, timeX, timeY, 11, dateFg, FontWeight.normal);
 
     if (showCheck) {
-      final checkX = timeX + timeWidth + 4;
-      final checkY = timeY + 2;
-      _drawCheck(canvas, checkX, checkY, palette.historyOutIconFg, doubleCheck);
+      _drawCheckIcon(canvas, timeX + timeWidth + 4, timeY, palette.historyOutIconFg, doubleCheck);
     }
 
     final margin = attachToTop ? 2.0 : 6.0;
@@ -562,7 +561,7 @@ class _ThemePreviewPainter extends CustomPainter {
     final timeX = bubbleX + bubbleW - 11 - _estimateTextWidth('8:00', 11) - 22;
     final timeY = y + bubbleH - 18;
     _drawText(canvas, '8:00', timeX, timeY, 11, palette.msgOutDateFg, FontWeight.normal);
-    _drawCheck(canvas, timeX + _estimateTextWidth('8:00', 11) + 4, timeY + 2,
+    _drawCheckIcon(canvas, timeX + _estimateTextWidth('8:00', 11) + 4, timeY,
         palette.historyOutIconFg, true);
 
     return y - 6;
@@ -591,21 +590,34 @@ class _ThemePreviewPainter extends CustomPainter {
       Paint()..color = palette.msgInBg,
     );
 
-    // Photo placeholder (gradient to simulate an image)
+    // Photo area: use bundled image if loaded, otherwise gradient fallback
     final photoRect = RRect.fromRectAndCorners(
       Rect.fromLTWH(bubbleX, y, photoW, photoH),
       topLeft: const Radius.circular(16),
       topRight: const Radius.circular(16),
     );
-    canvas.drawRRect(
-      photoRect,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF6BA3D6), Color(0xFF3D7AB5), Color(0xFF2B5E8C)],
-        ).createShader(Rect.fromLTWH(bubbleX, y, photoW, photoH)),
-    );
+    canvas.save();
+    canvas.clipRRect(photoRect);
+    if (photoImage != null) {
+      final src = Rect.fromLTWH(
+        0, 0,
+        photoImage!.width.toDouble(),
+        photoImage!.height.toDouble(),
+      );
+      final dst = Rect.fromLTWH(bubbleX, y, photoW, photoH);
+      canvas.drawImageRect(photoImage!, src, dst, Paint());
+    } else {
+      canvas.drawRect(
+        Rect.fromLTWH(bubbleX, y, photoW, photoH),
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF6BA3D6), Color(0xFF3D7AB5), Color(0xFF2B5E8C)],
+          ).createShader(Rect.fromLTWH(bubbleX, y, photoW, photoH)),
+      );
+    }
+    canvas.restore();
 
     // Caption
     _drawText(canvas, 'To reach a port, we must sail. \u{1f978}',
@@ -640,8 +652,7 @@ class _ThemePreviewPainter extends CustomPainter {
     );
 
     // Attach icon (left side, 44px zone)
-    final iconColor = palette.historyComposeIconFg;
-    _drawAttachIcon(canvas, left + 12, composeY + 14, iconColor);
+    _drawMaterialIcon(canvas, Icons.add, left + 10, composeY + 11, 24, palette.historyComposeIconFg);
 
     // Text input field background
     const fieldLeft = 44.0;
@@ -658,87 +669,59 @@ class _ThemePreviewPainter extends CustomPainter {
         palette.historyComposeAreaFg.withValues(alpha: 0.5), FontWeight.normal);
 
     // Emoji button (right of field, before record button)
-    // AyuGram: fills emoji area with historyComposeAreaBg, draws icon, then circle outline
-    final emojiX = left + chatWidth - 88;
+    final emojiX = left + chatWidth - 86;
     final emojiCY = composeY + _composeHeight / 2;
     canvas.drawRect(
-      Rect.fromLTWH(emojiX, composeY, 44, _composeHeight),
+      Rect.fromLTWH(emojiX - 2, composeY, 44, _composeHeight),
       Paint()..color = palette.historyComposeAreaBg,
     );
-    final emojiPaint = Paint()
-      ..color = palette.historyComposeIconFg
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    canvas.drawCircle(Offset(emojiX + 11, emojiCY), 9, emojiPaint);
-    canvas.drawCircle(Offset(emojiX + 7.5, emojiCY - 2.5), 1.2, Paint()..color = palette.historyComposeIconFg);
-    canvas.drawCircle(Offset(emojiX + 14.5, emojiCY - 2.5), 1.2, Paint()..color = palette.historyComposeIconFg);
-    final smilePath = Path()
-      ..addArc(Rect.fromCenter(center: Offset(emojiX + 11, emojiCY - 0.5), width: 10, height: 10),
-          0.3, math.pi * 0.4);
-    canvas.drawPath(smilePath, emojiPaint..strokeWidth = 1.2);
-    // Circle outline around emoji icon (AyuGram: historyEmojiCircleFg + drawEllipse)
-    final circlePaint = Paint()
-      ..color = palette.historyComposeIconFg.withValues(alpha: 0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
+    _drawMaterialIcon(
+      canvas, Icons.sentiment_satisfied_alt,
+      emojiX, emojiCY - 11, 22, palette.historyComposeIconFg,
+    );
+    // Circle outline around emoji icon (matches AyuGram historyEmojiCircleFg)
     canvas.drawOval(
       Rect.fromCenter(center: Offset(emojiX + 11, emojiCY), width: 23, height: 23),
-      circlePaint,
+      Paint()
+        ..color = palette.historyComposeIconFg.withValues(alpha: 0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..strokeCap = StrokeCap.round,
     );
 
-    // Record button (microphone icon, rightmost 44px zone)
-    final micX = left + chatWidth - 34;
-    final micY = composeY + 14;
-    final micPaint = Paint()
-      ..color = palette.historyComposeIconFg
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..strokeCap = StrokeCap.round;
-    // Mic body
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(micX + 2, micY - 2, 8, 12),
-        const Radius.circular(4),
-      ),
-      micPaint,
+    // Microphone icon (rightmost 44px zone)
+    _drawMaterialIcon(
+      canvas, Icons.mic,
+      left + chatWidth - 38, composeY + 11, 24, palette.historyComposeIconFg,
     );
-    // Mic base arc
-    final basePath = Path()
-      ..addArc(Rect.fromLTWH(micX - 1, micY, 14, 14), 0, math.pi);
-    canvas.drawPath(basePath, micPaint);
-    // Mic stand
-    canvas.drawLine(Offset(micX + 6, micY + 14), Offset(micX + 6, micY + 18), micPaint);
-    canvas.drawLine(Offset(micX + 2, micY + 18), Offset(micX + 10, micY + 18), micPaint);
   }
 
   // ── Icon Drawing Helpers ──
 
-  void _drawMenuDotsIcon(Canvas canvas, double x, double y, Paint paint) {
-    final dotPaint = Paint()..color = paint.color;
-    for (int i = 0; i < 3; i++) {
-      canvas.drawCircle(Offset(x + 8, y + i * 6), 2, dotPaint);
+  void _drawMaterialIcon(Canvas canvas, IconData icon, double x, double y,
+      double size, Color color) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          fontSize: size,
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+          color: color,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    tp.layout();
+    tp.paint(canvas, Offset(x, y));
+  }
+
+  void _drawCheckIcon(Canvas canvas, double x, double y, Color color, bool isDouble) {
+    if (isDouble) {
+      _drawMaterialIcon(canvas, Icons.done_all, x, y, 14, color);
+    } else {
+      _drawMaterialIcon(canvas, Icons.check, x, y, 14, color);
     }
-  }
-
-  void _drawCallIcon(Canvas canvas, double x, double y, Paint paint) {
-    final path = Path()
-      ..moveTo(x + 3, y + 2)
-      ..cubicTo(x + 5, y + 2, x + 6, y + 4, x + 6, y + 7)
-      ..cubicTo(x + 7, y + 10, x + 10, y + 13, x + 13, y + 14)
-      ..cubicTo(x + 16, y + 14, x + 18, y + 13, x + 18, y + 15)
-      ..lineTo(x + 18, y + 18)
-      ..cubicTo(x + 18, y + 19, x + 17, y + 20, x + 16, y + 20)
-      ..cubicTo(x + 8, y + 20, x + 1, y + 13, x + 1, y + 5)
-      ..cubicTo(x + 1, y + 3, x + 2, y + 2, x + 3, y + 2)
-      ..close();
-    canvas.drawPath(path, paint..style = PaintingStyle.stroke);
-  }
-
-  void _drawSearchIcon(Canvas canvas, double x, double y, Paint paint) {
-    canvas.drawCircle(Offset(x + 9, y + 9), 7, paint..style = PaintingStyle.stroke);
-    canvas.drawLine(Offset(x + 14, y + 14), Offset(x + 19, y + 19),
-        paint..strokeWidth = 2.0);
   }
 
   // ── Text Helpers ──
@@ -789,66 +772,7 @@ class _ThemePreviewPainter extends CustomPainter {
     return tp.width;
   }
 
-  void _drawPinIcon(Canvas canvas, double x, double y, Color color) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
-    final path = Path()
-      ..moveTo(x + 4, y)
-      ..lineTo(x + 12, y)
-      ..moveTo(x + 8, y)
-      ..lineTo(x + 8, y + 10)
-      ..moveTo(x + 3, y + 10)
-      ..lineTo(x + 13, y + 10)
-      ..moveTo(x + 8, y + 10)
-      ..lineTo(x + 8, y + 16);
-    canvas.drawPath(path, paint);
-  }
-
-  void _drawCheck(Canvas canvas, double x, double y, Color color, bool double_) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    if (double_) {
-      final path1 = Path()
-        ..moveTo(x, y + 5)
-        ..lineTo(x + 4, y + 9)
-        ..lineTo(x + 11, y + 2);
-      canvas.drawPath(path1, paint);
-      final path2 = Path()
-        ..moveTo(x + 4, y + 5)
-        ..lineTo(x + 8, y + 9)
-        ..lineTo(x + 15, y + 2);
-      canvas.drawPath(path2, paint);
-    } else {
-      final path = Path()
-        ..moveTo(x + 1, y + 5)
-        ..lineTo(x + 5, y + 9)
-        ..lineTo(x + 12, y + 2);
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  void _drawAttachIcon(Canvas canvas, double x, double y, Color color) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
-      ..strokeCap = StrokeCap.round;
-    final path = Path()
-      ..moveTo(x + 10, y + 2)
-      ..lineTo(x + 10, y + 14)
-      ..moveTo(x + 4, y + 8)
-      ..lineTo(x + 16, y + 8);
-    canvas.drawPath(path, paint);
-  }
-
   @override
   bool shouldRepaint(_ThemePreviewPainter old) =>
-      !identical(old.palette, palette);
+      !identical(old.palette, palette) || !identical(old.photoImage, photoImage);
 }
