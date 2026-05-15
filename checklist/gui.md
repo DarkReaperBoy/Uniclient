@@ -226,10 +226,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 # ayu_appearance_page — Audit Findings
 
 
-## ayu_appearance_page — "Material Design switches" label deviates from AyuGram ("MD3 Switch Style")
-
-- [ ] [MAJOR] The Dart label is `'Material Design switches'` (line 55). AyuGram uses `ayu_MaterialSwitches` = `"MD3 Switch Style"`. The label is meaningfully different and user-facing. — `ayu_appearance_page.dart:55` ← `AyuGramDesktop/Telegram/Resources/langs/lang.strings:8105`
-
 ## ayu_appearance_page — "Read Receipts (LRead)" label deviates from AyuGram ("Read on Local")
 
 - [ ] [MAJOR] The Dart label is `'Read Receipts (LRead)'` (line 163). AyuGram uses `ayu_LReadMessages` = `"Read on Local"`. — `ayu_appearance_page.dart:163` ← `AyuGramDesktop/Telegram/Resources/langs/lang.strings:8241`
