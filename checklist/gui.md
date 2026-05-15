@@ -38,31 +38,6 @@ The FFI/WASM bridge implementation is production-quality with no critical, major
 
 **Status: READY FOR PRODUCTION** ✓
 
-# notification_manager_native — Linux DBus notification manager audit
-
-- [ ] [CRITICAL] `_buildImageHint` builds the RGBA image data by iterating every pixel and creating one `DBusByte` object per channel (16,384 individual DBus value objects for a 64×64 image), then wrapping them in `DBusArray`. AyuGram passes raw image bytes directly via `GLib::Variant::new_from_data(image.constBits(), image.sizeInBytes())` with no per-pixel allocation. The Dart loop will stall the async task for hundreds of milliseconds on every notification with a photo — `notification_manager_native.dart:582-600` ← `notifications_manager_linux.cpp:700-709`
-
-- [ ] [CRITICAL] `_showFlatpakPortalNotification` sends only `title`, `body`, and `priority` to the XDG portal. AyuGram's GNotification path sets a default activation action, adds a "Mark as Read" button with a structured target variant carrying sessionId/peerId/msgId, and wires `notification-activate` / `notification-mark-as-read` GActions. The Dart Flatpak path has no action handlers at all — tapping a Flatpak notification does nothing — `notification_manager_native.dart:608-636` ← `notifications_manager_linux.cpp:538-611`
-
-- [ ] [MAJOR] `_onServiceOwnerChanged` only reconnects when `newOwner.isNotEmpty` (service restarted). AyuGram also handles `newOwner.empty()` (service died) by calling `clearAll()` on the notification system so stale IDs are discarded. Without this, notification IDs from the dead service stay in `_nativeIdToData` and `_notifications` forever and can never be cleared — `notification_manager_native.dart:379-388` ← `notifications_manager_linux.cpp:83-95`
-
-- [ ] [MAJOR] `urgency: 1` hint is added unconditionally to every notification (line 461). AyuGram never sets an `urgency` hint for message notifications — its DBus notify path (lines 612-671) contains no urgency insertion. On GNOME and KDE this hint affects DND bypass and notification stacking behavior; adding it incorrectly can cause notifications to appear during DND sessions — `notification_manager_native.dart:461` ← `notifications_manager_linux.cpp:612-671`
-
-- [ ] [MAJOR] `suppress-sound: false` is explicitly inserted into hints when sound is allowed (line 505). AyuGram never adds `suppress-sound: false` — it only conditionally inserts `suppress-sound: true` when there is no sound path (line 655). Explicitly sending `false` overrides the notification daemon's own sound policy on some implementations (e.g. dunst, mako) — `notification_manager_native.dart:505` ← `notifications_manager_linux.cpp:640-658`
-
-- [ ] [MAJOR] Placeholder userpic generation fills a flat solid-color square (lines 204-205) with no text or initials. AyuGram's `GenerateUserpic` calls `PeerData::GenerateUserpicImage` which renders the peer's initials over the background color when no photo is downloaded, matching standard Telegram avatar appearance. Dart placeholders show a blank colored box — `notification_manager_native.dart:187-213` ← `notifications_utilities.cpp:26-31`
-
-# notification_system — NotificationSystem scheduling/dispatch logic
-
-- [ ] [CRITICAL] `_selectManager` wrong fallback: when user enables native notifications but platform doesn't support them, Dart sets `ManagerType.dummy` (completely silent — no notifications delivered). C++ falls back to `Default::Manager` (custom popup) unless `nativeEnforced()` is true — `notification_system.dart:194` ← `AyuGram/window/notifications_manager.cpp:245-252`
-
-- [ ] [MAJOR] `clearForChat` and `clearAll` both skip cleaning `_settingWaiters` — deferred notifications waiting on mute-state resolution survive the clear and fire when `checkDelayed()` is next called. C++ `clearAll` explicitly calls `_settingWaiters.clear()` and `clearForThreadIf` removes the thread from `_settingWaiters` — `notification_system.dart:548-552` and `notification_system.dart:577-581` ← `AyuGram/window/notifications_manager.cpp:503` and `AyuGram/window/notifications_manager.cpp:517`
-
-- [ ] [MAJOR] `clearForChat` does not flush pending entries from `_groupedBuffer` for the affected chat — buffered groupable notifications survive the clear and are dispatched when `_groupedTimer` fires (~1 s later), producing notifications after the user explicitly cleared that chat — `notification_system.dart:548-552` ← `AyuGram/window/notifications_manager.cpp:508-523` (C++ `clearFromHistory` removes thread from `_waiters` via `clearForThreadIf`, leaving nothing to dispatch)
-
-- [ ] [MAJOR] `_settingWaiters` replacement uses raw message timestamp instead of scheduled dispatch time — when two unknown-mute-state notifications arrive for the same chat, Dart keeps the one with the smaller `data.timestamp`. C++ keeps the one with the earlier scheduled dispatch time (`ms + delay`), where `delay` reflects cross-device online state. These can differ when cloud delay applies — `notification_system.dart:251` ← `AyuGram/window/notifications_manager.cpp:474-481`
-
-- [ ] [MAJOR] Forward grouping in `_isSameGroup` matches on `forwardFrom` (original content source) while C++ groups on `author()` (the user who sent the forward into the current chat) — consecutive re-forwards from different original sources by the same person are not grouped; consecutive forwards from the same original source by different people are incorrectly merged — `notification_system.dart:375-378` ← `AyuGram/window/notifications_manager.cpp:898-899`
 
 # notification_types.dart — No issues found
 
