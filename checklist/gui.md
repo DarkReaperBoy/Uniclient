@@ -126,15 +126,6 @@ This FFI bridge is a well-engineered, production-ready implementation with no cr
 
 ## Issues Found
 
-- [ ] [CRITICAL] Missing `getCrc32()` function — `theme_file.dart:1406, 1415, 1437, 1446` ← No corresponding implementation in codebase. Function is called in `buildThemeCache()`, `validateThemeCache()` but never defined or imported. Theme caching and checksum validation will crash at runtime. Compare to AyuGram which uses `base::crc32()` via `crc32(content.constData(), content.size())` in `window_theme.cpp:377, 388`.
-
-- [ ] [CRITICAL] No background image size validation — `theme_file.dart:244-247` ← Reads arbitrary-sized image from ZIP without checking dimensions or total pixel data size. AyuGram validates: `if (size.isEmpty() || (size.width() * size.height() > kBackgroundSizeLimit))` in `window_theme.cpp:331-332`. Malicious theme files could provide gigantic images causing OOM or crashes.
-
-- [ ] [MAJOR] Broad exception handling in ZIP parsing — `theme_file.dart:212-213` ← `catch (_) { return null; }` silently hides ZipDecoder errors. AyuGram uses structured error checking: checks `file.error() == UNZ_OK` and logs specific errors in `window_theme.cpp:299-310`. Same pattern in caching validation at `theme_file.dart:1419-1420, 1449-1450`.
-
-- [ ] [MAJOR] Silent file I/O error suppression — `theme_file.dart:1476, 1481, 1486, 1540, 1544` ← `try { ... } catch (_) {}` silently ignores all write failures when saving theme cache. Cannot diagnose if theme cache is actually being persisted. AyuGram checks specific error codes.
-
-- [ ] [MAJOR] No background image format validation — `theme_file.dart:245-247` ← Stores raw bytes without verifying JPEG/PNG headers or attempting decode. AyuGram attempts to read image headers and uses `Images::Read()` with validation in `window_theme.cpp:336-339` before accepting image data.
 
 ## Data Flow Check
 
