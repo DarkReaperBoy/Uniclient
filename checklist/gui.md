@@ -193,12 +193,6 @@ The preview will give users an inaccurate impression of how their theme will act
 
 # admin_tools — Audit Findings
 
-## admin_tools — _EditPeerPermissionsBox
-
-- [ ] [MAJOR] `_onSave()` calls both `setDefaultBannedRights` AND `setSlowMode` separately (lines 1498-1499). AyuGram calls `SaveDefaultRestrictions` (which sends `messages.editChatDefaultBannedRights`) and `SaveSlowmodeSeconds` (which sends `channels.toggleSlowMode`) AND `SaveBoostsUnrestrict` (which sends `channels.setBoostsToUnblockRestrictions`) AND `SaveStarsPerMessage` (which sends `channels.updatePaidMessagesPrice`) as separate calls. The Dart save does NOT call `setBoostsUnrestrict` as a separate engine method — `boosts_unrestrict` is bundled into `setDefaultBannedRights` map which is not how the Telegram API works. The boosts-unrestrict and stars-per-message saves may silently fail — `admin_tools.dart:1486-1507` ← `edit_peer_info_box.cpp:310-337` (`ShowEditPermissions` with four separate API calls)
-
-- [ ] [MAJOR] "Charge Stars" section in permissions box (`_chargeStars`) is shown only for channels (`widget.isChannel || _chargeStars > 0`) but AyuGram's `starsPerMessage` applies to both broadcast channels and megagroups with paid messaging enabled. The UI hides the setting for megagroups regardless of server state — `admin_tools.dart:1597-1603`  ← `edit_peer_info_box.cpp:236-277` (`SaveStarsPerMessage` applies to both megagroup and broadcast with different flags)
-
 ## admin_tools — _EditRestrictedBox
 
 - [ ] [MAJOR] `_buildRankField` is rendered and `_rankCtrl` exists (line 2119, 2657-2674) but `_onSave()` (lines 2223-2245) does NOT pass the rank/custom title to `engine.restrictMemberWithRights()`. The custom title entered by the admin is silently discarded on save — `admin_tools.dart:2223-2245`
