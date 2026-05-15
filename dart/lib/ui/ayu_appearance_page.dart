@@ -572,7 +572,7 @@ class _MonoFontRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Monospace font',
+                  Text('Monospace Font',
                       style: TextStyle(
                           fontSize: 14,
                           color: isDark ? Colors.white : Colors.black87)),
@@ -823,7 +823,7 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
                       final font = fonts[i];
                       final isSelected = _selectedFont == font;
                       final label =
-                          font.isEmpty ? 'Default (Cascadia Mono)' : font;
+                          font.isEmpty ? 'Default' : font;
                       return InkWell(
                         onTap: () => setState(() {
                           _selectedFont = font;
