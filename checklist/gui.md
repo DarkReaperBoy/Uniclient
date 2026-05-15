@@ -226,10 +226,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 # ayu_appearance_page — Audit Findings
 
 
-## ayu_appearance_page — Missing divider description text after Hide Notification Badge toggle
-
-- [ ] [MAJOR] After the "Hide notification badge" toggle (Windows/macOS only), AyuGram renders a `DividerText` with `ayu_HideNotificationBadgeDescription` = "Hides the notification counter on the app icon in the taskbar and tray." The Dart page has no such description text — the subtitle on the toggle row reads "Hides the unread count on the taskbar and tray icon", which is placed inline rather than as an authoritative post-toggle description block. The description placement matches `builder.addDividerText(...)` in AyuGram, which renders below the divider line as a separate description block, not as a toggle subtitle. — `ayu_appearance_page.dart:34-39` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_appearance.cpp:76-77`
-
 ## ayu_appearance_page — Missing divider description text after Single Corner Radius toggle
 
 - [ ] [MAJOR] After the "Single corner radius" toggle, AyuGram renders a `DividerText` with `ayu_SingleCornerRadiusDescription` = "Forums will have the same avatar shape as chats." The Dart code has this text only as the toggle's inline subtitle (`'Forums will have the same avatar shape as chats'`), not as a post-toggle description block below a divider. — `ayu_appearance_page.dart:326-327` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_appearance.cpp:183-185`
