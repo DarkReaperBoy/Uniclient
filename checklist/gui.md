@@ -38,22 +38,6 @@ The FFI/WASM bridge implementation is production-quality with no critical, major
 
 **Status: READY FOR PRODUCTION** ✓
 
-
-# notification_manager_default — Audit
-
-## Summary
-`DefaultManager` is a notification queue manager consumed by `NotificationPopupOverlay` in `notification_popup.dart`. The logic maps to AyuGram's `Window::Notifications::Default::Manager` in `notifications_manager_default.cpp`. The manager and overlay share dismiss-timing responsibilities in a way that produces two coordinated bugs and one broken method.
-
----
-
-- [ ] [CRITICAL] `updateSettings()` calls `onShow?.call(item)` for every still-active notification after trimming excess ones — `_onShow` in the overlay appends a **new** `_PopupState` with the same ID to `_popups`, creating a duplicate visible popup. AyuGram's equivalent path (`settingsChanged(MaxCount)`) calls `unlinkHistory()` on excess widgets and `showNextFromQueue()` to fill empty slots; it never re-fires the show path for already-visible notifications — `notification_manager_default.dart:284-286` ← `AyuGram/window/notifications_manager_default.cpp:148-160`
-
-- [ ] [MAJOR] Manager's `_startDismissTimer` (3 000 ms, line 127) runs in parallel with the overlay's `_scheduleHideAfterWait` (3 000 ms) + `_startSlowHide` (4 000 ms fade). When the manager timer fires first it calls `dismiss()` → `onDismiss` → `_onDismissExternal()` which removes the popup **instantly** (no animation, `notification_popup.dart:209-216`), pre-empting the 4 000 ms `easeInCirc` fade that AyuGram performs. AyuGram's `_hideTimer` only starts the slow hide animation (`hideSlow()`); the widget is removed only after the animation completes in `opacityAnimationCallback()` — `notification_manager_default.dart:127-129` / `notification_popup.dart:209-216` ← `AyuGram/window/notifications_manager_default.cpp:767-785` / `AyuGram/window/window.style:30,51`
-
-- [ ] [MAJOR] `pauseDismissTimer()` / `resumeDismissTimer()` (lines 144-151) are never called by `NotificationPopupOverlay`; `_onHoverEnter` cancels the overlay's own timers but leaves the manager's 3 000 ms dismiss timer running. When it fires during an active hover the manager calls `dismiss()` → `_onDismissExternal()` → instant removal while the user is still hovering. AyuGram calls `manager()->stopAllHiding()` in `enterEventHook` which reverses the opacity animation and effectively freezes dismissal until the cursor leaves — `notification_manager_default.dart:144-151` / `notification_popup.dart:226-245` ← `AyuGram/window/notifications_manager_default.cpp:202-211`
-
-- [ ] [MAJOR] `DefaultManager` does not override `updateAll()`; the base `NotificationManager.updateAll()` is an empty no-op. `NotificationSystem.updateAll()` therefore does nothing for custom popups, so already-visible notifications never redraw their content when settings change (e.g., name/preview privacy level toggled). AyuGram's `doUpdateAll()` calls `updateNotifyDisplay()` on every active notification widget — `notification_manager_default.dart:30` (no `updateAll()` override) ← `AyuGram/window/notifications_manager_default.cpp:486-490`
-
 # notification_manager_native — Linux DBus notification manager audit
 
 - [ ] [CRITICAL] `_buildImageHint` builds the RGBA image data by iterating every pixel and creating one `DBusByte` object per channel (16,384 individual DBus value objects for a 64×64 image), then wrapping them in `DBusArray`. AyuGram passes raw image bytes directly via `GLib::Variant::new_from_data(image.constBits(), image.sizeInBytes())` with no per-pixel allocation. The Dart loop will stall the async task for hundreds of milliseconds on every notification with a photo — `notification_manager_native.dart:582-600` ← `notifications_manager_linux.cpp:700-709`
