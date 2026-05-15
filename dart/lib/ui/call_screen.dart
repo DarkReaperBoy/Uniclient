@@ -1434,7 +1434,7 @@ Future<void> _showInviteMembersFromMenu(BuildContext context, {String callId = '
   if (selectedIds.isEmpty || !context.mounted) return;
 
   if (callId.isNotEmpty) {
-    await engine.inviteToGroupCall(accountId, callId, selectedIds.toList());
+    await engine.inviteToConferenceCall(accountId, callId, selectedIds.toList());
   }
 }
 

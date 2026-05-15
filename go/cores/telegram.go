@@ -130,8 +130,9 @@ type TelegramCore struct {
 	authErrCh       chan error    // auth error channel (for interactive flow)
 
 	// Call state
-	activeCalls map[int64]*tgCall       // callID → active call
-	pendingDH   map[int64]*pendingDHState // callID → DH exchange state
+	activeCalls   map[int64]*tgCall       // callID → active call
+	pendingDH     map[int64]*pendingDHState // callID → DH exchange state
+	confCallHash  map[int64]int64         // conference callID → accessHash (from CreateConferenceCall)
 
 	// Admin rank cache — chatID → userID → custom rank title (e.g. "admin", "owner", "Head Mod")
 	adminRanks        map[int64]map[int64]string
@@ -220,6 +221,7 @@ func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
 		adminRanksFetched:  make(map[int64]bool),
 		activeCalls:        make(map[int64]*tgCall),
 		pendingDH:          make(map[int64]*pendingDHState),
+		confCallHash:       make(map[int64]int64),
 		rawSigInInterceptors:  make(map[int64]func([]byte)),
 		rawSigOutInterceptors: make(map[int64]func([]byte)),
 	}
@@ -7227,16 +7229,29 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool) (*CallSe
 	// callDone is closed when the call ends, signaling all goroutines to exit
 	callDone := make(chan struct{})
 
-	// Resolve the chat and find the active group call
+	// Resolve the chat and find the active group call.
+	// If peer resolution fails, try interpreting chatID as a conference call ID.
+	var gcID int64
+	var gcAccessHash int64
 	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return nil, fmt.Errorf("resolve peer: %w", err)
-	}
-
-	// Get the full chat to find the group call
-	gcID, gcAccessHash, err := t.resolveGroupCall(peer)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		gcID, gcAccessHash, err = t.resolveGroupCall(peer)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		cid, parseErr := strconv.ParseInt(chatID, 10, 64)
+		if parseErr != nil {
+			return nil, fmt.Errorf("resolve peer: %w", err)
+		}
+		t.peerMu.RLock()
+		hash, ok := t.confCallHash[cid]
+		t.peerMu.RUnlock()
+		if !ok {
+			return nil, fmt.Errorf("resolve peer: %w (and no conference call found for ID %s)", err, chatID)
+		}
+		gcID = cid
+		gcAccessHash = hash
 	}
 
 	fmt.Printf("[tg-group] Found group call: id=%d video=%v\n", gcID, video)
@@ -22965,6 +22980,9 @@ func (t *TelegramCore) CreateConferenceCall() (string, string, error) {
 	for _, u := range upd.Updates {
 		if gc, ok := u.(*tg.UpdateGroupCall); ok {
 			if call, ok := gc.Call.(*tg.GroupCall); ok {
+				t.peerMu.Lock()
+				t.confCallHash[call.ID] = call.AccessHash
+				t.peerMu.Unlock()
 				callID := strconv.FormatInt(call.ID, 10)
 				link, _ := call.GetInviteLink()
 				return callID, link, nil
@@ -22972,6 +22990,44 @@ func (t *TelegramCore) CreateConferenceCall() (string, string, error) {
 		}
 	}
 	return "", "", fmt.Errorf("conference call created but no GroupCall found in updates")
+}
+
+// InviteToConferenceCall invites users to a conference/group call by call ID.
+func (t *TelegramCore) InviteToConferenceCall(callID string, userIDs []string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	cid, err := strconv.ParseInt(callID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid call ID %q: %w", callID, err)
+	}
+	t.peerMu.RLock()
+	hash, ok := t.confCallHash[cid]
+	t.peerMu.RUnlock()
+	if !ok {
+		return fmt.Errorf("no access hash for conference call %s", callID)
+	}
+	var users []tg.InputUserClass
+	for _, uid := range userIDs {
+		id, err := strconv.ParseInt(uid, 10, 64)
+		if err != nil {
+			continue
+		}
+		t.peerMu.RLock()
+		uHash := t.userAccessHash[id]
+		t.peerMu.RUnlock()
+		users = append(users, &tg.InputUser{UserID: id, AccessHash: uHash})
+	}
+	if len(users) == 0 {
+		return fmt.Errorf("no valid user IDs")
+	}
+	_, err = t.api.PhoneInviteToGroupCall(t.ctx, &tg.PhoneInviteToGroupCallRequest{
+		Call:  &tg.InputGroupCall{ID: cid, AccessHash: hash},
+		Users: users,
+	})
+	return err
 }
 
 // PhoneCreateGroupCall creates a new group call in a chat.

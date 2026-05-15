@@ -4474,6 +4474,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]string{"call_id": callID, "invite_link": inviteLink})
 
+	case "InviteToConferenceCall":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			CallID    string   `json:"call_id"`
+			UserIDs   []string `json:"user_ids"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.InviteToConferenceCall(params.AccountID, params.CallID, params.UserIDs); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	case "ClearCallHistory":
 		var req pb.EngineClearCallHistoryRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

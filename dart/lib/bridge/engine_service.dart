@@ -2016,16 +2016,16 @@ class EngineService {
     }
   }
 
-  Future<void> inviteToGroupCall(String accountId, String callId, List<String> userIds) async {
+  Future<void> inviteToConferenceCall(String accountId, String callId, List<String> userIds) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'call_id': callId,
       'user_ids': userIds,
     }));
     try {
-      await _callAsync('__engine', 'InviteToGroupCall', Uint8List.fromList(payload));
+      await _callAsync('__engine', 'InviteToConferenceCall', Uint8List.fromList(payload));
     } catch (e) {
-      Debug.error('ENGINE', 'inviteToGroupCall failed', e);
+      Debug.error('ENGINE', 'inviteToConferenceCall failed', e);
     }
   }
 

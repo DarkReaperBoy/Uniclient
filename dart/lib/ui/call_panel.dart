@@ -439,15 +439,14 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
         await engine.endCall(accountId, widget.info.callId);
       }
 
-      for (final userId in selectedIds) {
-        await engine.sendMessage(accountId, userId, result.inviteLink);
-      }
+      await engine.joinGroupCall(accountId, result.callId);
+      await engine.inviteToConferenceCall(accountId, result.callId, selectedIds.toList());
 
       if (mounted) {
         showConfirmBox(
           context,
           title: 'Invitations Sent',
-          text: 'Conference link sent to ${selectedIds.length} contact${selectedIds.length == 1 ? '' : 's'}.',
+          text: 'Invited ${selectedIds.length} contact${selectedIds.length == 1 ? '' : 's'} to conference call.',
           confirmText: 'Copy Link',
           onConfirm: () {
             Clipboard.setData(ClipboardData(text: result.inviteLink));
@@ -462,6 +461,9 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
         await engine.endCall(accountId, widget.info.callId);
       }
 
+      await engine.joinGroupCall(accountId, result.callId);
+
+      if (!mounted) return;
       showConfirmBox(
         context,
         title: 'Conference Call Created',

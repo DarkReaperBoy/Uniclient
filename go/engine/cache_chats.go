@@ -1541,6 +1541,24 @@ func (e *Engine) CreateConferenceCall(accountID string) (string, string, error) 
 	return cc.CreateConferenceCall()
 }
 
+func (e *Engine) InviteToConferenceCall(accountID, callID string, userIDs []string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type confInviter interface {
+		InviteToConferenceCall(callID string, userIDs []string) error
+	}
+	ci, ok := acc.Core.(confInviter)
+	if !ok {
+		return fmt.Errorf("conference call invites not supported by this platform")
+	}
+	return ci.InviteToConferenceCall(callID, userIDs)
+}
+
 func (e *Engine) SendCallRating(accountID, callID string, rating int, comment string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
