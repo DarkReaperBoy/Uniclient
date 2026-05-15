@@ -228,10 +228,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 
 
 
-## ayu_appearance_page — Font selector uses text-field search (fc-list/PowerShell) instead of QFontDatabase
-
-- [ ] [MAJOR] The Dart font picker populates its list by running `fc-list`, scanning macOS font directories, or invoking PowerShell. AyuGram uses `QFontDatabase::families()` via `AyuUi::PrepareFonts()`, which returns all fonts registered with the Qt font system — a superset of what fc-list provides and guaranteed to only list fonts the app can actually use. The Dart fallback list (`'Cascadia Mono'`, `'JetBrains Mono'`, etc.) is hardcoded fake data shown when fc-list fails. — `ayu_appearance_page.dart:594-619` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/boxes/font_selector.cpp:204-219`
-
 ## ayu_appearance_page — Avatar corners preview uses EmptyUserpic as a plain colored Container (wrong shape)
 
 - [ ] [MAJOR] When no avatar is loaded, the Dart fallback renders a rectangular `Container` with a color fill (line 416-426). AyuGram's `AvatarCornersPreview` calls `_emptyUserpic.paintCircle(...)` (line 63 of avatar_corners_preview.cpp), which always paints a circle as the empty userpic, unaffected by the corners setting. The Dart container is rectangular and is then clipped by `ClipRRect` with the corners radius — so at corners=0 it shows a square fallback, but AyuGram always shows a circle for the EmptyUserpic regardless of corners value. — `ayu_appearance_page.dart:416-427` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/components/avatar_corners_preview.cpp:63`
