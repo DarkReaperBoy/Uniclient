@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../version.g.dart';
 import '../theme/theme_tokens.dart';
 import 'ayu_appearance_page.dart';
 import 'ayu_chats_page.dart';
@@ -93,7 +94,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
 
           Center(
             child: Text(
-              'AyuGram Desktop v${_appVersion()}',
+              'AyuGram Desktop v$appVersionString',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -205,7 +206,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
             onTap: () => _openUrl('https://translate.ayugram.one'),
           ),
           _LinkButton(
-            icon: Icons.travel_explore,
+            icon: Icons.dns,
             label: 'Documentation',
             rightLabel: 'docs.ayugram.one',
             isDark: isDark,
@@ -281,17 +282,6 @@ class AyuGramSettingsScreen extends StatelessWidget {
     });
   }
 
-  static String _appVersion() {
-    const version =
-        String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
-    const stage =
-        String.fromEnvironment('APP_STAGE', defaultValue: '');
-    const stageNum =
-        String.fromEnvironment('APP_STAGE_NUM', defaultValue: '');
-    if (stage.isEmpty) return version;
-    if (stageNum.isEmpty) return '$version-$stage';
-    return '$version-$stage.$stageNum';
-  }
 }
 
 class _FlatCategoryButton extends StatelessWidget {

@@ -436,10 +436,14 @@ class _SupportDescriptionState extends State<_SupportDescription> {
 class _DonateInfoBox extends StatefulWidget {
   final bool isDark;
 
-  static const _donateAmountUsd = '5';
-  static const _donateAmountTon = '10';
-  static const _donateAmountRub = '300';
-  static const _donateUsername = 'RadianceTG';
+  static const _donateAmountUsd =
+      String.fromEnvironment('DONATE_AMOUNT_USD', defaultValue: '5');
+  static const _donateAmountTon =
+      String.fromEnvironment('DONATE_AMOUNT_TON', defaultValue: '10');
+  static const _donateAmountRub =
+      String.fromEnvironment('DONATE_AMOUNT_RUB', defaultValue: '300');
+  static const _donateUsername =
+      String.fromEnvironment('DONATE_USERNAME', defaultValue: 'RadianceTG');
 
   const _DonateInfoBox({required this.isDark});
 
