@@ -193,12 +193,6 @@ The preview will give users an inaccurate impression of how their theme will act
 
 # admin_tools — Audit Findings
 
-## admin_tools — _EditPeerInfoBox
-
-- [ ] [MAJOR] Bot manage section is missing "Verify Accounts" button. `_buildBotManageSection` was added with 7 buttons (Public Links, Currency Balance, Credits Balance, Affiliate Program, Edit Intro, Edit Commands, Edit Settings) but `fillBotVerifyAccounts` is absent. Add a "Verify Accounts" _EditRow to `_buildBotManageSection` in admin_tools.dart — `admin_tools.dart:1081-1153` ← `edit_peer_info_box.cpp:1391-1422` (`fillBotVerifyAccounts`)
-
-- [ ] [MAJOR] Auto-translate toggle shows a toast instead of a boost box when boost level is insufficient. The dynamic level fetch from server (`flags['auto_translate_min_level']`) IS fixed. But `_toggleAutoTranslate` still calls `showTelegramToast()` instead of showing an interactive `AskBoostBox` dialog that lets the user boost the channel in-place — `admin_tools.dart:794-798` ← `edit_peer_info_box.cpp:1221-1268` (`CheckBoostLevel` / `AskBoostBox`)
-
 ## admin_tools — _EditPeerPermissionsBox
 
 - [ ] [MAJOR] `_onSave()` calls both `setDefaultBannedRights` AND `setSlowMode` separately (lines 1498-1499). AyuGram calls `SaveDefaultRestrictions` (which sends `messages.editChatDefaultBannedRights`) and `SaveSlowmodeSeconds` (which sends `channels.toggleSlowMode`) AND `SaveBoostsUnrestrict` (which sends `channels.setBoostsToUnblockRestrictions`) AND `SaveStarsPerMessage` (which sends `channels.updatePaidMessagesPrice`) as separate calls. The Dart save does NOT call `setBoostsUnrestrict` as a separate engine method — `boosts_unrestrict` is bundled into `setDefaultBannedRights` map which is not how the Telegram API works. The boosts-unrestrict and stars-per-message saves may silently fail — `admin_tools.dart:1486-1507` ← `edit_peer_info_box.cpp:310-337` (`ShowEditPermissions` with four separate API calls)
