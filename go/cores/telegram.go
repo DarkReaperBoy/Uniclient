@@ -12484,8 +12484,8 @@ func (t *TelegramCore) GetActiveSessions() ([]ActiveSession, error) {
 		sessions = append(sessions, ActiveSession{
 			Hash:            a.Hash,
 			Device:          a.DeviceModel,
-			Platform:        a.SystemVersion,
-			SystemName:      a.Platform,
+			Platform:        a.Platform,
+			SystemName:      a.SystemVersion,
 			AppName:         a.AppName,
 			AppVersion:      a.AppVersion,
 			IP:              a.IP,

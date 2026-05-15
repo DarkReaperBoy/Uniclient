@@ -712,12 +712,16 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               final text = controller.text.trim();
-              appState.customDeviceModel = text;
-              engine.setCustomDeviceModel(appState.activeAccountId, text);
-              if (mounted) setState(() {});
               Navigator.pop(ctx);
+              try {
+                await engine.setCustomDeviceModel(appState.activeAccountId, text);
+                appState.customDeviceModel = text;
+                if (mounted) setState(() {});
+              } catch (_) {
+                // Engine call failed — don't update local state
+              }
             },
             child: const Text('Save'),
           ),
@@ -730,11 +734,13 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     if (dateStr == null || dateStr.isEmpty) return '';
     try {
       final date = DateTime.parse(dateStr);
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      final h = date.hour.toString().padLeft(2, '0');
-      final m = date.minute.toString().padLeft(2, '0');
-      return '${months[date.month - 1]} ${date.day}, ${date.year} at $h:$m';
+      final localizations = MaterialLocalizations.of(context);
+      final dateFormatted = localizations.formatFullDate(date);
+      final timeFormatted = localizations.formatTimeOfDay(
+        TimeOfDay.fromDateTime(date),
+        alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+      );
+      return '$dateFormatted at $timeFormatted';
     } catch (_) {
       return dateStr ?? '';
     }
@@ -827,7 +833,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   SliverToBoxAdapter(
                     child: _buildOtherSectionFooter(dividerColor, subtextColor),
                   ),
-                if (otherSessions.isEmpty && incompleteSessions.isEmpty)
+                if (otherSessions.isEmpty)
                   SliverToBoxAdapter(
                     child: _buildEmptyPlaceholder(subtextColor),
                   ),
@@ -1253,9 +1259,22 @@ class _DeviceUserpicBigState extends State<_DeviceUserpicBig> with SingleTickerP
   }
 
   void _onLottieLoaded(LottieComposition composition) {
-    _lottieController
-      ?..duration = composition.duration
-      ..forward();
+    _lottieController?.duration = composition.duration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final route = ModalRoute.of(context);
+      if (route?.animation?.isCompleted == true) {
+        _lottieController?.forward();
+      } else {
+        void listener(AnimationStatus status) {
+          if (status == AnimationStatus.completed && mounted) {
+            _lottieController?.forward();
+            route?.animation?.removeStatusListener(listener);
+          }
+        }
+        route?.animation?.addStatusListener(listener);
+      }
+    });
   }
 
   @override
@@ -1279,8 +1298,8 @@ class _DeviceUserpicBigState extends State<_DeviceUserpicBig> with SingleTickerP
               lottieAsset,
               controller: _lottieController,
               onLoaded: _onLottieLoaded,
-              width: size * 0.62,
-              height: size * 0.62,
+              width: 52,
+              height: 52,
               fit: BoxFit.contain,
               delegates: LottieDelegates(
                 values: [
