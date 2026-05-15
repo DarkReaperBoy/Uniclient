@@ -326,7 +326,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       },
                     ),
                     // §3.4 + §25.15.10: Night Mode row, hideable via AyuGram prefs.
-                    if (appState.showDrawerThemeToggle)
+                    if (appState.showNightModeToggleInDrawer)
                     _MenuRow(
                       icon: Icons.nightlight_round,
                       label: appState.systemDarkModeEnabled

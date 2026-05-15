@@ -2690,8 +2690,8 @@ class _ReplyPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rp = context.palette;
-    final simpleQuotes = context.watch<AppState>().simpleQuotes;
-    final barColor = simpleQuotes
+    final simpleQuotesAndReplies = context.watch<AppState>().simpleQuotesAndReplies;
+    final barColor = simpleQuotesAndReplies
         ? (theme.brightness == Brightness.dark
             ? const Color(0xFF5A6A78)
             : const Color(0xFFCBCBCB))

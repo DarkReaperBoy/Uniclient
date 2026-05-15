@@ -276,12 +276,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String _customFontFamily = 'Inter';
   String _appIcon = '';
   String _customDeviceModel = '';
-  bool _simpleQuotes = false;
+  bool _replaceBottomInfoWithIcons = true;
+  bool _adaptiveCoverColor = true;
+  bool _simpleQuotesAndReplies = false;
   bool _semiTransparentDeleted = false;
   double _wideMultiplier = 1.0; // §54.3: 1.00–4.00 in 0.05 steps
   double _uiScalePercent = 100.0; // §14.4 / §57: Interface scale, 100–300%
   double _ivZoom = 1.0;
-  bool _showDrawerThemeToggle = true;
+  bool _showNightModeToggleInDrawer = true;
 
   // §54.8: Per-item drawer visibility toggles (all default true).
   bool _showMyProfileInDrawer = true;
@@ -308,13 +310,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // §51.1: Ghost Mode per-account settings. Key "0" is global; other keys are user IDs.
   bool _useGlobalGhostMode = true;
   Map<String, GhostModeAccountSettings> _ghostModeSettings = {'0': GhostModeAccountSettings()};
-  int _showViewsPanelInContextMenu = 0; // 0=visible, 1=hidden, 2=visibleWithModifier
-  int _showRepeatMessageInContextMenu = 1; // 0=visible, 1=hidden, 2=visibleWithModifier (default: hidden per §53.3)
-  int _showReactionsPanelInContextMenu = 0;
-  int _showHideMessageInContextMenu = 1;
+  int _showViewsPanelInContextMenu = 1; // 0=hidden, 1=visible, 2=visibleWithModifier
+  int _showRepeatMessageInContextMenu = 0; // 0=hidden, 1=visible, 2=visibleWithModifier (default: hidden per §53.3)
+  int _showReactionsPanelInContextMenu = 1;
+  int _showHideMessageInContextMenu = 0;
   int _showUserMessagesInContextMenu = 2;
   int _showMessageDetailsInContextMenu = 2;
-  int _showAddFilterInContextMenu = 0;
+  int _showAddFilterInContextMenu = 1;
   bool _showMessageSeconds = false;
 
   // §54.14: AyuGram General settings.
@@ -327,7 +329,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _filterZalgo = false;
   bool _improveLinkPreviews = false;
   int _showPeerId = 2; // 0=Hide, 1=Telegram API, 2=Bot API
-  bool _spoofClientAsAndroid = false;
+  bool _spoofWebviewAsAndroid = false;
   bool _increaseContentHeight = false;
   bool _increaseContentWidth = false;
   bool _confirmStickers = false;
@@ -530,13 +532,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get notifIncludeMutedInFolders => _notifIncludeMutedInFolders;
   bool get notifCountUnreadMessages => _notifCountUnreadMessages;
   String get appIcon => _appIcon;
-  bool get simpleQuotes => _simpleQuotes;
+  bool get replaceBottomInfoWithIcons => _replaceBottomInfoWithIcons;
+  bool get adaptiveCoverColor => _adaptiveCoverColor;
+  bool get simpleQuotesAndReplies => _simpleQuotesAndReplies;
   bool get semiTransparentDeleted => _semiTransparentDeleted;
   double get wideMultiplier => _wideMultiplier;
   double get uiScalePercent => _uiScalePercent;
   double get uiScaleFactor => _uiScalePercent / 100.0;
   double get ivZoom => _ivZoom;
-  bool get showDrawerThemeToggle => _showDrawerThemeToggle;
+  bool get showNightModeToggleInDrawer => _showNightModeToggleInDrawer;
 
   // §54.8: Per-item drawer visibility getters.
   bool get showMyProfileInDrawer => _showMyProfileInDrawer;
@@ -688,7 +692,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get filterZalgo => _filterZalgo;
   bool get improveLinkPreviews => _improveLinkPreviews;
   int get showPeerId => _showPeerId;
-  bool get spoofClientAsAndroid => _spoofClientAsAndroid;
+  bool get spoofWebviewAsAndroid => _spoofWebviewAsAndroid;
   bool get increaseContentHeight => _increaseContentHeight;
   bool get increaseContentWidth => _increaseContentWidth;
   bool get confirmStickers => _confirmStickers;
@@ -906,9 +910,23 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
-  void setSimpleQuotes(bool v) {
-    if (_simpleQuotes == v) return;
-    _simpleQuotes = v;
+  void setReplaceBottomInfoWithIcons(bool v) {
+    if (_replaceBottomInfoWithIcons == v) return;
+    _replaceBottomInfoWithIcons = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setAdaptiveCoverColor(bool v) {
+    if (_adaptiveCoverColor == v) return;
+    _adaptiveCoverColor = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setSimpleQuotesAndReplies(bool v) {
+    if (_simpleQuotesAndReplies == v) return;
+    _simpleQuotesAndReplies = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -946,9 +964,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
-  void setShowDrawerThemeToggle(bool v) {
-    if (_showDrawerThemeToggle == v) return;
-    _showDrawerThemeToggle = v;
+  void setShowNightModeToggleInDrawer(bool v) {
+    if (_showNightModeToggleInDrawer == v) return;
+    _showNightModeToggleInDrawer = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1354,10 +1372,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _hideAllChatsFolder = false;
     _hideNotificationBadge = false;
     _appIcon = '';
-    _simpleQuotes = false;
+    _replaceBottomInfoWithIcons = true;
+    _adaptiveCoverColor = true;
+    _simpleQuotesAndReplies = false;
     _semiTransparentDeleted = false;
     _wideMultiplier = 1.0;
-    _showDrawerThemeToggle = true;
+    _showNightModeToggleInDrawer = true;
     _showMyProfileInDrawer = true;
     _showBotsInDrawer = true;
     _showNewGroupInDrawer = true;
@@ -1373,13 +1393,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _showSReadToggleInDrawer = true;
     _useGlobalGhostMode = true;
     _ghostModeSettings = {'0': GhostModeAccountSettings()};
-    _showViewsPanelInContextMenu = 0;
-    _showRepeatMessageInContextMenu = 1;
-    _showReactionsPanelInContextMenu = 0;
-    _showHideMessageInContextMenu = 1;
+    _showViewsPanelInContextMenu = 1;
+    _showRepeatMessageInContextMenu = 0;
+    _showReactionsPanelInContextMenu = 1;
+    _showHideMessageInContextMenu = 0;
     _showUserMessagesInContextMenu = 2;
     _showMessageDetailsInContextMenu = 2;
-    _showAddFilterInContextMenu = 0;
+    _showAddFilterInContextMenu = 1;
     _showMessageSeconds = false;
     _translationProvider = 0;
     _disableStories = false;
@@ -1390,7 +1410,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _filterZalgo = false;
     _improveLinkPreviews = false;
     _showPeerId = 2;
-    _spoofClientAsAndroid = false;
+    _spoofWebviewAsAndroid = false;
     _increaseContentHeight = false;
     _increaseContentWidth = false;
     _confirmStickers = false;
@@ -1604,9 +1624,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _saveWindowPrefs();
   }
-  void setSpoofClientAsAndroid(bool v) {
-    if (_spoofClientAsAndroid == v) return;
-    _spoofClientAsAndroid = v;
+  void setSpoofWebviewAsAndroid(bool v) {
+    if (_spoofWebviewAsAndroid == v) return;
+    _spoofWebviewAsAndroid = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -3058,12 +3078,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _customFontFamily = data['customFontFamily'] as String? ?? 'Inter';
       _customDeviceModel = data['customDeviceModel'] as String? ?? '';
       _appIcon = data['appIcon'] as String? ?? '';
-      _simpleQuotes = data['simpleQuotes'] as bool? ?? false;
+      _replaceBottomInfoWithIcons = data['replaceBottomInfoWithIcons'] as bool? ?? true;
+      _adaptiveCoverColor = data['adaptiveCoverColor'] as bool? ?? true;
+      _simpleQuotesAndReplies = data['simpleQuotesAndReplies'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
       _wideMultiplier = (data['wideMultiplier'] as num?)?.toDouble() ?? 1.0;
       _uiScalePercent = (data['uiScalePercent'] as num?)?.toDouble() ?? 100.0;
       _ivZoom = (data['ivZoom'] as num?)?.toDouble() ?? 1.0;
-      _showDrawerThemeToggle = data['showDrawerThemeToggle'] as bool? ?? true;
+      _showNightModeToggleInDrawer = data['showNightModeToggleInDrawer'] as bool? ?? true;
       // §54.8: Per-item drawer visibility.
       _showMyProfileInDrawer = data['showMyProfileInDrawer'] as bool? ?? true;
       _showBotsInDrawer = data['showBotsInDrawer'] as bool? ?? true;
@@ -3108,13 +3130,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           ),
         };
       }
-      _showViewsPanelInContextMenu = data['showViewsPanelInContextMenu'] as int? ?? 0;
-      _showRepeatMessageInContextMenu = data['showRepeatMessageInContextMenu'] as int? ?? 1;
-      _showReactionsPanelInContextMenu = data['showReactionsPanelInContextMenu'] as int? ?? 0;
-      _showHideMessageInContextMenu = data['showHideMessageInContextMenu'] as int? ?? 1;
+      _showViewsPanelInContextMenu = data['showViewsPanelInContextMenu'] as int? ?? 1;
+      _showRepeatMessageInContextMenu = data['showRepeatMessageInContextMenu'] as int? ?? 0;
+      _showReactionsPanelInContextMenu = data['showReactionsPanelInContextMenu'] as int? ?? 1;
+      _showHideMessageInContextMenu = data['showHideMessageInContextMenu'] as int? ?? 0;
       _showUserMessagesInContextMenu = data['showUserMessagesInContextMenu'] as int? ?? 2;
       _showMessageDetailsInContextMenu = data['showMessageDetailsInContextMenu'] as int? ?? 2;
-      _showAddFilterInContextMenu = data['showAddFilterInContextMenu'] as int? ?? 0;
+      _showAddFilterInContextMenu = data['showAddFilterInContextMenu'] as int? ?? 1;
       _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
       // §54.14: AyuGram General settings.
       _translationProvider = data['translationProvider'] as int? ?? 0;
@@ -3126,7 +3148,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _filterZalgo = data['filterZalgo'] as bool? ?? false;
       _improveLinkPreviews = data['improveLinkPreviews'] as bool? ?? false;
       _showPeerId = data['showPeerId'] as int? ?? 2;
-      _spoofClientAsAndroid = data['spoofClientAsAndroid'] as bool? ?? false;
+      _spoofWebviewAsAndroid = data['spoofWebviewAsAndroid'] as bool? ?? false;
       _increaseContentHeight = data['increaseContentHeight'] as bool? ?? false;
       _increaseContentWidth = data['increaseContentWidth'] as bool? ?? false;
       _confirmStickers = data['confirmStickers'] as bool? ?? false;
@@ -3304,12 +3326,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'customFontFamily': _customFontFamily,
         'customDeviceModel': _customDeviceModel,
         'appIcon': _appIcon,
-        'simpleQuotes': _simpleQuotes,
+        'replaceBottomInfoWithIcons': _replaceBottomInfoWithIcons,
+        'adaptiveCoverColor': _adaptiveCoverColor,
+        'simpleQuotesAndReplies': _simpleQuotesAndReplies,
         'semiTransparentDeleted': _semiTransparentDeleted,
         'wideMultiplier': _wideMultiplier,
         'uiScalePercent': _uiScalePercent,
         'ivZoom': _ivZoom,
-        'showDrawerThemeToggle': _showDrawerThemeToggle,
+        'showNightModeToggleInDrawer': _showNightModeToggleInDrawer,
         'showMyProfileInDrawer': _showMyProfileInDrawer,
         'showBotsInDrawer': _showBotsInDrawer,
         'showNewGroupInDrawer': _showNewGroupInDrawer,
@@ -3342,7 +3366,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'filterZalgo': _filterZalgo,
         'improveLinkPreviews': _improveLinkPreviews,
         'showPeerId': _showPeerId,
-        'spoofClientAsAndroid': _spoofClientAsAndroid,
+        'spoofWebviewAsAndroid': _spoofWebviewAsAndroid,
         'increaseContentHeight': _increaseContentHeight,
         'increaseContentWidth': _increaseContentWidth,
         'confirmStickers': _confirmStickers,

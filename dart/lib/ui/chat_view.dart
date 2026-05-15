@@ -2194,7 +2194,7 @@ class _ChatViewState extends State<ChatView>
   }
 
   bool _checkMenuVisibility(int mode) {
-    if (mode == 1) return false;
+    if (mode == 0) return false;
     if (mode == 2) {
       final keys = HardwareKeyboard.instance.logicalKeysPressed;
       return keys.contains(LogicalKeyboardKey.controlLeft) ||

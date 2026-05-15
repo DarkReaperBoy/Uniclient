@@ -175,8 +175,8 @@ class AyuAppearancePage extends StatelessWidget {
     b.addSettingToggle(
       label: 'Night Mode',
       subtitle: 'Show Night Mode toggle in drawer',
-      value: appState.showDrawerThemeToggle,
-      onChanged: (v) => appState.setShowDrawerThemeToggle(v),
+      value: appState.showNightModeToggleInDrawer,
+      onChanged: (v) => appState.setShowNightModeToggleInDrawer(v),
     );
     b.addSettingToggle(
       label: 'Ghost Mode',

@@ -137,10 +137,10 @@ class AyuGeneralPage extends StatelessWidget {
     b.addSectionTitle('Webview');
 
     b.addSettingToggle(
-      label: 'Spoof Client as Android',
+      label: 'Spoof Webview as Android',
       subtitle: 'Webview reports as Android for mobile-only bot apps',
-      value: appState.spoofClientAsAndroid,
-      onChanged: (v) => appState.setSpoofClientAsAndroid(v),
+      value: appState.spoofWebviewAsAndroid,
+      onChanged: (v) => appState.setSpoofWebviewAsAndroid(v),
     );
 
     b.addCollapsibleToggle(

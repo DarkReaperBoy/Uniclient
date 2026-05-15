@@ -106,7 +106,7 @@ class AyuChatsPage extends StatelessWidget {
     b.addWidget(_BubbleRadiusSection(
       value: appState.bubbleRadius,
       showTail: !appState.removeTail,
-      simpleQuotes: appState.simpleQuotes,
+      simpleQuotesAndReplies: appState.simpleQuotesAndReplies,
       semiTransparentDeleted: appState.semiTransparentDeleted,
       replaceMarksWithIcons: appState.replaceMarksWithIcons,
       deletedMark: appState.deletedMark,
@@ -123,8 +123,8 @@ class AyuChatsPage extends StatelessWidget {
     b.addSettingToggle(
       label: 'Simple quotes and replies',
       subtitle: 'Uniform reply bar style without colorful accents',
-      value: appState.simpleQuotes,
-      onChanged: (v) => appState.setSimpleQuotes(v),
+      value: appState.simpleQuotesAndReplies,
+      onChanged: (v) => appState.setSimpleQuotesAndReplies(v),
     );
 
     b.addSectionDivider();
@@ -139,7 +139,7 @@ class AyuChatsPage extends StatelessWidget {
       b.addChooseButton(
         label: item.label,
         value: item.value,
-        items: const {0: 'Shown', 1: 'Hidden', 2: 'Extended Menu'},
+        items: const {0: 'Hidden', 1: 'Shown', 2: 'Extended Menu'},
         onChanged: item.onChanged,
       );
     }
@@ -357,7 +357,7 @@ class _WideMultiplierSliderState extends State<_WideMultiplierSlider> {
 class _BubbleRadiusSection extends StatefulWidget {
   final int value;
   final bool showTail;
-  final bool simpleQuotes;
+  final bool simpleQuotesAndReplies;
   final bool semiTransparentDeleted;
   final bool replaceMarksWithIcons;
   final String deletedMark;
@@ -368,7 +368,7 @@ class _BubbleRadiusSection extends StatefulWidget {
   const _BubbleRadiusSection({
     required this.value,
     required this.showTail,
-    required this.simpleQuotes,
+    required this.simpleQuotesAndReplies,
     required this.semiTransparentDeleted,
     required this.replaceMarksWithIcons,
     required this.deletedMark,
@@ -479,7 +479,7 @@ class _BubbleRadiusSectionState extends State<_BubbleRadiusSection> {
           radiusLarge: radiusLarge,
           radiusSmall: radiusSmall,
           showTail: widget.showTail,
-          simpleQuotes: widget.simpleQuotes,
+          simpleQuotesAndReplies: widget.simpleQuotesAndReplies,
           semiTransparentDeleted: widget.semiTransparentDeleted,
           replaceMarksWithIcons: widget.replaceMarksWithIcons,
           deletedMark: widget.deletedMark,
@@ -495,7 +495,7 @@ class _MessagePreview extends StatelessWidget {
   final double radiusLarge;
   final double radiusSmall;
   final bool showTail;
-  final bool simpleQuotes;
+  final bool simpleQuotesAndReplies;
   final bool semiTransparentDeleted;
   final bool replaceMarksWithIcons;
   final String deletedMark;
@@ -506,7 +506,7 @@ class _MessagePreview extends StatelessWidget {
     required this.radiusLarge,
     required this.radiusSmall,
     required this.showTail,
-    required this.simpleQuotes,
+    required this.simpleQuotesAndReplies,
     required this.semiTransparentDeleted,
     required this.replaceMarksWithIcons,
     required this.deletedMark,
@@ -522,10 +522,10 @@ class _MessagePreview extends StatelessWidget {
         isDark ? Colors.white.withValues(alpha: 0.87) : Colors.black87;
     final metaColor =
         isDark ? const Color(0xFF6D8DA0) : const Color(0xFF5E9E5E);
-    final quoteBarColor = simpleQuotes
+    final quoteBarColor = simpleQuotesAndReplies
         ? (isDark ? const Color(0xFF65B9F4) : const Color(0xFF168ACD))
         : const Color(0xFF4FAD2D);
-    final quoteNameColor = simpleQuotes
+    final quoteNameColor = simpleQuotesAndReplies
         ? (isDark ? const Color(0xFF65B9F4) : const Color(0xFF168ACD))
         : const Color(0xFF4FAD2D);
     final deletedOpacity = semiTransparentDeleted ? 0.7 : 1.0;
@@ -625,7 +625,7 @@ class _MessagePreview extends StatelessWidget {
                             left: BorderSide(
                                 width: 2, color: quoteBarColor),
                           ),
-                          color: simpleQuotes
+                          color: simpleQuotesAndReplies
                               ? Colors.transparent
                               : quoteBarColor.withValues(alpha: 0.1),
                           borderRadius: const BorderRadius.only(
