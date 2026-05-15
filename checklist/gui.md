@@ -253,43 +253,15 @@ This blocks users from accessing 4 major customization features that are fully i
 - Settings definitions: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/ayu/ayu_settings.h:276,300-302,452-453,500-505,622,645-647`
 - MessagePreview impl: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/ayu/ui/components/message_preview.cpp:52-235`
 
-# ayu_filters_page — Audit vs AyuGram Desktop
-
-- [ ] [CRITICAL] `RegexFilter.fromJson()` casts `dialogId` as `String?` but AyuGram Desktop exports it as a JSON integer — importing AyuGram Desktop filter backups throws uncaught `TypeError` which silently closes the import dialog with no error shown — `dart/lib/data/ayu_filter.dart:60` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/features/filters/filters_utils.cpp:477` (`filterJson["dialogId"] = item.dialogId.value()` — long long → JSON number). Same applies to `RegexFilterExclusion.fromJson()` for the `dialogId` field — `dart/lib/data/ayu_filter.dart:82` ← `filters_utils.cpp:443` (`json["dialogId"] = dialogId`). The `_doImport` catch at `ayu_filters_page.dart:1619` only catches `FormatException`, not `TypeError`.
-
-- [ ] [MAJOR] "Clear All" in Dart also wipes shadow ban IDs (`ayu_filters_page.dart:247-249`), but C++ `AyuDatabase::deleteAllFilters()` + `deleteAllExclusions()` does NOT touch shadow ban IDs — `ayu_filters_page.dart:244-250` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_filters.cpp:244-245`.
-
-- [ ] [MAJOR] `File(_avatarPath!).existsSync()` is a blocking synchronous filesystem syscall called twice per build in `_ShadowBanRowState.build()` — should be cached as a `bool _avatarExists` state field updated in `setState` when `_avatarPath` changes — `ayu_filters_page.dart:1114,1117`.
-
 # ayugram_settings_screen — AyuGram Settings Main Screen
 
 - [ ] [CRITICAL] App version hardcoded to `'0.1.0'` — `String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0')` returns the default unless `--dart-define=APP_VERSION=...` is passed at build time, so release builds without that flag always display `v0.1.0` — `ayugram_settings_screen.dart:272` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_main.cpp:74` (`AppVersionStr` from `core/version.h`, always correct)
 
-- [ ] [MAJOR] Logo icon rendered 16% too small — Dart applies `EdgeInsets.all(12)` inside the 100×100 `SizedBox`, leaving only 76×76 for the image; C++ bakes 12px padding into a 256×256 image then scales to 100px, so the effective padding is only ~4.7px per side (icon fills ~90.6px) — `ayugram_settings_screen.dart:70` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/ayu_logo.cpp:99` (`CreateImage(..., Size(256), 12)`) + `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_main.cpp:54-60`
+- [ ] [MAJOR] "Documentation" link button uses wrong icon — `Icons.travel_explore` (globe) instead of `menuIconIpAddress` — `ayugram_settings_screen.dart:208` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_main.cpp:178` (`icon = { &st::menuIconIpAddress }`)
 
-- [ ] [MAJOR] "AyuGram" category button uses wrong icon — `Icons.emoji_emotions` instead of `menuIconGroupReactions` — `ayugram_settings_screen.dart:135` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_main.cpp:106` (`icon = { &st::menuIconGroupReactions }`)
-
-- [ ] [MAJOR] "General" category button uses wrong icon — `Icons.visibility` (eye) instead of `menuIconShowAll` — `ayugram_settings_screen.dart:147` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_main.cpp:116` (`icon = { &st::menuIconShowAll }`)
-
-- [ ] [MAJOR] "Channel" link button uses wrong icon — `Icons.podcasts` instead of `menuIconChannel` — `ayugram_settings_screen.dart:187` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_main.cpp:147` (`icon = { &st::menuIconChannel }`)
-
-- [ ] [MAJOR] "Documentation" link button uses wrong icon — `Icons.language` (globe) instead of `menuIconIpAddress` — `ayugram_settings_screen.dart:208` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_main.cpp:178` (`icon = { &st::menuIconIpAddress }`)
-
-- [ ] [MAJOR] `_navigateToPeer` gives no user feedback during async resolve — tapping Channel/Chats links shows nothing while `engine.resolveUsername()` is in-flight; C++ calls `controller->showPeerByLink()` synchronously from cached data with immediate navigation — `ayugram_settings_screen.dart:259` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_main.cpp:150-153` (`showPeerByLink(Window::PeerByLinkInfo{...})`)
-
-# ayu_other_page — 6 issues found
-
-- [ ] [CRITICAL] Donate button icon background colors swapped: AyuGram uses `0xEEEEEE` (light) in night/dark mode and `0x242B2C` (dark) in day/light mode so icons stand out against the app background, but Dart reverses this (dark bg in dark mode, light bg in light mode) — `ayu_other_page.dart:297-299` ← `settings_other.cpp:53`
-
-- [ ] [CRITICAL] "Contact support" link opens wrong target: tapping it should open `tg://support` (Telegram support chat via URL scheme), but the Dart `_SupportDescription` binds the recognizer to `_showDonateInfoBox`, showing an unrelated donation dialog instead — `ayu_other_page.dart:85` ← `settings_other.cpp:165`
-
-- [ ] [CRITICAL] `@username` in `_DonateInfoBox` is not tappable: rendered as colored text (`TextSpan` with `color: accentColor`) but has no `recognizer`, so the user cannot tap it to open the profile; AyuGram creates a proper internal Telegram link via `controller->session().createInternalLinkFull()` — `ayu_other_page.dart:493-500` ← `donate_info_box.cpp:203-221`
+# ayu_other_page — 1 remaining issue
 
 - [ ] [MAJOR] Donate amounts and username hardcoded as compile-time constants (`_donateAmountUsd = '5'`, `_donateAmountTon = '10'`, `_donateAmountRub = '300'`, `_donateUsername = 'RadianceTG'`) instead of being read from RCManager remote config; AyuGram fetches these dynamically and they can change server-side — `ayu_other_page.dart:437-440` ← `donate_info_box.cpp:179-203` + `rc_manager.h:64-78`
-
-- [ ] [MAJOR] Crash reporting toggle rendered without an icon; AyuGram specifies `.icon = { &st::menuIconReport }` on the toggle, but the Dart `addSettingToggle` call omits any icon parameter — `ayu_other_page.dart:92-97` ← `settings_other.cpp:189`
-
-- [ ] [MAJOR] QR code eye modules rendered in `accentColor` instead of black; AyuGram generates the entire QR with `Qt::black` data and eye modules (`Qr::Generate(data, pixel, Qt::black, Qt::white)`), giving a plain monochrome code — `ayu_other_page.dart:628-629` ← `donate_qr_box.cpp:47`
 
 # ayu_section_builder — Audit Findings
 
