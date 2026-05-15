@@ -38,11 +38,6 @@ The FFI/WASM bridge implementation is production-quality with no critical, major
 
 **Status: READY FOR PRODUCTION** ✓
 
-# web_drop_web — Web drag-drop zone (web platform)
-
-- [ ] [MAJOR] `_handleDrop` returns early without calling `onDrop` or `onDragLeave` when `dt.files.length == 0` (e.g. user drops a URL, link, or text selection). `_active` and `_enterCount` are reset internally but the caller's overlay (`_dragOverlayAnimCtrl` in `chat_view.dart`) only dismisses itself inside the `onDrop` callback — so the drag overlay stays permanently visible until the user does another drag-out. AyuGram unconditionally hides both drag areas on every drop event before inspecting the payload — `web_drop_web.dart:137` ← `history_drag_area.cpp:209-215`
-
-- [ ] [MAJOR] `_readFiles` only calls `onDrop` when `results.isNotEmpty` (line 162). If every file in the drop throws during `FileReader.readAsArrayBuffer` (all caught at line 158), `results` stays empty and `onDrop` is never called. Same overlay-stuck problem as above — `web_drop_web.dart:162` ← `history_drag_area.cpp:209-215`
 
 # notification_manager_default — Audit
 
