@@ -122,10 +122,6 @@ This FFI bridge is a well-engineered, production-ready implementation with no cr
 
 # chat_state — Audit
 
-## chat_state — Recent sublists count wrong (6 vs 5)
-
-- [ ] [MAJOR] `_kRecentSublistsMax = 6` but AyuGram uses `kShowSublistNamesCount = 5` for the "recent sublists" shown in the Saved Messages header (e.g. sublist name chips). The Dart constant shows one extra slot that never appears in the real app — `chat_state.dart:112` ← `data/data_saved_messages.cpp:35`
-
 ## chat_state — openChatById crashes on empty chat list
 
 - [ ] [MAJOR] `openChatById` uses `orElse: () => _chats.first` which throws `StateError: No element` when `_chats` is empty (e.g. called from `joinChannel` before chats have loaded). The follow-up guard `if (chat.chatId == chatId)` never executes because the exception is thrown first — `chat_state.dart:1051-1053` ← `data/data_histories.cpp` (no AyuGram analogue: they avoid this pattern entirely by resolving peers through the data session before opening a chat)
