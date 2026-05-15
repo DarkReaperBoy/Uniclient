@@ -2593,7 +2593,6 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
   String? _error;
   _BanDuration _duration = _BanDuration.forever;
   DateTime? _customDate;
-  late final TextEditingController _rankCtrl;
 
   late AnimationController _expandCtrl;
   late Animation<double> _expandAnim;
@@ -2611,7 +2610,6 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
   @override
   void initState() {
     super.initState();
-    _rankCtrl = TextEditingController(text: widget.member.customRank);
     _expandCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 150),
@@ -2640,7 +2638,6 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
 
   @override
   void dispose() {
-    _rankCtrl.dispose();
     _expandCtrl.dispose();
     super.dispose();
   }
@@ -3126,25 +3123,6 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
               child: Text(label, style: TextStyle(fontSize: 14, color: textColor)),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRankField(Color textColor, Color subTextColor) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
-      child: TextField(
-        controller: _rankCtrl,
-        maxLength: 16,
-        style: TextStyle(fontSize: 14, color: textColor),
-        decoration: InputDecoration(
-          labelText: 'Custom Title',
-          hintText: 'e.g. Restricted',
-          hintStyle: TextStyle(color: subTextColor),
-          counterText: '',
-          isDense: true,
-          border: const UnderlineInputBorder(),
         ),
       ),
     );
