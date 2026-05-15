@@ -6407,17 +6407,31 @@ class _MemberTabBody extends StatelessWidget {
           ),
           TextButton(
             onPressed: () async {
-              final username = searchCtrl.text.trim();
-              if (username.isEmpty) return;
+              final input = searchCtrl.text.trim();
+              if (input.isEmpty) return;
               Navigator.pop(dialogCtx);
               final engine = ctx.read<EngineService>();
               try {
-                if (tab == _MemberTab.kicked) {
-                  await engine.banMember(accountId, chatId, username);
-                } else if (tab == _MemberTab.admins) {
-                  await engine.promoteAdmin(accountId, chatId, username);
+                String userId;
+                final isNumeric = RegExp(r'^\d+$').hasMatch(input);
+                if (isNumeric) {
+                  userId = input;
                 } else {
-                  await engine.restrictMember(accountId, chatId, username);
+                  final stripped = input.startsWith('@') ? input.substring(1) : input;
+                  if (ctx.mounted) showTelegramToast(ctx, 'Resolving user...');
+                  final resolved = await engine.resolveUsername(accountId, stripped);
+                  if (resolved == null || resolved.isEmpty) {
+                    if (ctx.mounted) showTelegramToast(ctx, 'User not found: $input');
+                    return;
+                  }
+                  userId = resolved;
+                }
+                if (tab == _MemberTab.kicked) {
+                  await engine.banMember(accountId, chatId, userId);
+                } else if (tab == _MemberTab.admins) {
+                  await engine.promoteAdmin(accountId, chatId, userId);
+                } else {
+                  await engine.restrictMember(accountId, chatId, userId);
                 }
                 onRefresh();
                 if (ctx.mounted) showTelegramToast(ctx, 'User ${action}ed successfully');
@@ -6565,6 +6579,11 @@ class _MemberRow extends StatelessWidget {
     ).then((action) {
       if (action == null) return;
       switch (action) {
+        case 'view':
+          if (InfoPanel.pushUserProfileRequest != null) {
+            InfoPanel.pushUserProfileRequest!(member);
+          }
+          break;
         case 'promote':
           showEditAdminBox(
             context,
