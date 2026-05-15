@@ -195,10 +195,6 @@ The preview will give users an inaccurate impression of how their theme will act
 
 ## admin_tools — _MemberTabBody / _showAddMemberDialog
 
-- [ ] [MAJOR] "Add Admin" / "Add Exception" / "Ban User" dialogs (lines 5882-5950) accept a plain username string and call `engine.banMember(accountId, chatId, username)` etc. directly. There is no user-resolution step — the engine must accept usernames directly or this will fail for users who are not already in the chat's contact list. AyuGram uses `AddParticipantsBoxController` which shows a contact list and resolves the peer before the API call — `admin_tools.dart:5882-5950` ← `edit_participants_box.cpp` (`AddParticipantsBoxController`)
-
-- [ ] [MAJOR] "View Profile" context menu option (line 6046) has no action — selecting it does nothing because there is no `case 'view':` in the `.then()` switch (lines 6082-6113). It silently falls through — `admin_tools.dart:6046,6082-6113`
-
 # bridge_stub — No issues found
 
 ## Summary
