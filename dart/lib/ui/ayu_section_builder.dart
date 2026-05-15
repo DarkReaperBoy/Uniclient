@@ -29,6 +29,15 @@ class AyuSectionBuilder {
     ));
   }
 
+  void addSubsectionTitle(String title) {
+    _children.add(Padding(
+      padding: const EdgeInsets.fromLTRB(22, 7, 10, 9),
+      child: Text(title,
+          style: TextStyle(
+              fontSize: 14, fontWeight: FontWeight.w600, color: _accentColor)),
+    ));
+  }
+
   void addSettingToggle({
     required String label,
     String? subtitle,

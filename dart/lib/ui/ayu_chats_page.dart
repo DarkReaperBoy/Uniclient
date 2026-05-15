@@ -21,7 +21,7 @@ class AyuChatsPage extends StatelessWidget {
     b.addSkip();
 
     // Stickers & Emoji (§54.11)
-    b.addSectionTitle('Stickers & Emoji');
+    b.addSubsectionTitle('Stickers & Emoji');
     b.addSettingToggle(
       label: 'Show only added emojis/stickers',
       subtitle: 'Filter picker to only show packs you\'ve added',
@@ -68,7 +68,7 @@ class AyuChatsPage extends StatelessWidget {
     b.addSectionDivider();
 
     // Channels (§54.11)
-    b.addSectionTitle('Channels');
+    b.addSubsectionTitle('Channels');
     b.addChooseButton(
       label: 'Channel Bottom Button',
       value: appState.channelBottomButton,
@@ -93,7 +93,7 @@ class AyuChatsPage extends StatelessWidget {
     b.addSectionDivider();
 
     // Messages / Marks (§54.11) — matches AyuGram BuildMarks()
-    b.addSectionTitle('Messages');
+    b.addSubsectionTitle('Messages');
     b.addWidget(_MessagePreviewStandalone(
       bubbleRadius: appState.bubbleRadius,
       showTail: !appState.removeTail,
@@ -172,7 +172,7 @@ class AyuChatsPage extends StatelessWidget {
     b.addSectionDivider();
 
     // Context Menu Elements (§54.7)
-    b.addSectionTitle('Context Menu Elements');
+    b.addSubsectionTitle('Context Menu Elements');
     b.addDescription(
       'Extended menu items will be displayed if you hold CTRL or SHIFT '
       'while right-clicking on the message.',
@@ -189,7 +189,7 @@ class AyuChatsPage extends StatelessWidget {
     b.addSectionDivider();
 
     // Message Field Elements (§54.9)
-    b.addSectionTitle('Message Field Elements');
+    b.addSubsectionTitle('Message Field Elements');
     b.addSettingToggle(
       label: 'Attach',
       subtitle: 'Show paperclip button in compose area',
@@ -236,7 +236,7 @@ class AyuChatsPage extends StatelessWidget {
     b.addSectionDivider();
 
     // Message Field Popups (§54.9)
-    b.addSectionTitle('Message Field Popups');
+    b.addSubsectionTitle('Message Field Popups');
     b.addSettingToggle(
       label: 'Attach popup',
       subtitle: 'Show file/poll picker when pressing attach',
@@ -640,7 +640,7 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
   }
 }
 
-class _MessagePreviewStandalone extends StatelessWidget {
+class _MessagePreviewStandalone extends StatefulWidget {
   final int bubbleRadius;
   final bool showTail;
   final bool simpleQuotesAndReplies;
@@ -664,194 +664,211 @@ class _MessagePreviewStandalone extends StatelessWidget {
   });
 
   @override
+  State<_MessagePreviewStandalone> createState() =>
+      _MessagePreviewStandaloneState();
+}
+
+class _MessagePreviewStandaloneState extends State<_MessagePreviewStandalone>
+    with SingleTickerProviderStateMixin {
+  @override
   Widget build(BuildContext context) {
-    final radiusLarge = bubbleRadius.toDouble();
-    final radiusSmall = showTail
+    final radiusLarge = widget.bubbleRadius.toDouble();
+    final radiusSmall = widget.showTail
         ? (radiusLarge * 6 / 16).clamp(0.0, 6.0)
         : radiusLarge;
-    final inBg = isDark ? const Color(0xFF24292E) : const Color(0xFFFFFFFF);
-    final outBg = isDark ? const Color(0xFF265E8C) : const Color(0xFFEFFEDE);
-    final textColor =
-        isDark ? Colors.white.withValues(alpha: 0.87) : Colors.black87;
+    final inBg =
+        widget.isDark ? const Color(0xFF24292E) : const Color(0xFFFFFFFF);
+    final outBg =
+        widget.isDark ? const Color(0xFF265E8C) : const Color(0xFFEFFEDE);
+    final textColor = widget.isDark
+        ? Colors.white.withValues(alpha: 0.87)
+        : Colors.black87;
     final metaColor =
-        isDark ? const Color(0xFF6D8DA0) : const Color(0xFF5E9E5E);
-    final quoteBarColor = simpleQuotesAndReplies
-        ? (isDark ? const Color(0xFF65B9F4) : const Color(0xFF168ACD))
+        widget.isDark ? const Color(0xFF6D8DA0) : const Color(0xFF5E9E5E);
+    final quoteBarColor = widget.simpleQuotesAndReplies
+        ? (widget.isDark ? const Color(0xFF65B9F4) : const Color(0xFF168ACD))
         : const Color(0xFF4FAD2D);
-    final quoteNameColor = simpleQuotesAndReplies
-        ? (isDark ? const Color(0xFF65B9F4) : const Color(0xFF168ACD))
+    final quoteNameColor = widget.simpleQuotesAndReplies
+        ? (widget.isDark ? const Color(0xFF65B9F4) : const Color(0xFF168ACD))
         : const Color(0xFF4FAD2D);
-    final deletedOpacity = semiTransparentDeleted ? 0.7 : 1.0;
+    final deletedOpacity = widget.semiTransparentDeleted ? 0.7 : 1.0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 240),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 11, vertical: 6),
-                decoration: BoxDecoration(
-                  color: inBg,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(radiusLarge),
-                    topRight: Radius.circular(radiusLarge),
-                    bottomLeft: Radius.circular(radiusSmall),
-                    bottomRight: Radius.circular(radiusLarge),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: widget.isDark
+                ? const Color(0xFF0E1621)
+                : const Color(0xFFF0F0F0),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 11, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: inBg,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(radiusLarge),
+                      topRight: Radius.circular(radiusLarge),
+                      bottomLeft: Radius.circular(radiusSmall),
+                      bottomRight: Radius.circular(radiusLarge),
+                    ),
+                    boxShadow: [
+                      if (!widget.isDark)
+                        const BoxShadow(
+                          color: Color(0x18000000),
+                          blurRadius: 2,
+                          offset: Offset(0, 1),
+                        ),
+                    ],
                   ),
-                  boxShadow: [
-                    if (!isDark)
-                      const BoxShadow(
-                        color: Color(0x18000000),
-                        blurRadius: 2,
-                        offset: Offset(0, 1),
-                      ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('User',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: quoteNameColor)),
-                    const SizedBox(height: 2),
-                    Text('Update wehn?',
-                        style: TextStyle(fontSize: 13, color: textColor)),
-                    const SizedBox(height: 2),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Text('12:00',
-                          style:
-                              TextStyle(fontSize: 11, color: metaColor)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Opacity(
-                opacity: deletedOpacity,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 260),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 11, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: outBg,
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(radiusLarge),
-                            topRight: Radius.circular(radiusLarge),
-                            bottomLeft: Radius.circular(radiusLarge),
-                            bottomRight: Radius.circular(radiusSmall),
-                          ),
-                          boxShadow: [
-                            if (!isDark)
-                              const BoxShadow(
-                                color: Color(0x18000000),
-                                blurRadius: 2,
-                                offset: Offset(0, 1),
-                              ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.only(
-                                  left: 8, top: 3, bottom: 3, right: 6),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  left: BorderSide(
-                                      width: 2, color: quoteBarColor),
-                                ),
-                                color: simpleQuotesAndReplies
-                                    ? Colors.transparent
-                                    : quoteBarColor.withValues(alpha: 0.1),
-                                borderRadius: const BorderRadius.only(
-                                  topRight: Radius.circular(4),
-                                  bottomRight: Radius.circular(4),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('User',
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: quoteNameColor)),
-                                  Text('Update wehn?',
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          color: textColor.withValues(
-                                              alpha: 0.7))),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                                'You need to go outside and touch some grass...',
-                                style:
-                                    TextStyle(fontSize: 13, color: textColor)),
-                            const SizedBox(height: 2),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                const Spacer(),
-                                ..._buildMarks(textColor, metaColor),
-                                Text('12:01',
-                                    style: TextStyle(
-                                        fontSize: 11, color: metaColor)),
-                                const SizedBox(width: 3),
-                                Icon(Icons.done_all,
-                                    size: 14, color: metaColor),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (!hideFastShare) ...[
-                      const SizedBox(width: 4),
-                      Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isDark
-                              ? const Color(0x66000000)
-                              : const Color(0x40000000),
-                        ),
-                        child: const Icon(Icons.shortcut,
-                            size: 16, color: Colors.white),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('AyuGram Releases',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: quoteNameColor)),
+                      const SizedBox(height: 2),
+                      Text('Update wehn?',
+                          style: TextStyle(fontSize: 13, color: textColor)),
+                      const SizedBox(height: 2),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text('12:00',
+                            style:
+                                TextStyle(fontSize: 11, color: metaColor)),
                       ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Opacity(
+                  opacity: deletedOpacity,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: Container(
+                          constraints: const BoxConstraints(maxWidth: 260),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 11, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: outBg,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(radiusLarge),
+                              topRight: Radius.circular(radiusLarge),
+                              bottomLeft: Radius.circular(radiusLarge),
+                              bottomRight: Radius.circular(radiusSmall),
+                            ),
+                            boxShadow: [
+                              if (!widget.isDark)
+                                const BoxShadow(
+                                  color: Color(0x18000000),
+                                  blurRadius: 2,
+                                  offset: Offset(0, 1),
+                                ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.only(
+                                    left: 8, top: 3, bottom: 3, right: 6),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    left: BorderSide(
+                                        width: 2, color: quoteBarColor),
+                                  ),
+                                  color: widget.simpleQuotesAndReplies
+                                      ? Colors.transparent
+                                      : quoteBarColor.withValues(alpha: 0.1),
+                                  borderRadius: const BorderRadius.only(
+                                    topRight: Radius.circular(4),
+                                    bottomRight: Radius.circular(4),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('AyuGram Releases',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: quoteNameColor)),
+                                    Text('Update wehn?',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: textColor.withValues(
+                                                alpha: 0.7))),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                  'You need to go outside and touch some grass...',
+                                  style:
+                                      TextStyle(fontSize: 13, color: textColor)),
+                              const SizedBox(height: 2),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  const Spacer(),
+                                  ..._buildMarks(textColor, metaColor),
+                                  Text('12:01',
+                                      style: TextStyle(
+                                          fontSize: 11, color: metaColor)),
+                                  const SizedBox(width: 3),
+                                  Icon(Icons.done_all,
+                                      size: 14, color: metaColor),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (!widget.hideFastShare) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: widget.isDark
+                                ? const Color(0x66000000)
+                                : const Color(0x40000000),
+                          ),
+                          child: const Icon(Icons.shortcut,
+                              size: 16, color: Colors.white),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -859,7 +876,7 @@ class _MessagePreviewStandalone extends StatelessWidget {
 
   List<Widget> _buildMarks(Color textColor, Color metaColor) {
     final marks = <Widget>[];
-    if (replaceMarksWithIcons) {
+    if (widget.replaceMarksWithIcons) {
       marks.add(Padding(
         padding: const EdgeInsets.only(right: 3),
         child: Icon(Icons.delete_outline, size: 12, color: metaColor),
@@ -869,17 +886,17 @@ class _MessagePreviewStandalone extends StatelessWidget {
         child: Icon(Icons.edit, size: 12, color: metaColor),
       ));
     } else {
-      if (deletedMark.isNotEmpty) {
+      if (widget.deletedMark.isNotEmpty) {
         marks.add(Padding(
           padding: const EdgeInsets.only(right: 3),
-          child: Text(deletedMark,
+          child: Text(widget.deletedMark,
               style: TextStyle(fontSize: 11, color: metaColor)),
         ));
       }
-      if (editedMark.isNotEmpty) {
+      if (widget.editedMark.isNotEmpty) {
         marks.add(Padding(
           padding: const EdgeInsets.only(right: 3),
-          child: Text(editedMark,
+          child: Text(widget.editedMark,
               style: TextStyle(fontSize: 11, color: metaColor)),
         ));
       } else {
