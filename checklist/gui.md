@@ -71,19 +71,6 @@ Audited against AyuGram Desktop notification composition logic (notifications_ma
 
 **Status: READY FOR PRODUCTION**
 
-
-# audio_service — Listen tracker bugs vs AyuGram
-
-- [ ] [CRITICAL] `playVoice()` calls `reportMusicListen` for voice messages as well as songs — AyuGram's `MusicListenTracker::update()` explicitly guards `!document->isSong()` and bails out for non-songs; voice messages must never be reported — `audio_service.dart:59` ← `media/player/media_player_listen_tracker.cpp:29`
-
-- [ ] [CRITICAL] No FILE_REFERENCE error retry in `_reportListenIfNeeded()` — AyuGram's `report()` catches `FILE_REFERENCE_*` errors and refreshes the file reference then resends; Dart fires `_engine.reportMusicListen(...)` with no error handling, so stale file references silently drop the event — `audio_service.dart:204` ← `media/player/media_player_listen_tracker.cpp:82-93`
-
-- [ ] [MAJOR] Double-report on playback completion — `player.stream.completed` handler calls `_accumulateListenTime()` + `_reportListenIfNeeded()` but does NOT reset `_accumulatedMs`; when `stop()` is then called it calls them again with the same non-zero `_accumulatedMs`, sending a duplicate report; AyuGram avoids this with `base::take(_listenedMs)` which atomically zeroes the field on read — `audio_service.dart:116-117` ← `media/player/media_player_listen_tracker.cpp:70`
-
-- [ ] [MAJOR] `_reportListenIfNeeded()` never resets `_accumulatedMs` itself — the reset is done by callers in separate statements; any new caller that forgets to follow up with `_accumulatedMs = 0` will double-report; AyuGram's `base::take(_listenedMs)` makes this impossible — `audio_service.dart:185-211` ← `media/player/media_player_listen_tracker.cpp:70`
-
-- [ ] [MAJOR] Fragile `_currentMediaExtra` string parsing for file reference — AyuGram reads `document->mtpInput()` and `document->fileReference()` directly from the typed document object; Dart parses a colon-separated string `"accessHash:base64fileRef"` at runtime (lines 192-201) and silently drops the report if the format is absent or malformed; there is no contract enforcing the engine sends this exact format — `audio_service.dart:192-201` ← `media/player/media_player_listen_tracker.cpp:75-78`
-
 # auth_state — Audit findings
 
 ## auth_state — Auth state management
