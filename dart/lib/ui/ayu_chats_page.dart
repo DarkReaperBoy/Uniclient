@@ -102,6 +102,7 @@ class AyuChatsPage extends StatelessWidget {
       replaceMarksWithIcons: appState.replaceMarksWithIcons,
       deletedMark: appState.deletedMark,
       editedMark: appState.editedMark,
+      hideFastShare: appState.hideFastShare,
       isDark: isDark,
     ));
     b.addSettingToggle(
@@ -647,6 +648,7 @@ class _MessagePreviewStandalone extends StatelessWidget {
   final bool replaceMarksWithIcons;
   final String deletedMark;
   final String editedMark;
+  final bool hideFastShare;
   final bool isDark;
 
   const _MessagePreviewStandalone({
@@ -657,6 +659,7 @@ class _MessagePreviewStandalone extends StatelessWidget {
     required this.replaceMarksWithIcons,
     required this.deletedMark,
     required this.editedMark,
+    required this.hideFastShare,
     required this.isDark,
   });
 
@@ -742,85 +745,109 @@ class _MessagePreviewStandalone extends StatelessWidget {
               alignment: Alignment.centerRight,
               child: Opacity(
                 opacity: deletedOpacity,
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 260),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 11, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: outBg,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(radiusLarge),
-                      topRight: Radius.circular(radiusLarge),
-                      bottomLeft: Radius.circular(radiusLarge),
-                      bottomRight: Radius.circular(radiusSmall),
-                    ),
-                    boxShadow: [
-                      if (!isDark)
-                        const BoxShadow(
-                          color: Color(0x18000000),
-                          blurRadius: 2,
-                          offset: Offset(0, 1),
-                        ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.only(
-                            left: 8, top: 3, bottom: 3, right: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Flexible(
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 260),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 11, vertical: 6),
                         decoration: BoxDecoration(
-                          border: Border(
-                            left: BorderSide(
-                                width: 2, color: quoteBarColor),
+                          color: outBg,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(radiusLarge),
+                            topRight: Radius.circular(radiusLarge),
+                            bottomLeft: Radius.circular(radiusLarge),
+                            bottomRight: Radius.circular(radiusSmall),
                           ),
-                          color: simpleQuotesAndReplies
-                              ? Colors.transparent
-                              : quoteBarColor.withValues(alpha: 0.1),
-                          borderRadius: const BorderRadius.only(
-                            topRight: Radius.circular(4),
-                            bottomRight: Radius.circular(4),
-                          ),
+                          boxShadow: [
+                            if (!isDark)
+                              const BoxShadow(
+                                color: Color(0x18000000),
+                                blurRadius: 2,
+                                offset: Offset(0, 1),
+                              ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('User',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: quoteNameColor)),
-                            Text('Update wehn?',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: textColor.withValues(
-                                        alpha: 0.7))),
+                            Container(
+                              padding: const EdgeInsets.only(
+                                  left: 8, top: 3, bottom: 3, right: 6),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  left: BorderSide(
+                                      width: 2, color: quoteBarColor),
+                                ),
+                                color: simpleQuotesAndReplies
+                                    ? Colors.transparent
+                                    : quoteBarColor.withValues(alpha: 0.1),
+                                borderRadius: const BorderRadius.only(
+                                  topRight: Radius.circular(4),
+                                  bottomRight: Radius.circular(4),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('User',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: quoteNameColor)),
+                                  Text('Update wehn?',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: textColor.withValues(
+                                              alpha: 0.7))),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                                'You need to go outside and touch some grass...',
+                                style:
+                                    TextStyle(fontSize: 13, color: textColor)),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                const Spacer(),
+                                ..._buildMarks(textColor, metaColor),
+                                Text('12:01',
+                                    style: TextStyle(
+                                        fontSize: 11, color: metaColor)),
+                                const SizedBox(width: 3),
+                                Icon(Icons.done_all,
+                                    size: 14, color: metaColor),
+                              ],
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                          'You need to go outside and touch some grass...',
-                          style:
-                              TextStyle(fontSize: 13, color: textColor)),
-                      const SizedBox(height: 2),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          const Spacer(),
-                          ..._buildMarks(textColor, metaColor),
-                          Text('12:01',
-                              style: TextStyle(
-                                  fontSize: 11, color: metaColor)),
-                          const SizedBox(width: 3),
-                          Icon(Icons.done_all,
-                              size: 14, color: metaColor),
-                        ],
+                    ),
+                    if (!hideFastShare) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDark
+                              ? const Color(0x66000000)
+                              : const Color(0x40000000),
+                        ),
+                        child: const Icon(Icons.shortcut,
+                            size: 16, color: Colors.white),
                       ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
