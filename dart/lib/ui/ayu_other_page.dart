@@ -82,7 +82,8 @@ class AyuOtherPage extends StatelessWidget {
     b.addSkip();
     b.addWidget(_SupportDescription(
       isDark: isDark,
-      onSupportTap: () => _showDonateInfoBox(context, isDark),
+      onSupportTap: () => launchUrl(Uri.parse('tg://support'),
+          mode: LaunchMode.externalApplication),
     ));
     b.addSkip();
 
@@ -94,6 +95,7 @@ class AyuOtherPage extends StatelessWidget {
         subtitle: 'Send crash reports to developers',
         value: appState.crashReporting,
         onChanged: (v) => appState.setCrashReporting(v),
+        icon: Icons.bug_report_outlined,
       );
       b.addSkip();
       b.addDescription('Help improve AyuGram by automatically sending '
@@ -295,8 +297,8 @@ class _DonateButton extends StatelessWidget {
   Widget build(BuildContext context) {
     const iconSize = 28.0;
     final bgColor = isDark
-        ? const Color(0xFF242B2C)
-        : const Color(0xFFEEEEEE);
+        ? const Color(0xFFEEEEEE)
+        : const Color(0xFF242B2C);
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -431,7 +433,7 @@ class _SupportDescriptionState extends State<_SupportDescription> {
   }
 }
 
-class _DonateInfoBox extends StatelessWidget {
+class _DonateInfoBox extends StatefulWidget {
   final bool isDark;
 
   static const _donateAmountUsd = '5';
@@ -442,7 +444,30 @@ class _DonateInfoBox extends StatelessWidget {
   const _DonateInfoBox({required this.isDark});
 
   @override
+  State<_DonateInfoBox> createState() => _DonateInfoBoxState();
+}
+
+class _DonateInfoBoxState extends State<_DonateInfoBox> {
+  late final TapGestureRecognizer _usernameRecognizer;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameRecognizer = TapGestureRecognizer()
+      ..onTap = () => launchUrl(
+          Uri.parse('https://t.me/${_DonateInfoBox._donateUsername}'),
+          mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  void dispose() {
+    _usernameRecognizer.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDark;
     final bgColor = isDark ? const Color(0xFF1B2836) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
     final subtextColor =
@@ -472,9 +497,9 @@ class _DonateInfoBox extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'Support AyuGram development by donating. '
-              'Minimum amounts: \$$_donateAmountUsd, '
-              '$_donateAmountTon TON, '
-              '${_donateAmountRub}₽.',
+              'Minimum amounts: \$${_DonateInfoBox._donateAmountUsd}, '
+              '${_DonateInfoBox._donateAmountTon} TON, '
+              '${_DonateInfoBox._donateAmountRub}₽.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: subtextColor),
             ),
@@ -494,8 +519,9 @@ class _DonateInfoBox extends StatelessWidget {
                 children: [
                   const TextSpan(text: 'Forward your payment confirmation to '),
                   TextSpan(
-                    text: '@$_donateUsername',
+                    text: '@${_DonateInfoBox._donateUsername}',
                     style: TextStyle(color: accentColor),
+                    recognizer: _usernameRecognizer,
                   ),
                   const TextSpan(text: ' on Telegram.'),
                 ],
@@ -625,8 +651,8 @@ class _DonateQrBox extends StatelessWidget {
                     data: address,
                     version: QrVersions.auto,
                     size: 180,
-                    eyeStyle: QrEyeStyle(
-                        eyeShape: QrEyeShape.square, color: accentColor),
+                    eyeStyle: const QrEyeStyle(
+                        eyeShape: QrEyeShape.square, color: Colors.black),
                     dataModuleStyle: const QrDataModuleStyle(
                         dataModuleShape: QrDataModuleShape.square,
                         color: Colors.black),
