@@ -131,10 +131,16 @@ class _WebDropZoneState extends State<_WebDropZone> {
 
     final de = event as web.DragEvent;
     final dt = de.dataTransfer;
-    if (dt == null) return;
+    if (dt == null) {
+      widget.onDragLeave?.call();
+      return;
+    }
 
     final files = dt.files;
-    if (files.length == 0) return;
+    if (files.length == 0) {
+      widget.onDragLeave?.call();
+      return;
+    }
 
     final webFiles = <web.File>[];
     for (var i = 0; i < files.length; i++) {
@@ -159,9 +165,11 @@ class _WebDropZoneState extends State<_WebDropZone> {
         // Skip files that can't be read.
       }
     }
+    if (!mounted) return;
     if (results.isNotEmpty) {
-      if (!mounted) return;
       widget.onDrop?.call(results);
+    } else {
+      widget.onDragLeave?.call();
     }
   }
 
