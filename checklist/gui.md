@@ -226,9 +226,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 # ayu_appearance_page — Audit Findings
 
 
-## ayu_appearance_page — "Story Reads (SRead)" label deviates from AyuGram ("Read on Server")
-
-- [ ] [MAJOR] The Dart label is `'Story Reads (SRead)'` (line 169). AyuGram uses `ayu_SReadMessages` = `"Read on Server"`. — `ayu_appearance_page.dart:169` ← `AyuGramDesktop/Telegram/Resources/langs/lang.strings:8242`
 
 ## ayu_appearance_page — Font selector dialog title deviates from AyuGram ("Monospace Font" vs "Customize Font")
 
