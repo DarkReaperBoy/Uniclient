@@ -82,8 +82,7 @@ class AyuOtherPage extends StatelessWidget {
     b.addSkip();
     b.addWidget(_SupportDescription(
       isDark: isDark,
-      onSupportTap: () => launchUrl(Uri.parse('tg://support'),
-          mode: LaunchMode.externalApplication),
+      onSupportTap: () => _showDonateInfoBox(context, isDark),
     ));
     b.addSkip();
 
@@ -377,7 +376,7 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-class _SupportDescription extends StatefulWidget {
+class _SupportDescription extends StatelessWidget {
   final bool isDark;
   final VoidCallback onSupportTap;
 
@@ -387,46 +386,29 @@ class _SupportDescription extends StatefulWidget {
   });
 
   @override
-  State<_SupportDescription> createState() => _SupportDescriptionState();
-}
-
-class _SupportDescriptionState extends State<_SupportDescription> {
-  late final TapGestureRecognizer _recognizer;
-
-  @override
-  void initState() {
-    super.initState();
-    _recognizer = TapGestureRecognizer()..onTap = widget.onSupportTap;
-  }
-
-  @override
-  void dispose() {
-    _recognizer.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final subtextColor =
-        widget.isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+        isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     final linkColor =
-        widget.isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
-      child: RichText(
-        text: TextSpan(
-          style: TextStyle(fontSize: 12, color: subtextColor),
-          children: [
-            const TextSpan(
-                text: 'You can support AyuGram development through donations. '
-                    'For questions, '),
-            TextSpan(
-              text: 'contact support',
-              style: TextStyle(color: linkColor),
-              recognizer: _recognizer,
-            ),
-            const TextSpan(text: '.'),
-          ],
+        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    return InkWell(
+      onTap: onSupportTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+        child: RichText(
+          text: TextSpan(
+            style: TextStyle(fontSize: 12, color: subtextColor),
+            children: [
+              const TextSpan(
+                  text: 'You can support AyuGram development through donations. '
+                      'For questions, '),
+              TextSpan(
+                text: 'contact support',
+                style: TextStyle(color: linkColor),
+              ),
+              const TextSpan(text: '.'),
+            ],
+          ),
         ),
       ),
     );
@@ -437,11 +419,11 @@ class _DonateInfoBox extends StatefulWidget {
   final bool isDark;
 
   static const _donateAmountUsd =
-      String.fromEnvironment('DONATE_AMOUNT_USD', defaultValue: '5');
+      String.fromEnvironment('DONATE_AMOUNT_USD', defaultValue: '5.00');
   static const _donateAmountTon =
-      String.fromEnvironment('DONATE_AMOUNT_TON', defaultValue: '10');
+      String.fromEnvironment('DONATE_AMOUNT_TON', defaultValue: '3.50');
   static const _donateAmountRub =
-      String.fromEnvironment('DONATE_AMOUNT_RUB', defaultValue: '300');
+      String.fromEnvironment('DONATE_AMOUNT_RUB', defaultValue: '386');
   static const _donateUsername =
       String.fromEnvironment('DONATE_USERNAME', defaultValue: 'RadianceTG');
 
