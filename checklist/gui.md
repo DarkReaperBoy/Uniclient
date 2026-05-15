@@ -193,10 +193,6 @@ The preview will give users an inaccurate impression of how their theme will act
 
 # admin_tools — Audit Findings
 
-## admin_tools — _AdminLogScreen
-
-- [ ] [MAJOR] Date badge position calculation (lines 3492-3506) uses a linear interpolation of scroll position divided by maxScrollExtent to estimate which event is visible — this is an approximation that breaks for variable-height items and when items have date separators interspersed. The badge will show the wrong date when items have different heights. AyuGram tracks visible items via a proper item-position-to-date mapping — `admin_tools.dart:3487-3506`
-
 ## admin_tools — _MemberTabBody / _showAddMemberDialog
 
 - [ ] [MAJOR] "Add Admin" / "Add Exception" / "Ban User" dialogs (lines 5882-5950) accept a plain username string and call `engine.banMember(accountId, chatId, username)` etc. directly. There is no user-resolution step — the engine must accept usernames directly or this will fail for users who are not already in the chat's contact list. AyuGram uses `AddParticipantsBoxController` which shows a contact list and resolves the peer before the API call — `admin_tools.dart:5882-5950` ← `edit_participants_box.cpp` (`AddParticipantsBoxController`)
