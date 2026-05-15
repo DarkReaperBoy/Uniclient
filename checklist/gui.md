@@ -262,19 +262,6 @@ This blocks users from accessing 4 major customization features that are fully i
 - Style: `AyuGramDesktop/Telegram/SourceFiles/settings/settings.style`
 - Style: `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/ayu_styles.style`
 
----
-
-- [ ] [CRITICAL] `addBetaBadge`: badge is placed at hardcoded `left: 22 + 200 = 222px` regardless of the label text width. AyuGram computes the position dynamically: `st.padding.left() + parent->fullTextWidth() + st::settingsPremiumNewBadgePosition.x()` (padding=22, textWidth=dynamic, x=4). For short labels the badge appears too far right; for long labels it collides with or overlaps the text. — `ayu_section_builder.dart:177` ← `settings_ayu_utils.cpp:69-74`
-
-- [ ] [MAJOR] `addCollapsibleToggle`: checked count (`checkedCount/total`) is only rendered when `!hasMaster && checkedCount > 0` in Dart. In AyuGram the count is a reactive `rpl::combine` over the label and `anyChanges` stream that always emits (starting with `rpl::empty_value()`), so `0/N` is visible from the start and updates live. Dart suppresses it entirely when the master toggle is present or count is zero. — `ayu_section_builder.dart:530-553` ← `settings_ayu_utils.cpp:228-243`
-
-- [ ] [MAJOR] `addCollapsibleToggle`: C++ draws a 1px-wide vertical separator line (`kLineWidth = 1`) between the label area and the master toggle button (`st::rightsButtonToggleWidth = 70px`). The Dart `Row` has no separator — the toggle is placed directly after a `SizedBox(width: 12)` gap with no divider line. — `ayu_section_builder.dart:561-574` ← `settings_ayu_utils.cpp:162-187`
-
-- [ ] [MAJOR] `addCollapsibleToggle`: AyuGram places the master toggle in a **separate `Ui::SettingsButton` overlay widget** (`toggleButton`) positioned at `width - rightsButtonToggleWidth (70px)`, giving it an independent hit area that never triggers expand/collapse. The Dart nests `AyuToggle` inside the row's `InkWell(onTap: () => _open = !_open)`, so the expand/collapse InkWell and the toggle share a visual surface; the InkWell ripple fires across the toggle area on hover/press even if the gesture is ultimately consumed by the toggle. — `ayu_section_builder.dart:523-524` ← `settings_ayu_utils.cpp:91-96, 303-320`
-
-- [ ] [MAJOR] `addChooseButton`: uses Flutter `AlertDialog` + `RadioListTile` (Material Design widgets). AyuGram uses `SingleChoiceBox` (a Telegram-styled box with custom radio rows from `ui/boxes/single_choice_box.h`). The dialog has wrong background color logic (`const Color(0xFF1B2836)` hardcoded), wrong title font size (17px vs Telegram's `boxTitleStyle`), and wrong radio item styling. — `ayu_section_builder.dart:429-454` ← `settings_ayu_utils.cpp:519-535`
-
-- [ ] [MAJOR] Beta badge font size is 9px in Dart (`fontSize: 9`) but AyuGram's `settingsPremiumNewBadge` uses `font(10px semibold)` — a 10% deviation. Applies to both the inline `showBetaBadge` path in `_AyuSettingToggle` and the `_BetaBadgeOverlay` class. — `ayu_section_builder.dart:193, 258` ← `settings.style:144-147`
 
 # ayu_toggle — No issues found
 
