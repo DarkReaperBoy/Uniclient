@@ -122,39 +122,6 @@ This FFI bridge is a well-engineered, production-ready implementation with no cr
 
 # chat_state — Audit
 
-
-## telegram_palette — Day-Blue palette wrong colors + colorizer behavioral differences
-
-### Color value errors (dayBlue theme)
-
-- [ ] [CRITICAL] `msgServiceBgSelected` in dayBlue is wrong: Dart has `Color(0x8396B38B)` = RGBA(150,179,139,131), but day-blue theme specifies `#62afdda2` = RGBA(98,175,221,162). Completely different color and alpha — `telegram_palette.dart:2835` ← `AyuGram/Telegram/Resources/day-blue.tdesktop-theme:271`
-
-- [ ] [MAJOR] `historyScrollBg` in dayBlue is wrong: Dart has `Color(0x4C517C41)` (semi-transparent green from base palette), day-blue theme overrides it to `#00000000` (fully transparent). Chat scrollbar background is visually wrong — `telegram_palette.dart:2859` ← `AyuGram/Telegram/Resources/day-blue.tdesktop-theme:249`
-
-- [ ] [MAJOR] `historySendingOutIconFg` in dayBlue is wrong: Dart has `Color(0xFF98D292)` = RGB(152,210,146) (green — base palette value), day-blue theme overrides it to `#9dc2d9` = RGB(157,194,217) (grayish blue). The outbox sending clock icon has the wrong color — `telegram_palette.dart:2867` ← `AyuGram/Telegram/Resources/day-blue.tdesktop-theme:210`
-
-- [ ] [MAJOR] `dialogsSentIconFgOver` in dayBlue is wrong: Dart has `Color(0xFF58B84D)` = #58B84D (green — base palette value), day-blue theme overrides it to `dialogsSentIconFg` = `#2ca6e8` (blue). The sent-tick icon on hover in the chat list has the wrong color — `telegram_palette.dart:3105` ← `AyuGram/Telegram/Resources/day-blue.tdesktop-theme:167`
-
-- [ ] [MAJOR] `msgFile2BgSelected` in dayBlue is wrong: Dart has `Color(0xFF50AC9B)` = #50AC9B (base palette value), day-blue theme specifies `#46a07e` = RGB(70,160,126). File download circle selected background is visually wrong — `telegram_palette.dart:2906` ← `AyuGram/Telegram/Resources/day-blue.tdesktop-theme:300`
-
-- [ ] [MAJOR] `mediaviewFileRedCornerFg` in dayBlue is wrong: Dart has `Color(0xFFD45050)` = RGB(212,80,80), day-blue theme specifies `#d55959` = RGB(213,89,89). Delta: G=9, B=9 (~11% deviation) — `telegram_palette.dart:3001` ← `AyuGram/Telegram/Resources/day-blue.tdesktop-theme:366`
-
-- [ ] [MAJOR] `mediaviewFileYellowCornerFg` in dayBlue is wrong: Dart has `Color(0xFFE8A63E)` = RGB(232,166,62), day-blue theme specifies `#e8a659` = RGB(232,166,89). Blue channel deviation: 27/255 = 30% — `telegram_palette.dart:3002` ← `AyuGram/Telegram/Resources/day-blue.tdesktop-theme:367`
-
-- [ ] [MAJOR] `mediaviewFileGreenCornerFg` in dayBlue is wrong: Dart has `Color(0xFF64C05E)` = RGB(100,192,94), day-blue theme specifies `#49a957` = RGB(73,169,87). R deviation: 27 (37%), G deviation: 23 (14%) — `telegram_palette.dart:3003` ← `AyuGram/Telegram/Resources/day-blue.tdesktop-theme:368`
-
-- [ ] [MAJOR] `mediaviewFileBlueCornerFg` in dayBlue is wrong: Dart has `Color(0xFF5BBFDE)` = RGB(91,191,222), day-blue theme specifies `#599dcf` = RGB(89,157,207). G deviation: 34 (22%), B deviation: 15 (7%) — `telegram_palette.dart:3004` ← `AyuGram/Telegram/Resources/day-blue.tdesktop-theme:369`
-
-### Colorizer behavioral differences (colorize() method)
-
-- [ ] [MAJOR] `_enforceContrast()` applies `historyFileInIconFg`, `historyFileInRadialFg`, `historyFileOutIconFg`, `historyFileOutRadialFg` (and selected variants) contrast-fixing for ALL dark themes, but C++ `keepContrast` only includes these for Night theme, NOT for NightGreen. For NightGreen, the Dart incorrectly forces contrast on file icon colors that AyuGram leaves as-is — `telegram_palette.dart:2602-2609` ← `AyuGram/Telegram/SourceFiles/window/themes/window_themes_embedded.cpp:156-166`
-
-- [ ] [MAJOR] `_enforceContrast()` uses WCAG AA 4.5:1 contrast ratio + ±0.3 HSV value adjustment, while C++ uses a custom HSV lightness formula `value - (value * saturation) / 511` with a threshold of 64/255 and a `keepContrast` fallback color. The C++ adjusts to a *specific fallback color* (e.g., white `windowFgActive`), while Dart just adjusts HSV value by ±0.3. This produces different results for dark themes — `telegram_palette.dart:2275-2288` ← `AyuGram/Telegram/lib_ui/ui/style/style_palette_colorizer.cpp:119-138`
-
-### HSV colorizer formula
-
-- [ ] [MAJOR] C++ colorize hue comparison `std::abs(color.hue - with.was.hue) < with.hueThreshold` does NOT handle hue wrap-around (0°/360° boundary), while Dart correctly wraps with `if (hueDelta > 180) hueDelta = 360 - hueDelta`. Dart is actually more correct than C++ here, but the behavior differs for colors near hue 0° (red hues). This is a behavioral discrepancy for any accent color near the red boundary — `telegram_palette.dart:1222-1224` ← `AyuGram/Telegram/lib_ui/ui/style/style_palette_colorizer.cpp:27-28`
-
 # theme_file.dart — Theme File Parsing & Caching
 
 ## Issues Found
