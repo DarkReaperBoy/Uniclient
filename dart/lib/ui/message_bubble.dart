@@ -656,7 +656,9 @@ class _MessageBubbleState extends State<MessageBubble> {
 
     // §25.15: dynamic bubble radius from AyuGram prefs.
     final ayuState = context.watch<AppState>();
-    final radiusLarge = ayuState.bubbleRadius.toDouble();
+    final radiusLarge = ayuState.experimentalFlag('large_bubble_radius', defaultValue: false)
+        ? 20.0
+        : ayuState.bubbleRadius.toDouble();
     final radiusSmall = ayuState.removeTail
         ? radiusLarge
         : (radiusLarge * 6 / 16).clamp(0.0, 6.0);
@@ -6528,8 +6530,9 @@ class _WebmEmojiPlayerState extends State<_WebmEmojiPlayer> {
       _tempFile = file;
       final player = Player();
       final controller = VideoController(player);
-      await player.open(Media(file.path), play: true);
-      await player.setPlaylistMode(PlaylistMode.loop);
+      final shouldAutoplay = context.read<AppState>().experimentalFlags['autoplay_gifs'] != false;
+      await player.open(Media(file.path), play: shouldAutoplay);
+      if (shouldAutoplay) await player.setPlaylistMode(PlaylistMode.loop);
       if (!mounted) {
         await player.dispose();
         return;

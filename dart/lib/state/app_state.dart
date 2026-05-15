@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -131,6 +132,8 @@ class GhostModeAccountSettings {
 /// Top-level app state: accounts, connection, config, active platform.
 class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final EngineService _engine;
+
+  EngineService get engine => _engine;
 
   /// Spec §3.2: max accounts 100 (AyuGram), 200 for premium.
   static const kMaxAccounts = 100;
@@ -1879,6 +1882,58 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
     notifyListeners();
     _saveWindowPrefs();
+    _configureAutostart(v);
+  }
+
+  Future<void> _configureAutostart(bool enable) async {
+    if (kIsWeb) return;
+    final exe = Platform.resolvedExecutable;
+    final appName = 'uniclient';
+    try {
+      if (Platform.isLinux) {
+        final autostartDir = '${Platform.environment['HOME']}/.config/autostart';
+        final desktopFile = '$autostartDir/$appName.desktop';
+        if (enable) {
+          await Directory(autostartDir).create(recursive: true);
+          await File(desktopFile).writeAsString(
+            '[Desktop Entry]\n'
+            'Type=Application\n'
+            'Name=UniClient\n'
+            'Exec=$exe\n'
+            'Terminal=false\n'
+            'X-GNOME-Autostart-enabled=true\n',
+          );
+        } else {
+          final f = File(desktopFile);
+          if (await f.exists()) await f.delete();
+        }
+      } else if (Platform.isWindows) {
+        final regKey = r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run';
+        if (enable) {
+          await Process.run('reg', ['add', regKey, '/v', appName, '/t', 'REG_SZ', '/d', exe, '/f']);
+        } else {
+          await Process.run('reg', ['delete', regKey, '/v', appName, '/f']);
+        }
+      } else if (Platform.isMacOS) {
+        final plistDir = '${Platform.environment['HOME']}/Library/LaunchAgents';
+        final plistFile = '$plistDir/com.$appName.plist';
+        if (enable) {
+          await Directory(plistDir).create(recursive: true);
+          await File(plistFile).writeAsString(
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+            '<plist version="1.0"><dict>\n'
+            '<key>Label</key><string>com.$appName</string>\n'
+            '<key>ProgramArguments</key><array><string>$exe</string></array>\n'
+            '<key>RunAtLoad</key><true/>\n'
+            '</dict></plist>\n',
+          );
+        } else {
+          final f = File(plistFile);
+          if (await f.exists()) await f.delete();
+        }
+      }
+    } catch (_) {}
   }
 
   void setStartMinimized(bool v) {
@@ -2005,6 +2060,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _selectedProxyType = proxyType;
     notifyListeners();
     _saveWindowPrefs();
+    _syncProxyToEngine();
   }
 
   void setProxyIpv6(bool v) {
@@ -2012,6 +2068,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _proxyIpv6 = v;
     notifyListeners();
     _saveWindowPrefs();
+    _syncProxyToEngine();
   }
 
   void setProxyForCalls(bool v) {
@@ -2019,18 +2076,42 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _proxyForCalls = v;
     notifyListeners();
     _saveWindowPrefs();
+    _syncProxyToEngine();
   }
 
   void setProxyList(List<Map<String, dynamic>> list) {
     _proxyList = list;
     notifyListeners();
     _saveWindowPrefs();
+    _syncProxyToEngine();
+  }
+
+  void _syncProxyToEngine() {
+    final activeProxy = (_proxyMode == 2 && _proxyList.isNotEmpty)
+        ? _proxyList.first
+        : <String, dynamic>{};
+    _engine.callGeneric(_activeAccountId, 'SetProxy', {
+      'mode': _proxyMode,
+      'ipv6': _proxyIpv6,
+      'use_for_calls': _proxyForCalls,
+      'proxy_type': _selectedProxyType,
+      'host': activeProxy['host'] ?? '',
+      'port': activeProxy['port'] ?? 0,
+      'username': activeProxy['username'] ?? '',
+      'password': activeProxy['password'] ?? '',
+      'secret': activeProxy['secret'] ?? '',
+      'proxies': _proxyList,
+    }).catchError((_) {});
   }
 
   void setAutoDownloadSettings(String source, Map<String, dynamic> settings) {
     _autoDownloadSettings[source] = settings;
     notifyListeners();
     _saveWindowPrefs();
+    _engine.callGeneric(_activeAccountId, 'SetAutoDownload', {
+      'source': source,
+      ...settings,
+    }).catchError((_) {});
   }
 
   Map<String, dynamic> getAutoDownloadForSource(String source) {
@@ -2051,6 +2132,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (timeLimit != null) _localStorageTimeLimit = timeLimit;
     notifyListeners();
     _saveWindowPrefs();
+    _engine.updateConfig(maxCacheSize: _localStorageTotalLimit * 1024 * 1024);
   }
 
   void addRecentDownload(String fileName, String filePath, int sizeBytes) {
@@ -2388,6 +2470,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Map<String, bool> get experimentalFlags => Map.unmodifiable(_experimentalFlags);
+
+  bool experimentalFlag(String key, {bool defaultValue = true}) =>
+      _experimentalFlags[key] ?? defaultValue;
 
   void setExperimentalFlag(String key, bool value) {
     if (_experimentalFlags[key] == value) return;

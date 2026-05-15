@@ -250,6 +250,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     return [
+      _SubsectionTitle(title: 'Software Update', color: accentColor),
       InkWell(
         onTap: () => appState.setAutoUpdateEnabled(!appState.autoUpdateEnabled),
         hoverColor: hoverBg,
@@ -381,6 +382,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     return [
+      _SubsectionTitle(title: 'Data and Storage', color: accentColor),
       _AdvancedIconButtonRow(
         icon: Icons.settings_ethernet,
         label: 'Connection type',
@@ -530,10 +532,12 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final iconColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     return [
+      _SubsectionTitle(title: 'Automatic Media Download', color: accentColor),
       _AdvancedIconButtonRow(
         icon: Icons.person,
         label: 'In private chats',
@@ -582,6 +586,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final multiAccount = appState.accounts.length > 1;
 
     return [
+      _SubsectionTitle(title: 'Window Title', color: accentColor),
       _AdvancedCheckboxRow(
         label: 'Show chat name in the window title',
         value: appState.showChatNameInTitle,
@@ -638,6 +643,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
 
     const labels = ['Run in background', 'Close to the taskbar', 'Quit'];
     return [
+      _SubsectionTitle(title: 'When Closing Window', color: accentColor),
       for (var i = 0; i < labels.length; i++)
         _AdvancedRadioRow(
           label: labels[i],
@@ -665,6 +671,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final startMinimizedDisabled = hasPasscode;
 
     return [
+      _SubsectionTitle(title: 'System Integration', color: accentColor),
       _AdvancedCheckboxRow(
         label: 'Show tray icon',
         value: appState.showTrayIcon,
@@ -798,6 +805,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     return [
+      _SubsectionTitle(title: 'Performance', color: accentColor),
       _AdvancedIconButtonRow(
         icon: Icons.battery_saver,
         label: 'Power Saving',
@@ -1040,6 +1048,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final isSystem = Platform.isLinux || Platform.isMacOS;
 
     return [
+      _SubsectionTitle(title: 'Spellchecker', color: accentColor),
       _AdvancedToggleRow(
         label: isSystem ? 'Use system spellchecker' : 'Enable spellchecker',
         value: appState.spellcheckerEnabled,
@@ -1097,7 +1106,6 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   List<Widget> _buildScreenReader(bool isDark) {
     if (!_screenReaderDetected) return const [];
     final appState = context.read<AppState>();
-    if (appState.screenReaderOptimized) return const [];
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor = context.palette.windowBgActive;
@@ -1105,6 +1113,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     return [
+      _SubsectionTitle(title: 'Screen Reader', color: accentColor),
       _AdvancedToggleRow(
         label: 'Optimize for screen readers',
         value: appState.screenReaderOptimized,
@@ -1131,10 +1140,12 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final iconColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     return [
+      _SubsectionTitle(title: 'Export Data', color: accentColor),
       _AdvancedIconButtonRow(
         icon: Icons.file_upload_outlined,
         label: 'Export Telegram Data',
@@ -1170,6 +1181,28 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         ),
       ),
     ];
+  }
+}
+
+class _SubsectionTitle extends StatelessWidget {
+  final String title;
+  final Color color;
+
+  const _SubsectionTitle({required this.title, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 7, 10, 9),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
   }
 }
 
@@ -1691,14 +1724,31 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
   }
 
   Future<void> _scanCacheDir() async {
-    final cacheDir = context.read<AppState>().cacheDir;
+    final appState = context.read<AppState>();
+
+    int engineCacheSize = 0;
+    try {
+      engineCacheSize = appState.engine.getCacheSize();
+    } catch (_) {}
+
+    final cacheDir = appState.cacheDir;
     if (cacheDir.isEmpty) {
-      if (mounted) setState(() => _scanning = false);
+      if (mounted) {
+        setState(() {
+          if (engineCacheSize > 0) _tagSizes[5] = engineCacheSize;
+          _scanning = false;
+        });
+      }
       return;
     }
     final dir = Directory(cacheDir);
     if (!await dir.exists()) {
-      if (mounted) setState(() => _scanning = false);
+      if (mounted) {
+        setState(() {
+          if (engineCacheSize > 0) _tagSizes[5] = engineCacheSize;
+          _scanning = false;
+        });
+      }
       return;
     }
     final sizes = List<int>.filled(6, 0);
@@ -1723,6 +1773,10 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
         }
       }
     } catch (_) {}
+    final fileScanTotal = sizes.fold(0, (a, b) => a + b);
+    if (engineCacheSize > fileScanTotal) {
+      sizes[5] += engineCacheSize - fileScanTotal;
+    }
     if (!mounted) return;
     setState(() {
       for (var i = 0; i < 6; i++) _tagSizes[i] = sizes[i];
@@ -1731,7 +1785,8 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
   }
 
   void _clearTag(int tagIdx) async {
-    final cacheDir = context.read<AppState>().cacheDir;
+    final appState = context.read<AppState>();
+    final cacheDir = appState.cacheDir;
     if (cacheDir.isEmpty) return;
     final dir = Directory(cacheDir);
     if (!await dir.exists()) return;
@@ -1764,19 +1819,28 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
         }
       }
     } catch (_) {}
+    try {
+      appState.engine.clearCache(accountId: appState.activeAccountId);
+    } catch (_) {}
     if (mounted) setState(() => _tagSizes[tagIdx] = 0);
   }
 
   void _clearAll() async {
-    final cacheDir = context.read<AppState>().cacheDir;
-    if (cacheDir.isEmpty) return;
-    final dir = Directory(cacheDir);
-    if (!await dir.exists()) return;
+    final appState = context.read<AppState>();
     try {
-      await for (final entity in dir.list(recursive: true)) {
-        if (entity is File) await entity.delete();
-      }
+      appState.engine.clearCache();
     } catch (_) {}
+    final cacheDir = appState.cacheDir;
+    if (cacheDir.isNotEmpty) {
+      final dir = Directory(cacheDir);
+      if (await dir.exists()) {
+        try {
+          await for (final entity in dir.list(recursive: true)) {
+            if (entity is File) await entity.delete();
+          }
+        } catch (_) {}
+      }
+    }
     if (mounted) {
       setState(() {
         for (var i = 0; i < _tagSizes.length; i++) _tagSizes[i] = 0;
@@ -2647,19 +2711,46 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
         proxy.port,
         timeout: const Duration(seconds: 5),
       );
+      var validated = false;
+      try {
+        validated = await _validateProtocol(socket, proxy);
+      } catch (_) {
+        validated = false;
+      }
       sw.stop();
       socket.destroy();
       if (!mounted) return;
-      setState(() {
-        proxy.status = _ProxyStatus.available;
-        proxy.pingMs = sw.elapsedMilliseconds;
-      });
+      if (validated) {
+        final isActive = _mode == _ProxyMode.custom && _selectedIndex == index;
+        setState(() {
+          proxy.status = isActive ? _ProxyStatus.online : _ProxyStatus.available;
+          proxy.pingMs = sw.elapsedMilliseconds;
+        });
+      } else {
+        setState(() => proxy.status = _ProxyStatus.unavailable);
+      }
     } on SocketException {
       if (!mounted) return;
       setState(() => proxy.status = _ProxyStatus.unavailable);
     } catch (_) {
       if (!mounted) return;
       setState(() => proxy.status = _ProxyStatus.unavailable);
+    }
+  }
+
+  Future<bool> _validateProtocol(Socket socket, _ProxyEntry proxy) async {
+    switch (proxy.type) {
+      case _ProxyType.socks5:
+        socket.add([0x05, 0x01, 0x00]);
+        final resp = await socket.first.timeout(const Duration(seconds: 3));
+        return resp.length >= 2 && resp[0] == 0x05;
+      case _ProxyType.http:
+        socket.add(utf8.encode('CONNECT 149.154.167.50:443 HTTP/1.1\r\nHost: 149.154.167.50:443\r\n\r\n'));
+        final resp = await socket.first.timeout(const Duration(seconds: 3));
+        final line = utf8.decode(resp, allowMalformed: true);
+        return line.startsWith('HTTP/') && line.contains('200');
+      case _ProxyType.mtproto:
+        return true;
     }
   }
 
@@ -3646,8 +3737,26 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
   }
 }
 
-class _RecentDownloadsBox extends StatelessWidget {
+class _RecentDownloadsBox extends StatefulWidget {
   const _RecentDownloadsBox();
+
+  @override
+  State<_RecentDownloadsBox> createState() => _RecentDownloadsBoxState();
+}
+
+class _RecentDownloadsBoxState extends State<_RecentDownloadsBox> {
+  String _search = '';
+  String _filter = 'all';
+  static const _filterLabels = {
+    'all': 'All',
+    'image': 'Photos',
+    'video': 'Videos',
+    'audio': 'Music',
+    'file': 'Files',
+  };
+  static const _imageExts = {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif'};
+  static const _videoExts = {'.mp4', '.avi', '.mkv', '.webm', '.mov'};
+  static const _audioExts = {'.mp3', '.ogg', '.oga', '.flac', '.wav', '.m4a', '.aac'};
 
   String _formatSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
@@ -3670,6 +3779,32 @@ class _RecentDownloadsBox extends StatelessWidget {
     return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
   }
 
+  String _fileCategory(String name) {
+    final dotExt = name.contains('.') ? '.${name.split('.').last.toLowerCase()}' : '';
+    if (_imageExts.contains(dotExt)) return 'image';
+    if (_videoExts.contains(dotExt)) return 'video';
+    if (_audioExts.contains(dotExt)) return 'audio';
+    return 'file';
+  }
+
+  List<Map<String, dynamic>> _filtered(List<Map<String, dynamic>> downloads) {
+    var result = downloads;
+    if (_filter != 'all') {
+      result = result.where((dl) {
+        final name = dl['name'] as String? ?? '';
+        return _fileCategory(name) == _filter;
+      }).toList();
+    }
+    if (_search.isNotEmpty) {
+      final q = _search.toLowerCase();
+      result = result.where((dl) {
+        final name = (dl['name'] as String? ?? '').toLowerCase();
+        return name.contains(q);
+      }).toList();
+    }
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -3682,13 +3817,14 @@ class _RecentDownloadsBox extends StatelessWidget {
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     final appState = context.watch<AppState>();
-    final downloads = appState.recentDownloads;
+    final allDownloads = appState.recentDownloads;
+    final downloads = _filtered(allDownloads);
 
     return Dialog(
       backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 364, maxHeight: 480),
+        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 560),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -3697,7 +3833,7 @@ class _RecentDownloadsBox extends StatelessWidget {
               child: Row(
                 children: [
                   Text(
-                    'Recent Downloads',
+                    'Downloads',
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
@@ -3705,7 +3841,7 @@ class _RecentDownloadsBox extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  if (downloads.isNotEmpty)
+                  if (allDownloads.isNotEmpty)
                     TextButton(
                       onPressed: () => appState.clearRecentDownloads(),
                       child: Text(
@@ -3716,6 +3852,59 @@ class _RecentDownloadsBox extends StatelessWidget {
                 ],
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+              child: TextField(
+                onChanged: (v) => setState(() => _search = v),
+                style: TextStyle(fontSize: 13, color: textColor),
+                decoration: InputDecoration(
+                  hintText: 'Search downloads...',
+                  hintStyle: TextStyle(fontSize: 13, color: subtextColor),
+                  prefixIcon: Icon(Icons.search, size: 18, color: subtextColor),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: dividerColor),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: dividerColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: accentColor),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 32,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                children: _filterLabels.entries.map((e) {
+                  final sel = _filter == e.key;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(e.value, style: TextStyle(
+                        fontSize: 12,
+                        color: sel ? Colors.white : subtextColor,
+                      )),
+                      selected: sel,
+                      selectedColor: accentColor,
+                      backgroundColor: isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
+                      onSelected: (_) => setState(() => _filter = e.key),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 4),
             Divider(height: 1, color: dividerColor),
             if (downloads.isEmpty)
               Padding(
@@ -3725,7 +3914,7 @@ class _RecentDownloadsBox extends StatelessWidget {
                     Icon(Icons.download_done, size: 48, color: subtextColor),
                     const SizedBox(height: 12),
                     Text(
-                      'No recent downloads',
+                      allDownloads.isEmpty ? 'No downloads yet' : 'No matching downloads',
                       style: TextStyle(fontSize: 14, color: subtextColor),
                     ),
                   ],
@@ -3751,6 +3940,13 @@ class _RecentDownloadsBox extends StatelessWidget {
                     final ext = name.contains('.')
                         ? name.split('.').last.toUpperCase()
                         : '';
+                    final cat = _fileCategory(name);
+                    final catIcon = switch (cat) {
+                      'image' => Icons.image,
+                      'video' => Icons.videocam,
+                      'audio' => Icons.audiotrack,
+                      _ => Icons.insert_drive_file,
+                    };
 
                     return InkWell(
                       hoverColor: hoverBg,
@@ -3771,14 +3967,16 @@ class _RecentDownloadsBox extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               alignment: Alignment.center,
-                              child: Text(
-                                ext.length > 4 ? ext.substring(0, 4) : ext,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: accentColor,
-                                ),
-                              ),
+                              child: ext.isNotEmpty
+                                  ? Text(
+                                      ext.length > 4 ? ext.substring(0, 4) : ext,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: accentColor,
+                                      ),
+                                    )
+                                  : Icon(catIcon, size: 18, color: accentColor),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -3807,13 +4005,26 @@ class _RecentDownloadsBox extends StatelessWidget {
                               ),
                             ),
                             IconButton(
-                              icon: Icon(Icons.close, size: 16, color: subtextColor),
-                              onPressed: () => appState.removeRecentDownload(i),
+                              icon: Icon(Icons.folder_open, size: 16, color: subtextColor),
+                              onPressed: () {
+                                final dir = path.substring(0, path.lastIndexOf(Platform.pathSeparator));
+                                if (dir.isNotEmpty) _AdvancedSettingsScreenState._openWithSystem(dir);
+                              },
                               splashRadius: 16,
                               padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                minWidth: 28, minHeight: 28,
-                              ),
+                              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                              tooltip: 'Show in folder',
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.close, size: 16, color: subtextColor),
+                              onPressed: () {
+                                final realIdx = allDownloads.indexOf(dl);
+                                if (realIdx >= 0) appState.removeRecentDownload(realIdx);
+                              },
+                              splashRadius: 16,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                              tooltip: 'Remove',
                             ),
                           ],
                         ),
@@ -3824,16 +4035,22 @@ class _RecentDownloadsBox extends StatelessWidget {
               ),
             Divider(height: 1, color: dividerColor),
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text(
-                    'OK',
-                    style: TextStyle(fontSize: 14, color: accentColor),
+              padding: const EdgeInsets.fromLTRB(22, 6, 12, 6),
+              child: Row(
+                children: [
+                  Text(
+                    '${allDownloads.length} file${allDownloads.length == 1 ? '' : 's'}',
+                    style: TextStyle(fontSize: 12, color: subtextColor),
                   ),
-                ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Close',
+                      style: TextStyle(fontSize: 14, color: accentColor),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

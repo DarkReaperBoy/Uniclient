@@ -787,7 +787,7 @@ class _ChatListPanelState extends State<ChatListPanel>
                             // During active reorder: skip SwipeableChatRow wrapper for pinned items.
                             Widget row;
                             Widget buildChatRow() {
-                              if (chat.isForum) {
+                              if (chat.isForum && context.read<AppState>().experimentalFlags['forum_chat_list'] != false) {
                                 return ForumChatListRow(
                                   chat: chat,
                                   isActive: isActive,

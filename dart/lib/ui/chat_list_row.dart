@@ -230,7 +230,7 @@ class ChatListRow extends StatelessWidget {
                                     fallbackColor: isActive ? palette.dialogsNameFgActive : null,
                                   ),
                                 ],
-                                if (chat.isMuted) ...[
+                                if (chat.isMuted && context.read<AppState>().experimentalFlags['dialogs_mute_icon'] != false) ...[
                                   const SizedBox(width: 4),
                                   Icon(Icons.volume_off, size: 14, color: mutedColor),
                                 ],
@@ -258,7 +258,7 @@ class ChatListRow extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: _buildPreview(palette, nameColor, mutedColor),
+                            child: _buildPreview(context, palette, nameColor, mutedColor),
                           ),
                           // Unread badge or unread dot.
                           if (chat.unreadCount > 0) ...[
@@ -317,7 +317,7 @@ class ChatListRow extends StatelessWidget {
     );
   }
 
-  Widget _buildPreview(TelegramPalette palette, Color nameColor, Color mutedColor) {
+  Widget _buildPreview(BuildContext context, TelegramPalette palette, Color nameColor, Color mutedColor) {
     if (typingUser != null) {
       return _TypingDotsIndicator(
         userName: typingUser!,
@@ -326,7 +326,8 @@ class ChatListRow extends StatelessWidget {
       );
     }
 
-    if (chat.draftText.isNotEmpty) {
+    final showDrafts = context.read<AppState>().experimentalFlags['message_draft_visible'] != false;
+    if (showDrafts && chat.draftText.isNotEmpty) {
       return Text.rich(
         TextSpan(children: [
           TextSpan(
