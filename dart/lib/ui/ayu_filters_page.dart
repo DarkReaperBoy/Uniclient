@@ -244,9 +244,6 @@ class AyuFiltersPage extends StatelessWidget {
             onPressed: () {
               Navigator.of(ctx).pop();
               appState.filterEngine.clearAll();
-              for (final id in appState.shadowBanIds.toList()) {
-                appState.removeShadowBan(id);
-              }
               appState.saveFilterEngine();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('All filters cleared')),
@@ -1026,6 +1023,7 @@ class _ShadowBanRow extends StatefulWidget {
 class _ShadowBanRowState extends State<_ShadowBanRow> {
   String? _resolvedName;
   String? _avatarPath;
+  bool _avatarExists = false;
   bool _attempted = false;
 
   @override
@@ -1043,7 +1041,10 @@ class _ShadowBanRowState extends State<_ShadowBanRow> {
           setState(() {
             _resolvedName = chat.title;
             _attempted = true;
-            if (chat.avatarPath.isNotEmpty) _avatarPath = chat.avatarPath;
+            if (chat.avatarPath.isNotEmpty) {
+              _avatarPath = chat.avatarPath;
+              _avatarExists = File(chat.avatarPath).existsSync();
+            }
           });
         }
         return;
@@ -1061,7 +1062,10 @@ class _ShadowBanRowState extends State<_ShadowBanRow> {
         });
         engine.downloadSingleAvatar(accountId, idStr).then((path) {
           if (mounted && path != null && path.isNotEmpty) {
-            setState(() => _avatarPath = path);
+            setState(() {
+              _avatarPath = path;
+              _avatarExists = File(path).existsSync();
+            });
           }
         });
       });
@@ -1111,10 +1115,10 @@ class _ShadowBanRowState extends State<_ShadowBanRow> {
           CircleAvatar(
             radius: 23,
             backgroundColor: context.palette.peerUserpicBg(_colorRemap[widget.id.abs() % 7]),
-            backgroundImage: _avatarPath != null && File(_avatarPath!).existsSync()
+            backgroundImage: _avatarExists
                 ? FileImage(File(_avatarPath!))
                 : null,
-            child: _avatarPath != null && File(_avatarPath!).existsSync()
+            child: _avatarExists
                 ? null
                 : Text(_avatarLetter,
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),

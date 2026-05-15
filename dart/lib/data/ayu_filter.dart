@@ -57,7 +57,7 @@ class RegexFilter {
     enabled: j['enabled'] as bool? ?? true,
     reversed: j['reversed'] as bool? ?? false,
     caseInsensitive: j['caseInsensitive'] as bool? ?? false,
-    dialogId: j['dialogId'] as String?,
+    dialogId: j['dialogId']?.toString(),
   );
 
   @override
@@ -79,8 +79,8 @@ class RegexFilterExclusion {
 
   factory RegexFilterExclusion.fromJson(Map<String, dynamic> j) =>
       RegexFilterExclusion(
-        dialogId: j['dialogId'] as String? ?? '',
-        filterId: j['filterId'] as String? ?? '',
+        dialogId: (j['dialogId']?.toString()) ?? '',
+        filterId: (j['filterId']?.toString()) ?? '',
       );
 
   @override
