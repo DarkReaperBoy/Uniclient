@@ -1219,8 +1219,7 @@ class TelegramPalette {
       if (c.a < 0.004) return c;
       final h = HSVColor.fromColor(c);
       if (h.saturation < 0.01) return c;
-      var hueDelta = (h.hue - oHsv.hue).abs();
-      if (hueDelta > 180) hueDelta = 360 - hueDelta;
+      final hueDelta = (h.hue - oHsv.hue).abs();
       if (hueDelta > hueThreshold) return c;
       var hue = (h.hue + hDiff) % 360;
       if (hue < 0) hue += 360;
@@ -1785,8 +1784,9 @@ class TelegramPalette {
     );
 
     if (!dark) return p;
-    // §25.4.3 keepContrast: ensure fg/bg pairs maintain readable contrast
-    return p._enforceContrast();
+    // §25.4.3 keepContrast: Night includes file icon pairs; NightGreen does not
+    final isNight = windowBg == const Color(0xFF17212B);
+    return p._enforceContrast(includeFileIcons: isNight);
   }
 
   TelegramPalette adjustServiceColorsForWallpaper(WallpaperData wallpaper) {
@@ -2271,21 +2271,16 @@ class TelegramPalette {
     );
   }
 
-  TelegramPalette _enforceContrast() {
-    Color fix(Color fg, Color bg) {
-      final fgL = fg.computeLuminance();
-      final bgL = bg.computeLuminance();
-      final ratio = (fgL > bgL)
-          ? (fgL + 0.05) / (bgL + 0.05)
-          : (bgL + 0.05) / (fgL + 0.05);
-      if (ratio >= 4.5) return fg;
-      final hsv = HSVColor.fromColor(fg);
-      return HSVColor.fromAHSV(
-        hsv.alpha,
-        hsv.hue,
-        hsv.saturation,
-        (bgL < 0.5) ? (hsv.value + 0.3).clamp(0.0, 1.0) : (hsv.value - 0.3).clamp(0.0, 1.0),
-      ).toColor();
+  TelegramPalette _enforceContrast({bool includeFileIcons = true}) {
+    double cppLightness(Color c) {
+      final hsv = HSVColor.fromColor(c);
+      final v = hsv.value * 255;
+      final s = hsv.saturation * 255;
+      return v - (v * s) / 511;
+    }
+    Color fix(Color fg, Color bg, [Color? fallback]) {
+      if ((cppLightness(fg) - cppLightness(bg)).abs() >= 64) return fg;
+      return fallback ?? windowFgActive;
     }
     return TelegramPalette(
       windowBg: windowBg, windowBgOver: windowBgOver, windowBgRipple: windowBgRipple,
@@ -2299,7 +2294,7 @@ class TelegramPalette {
       layerBg: layerBg,
       activeButtonBg: activeButtonBg, activeButtonBgOver: activeButtonBgOver,
       activeButtonBgRipple: activeButtonBgRipple,
-      activeButtonFg: fix(activeButtonFg, activeButtonBg),
+      activeButtonFg: fix(activeButtonFg, activeButtonBg, windowBg),
       activeButtonSecondaryFg: activeButtonSecondaryFg,
       activeLineFg: activeLineFg, activeLineFgError: activeLineFgError,
       lightButtonBg: lightButtonBg, lightButtonBgOver: lightButtonBgOver,
@@ -2401,7 +2396,7 @@ class TelegramPalette {
       boxDividerBg: boxDividerBg,
       profileStatusFgOver: profileStatusFgOver,
       profileVerifiedCheckBg: profileVerifiedCheckBg,
-      profileVerifiedCheckFg: fix(profileVerifiedCheckFg, profileVerifiedCheckBg),
+      profileVerifiedCheckFg: fix(profileVerifiedCheckFg, profileVerifiedCheckBg, windowBg),
       profileAdminStartFg: profileAdminStartFg,
       sideBarBg: sideBarBg, sideBarBgActive: sideBarBgActive,
       sideBarBgRipple: sideBarBgRipple,
@@ -2599,14 +2594,14 @@ class TelegramPalette {
       msgFileInBgOver: msgFileInBgOver,
       msgFileInBgSelected: msgFileInBgSelected,
       msgFileOutBgSelected: msgFileOutBgSelected,
-      historyFileInIconFg: fix(historyFileInIconFg, msgFileInBg),
-      historyFileInIconFgSelected: fix(historyFileInIconFgSelected, msgFileInBgSelected),
-      historyFileInRadialFg: fix(historyFileInRadialFg, msgFileInBg),
-      historyFileInRadialFgSelected: fix(historyFileInRadialFgSelected, msgFileInBgSelected),
-      historyFileOutIconFg: fix(historyFileOutIconFg, msgFileOutBg),
-      historyFileOutIconFgSelected: fix(historyFileOutIconFgSelected, msgFileOutBgSelected),
-      historyFileOutRadialFg: fix(historyFileOutRadialFg, msgFileOutBg),
-      historyFileOutRadialFgSelected: fix(historyFileOutRadialFgSelected, msgFileOutBgSelected),
+      historyFileInIconFg: includeFileIcons ? fix(historyFileInIconFg, msgFileInBg, msgInBg) : historyFileInIconFg,
+      historyFileInIconFgSelected: includeFileIcons ? fix(historyFileInIconFgSelected, msgFileInBgSelected, msgInBgSelected) : historyFileInIconFgSelected,
+      historyFileInRadialFg: includeFileIcons ? fix(historyFileInRadialFg, msgFileInBg, msgInBg) : historyFileInRadialFg,
+      historyFileInRadialFgSelected: includeFileIcons ? fix(historyFileInRadialFgSelected, msgFileInBgSelected, msgInBgSelected) : historyFileInRadialFgSelected,
+      historyFileOutIconFg: includeFileIcons ? fix(historyFileOutIconFg, msgFileOutBg, msgOutBg) : historyFileOutIconFg,
+      historyFileOutIconFgSelected: includeFileIcons ? fix(historyFileOutIconFgSelected, msgFileOutBgSelected, msgOutBgSelected) : historyFileOutIconFgSelected,
+      historyFileOutRadialFg: includeFileIcons ? fix(historyFileOutRadialFg, msgFileOutBg, msgOutBg) : historyFileOutRadialFg,
+      historyFileOutRadialFgSelected: includeFileIcons ? fix(historyFileOutRadialFgSelected, msgFileOutBgSelected, msgOutBgSelected) : historyFileOutRadialFgSelected,
       historyFileThumbIconFg: historyFileThumbIconFg,
       historyFileThumbIconFgSelected: historyFileThumbIconFgSelected,
       historyFileThumbRadialFg: historyFileThumbRadialFg,
@@ -2640,7 +2635,7 @@ class TelegramPalette {
       mapPointDot: mapPointDot,
       overviewCheckBgActive: overviewCheckBgActive,
       overviewCheckBorder: overviewCheckBorder,
-      overviewCheckFgActive: fix(overviewCheckFgActive, overviewCheckBgActive),
+      overviewCheckFgActive: fix(overviewCheckFgActive, overviewCheckBgActive, windowBg),
       overviewPhotoSelectOverlay: overviewPhotoSelectOverlay,
       notificationsBoxMonitorFg: notificationsBoxMonitorFg,
       notificationsBoxScreenBg: notificationsBoxScreenBg,
@@ -2832,7 +2827,7 @@ class TelegramPalette {
     msgFileInBg: Color(0xFF40A7E3),
     msgFileOutBg: Color(0xFF40A7E3),
     msgServiceBg: Color(0x59005180),
-    msgServiceBgSelected: Color(0x8396B38B),
+    msgServiceBgSelected: Color(0xA262AFDD),
     msgServiceFg: Color(0xFFFFFFFF),
     msgSelectOverlay: Color(0x4C358CD4),
     msgStickerOverlay: Color(0x7F358CD4),
@@ -2856,7 +2851,7 @@ class TelegramPalette {
     historyPinnedBg: Color(0xFFFFFFFF),
     historyUnreadBarBg: Color(0xFFFCFBFA),
     historyUnreadBarFg: Color(0xFF538BB4),
-    historyScrollBg: Color(0x4C517C41),
+    historyScrollBg: Color(0x00000000),
     historyScrollBgOver: Color(0x1A000000),
     historyScrollBarBg: Color(0x40000000),
     historyScrollBarBgOver: Color(0x53000000),
@@ -2864,7 +2859,7 @@ class TelegramPalette {
     historyToDownBgOver: Color(0xFFF1F1F1),
     historyToDownFg: Color(0xFF999999),
     historyOutIconFg: Color(0xFF059DE8),
-    historySendingOutIconFg: Color(0xFF98D292),
+    historySendingOutIconFg: Color(0xFF9DC2D9),
     historySendingInIconFg: Color(0xFFA0ADB5),
     historyIconFgInverted: Color(0xFFFFFFFF),
     historySendingInvertedIconFg: Color(0xC8FFFFFF),
@@ -2903,7 +2898,7 @@ class TelegramPalette {
     msgFile2Bg: Color(0xFF61B96E),
     msgFile2BgDark: Color(0xFF4DA859),
     msgFile2BgOver: Color(0xFF44A050),
-    msgFile2BgSelected: Color(0xFF50AC9B),
+    msgFile2BgSelected: Color(0xFF46A07E),
     msgFile3Bg: Color(0xFFE47272),
     msgFile3BgDark: Color(0xFFCD5B5E),
     msgFile3BgOver: Color(0xFFC35154),
@@ -2998,10 +2993,10 @@ class TelegramPalette {
     historyPeer6NameFgSelected: Color(0xFFCD4073),
     historyPeer7NameFgSelected: Color(0xFF2996AD),
     historyPeer8NameFgSelected: Color(0xFFCE671B),
-    mediaviewFileRedCornerFg: Color(0xFFD45050),
-    mediaviewFileYellowCornerFg: Color(0xFFE8A63E),
-    mediaviewFileGreenCornerFg: Color(0xFF64C05E),
-    mediaviewFileBlueCornerFg: Color(0xFF5BBFDE),
+    mediaviewFileRedCornerFg: Color(0xFFD55959),
+    mediaviewFileYellowCornerFg: Color(0xFFE8A659),
+    mediaviewFileGreenCornerFg: Color(0xFF49A957),
+    mediaviewFileBlueCornerFg: Color(0xFF599DCF),
     premiumButtonBg1: Color(0xFF6B93FF),
     premiumButtonBg2: Color(0xFF976FFF),
     premiumButtonBg3: Color(0xFFE46ACE),
@@ -3102,7 +3097,7 @@ class TelegramPalette {
     dialogsVerifiedIconBgOver: Color(0xFF40A7E3),
     dialogsVerifiedIconFgOver: Color(0xFFFFFFFF),
     dialogsSendingIconFgOver: Color(0xFFC1C1C1),
-    dialogsSentIconFgOver: Color(0xFF58B84D),
+    dialogsSentIconFgOver: Color(0xFF2CA6E8),
     dialogsUnreadBgOver: Color(0xFF40A7E3),
     dialogsUnreadBgMutedOver: Color(0xFFBBBBBB),
     dialogsUnreadFgOver: Color(0xFFFFFFFF),
