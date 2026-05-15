@@ -228,10 +228,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 
 
 
-## ayu_appearance_page — Avatar corners preview uses EmptyUserpic as a plain colored Container (wrong shape)
-
-- [ ] [MAJOR] When no avatar is loaded, the Dart fallback renders a rectangular `Container` with a color fill (line 416-426). AyuGram's `AvatarCornersPreview` calls `_emptyUserpic.paintCircle(...)` (line 63 of avatar_corners_preview.cpp), which always paints a circle as the empty userpic, unaffected by the corners setting. The Dart container is rectangular and is then clipped by `ClipRRect` with the corners radius — so at corners=0 it shows a square fallback, but AyuGram always shows a circle for the EmptyUserpic regardless of corners value. — `ayu_appearance_page.dart:416-427` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/components/avatar_corners_preview.cpp:63`
-
 ## ayu_appearance_page — Drawer toggle icons missing from all drawer element rows
 
 - [ ] [MAJOR] Every drawer toggle in AyuGram has an associated `.icon` field (e.g., `&st::menuIconProfile`, `&st::menuIconBot`, `&st::menuIconGroups`, etc.) that renders a leading icon on the setting row. The Dart `addSettingToggle` calls for all drawer items (lines 121-193) pass no icon — `AyuSectionBuilder.addSettingToggle` has no icon parameter at all. All drawer items render without their icons. — `ayu_appearance_page.dart:121-193` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_appearance.cpp:283-373`
