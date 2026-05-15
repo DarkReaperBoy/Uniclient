@@ -226,10 +226,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 # ayu_appearance_page — Audit Findings
 
 
-## ayu_appearance_page — Missing divider description text after Single Corner Radius toggle
-
-- [ ] [MAJOR] After the "Single corner radius" toggle, AyuGram renders a `DividerText` with `ayu_SingleCornerRadiusDescription` = "Forums will have the same avatar shape as chats." The Dart code has this text only as the toggle's inline subtitle (`'Forums will have the same avatar shape as chats'`), not as a post-toggle description block below a divider. — `ayu_appearance_page.dart:326-327` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_appearance.cpp:183-185`
-
 ## ayu_appearance_page — "Material Design switches" label deviates from AyuGram ("MD3 Switch Style")
 
 - [ ] [MAJOR] The Dart label is `'Material Design switches'` (line 55). AyuGram uses `ayu_MaterialSwitches` = `"MD3 Switch Style"`. The label is meaningfully different and user-facing. — `ayu_appearance_page.dart:55` ← `AyuGramDesktop/Telegram/Resources/langs/lang.strings:8105`
