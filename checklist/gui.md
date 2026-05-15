@@ -220,32 +220,6 @@ The `bridge_stub.dart` file is correctly implemented as a fallback implementatio
 
 **Result:** ✅ This is a properly-designed fallback stub. No issues to report.
 
-## advanced_settings_screen — Proxy/auto-download not wired to engine; experimental flags are stubs; section headers missing; screen reader toggle self-destructs
-
-- [ ] [CRITICAL] Proxy settings not wired to Go engine: `setProxyMode`, `setProxyIpv6`, `setProxyForCalls`, `setProxyList` all only call `_saveWindowPrefs()` with no engine/FFI call — Telegram connections are always direct regardless of proxy settings — `app_state.dart:1982-2008` ← `settings_advanced.cpp:119-132` (AyuGram calls `ProxiesBoxController::CreateOwningBox(account)` which configures `account->mtp()`)
-
-- [ ] [CRITICAL] Auto-download settings not wired to Go engine: `setAutoDownloadSettings` stores to local `_autoDownloadSettings` map only — the engine must call `account_setAutoDownloadSettings` via Telegram API; without this the settings are purely decorative — `app_state.dart:2010-2014` ← `settings_advanced.cpp:212-256` (AyuGram creates `AutoDownloadBox(session, Source::User/Group/Channel)`)
-
-- [ ] [CRITICAL] All 14 experimental flags have zero effect: flags (`tabbed_emoji_panel`, `forum_chat_list`, `dialogs_mute_icon`, `fractional_scaling`, etc.) are stored in `AppState._experimentalFlags` but no code outside the settings screen and `app_state.dart` ever reads them — grep across all dart UI files returns zero hits — `advanced_settings_screen.dart:3910-3925` ← `settings_experimental.cpp` (AyuGram experimental features gate real behavior via `Core::App().settings().experimentalFeature(Name)`)
-
-- [ ] [CRITICAL] `setLaunchAtStartup` does not configure OS autostart: only stores flag to prefs via `_saveWindowPrefs()`, no platform call — toggle appears functional but never adds/removes app from system startup — `app_state.dart:1854-1862` ← `settings_advanced.cpp:648-697` (AyuGram calls `Platform::AutostartToggle(checked, callback)`)
-
-- [ ] [CRITICAL] `_ProxyStatus.online` is a dead state that can never be reached: `_checkProxy` only ever sets `available` or `unavailable` (`advanced_settings_screen.dart:2654,2659`) but the display map handles `online` as a green "Online" label — the active-proxy visual indicator is never shown — `advanced_settings_screen.dart:2994-3005` ← `connection_box.cpp` (AyuGram distinguishes `online`/`available`/`checking`/`unavailable` via real connection state from mtproto)
-
-- [ ] [MAJOR] Section title headers missing for all 11 sections: AyuGram renders a `addSubsectionTitle` label before each section (e.g. "Data and Storage", "Automatic Media Download", "Performance", "Spellchecker"); Dart uses only a 1px divider — no text labels are displayed — `advanced_settings_screen.dart:109-124` ← `settings_advanced.cpp:99-104, 217-221, 263-267, 830-834, 886-890, 959-963`
-
-- [ ] [MAJOR] Screen reader toggle self-destructs after being enabled: `_buildScreenReader` returns empty when `appState.screenReaderOptimized == true` — the toggle disappears after enabling and the user cannot turn it off — `advanced_settings_screen.dart:1097-1117` ← `settings_advanced.cpp:1184-1218` (AyuGram keeps the toggle visible persistently once a screen reader is detected)
-
-- [ ] [MAJOR] `_LocalStorageBox` cache scan uses unreliable file-extension heuristics: categories (Images=`.jpg/.png`, Stickers=`.tgs/.webm`, Voice=`.ogg`, etc.) are guessed from extension — Go engine may store with no extension or different names — reported per-category sizes will be wrong — `advanced_settings_screen.dart:1706-1730` ← `local_storage_box.cpp` (AyuGram reads actual sizes from Telegram's internal storage metadata)
-
-- [ ] [MAJOR] `_LocalStorageBox` clears files directly without notifying Go engine: `_clearAll()`/`_clearTag()` delete files via `entity.delete()` while the engine holds internal file references and path indices — this causes stale references and potential engine crashes on next cache access — `advanced_settings_screen.dart:1748-1767, 1770-1783` ← `local_storage_box.cpp` (AyuGram routes clearing through Telegram's storage manager)
-
-- [ ] [MAJOR] Local storage size limits stored but never enforced by engine: `setLocalStorageLimits` saves total/media limit and time limit to `window_prefs.json` only — the Go engine manages its own cache with no knowledge of these UI-set limits — `app_state.dart:2028-2034` ← `settings_advanced.cpp:165-173` (AyuGram passes limits directly into `LocalStorageBox` which communicates with the Telegram client)
-
-- [ ] [MAJOR] Proxy health check is bare TCP, not proxy-protocol validation: `_checkProxy` does `Socket.connect(host, port)` — does not verify SOCKS5 handshake, HTTP CONNECT, or MTProto secret — a proxy can pass TCP but reject Telegram protocol, showing `available` status when Telegram would actually fail — `advanced_settings_screen.dart:2640-2664` ← `connection_box.cpp` (AyuGram tests proxies through real MTProto connections)
-
-- [ ] [MAJOR] Downloads section opens simplified local list instead of full Downloads panel: `_RecentDownloadsBox` shows a manually tracked list capped at 100 items with no search or filter — AyuGram opens `Info::Downloads::Make(session->user())`, a full paginated downloads viewer — `advanced_settings_screen.dart:420-430` ← `settings_advanced.cpp:175-186`
-
 # auth_screen — Auth screen audit
 
 - [ ] [MAJOR] OTP digit cell corner radius is 3px but AyuGram uses `st::boxRadius` (6px) — `dart/lib/ui/auth_screen.dart:1490` ← `AyuGram/Telegram/lib_ui/ui/layers/layers.style:38` + `AyuGram/Telegram/SourceFiles/intro/intro_code_input.cpp:128`
