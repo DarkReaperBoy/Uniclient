@@ -1196,72 +1196,23 @@ class TelegramPalette {
     _ => dayAccents,
   };
 
-  // ── §25.17.2 Colorize exclusion list — tokens that never change with accent ──
-  static const kColorizeIgnoredKeys = <String>{
-    'boxTextFgGood', 'boxTextFgError',
-    'callIconFg', 'callArrowFg', 'callArrowMissedFg',
-    'historyPeer1NameFg', 'historyPeer1NameFgSelected', 'historyPeer1UserpicBg',
-    'historyPeer2NameFg', 'historyPeer2NameFgSelected', 'historyPeer2UserpicBg',
-    'historyPeer3NameFg', 'historyPeer3NameFgSelected', 'historyPeer3UserpicBg',
-    'historyPeer4NameFg', 'historyPeer4NameFgSelected', 'historyPeer4UserpicBg',
-    'historyPeer5NameFg', 'historyPeer5NameFgSelected', 'historyPeer5UserpicBg',
-    'historyPeer6NameFg', 'historyPeer6NameFgSelected', 'historyPeer6UserpicBg',
-    'historyPeer7NameFg', 'historyPeer7NameFgSelected', 'historyPeer7UserpicBg',
-    'historyPeer8NameFg', 'historyPeer8NameFgSelected', 'historyPeer8UserpicBg',
-    'historyPeer1UserpicBg2', 'historyPeer2UserpicBg2', 'historyPeer3UserpicBg2',
-    'historyPeer4UserpicBg2', 'historyPeer5UserpicBg2', 'historyPeer6UserpicBg2',
-    'historyPeer7UserpicBg2', 'historyPeer8UserpicBg2',
-    'historyCallArrowFg', 'historyCallArrowMissedFg',
-    'historyCallArrowInFg', 'historyCallArrowInMissedFg',
-    'historyCallArrowOutFg', 'historyCallArrowOutMissedFg',
-    'msgFile1Bg', 'msgFile1BgDark', 'msgFile1BgOver', 'msgFile1BgSelected',
-    'msgFile2Bg', 'msgFile2BgDark', 'msgFile2BgOver', 'msgFile2BgSelected',
-    'msgFile3Bg', 'msgFile3BgDark', 'msgFile3BgOver', 'msgFile3BgSelected',
-    'msgFile4Bg', 'msgFile4BgDark', 'msgFile4BgOver', 'msgFile4BgSelected',
-    'mediaviewFileRedCornerFg', 'mediaviewFileYellowCornerFg',
-    'mediaviewFileGreenCornerFg', 'mediaviewFileBlueCornerFg',
-    'settingsIconBg1', 'settingsIconBg2', 'settingsIconBg3', 'settingsIconBg4',
-    'settingsIconBg5', 'settingsIconBg6', 'settingsIconBg8', 'settingsIconBgArchive',
-    'premiumButtonBg1', 'premiumButtonBg2', 'premiumButtonBg3',
-    'premiumIconBg1', 'premiumIconBg2',
-    'trayCounterBg', 'trayCounterBgMute', 'trayCounterFg',
-    'trayCounterBgMacInvert', 'trayCounterFgMacInvert',
-    'paymentsTipActive',
-    'botKbPrimaryBg', 'botKbDangerBg', 'botKbSuccessBg',
-    'botKbInlinePrimaryBg', 'botKbInlineDangerBg', 'botKbInlineSuccessBg',
-    'mapPointDrop', 'mapPointDot',
-    'youtubePlayIconBg', 'youtubePlayIconFg',
-    'videoPlayIconBg', 'videoPlayIconFg',
-    'stickerPanPremium1', 'stickerPanPremium2',
-    'groupCallBg', 'groupCallActiveFg',
-    'groupCallMembersBg', 'groupCallMembersBgOver', 'groupCallMembersBgRipple',
-    'groupCallMembersFg', 'groupCallMemberActiveIcon', 'groupCallMemberActiveStatus',
-    'groupCallMemberInactiveIcon', 'groupCallMemberInactiveStatus',
-    'groupCallMemberMutedIcon', 'groupCallMemberNotJoinedStatus',
-    'groupCallIconFg',
-    'groupCallLive1', 'groupCallLive2',
-    'groupCallMuted1', 'groupCallMuted2',
-    'groupCallForceMutedBar1', 'groupCallForceMutedBar2', 'groupCallForceMutedBar3',
-    'groupCallForceMuted1', 'groupCallForceMuted2', 'groupCallForceMuted3',
-    'groupCallMenuBg', 'groupCallMenuBgOver', 'groupCallMenuBgRipple',
-    'groupCallLeaveBg', 'groupCallLeaveBgRipple',
-    'groupCallVideoTextFg', 'groupCallVideoSubTextFg',
-  };
-
   // ── §25.4.3 HSL Colorizer (spec §25.4.3 + §25.17.1) ──
   TelegramPalette colorize(Color newAccent) {
     final origAccent = windowBgActive;
     if (colorEq(origAccent, newAccent)) return this;
 
     final oHsv = HSVColor.fromColor(origAccent);
-    final nHsv = HSVColor.fromColor(newAccent);
-    final hDiff = nHsv.hue - oHsv.hue;
-    final sRatio = oHsv.saturation > 0.001
-        ? nHsv.saturation / oHsv.saturation
-        : 1.0;
     final dark = isDark;
     final double lMin = dark ? 64.0 / 255.0 : 0.0;
     final double lMax = dark ? 1.0 : 160.0 / 255.0;
+    // Clamp the new accent's HSL lightness before storing as colorizer target
+    // (matches C++ ColorizerFrom() lightnessMin/lightnessMax clamping)
+    final nHslRaw = HSLColor.fromColor(newAccent);
+    final nHslL = nHslRaw.lightness.clamp(lMin, lMax);
+    final nHsv = (nHslL - nHslRaw.lightness).abs() > 0.0001
+        ? HSVColor.fromColor(nHslRaw.withLightness(nHslL).toColor())
+        : HSVColor.fromColor(newAccent);
+    final hDiff = nHsv.hue - oHsv.hue;
     const double hueThreshold = 15.0;
 
     Color s(Color c) {
@@ -1273,12 +1224,27 @@ class TelegramPalette {
       if (hueDelta > hueThreshold) return c;
       var hue = (h.hue + hDiff) % 360;
       if (hue < 0) hue += 360;
-      final sat = (h.saturation * sRatio).clamp(0.0, 1.0);
-      final shifted = HSVColor.fromAHSV(h.alpha, hue, sat, h.value).toColor();
-      final hsl = HSLColor.fromColor(shifted);
-      final clampedL = hsl.lightness.clamp(lMin, lMax);
-      if ((clampedL - hsl.lightness).abs() < 0.001) return shifted;
-      return HSLColor.fromAHSL(hsl.alpha, hsl.hue, hsl.saturation, clampedL).toColor();
+      // Piecewise saturation formula (C++ style_palette_colorizer.cpp:33-43)
+      final double cSat = h.saturation, oSat = oHsv.saturation, nSat = nHsv.saturation;
+      final double sat;
+      if (cSat > oSat && nSat > oSat && (1.0 - oSat) > 0.0001) {
+        sat = ((nSat * (1.0 - oSat) + (cSat - oSat) * (1.0 - nSat)) / (1.0 - oSat)).clamp(0.0, 1.0);
+      } else if ((cSat - oSat).abs() > 0.0001 && oSat > 0.0001) {
+        sat = (cSat * nSat / oSat).clamp(0.0, 1.0);
+      } else {
+        sat = nSat.clamp(0.0, 1.0);
+      }
+      // Piecewise value/brightness formula (C++ style_palette_colorizer.cpp:44-57)
+      final double cVal = h.value, oVal = oHsv.value, nVal = nHsv.value;
+      final double val;
+      if (cVal > oVal && (1.0 - oVal) > 0.0001) {
+        val = ((nVal * (1.0 - oVal) + (cVal - oVal) * (1.0 - nVal)) / (1.0 - oVal)).clamp(0.0, 1.0);
+      } else if (cVal < oVal && oVal > 0.0001) {
+        val = (cVal * nVal / oVal).clamp(0.0, 1.0);
+      } else {
+        val = nVal.clamp(0.0, 1.0);
+      }
+      return HSVColor.fromAHSV(h.alpha, hue, sat, val).toColor();
     }
 
     final p = TelegramPalette(
@@ -1622,9 +1588,9 @@ class TelegramPalette {
       dialogsSendingIconFgActive: s(dialogsSendingIconFgActive),
       dialogsSentIconFgActive: s(dialogsSentIconFgActive),
       dialogsScamFgActive: s(dialogsScamFgActive),
-      dialogsMentionIconFg: dialogsMentionIconFg,
-      dialogsReactionIconFg: dialogsReactionIconFg,
-      dialogsPollIconFg: dialogsPollIconFg,
+      dialogsMentionIconFg: s(dialogsMentionIconFg),
+      dialogsReactionIconFg: s(dialogsReactionIconFg),
+      dialogsPollIconFg: s(dialogsPollIconFg),
       searchedBarBg: s(searchedBarBg),
       searchedBarFg: s(searchedBarFg),
       emojiPanBg: s(emojiPanBg),
@@ -2890,7 +2856,7 @@ class TelegramPalette {
     historyPinnedBg: Color(0xFFFFFFFF),
     historyUnreadBarBg: Color(0xFFFCFBFA),
     historyUnreadBarFg: Color(0xFF538BB4),
-    historyScrollBg: Color(0x00000000),
+    historyScrollBg: Color(0x4C517C41),
     historyScrollBgOver: Color(0x1A000000),
     historyScrollBarBg: Color(0x40000000),
     historyScrollBarBgOver: Color(0x53000000),
@@ -2937,7 +2903,7 @@ class TelegramPalette {
     msgFile2Bg: Color(0xFF61B96E),
     msgFile2BgDark: Color(0xFF4DA859),
     msgFile2BgOver: Color(0xFF44A050),
-    msgFile2BgSelected: Color(0xFF46A07E),
+    msgFile2BgSelected: Color(0xFF50AC9B),
     msgFile3Bg: Color(0xFFE47272),
     msgFile3BgDark: Color(0xFFCD5B5E),
     msgFile3BgOver: Color(0xFFC35154),
