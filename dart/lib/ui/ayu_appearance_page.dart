@@ -36,11 +36,13 @@ class AyuAppearancePage extends StatelessWidget {
         value: appState.hideNotificationBadge,
         onChanged: (v) => appState.setHideNotificationBadge(v),
       );
-      b.addDescription(
+      b.addSkip();
+      b.addDividerText(
           'Hides the notification counter on the app icon in the taskbar and tray.');
+      b.addSkip();
+    } else {
+      b.addSectionDivider();
     }
-
-    b.addSectionDivider();
 
     b.addWidget(_AvatarCornersSection(
       corners: appState.avatarCorners,
@@ -365,8 +367,15 @@ class _AvatarCornersSectionState extends State<_AvatarCornersSection> {
           isDark: widget.isDark,
           useMaterial: widget.useMaterial,
         ),
+        const SizedBox(height: 7),
+        Container(
+          height: 1,
+          color: widget.isDark
+              ? const Color(0xFF101921)
+              : const Color(0xFFE0E0E0),
+        ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+          padding: const EdgeInsets.fromLTRB(22, 7, 22, 0),
           child: Text(
               'Forums will have the same avatar shape as chats.',
               style: TextStyle(

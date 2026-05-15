@@ -134,6 +134,20 @@ class AyuSectionBuilder {
     ));
   }
 
+  void addDividerText(String text) {
+    _children.add(Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(height: 1, color: _dividerColor),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 7, 22, 0),
+          child: Text(text,
+              style: TextStyle(fontSize: 12, color: _subtitleColor)),
+        ),
+      ],
+    ));
+  }
+
   void addWidget(Widget widget) {
     _children.add(widget);
   }
