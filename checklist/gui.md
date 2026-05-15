@@ -253,12 +253,6 @@ This blocks users from accessing 4 major customization features that are fully i
 - Settings definitions: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/ayu/ayu_settings.h:276,300-302,452-453,500-505,622,645-647`
 - MessagePreview impl: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/ayu/ui/components/message_preview.cpp:52-235`
 
-# ayugram_settings_screen — AyuGram Settings Main Screen
-
-- [ ] [CRITICAL] App version hardcoded to `'0.1.0'` — `String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0')` returns the default unless `--dart-define=APP_VERSION=...` is passed at build time, so release builds without that flag always display `v0.1.0` — `ayugram_settings_screen.dart:272` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_main.cpp:74` (`AppVersionStr` from `core/version.h`, always correct)
-
-- [ ] [MAJOR] "Documentation" link button uses wrong icon — `Icons.travel_explore` (globe) instead of `menuIconIpAddress` — `ayugram_settings_screen.dart:208` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_main.cpp:178` (`icon = { &st::menuIconIpAddress }`)
-
 # ayu_other_page — 1 remaining issue
 
 - [ ] [MAJOR] Donate amounts and username hardcoded as compile-time constants (`_donateAmountUsd = '5'`, `_donateAmountTon = '10'`, `_donateAmountRub = '300'`, `_donateUsername = 'RadianceTG'`) instead of being read from RCManager remote config; AyuGram fetches these dynamically and they can change server-side — `ayu_other_page.dart:437-440` ← `donate_info_box.cpp:179-203` + `rc_manager.h:64-78`
