@@ -498,16 +498,6 @@ return ClipOval(
 ## Cover / Header
 
 
-## Profile Details
-
-- [ ] [CRITICAL] Business hours field rendered as static text; no real-time "opens in X / closes in Y" countdown or expandable days list — `info_panel.dart:2959` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_actions.cpp:381`
-- [ ] [MAJOR] Contact notes widget entirely absent; AyuGram shows editable notes section with context menu (edit/delete) — `info_panel.dart:2016` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_actions.cpp:758`
-- [ ] [MAJOR] `_GroupActionsSection` always shows "Leave" without checking whether the user is actually a member — `info_panel.dart:3181` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_actions.cpp`
-- [ ] [MAJOR] `_MemberRow` hardcodes "last seen recently" for all non-online users instead of fetching real last-seen status — `info_panel.dart:5859` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_actions.cpp`
-- [ ] [MAJOR] "Share Contact" action in `_DmActionsSection` has no engine call; wired to `_shareContact` which emits nothing — `info_panel.dart:3695`
-- [ ] [MAJOR] "Report" action in group/channel sections calls no engine method — `info_panel.dart:3293` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_actions.cpp`
-- [ ] [MAJOR] Personal channel link in `_ChatDetails` displayed but tap does not navigate to the channel — `info_panel.dart:2982`
-
 ## Members Section
 
 - [ ] [CRITICAL] `_MembersSection` loads a static snapshot of members with no real-time membership event subscription; list goes stale without page refresh — `info_panel.dart:5683`
