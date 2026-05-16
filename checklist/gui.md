@@ -340,10 +340,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 
 ## chat_settings_screen — Chat Settings Screen Audit
 
-- [ ] [CRITICAL] "Choose from gallery" opens a local `_WallpaperBrowser` bottom sheet that only shows color/gradient wallpapers fetched via `getWallpapers()`, completely missing the full `BackgroundBox` which shows all Telegram server wallpapers (patterns, photos, premium) with preview, blur toggle, and full installation flow — `chat_settings_screen.dart:103-133` ← `AyuGram/boxes/background_box.cpp:1-60` + `AyuGram/settings/sections/settings_chat.cpp:476-479` (`BackgroundBox(controller)`)
-
-- [ ] [MAJOR] The reaction chooser opens an emoji-grid dialog; AyuGram shows a `ReactionsSettingsBox` which is the canonical reactions picker used across the app (with custom emoji, animated reactions, and the ability to set a favorite reaction stored server-side) — `chat_settings_screen.dart:3564-3615` ← `AyuGram/settings/sections/settings_chat.cpp:1764-1766` (`show->showBox(Box(ReactionsSettingsBox, controller))`)
-
 # chat_switch_overlay — Audit Findings
 
 - [ ] [CRITICAL] Forum topic icon uses generic `Icons.tag` placeholder instead of the real topic icon (`TopicIconButton`/`TopicIconView.paintInRect`), which renders the topic's actual custom emoji or server-side icon — `chat_switch_overlay.dart:460` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_chat_switch_process.cpp:99-110`
