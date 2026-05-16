@@ -462,7 +462,7 @@ class EngineService {
   }
 
   Future<String> addContact(String accountId, String phone, String firstName, String lastName, {String note = '', String userId = ''}) async {
-    if (userId.isNotEmpty && (phone.isEmpty || phone == '+0')) {
+    if (userId.isNotEmpty) {
       return addContactByUser(accountId, userId, firstName, lastName, note: note);
     }
     final req = epb.EngineAddContactRequest()
