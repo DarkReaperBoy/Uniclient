@@ -1995,60 +1995,13 @@ class _ChatViewState extends State<ChatView>
     final msgIdInt = int.tryParse(msg.msgId);
     if (msgIdInt == null) return;
 
-    List<int> currentOption = [];
-
-    while (true) {
-      final result = await engine.reportMessage(
-        msg.accountId,
-        chat.chatId,
-        [msgIdInt],
-        option: currentOption,
-      );
-      if (!mounted) return;
-
-      if (result == null) {
-        showTelegramToast(context, 'Report failed');
-        return;
-      }
-
-      if (result.resultType == 'reported') {
-        showTelegramToast(context, 'Message reported');
-        return;
-      }
-
-      if (result.resultType == 'choose_option') {
-        final picked = await showTelegramBox<List<int>>(
-          context: context,
-          builder: (ctx) => _ReportOptionPicker(
-            title: result.title.isNotEmpty ? result.title : 'Report',
-            options: result.options,
-          ),
-        );
-        if (picked == null || !mounted) return;
-        currentOption = picked;
-        continue;
-      }
-
-      if (result.resultType == 'add_comment') {
-        final comment = await showReportDetailsBox(
-          context,
-          optional: result.commentOptional,
-        );
-        if (comment == null || !mounted) return;
-        final finalResult = await engine.reportMessage(
-          msg.accountId,
-          chat.chatId,
-          [msgIdInt],
-          option: result.commentOption,
-          message: comment,
-        );
-        if (!mounted) return;
-        showTelegramToast(context, finalResult?.resultType == 'reported' ? 'Message reported' : 'Report submitted');
-        return;
-      }
-
-      return;
-    }
+    await showDynamicReportFlow(
+      context,
+      engine: engine,
+      accountId: msg.accountId,
+      chatId: chat.chatId,
+      msgIds: [msgIdInt],
+    );
   }
 
   // AyuGram §9.6: Edits History — show edit timestamp info.
@@ -2756,14 +2709,13 @@ class _ChatViewState extends State<ChatView>
         } catch (_) {}
       case 'report':
         try {
-          final reason = await showReportReasonBox(context, target: ReportTarget.user);
-          if (reason == null || !mounted) break;
-          final comment = await showReportDetailsBox(context);
-          if (comment == null || !mounted) break;
-          await engine.reportSpam(accountId, senderId);
-          if (mounted) {
-            showTelegramToast(context, 'User reported');
-          }
+          await showDynamicReportFlow(
+            context,
+            engine: engine,
+            accountId: accountId,
+            chatId: senderId,
+            msgIds: const [],
+          );
         } catch (_) {}
       case 'promote':
         if (mounted) {
@@ -19361,48 +19313,6 @@ class _ChatBackground extends StatelessWidget {
 
 // ─── §36.13 Report Option Picker (TelegramBox-styled) ───────────────────────
 
-class _ReportOptionPicker extends StatelessWidget {
-  final String title;
-  final List<ReportOptionItem> options;
-  const _ReportOptionPicker({required this.title, required this.options});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textFg = isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
-    final hoverBg = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
-
-    return TelegramBox(
-      title: title,
-      showClose: true,
-      content: Padding(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: options.map((opt) {
-            return InkWell(
-              onTap: () => Navigator.of(context).pop(opt.option),
-              hoverColor: hoverBg,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(24, 11, 24, 11),
-                child: Text(
-                  opt.text,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: textFg,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-      scrollableContent: true,
-    );
-  }
-}
 
 // ─── EditLinkBox — spec §41.6 ─────────────────────────────────────────────────
 

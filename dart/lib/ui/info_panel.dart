@@ -3323,12 +3323,14 @@ class _GroupActionsSection extends StatelessWidget {
   }
 
   void _confirmReport(BuildContext context, ChatState chatState) async {
-    final reason = await showReportReasonBox(context, target: ReportTarget.group);
-    if (reason == null || !context.mounted) return;
-    final comment = await showReportDetailsBox(context);
-    if (comment == null || !context.mounted) return;
-    chatState.reportSpam(chat.accountId, chat.chatId);
-    showTelegramToast(context, 'Group reported');
+    final engine = context.read<EngineService>();
+    await showDynamicReportFlow(
+      context,
+      engine: engine,
+      accountId: chat.accountId,
+      chatId: chat.chatId,
+      msgIds: const [],
+    );
   }
 
   void _confirmLeave(BuildContext context, ChatState chatState) {
@@ -3639,12 +3641,14 @@ class _ChannelActionsSection extends StatelessWidget {
   }
 
   void _confirmReport(BuildContext context, ChatState chatState) async {
-    final reason = await showReportReasonBox(context, target: ReportTarget.channel);
-    if (reason == null || !context.mounted) return;
-    final comment = await showReportDetailsBox(context);
-    if (comment == null || !context.mounted) return;
-    chatState.reportSpam(chat.accountId, chat.chatId);
-    showTelegramToast(context, 'Channel reported');
+    final engine = context.read<EngineService>();
+    await showDynamicReportFlow(
+      context,
+      engine: engine,
+      accountId: chat.accountId,
+      chatId: chat.chatId,
+      msgIds: const [],
+    );
   }
 
   void _confirmLeave(BuildContext context, ChatState chatState) {

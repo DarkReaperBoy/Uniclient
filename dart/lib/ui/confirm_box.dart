@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
+import 'telegram_toast.dart';
 
 // ─── §36.1 Box/Dialog Infrastructure Constants ───────────────────────────────
 
@@ -1301,6 +1302,121 @@ Future<String?> showReportReasonBox(
   );
 }
 
+Future<bool> showDynamicReportFlow(
+  BuildContext context, {
+  required dynamic engine,
+  required String accountId,
+  required String chatId,
+  required List<int> msgIds,
+}) async {
+  List<int> currentOption = [];
+
+  while (true) {
+    final result = await engine.reportMessage(
+      accountId,
+      chatId,
+      msgIds,
+      option: currentOption,
+    );
+    if (result == null || !context.mounted) return false;
+
+    if (result.resultType == 'reported') {
+      if (context.mounted) {
+        showTelegramToast(context, 'Report submitted');
+      }
+      return true;
+    }
+
+    if (result.resultType == 'choose_option') {
+      final picked = await showTelegramBox<List<int>>(
+        context: context,
+        builder: (ctx) => _ReportOptionPickerBox(
+          title: result.title.isNotEmpty ? result.title : 'Report',
+          options: result.options,
+        ),
+      );
+      if (picked == null || !context.mounted) return false;
+      currentOption = picked;
+      continue;
+    }
+
+    if (result.resultType == 'add_comment') {
+      final comment = await showReportDetailsBox(
+        context,
+        optional: result.commentOptional,
+      );
+      if (comment == null || !context.mounted) return false;
+      final finalResult = await engine.reportMessage(
+        accountId,
+        chatId,
+        msgIds,
+        option: result.commentOption,
+        message: comment,
+      );
+      if (context.mounted) {
+        showTelegramToast(
+          context,
+          finalResult?.resultType == 'reported'
+              ? 'Report submitted'
+              : 'Report sent',
+        );
+      }
+      return true;
+    }
+
+    return false;
+  }
+}
+
+class _ReportOptionPickerBox extends StatelessWidget {
+  final String title;
+  final List<ReportOptionItem> options;
+  const _ReportOptionPickerBox({required this.title, required this.options});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final textFg = p.boxTextFg;
+    final hoverBg = p.windowBgOver;
+
+    return TelegramBox(
+      title: title,
+      showClose: true,
+      content: Padding(
+        padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options.map((opt) {
+            return InkWell(
+              onTap: () => Navigator.of(context).pop(opt.option),
+              hoverColor: hoverBg,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(24, 11, 24, 11),
+                child: Text(
+                  opt.text,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: textFg,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'CANCEL',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      scrollableContent: true,
+    );
+  }
+}
+
 class _ReportReasonBox extends StatelessWidget {
   final String title;
   final ReportTarget target;
@@ -1376,6 +1492,12 @@ class _ReportReasonBox extends StatelessWidget {
           }).toList(),
         ),
       ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'CANCEL',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
       scrollableContent: true,
     );
   }
@@ -1438,7 +1560,7 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.only(top: 8, bottom: 16),
-                child: Icon(Icons.report_outlined, size: 72, color: iconFg),
+                child: Icon(Icons.report_outlined, size: 120, color: iconFg),
               ),
             ),
             Text(
@@ -1450,6 +1572,7 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox> {
               controller: _controller,
               focusNode: _focusNode,
               maxLines: 3,
+              maxLength: 512,
               autofocus: true,
               onChanged: (_) {
                 if (_errorText != null) setState(() => _errorText = null);
@@ -1476,7 +1599,6 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox> {
         ),
         TelegramBoxButton(
           text: 'REPORT',
-          isDestructive: true,
           onPressed: _submit,
         ),
       ],
