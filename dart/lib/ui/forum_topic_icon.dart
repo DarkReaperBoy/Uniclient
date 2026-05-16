@@ -13,12 +13,22 @@ class TopicIconPalette {
   final Color fillTop, fillBottom;
   final Color strokeTop, strokeBottom;
   final Color highlight;
+  /// Gradient y1 (top) as fraction of viewBox height (84px).
+  final double fillY1Frac;
+  /// Gradient y2 (bottom) as fraction of viewBox height.
+  final double fillY2Frac;
+  final double strokeY1Frac;
+  final double strokeY2Frac;
   const TopicIconPalette({
     required this.fillTop,
     required this.fillBottom,
     required this.strokeTop,
     required this.strokeBottom,
     required this.highlight,
+    this.fillY1Frac = 0.0,
+    this.fillY2Frac = 1.0,
+    this.strokeY1Frac = 0.0,
+    this.strokeY2Frac = 1.0,
   });
 }
 
@@ -29,36 +39,47 @@ const topicIconPalettes = <int, TopicIconPalette>{
     fillTop: Color(0xFF4BB7FF), fillBottom: Color(0xFF015EC1),
     strokeTop: Color(0xFF0888DF), strokeBottom: Color(0xFF0042AC),
     highlight: Color(0xFF71D0FF),
+    strokeY2Frac: 0.9939588,
   ),
   0xFFD67E: TopicIconPalette(
     fillTop: Color(0xFFFFDB5C), fillBottom: Color(0xFFEA5800),
     strokeTop: Color(0xFFF2A807), strokeBottom: Color(0xFFD93A00),
     highlight: Color(0xFFF9FF71),
+    strokeY2Frac: 0.990141482,
   ),
   0xCB86DB: TopicIconPalette(
     fillTop: Color(0xFFE57AFF), fillBottom: Color(0xFFA438BB),
     strokeTop: Color(0xFFB239D1), strokeBottom: Color(0xFF7C279A),
     highlight: Color(0xFFF5BDFF),
+    fillY2Frac: 0.997635421,
+    strokeY2Frac: 0.9939588,
   ),
   0x8EEE98: TopicIconPalette(
     fillTop: Color(0xFF97E334), fillBottom: Color(0xFF11B411),
     strokeTop: Color(0xFF48AF18), strokeBottom: Color(0xFF05951A),
     highlight: Color(0xFFC2FF71),
+    fillY2Frac: 0.997635421,
+    strokeY2Frac: 0.989250576,
   ),
   0xFF93B2: TopicIconPalette(
     fillTop: Color(0xFFFF7999), fillBottom: Color(0xFFE4215A),
     strokeTop: Color(0xFFF83B72), strokeBottom: Color(0xFFBA0940),
     highlight: Color(0xFFFFC7D6),
+    fillY1Frac: 0.0431422203,
+    fillY2Frac: 0.996023762,
+    strokeY2Frac: 0.964024371,
   ),
   0xFB6F5F: TopicIconPalette(
     fillTop: Color(0xFFFF714C), fillBottom: Color(0xFFC61505),
     strokeTop: Color(0xFFE12F1F), strokeBottom: Color(0xFFB40101),
     highlight: Color(0xFFFFB47D),
+    strokeY2Frac: 0.986056043,
   ),
   0x9AABAB: TopicIconPalette(
     fillTop: Color(0xFFA5A5A5), fillBottom: Color(0xFF616161),
     strokeTop: Color(0xFF737373), strokeBottom: Color(0xFF565656),
     highlight: Color(0xFFB8B8B8),
+    strokeY2Frac: 0.9939588,
   ),
 };
 
@@ -113,11 +134,12 @@ class ForumTopicIcon extends StatelessWidget {
 }
 
 /// Spec §22.2.2: extract first non-emoji letter or digit from title.
+/// Handles non-BMP characters (CJK Extension B, historic scripts) via
+/// full Unicode codepoint checking, matching AyuGram's UCS-4 approach.
 String extractTopicLetter(String title) {
   if (title.isEmpty) return '';
   final letterDigit = RegExp(r'[\p{L}\p{N}]', unicode: true);
   for (final char in title.characters) {
-    if (char.length > 1) continue;
     if (letterDigit.hasMatch(char)) return char;
   }
   return '';
@@ -266,8 +288,8 @@ class _BubbleIconPainter extends CustomPainter {
       bubble,
       Paint()
         ..shader = ui.Gradient.linear(
-          Offset(42 * s, 0),
-          Offset(42 * s, 84 * s),
+          Offset(42 * s, 84 * palette.fillY1Frac * s),
+          Offset(42 * s, 84 * palette.fillY2Frac * s),
           [palette.fillTop, palette.fillBottom],
         )
         ..style = PaintingStyle.fill,
@@ -277,8 +299,8 @@ class _BubbleIconPainter extends CustomPainter {
       bubble,
       Paint()
         ..shader = ui.Gradient.linear(
-          Offset(42 * s, 0),
-          Offset(42 * s, 84 * s),
+          Offset(42 * s, 84 * palette.strokeY1Frac * s),
+          Offset(42 * s, 84 * palette.strokeY2Frac * s),
           [palette.strokeTop, palette.strokeBottom],
         )
         ..style = PaintingStyle.stroke
@@ -393,6 +415,7 @@ final _customEmojiThumbCache = <int, String>{};
 final _customEmojiFileCache = <int, CustomEmojiFileData>{};
 final _customEmojiLottieCache = <int, Uint8List>{};
 final _customEmojiPendingRequests = <int, Future<void>>{};
+final _customEmojiRefCount = <int, int>{};
 
 Future<void> _fetchCustomEmojiData(EngineService engine, String accountId, int documentId) async {
   if (_customEmojiFileCache.containsKey(documentId)) return;
@@ -441,14 +464,14 @@ class CustomEmojiTopicIcon extends StatefulWidget {
 
 class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
     with SingleTickerProviderStateMixin {
-  static const _slideDuration = Duration(milliseconds: 200);
-  bool _active = true;
+  static const _releaseDuration = Duration(seconds: 5);
   Timer? _releaseTimer;
   AnimationController? _lottieController;
 
   @override
   void initState() {
     super.initState();
+    _refRetain(widget.documentId);
     _loadData();
   }
 
@@ -456,31 +479,10 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
   void didUpdateWidget(CustomEmojiTopicIcon old) {
     super.didUpdateWidget(old);
     if (old.documentId != widget.documentId) {
+      _refRelease(old.documentId);
+      _refRetain(widget.documentId);
       _lottieController?.dispose();
       _lottieController = null;
-      _loadData();
-    }
-  }
-
-  @override
-  void deactivate() {
-    _releaseTimer?.cancel();
-    _releaseTimer = Timer(_slideDuration, () {
-      _customEmojiFileCache.remove(widget.documentId);
-      _customEmojiLottieCache.remove(widget.documentId);
-      _customEmojiThumbCache.remove(widget.documentId);
-      _active = false;
-    });
-    super.deactivate();
-  }
-
-  @override
-  void activate() {
-    super.activate();
-    _releaseTimer?.cancel();
-    _releaseTimer = null;
-    if (!_active) {
-      _active = true;
       _loadData();
     }
   }
@@ -489,7 +491,29 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
   void dispose() {
     _releaseTimer?.cancel();
     _lottieController?.dispose();
+    _refRelease(widget.documentId);
     super.dispose();
+  }
+
+  void _refRetain(int docId) {
+    _customEmojiRefCount[docId] = (_customEmojiRefCount[docId] ?? 0) + 1;
+  }
+
+  void _refRelease(int docId) {
+    final count = (_customEmojiRefCount[docId] ?? 1) - 1;
+    if (count <= 0) {
+      _customEmojiRefCount.remove(docId);
+      _releaseTimer?.cancel();
+      _releaseTimer = Timer(_releaseDuration, () {
+        if ((_customEmojiRefCount[docId] ?? 0) <= 0) {
+          _customEmojiFileCache.remove(docId);
+          _customEmojiLottieCache.remove(docId);
+          _customEmojiThumbCache.remove(docId);
+        }
+      });
+    } else {
+      _customEmojiRefCount[docId] = count;
+    }
   }
 
   void _loadData() {
@@ -527,7 +551,7 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
       );
     }
     final file = _customEmojiFileCache[widget.documentId];
-    if (file != null && (file.isWebp || file.isWebm)) {
+    if (file != null && file.isWebp) {
       return SizedBox(
         width: s,
         height: s,
@@ -541,6 +565,7 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
         ),
       );
     }
+    // WebM is video — Image.memory cannot decode it; use thumbnail fallback.
     return _buildFallback(s);
   }
 

@@ -230,6 +230,16 @@ class ChatState extends ChangeNotifier {
   bool get hasMoreMessages => _hasMoreMessages;
   bool get hasArchivedChats => _hasArchivedChats;
 
+  bool get hasArchivedUnread =>
+      _chats.any((c) => c.isArchived && c.unreadCount > 0);
+
+  void markArchivedAsRead() {
+    final archived = _chats.where((c) => c.isArchived && c.unreadCount > 0).toList();
+    for (final chat in archived) {
+      _engine.markChatRead(chat.accountId, chat.chatId, '');
+    }
+  }
+
   /// Active channel/topic within a topic-type group. Null = default/all.
   String? get activeChannelId => _activeChannelId;
 

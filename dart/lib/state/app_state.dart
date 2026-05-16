@@ -298,6 +298,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _showCallsInDrawer = true;
   bool _showSavedMessagesInDrawer = true;
 
+  bool _archiveInMainMenu = false;
+
   // §50.2: Streamer Mode — global, non-persistent (OFF on every cold launch).
   bool _streamerModeEnabled = false;
   final StreamController<bool> _streamerModeController = StreamController<bool>.broadcast();
@@ -555,6 +557,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get showCallsInDrawer => _showCallsInDrawer;
   bool get showSavedMessagesInDrawer => _showSavedMessagesInDrawer;
 
+  bool get archiveInMainMenu => _archiveInMainMenu;
+  void setArchiveInMainMenu(bool v) {
+    if (_archiveInMainMenu == v) return;
+    _archiveInMainMenu = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
   // §50.2 Streamer Mode getters
   bool get streamerModeEnabled => _streamerModeEnabled;
   Stream<bool> get streamerModeStream => _streamerModeController.stream;
@@ -627,37 +637,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (!s.sendUploadProgressLocked && !s.sendUploadProgress) { s.sendUploadProgress = true; changed = true; }
       if (!s.sendOfflinePacketAfterOnlineLocked && s.sendOfflinePacketAfterOnline) { s.sendOfflinePacketAfterOnline = false; changed = true; }
     }
-    if (!changed) return;
-    if (v && key == _ghostKey) _engine.markAsOnline();
+    if (v && key == _ghostKey && changed) _engine.markAsOnline();
     ghostSettingChanged(key);
   }
 
   void toggleLockForKey(String key, String field) {
     final s = _ghostModeSettings.putIfAbsent(key, GhostModeAccountSettings.new);
-    final locks = [
-      s.sendReadMessagesLocked, s.sendReadStoriesLocked,
-      s.sendOnlinePacketsLocked, s.sendUploadProgressLocked,
-      s.sendOfflinePacketAfterOnlineLocked,
-    ];
-    bool isCurrentlyLocked;
-    switch (field) {
-      case 'sendReadMessages': isCurrentlyLocked = s.sendReadMessagesLocked;
-      case 'sendReadStories': isCurrentlyLocked = s.sendReadStoriesLocked;
-      case 'sendOnlinePackets': isCurrentlyLocked = s.sendOnlinePacketsLocked;
-      case 'sendUploadProgress': isCurrentlyLocked = s.sendUploadProgressLocked;
-      case 'sendOfflinePacketAfterOnline': isCurrentlyLocked = s.sendOfflinePacketAfterOnlineLocked;
-      default: return;
-    }
-    if (!isCurrentlyLocked) {
-      final unlockedCount = locks.where((l) => !l).length;
-      if (unlockedCount <= 1) return;
-    }
     switch (field) {
       case 'sendReadMessages': s.sendReadMessagesLocked = !s.sendReadMessagesLocked;
       case 'sendReadStories': s.sendReadStoriesLocked = !s.sendReadStoriesLocked;
       case 'sendOnlinePackets': s.sendOnlinePacketsLocked = !s.sendOnlinePacketsLocked;
       case 'sendUploadProgress': s.sendUploadProgressLocked = !s.sendUploadProgressLocked;
       case 'sendOfflinePacketAfterOnline': s.sendOfflinePacketAfterOnlineLocked = !s.sendOfflinePacketAfterOnlineLocked;
+      default: return;
     }
     notifyListeners();
     _saveWindowPrefs();
@@ -3175,6 +3167,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _uiScalePercent = (data['uiScalePercent'] as num?)?.toDouble() ?? 100.0;
       _ivZoom = (data['ivZoom'] as num?)?.toDouble() ?? 1.0;
       _showNightModeToggleInDrawer = data['showNightModeToggleInDrawer'] as bool? ?? true;
+      _archiveInMainMenu = data['archiveInMainMenu'] as bool? ?? false;
       // §54.8: Per-item drawer visibility.
       _showMyProfileInDrawer = data['showMyProfileInDrawer'] as bool? ?? true;
       _showBotsInDrawer = data['showBotsInDrawer'] as bool? ?? true;
@@ -3424,6 +3417,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'uiScalePercent': _uiScalePercent,
         'ivZoom': _ivZoom,
         'showNightModeToggleInDrawer': _showNightModeToggleInDrawer,
+        'archiveInMainMenu': _archiveInMainMenu,
         'showMyProfileInDrawer': _showMyProfileInDrawer,
         'showBotsInDrawer': _showBotsInDrawer,
         'showNewGroupInDrawer': _showNewGroupInDrawer,

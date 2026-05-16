@@ -161,8 +161,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         final authSt = context.read<AuthState>();
                         Navigator.of(context).pop();
                         Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ChangeNotifierProvider.value(
+                          settingsPageRoute(
+                            ChangeNotifierProvider.value(
                               value: appState,
                               child: ChangeNotifierProvider.value(
                                 value: chatSt,
@@ -470,8 +470,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         onTap: () => appState.setStreamerModeEnabled(!appState.streamerModeEnabled),
                       ),
                     ),
-                    // §3.3: Archive row — shown when user has archived chats.
-                    if (context.watch<ChatState>().hasArchivedChats)
+                    // §3.3: Archive row — shown when user has archived chats AND archiveInMainMenu is true.
+                    if (context.watch<ChatState>().hasArchivedChats && appState.archiveInMainMenu)
                       GestureDetector(
                         onSecondaryTapUp: (details) {
                           _showArchiveContextMenu(context, details.globalPosition, appState);
@@ -522,27 +522,38 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
 
   void _showArchiveContextMenu(
       BuildContext context, Offset position, AppState appState) {
+    final chatState = context.read<ChatState>();
+    final items = <TelegramMenuItem<String>>[
+      const TelegramMenuItem(
+        value: 'to_list',
+        icon: Icon(Icons.list_alt),
+        label: 'Show in chat list',
+      ),
+      TelegramMenuItem(
+        value: 'mark_read',
+        icon: const Icon(Icons.done_all),
+        label: 'Mark all as read',
+        isDisabled: !chatState.hasArchivedUnread,
+      ),
+      const TelegramMenuItem(value: '_sep', icon: Icon(Icons.more_horiz), label: '', isSeparator: true),
+      const TelegramMenuItem(
+        value: 'settings',
+        icon: Icon(Icons.settings),
+        label: 'Archive Settings',
+      ),
+    ];
     showTelegramMenu<String>(
       context: context,
       position: position,
-      items: const [
-        TelegramMenuItem(
-          value: 'expand',
-          icon: Icon(Icons.open_in_full),
-          label: 'Expand',
-        ),
-        TelegramMenuItem(
-          value: 'settings',
-          icon: Icon(Icons.settings),
-          label: 'Archive Settings',
-        ),
-      ],
+      items: items,
     ).then((value) {
       if (value == null) return;
       switch (value) {
-        case 'expand':
-          Navigator.of(context).pop();
-          appState.requestShowArchive();
+        case 'to_list':
+          appState.setArchiveInMainMenu(false);
+          showTelegramToast(context, 'Archive moved to chat list');
+        case 'mark_read':
+          chatState.markArchivedAsRead();
         case 'settings':
           final chatSt = context.read<ChatState>();
           final authSt = context.read<AuthState>();
@@ -801,12 +812,17 @@ class _ProfileCover extends StatelessWidget {
                   final as2 = ctx.watch<AppState>();
                   final cs = ctx.watch<ChatState>();
                   int otherUnread = 0;
+                  bool allMuted = true;
                   if (!expanded) {
                     for (final a in as2.accounts) {
                       if (a.id != as2.activeAccountId) {
                         otherUnread += cs.unreadCountForAccount(a.id);
+                        if (!cs.isAccountUnreadAllMuted(a.id)) {
+                          allMuted = false;
+                        }
                       }
                     }
+                    if (allMuted) otherUnread = 0;
                   }
                   return Row(
                     mainAxisSize: MainAxisSize.min,
@@ -851,13 +867,17 @@ class _ProfileCover extends StatelessWidget {
               ),
             ),
           Builder(builder: (ctx) {
-            final scale = ctx.watch<AppState>().uiScalePercent;
-            if ((scale - 100.0).abs() < 0.01) return const SizedBox.shrink();
+            final screenSize = MediaQuery.of(ctx).size;
+            final tooSmall = screenSize.width < 380 || screenSize.height < 480;
+            if (!tooSmall) return const SizedBox.shrink();
             return Positioned(
               right: 10,
               top: 10,
               child: GestureDetector(
-                onTap: () => ctx.read<AppState>().setUiScalePercent(100.0),
+                onTap: () {
+                  ctx.read<AppState>().setUiScalePercent(100.0);
+                  exit(0);
+                },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
