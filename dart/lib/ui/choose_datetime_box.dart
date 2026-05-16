@@ -4,10 +4,13 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart' as url_launcher;
+import 'package:provider/provider.dart';
 
+import '../state/app_state.dart';
 import 'confirm_box.dart';
 import 'popup_menu.dart';
+
+const int kScheduledUntilOnlineTimestamp = 0x7FFFFFFE;
 
 const double _cellW = 48;
 const double _cellH = 40;
@@ -71,7 +74,7 @@ Future<DateTime?> showCalendarBox(
     context: context,
     builder: (ctx) => _CalendarBoxWidget(
       initialDate: initialDate,
-      minDate: minDate ?? DateTime(1970),
+      minDate: minDate ?? DateTime(2013),
       maxDate: maxDate ?? DateTime(2036, 12, 31),
       selectedDate: selectedDate,
     ),
@@ -225,10 +228,6 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
     } else if (key == LogicalKeyboardKey.end) {
       _jumpToMax();
       return KeyEventResult.handled;
-    } else if (key == LogicalKeyboardKey.enter ||
-        key == LogicalKeyboardKey.numpadEnter) {
-      _selectDay(_focusDay);
-      return KeyEventResult.handled;
     } else if (key == LogicalKeyboardKey.escape) {
       Navigator.of(context).pop();
       return KeyEventResult.handled;
@@ -278,7 +277,6 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
     final daysInMonth = DateTime(_year, _month + 1, 0).day;
     final startWeekday = DateTime(_year, _month, 1).weekday;
     final offset = _dayOfWeekIndex(startWeekday);
-    final now = DateTime.now();
     final weekDays = _localizedWeekDays();
 
     return TelegramBox(
@@ -334,7 +332,6 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
           const SizedBox(width: 4),
         ],
       ),
-      onConfirm: () => _selectDay(_focusDay),
       content: Focus(
         autofocus: true,
         onKeyEvent: _handleKey,
@@ -371,7 +368,6 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
                 _buildDayGrid(
                   offset,
                   daysInMonth,
-                  now,
                   textFg,
                   subtextFg,
                   accentFg,
@@ -396,7 +392,6 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
   Widget _buildDayGrid(
     int offset,
     int daysInMonth,
-    DateTime now,
     Color textFg,
     Color subtextFg,
     Color accentFg,
@@ -445,15 +440,11 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
               _selected!.month == _month &&
               _selected!.day == thisDay;
           final isFocused = _focusDay == thisDay;
-          final isToday = now.year == _year &&
-              now.month == _month &&
-              now.day == thisDay;
 
           cells.add(_DayCell(
             day: thisDay,
             isSelected: isSelected,
             isFocused: isFocused,
-            isToday: isToday,
             isDisabled: isDisabled,
             textColor: textFg,
             accentColor: accentFg,
@@ -532,6 +523,32 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog> {
     return month;
   }
 
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowUp) {
+      _monthScrollCtrl.animateToItem(
+        (_selectedMonth - 2).clamp(0, 11),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+      );
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.arrowDown) {
+      _monthScrollCtrl.animateToItem(
+        _selectedMonth.clamp(0, 11),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+      );
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.escape) {
+      Navigator.of(context).pop();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -539,70 +556,97 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog> {
     final dimFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final bandColor = context.palette.windowBgActive;
     final years = _years;
+    const itemHeight = 40.0;
 
     return TelegramBox(
       title: 'Jump to date',
       scrollableContent: false,
-      onConfirm: () {
-        final month = _clampMonth(_selectedMonth, _selectedYear);
-        Navigator.of(context).pop(DateTime(_selectedYear, month));
-      },
-      content: SizedBox(
-        height: 200,
-        child: Row(
-          children: [
-            Expanded(
-              child: ListWheelScrollView.useDelegate(
-                controller: _monthScrollCtrl,
-                itemExtent: 40,
-                physics: const FixedExtentScrollPhysics(),
-                onSelectedItemChanged: (i) => setState(() => _selectedMonth = i + 1),
-                childDelegate: ListWheelChildBuilderDelegate(
-                  childCount: 12,
-                  builder: (ctx, i) {
-                    final isSelected = i + 1 == _selectedMonth;
-                    final isDisabled = (_selectedYear == widget.minDate.year && i + 1 < widget.minDate.month) ||
-                        (_selectedYear == widget.maxDate.year && i + 1 > widget.maxDate.month);
-                    return Center(
-                      child: Text(
-                        _monthNames[i],
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
-                          color: isDisabled ? dimFg.withValues(alpha: 0.4) : (isSelected ? textFg : dimFg),
-                        ),
+      onKeyEvent: _handleKey,
+      content: Focus(
+        autofocus: true,
+        onKeyEvent: _handleKey,
+        child: SizedBox(
+          height: 200,
+          child: Stack(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: ListWheelScrollView.useDelegate(
+                      controller: _monthScrollCtrl,
+                      itemExtent: itemHeight,
+                      physics: const FixedExtentScrollPhysics(),
+                      onSelectedItemChanged: (i) => setState(() => _selectedMonth = i + 1),
+                      childDelegate: ListWheelChildBuilderDelegate(
+                        childCount: 12,
+                        builder: (ctx, i) {
+                          final isSelected = i + 1 == _selectedMonth;
+                          final isDisabled = (_selectedYear == widget.minDate.year && i + 1 < widget.minDate.month) ||
+                              (_selectedYear == widget.maxDate.year && i + 1 > widget.maxDate.month);
+                          return Center(
+                            child: Text(
+                              _monthNames[i],
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+                                color: isDisabled ? dimFg.withValues(alpha: 0.4) : (isSelected ? textFg : dimFg),
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
+                    ),
+                  ),
+                  Expanded(
+                    child: ListWheelScrollView.useDelegate(
+                      controller: _yearScrollCtrl,
+                      itemExtent: itemHeight,
+                      physics: const FixedExtentScrollPhysics(),
+                      onSelectedItemChanged: (i) => setState(() => _selectedYear = years[i]),
+                      childDelegate: ListWheelChildBuilderDelegate(
+                        childCount: years.length,
+                        builder: (ctx, i) {
+                          final isSelected = years[i] == _selectedYear;
+                          return Center(
+                            child: Text(
+                              '${years[i]}',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+                                color: isSelected ? textFg : dimFg,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 200 / 2 - itemHeight / 2,
+                child: IgnorePointer(
+                  child: Container(
+                    height: 2,
+                    color: bandColor,
+                  ),
                 ),
               ),
-            ),
-            Container(width: 1, height: 200, color: bandColor.withValues(alpha: 0.3)),
-            Expanded(
-              child: ListWheelScrollView.useDelegate(
-                controller: _yearScrollCtrl,
-                itemExtent: 40,
-                physics: const FixedExtentScrollPhysics(),
-                onSelectedItemChanged: (i) => setState(() => _selectedYear = years[i]),
-                childDelegate: ListWheelChildBuilderDelegate(
-                  childCount: years.length,
-                  builder: (ctx, i) {
-                    final isSelected = years[i] == _selectedYear;
-                    return Center(
-                      child: Text(
-                        '${years[i]}',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
-                          color: isSelected ? textFg : dimFg,
-                        ),
-                      ),
-                    );
-                  },
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 200 / 2 + itemHeight / 2,
+                child: IgnorePointer(
+                  child: Container(
+                    height: 2,
+                    color: bandColor,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       buttons: [
@@ -667,7 +711,6 @@ class _DayCell extends StatefulWidget {
   final int day;
   final bool isSelected;
   final bool isFocused;
-  final bool isToday;
   final bool isDisabled;
   final Color textColor;
   final Color accentColor;
@@ -679,7 +722,6 @@ class _DayCell extends StatefulWidget {
     required this.day,
     required this.isSelected,
     required this.isFocused,
-    required this.isToday,
     required this.isDisabled,
     required this.textColor,
     required this.accentColor,
@@ -704,12 +746,6 @@ class _DayCellState extends State<_DayCell> {
       decoration =
           BoxDecoration(shape: BoxShape.circle, color: widget.accentColor);
       fg = Colors.white;
-    } else if (widget.isToday) {
-      decoration = BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: widget.accentColor, width: 1.5),
-      );
-      fg = widget.textColor;
     } else if (_hovering && !widget.isDisabled) {
       decoration =
           BoxDecoration(shape: BoxShape.circle, color: widget.hoverColor);
@@ -774,7 +810,6 @@ Future<ChooseDateTimeResult?> showChooseDateTimeBox(
   DateTime? initialDate,
   bool isSelfChat = false,
   bool isScheduledToUser = false,
-  bool isPremium = false,
 }) {
   return showTelegramBox<ChooseDateTimeResult>(
     context: context,
@@ -782,7 +817,6 @@ Future<ChooseDateTimeResult?> showChooseDateTimeBox(
       initialDate: initialDate,
       isSelfChat: isSelfChat,
       isScheduledToUser: isScheduledToUser,
-      isPremium: isPremium,
     ),
   );
 }
@@ -791,13 +825,11 @@ class _ChooseDateTimeDialog extends StatefulWidget {
   final DateTime? initialDate;
   final bool isSelfChat;
   final bool isScheduledToUser;
-  final bool isPremium;
 
   const _ChooseDateTimeDialog({
     this.initialDate,
     this.isSelfChat = false,
     this.isScheduledToUser = false,
-    this.isPremium = false,
   });
 
   @override
@@ -911,7 +943,9 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
 
   void _sendWhenOnline() {
     Navigator.of(context).pop(ChooseDateTimeResult(
-      dateTime: DateTime(2099),
+      dateTime: DateTime.fromMillisecondsSinceEpoch(
+        kScheduledUntilOnlineTimestamp * 1000,
+      ),
       sendWhenOnline: true,
     ));
   }
@@ -967,17 +1001,38 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     });
   }
 
+  bool get _isPremium {
+    try {
+      return context.read<AppState>().activeAccount?.isPremium ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   void _onRepeatTap() {
-    if (widget.isPremium) {
+    if (_isPremium) {
       _showRepeatMenu();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Repeat schedules require Telegram Premium.'),
-        action: SnackBarAction(
-          label: 'Get Premium',
-          onPressed: () => url_launcher.launchUrl(Uri.parse('https://t.me/premium')),
+      showTelegramBox<void>(
+        context: context,
+        builder: (ctx) => TelegramBox(
+          title: 'Telegram Premium',
+          content: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: Text(
+              'Repeat schedules are available with Telegram Premium. '
+              'Subscribe to unlock this and many other features.',
+              style: TextStyle(fontSize: 14),
+            ),
+          ),
+          buttons: [
+            TelegramBoxButton(
+              text: 'Close',
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
         ),
-      ));
+      );
     }
   }
 
@@ -1007,22 +1062,17 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
                   color: separatorFg, size: 20),
               onPressed: () {
                 final box = context.findRenderObject() as RenderBox;
-                final pos =
-                    box.localToGlobal(Offset(box.size.width - 8, 40));
-                showMenu<String>(
+                final pos = box.localToGlobal(
+                  Offset(box.size.width, 0),
+                );
+                showTelegramMenu<String>(
                   context: context,
-                  position: RelativeRect.fromLTRB(
-                      pos.dx - 200, pos.dy, pos.dx, pos.dy + 48),
+                  position: pos,
                   items: [
-                    const PopupMenuItem(
+                    TelegramMenuItem(
                       value: 'when_online',
-                      child: Row(
-                        children: [
-                          Icon(Icons.person_outline, size: 20),
-                          SizedBox(width: 12),
-                          Text('Send when online'),
-                        ],
-                      ),
+                      label: 'Send when online',
+                      icon: const Icon(Icons.person_outline, size: 20),
                     ),
                   ],
                 ).then((v) {
@@ -1145,7 +1195,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
                     style: TextStyle(fontSize: 13, color: accentFg),
                   ),
                   const SizedBox(width: 4),
-                  if (widget.isPremium)
+                  if (_isPremium)
                     Icon(Icons.arrow_drop_down, size: 18, color: accentFg)
                   else
                     Icon(Icons.lock_outline, size: 14, color: accentFg),
@@ -1323,6 +1373,18 @@ class _TimePickerBoxWidgetState extends State<_TimePickerBoxWidget>
     return KeyEventResult.ignored;
   }
 
+  double _maxLabelWidth(TextStyle style) {
+    double max = 0;
+    for (final label in widget.labels) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: style),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      if (painter.width > max) max = painter.width;
+    }
+    return max;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1330,74 +1392,79 @@ class _TimePickerBoxWidgetState extends State<_TimePickerBoxWidget>
     final dimFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final bandColor = context.palette.windowBgActive;
     final centerY = (_drumHeight - _drumItemHeight) / 2;
+    final labelStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.w500);
+    final drumWidth = _maxLabelWidth(labelStyle) + 32;
 
     return TelegramBox(
       title: widget.title,
       onKeyEvent: _handleKey,
       scrollableContent: false,
       onConfirm: () => Navigator.of(context).pop(widget.values[_selectedIndex]),
-      content: SizedBox(
-        height: _drumHeight,
-        child: Listener(
-          onPointerSignal: (event) {
-            if (event is PointerScrollEvent) {
-              _snapController.stop();
-              setState(() {
-                _scrollOffset = (_scrollOffset + event.scrollDelta.dy).clamp(0.0, _maxOffset);
-                _selectedIndex = (_scrollOffset / _drumItemHeight).round().clamp(0, widget.values.length - 1);
-              });
-              _snapToNearest();
-            }
-          },
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onVerticalDragUpdate: (d) {
-              _snapController.stop();
-              setState(() {
-                _scrollOffset = (_scrollOffset - d.delta.dy).clamp(0.0, _maxOffset);
-                _selectedIndex = (_scrollOffset / _drumItemHeight).round().clamp(0, widget.values.length - 1);
-              });
+      content: Center(
+        child: SizedBox(
+          width: drumWidth,
+          height: _drumHeight,
+          child: Listener(
+            onPointerSignal: (event) {
+              if (event is PointerScrollEvent) {
+                _snapController.stop();
+                setState(() {
+                  _scrollOffset = (_scrollOffset + event.scrollDelta.dy).clamp(0.0, _maxOffset);
+                  _selectedIndex = (_scrollOffset / _drumItemHeight).round().clamp(0, widget.values.length - 1);
+                });
+                _snapToNearest();
+              }
             },
-            onVerticalDragEnd: (_) => _snapToNearest(),
-            child: ClipRect(
-              child: Stack(
-                children: [
-                  for (int i = 0; i < widget.labels.length; i++)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      top: centerY + (i * _drumItemHeight) - _scrollOffset,
-                      height: _drumItemHeight,
-                      child: Center(
-                        child: Text(
-                          widget.labels[i],
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: i == _selectedIndex ? textFg : dimFg,
-                            fontWeight: i == _selectedIndex ? FontWeight.w500 : FontWeight.normal,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragUpdate: (d) {
+                _snapController.stop();
+                setState(() {
+                  _scrollOffset = (_scrollOffset - d.delta.dy).clamp(0.0, _maxOffset);
+                  _selectedIndex = (_scrollOffset / _drumItemHeight).round().clamp(0, widget.values.length - 1);
+                });
+              },
+              onVerticalDragEnd: (_) => _snapToNearest(),
+              child: ClipRect(
+                child: Stack(
+                  children: [
+                    for (int i = 0; i < widget.labels.length; i++)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: centerY + (i * _drumItemHeight) - _scrollOffset,
+                        height: _drumItemHeight,
+                        child: Center(
+                          child: Text(
+                            widget.labels[i],
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: i == _selectedIndex ? textFg : dimFg,
+                              fontWeight: i == _selectedIndex ? FontWeight.w500 : FontWeight.normal,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    top: centerY,
-                    child: IgnorePointer(
-                      child: Container(
-                        height: _drumItemHeight,
-                        decoration: BoxDecoration(
-                          border: Border.symmetric(
-                            horizontal: BorderSide(
-                              color: bandColor,
-                              width: _drumBandBorder,
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: centerY,
+                      child: IgnorePointer(
+                        child: Container(
+                          height: _drumItemHeight,
+                          decoration: BoxDecoration(
+                            border: Border.symmetric(
+                              horizontal: BorderSide(
+                                color: bandColor,
+                                width: _drumBandBorder,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
