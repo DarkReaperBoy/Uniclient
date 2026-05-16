@@ -389,7 +389,6 @@ class _WizardDialogState extends State<_WizardDialog>
       bool gotImage = false;
 
       if (Platform.isLinux) {
-        // Wayland: wl-paste; X11: xclip
         var result = await Process.run('bash', ['-c',
           'wl-paste --type image/png > ${_shellEscape(tempPath)} 2>/dev/null']);
         if (result.exitCode != 0) {
@@ -404,6 +403,15 @@ class _WizardDialogState extends State<_WizardDialog>
           '-e \'set theFile to open for access POSIX file "${_shellEscape(tempPath)}" with write permission\' '
           '-e \'write theData to theFile\' '
           '-e \'close access theFile\' 2>/dev/null']);
+        if (result.exitCode == 0) {
+          final f = File(tempPath);
+          gotImage = await f.exists() && (await f.length()) > 0;
+        }
+      } else if (Platform.isWindows) {
+        final result = await Process.run('powershell', ['-NoProfile', '-Command',
+          'Add-Type -AssemblyName System.Windows.Forms; '
+          '\$img = [System.Windows.Forms.Clipboard]::GetImage(); '
+          'if (\$img -ne \$null) { \$img.Save("${tempPath.replaceAll('/', '\\')}") }']);
         if (result.exitCode == 0) {
           final f = File(tempPath);
           gotImage = await f.exists() && (await f.length()) > 0;
@@ -576,9 +584,14 @@ class _WizardDialogState extends State<_WizardDialog>
         setState(() {
           _usernameStatus = null;
           _usernameValid = false;
+          _usernameChecking = true;
         });
         final username = _usernameController.text.trim();
-        if (username.length >= 5) _onUsernameChanged(username);
+        if (username.length >= 5) {
+          _checkUsernameApi(username);
+        } else {
+          setState(() => _usernameChecking = false);
+        }
       }
     });
   }
@@ -669,6 +682,8 @@ class _WizardDialogState extends State<_WizardDialog>
         }
         if (msg.contains('CHANNELS_TOO_MUCH')) msg = 'You have created too many channels';
         if (msg.contains('USERS_TOO_FEW')) msg = 'You need to add more members';
+        if (msg.contains('PEER_FLOOD')) msg = 'Too many requests. Please try again later.';
+        if (msg.contains('USER_RESTRICTED')) msg = 'Your account is restricted from creating channels.';
         setState(() { _creating = false; _error = msg; });
       } catch (e) {
         if (!mounted) return;
@@ -717,6 +732,8 @@ class _WizardDialogState extends State<_WizardDialog>
       }
       if (msg.contains('USERS_TOO_FEW')) msg = 'You need to add at least one member';
       if (msg.contains('CHANNELS_TOO_MUCH')) msg = 'You have created too many groups';
+      if (msg.contains('PEER_FLOOD')) msg = 'Too many requests. Please try again later.';
+      if (msg.contains('USER_RESTRICTED')) msg = 'Your account is restricted from creating groups.';
       setState(() { _creating = false; _error = msg; });
     } catch (e) {
       if (!mounted) return;
@@ -786,10 +803,23 @@ class _WizardDialogState extends State<_WizardDialog>
     Navigator.of(context).pop();
   }
 
-  void _navigateToChat(String chatId) {
+  Future<void> _navigateToChat(String chatId) async {
     _chatState.loadChats();
-    final chat = _chatState.chats.where((c) => c.chatId == chatId).firstOrNull;
-    if (chat != null) _chatState.openChat(chat);
+    var chat = _chatState.chats.where((c) => c.chatId == chatId).firstOrNull;
+    if (chat != null) {
+      _chatState.openChat(chat);
+      return;
+    }
+    for (var i = 0; i < 5; i++) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      _chatState.loadChats();
+      chat = _chatState.chats.where((c) => c.chatId == chatId).firstOrNull;
+      if (chat != null) {
+        _chatState.openChat(chat);
+        return;
+      }
+    }
   }
 
   @override
@@ -1574,7 +1604,7 @@ class _ContactRow extends StatelessWidget {
                               ? '@${contact.username}'
                               : contact.phone.isNotEmpty
                                   ? contact.phone
-                                  : 'last seen recently',
+                                  : _lastSeenText(contact.lastSeenKind, contact.lastSeenTs),
                       style: TextStyle(
                         fontSize: 12,
                         color: contact.isOnline
@@ -1591,6 +1621,24 @@ class _ContactRow extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String _lastSeenText(String kind, int ts) {
+    if (kind == 'recently') return 'last seen recently';
+    if (kind == 'within_week') return 'last seen within a week';
+    if (kind == 'within_month') return 'last seen within a month';
+    if (kind == 'long_time_ago') return 'last seen a long time ago';
+    if (ts > 0) {
+      final now = DateTime.now();
+      final seen = DateTime.fromMillisecondsSinceEpoch(ts * 1000);
+      final diff = now.difference(seen);
+      if (diff.inMinutes < 1) return 'last seen just now';
+      if (diff.inMinutes < 60) return 'last seen ${diff.inMinutes} min ago';
+      if (diff.inHours < 24) return 'last seen ${diff.inHours}h ago';
+      if (diff.inDays == 1) return 'last seen yesterday';
+      return 'last seen ${diff.inDays} days ago';
+    }
+    return 'last seen recently';
   }
 
   static Widget _fallbackAvatar(BuildContext context, ContactInfo c) {
@@ -2675,6 +2723,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         await engine.reorderChannelUsernames(widget.accountId, widget.chatId, order);
         if (!mounted) return;
       }
+      setState(() => _saving = false);
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
