@@ -373,13 +373,7 @@ The Dart file implements `ColorEditor::Mode::RGBA` layout (HSV picker, vertical 
 
 # edit_forum_topic_box — Audit findings
 
-- [ ] [MAJOR] Premium emoji blocked notification uses a floating `SnackBar` with an external `launchUrl` to `https://t.me/premium`, but AyuGram shows a `HistoryView::StickerToast` (an in-app rich premium sticker preview popup, `Section::TopicIcon`) — `edit_forum_topic_box.dart:507-538` (`_showPremiumRequiredDialog` / `SnackBar`) ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_forum_topic_box.cpp:335-345` (`showToast` / `StickerToast::Section::TopicIcon`)
-
-- [ ] [MAJOR] Icon selector is a simplified 2-tab Wrap grid (recent colors + server icons) instead of the full `EmojiListWidget` with `Mode::TopicIcon` (proper scrollable emoji panel with category footer, sticker sets, and `customRecentFactory` for animated custom emoji rendering) — `edit_forum_topic_box.dart:541-671` (`_buildIconSelectorPanel` / `_buildCategoryTabBar` / `_buildIconGrid`) ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_forum_topic_box.cpp:248-393` (`AddIconSelector` / `EmojiListWidget` / `Mode::TopicIcon`)
-
 # edit_mark_box — Remaining issues
-
-- [ ] [MAJOR] Placeholder/hint text font weight not specified — `edit_mark_box.dart:94-99` and the running implementation in `ayu_chats_page.dart` both use `InputDecoration` with no `fontWeight` in `hintStyle`. AyuGram `lib_ui/ui/widgets/widgets.style:placeholderFont: font(semibold 14px)` specifies semibold. Dart hint text is not semibold, causing visual divergence.
 
 
 # emoji_panel — Audit Findings
