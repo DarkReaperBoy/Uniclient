@@ -235,6 +235,7 @@ class ChatInfo {
   final bool isAdmin;
   final bool noForwards;
   final bool isSelf;
+  final String username;
 
   const ChatInfo({
     required this.accountId,
@@ -288,6 +289,7 @@ class ChatInfo {
     this.isAdmin = false,
     this.noForwards = false,
     this.isSelf = false,
+    this.username = '',
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -342,6 +344,7 @@ class ChatInfo {
     isAdmin: j['is_admin'] as bool? ?? false,
     noForwards: j['no_forwards'] as bool? ?? false,
     isSelf: j['is_self'] as bool? ?? false,
+    username: j['username'] as String? ?? '',
   );
 
   /// Time as DateTime for display.

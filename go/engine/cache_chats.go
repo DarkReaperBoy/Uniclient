@@ -58,6 +58,7 @@ type ChatInfo struct {
 	IsAdmin              bool   `json:"is_admin,omitempty"`
 	NoForwards           bool   `json:"no_forwards,omitempty"`
 	IsSelf               bool   `json:"is_self,omitempty"`
+	Username             string `json:"username,omitempty"`
 }
 
 // chatTypeToInt converts cores.ChatType to DB integer.
@@ -94,7 +95,7 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 		        c.stars_to_send, c.ttl_period, c.emoji_status_id,
 		        c.story_count, c.has_unread_story, c.is_forum,
 		        c.write_restriction_type, c.write_restriction_text,
-		        c.not_joined, c.join_request, c.can_post, c.is_admin, c.no_forwards
+		        c.not_joined, c.join_request, c.can_post, c.is_admin, c.no_forwards, c.username
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 		 ORDER BY c.is_archived ASC, c.is_pinned DESC, c.last_msg_time DESC
@@ -133,7 +134,7 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 		        c.stars_to_send, c.ttl_period, c.emoji_status_id,
 		        c.story_count, c.has_unread_story, c.is_forum,
 		        c.write_restriction_type, c.write_restriction_text,
-		        c.not_joined, c.join_request, c.can_post, c.is_admin, c.no_forwards
+		        c.not_joined, c.join_request, c.can_post, c.is_admin, c.no_forwards, c.username
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 		 WHERE c.account_id = ? AND c.is_archived = ?
@@ -192,7 +193,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 
 		var hasUnreadStory, isForumInt int
 		var notJoined, joinRequestInt, canPostInt, isAdminInt, noForwardsInt int
-		var writeRestrictionText sql.NullString
+		var writeRestrictionText, usernameN sql.NullString
 		if err := rows.Scan(
 			&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 			&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
@@ -206,6 +207,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 			&c.StoryCount, &hasUnreadStory, &isForumInt,
 			&c.WriteRestrictionType, &writeRestrictionText,
 			&notJoined, &joinRequestInt, &canPostInt, &isAdminInt, &noForwardsInt,
+			&usernameN,
 		); err != nil {
 			return chats, err
 		}
@@ -243,6 +245,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		c.CanPost = canPostInt == 1
 		c.IsAdmin = isAdminInt == 1
 		c.NoForwards = noForwardsInt == 1
+		c.Username = usernameN.String
 
 		chats = append(chats, c)
 	}
@@ -288,8 +291,8 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		                     slowmode_seconds, slowmode_next_send_date, stars_to_send, ttl_period,
 		                     emoji_status_id, story_count, has_unread_story, is_forum,
 		                     write_restriction_type, write_restriction_text,
-		                     not_joined, join_request, can_post, is_admin, no_forwards, access_hash, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                     not_joined, join_request, can_post, is_admin, no_forwards, username, access_hash, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, chat_id) DO UPDATE SET
 		     type = excluded.type,
 		     title = excluded.title,
@@ -328,6 +331,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		     can_post = excluded.can_post,
 		     is_admin = excluded.is_admin,
 		     no_forwards = excluded.no_forwards,
+		     username = COALESCE(excluded.username, chats.username),
 		     access_hash = CASE WHEN excluded.access_hash != 0 THEN excluded.access_hash ELSE chats.access_hash END,
 		     updated_at = excluded.updated_at`,
 		accountID, d.ID, chatType, d.Title, lastMsgID, lastMsgText,
@@ -339,7 +343,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		d.SlowmodeSeconds, d.SlowmodeNextSendDate, d.StarsToSend, d.TtlPeriod,
 		d.EmojiStatusID, d.StoryCount, boolToInt(d.HasUnreadStory), boolToInt(d.IsForum),
 		d.WriteRestrictionType, d.WriteRestrictionText,
-		boolToInt(d.NotJoined), boolToInt(d.JoinRequest), boolToInt(d.CanPost), boolToInt(d.IsAdmin), boolToInt(d.NoForwards), d.AccessHash, now)
+		boolToInt(d.NotJoined), boolToInt(d.JoinRequest), boolToInt(d.CanPost), boolToInt(d.IsAdmin), boolToInt(d.NoForwards), d.Username, d.AccessHash, now)
 	if err != nil {
 		return err
 	}
@@ -1257,7 +1261,7 @@ func (e *Engine) GetTopPeers(accountID string, limit int) ([]ChatInfo, error) {
 			        c.stars_to_send, c.ttl_period, c.emoji_status_id,
 			        c.story_count, c.has_unread_story, c.is_forum,
 			        c.write_restriction_type, c.write_restriction_text,
-			        c.not_joined, c.join_request, c.can_post, c.is_admin, c.no_forwards
+			        c.not_joined, c.join_request, c.can_post, c.is_admin, c.no_forwards, c.username
 			 FROM chats c
 			 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 			 WHERE c.account_id = ? AND c.chat_id = ?`, accountID, pid)

@@ -66,6 +66,7 @@ class _CallsBoxState extends State<_CallsBox> {
   List<_ActiveGroupCallEntry> _activeGroupCalls = [];
   StreamSubscription<GroupCallStateEvent>? _groupCallSub;
   StreamSubscription<CallStateEvent>? _callStateSub;
+  StreamSubscription<MsgReceivedEvent>? _msgReceivedSub;
 
   List<CallHistoryEntry> _callHistory = [];
   List<_CallGroup> _groupedCalls = [];
@@ -85,6 +86,7 @@ class _CallsBoxState extends State<_CallsBox> {
     final engine = context.read<EngineService>();
     _groupCallSub = engine.onGroupCallState.listen(_onGroupCallEvent);
     _callStateSub = engine.onCallState.listen(_onCallStateEvent);
+    _msgReceivedSub = engine.onMsgReceived.listen(_onMsgReceived);
     _scrollController.addListener(_onScroll);
   }
 
@@ -92,6 +94,7 @@ class _CallsBoxState extends State<_CallsBox> {
   void dispose() {
     _groupCallSub?.cancel();
     _callStateSub?.cancel();
+    _msgReceivedSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -245,6 +248,12 @@ class _CallsBoxState extends State<_CallsBox> {
   void _onCallStateEvent(CallStateEvent event) {
     final state = event.call.state;
     if (state == 'ended' || state == 'busy' || state == 'failed' || state == 'missed') {
+      _refreshCallHistory();
+    }
+  }
+
+  void _onMsgReceived(MsgReceivedEvent event) {
+    if (event.message.isService) {
       _refreshCallHistory();
     }
   }
@@ -587,9 +596,10 @@ class _GroupCallRowState extends State<_GroupCallRow> {
   String _statusLabel() {
     final chat = widget.entry.chat;
     final gc = widget.entry.callInfo;
+    final isPublic = chat.username.isNotEmpty;
     final typeStr = switch (chat.type) {
-      ChatType.channel => 'channel',
-      ChatType.group => 'group',
+      ChatType.channel => isPublic ? 'public channel' : 'private channel',
+      ChatType.group => isPublic ? 'public group' : 'private group',
       _ => 'chat',
     };
     final count = gc.participantsCount;
@@ -2284,7 +2294,94 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
       }
     } else {
       await _enumerateViaEngine();
+      if (_outputDevices.length <= 1 && _inputDevices.length <= 1) {
+        await _enumerateNative();
+      }
     }
+  }
+
+  Future<void> _enumerateNative() async {
+    if (Platform.isMacOS) {
+      await _enumerateMacOS();
+    } else if (Platform.isWindows) {
+      await _enumerateWindows();
+    }
+  }
+
+  Future<void> _enumerateMacOS() async {
+    try {
+      final result = await Process.run('system_profiler', ['SPAudioDataType', '-json']);
+      if (result.exitCode == 0) {
+        final data = json.decode(result.stdout as String) as Map<String, dynamic>;
+        final audioItems = data['SPAudioDataType'] as List<dynamic>? ?? [];
+        final outputs = <String>[];
+        final inputs = <String>[];
+        for (final item in audioItems) {
+          final map = item as Map<String, dynamic>;
+          final name = map['_name'] as String? ?? '';
+          if (name.isEmpty) continue;
+          final coreaudioType = map['coreaudio_output_source'] as String?;
+          if (coreaudioType != null) {
+            outputs.add(name);
+          } else {
+            inputs.add(name);
+          }
+        }
+        if (mounted && (outputs.isNotEmpty || inputs.isNotEmpty)) {
+          setState(() {
+            if (outputs.isNotEmpty) _outputDevices = ['Default', ...outputs];
+            if (inputs.isNotEmpty) _inputDevices = ['Default', ...inputs];
+          });
+        }
+      }
+    } catch (_) {}
+    try {
+      final result = await Process.run('system_profiler', ['SPCameraDataType', '-json']);
+      if (result.exitCode == 0) {
+        final data = json.decode(result.stdout as String) as Map<String, dynamic>;
+        final cameraItems = data['SPCameraDataType'] as List<dynamic>? ?? [];
+        final cameras = <String>[];
+        for (final item in cameraItems) {
+          final name = (item as Map<String, dynamic>)['_name'] as String? ?? '';
+          if (name.isNotEmpty) cameras.add(name);
+        }
+        if (mounted && cameras.isNotEmpty) {
+          setState(() => _cameraDevices = ['Default', ...cameras]);
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _enumerateWindows() async {
+    try {
+      final result = await Process.run('powershell', [
+        '-NoProfile', '-Command',
+        'Get-CimInstance Win32_SoundDevice | Select-Object -ExpandProperty Name',
+      ]);
+      if (result.exitCode == 0) {
+        final lines = (result.stdout as String).trim().split('\n')
+            .map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+        if (mounted && lines.isNotEmpty) {
+          setState(() {
+            _outputDevices = ['Default', ...lines];
+            _inputDevices = ['Default', ...lines];
+          });
+        }
+      }
+    } catch (_) {}
+    try {
+      final result = await Process.run('powershell', [
+        '-NoProfile', '-Command',
+        'Get-CimInstance Win32_PnPEntity | Where-Object {\$_.PNPClass -eq "Camera"} | Select-Object -ExpandProperty Name',
+      ]);
+      if (result.exitCode == 0) {
+        final lines = (result.stdout as String).trim().split('\n')
+            .map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+        if (mounted && lines.isNotEmpty) {
+          setState(() => _cameraDevices = ['Default', ...lines]);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _enumerateViaEngine() async {

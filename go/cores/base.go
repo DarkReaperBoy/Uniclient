@@ -202,6 +202,7 @@ type Dialog struct {
 	CanPost             bool   `json:"can_post,omitempty"`
 	IsAdmin             bool   `json:"is_admin,omitempty"`
 	NoForwards          bool   `json:"no_forwards,omitempty"`
+	Username            string `json:"username,omitempty"`
 	AccessHash          int64  `json:"-"`
 	Platform            string `json:"platform"`
 }

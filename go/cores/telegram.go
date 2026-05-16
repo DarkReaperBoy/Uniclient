@@ -11753,6 +11753,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					}
 					dialog.IsForum = c.Forum
 					dialog.NoForwards = c.Noforwards
+					dialog.Username = c.Username
 					if _, ok := c.Photo.(*tg.ChatPhoto); ok {
 						dialog.AvatarURL = "has_photo"
 					}
