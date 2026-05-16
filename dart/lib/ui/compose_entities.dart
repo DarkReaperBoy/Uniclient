@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 
 enum FormatType { bold, italic, underline, strike, code, spoiler, blockquote, link, customEmoji, date }
 
@@ -196,19 +197,43 @@ class RichTextEditingController extends TextEditingController {
     if (!sel.isValid || sel.isCollapsed) return;
     final start = sel.start;
     final end = sel.end;
-    final oldText = text;
-    final before = oldText.substring(0, start);
-    final after = oldText.substring(end);
-    text = '$before$newText$after';
-    final newEnd = start + newText.length;
-    selection = TextSelection(baseOffset: start, extentOffset: newEnd);
+    final before = _prevText.substring(0, start < _prevText.length ? start : _prevText.length);
+    final after = end <= _prevText.length ? _prevText.substring(end) : '';
+    final fullText = '$before$newText$after';
+    final lengthDiff = newText.length - (end - start);
+
     entities.removeWhere((e) =>
       e.type == FormatType.link && e.offset <= start && e.offset + e.length >= end);
+    for (var i = entities.length - 1; i >= 0; i--) {
+      final e = entities[i];
+      final eEnd = e.offset + e.length;
+      if (e.offset >= end) {
+        e.offset += lengthDiff;
+      } else if (eEnd > start && e.offset < end) {
+        if (e.offset >= start && eEnd <= end) {
+          entities.removeAt(i);
+        } else if (e.offset < start) {
+          e.length = start - e.offset;
+        } else {
+          final removed = end - e.offset;
+          e.offset = start + newText.length;
+          e.length -= removed;
+        }
+      }
+      if (i < entities.length && entities[i].length <= 0) {
+        entities.removeAt(i);
+      }
+    }
+
     if (url.isNotEmpty) {
       entities.add(ComposeEntity(
         offset: start, length: newText.length, type: FormatType.link, url: url));
     }
-    notifyListeners();
+    _prevText = fullText;
+    value = TextEditingValue(
+      text: fullText,
+      selection: TextSelection(baseOffset: start, extentOffset: start + newText.length),
+    );
   }
 
   String? getLinkUrl() {
@@ -457,11 +482,11 @@ class RichTextEditingController extends TextEditingController {
     }
 
     final t = text;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = PaletteProvider.of(context);
 
-    final monoFg = isDark ? const Color(0xFF6AB7F0) : const Color(0xFF3A464F);
-    final codeBg = isDark ? const Color(0xFF1E2A36) : const Color(0xFFF0F0F0);
-    final linkFg = isDark ? const Color(0xFF71BAF7) : const Color(0xFF168ACD);
+    final monoFg = palette.msgInMonoFg;
+    final codeBg = Color.alphaBlend(palette.msgInMonoFg.withValues(alpha: 0.08), palette.windowBg);
+    final linkFg = palette.historyLinkInFg;
     final spoilerFg = style?.color;
 
     final breakpoints = SplayTreeSet<int>();
@@ -545,9 +570,7 @@ class RichTextEditingController extends TextEditingController {
         }
         if (active.contains(FormatType.blockquote)) {
           merged = merged.copyWith(
-            backgroundColor: isDark
-              ? const Color(0xFF24292E)
-              : const Color(0xFFF0F4F7));
+            backgroundColor: palette.windowActiveTextFg.withValues(alpha: 0.08));
         }
 
         spans.add(TextSpan(text: t.substring(segStart, segEnd), style: merged));
