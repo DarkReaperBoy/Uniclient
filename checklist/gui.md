@@ -350,15 +350,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 
 ## CalendarBox
 
-# engine_service — Bridge Service Audit
-
-
-
-
-## engine_service — getBlockedUsersCount and getSessionsCount fetch full lists just to count
-
-- [ ] [MAJOR] `getBlockedUsersCount` (line 4626) calls `'GetBlockedUsers'` and returns `decoded.length` — fetches the entire block list over the network to produce a single integer. `getSessionsCount` (line 4679) does the same for sessions. Both functions should use a dedicated count endpoint or cache the result; as written they make full paginated RPC calls on every settings-screen render — `engine_service.dart:4626-4638` and `engine_service.dart:4679-4691` ← `data/data_session.h` (AyuGram tracks blocked users and active sessions via server-pushed counts in `account_authorization` / `blocked_users` updates, never re-fetching the full list to read a count)
-
 # color_picker_box — Color editor box audit
 
 Reference: `color_editor.cpp` + `color_picker.cpp` in AyuGramDesktop.
@@ -366,25 +357,11 @@ The Dart file implements `ColorEditor::Mode::RGBA` layout (HSV picker, vertical 
 
 ---
 
-- [ ] [CRITICAL] Transparent color swatches show no checkerboard — when `showOpacity=true` and the color has alpha < 1, AyuGram draws `style::TransparentPlaceholder()` (checkerboard) behind both the new-color and original-color swatches before filling with the color, so the user can see through to transparency; the Dart draws a plain `BoxDecoration(color: _currentColor)` with no checkerboard at all, making semi-transparent colors look like wrong solid colors — `color_picker_box.dart:452-471` ← `color_editor.cpp:1109-1116`
-
-- [ ] [MAJOR] Double crosshair ring vs AyuGram's single ring — AyuGram draws ONE unfilled ellipse (stroke only, black-or-white, no shadow ring) centered at the pick position; the Dart draws TWO concentric circles: an outer 30%-opacity "shadow" ring at radius 7 and an inner solid ring at radius 6, which does not match the spec — `color_picker_box.dart:778-791` ← `color_editor.cpp:124-136`
-
-- [ ] [MAJOR] Gap before H field is 6 px, should be 13 px — AyuGram places the H field `st::colorFieldSkip = 13 px` below the bottom of the current-color swatch; the Dart inserts `const SizedBox(height: 6)` there — `color_picker_box.dart:473` ← `boxes.style:521` (`colorFieldSkip: 13px`)
-
-- [ ] [MAJOR] Hex/result field placed in field column instead of bottom-anchored to the opacity slider — in AyuGram the result field is positioned at `resultBottom - colorSliderSkip - resultHeight` where `resultBottom = rect::bottom(_opacitySlider)`, i.e. the hex field sits flush with the bottom of the horizontal opacity slider spanning picker+hue-slider width; the Dart places the hex field as the last stacked item in the narrow 60 px field column, so it appears far higher than intended and without the wider span — `color_picker_box.dart:487-488` ← `color_editor.cpp:1083-1093`
-
-- [ ] [MAJOR] Missing shadows around picker area and color swatches — AyuGram calls `Ui::Shadow::paint(p, _picker->geometry(), ...)` and `Ui::Shadow::paint(p, _newRect + QMargins(0,0,0,_currentRect.height()), ...)` to render drop-shadows around both the picker square and the color swatch block; the Dart renders no internal shadows (the outer `Material(elevation:4)` only shadows the whole dialog box, not these internal subregions) — `color_picker_box.dart:706-727` ← `color_editor.cpp:1097-1108`
-
 - [ ] [MAJOR] Scroll wheel step size differs: Dart uses raw Flutter pixel delta divided by 5, AyuGram uses Qt `angleDelta` (one notch = 120 units) divided by 5 — the accumulated units are entirely different scales so one mouse wheel notch produces wildly different field step counts across platforms; additionally AyuGram handles Mac-specific delta sign inversion (`if (Platform::IsMac()) deltaY *= -1`) and picks the larger of X/Y deltas, neither of which the Dart does — `color_picker_box.dart:505-513` ← `color_editor.cpp:725-738`
 
 # compose_entities — Hardcoded theme colors not matching Telegram
 
-- [ ] [MAJOR] Hardcoded RGB color values for code/link/blockquote styling — `compose_entities.dart:462-464,549-550` ← Uses hardcoded Color values (0xFF6AB7F0 for dark mono, 0xFF3A464F for light mono, 0xFF24292E and 0xFFF0F4F7 for blockquote BG). These don't come from the theme system and may not match Telegram Desktop's actual colors. Should pull these from Theme.of(context) or a configuration. AyuGram (api_text_entities.cpp) delegates color rendering to the Qt style system which respects user theme.
-
 - [ ] [MAJOR] Blockquote styling incomplete — `compose_entities.dart:546-551` ← Only applies backgroundColor for blockquotes, no left border or margin. Visual distinction vs regular text is minimal. Should match AyuGram's blockquote rendering with left border accent.
-
-- [ ] [CRITICAL] `setLinkWithText()` destroys all existing entities — `compose_entities.dart:194-212` calls `text = ...` on line 202, which triggers the setter at line 442-446 that calls `entities.clear()`. This wipes out any bold/italic/code/spoiler formatting that was applied to the text. Should use `value = TextEditingValue(...)` pattern like `insertCustomEmoji()` (line 303) to preserve non-link entities. Bug: link insertion loses all other formatting.
 
 
 # confirm_box — Audit Findings
