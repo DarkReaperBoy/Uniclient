@@ -353,9 +353,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 # engine_service — Bridge Service Audit
 
 
-## engine_service — dispose() leaks _incomingCallController and _callStateController
-
-- [ ] [MAJOR] `dispose()` closes 18 of 20 StreamControllers but skips `_incomingCallController` (declared line 40) and `_callStateController` (declared line 41) — these broadcast streams stay open and accumulate listeners until the process exits, causing a resource leak — `engine_service.dart:4858-4879` ← `data/data_stories.cpp:1076` (AyuGram's session teardown destroys all subsystems including call state; leaked streams have no C++ counterpart and are a Dart-specific resource management failure)
 
 ## engine_service — _memberInfoFromProto silently drops admin rank fields
 
