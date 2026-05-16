@@ -497,7 +497,6 @@ return ClipOval(
 
 ## Cover / Header
 
-- [ ] [MAJOR] Mute menu uses hardcoded duration list `['1h','4h','8h','2d','1w','forever']` instead of dynamic session mute periods — `info_panel.dart:1089` ← `AyuGramDesktop/Telegram/SourceFiles/menu/menu_mute.cpp:337`
 
 ## Profile Details
 
