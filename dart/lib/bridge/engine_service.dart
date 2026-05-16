@@ -22,6 +22,10 @@ class EngineService {
   final Bridge _bridge = Bridge();
   bool _initialized = false;
 
+  // Cache for sessions count to avoid fetching full list on every render.
+  final Map<String, ({int count, DateTime fetchedAt})> _sessionsCountCache = {};
+  static const _sessionsCountTtl = Duration(seconds: 60);
+
   // Event streams — engine pushes events, we parse and dispatch.
   final _authStateController = StreamController<AuthStateEvent>.broadcast();
   final _connStateController = StreamController<ConnStateEvent>.broadcast();
@@ -2216,6 +2220,7 @@ class EngineService {
 
   Future<void> reactToStory(String accountId, String userId, int storyId, String emoji) async {
     final payload = utf8.encode(json.encode({
+      'account_id': accountId,
       'user_id': userId,
       'story_id': storyId,
       'emoji': emoji,
@@ -2224,7 +2229,10 @@ class EngineService {
   }
 
   Future<void> activateStealthMode(String accountId) async {
-    await _callAsync('__engine', 'ActivateStealthMode', Uint8List(0));
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    await _callAsync('__engine', 'ActivateStealthMode', Uint8List.fromList(payload));
   }
 
   Future<List<String>> getAvailableReactions(String accountId) async {
@@ -4312,7 +4320,8 @@ class EngineService {
       ..chatId = chatId
       ..filePath = filePath
       ..caption = caption
-      ..duration = duration;
+      ..duration = duration
+      ..isVoice = true;
     final resp = epb.EngineUploadFileResponse.fromBuffer(
       await _callAsync('__engine', 'UploadFile', req.writeToBuffer()),
     );
@@ -4325,7 +4334,8 @@ class EngineService {
       ..chatId = chatId
       ..filePath = filePath
       ..caption = caption
-      ..duration = duration;
+      ..duration = duration
+      ..isVideoNote = true;
     final resp = epb.EngineUploadFileResponse.fromBuffer(
       await _callAsync('__engine', 'UploadFile', req.writeToBuffer()),
     );
@@ -4756,17 +4766,8 @@ class EngineService {
   // ── Blocked Users ──
 
   Future<int> getBlockedUsersCount(String accountId) async {
-    final payload = utf8.encode(json.encode({'account_id': accountId}));
-    try {
-      final respBytes = await _callAsync('__engine', 'GetBlockedUsers', Uint8List.fromList(payload));
-      if (respBytes.isEmpty) return 0;
-      final decoded = json.decode(utf8.decode(respBytes));
-      if (decoded is List) return decoded.length;
-      return 0;
-    } catch (e) {
-      Debug.error('ENGINE', 'getBlockedUsersCount failed', e);
-      return 0;
-    }
+    final result = await getBlockedUsersPaged(accountId, offset: 0, limit: 1);
+    return result.total;
   }
 
   Future<List<Map<String, dynamic>>> getBlockedUsers(String accountId) async {
@@ -4809,17 +4810,13 @@ class EngineService {
   // ── Sessions ──
 
   Future<int> getSessionsCount(String accountId) async {
-    final payload = utf8.encode(json.encode({'account_id': accountId}));
-    try {
-      final respBytes = await _callAsync('__engine', 'GetSessions', Uint8List.fromList(payload));
-      if (respBytes.isEmpty) return 0;
-      final decoded = json.decode(utf8.decode(respBytes));
-      if (decoded is List) return decoded.length;
-      return 0;
-    } catch (e) {
-      Debug.error('ENGINE', 'getSessionsCount failed', e);
-      return 0;
+    final cached = _sessionsCountCache[accountId];
+    if (cached != null && DateTime.now().difference(cached.fetchedAt) < _sessionsCountTtl) {
+      return cached.count;
     }
+    final sessions = await getSessions(accountId);
+    _sessionsCountCache[accountId] = (count: sessions.length, fetchedAt: DateTime.now());
+    return sessions.length;
   }
 
   Future<List<Map<String, dynamic>>> getSessions(String accountId) async {
@@ -5004,6 +5001,8 @@ class EngineService {
     _downloadProgressController.close();
     _downloadCompleteController.close();
     _userStatusController.close();
+    _incomingCallController.close();
+    _callStateController.close();
     _groupCallStateController.close();
     _exportProgressController.close();
     _exportErrorController.close();
@@ -5580,6 +5579,10 @@ class EngineService {
     isBot: p.isBot,
     isOnline: p.isOnline,
     role: p.role.isNotEmpty ? p.role : 'member',
+    customRank: _safeStr(p.customRank),
+    promotedBy: _safeStr(p.promotedBy),
+    promotedByID: _safeStr(p.promotedById),
+    promotedDate: p.promotedDate,
   );
 
   static ContactInfo _contactInfoFromProto(epb.EngineContactInfo p) => ContactInfo(

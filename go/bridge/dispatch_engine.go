@@ -837,6 +837,8 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			SendAsSticker:   req.SendAsSticker,
 			ReplyToMsgID:    req.ReplyToMsgId,
 			GroupID:         req.GroupId,
+			IsVoice:         req.IsVoice,
+			IsVideoNote:     req.IsVideoNote,
 		})
 		if err != nil {
 			return nil, err
@@ -875,13 +877,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		resp := &pb.EngineGetChatMembersResponse{}
 		for _, m := range members {
 			resp.Members = append(resp.Members, &pb.EngineMemberInfo{
-				UserId:      m.UserID,
-				Username:    sanitizeUTF8(m.Username),
-				DisplayName: sanitizeUTF8(m.DisplayName),
-				AvatarB64:   m.AvatarB64,
-				IsBot:       m.IsBot,
-				IsOnline:    m.IsOnline,
-				Role:        m.Role,
+				UserId:       m.UserID,
+				Username:     sanitizeUTF8(m.Username),
+				DisplayName:  sanitizeUTF8(m.DisplayName),
+				AvatarB64:    m.AvatarB64,
+				IsBot:        m.IsBot,
+				IsOnline:     m.IsOnline,
+				Role:         m.Role,
+				CustomRank:   m.CustomRank,
+				PromotedBy:   m.PromotedBy,
+				PromotedById: m.PromotedByID,
+				PromotedDate: int32(m.PromotedDate),
 			})
 		}
 		return proto.Marshal(resp)
@@ -3467,6 +3473,27 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		resp := map[string]int{"story_id": storyID}
 		return json.Marshal(resp)
+
+	case "ReactToStory":
+		var params struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+			StoryID   int    `json:"story_id"`
+			Emoji     string `json:"emoji"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ReactToStory(params.AccountID, params.UserID, params.StoryID, params.Emoji)
+
+	case "ActivateStealthMode":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ActivateStealthMode(params.AccountID)
 
 	// ── Send As ──
 

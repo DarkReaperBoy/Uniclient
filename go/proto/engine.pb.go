@@ -4871,6 +4871,8 @@ type EngineUploadFileRequest struct {
 	SendAsSticker   bool                   `protobuf:"varint,14,opt,name=send_as_sticker,json=sendAsSticker,proto3" json:"send_as_sticker,omitempty"`
 	ReplyToMsgId    string                 `protobuf:"bytes,15,opt,name=reply_to_msg_id,json=replyToMsgId,proto3" json:"reply_to_msg_id,omitempty"`
 	GroupId         string                 `protobuf:"bytes,16,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	IsVoice         bool                   `protobuf:"varint,17,opt,name=is_voice,json=isVoice,proto3" json:"is_voice,omitempty"`
+	IsVideoNote     bool                   `protobuf:"varint,18,opt,name=is_video_note,json=isVideoNote,proto3" json:"is_video_note,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -5015,6 +5017,20 @@ func (x *EngineUploadFileRequest) GetGroupId() string {
 		return x.GroupId
 	}
 	return ""
+}
+
+func (x *EngineUploadFileRequest) GetIsVoice() bool {
+	if x != nil {
+		return x.IsVoice
+	}
+	return false
+}
+
+func (x *EngineUploadFileRequest) GetIsVideoNote() bool {
+	if x != nil {
+		return x.IsVideoNote
+	}
+	return false
 }
 
 type EngineUploadFileResponse struct {
@@ -5218,6 +5234,10 @@ type EngineMemberInfo struct {
 	IsBot         bool                   `protobuf:"varint,5,opt,name=is_bot,json=isBot,proto3" json:"is_bot,omitempty"`
 	IsOnline      bool                   `protobuf:"varint,6,opt,name=is_online,json=isOnline,proto3" json:"is_online,omitempty"`
 	Role          string                 `protobuf:"bytes,7,opt,name=role,proto3" json:"role,omitempty"` // "owner", "admin", "member", "restricted", "banned"
+	CustomRank    string                 `protobuf:"bytes,8,opt,name=custom_rank,json=customRank,proto3" json:"custom_rank,omitempty"`
+	PromotedBy    string                 `protobuf:"bytes,9,opt,name=promoted_by,json=promotedBy,proto3" json:"promoted_by,omitempty"`
+	PromotedById  string                 `protobuf:"bytes,10,opt,name=promoted_by_id,json=promotedById,proto3" json:"promoted_by_id,omitempty"`
+	PromotedDate  int32                  `protobuf:"varint,11,opt,name=promoted_date,json=promotedDate,proto3" json:"promoted_date,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5299,6 +5319,34 @@ func (x *EngineMemberInfo) GetRole() string {
 		return x.Role
 	}
 	return ""
+}
+
+func (x *EngineMemberInfo) GetCustomRank() string {
+	if x != nil {
+		return x.CustomRank
+	}
+	return ""
+}
+
+func (x *EngineMemberInfo) GetPromotedBy() string {
+	if x != nil {
+		return x.PromotedBy
+	}
+	return ""
+}
+
+func (x *EngineMemberInfo) GetPromotedById() string {
+	if x != nil {
+		return x.PromotedById
+	}
+	return ""
+}
+
+func (x *EngineMemberInfo) GetPromotedDate() int32 {
+	if x != nil {
+		return x.PromotedDate
+	}
+	return 0
 }
 
 type EngineGetChatMembersRequest struct {
@@ -13930,7 +13978,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
 	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x16\n" +
-	"\x06pinned\x18\x04 \x01(\bR\x06pinned\"\xb5\x04\n" +
+	"\x06pinned\x18\x04 \x01(\bR\x06pinned\"\xf4\x04\n" +
 	"\x17EngineUploadFileRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -13949,7 +13997,9 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x11send_large_photos\x18\r \x01(\bR\x0fsendLargePhotos\x12&\n" +
 	"\x0fsend_as_sticker\x18\x0e \x01(\bR\rsendAsSticker\x12%\n" +
 	"\x0freply_to_msg_id\x18\x0f \x01(\tR\freplyToMsgId\x12\x19\n" +
-	"\bgroup_id\x18\x10 \x01(\tR\agroupId\"1\n" +
+	"\bgroup_id\x18\x10 \x01(\tR\agroupId\x12\x19\n" +
+	"\bis_voice\x18\x11 \x01(\bR\aisVoice\x12\"\n" +
+	"\ris_video_note\x18\x12 \x01(\bR\visVideoNote\"1\n" +
 	"\x18EngineUploadFileResponse\x12\x15\n" +
 	"\x06msg_id\x18\x01 \x01(\tR\x05msgId\"6\n" +
 	"\x19EngineRetryPendingRequest\x12\x19\n" +
@@ -13961,7 +14011,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\">\n" +
 	"\x1bEngineGetMessageRawResponse\x12\x1f\n" +
 	"\vcontent_raw\x18\x01 \x01(\fR\n" +
-	"contentRaw\"\xd1\x01\n" +
+	"contentRaw\"\xde\x02\n" +
 	"\x10EngineMemberInfo\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12!\n" +
@@ -13970,7 +14020,14 @@ const file_proto_engine_proto_rawDesc = "" +
 	"avatar_b64\x18\x04 \x01(\tR\tavatarB64\x12\x15\n" +
 	"\x06is_bot\x18\x05 \x01(\bR\x05isBot\x12\x1b\n" +
 	"\tis_online\x18\x06 \x01(\bR\bisOnline\x12\x12\n" +
-	"\x04role\x18\a \x01(\tR\x04role\"\x83\x01\n" +
+	"\x04role\x18\a \x01(\tR\x04role\x12\x1f\n" +
+	"\vcustom_rank\x18\b \x01(\tR\n" +
+	"customRank\x12\x1f\n" +
+	"\vpromoted_by\x18\t \x01(\tR\n" +
+	"promotedBy\x12$\n" +
+	"\x0epromoted_by_id\x18\n" +
+	" \x01(\tR\fpromotedById\x12#\n" +
+	"\rpromoted_date\x18\v \x01(\x05R\fpromotedDate\"\x83\x01\n" +
 	"\x1bEngineGetChatMembersRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +

@@ -23862,6 +23862,17 @@ func (t *TelegramCore) StoriesActivateStealthMode(request *tg.StoriesActivateSte
 	return t.api.StoriesActivateStealthMode(t.ctx, request)
 }
 
+// ActivateStealthMode activates stealth mode (past+future) via the engine interface.
+func (t *TelegramCore) ActivateStealthMode() error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.StoriesActivateStealthMode(t.ctx, &tg.StoriesActivateStealthModeRequest{
+		Past:   true,
+		Future: true,
+	})
+	return err
+}
+
 // StoriesCanSendStory checks if the user can post a story to a peer.
 func (t *TelegramCore) StoriesCanSendStory(peer tg.InputPeerClass) (*tg.StoriesCanSendStoryCount, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

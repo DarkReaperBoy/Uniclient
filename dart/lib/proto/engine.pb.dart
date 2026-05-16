@@ -6635,6 +6635,8 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     $core.bool? sendAsSticker,
     $core.String? replyToMsgId,
     $core.String? groupId,
+    $core.bool? isVoice,
+    $core.bool? isVideoNote,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -6685,6 +6687,12 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     if (groupId != null) {
       $result.groupId = groupId;
     }
+    if (isVoice != null) {
+      $result.isVoice = isVoice;
+    }
+    if (isVideoNote != null) {
+      $result.isVideoNote = isVideoNote;
+    }
     return $result;
   }
   EngineUploadFileRequest._() : super();
@@ -6708,6 +6716,8 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     ..aOB(14, _omitFieldNames ? '' : 'sendAsSticker')
     ..aOS(15, _omitFieldNames ? '' : 'replyToMsgId')
     ..aOS(16, _omitFieldNames ? '' : 'groupId')
+    ..aOB(17, _omitFieldNames ? '' : 'isVoice')
+    ..aOB(18, _omitFieldNames ? '' : 'isVideoNote')
     ..hasRequiredFields = false
   ;
 
@@ -6875,6 +6885,24 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
   $core.bool hasGroupId() => $_has(15);
   @$pb.TagNumber(16)
   void clearGroupId() => clearField(16);
+
+  @$pb.TagNumber(17)
+  $core.bool get isVoice => $_getBF(16);
+  @$pb.TagNumber(17)
+  set isVoice($core.bool v) { $_setBool(16, v); }
+  @$pb.TagNumber(17)
+  $core.bool hasIsVoice() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearIsVoice() => clearField(17);
+
+  @$pb.TagNumber(18)
+  $core.bool get isVideoNote => $_getBF(17);
+  @$pb.TagNumber(18)
+  set isVideoNote($core.bool v) { $_setBool(17, v); }
+  @$pb.TagNumber(18)
+  $core.bool hasIsVideoNote() => $_has(17);
+  @$pb.TagNumber(18)
+  void clearIsVideoNote() => clearField(18);
 }
 
 class EngineUploadFileResponse extends $pb.GeneratedMessage {
@@ -7114,6 +7142,10 @@ class EngineMemberInfo extends $pb.GeneratedMessage {
     $core.bool? isBot,
     $core.bool? isOnline,
     $core.String? role,
+    $core.String? customRank,
+    $core.String? promotedBy,
+    $core.String? promotedById,
+    $core.int? promotedDate,
   }) {
     final $result = create();
     if (userId != null) {
@@ -7137,6 +7169,18 @@ class EngineMemberInfo extends $pb.GeneratedMessage {
     if (role != null) {
       $result.role = role;
     }
+    if (customRank != null) {
+      $result.customRank = customRank;
+    }
+    if (promotedBy != null) {
+      $result.promotedBy = promotedBy;
+    }
+    if (promotedById != null) {
+      $result.promotedById = promotedById;
+    }
+    if (promotedDate != null) {
+      $result.promotedDate = promotedDate;
+    }
     return $result;
   }
   EngineMemberInfo._() : super();
@@ -7151,6 +7195,10 @@ class EngineMemberInfo extends $pb.GeneratedMessage {
     ..aOB(5, _omitFieldNames ? '' : 'isBot')
     ..aOB(6, _omitFieldNames ? '' : 'isOnline')
     ..aOS(7, _omitFieldNames ? '' : 'role')
+    ..aOS(8, _omitFieldNames ? '' : 'customRank')
+    ..aOS(9, _omitFieldNames ? '' : 'promotedBy')
+    ..aOS(10, _omitFieldNames ? '' : 'promotedById')
+    ..a<$core.int>(11, _omitFieldNames ? '' : 'promotedDate', $pb.PbFieldType.O3)
     ..hasRequiredFields = false
   ;
 
@@ -7237,6 +7285,42 @@ class EngineMemberInfo extends $pb.GeneratedMessage {
   $core.bool hasRole() => $_has(6);
   @$pb.TagNumber(7)
   void clearRole() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.String get customRank => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set customRank($core.String v) { $_setString(7, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasCustomRank() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearCustomRank() => clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.String get promotedBy => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set promotedBy($core.String v) { $_setString(8, v); }
+  @$pb.TagNumber(9)
+  $core.bool hasPromotedBy() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearPromotedBy() => clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.String get promotedById => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set promotedById($core.String v) { $_setString(9, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasPromotedById() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearPromotedById() => clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.int get promotedDate => $_getIZ(10);
+  @$pb.TagNumber(11)
+  set promotedDate($core.int v) { $_setSignedInt32(10, v); }
+  @$pb.TagNumber(11)
+  $core.bool hasPromotedDate() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearPromotedDate() => clearField(11);
 }
 
 class EngineGetChatMembersRequest extends $pb.GeneratedMessage {

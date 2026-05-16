@@ -572,6 +572,8 @@ message EngineUploadFileRequest {
   bool   send_as_sticker   = 14;
   string reply_to_msg_id   = 15;
   string group_id          = 16;
+  bool   is_voice          = 17;
+  bool   is_video_note     = 18;
 }
 
 message EngineUploadFileResponse {
@@ -597,13 +599,17 @@ message EngineGetMessageRawResponse {
 // ═══════════════════════════════════════════════════════════════════════
 
 message EngineMemberInfo {
-  string user_id      = 1;
-  string username     = 2;
-  string display_name = 3;
-  string avatar_b64   = 4;
-  bool   is_bot       = 5;
-  bool   is_online    = 6;
-  string role         = 7; // "owner", "admin", "member", "restricted", "banned"
+  string user_id        = 1;
+  string username       = 2;
+  string display_name   = 3;
+  string avatar_b64     = 4;
+  bool   is_bot         = 5;
+  bool   is_online      = 6;
+  string role           = 7; // "owner", "admin", "member", "restricted", "banned"
+  string custom_rank    = 8;
+  string promoted_by    = 9;
+  string promoted_by_id = 10;
+  int32  promoted_date  = 11;
 }
 
 message EngineGetChatMembersRequest {

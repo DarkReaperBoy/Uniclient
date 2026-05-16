@@ -2108,6 +2108,44 @@ func (e *Engine) SendStoryWithPhoto(accountID, text string, photoData []byte, op
 	return sender.SendStoryWithPhoto(text, photoData, opts)
 }
 
+type StoryReactor interface {
+	ReactToStory(userID string, storyID int, emoji string) error
+}
+
+func (e *Engine) ReactToStory(accountID, userID string, storyID int, emoji string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	reactor, ok := acc.Core.(StoryReactor)
+	if !ok {
+		return fmt.Errorf("platform does not support story reactions")
+	}
+	return reactor.ReactToStory(userID, storyID, emoji)
+}
+
+type StealthModeActivator interface {
+	ActivateStealthMode() error
+}
+
+func (e *Engine) ActivateStealthMode(accountID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	activator, ok := acc.Core.(StealthModeActivator)
+	if !ok {
+		return fmt.Errorf("platform does not support stealth mode")
+	}
+	return activator.ActivateStealthMode()
+}
+
 type EditRevision struct {
 	ID           int64  `json:"id"`
 	AccountID    string `json:"account_id"`
