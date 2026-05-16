@@ -18,9 +18,10 @@ import 'chat_list_row.dart' show isSavedMessages;
 import 'calls_screen.dart';
 import 'contacts_screen.dart';
 import 'create_group_wizard.dart';
-import 'my_profile_page.dart';
+import 'info_panel.dart';
 import 'popup_menu.dart';
 import 'settings_screen.dart';
+import 'shell.dart';
 import 'web_app_panel.dart';
 import 'settings_style.dart' show settingsPageRoute;
 import 'telegram_toast.dart';
@@ -157,23 +158,18 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       icon: Icons.person,
                       label: 'My Profile',
                       onTap: () {
-                        final chatSt = context.read<ChatState>();
-                        final authSt = context.read<AuthState>();
                         Navigator.of(context).pop();
-                        Navigator.of(context).push(
-                          settingsPageRoute(
-                            ChangeNotifierProvider.value(
-                              value: appState,
-                              child: ChangeNotifierProvider.value(
-                                value: chatSt,
-                                child: ChangeNotifierProvider.value(
-                                  value: authSt,
-                                  child: const MyProfilePage(),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
+                        final selfUserId = appState.activeAccount?.selfUserId ?? '';
+                        final selfName = appState.activeAccount?.displayName ?? '';
+                        final member = MemberInfo(userId: selfUserId, displayName: selfName);
+                        if (InfoPanel.pushUserProfileRequest != null) {
+                          InfoPanel.pushUserProfileRequest!(member);
+                        } else {
+                          UniClientShell.toggleInfoRequest?.call();
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            InfoPanel.pushUserProfileRequest?.call(member);
+                          });
+                        }
                       },
                     ),
                     // §3.3 / §54.8a: Menu Bots rows (§54.8: gated).
@@ -541,6 +537,11 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
         icon: Icon(Icons.settings),
         label: 'Archive Settings',
       ),
+      const TelegramMenuItem(
+        value: 'how_it_works',
+        icon: Icon(Icons.help_outline),
+        label: 'How does the archive work?',
+      ),
     ];
     showTelegramMenu<String>(
       context: context,
@@ -572,8 +573,85 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
               ),
             ),
           );
+        case 'how_it_works':
+          _showArchiveHintDialog(context, appState);
       }
     });
+  }
+
+  void _showArchiveHintDialog(BuildContext context, AppState appState) {
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.archive, color: Colors.white, size: 32),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'This is your Archive',
+                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'When you receive a new message, muted chats will remain in the Archive, while unmuted chats will be moved to Chats.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.textTheme.bodySmall?.color,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  _ArchiveHintEntry(
+                    icon: Icons.archive_outlined,
+                    title: 'Archived Chats',
+                    description: 'Move any chat into your Archive and back by swiping on it.',
+                    theme: theme,
+                  ),
+                  const SizedBox(height: 16),
+                  _ArchiveHintEntry(
+                    icon: Icons.visibility_off_outlined,
+                    title: 'Hiding Archive',
+                    description: 'Hide the Archive from your Main screen by swiping on it.',
+                    theme: theme,
+                  ),
+                  const SizedBox(height: 16),
+                  _ArchiveHintEntry(
+                    icon: Icons.auto_stories_outlined,
+                    title: 'Stories',
+                    description: 'Archive Stories from your contacts separately from chats with them.',
+                    theme: theme,
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: const Text('Got it'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showMyGroupsPopup(BuildContext context, Offset position, {required bool isGroup}) {
@@ -2051,6 +2129,41 @@ class _MyChatsDialog extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+}
+
+class _ArchiveHintEntry extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final ThemeData theme;
+
+  const _ArchiveHintEntry({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 24, color: theme.colorScheme.primary),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(description, style: theme.textTheme.bodySmall),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
