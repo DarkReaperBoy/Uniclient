@@ -504,11 +504,6 @@ return ClipOval(
 
 ## Statistics Page
 
-- [ ] [MAJOR] `_PublicForwardRow` opens source chat by ID but does not scroll to or highlight the specific forwarded message — `info_panel.dart:7975` ← `AyuGramDesktop/Telegram/SourceFiles/info/statistics/info_statistics_widget.cpp`
-- [ ] [MAJOR] `_StatisticsPage` loads stats once on init with no refresh/pull-to-refresh; data goes stale — `info_panel.dart:6507`
-- [ ] [MAJOR] `_BoostsPage` missing booster list, gift boosts section, and "Get more boosts" action — `info_panel.dart:6371` ← `AyuGramDesktop/Telegram/SourceFiles/info/boosts/info_boosts_widget.cpp`
-- [ ] [MAJOR] `_RecentMessagesSection` "Show in Chat" context menu emits no engine navigation call — `info_panel.dart:7285`
-
 ## Actions Sections
 
 - [ ] [MAJOR] "Edit group" in `_GroupActionsSection` callback navigates to no screen; `_editGroup` is a stub — `info_panel.dart:3235`
