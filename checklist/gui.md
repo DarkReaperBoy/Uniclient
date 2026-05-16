@@ -350,8 +350,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 
 ## CalendarBox
 
-- [ ] [MAJOR] The `_MonthYearPickerDialog` uses `ListWheelScrollView` (Flutter's drum picker widget) for both months and years columns. AyuGram uses `VerticalDrumPicker` (a custom widget in `lib_ui`) that supports `handleMouseEvent`, `handleWheelEvent`, and `handleKeyEvent`. The Flutter `ListWheelScrollView` does not forward key events from the parent box, while AyuGram's picker handles keyboard up/down arrow navigation. No keyboard navigation works in the Dart month/year picker. — `choose_datetime_box.dart:555-605` ← `AyuGram/ui/boxes/calendar_box.cpp:43-188`
-
 # engine_service — Bridge Service Audit
 
 ## engine_service — reactToStory drops accountId from payload
