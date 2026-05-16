@@ -350,9 +350,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 
 # chat_view — Backend wiring stubs, missing user photos
 
-- [ ] [CRITICAL] `_WhoReadAvatar` displays only colored initials; never loads real user profile photos. The engine's `GetMessageReadParticipantsDetailedJSON` does not return avatar data (`user_id`, `date`, `name` only — no `avatar_b64`), so actual profile pictures cannot be shown. AyuGram's `WhoReadParticipant` struct carries `userpicSmall` and `userpicLarge` QImage fields loaded via `peer->loadUserpic()`. — `chat_view.dart:20454` ← `AyuGram/SourceFiles/ui/controls/who_reacted_context_action.h:23` / `AyuGram/SourceFiles/history/view/history_view_context_menu.cpp:1754`
-
-- [ ] [CRITICAL] `_GroupCallUserpic` renders a colored-initial avatar derived from `participant.userId.hashCode` instead of loading the user's real profile photo. AyuGram calls `peer->loadUserpic()`, builds `UserpicInRow` entries, and passes them to `GenerateUserpicsInRow` to produce the overlapping photo strip. — `chat_view.dart:10595` ← `AyuGram/SourceFiles/history/view/history_view_group_call_bar.cpp:63`
 
 # choose_datetime_box — Audit vs AyuGram Desktop
 
