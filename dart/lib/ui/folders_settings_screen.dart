@@ -128,7 +128,14 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
     try {
       final suggestions = await engine.getSuggestedFolders(account.id);
       if (mounted) {
-        setState(() => _recommended = suggestions);
+        final filtered = suggestions.where((s) => !_folders.any((f) =>
+          f.contacts == s.contacts &&
+          f.nonContacts == s.nonContacts &&
+          f.groups == s.groups &&
+          f.channels == s.channels &&
+          f.bots == s.bots
+        )).toList();
+        setState(() => _recommended = filtered);
       }
     } catch (_) {}
   }
@@ -296,13 +303,8 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
   }
 
   int _countChatsInFolder(FolderInfo folder) {
-    int count = folder.chatIds.length;
-    if (folder.contacts) count++;
-    if (folder.nonContacts) count++;
-    if (folder.groups) count++;
-    if (folder.channels) count++;
-    if (folder.bots) count++;
-    return count;
+    final chatState = context.read<ChatState>();
+    return chatState.chatsForFolder(folder.id).length;
   }
 
   @override
@@ -965,11 +967,27 @@ class _TagsToggle extends StatefulWidget {
 
 class _TagsToggleState extends State<_TagsToggle> {
   Timer? _debounce;
+  bool? _pendingValue;
 
   @override
   void dispose() {
-    _debounce?.cancel();
+    _flushPendingToggle();
     super.dispose();
+  }
+
+  void _flushPendingToggle() {
+    if (_debounce?.isActive ?? false) {
+      _debounce!.cancel();
+      _debounce = null;
+      if (_pendingValue != null) {
+        final engine = context.read<EngineService>();
+        final accountId = context.read<AppState>().activeAccount?.id ?? '';
+        if (accountId.isNotEmpty) {
+          engine.toggleDialogFilterTags(accountId, _pendingValue!);
+        }
+        _pendingValue = null;
+      }
+    }
   }
 
   void _onToggle(bool v) {
@@ -979,11 +997,17 @@ class _TagsToggleState extends State<_TagsToggle> {
     }
     widget.onChanged(v);
     _debounce?.cancel();
+    _pendingValue = v;
     _debounce = Timer(const Duration(milliseconds: 500), () {
+      _pendingValue = null;
       final engine = context.read<EngineService>();
       final accountId = context.read<AppState>().activeAccount?.id ?? '';
       if (accountId.isNotEmpty) {
-        engine.toggleDialogFilterTags(accountId, v);
+        engine.toggleDialogFilterTags(accountId, v).then((success) {
+          if (!success && mounted) {
+            widget.onChanged(!v);
+          }
+        });
       }
     });
   }
@@ -3775,6 +3799,68 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
     return chats.where((c) => c.title.toLowerCase().contains(q)).toList();
   }
 
+  Widget _buildIncludeListView(Color textColor, Color subtextColor, Color searchBarBg, Color searchBarFg) {
+    final chats = _filteredChats;
+    final typeRows = <Widget>[];
+    if (_searchQuery.isEmpty) {
+      typeRows.add(Container(
+        height: 28, color: searchBarBg,
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 22),
+        child: Text('Chat types', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg)),
+      ));
+      if (widget.isChatList) {
+        typeRows.add(_TypeToggleRow(label: 'New Chats', icon: Icons.fiber_new, color: const Color(0xFF7bc862), value: _newChats, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _newChats = v)));
+        typeRows.add(_TypeToggleRow(label: 'Existing Chats', icon: Icons.chat_bubble, color: const Color(0xFF40a7e3), value: _existingChats, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _existingChats = v)));
+      }
+      typeRows.add(_TypeToggleRow(label: 'Contacts', icon: Icons.person, color: const Color(0xFF7bc862), value: _contacts, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _contacts = v)));
+      typeRows.add(_TypeToggleRow(label: 'Non-Contacts', icon: Icons.person_outline, color: const Color(0xFF6ec9cb), value: _nonContacts, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _nonContacts = v)));
+      typeRows.add(_TypeToggleRow(label: 'Groups', icon: Icons.group, color: const Color(0xFF7bc862), value: _groups, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _groups = v)));
+      typeRows.add(_TypeToggleRow(label: 'Channels', icon: Icons.campaign, color: const Color(0xFFe17076), value: _channels, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _channels = v)));
+      typeRows.add(_TypeToggleRow(label: 'Bots', icon: Icons.smart_toy, color: const Color(0xFFa695e7), value: _bots, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _bots = v)));
+    }
+    final headerWidget = Container(
+      height: 28, color: searchBarBg,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      child: Text('Chats', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg)),
+    );
+    final headerCount = typeRows.length + 1;
+    final chatCount = chats.isEmpty ? 1 : chats.length;
+    return ListView.builder(
+      shrinkWrap: true,
+      itemCount: headerCount + chatCount,
+      itemBuilder: (context, index) {
+        if (index < typeRows.length) return typeRows[index];
+        if (index == typeRows.length) return headerWidget;
+        final chatIndex = index - headerCount;
+        if (chats.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(22),
+            child: Text(
+              _searchQuery.isEmpty ? 'No chats available' : 'No chats matching "$_searchQuery"',
+              style: TextStyle(fontSize: 13, color: subtextColor),
+              textAlign: TextAlign.center,
+            ),
+          );
+        }
+        final chat = chats[chatIndex];
+        return _ChatToggleRow(
+          chat: chat,
+          selected: _selectedIds.contains(chat.chatId),
+          isDark: widget.isDark,
+          textColor: textColor,
+          onChanged: (v) {
+            setState(() {
+              if (v) { _selectedIds.add(chat.chatId); }
+              else { _selectedIds.remove(chat.chatId); }
+            });
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
@@ -3839,64 +3925,7 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
                 ),
               ),
               Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    if (_searchQuery.isEmpty) ...[
-                      Container(
-                        height: 28,
-                        color: searchBarBg,
-                        alignment: Alignment.centerLeft,
-                        padding: const EdgeInsets.symmetric(horizontal: 22),
-                        child: Text(
-                          'Chat types',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg),
-                        ),
-                      ),
-                      if (widget.isChatList) ...[
-                        _TypeToggleRow(label: 'New Chats', icon: Icons.fiber_new, color: const Color(0xFF7bc862), value: _newChats, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _newChats = v)),
-                        _TypeToggleRow(label: 'Existing Chats', icon: Icons.chat_bubble, color: const Color(0xFF40a7e3), value: _existingChats, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _existingChats = v)),
-                      ],
-                      _TypeToggleRow(label: 'Contacts', icon: Icons.person, color: const Color(0xFF7bc862), value: _contacts, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _contacts = v)),
-                      _TypeToggleRow(label: 'Non-Contacts', icon: Icons.person_outline, color: const Color(0xFF6ec9cb), value: _nonContacts, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _nonContacts = v)),
-                      _TypeToggleRow(label: 'Groups', icon: Icons.group, color: const Color(0xFF7bc862), value: _groups, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _groups = v)),
-                      _TypeToggleRow(label: 'Channels', icon: Icons.campaign, color: const Color(0xFFe17076), value: _channels, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _channels = v)),
-                      _TypeToggleRow(label: 'Bots', icon: Icons.smart_toy, color: const Color(0xFFa695e7), value: _bots, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _bots = v)),
-                    ],
-                    Container(
-                      height: 28,
-                      color: searchBarBg,
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.symmetric(horizontal: 22),
-                      child: Text(
-                        'Chats',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg),
-                      ),
-                    ),
-                    for (final chat in _filteredChats)
-                      _ChatToggleRow(
-                        chat: chat,
-                        selected: _selectedIds.contains(chat.chatId),
-                        isDark: widget.isDark,
-                        textColor: textColor,
-                        onChanged: (v) {
-                          setState(() {
-                            if (v) { _selectedIds.add(chat.chatId); }
-                            else { _selectedIds.remove(chat.chatId); }
-                          });
-                        },
-                      ),
-                    if (_filteredChats.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(22),
-                        child: Text(
-                          _searchQuery.isEmpty ? 'No chats available' : 'No chats matching "$_searchQuery"',
-                          style: TextStyle(fontSize: 13, color: subtextColor),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                  ],
-                ),
+                child: _buildIncludeListView(textColor, subtextColor, searchBarBg, searchBarFg),
               ),
               const SizedBox(height: 8),
               Padding(
@@ -3991,6 +4020,62 @@ class _ExcludeTypePickerState extends State<_ExcludeTypePicker> {
     return chats.where((c) => c.title.toLowerCase().contains(q)).toList();
   }
 
+  Widget _buildExcludeListView(Color textColor, Color subtextColor, Color searchBarBg, Color searchBarFg) {
+    final chats = _filteredChats;
+    final typeRows = <Widget>[];
+    if (_searchQuery.isEmpty) {
+      typeRows.add(Container(
+        height: 28, color: searchBarBg,
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 22),
+        child: Text('Chat types', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg)),
+      ));
+      typeRows.add(_TypeToggleRow(label: 'Muted', icon: Icons.volume_off, color: const Color(0xFFa695e7), value: _excludeMuted, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _excludeMuted = v)));
+      typeRows.add(_TypeToggleRow(label: 'Archived', icon: Icons.archive, color: const Color(0xFF7bc862), value: _excludeArchived, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _excludeArchived = v)));
+      typeRows.add(_TypeToggleRow(label: 'Read', icon: Icons.done_all, color: const Color(0xFF6ec9cb), value: _excludeRead, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _excludeRead = v)));
+    }
+    final headerWidget = Container(
+      height: 28, color: searchBarBg,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      child: Text('Chats', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg)),
+    );
+    final headerCount = typeRows.length + 1;
+    final chatCount = chats.isEmpty ? 1 : chats.length;
+    return ListView.builder(
+      shrinkWrap: true,
+      itemCount: headerCount + chatCount,
+      itemBuilder: (context, index) {
+        if (index < typeRows.length) return typeRows[index];
+        if (index == typeRows.length) return headerWidget;
+        final chatIndex = index - headerCount;
+        if (chats.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(22),
+            child: Text(
+              _searchQuery.isEmpty ? 'No chats available' : 'No chats matching "$_searchQuery"',
+              style: TextStyle(fontSize: 13, color: subtextColor),
+              textAlign: TextAlign.center,
+            ),
+          );
+        }
+        final chat = chats[chatIndex];
+        return _ChatToggleRow(
+          chat: chat,
+          selected: _selectedIds.contains(chat.chatId),
+          isDark: widget.isDark,
+          textColor: textColor,
+          onChanged: (v) {
+            setState(() {
+              if (v) { _selectedIds.add(chat.chatId); }
+              else { _selectedIds.remove(chat.chatId); }
+            });
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
@@ -4055,58 +4140,7 @@ class _ExcludeTypePickerState extends State<_ExcludeTypePicker> {
                 ),
               ),
               Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    if (_searchQuery.isEmpty) ...[
-                      Container(
-                        height: 28,
-                        color: searchBarBg,
-                        alignment: Alignment.centerLeft,
-                        padding: const EdgeInsets.symmetric(horizontal: 22),
-                        child: Text(
-                          'Chat types',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg),
-                        ),
-                      ),
-                      _TypeToggleRow(label: 'Muted', icon: Icons.volume_off, color: const Color(0xFFa695e7), value: _excludeMuted, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _excludeMuted = v)),
-                      _TypeToggleRow(label: 'Archived', icon: Icons.archive, color: const Color(0xFF7bc862), value: _excludeArchived, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _excludeArchived = v)),
-                      _TypeToggleRow(label: 'Read', icon: Icons.done_all, color: const Color(0xFF6ec9cb), value: _excludeRead, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _excludeRead = v)),
-                    ],
-                    Container(
-                      height: 28,
-                      color: searchBarBg,
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.symmetric(horizontal: 22),
-                      child: Text(
-                        'Chats',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg),
-                      ),
-                    ),
-                    for (final chat in _filteredChats)
-                      _ChatToggleRow(
-                        chat: chat,
-                        selected: _selectedIds.contains(chat.chatId),
-                        isDark: widget.isDark,
-                        textColor: textColor,
-                        onChanged: (v) {
-                          setState(() {
-                            if (v) { _selectedIds.add(chat.chatId); }
-                            else { _selectedIds.remove(chat.chatId); }
-                          });
-                        },
-                      ),
-                    if (_filteredChats.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(22),
-                        child: Text(
-                          _searchQuery.isEmpty ? 'No chats available' : 'No chats matching "$_searchQuery"',
-                          style: TextStyle(fontSize: 13, color: subtextColor),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                  ],
-                ),
+                child: _buildExcludeListView(textColor, subtextColor, searchBarBg, searchBarFg),
               ),
               const SizedBox(height: 8),
               Padding(
