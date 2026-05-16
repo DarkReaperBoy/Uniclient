@@ -1600,11 +1600,7 @@ class _ContactRow extends StatelessWidget {
                     Text(
                       contact.isOnline
                           ? 'online'
-                          : contact.username.isNotEmpty
-                              ? '@${contact.username}'
-                              : contact.phone.isNotEmpty
-                                  ? contact.phone
-                                  : _lastSeenText(contact.lastSeenKind, contact.lastSeenTs),
+                          : _lastSeenText(contact.lastSeenKind, contact.lastSeenTs),
                       style: TextStyle(
                         fontSize: 12,
                         color: contact.isOnline
@@ -2480,7 +2476,10 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
   int _slowmodeSeconds = 0;
 
   bool _hasDiscussionLink = false;
+  bool _createTopicsBanned = false;
+  Map<String, dynamic> _bannedRightsSnapshot = {};
 
+  bool _origCreateTopicsBanned = false;
   bool _origJoinToSend = false;
   bool _origNoForwards = false;
   bool _origJoinRequest = false;
@@ -2508,6 +2507,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         _noForwards != _origNoForwards ||
         _joinRequest != _origJoinRequest ||
         _slowmodeSeconds != _origSlowmodeSeconds ||
+        (_isForum && _createTopicsBanned != _origCreateTopicsBanned) ||
         _usernamesOrderChanged();
   }
 
@@ -2531,11 +2531,13 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         engine.getChatUsername(widget.accountId, widget.chatId),
         engine.getChatPermissionFlags(widget.accountId, widget.chatId),
         engine.getLinkedChatId(widget.accountId, widget.chatId).catchError((_) => ''),
+        engine.getDefaultBannedRights(widget.accountId, widget.chatId).catchError((_) => <String, dynamic>{}),
       ]);
       if (!mounted) return;
       final username = results[0] as String;
       final flags = results[1] as Map<String, dynamic>;
       final linkedChatId = results[2] as String;
+      final bannedRights = results[3] as Map<String, dynamic>;
       setState(() {
         _currentUsername = username;
         _origUsername = username;
@@ -2549,6 +2551,9 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         _joinRequest = flags['join_request'] as bool? ?? false;
         _isForum = flags['is_forum'] as bool? ?? false;
         _slowmodeSeconds = flags['slowmode_seconds'] as int? ?? 0;
+        _bannedRightsSnapshot = Map<String, dynamic>.from(bannedRights);
+        _createTopicsBanned = bannedRights['manage_topics'] as bool? ?? false;
+        _origCreateTopicsBanned = _createTopicsBanned;
         _origJoinToSend = _joinToSend;
         _origNoForwards = _noForwards;
         _origJoinRequest = _joinRequest;
@@ -2702,6 +2707,12 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
       if (!mounted) return;
       if (_slowmodeSeconds != _origSlowmodeSeconds) {
         await engine.setSlowMode(widget.accountId, widget.chatId, _slowmodeSeconds);
+      }
+      if (!mounted) return;
+      if (_isForum && _createTopicsBanned != _origCreateTopicsBanned) {
+        final rights = Map<String, dynamic>.from(_bannedRightsSnapshot);
+        rights['manage_topics'] = _createTopicsBanned;
+        await engine.setDefaultBannedRights(widget.accountId, widget.chatId, rights);
       }
       if (!mounted) return;
       for (var i = 0; i < _secondaryUsernames.length; i++) {
@@ -2870,6 +2881,21 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
           ],
         ),
       ),
+      if (_isForum) ...[
+        Container(height: 1, color: separatorColor),
+        _PermissionToggleRow(
+          icon: Icons.topic_outlined,
+          label: 'Create Topics',
+          subtitle: 'Members can create new forum topics.',
+          value: !_createTopicsBanned,
+          activeColor: toggleActiveColor,
+          textColor: textColor,
+          subtextColor: subtextColor,
+          onChanged: (v) {
+            setState(() => _createTopicsBanned = !v);
+          },
+        ),
+      ],
       Container(height: 1, color: separatorColor),
       _PermissionToggleRow(
         icon: Icons.no_photography_outlined,
