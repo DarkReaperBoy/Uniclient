@@ -6410,8 +6410,51 @@ class _MembersSectionState extends State<_MembersSection> {
   final _searchCtrl = TextEditingController();
   final _searchFocus = FocusNode();
 
+  StreamSubscription<ChatInfo>? _chatUpdatedSub;
+  StreamSubscription<MsgReceivedEvent>? _msgReceivedSub;
+  Timer? _searchDebounce;
+  List<MemberInfo>? _serverSearchResults;
+  bool _searchLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribeToEvents();
+  }
+
+  void _subscribeToEvents() {
+    final engine = context.read<EngineService>();
+    _chatUpdatedSub = engine.onChatUpdated.listen((chat) {
+      if (chat.chatId == widget.chatId && mounted) {
+        _refreshMembers();
+      }
+    });
+    _msgReceivedSub = engine.onMsgReceived.listen((event) {
+      if (event.chatId == widget.chatId && event.message.isService && mounted) {
+        _refreshMembers();
+      }
+    });
+  }
+
+  void _refreshMembers() {
+    final engine = context.read<EngineService>();
+    engine.getChatMembers(widget.accountId, widget.chatId).then((members) {
+      if (mounted) {
+        final panelState = context.findAncestorStateOfType<_InfoPanelState>();
+        if (panelState != null) {
+          panelState.setState(() {
+            panelState._members = members;
+          });
+        }
+      }
+    }).catchError((_) {});
+  }
+
   @override
   void dispose() {
+    _chatUpdatedSub?.cancel();
+    _msgReceivedSub?.cancel();
+    _searchDebounce?.cancel();
     _searchCtrl.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -6432,7 +6475,70 @@ class _MembersSectionState extends State<_MembersSection> {
     if (result != null && result.isNotEmpty && mounted) {
       try {
         await engine.addMembers(widget.accountId, widget.chatId, result);
-      } catch (_) {}
+        _refreshMembers();
+      } on EngineException catch (e) {
+        if (!mounted) return;
+        String msg;
+        if (e.code == 'CHAT_ADMIN_REQUIRED') {
+          msg = 'You need admin rights to add members';
+        } else if (e.code == 'USER_PRIVACY_RESTRICTED') {
+          msg = 'This user\'s privacy settings prevent adding them';
+        } else if (e.code == 'USER_NOT_MUTUAL_CONTACT') {
+          msg = 'You can only add mutual contacts';
+        } else if (e.code == 'USERS_TOO_MUCH') {
+          msg = 'The group is full';
+        } else {
+          msg = 'Failed to add members: ${e.message}';
+        }
+        showTelegramToast(context, msg);
+      } catch (e) {
+        if (mounted) {
+          showTelegramToast(context, 'Failed to add members');
+        }
+      }
+    }
+  }
+
+  void _onSearchChanged(String text) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    final query = text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _serverSearchResults = null;
+        _searchLoading = false;
+      });
+      return;
+    }
+    setState(() => _searchLoading = true);
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      _performServerSearch(query);
+    });
+  }
+
+  Future<void> _performServerSearch(String query) async {
+    final engine = context.read<EngineService>();
+    try {
+      final result = await engine.getChatMembersByRole(
+        widget.accountId,
+        widget.chatId,
+        role: 'members',
+        query: query,
+        limit: 50,
+      );
+      if (mounted && _searchCtrl.text.trim().toLowerCase() == query.toLowerCase()) {
+        setState(() {
+          _serverSearchResults = result.members;
+          _searchLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _serverSearchResults = null;
+          _searchLoading = false;
+        });
+      }
     }
   }
 
@@ -6446,14 +6552,11 @@ class _MembersSectionState extends State<_MembersSection> {
   }
 
   List<MemberInfo> _filteredMembers() {
-    final sorted = _sortedMembers();
     final query = _searchCtrl.text.trim().toLowerCase();
-    if (query.isEmpty) return sorted;
-    return sorted.where((m) {
-      return m.displayName.toLowerCase().contains(query) ||
-          m.username.toLowerCase().contains(query) ||
-          m.label.toLowerCase().contains(query);
-    }).toList();
+    if (query.isNotEmpty && _serverSearchResults != null) {
+      return _serverSearchResults!;
+    }
+    return _sortedMembers();
   }
 
   @override
@@ -6477,7 +6580,7 @@ class _MembersSectionState extends State<_MembersSection> {
                       ? TextField(
                           controller: _searchCtrl,
                           focusNode: _searchFocus,
-                          onChanged: (_) => setState(() {}),
+                          onChanged: _onSearchChanged,
                           style: TextStyle(
                             fontSize: 14,
                             color: theme.textTheme.bodyMedium?.color,
@@ -6512,6 +6615,9 @@ class _MembersSectionState extends State<_MembersSection> {
                         _searchFocus.requestFocus();
                       } else {
                         _searchCtrl.clear();
+                        _serverSearchResults = null;
+                        _searchLoading = false;
+                        _searchDebounce?.cancel();
                       }
                     });
                   },
@@ -6538,6 +6644,7 @@ class _MembersSectionState extends State<_MembersSection> {
             onTap: widget.onMemberTap != null ? () => widget.onMemberTap!(m) : null,
             accountId: widget.accountId,
             chatId: widget.chatId,
+            onMutated: _refreshMembers,
           )),
           if (!_searching && filtered.length > _displayLimit) ...[
             InkWell(
@@ -6565,7 +6672,12 @@ class _MembersSectionState extends State<_MembersSection> {
               style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color),
             ),
           ),
-        if (_searching && widget.members != null && widget.members!.isNotEmpty && filtered.isEmpty)
+        if (_searching && _searchLoading && _searchCtrl.text.trim().isNotEmpty)
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 1.5))),
+          )
+        else if (_searching && widget.members != null && widget.members!.isNotEmpty && filtered.isEmpty && !_searchLoading)
           Padding(
             padding: const EdgeInsets.only(left: 18, top: 8, bottom: 8),
             child: Text(
@@ -6584,6 +6696,7 @@ class _MemberRow extends StatelessWidget {
   final VoidCallback? onTap;
   final String accountId;
   final String chatId;
+  final VoidCallback? onMutated;
 
   const _MemberRow({
     required this.member,
@@ -6591,6 +6704,7 @@ class _MemberRow extends StatelessWidget {
     required this.accountId,
     required this.chatId,
     this.onTap,
+    this.onMutated,
   });
 
   static String _formatLastSeen(String kind, int tsMs) {
@@ -6867,9 +6981,11 @@ class _MemberRow extends StatelessWidget {
             member: member,
             isChannel: chatId.startsWith('-100'),
             promotedBy: member.promotedBy,
-          );
+          ).then((_) => onMutated?.call());
         case 'demote':
-          engine.demoteAdmin(accountId, chatId, member.userId).catchError((e) {
+          engine.demoteAdmin(accountId, chatId, member.userId).then((_) {
+            onMutated?.call();
+          }).catchError((e) {
             if (context.mounted) {
               showTelegramToast(context, 'Failed to demote: $e');
             }
@@ -6880,15 +6996,19 @@ class _MemberRow extends StatelessWidget {
             accountId: accountId,
             chatId: chatId,
             member: member,
-          );
+          ).then((_) => onMutated?.call());
         case 'remove':
-          engine.removeMember(accountId, chatId, member.userId).catchError((e) {
+          engine.removeMember(accountId, chatId, member.userId).then((_) {
+            onMutated?.call();
+          }).catchError((e) {
             if (context.mounted) {
               showTelegramToast(context, 'Failed to remove: $e');
             }
           });
         case 'ban':
-          engine.banMember(accountId, chatId, member.userId).catchError((e) {
+          engine.banMember(accountId, chatId, member.userId).then((_) {
+            onMutated?.call();
+          }).catchError((e) {
             if (context.mounted) {
               showTelegramToast(context, 'Failed to ban: $e');
             }
