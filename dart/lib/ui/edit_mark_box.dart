@@ -92,10 +92,20 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
           onSubmitted: (_) => _submit(),
           style: TextStyle(fontSize: 14, color: textFg),
           decoration: InputDecoration(
-            hintText: widget.defaultValue.isEmpty ? 'edited' : widget.defaultValue,
-            border: const UnderlineInputBorder(),
+            hintText: widget.title,
+            hintStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            border: UnderlineInputBorder(
+              borderSide: BorderSide(
+                color: _showError ? const Color(0xFFe53935) : Colors.grey,
+              ),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(
+                color: _showError ? const Color(0xFFe53935) : const Color(0xFF40a7e3),
+                width: 2,
+              ),
+            ),
             contentPadding: const EdgeInsets.symmetric(vertical: 8),
-            errorText: _showError ? 'This field is required' : null,
           ),
         ),
       ),

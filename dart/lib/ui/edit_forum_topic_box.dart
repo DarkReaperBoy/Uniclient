@@ -2,15 +2,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
-
 import '../bridge/engine_service.dart';
 import '../theme/telegram_palette.dart';
 import 'forum_topic_icon.dart';
 
 const double _boxMaxHeight = 408;
-const double _boxWidth = 364;
-const double _boxRadius = 3;
+const double _boxWidth = 320;
+const double _boxRadius = 6;
 const double _boxTitleHeight = 48;
 
 const double _iconButtonSize = 26;
@@ -31,6 +29,13 @@ class _TopicIconEntry {
   final int documentId;
   final String emoji;
   const _TopicIconEntry({required this.documentId, required this.emoji});
+}
+
+class _IconCategory {
+  final IconData icon;
+  final String label;
+  final List<String> emojis;
+  const _IconCategory(this.icon, this.label, this.emojis);
 }
 
 Future<EditForumTopicResult?> showEditForumTopicBox(
@@ -426,7 +431,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                 color: isDark ? Colors.white : Colors.black,
               ),
               decoration: InputDecoration(
-                hintText: widget.isBot ? 'Bot Thread Title' : 'Topic Name',
+                hintText: widget.isBot ? 'Thread Name' : 'Topic Name',
                 hintStyle: TextStyle(
                   fontSize: 14,
                   color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
@@ -506,19 +511,19 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
 
   void _showPremiumRequiredDialog(String emoji) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 4),
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1B2836) : Colors.white,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
         content: Row(
           children: [
             Text(emoji, style: const TextStyle(fontSize: 32)),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'This icon is available with Telegram Premium.',
+                'This icon is available for Telegram Premium subscribers.',
                 style: TextStyle(
                   fontSize: 13,
                   color: isDark ? Colors.white : Colors.black87,
@@ -527,16 +532,80 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
             ),
           ],
         ),
-        action: SnackBarAction(
-          label: 'Get Premium',
-          textColor: const Color(0xFF40a7e3),
-          onPressed: () {
-            launchUrl(Uri.parse('https://t.me/premium'), mode: LaunchMode.externalApplication);
-          },
-        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'OK',
+              style: TextStyle(color: Color(0xFF40a7e3)),
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  static const List<_IconCategory> _iconCategories = [
+    _IconCategory(Icons.access_time, 'Topic Icons', []),
+    _IconCategory(Icons.emoji_emotions_outlined, 'Smileys', [
+      '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
+      '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙',
+      '🥲', '😋', '😛', '😜', '🤪', '���', '🤑', '🤗', '🤭', '🤫',
+      '🤔', '🫡', '🤐', '🤨', '😐', '😑', '😶', '🫥', '😏', '😒',
+      '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒',
+      '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠',
+      '🥳', '🥸', '😎', '🤓', '🧐', '😕', '😟', '🙁', '😮', '😯',
+      '😲', '😳', '🥺', '🥹', '😦', '😧', '😨', '😰', '😥', '😢',
+      '😭', '😱', '😖', '😣', '😞', '😓', '😩', '😫', '🥱', '😤',
+      '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👹',
+      '👺', '👻', '👽', '👾', '🤖',
+    ]),
+    _IconCategory(Icons.pets_outlined, 'Nature', [
+      '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯',
+      '🦁', '🐮', '🐷', '🐸', '🐵', '🙈', '����', '🙊', '🐔', '🐧',
+      '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗',
+      '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞', '🐜', '🐢', '🐍',
+      '🦎', '🐙', '🦑', '🦐', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋',
+      '🌸', '💮', '🌹', '🥀', '🌺', '🌻', '🌼', '🌷', '🌱', '🌲',
+      '🌳', '🌴', '🌵', '☘️', '🍀', '🍁', '🍂', '🍃', '🍄',
+    ]),
+    _IconCategory(Icons.restaurant_outlined, 'Food', [
+      '🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🥭', '🍎', '🍏',
+      '��', '����', '🍒', '🍓', '🫐', '🥝', '🍅', '🥥', '🥑', '🍆',
+      '🥔', '🥕', '🌽', '🌶️', '🥒', '🥦', '🍞', '🥐', '🥖', '🥨',
+      '🧀', '🍖', '🍗', '🥩', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮',
+      '🌯', '🥙', '🥚', '🍳', '🍲', '🍱', '🍘', '🍙', '🍚', '🍛',
+      '🍜', '🍝', '🍣', '🍤', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂',
+      '🍰', '🧁', '🍫', '🍬', '🍭', '☕', '🍵', '🍷', '🍸', '🍹',
+    ]),
+    _IconCategory(Icons.sports_soccer_outlined, 'Activities', [
+      '⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱', '🏓', '🏸',
+      '🏒', '🥊', '🥋', '🎽', '🛹', '⛸️', '🎿', '🏆', '🥇', '🥈',
+      '🥉', '🏅', '🎪', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹',
+      '🥁', '🎷', '🎺', '🎸', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮',
+      '🕹️', '🎰', '🧩',
+    ]),
+    _IconCategory(Icons.directions_car_outlined, 'Travel', [
+      '🚗', '🚕', '🚙', '🚌', '🏎️', '🚓', '🚑', '🚒', '🚐', '🚚',
+      '🚜', '🚲', '🛵', '🏍️', '🚁', '✈️', '🚀', '🛸', '🚢', '⛵',
+      '🗽', '🗼', '🏰', '🏯', '🎡', '🎢', '🏖️', '🏝️', '🌋', '⛰️',
+      '🏔️', '🏕️', '🏠', '🏡', '🏢', '🏥', '🏦', '⛪', '🕌', '🕍',
+    ]),
+    _IconCategory(Icons.lightbulb_outline, 'Objects', [
+      '📱', '💻', '🖥️', '🖨️', '📷', '📹', '🎥', '📞', '📺', '📻',
+      '⏰', '💡', '🔦', '💸', '💰', '💳', '💎', '🔧', '🔨', '⚙️',
+      '🔫', '💣', '🔪', '🛡️', '🔮', '💊', '💉', '🧹', '🚽', '🛁',
+      '📦', '📫', '📜', '📊', '📈', '📉', '📋', '📁', '📚', '📖',
+      '🔖', '🔗', '📎', '✂️', '📝', '✏️', '🔍', '🔒', '🔑', '🔔',
+    ]),
+    _IconCategory(Icons.tag, 'Symbols', [
+      '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
+      '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '☮️', '✝️',
+      '☪️', '☸️', '✡️', '☯️', '♈', '♉', '♊', '♋', '♌', '♍',
+      '♎', '♏', '♐', '♑', '♒', '♓', '❌', '⭕', '🚫', '💯',
+      '❗', '❓', '⚠️', '♻️', '✅', '❇️', '✳️', '🔅', '🔆', '⚜️',
+    ]),
+  ];
 
   Widget _buildIconSelectorPanel(bool isDark) {
     return Column(
@@ -544,19 +613,15 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
       children: [
         _buildCategoryTabBar(isDark),
         Flexible(
-          child: _buildIconGrid(isDark),
+          child: _buildScrollableIconGrid(isDark),
         ),
       ],
     );
   }
 
   Widget _buildCategoryTabBar(bool isDark) {
-    final tabs = [
-      Icons.access_time,
-      Icons.emoji_emotions_outlined,
-    ];
     final tabColors = isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999);
-    final activeColor = const Color(0xFF40a7e3);
+    const activeColor = Color(0xFF40a7e3);
     return Container(
       height: 36,
       decoration: BoxDecoration(
@@ -569,7 +634,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
       ),
       child: Row(
         children: [
-          for (var i = 0; i < tabs.length; i++)
+          for (var i = 0; i < _iconCategories.length; i++)
             Expanded(
               child: GestureDetector(
                 onTap: () => setState(() => _selectedTab = i),
@@ -586,7 +651,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                     ),
                     child: Center(
                       child: Icon(
-                        tabs[i],
+                        _iconCategories[i].icon,
                         size: 20,
                         color: _selectedTab == i ? activeColor : tabColors,
                       ),
@@ -600,7 +665,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     );
   }
 
-  Widget _buildIconGrid(bool isDark) {
+  Widget _buildScrollableIconGrid(bool isDark) {
     if (_selectedTab == 0) {
       return SingleChildScrollView(
         padding: EdgeInsets.all(_gridPadding),
@@ -631,37 +696,25 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
         ),
       );
     }
+    final cat = _iconCategories[_selectedTab];
     return SingleChildScrollView(
       padding: EdgeInsets.all(_gridPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Wrap(
+        spacing: 2,
+        runSpacing: 2,
         children: [
-          if (_loadingServerIcons)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(child: SizedBox(
-                width: 20, height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )),
-            )
-          else if (_serverIcons.isNotEmpty)
-            Wrap(
-              spacing: 2,
-              runSpacing: 2,
-              children: [
-                for (final icon in _serverIcons)
-                  _buildServerIconGridCell(icon, isDark),
-              ],
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Center(
-                child: Text(
-                  'No emoji icons available',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
+          for (final emoji in cat.emojis)
+            Builder(
+              builder: (cellContext) => GestureDetector(
+                onTap: () => _selectEmoji(cellContext, emoji, documentId: 0),
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: SizedBox(
+                    width: _gridCellSize,
+                    height: _gridCellSize,
+                    child: Center(
+                      child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                    ),
                   ),
                 ),
               ),

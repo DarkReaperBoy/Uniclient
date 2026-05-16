@@ -50,6 +50,8 @@ class EmojiSizeConstants {
   static const int kMaxFrames = 180;
   static const int kPreloadFrames = 3;
   static const int kMaxPerRequest = 100;
+  static const int kDocPreloadBatch = 48;
+  static const int kDocListCap = 200;
 
   static double frameSize(EmojiSizeTag tag) => frameSizes[tag] ?? 20.0;
 
@@ -86,13 +88,14 @@ class CustomEmojiCache {
   final Set<int> _failed = {};
   final Set<int> _fileFailed = {};
 
-  final Map<_InstanceKey, int> _refCounts = {};
+  final Map<_InstanceKey, Set<int>> _refCounts = {};
+  int _nextRefToken = 0;
 
   String? _diskCacheDir;
   final Set<int> _diskIndex = {};
 
   final Map<int, Set<VoidCallback>> _listenersByDoc = {};
-  final List<VoidCallback> _globalListeners = [];
+  final Set<VoidCallback> _globalListeners = {};
   Timer? _batchTimer;
   Timer? _fileBatchTimer;
   final List<_PendingRequest> _batchQueue = [];
@@ -119,8 +122,8 @@ class CustomEmojiCache {
     } catch (_) {}
   }
 
-  void addListener(VoidCallback cb) => _globalListeners.add(cb);
-  void removeListener(VoidCallback cb) => _globalListeners.remove(cb);
+  void addListener(VoidCallback cb) { _globalListeners.add(cb); }
+  void removeListener(VoidCallback cb) { _globalListeners.remove(cb); }
 
   void addListenerForDoc(int documentId, VoidCallback cb) {
     (_listenersByDoc[documentId] ??= {}).add(cb);
@@ -144,28 +147,39 @@ class CustomEmojiCache {
       _thumbs.containsKey(documentId) || _paths.containsKey(documentId);
   bool hasOnDisk(int documentId) => _diskIndex.contains(documentId);
 
-  // §45.8: Acquire an instance reference for (documentId, sizeTag).
-  // Increments refcount. If file was evicted from memory but exists on disk,
-  // triggers a reload.
-  void acquire(int documentId, EmojiSizeTag sizeTag) {
+  int acquireToken(int documentId, EmojiSizeTag sizeTag) {
     final key = _InstanceKey(documentId, sizeTag);
-    _refCounts[key] = (_refCounts[key] ?? 0) + 1;
+    final token = _nextRefToken++;
+    (_refCounts[key] ??= {}).add(token);
     if (!_files.containsKey(documentId) &&
         _diskIndex.contains(documentId) &&
         !_filePending.contains(documentId)) {
       _loadFromDisk(documentId);
     }
+    return token;
   }
 
-  // §45.8: Release an instance reference. When all references for a documentId
-  // drop to zero, the file data is evicted from memory (disk copy retained).
+  void acquire(int documentId, EmojiSizeTag sizeTag) {
+    acquireToken(documentId, sizeTag);
+  }
+
+  void releaseToken(int documentId, EmojiSizeTag sizeTag, int token) {
+    final key = _InstanceKey(documentId, sizeTag);
+    _refCounts[key]?.remove(token);
+    if (_refCounts[key]?.isEmpty ?? true) {
+      _refCounts.remove(key);
+    }
+    if (_totalRefCount(documentId) == 0) {
+      _evictFromMemory(documentId);
+    }
+  }
+
   void release(int documentId, EmojiSizeTag sizeTag) {
     final key = _InstanceKey(documentId, sizeTag);
-    final count = (_refCounts[key] ?? 0) - 1;
-    if (count <= 0) {
-      _refCounts.remove(key);
-    } else {
-      _refCounts[key] = count;
+    final tokens = _refCounts[key];
+    if (tokens != null && tokens.isNotEmpty) {
+      tokens.remove(tokens.first);
+      if (tokens.isEmpty) _refCounts.remove(key);
     }
     if (_totalRefCount(documentId) == 0) {
       _evictFromMemory(documentId);
@@ -175,7 +189,7 @@ class CustomEmojiCache {
   int _totalRefCount(int documentId) {
     int total = 0;
     for (final tag in EmojiSizeTag.values) {
-      total += _refCounts[_InstanceKey(documentId, tag)] ?? 0;
+      total += _refCounts[_InstanceKey(documentId, tag)]?.length ?? 0;
     }
     return total;
   }
@@ -186,6 +200,8 @@ class CustomEmojiCache {
     _fileFailedRetryTime.remove(documentId);
     _failed.remove(documentId);
     _failedRetryTime.remove(documentId);
+    _pending.remove(documentId);
+    _filePending.remove(documentId);
   }
 
   bool hasFileAtAnySize(int documentId) => _files.containsKey(documentId);
@@ -200,13 +216,13 @@ class CustomEmojiCache {
 
   void preloadBatch(List<int> documentIds, String accountId, EngineService engine) {
     final toRequest = <int>[];
-    for (var i = 0; i < documentIds.length && i < EmojiSizeConstants.kMaxFrames; i++) {
+    for (var i = 0; i < documentIds.length && i < EmojiSizeConstants.kDocListCap; i++) {
       final id = documentIds[i];
       if (!_thumbs.containsKey(id) && !_pending.contains(id) && !_failed.contains(id)) {
         toRequest.add(id);
       }
     }
-    final preloadCount = math.min(toRequest.length, EmojiSizeConstants.kPreloadFrames * EmojiSizeConstants.kPerRow);
+    final preloadCount = math.min(toRequest.length, EmojiSizeConstants.kDocPreloadBatch);
     for (var i = 0; i < preloadCount; i++) {
       request(toRequest[i], accountId, engine);
     }
@@ -469,9 +485,10 @@ class CustomEmojiCache {
           }
         }
       }
-    }
-    for (final cb in List<VoidCallback>.from(_globalListeners)) {
-      cb();
+    } else {
+      for (final cb in Set<VoidCallback>.from(_globalListeners)) {
+        cb();
+      }
     }
   }
 }
