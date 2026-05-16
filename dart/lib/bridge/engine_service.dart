@@ -22,6 +22,10 @@ class EngineService {
   final Bridge _bridge = Bridge();
   bool _initialized = false;
 
+  // Cache for blocked users count to avoid paged call on every render.
+  final Map<String, ({int count, DateTime fetchedAt})> _blockedUsersCountCache = {};
+  static const _blockedUsersCountTtl = Duration(seconds: 60);
+
   // Cache for sessions count to avoid fetching full list on every render.
   final Map<String, ({int count, DateTime fetchedAt})> _sessionsCountCache = {};
   static const _sessionsCountTtl = Duration(seconds: 60);
@@ -323,6 +327,7 @@ class EngineService {
       ..accountId = accountId
       ..userId = userId;
     await _callAsync('__engine', 'BlockUser', req.writeToBuffer());
+    _blockedUsersCountCache.remove(accountId);
   }
 
   Future<void> unblockUser(String accountId, String userId) async {
@@ -330,6 +335,7 @@ class EngineService {
       ..accountId = accountId
       ..userId = userId;
     await _callAsync('__engine', 'UnblockUser', req.writeToBuffer());
+    _blockedUsersCountCache.remove(accountId);
   }
 
   Future<void> setUserNoForwardsFlags(
@@ -4766,7 +4772,12 @@ class EngineService {
   // ── Blocked Users ──
 
   Future<int> getBlockedUsersCount(String accountId) async {
+    final cached = _blockedUsersCountCache[accountId];
+    if (cached != null && DateTime.now().difference(cached.fetchedAt) < _blockedUsersCountTtl) {
+      return cached.count;
+    }
     final result = await getBlockedUsersPaged(accountId, offset: 0, limit: 1);
+    _blockedUsersCountCache[accountId] = (count: result.total, fetchedAt: DateTime.now());
     return result.total;
   }
 
@@ -4840,6 +4851,7 @@ class EngineService {
     }));
     try {
       await _callAsync('__engine', 'TerminateSession', Uint8List.fromList(payload));
+      _sessionsCountCache.remove(accountId);
       return true;
     } catch (e) {
       Debug.error('ENGINE', 'terminateSession failed', e);
@@ -4851,6 +4863,7 @@ class EngineService {
     final payload = utf8.encode(json.encode({'account_id': accountId}));
     try {
       await _callAsync('__engine', 'TerminateAllOtherSessions', Uint8List.fromList(payload));
+      _sessionsCountCache.remove(accountId);
       return true;
     } catch (e) {
       Debug.error('ENGINE', 'terminateAllOtherSessions failed', e);
