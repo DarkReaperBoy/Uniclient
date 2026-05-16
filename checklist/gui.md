@@ -342,40 +342,17 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 
 - [ ] [CRITICAL] "Choose from gallery" opens a local `_WallpaperBrowser` bottom sheet that only shows color/gradient wallpapers fetched via `getWallpapers()`, completely missing the full `BackgroundBox` which shows all Telegram server wallpapers (patterns, photos, premium) with preview, blur toggle, and full installation flow — `chat_settings_screen.dart:103-133` ← `AyuGram/boxes/background_box.cpp:1-60` + `AyuGram/settings/sections/settings_chat.cpp:476-479` (`BackgroundBox(controller)`)
 
-
-- [ ] [CRITICAL] The `_StickersEmojiSection` "My Stickers" button opens a plain ListView of sticker packs via `getInstalledStickerPacks()`; AyuGram opens `StickersBox(controller, Section::Installed)` which is a fully interactive box with reorder, remove, and add controls — `chat_settings_screen.dart:3028-3033` + `3113-3201` ← `AyuGram/settings/sections/settings_chat.cpp:1553-1568`
-
-- [ ] [CRITICAL] The "Emoji Sets" button opens the same sticker pack list filtered to emoji — AyuGram opens `Box<Ui::Emoji::ManageSetsBox>(session)`, a dedicated emoji set manager with download/delete/reorder; the Dart implementation reuses the sticker pack sheet which has no emoji set semantics — `chat_settings_screen.dart:3034-3039` ← `AyuGram/settings/sections/settings_chat.cpp:1570-1583`
-
-
 - [ ] [MAJOR] The reaction chooser opens an emoji-grid dialog; AyuGram shows a `ReactionsSettingsBox` which is the canonical reactions picker used across the app (with custom emoji, animated reactions, and the ability to set a favorite reaction stored server-side) — `chat_settings_screen.dart:3564-3615` ← `AyuGram/settings/sections/settings_chat.cpp:1764-1766` (`show->showBox(Box(ReactionsSettingsBox, controller))`)
-
-- [ ] [MAJOR] The "Your Color" `_EditPeerColorBox` only offers 7 fixed base colors; AyuGram's `EditPeerColorBox` (via `AddPeerColorButton`) fetches available peer colors from the server and supports name-colors with channel badges and background pattern selection — `chat_settings_screen.dart:1392-1553` ← `AyuGram/settings/sections/settings_chat.cpp:2819-2823` (`AddPeerColorButton(container, controller->uiShow(), session->user(), st::settingsColorButton)`)
-
 
 # chat_switch_overlay — Audit Findings
 
 - [ ] [CRITICAL] Forum topic icon uses generic `Icons.tag` placeholder instead of the real topic icon (`TopicIconButton`/`TopicIconView.paintInRect`), which renders the topic's actual custom emoji or server-side icon — `chat_switch_overlay.dart:460` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_chat_switch_process.cpp:99-110`
 
-- [ ] [MAJOR] `_selected` never reaches -1: when the currently-selected item at index 0 is removed via Q, C++ sets `_selected = -1` (nothing selected) and Ctrl-release fires `closeRequests` (closes overlay); Dart always clamps to a valid index so Ctrl-release always confirms a chat — `chat_switch_overlay.dart:196-208` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_chat_switch_process.cpp:371-395`
-
-- [ ] [MAJOR] Selection border animation differs: C++ animates via `_overAnimation` fading the pen width from 0 → `chatSwitchSelectLine` (3px) using `st::slideWrapDuration`, producing an opacity-fade of the border stroke; Dart uses `AnimatedContainer(duration: 150ms)` toggling the full `BoxDecoration` on/off, producing a different visual transition — `chat_switch_overlay.dart:357-364` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_chat_switch_process.cpp:164-200`
-
-- [ ] [MAJOR] State fields `_shownPerRow` and `_shownRows` are mutated directly inside the `build()` / `LayoutBuilder` callback (lines 270-271) without `setState()`, which is incorrect Flutter usage; if the widget rebuilds via a path that doesn't re-enter `LayoutBuilder` (e.g. theme change triggering a parent rebuild), navigation via arrow-up/down will use stale per-row counts — `chat_switch_overlay.dart:270-271` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_chat_switch_process.cpp:420-490`
-
-# chat_view — Backend wiring stubs, missing user photos, SnackBar misuse
-
-- [ ] [CRITICAL] `create_todo` menu action uses `showCreatePollBox` + `engine.createPoll` instead of a dedicated todo-list creation box + `engine.createTodoList`. No `CreateTodoList` method exists in the bridge or engine service. A todo list (`InputMediaTodoList`) is a completely different Telegram message type from a poll (`InputMediaPoll`). Tapping "Create To-do List" silently sends a poll. — `chat_view.dart:6419` ← `AyuGram/SourceFiles/boxes/edit_todo_list_box.cpp:875` / `AyuGram/SourceFiles/api/api_todo_lists.cpp:37`
-
-- [ ] [CRITICAL] AI editor "Fix grammar" mode (line 20827) and "Style rewrite" mode (line 20838) both call `engine.translateFreeText` — which forwards text to Telegram's `MessagesTranslateText` API. Those modes send literal prompt strings like `"Fix grammar and spelling: [text]"` and `"Rewrite in formal style: [text]"` to the translation service, which translates those prompt strings rather than performing AI text transformation. Neither mode works. — `chat_view.dart:20827` and `chat_view.dart:20838` ← `AyuGram/SourceFiles/api/api_todo_lists.cpp` (no equivalent; feature is AyuGram-specific and uses a separate AI backend, not the translate API)
+# chat_view — Backend wiring stubs, missing user photos
 
 - [ ] [CRITICAL] `_WhoReadAvatar` displays only colored initials; never loads real user profile photos. The engine's `GetMessageReadParticipantsDetailedJSON` does not return avatar data (`user_id`, `date`, `name` only — no `avatar_b64`), so actual profile pictures cannot be shown. AyuGram's `WhoReadParticipant` struct carries `userpicSmall` and `userpicLarge` QImage fields loaded via `peer->loadUserpic()`. — `chat_view.dart:20454` ← `AyuGram/SourceFiles/ui/controls/who_reacted_context_action.h:23` / `AyuGram/SourceFiles/history/view/history_view_context_menu.cpp:1754`
 
 - [ ] [CRITICAL] `_GroupCallUserpic` renders a colored-initial avatar derived from `participant.userId.hashCode` instead of loading the user's real profile photo. AyuGram calls `peer->loadUserpic()`, builds `UserpicInRow` entries, and passes them to `GenerateUserpicsInRow` to produce the overlapping photo strip. — `chat_view.dart:10595` ← `AyuGram/SourceFiles/history/view/history_view_group_call_bar.cpp:63`
-
-- [ ] [CRITICAL] `_sendStarGift` uses Material Design `SnackBar` for all three feedback states ("Sending gift...", "Gift sent!", "Failed to send gift. Please try again.") via `ScaffoldMessenger`. AyuGram uses a custom animated toast (`window->showToast({...})`) with `kSentToastDuration = 3s` and a Telegram-styled icon+text layout. The rest of the app uses `showTelegramToast` for consistency; this is the only place using `SnackBar` for a user-initiated action result. — `chat_view.dart:18255` ← `AyuGram/SourceFiles/boxes/star_gift_box.cpp:599`
-
-- [ ] [MAJOR] `_MessageList._buildDisplayItems` runs a full O(n log n) sort plus O(n) album-grouping pass on the entire message list inside `build()` on every rebuild. `_MessageList` is a `StatelessWidget`, so it rebuilds on every parent `setState` (typing, scroll, selection, reaction, etc.). For a chat with 100+ loaded messages this executes expensive work on the UI thread every frame that triggers a rebuild, causing dropped frames during interaction. The sorted/grouped result should be memoized (e.g., via `useMemoized` equivalent, a `StatefulWidget`, or by computing it in `ChatState` when messages change). — `chat_view.dart:7330` ← (performance pattern; AyuGram uses `HistoryBlock` pre-grouping in the data layer, never sorts in paint/layout)
 
 # choose_datetime_box — Audit vs AyuGram Desktop
 
