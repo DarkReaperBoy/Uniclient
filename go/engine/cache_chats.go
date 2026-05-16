@@ -2,9 +2,12 @@ package engine
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -1479,8 +1482,9 @@ func (e *Engine) GetGroupCall(accountID, chatID string) (*GroupCallInfo, error) 
 			info.ParticipantsCount = n
 		}
 	}
+	avatarDir := filepath.Join(e.mediaDir, accountID, "avatars")
 	for _, p := range cs.Participants {
-		info.Participants = append(info.Participants, GroupCallParticipant{
+		gcp := GroupCallParticipant{
 			UserID:           p.UserID,
 			DisplayName:      p.DisplayName,
 			IsMuted:          p.IsMuted,
@@ -1490,7 +1494,12 @@ func (e *Engine) GetGroupCall(accountID, chatID string) (*GroupCallInfo, error) 
 			RaisedHandRating: p.RaisedHandRating,
 			Volume:           p.Volume,
 			AudioLevel:       p.AudioLevel,
-		})
+		}
+		avatarFile := filepath.Join(avatarDir, p.UserID+".jpg")
+		if data, err := os.ReadFile(avatarFile); err == nil && len(data) > 0 {
+			gcp.AvatarPath = base64.StdEncoding.EncodeToString(data)
+		}
+		info.Participants = append(info.Participants, gcp)
 	}
 	if info.ParticipantsCount == 0 && len(info.Participants) > 0 {
 		info.ParticipantsCount = len(info.Participants)

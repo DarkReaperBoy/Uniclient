@@ -25,6 +25,20 @@ const _maxRows = 3;
 
 const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
+const _telegramTopicColors = [
+  Color(0xFF6FB9F0), // blue
+  Color(0xFFFFD67E), // yellow
+  Color(0xFFCB86DB), // violet
+  Color(0xFF8EEE98), // green
+  Color(0xFFFF93B2), // rose
+  Color(0xFFFB6F5F), // red
+];
+
+Color _telegramTopicColor(int topicId) {
+  if (topicId <= 0) return _telegramTopicColors[0];
+  return _telegramTopicColors[topicId.abs() % _telegramTopicColors.length];
+}
+
 class ChatSwitchOverlay extends StatefulWidget {
   final List<ChatInfo> chats;
   final int initialIndex;
@@ -454,10 +468,9 @@ class _ChatSwitchCell extends StatelessWidget {
     }
 
     if (chat.isForum && chat.type == ChatType.topic) {
-      final topicColor = palette.peerUserpicBg(
-        _colorRemap[(int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs()).abs() % 7],
-      );
-      final topicInitial = chat.title.isNotEmpty ? chat.title.characters.first : '#';
+      final topicId = int.tryParse(chat.chatId) ?? 0;
+      final isGeneral = topicId == 1;
+      final topicColor = _telegramTopicColor(topicId);
       return SizedBox(
         width: _userpicSize,
         height: _userpicSize,
@@ -476,14 +489,9 @@ class _ChatSwitchCell extends StatelessWidget {
                   border: Border.all(color: palette.boxBg, width: 2),
                 ),
                 alignment: Alignment.center,
-                child: Text(
-                  topicInitial,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
+                child: isGeneral
+                    ? const Icon(Icons.tag, size: 13, color: Colors.white)
+                    : Icon(Icons.circle, size: 8, color: Colors.white.withValues(alpha: 0.9)),
               ),
             ),
           ],

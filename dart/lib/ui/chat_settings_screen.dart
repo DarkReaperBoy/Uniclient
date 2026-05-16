@@ -132,7 +132,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     if (selected != null && mounted) {
       final colors = (selected['colors'] as List<dynamic>?)?.cast<int>() ?? [];
       final thumbB64 = selected['thumb_b64'] as String? ?? '';
-      final isPattern = selected['is_pattern'] as bool? ?? false;
+      final isPattern = selected['is_pattern'] as bool? ?? selected['pattern'] as bool? ?? false;
       final rotation = selected['rotation'] as int? ?? 0;
 
       if (thumbB64.isNotEmpty) {
@@ -2634,28 +2634,50 @@ class _WallpaperBrowser extends StatelessWidget {
                       final wp = wallpapers[i];
                       final colors = (wp['colors'] as List<dynamic>?)?.cast<int>() ?? [];
                       final thumbB64 = wp['thumb_b64'] as String? ?? '';
-                      final isPattern = wp['is_pattern'] as bool? ?? false;
+                      final isPattern = (wp['is_pattern'] as bool? ?? wp['pattern'] as bool? ?? false);
+                      final isPhoto = wp['is_photo'] as bool? ?? false;
                       final rotation = wp['rotation'] as int? ?? 0;
 
                       Widget content;
                       if (thumbB64.isNotEmpty) {
+                        Uint8List? thumbBytes;
                         try {
-                          final bytes = Uint8List.fromList(
+                          thumbBytes = Uint8List.fromList(
                             const Base64Decoder().convert(thumbB64),
                           );
+                        } catch (_) {}
+
+                        if (thumbBytes != null && isPattern && colors.isNotEmpty) {
                           content = ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: Image.memory(bytes, fit: BoxFit.cover,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                _colorTile(colors, rotation),
+                                Opacity(
+                                  opacity: 0.5,
+                                  child: Image.memory(thumbBytes, fit: BoxFit.cover,
+                                      width: double.infinity, height: double.infinity,
+                                      color: Colors.white.withValues(alpha: 0.3),
+                                      colorBlendMode: BlendMode.modulate),
+                                ),
+                              ],
+                            ),
+                          );
+                        } else if (thumbBytes != null) {
+                          content = ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(thumbBytes, fit: BoxFit.cover,
                                 width: double.infinity, height: double.infinity),
                           );
-                        } catch (_) {
+                        } else {
                           content = _colorTile(colors, rotation);
                         }
                       } else {
                         content = _colorTile(colors, rotation);
                       }
 
-                      if (isPattern) {
+                      if (isPattern && !isPhoto) {
                         content = Stack(
                           fit: StackFit.expand,
                           children: [
@@ -4122,6 +4144,7 @@ class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
   void _showReactionPicker(BuildContext context) {
     final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = textColor.withValues(alpha: 0.5);
     final accentColor = context.palette.windowBgActive;
 
     showDialog(
@@ -4129,25 +4152,37 @@ class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
       builder: (ctx) => Dialog(
         backgroundColor: bgColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Quick Reaction',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
-              const SizedBox(height: 4),
-              Text('Choose your default quick reaction.',
-                style: TextStyle(fontSize: 13, color: textColor.withValues(alpha: 0.6))),
-              const SizedBox(height: 16),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 300),
-                child: SingleChildScrollView(
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _reactions.map((emoji) {
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 340),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Quick Reaction',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+                const SizedBox(height: 4),
+                Text('Choose a reaction that will be used when you quickly react to messages.',
+                  style: TextStyle(fontSize: 13, color: subtextColor)),
+                const SizedBox(height: 16),
+                Text('AVAILABLE REACTIONS',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                      color: accentColor, letterSpacing: 0.5)),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 320),
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 6,
+                      crossAxisSpacing: 4,
+                      mainAxisSpacing: 4,
+                    ),
+                    itemCount: _reactions.length,
+                    itemBuilder: (gCtx, i) {
+                      final emoji = _reactions[i];
                       final isSelected = emoji == widget.currentReaction;
                       return GestureDetector(
                         onTap: () {
@@ -4159,27 +4194,27 @@ class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
                           }
                           Navigator.pop(ctx);
                         },
-                        child: Container(
-                          width: 44,
-                          height: 44,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(8),
                             color: isSelected
-                                ? (widget.isDark ? const Color(0xFF2B5278) : const Color(0xFFE3F2FD))
-                                : (widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF5F5F5)),
+                                ? accentColor.withValues(alpha: 0.15)
+                                : Colors.transparent,
                             border: isSelected
                                 ? Border.all(color: accentColor, width: 2)
                                 : null,
                           ),
                           alignment: Alignment.center,
-                          child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                          child: Text(emoji, style: const TextStyle(fontSize: 32)),
                         ),
                       );
-                    }).toList(),
+                    },
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
       ),
