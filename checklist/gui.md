@@ -342,7 +342,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 
 # chat_switch_overlay — Audit Findings
 
-- [ ] [CRITICAL] Forum topic icon uses generic `Icons.tag` placeholder instead of the real topic icon (`TopicIconButton`/`TopicIconView.paintInRect`), which renders the topic's actual custom emoji or server-side icon — `chat_switch_overlay.dart:460` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_chat_switch_process.cpp:99-110`
 
 # chat_view — Backend wiring stubs, missing user photos
 
