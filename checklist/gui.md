@@ -490,28 +490,6 @@ return ClipOval(
 ⚠️ **Missing Feature (not a code quality issue):**
 - Collectible emoji animation layer
 
-# filter_column — Premium-locked folder state missing + settings preload skipped
-
-- [ ] [CRITICAL] `_SideBarButton` has no `locked` state — folders beyond the free limit must display at reduced opacity (`kPremiumLockedOpacity`) with a lock icon overlaid next to the label text, and their unread badge must be hidden (count forced to 0). None of this exists: the widget has no `locked` parameter, no opacity reduction, no lock icon paint, and no badge suppression for locked entries — `filter_column.dart:687-854` ← `AyuGram/Telegram/lib_ui/ui/widgets/side_bar_button.cpp:83-196` + `AyuGram/Telegram/SourceFiles/window/window_filters_menu.cpp:235-245`
-
-- [ ] [MAJOR] `openFiltersSettings()` opens `FoldersSettingsScreen` immediately without waiting for suggested filters to load — AyuGram checks `filters->suggestedLoaded()` first and, if false, calls `filters->requestSuggested()` then delays navigation until the one-shot `suggestedUpdated` signal fires; skipping this causes the suggestions section to be empty/loading when the screen first opens — `filter_column.dart:508-522` ← `AyuGram/Telegram/SourceFiles/window/window_filters_menu.cpp:417-428`
-
-- [ ] [MAJOR] Drop-target visual during chat forward drag uses a static `Border.all` rectangle instead of activating the button's ripple animation — AyuGram calls `button->setForceRippled(id == filterId)` on the matching filter button to show a live ripple; the Dart replaces this with `BoxDecoration(border: Border.all(...))` which is a different and weaker visual affordance — `filter_column.dart:617-624` ← `AyuGram/Telegram/SourceFiles/window/window_filters_menu.cpp:154-158`
-
-# folders_settings_screen — Audit
-
-- [ ] [CRITICAL] Tags toggle timer cancelled on screen close instead of flushed — if user closes settings within 500ms of toggling, the pending `toggleDialogFilterTags` call is silently dropped and the server state diverges from local state — `dart/lib/ui/folders_settings_screen.dart:970` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_folders.cpp:1069`
-
-- [ ] [CRITICAL] `useVerticalFilters` not persisted across restarts — setter only calls `notifyListeners()` with no engine call and no disk save; AyuGram calls `Core::App().settings().setChatFiltersHorizontal(value); Core::App().saveSettingsDelayed()` — `dart/lib/ui/folders_settings_screen.dart:460` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_folders.cpp:1149`
-
-- [ ] [MAJOR] `_countChatsInFolder` counts enabled type-flag booleans as individual chats (adds 1 per enabled type), not actual matching chats — AyuGram uses `ComputeCount` which traverses the real dialogs list; a Contacts+Groups+Channels folder shows "3 chats" instead of the real count — `dart/lib/ui/folders_settings_screen.dart:298` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_folders.cpp:121`
-
-- [ ] [MAJOR] Suggested folders not deduplicated against existing folders — Dart displays all API suggestions without checking if the filter is already in `_folders`; AyuGram skips any suggestion whose filter is already in `state->rows` — `dart/lib/ui/folders_settings_screen.dart:128` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_folders.cpp:897`
-
-- [ ] [MAJOR] `engine.toggleDialogFilterTags()` return value ignored — `_onToggle` fires and forgets (no `await`, no error check); if the backend rejects the toggle the UI stays in the wrong state with no revert — `dart/lib/ui/folders_settings_screen.dart:986` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_folders.cpp:1037`
-
-- [ ] [MAJOR] `_IncludeTypePicker` builds all chat rows eagerly with `ListView(children: [...])` — renders every chat at layout time; should use `ListView.builder` for lazy construction; same issue in `_ExcludeTypePicker` — `dart/lib/ui/folders_settings_screen.dart:3842` / `4058` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/filters/edit_filter_chats_list.cpp` (uses lazy peer list)
-
 # forum_topic_icon — Forum Topic Icon Widget
 
 - [ ] [CRITICAL] `Image.memory` used for WebM custom emoji: Flutter's `Image.memory` decodes still images only (JPEG/PNG/GIF/WebP); it cannot render animated WebM video. Animated custom emoji backed by WebM files silently hit `errorBuilder` and display the thumbnail fallback or an empty box instead of the animation. Feature appears wired but is broken for the WebM media type — `forum_topic_icon.dart:530-542` ← `data/data_forum_topic.cpp:85-98` (AyuGram renders all icon media via `QSvgRenderer`/media streaming, not a still-image decoder)
@@ -541,8 +519,6 @@ return ClipOval(
 - [ ] [MAJOR] Archive right-click menu shows only 2 hardcoded items ("Expand", "Archive Settings") instead of using `FillDialogsEntryMenu`: AyuGram builds the full dialog-entry context menu (Mark as Read, Mute, Archive settings, etc.) via `FillDialogsEntryMenu(_controller, {.key = folder(), ...}, ...)`. Dart's static 2-item list is missing most actions — `hamburger_drawer.dart:523-566` ← `window_main_menu.cpp:574-584`
 
 - [ ] [MAJOR] Reset Scale button uses wrong trigger condition and missing app restart: AyuGram creates the button only when the screen's available geometry is smaller than `windowMinWidth × windowMinHeight` (380×480 px), and clicking it calls `cSetConfigScale(default) → writeSettings → Core::Restart()`. Dart shows it whenever `uiScalePercent != 100` and clicking only calls `setUiScalePercent(100.0)` with no restart — `hamburger_drawer.dart:854-877` ← `window_main_menu.cpp:1040-1069`
-
-- [ ] [MAJOR] Ghost mode toggle and LRead/SRead read/write global `appState` state instead of per-session ghost settings: AyuGram uses `AyuSettings::ghost(&controller->session())` so each logged-in account has independent ghost/read-receipt state. Dart's `appState.ghostModeEnabled` / `appState.setSendReadMessages()` are global, causing all accounts to share a single ghost-mode switch — `hamburger_drawer.dart:384-403`, `414-419`, `444-450` ← `window_main_menu.cpp:888-906`, `773-780`, `793-797`
 
 # info_panel — Audit Findings
 
