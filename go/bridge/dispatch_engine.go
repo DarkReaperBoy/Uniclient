@@ -3461,14 +3461,16 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "SendSticker":
 		var params struct {
-			AccountID string `json:"account_id"`
-			ChatID    string `json:"chat_id"`
-			StickerID string `json:"sticker_id"`
+			AccountID    string `json:"account_id"`
+			ChatID       string `json:"chat_id"`
+			StickerID    string `json:"sticker_id"`
+			Silent       bool   `json:"silent"`
+			ScheduleDate int    `json:"schedule_date"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		if err := e.SendSticker(params.AccountID, params.ChatID, params.StickerID); err != nil {
+		if err := e.SendStickerWithOpts(params.AccountID, params.ChatID, params.StickerID, params.Silent, params.ScheduleDate); err != nil {
 			return nil, err
 		}
 		return nil, nil

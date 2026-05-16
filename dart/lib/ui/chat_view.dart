@@ -5409,18 +5409,25 @@ class _ChatViewState extends State<ChatView>
               richCtrl.insertCustomEmoji(documentId, altText);
             }
           },
-          onStickerSend: (stickerId) {
+          onStickerSend: (stickerId, {StickerSendMode mode = StickerSendMode.normal}) {
             final chat = context.read<ChatState>().activeChat;
             if (chat == null) return;
             final engine = context.read<EngineService>();
-            engine.sendSticker(chat.accountId, chat.chatId, stickerId);
+            engine.sendSticker(chat.accountId, chat.chatId, stickerId, silent: mode == StickerSendMode.silent);
             setState(() => _emojiPanelVisible = false);
           },
-          onGifSend: (gifFileId) {
+          onGifSend: (gifFileId, {StickerSendMode mode = StickerSendMode.normal}) {
             final chat = context.read<ChatState>().activeChat;
             if (chat == null) return;
             final engine = context.read<EngineService>();
-            engine.sendSticker(chat.accountId, chat.chatId, gifFileId);
+            engine.sendSticker(chat.accountId, chat.chatId, gifFileId, silent: mode == StickerSendMode.silent);
+            setState(() => _emojiPanelVisible = false);
+          },
+          onInlineResultSend: (queryId, resultId) {
+            final chat = context.read<ChatState>().activeChat;
+            if (chat == null) return;
+            final engine = context.read<EngineService>();
+            engine.sendInlineBotResult(chat.accountId, chat.chatId, queryId, resultId);
             setState(() => _emojiPanelVisible = false);
           },
         ),

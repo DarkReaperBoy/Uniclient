@@ -25303,6 +25303,11 @@ func (t *TelegramCore) VotePoll(chatID string, msgID string, optionIndex int) er
 
 // SendSticker sends a sticker to a chat.
 func (t *TelegramCore) SendSticker(chatID string, stickerID string) (*Message, error) {
+	return t.SendStickerWithOpts(chatID, stickerID, false, 0)
+}
+
+// SendStickerWithOpts sends a sticker with optional silent/schedule flags.
+func (t *TelegramCore) SendStickerWithOpts(chatID string, stickerID string, silent bool, scheduleDate int) (*Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return nil, err
@@ -25314,14 +25319,19 @@ func (t *TelegramCore) SendSticker(chatID string, stickerID string) (*Message, e
 	}
 	accessHash := t.getCachedFileHash(id)
 	fileRef := t.getCachedFileRef(id)
-	result, err := t.api.MessagesSendMedia(t.ctx, &tg.MessagesSendMediaRequest{
+	req := &tg.MessagesSendMediaRequest{
 		Peer: inputPeer, RandomID: time.Now().UnixNano(),
 		Media: &tg.InputMediaDocument{ID: &tg.InputDocument{
 			ID:            id,
 			AccessHash:    accessHash,
 			FileReference: fileRef,
 		}},
-	})
+		Silent: silent,
+	}
+	if scheduleDate > 0 {
+		req.SetScheduleDate(scheduleDate)
+	}
+	result, err := t.api.MessagesSendMedia(t.ctx, req)
 	if err != nil {
 		return nil, err
 	}

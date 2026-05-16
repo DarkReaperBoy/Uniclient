@@ -1846,12 +1846,27 @@ func (e *Engine) SendInlineBotResult(accountID, chatID string, queryID int64, re
 }
 
 func (e *Engine) SendSticker(accountID, chatID, stickerID string) error {
+	return e.SendStickerWithOpts(accountID, chatID, stickerID, false, 0)
+}
+
+func (e *Engine) SendStickerWithOpts(accountID, chatID, stickerID string, silent bool, scheduleDate int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return fmt.Errorf("account not found: %s", accountID)
 	}
 	if acc.Core == nil {
 		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	if !silent && scheduleDate == 0 {
+		_, err := acc.Core.SendSticker(chatID, stickerID)
+		return err
+	}
+	type stickerOpter interface {
+		SendStickerWithOpts(chatID, stickerID string, silent bool, scheduleDate int) (*cores.Message, error)
+	}
+	if c, ok := acc.Core.(stickerOpter); ok {
+		_, err := c.SendStickerWithOpts(chatID, stickerID, silent, scheduleDate)
+		return err
 	}
 	_, err := acc.Core.SendSticker(chatID, stickerID)
 	return err

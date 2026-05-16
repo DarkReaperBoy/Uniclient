@@ -1230,11 +1230,13 @@ class EngineService {
     }
   }
 
-  Future<void> sendSticker(String accountId, String chatId, String stickerId) async {
+  Future<void> sendSticker(String accountId, String chatId, String stickerId, {bool silent = false, int scheduleDate = 0}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'sticker_id': stickerId,
+      if (silent) 'silent': true,
+      if (scheduleDate > 0) 'schedule_date': scheduleDate,
     }));
     try {
       await _callAsync('__engine', 'SendSticker', Uint8List.fromList(payload));
