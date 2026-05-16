@@ -500,10 +500,6 @@ return ClipOval(
 
 ## Members Section
 
-- [ ] [CRITICAL] `_MembersSection` loads a static snapshot of members with no real-time membership event subscription; list goes stale without page refresh — `info_panel.dart:5683`
-- [ ] [MAJOR] Promote/Demote/Restrict in member context menu are missing real engine calls for Promote and Restrict — `info_panel.dart:6107`
-- [ ] [MAJOR] Client-side member search filters only already-loaded members (≤20); AyuGram sends server-side search RPC — `info_panel.dart:5757`
-- [ ] [MAJOR] "Add member" dialog does not handle `CHAT_ADMIN_REQUIRED` / `USER_PRIVACY_RESTRICTED` errors — `info_panel.dart:8143`
 
 ## Shared Media
 
