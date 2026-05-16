@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import 'chat_list_row.dart' show SavedMessagesUserpic;
+import 'forum_topic_icon.dart';
 
 const _cellWidth = 72.0;
 const _cellHeight = 104.0;
@@ -394,7 +396,7 @@ class _ChatSwitchCell extends StatelessWidget {
           Column(
             children: [
               SizedBox(height: _userpicTop),
-              _buildAvatar(context.palette),
+              _buildAvatar(context, context.palette),
               Expanded(
                 child: Center(
                   child: Padding(
@@ -462,7 +464,7 @@ class _ChatSwitchCell extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(TelegramPalette palette) {
+  Widget _buildAvatar(BuildContext context, TelegramPalette palette) {
     if (chat.isSelf) {
       return const SavedMessagesUserpic(size: _userpicSize);
     }
@@ -471,6 +473,38 @@ class _ChatSwitchCell extends StatelessWidget {
       final topicId = int.tryParse(chat.chatId) ?? 0;
       final isGeneral = topicId == 1;
       final topicColor = _telegramTopicColor(topicId);
+      final chatState = context.read<ChatState>();
+      final engine = context.read<EngineService>();
+      final topics = chat.parentId.isNotEmpty
+          ? chatState.recentTopicsFor(chat.accountId, chat.parentId)
+          : <ForumTopic>[];
+      final forumTopic = topics.cast<ForumTopic?>().firstWhere(
+        (t) => t!.id == chat.chatId,
+        orElse: () => null,
+      );
+
+      Widget badgeChild;
+      if (forumTopic != null && forumTopic.hasCustomIcon) {
+        badgeChild = CustomEmojiTopicIcon(
+          documentId: forumTopic.iconEmojiId,
+          accountId: chat.accountId,
+          engine: engine,
+          size: 16,
+        );
+      } else if (isGeneral) {
+        badgeChild = const Icon(Icons.tag, size: 13, color: Colors.white);
+      } else {
+        badgeChild = Text(
+          chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '#',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            height: 1.0,
+          ),
+        );
+      }
+
       return SizedBox(
         width: _userpicSize,
         height: _userpicSize,
@@ -484,22 +518,14 @@ class _ChatSwitchCell extends StatelessWidget {
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
-                  color: topicColor,
+                  color: (forumTopic != null && forumTopic.hasCustomIcon)
+                      ? null
+                      : topicColor,
                   shape: BoxShape.circle,
                   border: Border.all(color: palette.boxBg, width: 2),
                 ),
                 alignment: Alignment.center,
-                child: isGeneral
-                    ? const Icon(Icons.tag, size: 13, color: Colors.white)
-                    : Text(
-                        chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '#',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          height: 1.0,
-                        ),
-                      ),
+                child: badgeChild,
               ),
             ),
           ],
