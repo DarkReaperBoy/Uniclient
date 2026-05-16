@@ -133,7 +133,50 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       final colors = (selected['colors'] as List<dynamic>?)?.cast<int>() ?? [];
       final thumbB64 = selected['thumb_b64'] as String? ?? '';
       final isPattern = selected['is_pattern'] as bool? ?? selected['pattern'] as bool? ?? false;
+      final isPhoto = selected['is_photo'] as bool? ?? false;
       final rotation = selected['rotation'] as int? ?? 0;
+      final docId = selected['doc_id'] as int? ?? 0;
+      final docHash = selected['doc_hash'] as int? ?? 0;
+      final docRef = selected['doc_ref'] as String? ?? '';
+
+      if (isPhoto && docId != 0) {
+        Uint8List? previewBytes;
+        if (thumbB64.isNotEmpty) {
+          try {
+            previewBytes = Uint8List.fromList(const Base64Decoder().convert(thumbB64));
+          } catch (_) {}
+        }
+        if (!mounted) return;
+        final confirmed = await showDialog<Map<String, dynamic>>(
+          context: context,
+          builder: (ctx) => _BackgroundPreviewBox(
+            imageBytes: previewBytes,
+            initialBlurred: false,
+            initialTiled: _tileBackground,
+            isLoading: previewBytes == null,
+            onLoadFull: () async {
+              final bytes = await engine.downloadWallpaperDocument(
+                account.id, docId, docHash, docRef);
+              return bytes;
+            },
+          ),
+        );
+        if (confirmed != null && mounted) {
+          final blurred = confirmed['blurred'] as bool? ?? false;
+          final tiled = confirmed['tiled'] as bool? ?? _tileBackground;
+          Uint8List? fullBytes = confirmed['full_bytes'] as Uint8List?;
+          fullBytes ??= previewBytes;
+          if (fullBytes != null) {
+            appState.setWallpaper(WallpaperData.fromImage(
+              fullBytes,
+              tiled: tiled,
+              blur: blurred,
+            ));
+            setState(() => _tileBackground = tiled);
+          }
+        }
+        return;
+      }
 
       if (thumbB64.isNotEmpty) {
         Uint8List? imageBytes;
@@ -4146,76 +4189,87 @@ class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
     final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = textColor.withValues(alpha: 0.5);
     final accentColor = context.palette.windowBgActive;
+    final dividerColor = widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFE8E8E8);
+    final hoverColor = widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF0F0F0);
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: bgColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 340),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Quick Reaction',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
-                const SizedBox(height: 4),
-                Text('Choose a reaction that will be used when you quickly react to messages.',
-                  style: TextStyle(fontSize: 13, color: subtextColor)),
-                const SizedBox(height: 16),
-                Text('AVAILABLE REACTIONS',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                      color: accentColor, letterSpacing: 0.5)),
-                const SizedBox(height: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 320),
-                  child: GridView.builder(
-                    shrinkWrap: true,
-                    padding: EdgeInsets.zero,
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 6,
-                      crossAxisSpacing: 4,
-                      mainAxisSpacing: 4,
+      isScrollControlled: true,
+      backgroundColor: bgColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (sheetCtx, scrollController) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 16, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Quick Reaction',
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+                        const SizedBox(height: 4),
+                        Text('Choose a reaction that will be used when you quickly react to messages.',
+                          style: TextStyle(fontSize: 13, color: subtextColor)),
+                      ],
                     ),
-                    itemCount: _reactions.length,
-                    itemBuilder: (gCtx, i) {
-                      final emoji = _reactions[i];
-                      final isSelected = emoji == widget.currentReaction;
-                      return GestureDetector(
-                        onTap: () {
-                          widget.onReactionSelected(emoji);
-                          final appState = context.read<AppState>();
-                          final account = appState.activeAccount;
-                          if (account != null) {
-                            context.read<EngineService>().setDefaultReaction(account.id, emoji);
-                          }
-                          Navigator.pop(ctx);
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            color: isSelected
-                                ? accentColor.withValues(alpha: 0.15)
-                                : Colors.transparent,
-                            border: isSelected
-                                ? Border.all(color: accentColor, width: 2)
-                                : null,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(emoji, style: const TextStyle(fontSize: 32)),
-                        ),
-                      );
-                    },
                   ),
-                ),
-                const SizedBox(height: 8),
-              ],
+                  IconButton(
+                    icon: Icon(Icons.close, color: subtextColor, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: 12),
+            Divider(height: 1, color: dividerColor),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                padding: EdgeInsets.zero,
+                itemCount: _reactions.length,
+                itemBuilder: (lCtx, i) {
+                  final emoji = _reactions[i];
+                  final isSelected = emoji == widget.currentReaction;
+                  return InkWell(
+                    onTap: () {
+                      widget.onReactionSelected(emoji);
+                      final appState = context.read<AppState>();
+                      final account = appState.activeAccount;
+                      if (account != null) {
+                        context.read<EngineService>().setDefaultReaction(account.id, emoji);
+                      }
+                      Navigator.pop(ctx);
+                    },
+                    splashColor: hoverColor,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      color: isSelected ? accentColor.withValues(alpha: 0.08) : null,
+                      child: Row(
+                        children: [
+                          Text(emoji, style: const TextStyle(fontSize: 28)),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(emoji, style: TextStyle(fontSize: 15, color: textColor)),
+                          ),
+                          if (isSelected)
+                            Icon(Icons.check_circle, color: accentColor, size: 22),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -4599,14 +4653,18 @@ class _SensitiveContentSection extends StatelessWidget {
 // ── Background Preview Box (for "Choose from file") ──
 
 class _BackgroundPreviewBox extends StatefulWidget {
-  final Uint8List imageBytes;
+  final Uint8List? imageBytes;
   final bool initialBlurred;
   final bool initialTiled;
+  final bool isLoading;
+  final Future<Uint8List?> Function()? onLoadFull;
 
   const _BackgroundPreviewBox({
-    required this.imageBytes,
+    this.imageBytes,
     required this.initialBlurred,
     required this.initialTiled,
+    this.isLoading = false,
+    this.onLoadFull,
   });
 
   @override
@@ -4616,13 +4674,37 @@ class _BackgroundPreviewBox extends StatefulWidget {
 class _BackgroundPreviewBoxState extends State<_BackgroundPreviewBox> {
   late bool _blurred;
   late bool _tiled;
+  Uint8List? _fullBytes;
+  bool _downloading = false;
 
   @override
   void initState() {
     super.initState();
     _blurred = widget.initialBlurred;
     _tiled = widget.initialTiled;
+    if (widget.onLoadFull != null) {
+      _downloadFull();
+    }
   }
+
+  Future<void> _downloadFull() async {
+    setState(() => _downloading = true);
+    try {
+      final bytes = await widget.onLoadFull!();
+      if (mounted && bytes != null) {
+        setState(() {
+          _fullBytes = bytes;
+          _downloading = false;
+        });
+      } else if (mounted) {
+        setState(() => _downloading = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
+  Uint8List? get _displayBytes => _fullBytes ?? widget.imageBytes;
 
   @override
   Widget build(BuildContext context) {
@@ -4630,6 +4712,7 @@ class _BackgroundPreviewBoxState extends State<_BackgroundPreviewBox> {
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor = context.palette.windowBgActive;
+    final displayBytes = _displayBytes;
 
     return Dialog(
       backgroundColor: bgColor,
@@ -4650,16 +4733,34 @@ class _BackgroundPreviewBoxState extends State<_BackgroundPreviewBox> {
                 child: SizedBox(
                   height: 300,
                   width: double.infinity,
-                  child: ImageFiltered(
-                    imageFilter: _blurred
-                        ? ui_dart.ImageFilter.blur(sigmaX: 10, sigmaY: 10)
-                        : ui_dart.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-                    child: Image.memory(
-                      widget.imageBytes,
-                      fit: _tiled ? BoxFit.none : BoxFit.cover,
-                      repeat: _tiled ? ImageRepeat.repeat : ImageRepeat.noRepeat,
-                    ),
-                  ),
+                  child: displayBytes != null
+                      ? ImageFiltered(
+                          imageFilter: _blurred
+                              ? ui_dart.ImageFilter.blur(sigmaX: 10, sigmaY: 10)
+                              : ui_dart.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Image.memory(
+                                displayBytes,
+                                fit: _tiled ? BoxFit.none : BoxFit.cover,
+                                repeat: _tiled ? ImageRepeat.repeat : ImageRepeat.noRepeat,
+                              ),
+                              if (_downloading)
+                                Container(
+                                  color: Colors.black26,
+                                  child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                ),
+                            ],
+                          ),
+                        )
+                      : Container(
+                          color: isDark ? const Color(0xFF232E3C) : const Color(0xFFE0E0E0),
+                          child: _downloading
+                              ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                              : Icon(Icons.image, size: 48,
+                                  color: isDark ? const Color(0xFF6C7883) : const Color(0xFF999999)),
+                        ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -4688,6 +4789,7 @@ class _BackgroundPreviewBoxState extends State<_BackgroundPreviewBox> {
                     onPressed: () => Navigator.of(context).pop({
                       'blurred': _blurred,
                       'tiled': _tiled,
+                      if (_fullBytes != null) 'full_bytes': _fullBytes,
                     }),
                     child: Text('Apply', style: TextStyle(color: accentColor)),
                   ),

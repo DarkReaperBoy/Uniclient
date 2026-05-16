@@ -3982,6 +3982,27 @@ class EngineService {
     }
   }
 
+  Future<Uint8List?> downloadWallpaperDocument(String accountId, int docId, int docHash, String docRef) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'doc_id': docId,
+      'doc_hash': docHash,
+      'doc_ref': docRef,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'DownloadWallpaperDocument', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes));
+      if (data is Map && data['data'] is String) {
+        return Uint8List.fromList(base64.decode(data['data'] as String));
+      }
+      return null;
+    } catch (e) {
+      Debug.error('ENGINE', 'downloadWallpaperDocument failed', e);
+      return null;
+    }
+  }
+
   Future<void> installCloudTheme(String accountId, int themeId, {bool isDark = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

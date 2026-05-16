@@ -491,7 +491,15 @@ class _ChatSwitchCell extends StatelessWidget {
                 alignment: Alignment.center,
                 child: isGeneral
                     ? const Icon(Icons.tag, size: 13, color: Colors.white)
-                    : Icon(Icons.circle, size: 8, color: Colors.white.withValues(alpha: 0.9)),
+                    : Text(
+                        chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '#',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          height: 1.0,
+                        ),
+                      ),
               ),
             ),
           ],

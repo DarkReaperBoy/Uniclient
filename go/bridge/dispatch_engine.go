@@ -3231,6 +3231,26 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(wallpapers)
 
+	case "DownloadWallpaperDocument":
+		var params struct {
+			AccountID string `json:"account_id"`
+			DocID     int64  `json:"doc_id"`
+			DocHash   int64  `json:"doc_hash"`
+			DocRef    string `json:"doc_ref"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		fileRef, err := base64.StdEncoding.DecodeString(params.DocRef)
+		if err != nil {
+			return nil, fmt.Errorf("invalid doc_ref: %w", err)
+		}
+		data, err := e.DownloadWallpaperDocument(params.AccountID, params.DocID, params.DocHash, fileRef)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"data": base64.StdEncoding.EncodeToString(data)})
+
 	case "InstallCloudTheme":
 		var params struct {
 			AccountID string `json:"account_id"`

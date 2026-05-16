@@ -1249,6 +1249,25 @@ func (e *Engine) GetWallpapers(accountID string) ([]cores.WallpaperInfo, error) 
 	return f.GetWallpapers()
 }
 
+type wallpaperDocDownloader interface {
+	DownloadWallpaperDocument(docID int64, accessHash int64, fileRef []byte) ([]byte, error)
+}
+
+func (e *Engine) DownloadWallpaperDocument(accountID string, docID int64, accessHash int64, fileRef []byte) ([]byte, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	d, ok := acc.Core.(wallpaperDocDownloader)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support wallpaper document download")
+	}
+	return d.DownloadWallpaperDocument(docID, accessHash, fileRef)
+}
+
 type cloudThemeDeleter interface {
 	DeleteCloudTheme(themeID int64) error
 }

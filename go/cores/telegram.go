@@ -16840,26 +16840,38 @@ func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit i
 	return reactions, nextOffset, nil
 }
 
-// GetAvailableReactionEmojis returns the list of top/available reaction emoji strings.
+// GetAvailableReactionEmojis returns all available reaction emoji strings (top reactions first, then remaining).
 func (t *TelegramCore) GetAvailableReactionEmojis() ([]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
 		return nil, ErrAuth
 	}
+	seen := make(map[string]bool)
+	var emojis []string
 	topResult, err := t.api.MessagesGetTopReactions(t.ctx, &tg.MessagesGetTopReactionsRequest{
 		Limit: 50,
 		Hash:  0,
 	})
-	if err != nil {
-		return nil, err
+	if err == nil {
+		switch r := topResult.(type) {
+		case *tg.MessagesReactions:
+			for _, rx := range r.Reactions {
+				if re, ok := rx.(*tg.ReactionEmoji); ok && !seen[re.Emoticon] {
+					emojis = append(emojis, re.Emoticon)
+					seen[re.Emoticon] = true
+				}
+			}
+		}
 	}
-	var emojis []string
-	switch r := topResult.(type) {
-	case *tg.MessagesReactions:
-		for _, rx := range r.Reactions {
-			if re, ok := rx.(*tg.ReactionEmoji); ok {
-				emojis = append(emojis, re.Emoticon)
+	availResult, err := t.api.MessagesGetAvailableReactions(t.ctx, 0)
+	if err == nil {
+		if avail, ok := availResult.(*tg.MessagesAvailableReactions); ok {
+			for _, r := range avail.Reactions {
+				if !seen[r.Reaction] {
+					emojis = append(emojis, r.Reaction)
+					seen[r.Reaction] = true
+				}
 			}
 		}
 	}
@@ -21460,6 +21472,9 @@ type WallpaperInfo struct {
 	Blurred  bool   `json:"blurred"`
 	ThumbB64 string `json:"thumb_b64,omitempty"`
 	IsPhoto  bool   `json:"is_photo,omitempty"`
+	DocID    int64  `json:"doc_id,omitempty"`
+	DocHash  int64  `json:"doc_hash,omitempty"`
+	DocRef   string `json:"doc_ref,omitempty"`
 }
 
 func (t *TelegramCore) GetWallpapers() ([]WallpaperInfo, error) {
@@ -21509,6 +21524,9 @@ func (t *TelegramCore) GetWallpapers() ([]WallpaperInfo, error) {
 			info.Blurred = s.Blur
 		}
 		if doc, ok := wp.Document.(*tg.Document); ok {
+			info.DocID = doc.ID
+			info.DocHash = doc.AccessHash
+			info.DocRef = base64.StdEncoding.EncodeToString(doc.FileReference)
 			isPhoto := false
 			for _, attr := range doc.Attributes {
 				if _, ok := attr.(*tg.DocumentAttributeImageSize); ok {
@@ -21519,25 +21537,67 @@ func (t *TelegramCore) GetWallpapers() ([]WallpaperInfo, error) {
 			if isPhoto || (!wp.Pattern && len(info.Colors) == 0) {
 				info.IsPhoto = true
 			}
+			var bestPhotoSize *tg.PhotoSize
 			for _, thumb := range doc.Thumbs {
-				switch t := thumb.(type) {
+				switch th := thumb.(type) {
 				case *tg.PhotoCachedSize:
-					if len(t.Bytes) > 0 {
-						info.ThumbB64 = base64.StdEncoding.EncodeToString(t.Bytes)
+					if len(th.Bytes) > 0 {
+						info.ThumbB64 = base64.StdEncoding.EncodeToString(th.Bytes)
 					}
 				case *tg.PhotoStrippedSize:
-					if len(t.Bytes) > 0 {
-						info.ThumbB64 = base64.StdEncoding.EncodeToString(inflateStrippedThumb(t.Bytes))
+					if len(th.Bytes) > 0 {
+						info.ThumbB64 = base64.StdEncoding.EncodeToString(inflateStrippedThumb(th.Bytes))
+					}
+				case *tg.PhotoSize:
+					if bestPhotoSize == nil || th.Type == "s" || (th.Type == "m" && bestPhotoSize.Type != "s") {
+						bestPhotoSize = th
 					}
 				}
 				if info.ThumbB64 != "" {
 					break
 				}
 			}
+			if info.ThumbB64 == "" && bestPhotoSize != nil {
+				loc := &tg.InputDocumentFileLocation{
+					ID:            doc.ID,
+					AccessHash:    doc.AccessHash,
+					FileReference: doc.FileReference,
+					ThumbSize:     bestPhotoSize.Type,
+				}
+				result, err := t.api.UploadGetFile(t.ctx, &tg.UploadGetFileRequest{
+					Location: loc,
+					Limit:    262144,
+				})
+				if err == nil {
+					if file, ok := result.(*tg.UploadFile); ok && len(file.Bytes) > 0 {
+						info.ThumbB64 = base64.StdEncoding.EncodeToString(file.Bytes)
+					}
+				}
+			}
 		}
 		result = append(result, info)
 	}
 	return result, nil
+}
+
+func (t *TelegramCore) DownloadWallpaperDocument(docID int64, accessHash int64, fileRef []byte) ([]byte, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	loc := &tg.InputDocumentFileLocation{
+		ID:            docID,
+		AccessHash:    accessHash,
+		FileReference: fileRef,
+	}
+	var buf bytes.Buffer
+	d := downloader.NewDownloader()
+	_, err := d.Download(t.api, loc).Stream(t.ctx, &buf)
+	if err != nil {
+		return nil, fmt.Errorf("download wallpaper doc: %w", err)
+	}
+	return buf.Bytes(), nil
 }
 
 type ChatThemeInfo struct {
