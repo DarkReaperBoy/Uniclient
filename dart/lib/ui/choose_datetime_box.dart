@@ -481,11 +481,27 @@ class _MonthYearPickerDialog extends StatefulWidget {
   State<_MonthYearPickerDialog> createState() => _MonthYearPickerDialogState();
 }
 
-class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog> {
+class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
+    with TickerProviderStateMixin {
   late int _selectedMonth;
   late int _selectedYear;
-  late FixedExtentScrollController _monthScrollCtrl;
-  late FixedExtentScrollController _yearScrollCtrl;
+
+  late double _monthOffset;
+  late AnimationController _monthSnapCtrl;
+  double _monthSnapFrom = 0;
+  double _monthSnapTo = 0;
+
+  late double _yearOffset;
+  late AnimationController _yearSnapCtrl;
+  double _yearSnapFrom = 0;
+  double _yearSnapTo = 0;
+
+  bool _yearColumnFocused = false;
+
+  static const double _itemHeight = 40.0;
+  static const int _monthCount = 12;
+  static const double _drumHeight = _itemHeight * 5;
+  static const double _centerY = (_drumHeight - _itemHeight) / 2;
 
   List<int> get _years {
     final result = <int>[];
@@ -495,21 +511,54 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog> {
     return result;
   }
 
+  double get _monthMaxOffset => (_monthCount - 1) * _itemHeight;
+  double get _yearMaxOffset => (_years.length - 1) * _itemHeight;
+  int get _yearIndex => _years.indexOf(_selectedYear).clamp(0, _years.length - 1);
+
   @override
   void initState() {
     super.initState();
     _selectedMonth = widget.currentMonth;
     _selectedYear = widget.currentYear;
-    _monthScrollCtrl = FixedExtentScrollController(initialItem: _selectedMonth - 1);
+    _monthOffset = (_selectedMonth - 1) * _itemHeight;
+
     final years = _years;
     final yearIdx = years.indexOf(_selectedYear);
-    _yearScrollCtrl = FixedExtentScrollController(initialItem: yearIdx >= 0 ? yearIdx : 0);
+    _yearOffset = (yearIdx >= 0 ? yearIdx : 0) * _itemHeight;
+
+    _monthSnapCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..addListener(() {
+        setState(() {
+          _monthOffset = _monthSnapFrom +
+              (_monthSnapTo - _monthSnapFrom) *
+                  Curves.easeOutCubic.transform(_monthSnapCtrl.value);
+          _selectedMonth =
+              (_monthOffset / _itemHeight).round().clamp(0, _monthCount - 1) + 1;
+        });
+      });
+
+    _yearSnapCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..addListener(() {
+        final years = _years;
+        setState(() {
+          _yearOffset = _yearSnapFrom +
+              (_yearSnapTo - _yearSnapFrom) *
+                  Curves.easeOutCubic.transform(_yearSnapCtrl.value);
+          final idx =
+              (_yearOffset / _itemHeight).round().clamp(0, years.length - 1);
+          _selectedYear = years[idx];
+        });
+      });
   }
 
   @override
   void dispose() {
-    _monthScrollCtrl.dispose();
-    _yearScrollCtrl.dispose();
+    _monthSnapCtrl.dispose();
+    _yearSnapCtrl.dispose();
     super.dispose();
   }
 
@@ -523,24 +572,56 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog> {
     return month;
   }
 
+  void _snapMonth() {
+    final target = (_monthOffset / _itemHeight).round() * _itemHeight;
+    _monthSnapFrom = _monthOffset;
+    _monthSnapTo = target.clamp(0.0, _monthMaxOffset);
+    _monthSnapCtrl.forward(from: 0);
+  }
+
+  void _snapYear() {
+    final target = (_yearOffset / _itemHeight).round() * _itemHeight;
+    _yearSnapFrom = _yearOffset;
+    _yearSnapTo = target.clamp(0.0, _yearMaxOffset);
+    _yearSnapCtrl.forward(from: 0);
+  }
+
+  void _goToMonthIndex(int index) {
+    _monthSnapFrom = _monthOffset;
+    _monthSnapTo = index.clamp(0, _monthCount - 1) * _itemHeight;
+    _monthSnapCtrl.forward(from: 0);
+  }
+
+  void _goToYearIndex(int index) {
+    _yearSnapFrom = _yearOffset;
+    _yearSnapTo = index.clamp(0, _years.length - 1) * _itemHeight;
+    _yearSnapCtrl.forward(from: 0);
+  }
+
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowUp) {
-      _monthScrollCtrl.animateToItem(
-        (_selectedMonth - 2).clamp(0, 11),
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-      );
+      if (_yearColumnFocused) {
+        _goToYearIndex(_yearIndex - 1);
+      } else {
+        _goToMonthIndex(_selectedMonth - 2);
+      }
       return KeyEventResult.handled;
     } else if (key == LogicalKeyboardKey.arrowDown) {
-      _monthScrollCtrl.animateToItem(
-        _selectedMonth.clamp(0, 11),
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-      );
+      if (_yearColumnFocused) {
+        _goToYearIndex(_yearIndex + 1);
+      } else {
+        _goToMonthIndex(_selectedMonth);
+      }
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.arrowLeft) {
+      setState(() => _yearColumnFocused = false);
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.arrowRight) {
+      setState(() => _yearColumnFocused = true);
       return KeyEventResult.handled;
     } else if (key == LogicalKeyboardKey.escape) {
       Navigator.of(context).pop();
@@ -556,97 +637,87 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog> {
     final dimFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final bandColor = context.palette.windowBgActive;
     final years = _years;
-    const itemHeight = 40.0;
 
     return TelegramBox(
       title: 'Jump to date',
       scrollableContent: false,
       onKeyEvent: _handleKey,
-      content: Focus(
-        autofocus: true,
-        onKeyEvent: _handleKey,
-        child: SizedBox(
-          height: 200,
-          child: Stack(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: ListWheelScrollView.useDelegate(
-                      controller: _monthScrollCtrl,
-                      itemExtent: itemHeight,
-                      physics: const FixedExtentScrollPhysics(),
-                      onSelectedItemChanged: (i) => setState(() => _selectedMonth = i + 1),
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: 12,
-                        builder: (ctx, i) {
-                          final isSelected = i + 1 == _selectedMonth;
-                          final isDisabled = (_selectedYear == widget.minDate.year && i + 1 < widget.minDate.month) ||
-                              (_selectedYear == widget.maxDate.year && i + 1 > widget.maxDate.month);
-                          return Center(
-                            child: Text(
-                              _monthNames[i],
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
-                                color: isDisabled ? dimFg.withValues(alpha: 0.4) : (isSelected ? textFg : dimFg),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: ListWheelScrollView.useDelegate(
-                      controller: _yearScrollCtrl,
-                      itemExtent: itemHeight,
-                      physics: const FixedExtentScrollPhysics(),
-                      onSelectedItemChanged: (i) => setState(() => _selectedYear = years[i]),
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: years.length,
-                        builder: (ctx, i) {
-                          final isSelected = years[i] == _selectedYear;
-                          return Center(
-                            child: Text(
-                              '${years[i]}',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
-                                color: isSelected ? textFg : dimFg,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 200 / 2 - itemHeight / 2,
-                child: IgnorePointer(
-                  child: Container(
-                    height: 2,
-                    color: bandColor,
+      content: SizedBox(
+        height: _drumHeight,
+        child: Stack(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _DrumColumn(
+                    offset: _monthOffset,
+                    maxOffset: _monthMaxOffset,
+                    itemCount: _monthCount,
+                    selectedIndex: _selectedMonth - 1,
+                    labelBuilder: (i) => _monthNames[i],
+                    textFg: textFg,
+                    dimFg: dimFg,
+                    isDisabled: (i) =>
+                        (_selectedYear == widget.minDate.year &&
+                            i + 1 < widget.minDate.month) ||
+                        (_selectedYear == widget.maxDate.year &&
+                            i + 1 > widget.maxDate.month),
+                    onScroll: (delta) {
+                      _monthSnapCtrl.stop();
+                      setState(() {
+                        _monthOffset =
+                            (_monthOffset + delta).clamp(0.0, _monthMaxOffset);
+                        _selectedMonth = (_monthOffset / _itemHeight)
+                                .round()
+                                .clamp(0, _monthCount - 1) +
+                            1;
+                      });
+                    },
+                    onScrollEnd: _snapMonth,
                   ),
                 ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 200 / 2 + itemHeight / 2,
-                child: IgnorePointer(
-                  child: Container(
-                    height: 2,
-                    color: bandColor,
+                Expanded(
+                  child: _DrumColumn(
+                    offset: _yearOffset,
+                    maxOffset: _yearMaxOffset,
+                    itemCount: years.length,
+                    selectedIndex: _yearIndex,
+                    labelBuilder: (i) => '${years[i]}',
+                    textFg: textFg,
+                    dimFg: dimFg,
+                    onScroll: (delta) {
+                      _yearSnapCtrl.stop();
+                      setState(() {
+                        _yearOffset =
+                            (_yearOffset + delta).clamp(0.0, _yearMaxOffset);
+                        final idx = (_yearOffset / _itemHeight)
+                            .round()
+                            .clamp(0, years.length - 1);
+                        _selectedYear = years[idx];
+                      });
+                    },
+                    onScrollEnd: _snapYear,
                   ),
                 ),
+              ],
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: _centerY,
+              child: IgnorePointer(
+                child: Container(height: 2, color: bandColor),
               ),
-            ],
-          ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: _centerY + _itemHeight,
+              child: IgnorePointer(
+                child: Container(height: 2, color: bandColor),
+              ),
+            ),
+          ],
         ),
       ),
       buttons: [
@@ -662,6 +733,80 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog> {
           },
         ),
       ],
+    );
+  }
+}
+
+class _DrumColumn extends StatelessWidget {
+  final double offset;
+  final double maxOffset;
+  final int itemCount;
+  final int selectedIndex;
+  final String Function(int) labelBuilder;
+  final Color textFg;
+  final Color dimFg;
+  final bool Function(int)? isDisabled;
+  final void Function(double delta) onScroll;
+  final VoidCallback onScrollEnd;
+
+  static const double _itemHeight = 40.0;
+  static const double _drumHeight = _itemHeight * 5;
+  static const double _centerY = (_drumHeight - _itemHeight) / 2;
+
+  const _DrumColumn({
+    required this.offset,
+    required this.maxOffset,
+    required this.itemCount,
+    required this.selectedIndex,
+    required this.labelBuilder,
+    required this.textFg,
+    required this.dimFg,
+    this.isDisabled,
+    required this.onScroll,
+    required this.onScrollEnd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerSignal: (event) {
+        if (event is PointerScrollEvent) {
+          onScroll(event.scrollDelta.dy);
+          onScrollEnd();
+        }
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onVerticalDragUpdate: (d) => onScroll(-d.delta.dy),
+        onVerticalDragEnd: (_) => onScrollEnd(),
+        child: ClipRect(
+          child: Stack(
+            children: [
+              for (int i = 0; i < itemCount; i++)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: _centerY + (i * _itemHeight) - offset,
+                  height: _itemHeight,
+                  child: Center(
+                    child: Text(
+                      labelBuilder(i),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: i == selectedIndex
+                            ? FontWeight.w500
+                            : FontWeight.normal,
+                        color: (isDisabled != null && isDisabled!(i))
+                            ? dimFg.withValues(alpha: 0.4)
+                            : (i == selectedIndex ? textFg : dimFg),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
