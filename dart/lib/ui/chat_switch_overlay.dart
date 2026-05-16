@@ -469,7 +469,7 @@ class _ChatSwitchCell extends StatelessWidget {
       return const SavedMessagesUserpic(size: _userpicSize);
     }
 
-    if (chat.isForum && chat.type == ChatType.topic) {
+    if (chat.type == ChatType.topic) {
       final topicId = int.tryParse(chat.chatId) ?? 0;
       final isGeneral = topicId == 1;
       final topicColor = _telegramTopicColor(topicId);
