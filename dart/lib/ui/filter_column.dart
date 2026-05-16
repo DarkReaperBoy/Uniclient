@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
@@ -505,20 +506,44 @@ class _FilterColumnState extends State<FilterColumn> {
     });
   }
 
+  bool _waitingSuggested = false;
+
   void _openFoldersSettings() {
     final appState = context.read<AppState>();
     final chatState = context.read<ChatState>();
-    Navigator.of(context).push(
-      settingsPageRoute(
-        ChangeNotifierProvider.value(
-          value: appState,
-          child: ChangeNotifierProvider.value(
-            value: chatState,
-            child: const FoldersSettingsScreen(),
+    final account = appState.activeAccount;
+
+    void navigate() {
+      if (!mounted) return;
+      Navigator.of(context).push(
+        settingsPageRoute(
+          ChangeNotifierProvider.value(
+            value: appState,
+            child: ChangeNotifierProvider.value(
+              value: chatState,
+              child: const FoldersSettingsScreen(),
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
+
+    if (account == null) {
+      navigate();
+      return;
+    }
+
+    if (_waitingSuggested) return;
+    _waitingSuggested = true;
+
+    final engine = context.read<EngineService>();
+    engine.getSuggestedFolders(account.id).then((_) {
+      _waitingSuggested = false;
+      navigate();
+    }).catchError((_) {
+      _waitingSuggested = false;
+      navigate();
+    });
   }
 
   @override
@@ -537,6 +562,11 @@ class _FilterColumnState extends State<FilterColumn> {
     }
 
     _syncTabKeys(folders.length);
+
+    final isPremium = appState.activeAccount?.isPremium ?? false;
+    final premiumFrom = isPremium
+        ? chatState.folderLimitPremium
+        : chatState.folderLimitFree;
 
     bool _isOtherAccountsAllMuted(AppState appState, ChatState chatState) {
       for (final acc in appState.accounts) {
@@ -603,6 +633,7 @@ class _FilterColumnState extends State<FilterColumn> {
                     final shift = _computeShiftForTab(index);
                     final isDropTarget =
                         FilterColumn.dropHighlightIndex.value == index;
+                    final isLocked = index >= premiumFrom;
 
                     return AnimatedContainer(
                       key: _tabKeys[index],
@@ -614,14 +645,6 @@ class _FilterColumnState extends State<FilterColumn> {
                         isDragged ? _dragOffset : shift,
                         isDragged ? 1 : 0,
                       ),
-                      decoration: isDropTarget
-                          ? BoxDecoration(
-                              border: Border.all(
-                                color: palette.sideBarBadgeBg,
-                                width: 2,
-                              ),
-                            )
-                          : null,
                       child: Opacity(
                         opacity: isDragged ? 0.8 : 1.0,
                         child: DragTarget<ForwardDragData>(
@@ -651,6 +674,8 @@ class _FilterColumnState extends State<FilterColumn> {
                             isActive: activeFolderId == folder.id,
                             unreadCount: unread,
                             unreadAllMuted: allMuted,
+                            locked: isLocked,
+                            forceRippled: isDropTarget,
                             onTap: _dragActive
                                 ? () {}
                                 : () => _onFolderTap(folder, activeFolderId),
@@ -684,7 +709,7 @@ class _FilterColumnState extends State<FilterColumn> {
 ///   iconPosition: point(-1, 6) = centered horizontally, 6px from top,
 ///   badgeHeight: 17px, badgePosition: point(3, 7), badgeSkip: 4px.
 ///   Active state: full-width rect fill with sideBarBgActive (no border radius).
-class _SideBarButton extends StatelessWidget {
+class _SideBarButton extends StatefulWidget {
   final IconData icon;
   final String label;
   final bool isActive;
@@ -692,8 +717,10 @@ class _SideBarButton extends StatelessWidget {
   final bool unreadAllMuted;
   final VoidCallback onTap;
   final double minHeight;
-  final bool iconCentered; // true for hamburger (centered both ways)
-  final bool useDotBadge; // true for hamburger dot overlay (no number)
+  final bool iconCentered;
+  final bool useDotBadge;
+  final bool locked;
+  final bool forceRippled;
 
   const _SideBarButton({
     required this.icon,
@@ -705,58 +732,132 @@ class _SideBarButton extends StatelessWidget {
     this.minHeight = 62,
     this.iconCentered = false,
     this.useDotBadge = false,
+    this.locked = false,
+    this.forceRippled = false,
   });
 
-  // Spec: windowFiltersButton dimensions from window.style.
+  @override
+  State<_SideBarButton> createState() => _SideBarButtonState();
+}
+
+class _SideBarButtonState extends State<_SideBarButton>
+    with SingleTickerProviderStateMixin {
+  static const _kPremiumLockedOpacity = 0.6;
+
+  late final AnimationController _rippleController;
+  late final Animation<double> _rippleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _rippleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _rippleAnimation = CurvedAnimation(
+      parent: _rippleController,
+      curve: Curves.easeInOut,
+    );
+    if (widget.forceRippled) _rippleController.forward();
+  }
+
+  @override
+  void didUpdateWidget(_SideBarButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.forceRippled != oldWidget.forceRippled) {
+      if (widget.forceRippled) {
+        _rippleController.forward();
+      } else {
+        _rippleController.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _rippleController.dispose();
+    super.dispose();
+  }
+
   static const double _textTop = 40;
   static const double _textSkip = 6;
   static const double _iconSize = 24;
   static const double _iconTop = 6;
   static const double _badgeHeight = 17;
   static const double _badgeSkip = 4;
-  static const double _badgePosX = 3; // offset from width/2
+  static const double _badgePosX = 3;
   static const double _badgePosY = 7;
   static const double _badgeStroke = 2;
+  static const double _lockIconSize = 8;
 
   @override
   Widget build(BuildContext context) {
     final palette = PaletteProvider.of(context);
-    final bgColor = isActive ? palette.sideBarBgActive : palette.sideBarBg;
-    final iconColor = isActive ? palette.sideBarIconFgActive : palette.sideBarIconFg;
-    final textColor = isActive ? palette.sideBarTextFgActive : palette.sideBarTextFg;
+    final bgColor = widget.isActive ? palette.sideBarBgActive : palette.sideBarBg;
+    final iconColor = widget.isActive ? palette.sideBarIconFgActive : palette.sideBarIconFg;
+    final textColor = widget.isActive ? palette.sideBarTextFgActive : palette.sideBarTextFg;
 
-    return TelegramTooltip(
-      message: label,
+    Widget button = TelegramTooltip(
+      message: widget.label,
       child: Material(
         color: bgColor,
         child: InkWell(
-          onTap: onTap,
+          onTap: widget.onTap,
           splashColor: palette.sideBarBgRipple,
           highlightColor: palette.sideBarBgRipple,
           child: SizedBox(
             width: FilterColumn.width,
-            child: iconCentered
+            child: widget.iconCentered
                 ? _buildCenteredIcon(context, iconColor)
                 : _buildFullButton(context, iconColor, textColor),
           ),
         ),
       ),
     );
+
+    if (widget.forceRippled) {
+      button = AnimatedBuilder(
+        animation: _rippleAnimation,
+        builder: (context, child) {
+          return Stack(
+            children: [
+              child!,
+              if (_rippleAnimation.value > 0)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: _rippleAnimation.value * 0.12,
+                      child: Container(color: palette.sideBarBgRipple),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+        child: button,
+      );
+    }
+
+    if (widget.locked) {
+      button = Opacity(
+        opacity: _kPremiumLockedOpacity,
+        child: button,
+      );
+    }
+
+    return button;
   }
 
-  /// Hamburger menu button: icon centered both ways, minHeight 54px.
-  /// AyuGram uses a dot overlay (windowFiltersMainMenuUnread) instead of a
-  /// numeric badge — just a colored circle on the icon.
   Widget _buildCenteredIcon(BuildContext context, Color iconColor) {
     final palette = PaletteProvider.of(context);
     return SizedBox(
-      height: minHeight,
+      height: widget.minHeight,
       child: Center(
-        child: unreadCount > 0 && useDotBadge
+        child: widget.unreadCount > 0 && widget.useDotBadge
             ? Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Icon(icon, size: _iconSize, color: iconColor),
+                  Icon(widget.icon, size: _iconSize, color: iconColor),
                   Positioned(
                     right: -4,
                     top: -2,
@@ -765,7 +866,7 @@ class _SideBarButton extends StatelessWidget {
                       height: 8,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: unreadAllMuted
+                        color: widget.unreadAllMuted
                             ? palette.sideBarBadgeBgMuted
                             : palette.sideBarBadgeBg,
                       ),
@@ -773,16 +874,16 @@ class _SideBarButton extends StatelessWidget {
                   ),
                 ],
               )
-            : Icon(icon, size: _iconSize, color: iconColor),
+            : Icon(widget.icon, size: _iconSize, color: iconColor),
       ),
     );
   }
 
-  /// Standard folder tab: icon at top, label below, optional badge.
   Widget _buildFullButton(BuildContext context, Color iconColor, Color textColor) {
+    final effectiveUnread = widget.locked ? 0 : widget.unreadCount;
     return CustomMultiChildLayout(
       delegate: _SideBarButtonLayout(
-        minHeight: minHeight,
+        minHeight: widget.minHeight,
         textTop: _textTop,
         textSkip: _textSkip,
         iconTop: _iconTop,
@@ -790,42 +891,65 @@ class _SideBarButton extends StatelessWidget {
         badgePosX: _badgePosX,
         badgePosY: _badgePosY,
         badgeHeight: _badgeHeight,
-        hasBadge: unreadCount > 0,
+        hasBadge: effectiveUnread > 0,
+        hasLockIcon: widget.locked,
       ),
       children: [
         LayoutId(
           id: _SideBarSlot.icon,
-          child: Icon(icon, size: _iconSize, color: iconColor),
+          child: Icon(widget.icon, size: _iconSize, color: iconColor),
         ),
         LayoutId(
           id: _SideBarSlot.label,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: textColor,
-            ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-          ),
+          child: widget.locked
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock, size: _lockIconSize, color: textColor),
+                    const SizedBox(width: 2),
+                    Flexible(
+                      child: Text(
+                        widget.label,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                )
+              : Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
         ),
-        if (unreadCount > 0)
+        if (effectiveUnread > 0)
           LayoutId(
             id: _SideBarSlot.badge,
-            child: _buildBadge(context),
+            child: _buildBadge(context, effectiveUnread),
           ),
       ],
     );
   }
 
-  Widget _buildBadge(BuildContext context) {
+  Widget _buildBadge(BuildContext context, [int? count]) {
     final palette = PaletteProvider.of(context);
-    final badgeColor = unreadAllMuted
+    final effectiveCount = count ?? widget.unreadCount;
+    final badgeColor = widget.unreadAllMuted
         ? palette.sideBarBadgeBgMuted
         : palette.sideBarBadgeBg;
-    final text = unreadCount > 999 ? '99+' : '$unreadCount';
+    final text = effectiveCount > 999 ? '99+' : '$effectiveCount';
     return Container(
       height: _badgeHeight,
       constraints: BoxConstraints(minWidth: _badgeHeight),
@@ -855,7 +979,6 @@ class _SideBarButton extends StatelessWidget {
 
 enum _SideBarSlot { icon, label, badge }
 
-/// Custom layout delegate for exact SideBarButton positioning.
 class _SideBarButtonLayout extends MultiChildLayoutDelegate {
   final double minHeight;
   final double textTop;
@@ -866,6 +989,7 @@ class _SideBarButtonLayout extends MultiChildLayoutDelegate {
   final double badgePosY;
   final double badgeHeight;
   final bool hasBadge;
+  final bool hasLockIcon;
 
   _SideBarButtonLayout({
     required this.minHeight,
@@ -877,6 +1001,7 @@ class _SideBarButtonLayout extends MultiChildLayoutDelegate {
     required this.badgePosY,
     required this.badgeHeight,
     required this.hasBadge,
+    this.hasLockIcon = false,
   });
 
   @override
@@ -921,6 +1046,8 @@ class _SideBarButtonLayout extends MultiChildLayoutDelegate {
 
   @override
   bool shouldRelayout(_SideBarButtonLayout oldDelegate) {
-    return minHeight != oldDelegate.minHeight || hasBadge != oldDelegate.hasBadge;
+    return minHeight != oldDelegate.minHeight
+        || hasBadge != oldDelegate.hasBadge
+        || hasLockIcon != oldDelegate.hasLockIcon;
   }
 }
