@@ -417,6 +417,37 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return []byte(userId), nil
 
+	case "AddContactByUser":
+		var params struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+			FirstName string `json:"first_name"`
+			LastName  string `json:"last_name"`
+			Note      string `json:"note"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		userId, err := e.AddContactByUser(params.AccountID, params.UserID, params.FirstName, params.LastName, params.Note)
+		if err != nil {
+			return nil, err
+		}
+		return []byte(userId), nil
+
+	case "GetContactFullInfo":
+		var params struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		info, err := e.GetContactFullInfo(params.AccountID, params.UserID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(info)
+
 	case "SuggestContactPhoto":
 		var params struct {
 			AccountID string `json:"account_id"`

@@ -1968,7 +1968,7 @@ class ChatState extends ChangeNotifier {
     return _engine.getContacts(accountId);
   }
 
-  List<ChatInfo> searchGlobalChats(String accountId, String query, {int limit = 20}) {
+  Future<List<ChatInfo>> searchGlobalChats(String accountId, String query, {int limit = 20}) {
     return _engine.searchGlobalChats(accountId, query, limit: limit);
   }
 

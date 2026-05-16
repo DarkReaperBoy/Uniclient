@@ -1653,6 +1653,12 @@ class ContactInfo {
   final String avatarB64;
   final bool isBot;
   final bool isOnline;
+  final bool isContact;
+  final bool hasPersonalPhoto;
+  final int birthdayDay;
+  final int birthdayMonth;
+  final int birthdayYear;
+  final String note;
   final int storyCount;
   final bool hasUnreadStory;
   final bool isVerified;
@@ -1670,6 +1676,12 @@ class ContactInfo {
     this.avatarB64 = '',
     this.isBot = false,
     this.isOnline = false,
+    this.isContact = false,
+    this.hasPersonalPhoto = false,
+    this.birthdayDay = 0,
+    this.birthdayMonth = 0,
+    this.birthdayYear = 0,
+    this.note = '',
     this.storyCount = 0,
     this.hasUnreadStory = false,
     this.isVerified = false,
@@ -1681,6 +1693,7 @@ class ContactInfo {
   });
 
   bool get hasStories => storyCount > 0;
+  bool get hasBirthday => birthdayDay > 0 && birthdayMonth > 0;
 
   String get label => displayName.isNotEmpty
       ? displayName

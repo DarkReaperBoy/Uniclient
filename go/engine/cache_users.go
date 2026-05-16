@@ -903,6 +903,64 @@ func (e *Engine) AddContact(accountID, phone, firstName, lastName, note string) 
 	return "", acc.Core.AddContact(phone, firstName, lastName)
 }
 
+func (e *Engine) AddContactByUser(accountID, userID, firstName, lastName, note string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	type userContactAdder interface {
+		AddContactByUserID(userID, firstName, lastName, note string) error
+	}
+	if ua, ok := acc.Core.(userContactAdder); ok {
+		return "", ua.AddContactByUserID(userID, firstName, lastName, note)
+	}
+	return "", fmt.Errorf("core does not support adding contacts by user ID")
+}
+
+func (e *Engine) GetContactFullInfo(accountID, userID string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type fullUserGetter interface {
+		GetFullUser(userID string) (*cores.User, error)
+	}
+	fg, ok := acc.Core.(fullUserGetter)
+	if !ok {
+		return nil, fmt.Errorf("core does not support GetFullUser")
+	}
+	u, err := fg.GetFullUser(userID)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"user_id":            u.ID,
+		"display_name":       u.DisplayName,
+		"username":           u.Username,
+		"phone":              u.Phone,
+		"is_bot":             u.IsBot,
+		"is_contact":         u.IsContact,
+		"has_personal_photo": u.HasPersonalPhoto,
+		"birthday_day":       u.BirthdayDay,
+		"birthday_month":     u.BirthdayMonth,
+		"birthday_year":      u.BirthdayYear,
+		"is_online":          u.IsOnline,
+		"is_verified":        u.IsVerified,
+		"is_premium":         u.IsPremium,
+		"is_scam":            u.IsScam,
+		"is_fake":            u.IsFake,
+		"last_seen_kind":     u.LastSeenKind,
+		"avatar_b64":         u.AvatarB64,
+		"note":               u.Note,
+	}, nil
+}
+
 func (e *Engine) DeleteContact(accountID, userID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

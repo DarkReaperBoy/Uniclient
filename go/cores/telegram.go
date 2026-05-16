@@ -16022,6 +16022,9 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 			cu.VoiceMessagesForbidden = result.FullUser.VoiceMessagesForbidden
 			cu.ContactRequirePremium = result.FullUser.ContactRequirePremium
 			_, cu.HasPersonalPhoto = result.FullUser.GetPersonalPhoto()
+			if noteVal, ok := result.FullUser.GetNote(); ok {
+				cu.Note = noteVal.Text
+			}
 			return cu, nil
 		}
 	}
@@ -24903,6 +24906,30 @@ func (t *TelegramCore) AddContactWithNote(phone, firstName, lastName, note strin
 	}
 	req.SetNote(tg.TextWithEntities{Text: note})
 	_, err := t.api.ContactsAddContact(t.ctx, req)
+	return err
+}
+
+// AddContactByUserID adds a contact using their user ID instead of phone number.
+func (t *TelegramCore) AddContactByUserID(userID, firstName, lastName, note string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	uid, err := tgUserID(userID)
+	if err != nil {
+		return err
+	}
+	hash := t.getCachedUserHash(uid)
+	req := &tg.ContactsAddContactRequest{
+		ID:        &tg.InputUser{UserID: uid, AccessHash: hash},
+		FirstName: firstName,
+		LastName:  lastName,
+	}
+	if note != "" {
+		req.SetNote(tg.TextWithEntities{Text: note})
+	}
+	_, err = t.api.ContactsAddContact(t.ctx, req)
 	return err
 }
 

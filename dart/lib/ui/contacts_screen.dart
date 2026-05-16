@@ -128,16 +128,42 @@ class _ContactsBoxState extends State<_ContactsBox> {
           final existing = _contacts ?? [];
           final alreadyHas = existing.any((c) => c.userId == result);
           if (!alreadyHas) {
-            setState(() {
-              _globalResults = [
-                ContactInfo(userId: result, username: username, displayName: '@$username'),
-              ];
-              _sortedCache = null;
-            });
+            try {
+              final fullInfo = await engine.getContactFullInfo(account.id, result);
+              if (mounted && _searchQuery == query) {
+                setState(() {
+                  _globalResults = [
+                    ContactInfo(
+                      userId: result,
+                      username: username,
+                      displayName: fullInfo['display_name'] as String? ?? '@$username',
+                      phone: fullInfo['phone'] as String? ?? '',
+                      isBot: fullInfo['is_bot'] as bool? ?? false,
+                      isContact: fullInfo['is_contact'] as bool? ?? false,
+                      isOnline: fullInfo['is_online'] as bool? ?? false,
+                      isVerified: fullInfo['is_verified'] as bool? ?? false,
+                      isPremium: fullInfo['is_premium'] as bool? ?? false,
+                      avatarB64: fullInfo['avatar_b64'] as String? ?? '',
+                      lastSeenKind: fullInfo['last_seen_kind'] as String? ?? '',
+                    ),
+                  ];
+                  _sortedCache = null;
+                });
+              }
+            } catch (_) {
+              if (mounted && _searchQuery == query) {
+                setState(() {
+                  _globalResults = [
+                    ContactInfo(userId: result, username: username, displayName: '@$username'),
+                  ];
+                  _sortedCache = null;
+                });
+              }
+            }
           }
         }
       } else {
-        final chats = engine.searchGlobalChats(account.id, query, limit: 10);
+        final chats = await engine.searchGlobalChats(account.id, query, limit: 10);
         if (mounted && _searchQuery == query && chats.isNotEmpty) {
           final existing = _contacts ?? [];
           final results = <ContactInfo>[];
@@ -146,6 +172,11 @@ class _ContactsBoxState extends State<_ContactsBox> {
               results.add(ContactInfo(
                 userId: chat.chatId,
                 displayName: chat.title,
+                isBot: chat.isBot,
+                isContact: chat.isContact,
+                isVerified: chat.isVerified,
+                isScam: chat.isScam,
+                isFake: chat.isFake,
               ));
             }
           }
@@ -794,7 +825,7 @@ class _ContactRowState extends State<_ContactRow> {
     final engine = context.read<EngineService>();
     final iconColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF222222);
     final errorColor = const Color(0xFFe53935);
-    final isContact = !contact.displayName.startsWith('@');
+    final isContact = contact.isContact;
     showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
@@ -834,6 +865,9 @@ class _ContactRowState extends State<_ContactRow> {
       if (value == null || !mounted) return;
       switch (value) {
         case 'add':
+          final parts = contact.displayName.split(' ');
+          final prefillFirst = parts.isNotEmpty ? parts.first : '';
+          final prefillLast = parts.length > 1 ? parts.skip(1).join(' ') : '';
           showDialog<bool>(
             context: context,
             builder: (ctx) => ChangeNotifierProvider.value(
@@ -843,6 +877,10 @@ class _ContactRowState extends State<_ContactRow> {
                 child: _AddContactBox(
                   appState: context.read<AppState>(),
                   engine: context.read<EngineService>(),
+                  prefillFirstName: contact.displayName.startsWith('@') ? '' : prefillFirst,
+                  prefillLastName: contact.displayName.startsWith('@') ? '' : prefillLast,
+                  prefillPhone: contact.phone,
+                  prefillUserId: contact.userId,
                 ),
               ),
             ),
@@ -1147,16 +1185,27 @@ class _ContactRowState extends State<_ContactRow> {
 class _AddContactBox extends StatefulWidget {
   final AppState appState;
   final EngineService engine;
+  final String prefillFirstName;
+  final String prefillLastName;
+  final String prefillPhone;
+  final String prefillUserId;
 
-  const _AddContactBox({required this.appState, required this.engine});
+  const _AddContactBox({
+    required this.appState,
+    required this.engine,
+    this.prefillFirstName = '',
+    this.prefillLastName = '',
+    this.prefillPhone = '',
+    this.prefillUserId = '',
+  });
 
   @override
   State<_AddContactBox> createState() => _AddContactBoxState();
 }
 
 class _AddContactBoxState extends State<_AddContactBox> {
-  final _firstNameCtrl = TextEditingController();
-  final _lastNameCtrl = TextEditingController();
+  late final TextEditingController _firstNameCtrl;
+  late final TextEditingController _lastNameCtrl;
   final _phoneCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
   late final FocusNode _firstNameFocus;
@@ -1171,11 +1220,26 @@ class _AddContactBoxState extends State<_AddContactBox> {
   @override
   void initState() {
     super.initState();
+    _firstNameCtrl = TextEditingController(text: widget.prefillFirstName);
+    _lastNameCtrl = TextEditingController(text: widget.prefillLastName);
     _firstNameFocus = FocusNode();
     _lastNameFocus = FocusNode();
     _phoneFocus = FocusNode();
     _phoneFormatter = _PhoneNumberFormatter(dialCode: _selectedCountry.dialCode);
     _codeCtrl.text = _selectedCountry.dialCode;
+    if (widget.prefillPhone.isNotEmpty) {
+      final digits = widget.prefillPhone.replaceAll(RegExp(r'\D'), '');
+      for (final country in countries) {
+        final code = country.dialCode.replaceAll(RegExp(r'\D'), '');
+        if (digits.startsWith(code) && code.isNotEmpty) {
+          _selectedCountry = country;
+          _phoneFormatter.dialCode = country.dialCode;
+          _codeCtrl.text = country.dialCode;
+          _phoneCtrl.text = digits.substring(code.length);
+          break;
+        }
+      }
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _firstNameFocus.requestFocus();
     });
@@ -1277,7 +1341,7 @@ class _AddContactBoxState extends State<_AddContactBox> {
     });
 
     try {
-      await widget.engine.addContact(account.id, phone, firstName, lastName);
+      await widget.engine.addContact(account.id, phone, firstName, lastName, userId: widget.prefillUserId);
       if (mounted) {
         Navigator.of(context).pop(<String, String>{
           'firstName': firstName,
@@ -1900,7 +1964,7 @@ class _ContactStoryRingPainter extends CustomPainter {
       paint.shader = const LinearGradient(
         begin: Alignment.topRight,
         end: Alignment.bottomLeft,
-        colors: [Color(0xFF34c76e), Color(0xFF3da1fd)],
+        colors: [Color(0xFF0dcc39), Color(0xFF0992ef)],
       ).createShader(Rect.fromCircle(center: center, radius: ringRadius));
     } else {
       paint.color = isDark
@@ -1961,6 +2025,8 @@ class _EditContactBoxState extends State<_EditContactBox> {
   bool _saving = false;
   String? _error;
   static const _notesMaxLength = 70;
+  bool _hasPersonalPhoto = false;
+  bool _hasBirthday = false;
 
   String get _liveName {
     final first = _firstNameCtrl.text.trim();
@@ -1975,15 +2041,37 @@ class _EditContactBoxState extends State<_EditContactBox> {
     final parts = _splitName(widget.contact.displayName);
     _firstNameCtrl = TextEditingController(text: parts.$1);
     _lastNameCtrl = TextEditingController(text: parts.$2);
-    _notesCtrl = TextEditingController();
+    _notesCtrl = TextEditingController(text: widget.contact.note);
+    _hasPersonalPhoto = widget.contact.hasPersonalPhoto;
+    _hasBirthday = widget.contact.hasBirthday;
     _firstNameFocus = FocusNode();
     _lastNameFocus = FocusNode();
     _notesFocus = FocusNode();
     _firstNameCtrl.addListener(_onNameChanged);
     _lastNameCtrl.addListener(_onNameChanged);
+    _fetchFullInfo();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _firstNameFocus.requestFocus();
     });
+  }
+
+  Future<void> _fetchFullInfo() async {
+    final account = widget.appState.activeAccount;
+    if (account == null) return;
+    try {
+      final info = await widget.engine.getContactFullInfo(account.id, widget.contact.userId);
+      if (!mounted) return;
+      final note = info['note'] as String? ?? '';
+      if (note.isNotEmpty && _notesCtrl.text.isEmpty) {
+        _notesCtrl.text = note;
+      }
+      setState(() {
+        _hasPersonalPhoto = info['has_personal_photo'] as bool? ?? false;
+        final bDay = info['birthday_day'] as int? ?? 0;
+        final bMonth = info['birthday_month'] as int? ?? 0;
+        _hasBirthday = bDay > 0 && bMonth > 0;
+      });
+    } catch (_) {}
   }
 
   void _onNameChanged() => setState(() {});
@@ -2027,7 +2115,7 @@ class _EditContactBoxState extends State<_EditContactBox> {
           ? widget.contact.phone
           : '+0';
       final note = _notesCtrl.text.trim();
-      await widget.engine.addContact(account.id, phone, firstName, lastName, note: note);
+      await widget.engine.addContact(account.id, phone, firstName, lastName, note: note, userId: widget.contact.userId);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -2052,6 +2140,19 @@ class _EditContactBoxState extends State<_EditContactBox> {
     } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed: ${e.toString().replaceFirst("Exception: ", "")}');
     }
+  }
+
+  Future<void> _suggestBirthday() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(1900),
+      lastDate: now,
+      helpText: 'Suggest Birthday',
+    );
+    if (picked == null || !mounted) return;
+    showTelegramToast(context, 'Birthday suggestion: ${picked.day}/${picked.month}/${picked.year}');
   }
 
   Future<void> _setPersonalPhoto() async {
@@ -2255,42 +2356,52 @@ class _EditContactBoxState extends State<_EditContactBox> {
                 ),
               ),
             ),
-            // Photo management buttons
-            Divider(height: 1, color: dividerColor),
-            _SettingsButtonRow(
-              icon: Icons.card_giftcard,
-              label: 'Suggest photo',
-              iconColor: buttonColor,
-              textColor: textColor,
-              hoverBg: settingsBtnBg,
-              onTap: _suggestPhoto,
-            ),
-            _SettingsButtonRow(
-              icon: Icons.add_a_photo_outlined,
-              label: 'Set personal photo',
-              iconColor: buttonColor,
-              textColor: textColor,
-              hoverBg: settingsBtnBg,
-              onTap: _setPersonalPhoto,
-            ),
-            _SettingsButtonRow(
-              icon: Icons.refresh,
-              label: 'Reset to default',
-              iconColor: buttonColor,
-              textColor: textColor,
-              hoverBg: settingsBtnBg,
-              onTap: _clearPersonalPhoto,
-            ),
-            Divider(height: 1, color: dividerColor),
-            // Delete contact
-            _SettingsButtonRow(
-              icon: Icons.delete_outline,
-              label: 'Delete Contact',
-              iconColor: const Color(0xFFe53935),
-              textColor: const Color(0xFFe53935),
-              hoverBg: settingsBtnBg,
-              onTap: _confirmDelete,
-            ),
+            if (widget.contact.isContact) ...[
+              Divider(height: 1, color: dividerColor),
+              if (!_hasBirthday)
+                _SettingsButtonRow(
+                  icon: Icons.cake_outlined,
+                  label: 'Suggest Birthday',
+                  iconColor: buttonColor,
+                  textColor: textColor,
+                  hoverBg: settingsBtnBg,
+                  onTap: _suggestBirthday,
+                ),
+              _SettingsButtonRow(
+                icon: Icons.card_giftcard,
+                label: 'Suggest photo',
+                iconColor: buttonColor,
+                textColor: textColor,
+                hoverBg: settingsBtnBg,
+                onTap: _suggestPhoto,
+              ),
+              _SettingsButtonRow(
+                icon: Icons.add_a_photo_outlined,
+                label: 'Set personal photo',
+                iconColor: buttonColor,
+                textColor: textColor,
+                hoverBg: settingsBtnBg,
+                onTap: _setPersonalPhoto,
+              ),
+              if (_hasPersonalPhoto)
+                _SettingsButtonRow(
+                  icon: Icons.refresh,
+                  label: 'Reset to default',
+                  iconColor: buttonColor,
+                  textColor: textColor,
+                  hoverBg: settingsBtnBg,
+                  onTap: _clearPersonalPhoto,
+                ),
+              Divider(height: 1, color: dividerColor),
+              _SettingsButtonRow(
+                icon: Icons.delete_outline,
+                label: 'Delete Contact',
+                iconColor: const Color(0xFFe53935),
+                textColor: const Color(0xFFe53935),
+                hoverBg: settingsBtnBg,
+                onTap: _confirmDelete,
+              ),
+            ],
             if (_error != null) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(19, 4, 19, 0),

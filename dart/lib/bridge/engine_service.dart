@@ -461,7 +461,10 @@ class EngineService {
     return utf8.decode(respBytes);
   }
 
-  Future<String> addContact(String accountId, String phone, String firstName, String lastName, {String note = ''}) async {
+  Future<String> addContact(String accountId, String phone, String firstName, String lastName, {String note = '', String userId = ''}) async {
+    if (userId.isNotEmpty && (phone.isEmpty || phone == '+0')) {
+      return addContactByUser(accountId, userId, firstName, lastName, note: note);
+    }
     final req = epb.EngineAddContactRequest()
       ..accountId = accountId
       ..phone = phone
@@ -473,6 +476,29 @@ class EngineService {
     final respBytes = await _callAsync('__engine', 'AddContact', req.writeToBuffer());
     if (respBytes == null || respBytes.isEmpty) return '';
     return utf8.decode(respBytes);
+  }
+
+  Future<String> addContactByUser(String accountId, String userId, String firstName, String lastName, {String note = ''}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'user_id': userId,
+      'first_name': firstName,
+      'last_name': lastName,
+      'note': note,
+    }));
+    final respBytes = await _callAsync('__engine', 'AddContactByUser', Uint8List.fromList(payload));
+    if (respBytes == null || respBytes.isEmpty) return '';
+    return utf8.decode(respBytes);
+  }
+
+  Future<Map<String, dynamic>> getContactFullInfo(String accountId, String userId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'user_id': userId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetContactFullInfo', Uint8List.fromList(payload));
+    if (respBytes == null || respBytes.isEmpty) return {};
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
   Future<void> suggestContactPhoto(String accountId, String userId, String photoPath) async {
@@ -553,13 +579,13 @@ class EngineService {
     _callRaw('__engine', 'RemoveSavedReactionTag', Uint8List.fromList(payload));
   }
 
-  List<ChatInfo> searchGlobalChats(String accountId, String query, {int limit = 20}) {
+  Future<List<ChatInfo>> searchGlobalChats(String accountId, String query, {int limit = 20}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'query': query,
       'limit': limit,
     }));
-    final respBytes = _callRaw('__engine', 'SearchGlobalChats', Uint8List.fromList(payload));
+    final respBytes = await _callAsync('__engine', 'SearchGlobalChats', Uint8List.fromList(payload));
     if (respBytes.isEmpty) return [];
     final list = json.decode(utf8.decode(respBytes)) as List<dynamic>;
     return list.map((e) => ChatInfo.fromJson(e as Map<String, dynamic>)).toList();
@@ -5617,6 +5643,7 @@ class EngineService {
     avatarB64: p.avatarB64,
     isBot: p.isBot,
     isOnline: p.isOnline,
+    isContact: true,
     storyCount: p.storyCount,
     hasUnreadStory: p.hasUnreadStory,
     isVerified: p.isVerified,
