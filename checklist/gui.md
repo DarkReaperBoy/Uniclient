@@ -498,14 +498,6 @@ return ClipOval(
 ## Cover / Header
 
 - [ ] [MAJOR] Mute menu uses hardcoded duration list `['1h','4h','8h','2d','1w','forever']` instead of dynamic session mute periods — `info_panel.dart:1089` ← `AyuGramDesktop/Telegram/SourceFiles/menu/menu_mute.cpp:337`
-- [ ] [MAJOR] Mute menu missing "Select Sound" and "Toggle Sound On/Off" actions — `info_panel.dart:1089` ← `AyuGramDesktop/Telegram/SourceFiles/menu/menu_mute.cpp:313`
-- [ ] [MAJOR] Mute menu missing "Custom duration…" picker (`PickMuteBox`) — `info_panel.dart:1089` ← `AyuGramDesktop/Telegram/SourceFiles/menu/menu_mute.cpp:358`
-- [ ] [MAJOR] Avatar viewer is single-photo only with no gallery navigation; AyuGram shows full photo gallery with prev/next navigation — `info_panel.dart:1159` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_cover.cpp`
-- [ ] [MAJOR] Emoji status pattern painter draws static colored dots, not actual emoji glyphs/sticker player — `info_panel.dart:1394` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_cover.cpp:67`
-- [ ] [MAJOR] Topic icon renders as static fallback only; no animated Lottie/WebM sticker player (`TopicIconView::setupPlayer`) — `info_panel.dart:1467` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_cover.cpp:101`
-- [ ] [MAJOR] Gift/Star Gift button missing from action row for premium peers — `info_panel.dart:889` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_top_bar.cpp:956`
-- [ ] [MAJOR] "Discuss" button missing from channel cover action row — `info_panel.dart:889` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_top_bar.cpp:910`
-- [ ] [MAJOR] "Join" button missing from action row for public channels/groups the user hasn't joined — `info_panel.dart:889` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_top_bar.cpp:789`
 
 ## Profile Details
 
