@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
@@ -374,70 +375,89 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
               Padding(
                 padding: EdgeInsets.fromLTRB(
                     kBoxPadding.left, 0, kBoxPadding.right, 0),
-                child: Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        SizedBox(
-                          height: pickerSize,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _GradientSquare(
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              height: pickerSize,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  DecoratedBox(
+                                    decoration: const BoxDecoration(
+                                      boxShadow: [
+                                        BoxShadow(color: Color(0x1A000000), blurRadius: 4, offset: Offset(0, 2)),
+                                      ],
+                                    ),
+                                    child: _GradientSquare(
+                                      pickerSize: pickerSize,
+                                      hue: _hue,
+                                      saturation: _saturation,
+                                      brightness: _brightness,
+                                      onChanged: (s, b) {
+                                        setState(() {
+                                          _saturation = s;
+                                          _brightness = b;
+                                          _syncAllFields();
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  SizedBox(width: _kEditSkip),
+                                  _VerticalHueSlider(
+                                    pickerSize: pickerSize,
+                                    value: 1.0 - _hue / 360,
+                                    arrowColor: accentFg,
+                                    onChanged: (v) {
+                                      setState(() {
+                                        _hue = (1.0 - v) * 360;
+                                        _syncAllFields();
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (widget.showOpacity) ...[
+                              const SizedBox(height: 2),
+                              _HorizontalOpacitySlider(
                                 pickerSize: pickerSize,
                                 hue: _hue,
                                 saturation: _saturation,
                                 brightness: _brightness,
-                                onChanged: (s, b) {
-                                  setState(() {
-                                    _saturation = s;
-                                    _brightness = b;
-                                    _syncAllFields();
-                                  });
-                                },
-                              ),
-                              SizedBox(width: _kEditSkip),
-                              _VerticalHueSlider(
-                                pickerSize: pickerSize,
-                                value: 1.0 - _hue / 360,
+                                value: _opacity,
                                 arrowColor: accentFg,
                                 onChanged: (v) {
                                   setState(() {
-                                    _hue = (1.0 - v) * 360;
+                                    _opacity = v;
                                     _syncAllFields();
                                   });
                                 },
                               ),
                             ],
-                          ),
+                          ],
                         ),
-                        if (widget.showOpacity) ...[
-                          const SizedBox(height: 2),
-                          _HorizontalOpacitySlider(
-                            pickerSize: pickerSize,
-                            hue: _hue,
-                            saturation: _saturation,
-                            brightness: _brightness,
-                            value: _opacity,
-                            arrowColor: accentFg,
-                            onChanged: (v) {
-                              setState(() {
-                                _opacity = v;
-                                _syncAllFields();
-                              });
-                            },
-                          ),
-                        ],
+                        SizedBox(width: _kEditSkip),
+                        SizedBox(
+                          width: _kMinFieldWidth,
+                          child: _buildFieldColumn(
+                              p.boxTitleAdditionalFg, isDark),
+                        ),
                       ],
                     ),
-                    SizedBox(width: _kEditSkip),
-                    SizedBox(
-                      width: _kMinFieldWidth,
-                      child: _buildFieldColumn(
-                          p.boxTitleAdditionalFg, isDark),
+                    const SizedBox(height: _kSliderSkip),
+                    _hexField(
+                      p.boxTitleAdditionalFg,
+                      isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000),
+                      isDark ? const Color(0xFF3A4655) : const Color(0xFFD9D9D9),
                     ),
                   ],
                 ),
@@ -455,6 +475,45 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     );
   }
 
+  Widget _buildCheckerboard(double height) {
+    return CustomPaint(
+      size: Size(double.infinity, height),
+      painter: _CheckerboardPainter(),
+    );
+  }
+
+  Widget _buildSwatch(Color color, {bool isCurrent = true}) {
+    final showChecker = widget.showOpacity && color.alpha < 255;
+    final content = Container(
+      height: _kSwatchHeight,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          if (showChecker)
+            Positioned.fill(child: _buildCheckerboard(_kSwatchHeight)),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!isCurrent) {
+      return GestureDetector(
+        onTap: _resetToOriginal,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: content,
+        ),
+      );
+    }
+    return content;
+  }
+
   Widget _buildFieldColumn(Color labelFg, bool isDark) {
     final textFg =
         isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
@@ -464,28 +523,23 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          height: _kSwatchHeight,
+        DecoratedBox(
           decoration: BoxDecoration(
-            color: _currentColor,
             borderRadius: BorderRadius.circular(4),
+            boxShadow: const [
+              BoxShadow(color: Color(0x1A000000), blurRadius: 3, offset: Offset(0, 1)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildSwatch(_currentColor, isCurrent: true),
+              const SizedBox(height: 2),
+              _buildSwatch(widget.initialColor, isCurrent: false),
+            ],
           ),
         ),
-        const SizedBox(height: 2),
-        GestureDetector(
-          onTap: _resetToOriginal,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: Container(
-              height: _kSwatchHeight,
-              decoration: BoxDecoration(
-                color: widget.initialColor,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 13),
         _numField('H', _hCtrl, 360, _hFocus, 0, labelFg, textFg, borderColor,
             _onHSBFieldChanged, suffix: '°'),
         _numField('S', _sCtrl, 100, _sFocus, 1, labelFg, textFg, borderColor,
@@ -499,8 +553,6 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
             _onRGBFieldChanged),
         _numField('B', _blueCtrl, 255, _blueFocus, 5, labelFg, textFg,
             borderColor, _onRGBFieldChanged),
-        const SizedBox(height: 6),
-        _hexField(labelFg, textFg, borderColor),
       ],
     );
   }
@@ -520,10 +572,19 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     return Listener(
       onPointerSignal: (event) {
         if (event is PointerScrollEvent && focusNode.hasFocus) {
-          _wheelAccum += (-event.scrollDelta.dy).toInt();
-          final steps = _wheelAccum ~/ 5;
+          var deltaX = -event.scrollDelta.dx.toInt();
+          var deltaY = -event.scrollDelta.dy.toInt();
+          if (defaultTargetPlatform == TargetPlatform.macOS) {
+            deltaY = -deltaY;
+          } else {
+            deltaX = -deltaX;
+          }
+          final delta = (deltaX.abs() > deltaY.abs()) ? deltaX : deltaY;
+          _wheelAccum += delta;
+          const kStep = 5;
+          final steps = _wheelAccum ~/ kStep;
           if (steps != 0) {
-            _wheelAccum -= steps * 5;
+            _wheelAccum -= steps * kStep;
             _changeFieldValue(ctrl, max, steps);
           }
         }
@@ -787,16 +848,7 @@ class _CrosshairPainter extends CustomPainter {
         0.2989 * c.red / 255 + 0.5870 * c.green / 255 + 0.1140 * c.blue / 255;
     final fg =
         lum > 0.6 ? const Color(0xFF000000) : const Color(0xFFFFFFFF);
-    final shadow =
-        lum > 0.6 ? const Color(0x4DFFFFFF) : const Color(0x4D000000);
 
-    canvas.drawCircle(
-        pos,
-        _kCrosshairRadius + _kCrosshairStroke,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = _kCrosshairStroke
-          ..color = shadow);
     canvas.drawCircle(
         pos,
         _kCrosshairRadius,
@@ -813,6 +865,28 @@ class _CrosshairPainter extends CustomPainter {
       old.hue != hue ||
       old.saturation != saturation ||
       old.brightness != brightness;
+}
+
+class _CheckerboardPainter extends CustomPainter {
+  static const _checkSize = 4.0;
+  static final _light = Paint()..color = Colors.white;
+  static final _dark = Paint()..color = const Color(0xFFCCCCCC);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (var y = 0.0; y < size.height; y += _checkSize) {
+      for (var x = 0.0; x < size.width; x += _checkSize) {
+        final odd = ((x ~/ _checkSize) + (y ~/ _checkSize)) % 2 == 0;
+        canvas.drawRect(
+          Rect.fromLTWH(x, y, _checkSize, _checkSize),
+          odd ? _dark : _light,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ─── Vertical hue slider ────────────────────────────────────────────────────
