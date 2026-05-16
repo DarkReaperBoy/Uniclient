@@ -371,40 +371,16 @@ The Dart file implements `ColorEditor::Mode::RGBA` layout (HSV picker, vertical 
 
 # contacts_screen — Audit Findings
 
-
-# custom_emoji_cache — Audit Findings
-
-- [ ] [MAJOR] `kPreloadFrames * kPerRow` (= 48) used as the max number of emoji document IDs to preload in `preloadBatch`, but both constants are animation-frame concepts: `kPreloadFrames=3` is the lookahead frame count before the next frame is needed (renders 3 frames ahead during playback), and `kPerRow=16` is sprite-sheet columns. Their product has no semantic meaning as a document preload count — `custom_emoji_cache.dart:209` ← `AyuGramDesktop/Telegram/lib_ui/ui/text/custom_emoji_instance.cpp:25` (kPreloadFrames lookahead), `:102` in `custom_emoji_instance.h` (kPerRow sprite columns), `:513` (kPreloadFrames used for frame-ahead preloading only)
-
-- [ ] [MAJOR] `kMaxFrames=180` is used at line 203 to cap the document ID list passed to `preloadBatch`, but in AyuGram this constant means "maximum animation frames per emoji" — it is used to validate deserialized frame counts and reserve sprite cache capacity, never to limit document counts — `custom_emoji_cache.dart:203` ← `AyuGramDesktop/Telegram/lib_ui/ui/text/custom_emoji_instance.cpp:23` (declaration), `:179` (validation: `header.frames >= kMaxFrames`), `:501` (reserve: `std::max(count, kMaxFrames)`)
-
-- [ ] [MAJOR] `_globalListeners` fires unconditionally on every batch completion regardless of which document changed: `_notifyListeners` at line 473 iterates all global listeners after every thumb/file fetch, even if only one emoji changed. AyuGram's repaint model calls `object->repaint()` only on `Object` instances that are actively using the specific emoji instance that changed — `custom_emoji_cache.dart:473` ← `AyuGramDesktop/Telegram/lib_ui/ui/text/custom_emoji_instance.cpp:785-787` (`for (const auto &object : _usage) { object->repaint(); }`)
-
-- [ ] [MAJOR] `addListener` at line 122 has no deduplication: `_globalListeners.add(cb)` always appends. If the same callback is registered N times (common under Flutter widget rebuild without strict dispose discipline), it fires N times per notification. AyuGram ties repaints to unique `Object*` pointers via `base::flat_set`, making double-registration impossible — `custom_emoji_cache.dart:122` ← `AyuGramDesktop/Telegram/lib_ui/ui/text/custom_emoji_instance.h:254` (`base::flat_set<not_null<Object*>> _usage`), `custom_emoji_instance.cpp:791-792` (`_usage.emplace(object)`, idempotent set insert)
-
-- [ ] [MAJOR] `_evictFromMemory` (lines 183–189) removes `_files`, `_fileFailed`, and `_failed` but does not clear `_pending` or `_filePending`. If a document's ref-count drops to zero while its thumb/file fetch is in-flight, `_pending` stays set. When any widget re-acquires the same document and calls `request()`, line 275 returns early (`_pending.contains(documentId)`) with no new request queued. The widget must rely on a listener registered before calling `request()` to eventually receive the notification when the in-flight fetch finally resolves — `custom_emoji_cache.dart:183` ← `AyuGramDesktop/Telegram/lib_ui/ui/text/custom_emoji_instance.cpp:797-810` (`_usage.empty()` → `state.unload()` cleanly transitions state machine to `Loading`, no stale pending flags)
-
-- [ ] [MAJOR] Reference counting uses `Map<_InstanceKey, int>` integer arithmetic (lines 152, 164): each `acquire` always increments, each `release` always decrements. Asymmetric calls (acquire twice, release once, or vice versa) silently desynchronize the count. AyuGram uses `base::flat_set<not_null<Object*>>`: `emplace` is idempotent and `remove` is safe, so the same Object acquiring twice is correctly counted as one reference — `custom_emoji_cache.dart:89` ← `AyuGramDesktop/Telegram/lib_ui/ui/text/custom_emoji_instance.h:254` (`base::flat_set<not_null<Object*>> _usage`), `custom_emoji_instance.cpp:791-796`
-
 # edit_forum_topic_box — Audit findings
-
-- [ ] [CRITICAL] Box corner radius is 3px but AyuGram uses `boxRadius: 6px` (50% deviation, exceeds 25% threshold) — `edit_forum_topic_box.dart:13` (`const double _boxRadius = 3`) ← `AyuGram/Telegram/lib_ui/ui/layers/layers.style:38` (`boxRadius: 6px`)
-
-- [ ] [MAJOR] Box width is 364px but AyuGram GenericBox uses default `boxWidth: 320px` (14% deviation) — `edit_forum_topic_box.dart:12` (`const double _boxWidth = 364`) ← `AyuGram/Telegram/lib_ui/ui/layers/layers.style:117` (`boxWidth: 320px`)
 
 - [ ] [MAJOR] Premium emoji blocked notification uses a floating `SnackBar` with an external `launchUrl` to `https://t.me/premium`, but AyuGram shows a `HistoryView::StickerToast` (an in-app rich premium sticker preview popup, `Section::TopicIcon`) — `edit_forum_topic_box.dart:507-538` (`_showPremiumRequiredDialog` / `SnackBar`) ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_forum_topic_box.cpp:335-345` (`showToast` / `StickerToast::Section::TopicIcon`)
 
-- [ ] [MAJOR] Bot thread title field hint text is "Bot Thread Title" but the correct string is "Thread Name" (`lng_bot_thread_title`) — `edit_forum_topic_box.dart:429` (`'Bot Thread Title'`) ← `AyuGram/Telegram/Resources/langs/lang.strings:7318` (`"lng_bot_thread_title" = "Thread Name"`)
-
 - [ ] [MAJOR] Icon selector is a simplified 2-tab Wrap grid (recent colors + server icons) instead of the full `EmojiListWidget` with `Mode::TopicIcon` (proper scrollable emoji panel with category footer, sticker sets, and `customRecentFactory` for animated custom emoji rendering) — `edit_forum_topic_box.dart:541-671` (`_buildIconSelectorPanel` / `_buildCategoryTabBar` / `_buildIconGrid`) ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_forum_topic_box.cpp:248-393` (`AddIconSelector` / `EmojiListWidget` / `Mode::TopicIcon`)
 
-# edit_mark_box — Critical hint text mismatch
+# edit_mark_box — Remaining issues
 
-- [ ] [CRITICAL] Hint text semantics differ from AyuGram — `edit_mark_box.dart:95` uses `defaultValue` as hint, but AyuGram `edit_mark_box.cpp:32` passes `title` as InputField placeholder. When `defaultValue` is "edited" and `title` is "Edited Mark", users see different hint text. AyuGram shows the box title as placeholder; Dart shows the default mark value. This breaks visual parity.
+- [ ] [MAJOR] Placeholder/hint text font weight not specified — `edit_mark_box.dart:94-99` and the running implementation in `ayu_chats_page.dart` both use `InputDecoration` with no `fontWeight` in `hintStyle`. AyuGram `lib_ui/ui/widgets/widgets.style:placeholderFont: font(semibold 14px)` specifies semibold. Dart hint text is not semibold, causing visual divergence.
 
-- [ ] [MAJOR] Placeholder/hint text font weight not specified — `edit_mark_box.dart:94-99` uses bare `InputDecoration` with no `hintStyle` parameter, so hint text uses theme default (likely regular weight). AyuGram `lib_ui/ui/widgets/widgets.style:placeholderFont: font(semibold 14px)` specifies semibold. Dart hint text is not semibold, causing visual divergence.
-
-- [ ] [MAJOR] Error message differs from spec — `edit_mark_box.dart:98` hardcodes 'This field is required', but AyuGram relies on InputField's `showError()` method which uses style-defined error message. The error message text may not match AyuGram's localized strings.
 
 # emoji_panel — Audit Findings
 
