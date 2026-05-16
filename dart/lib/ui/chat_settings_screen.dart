@@ -1,6 +1,9 @@
+import 'dart:async';
+import 'dart:convert' show Base64Decoder;
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui_dart;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -34,11 +37,11 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   bool _showAllCloudThemes = false;
   int _activeCloudThemeId = 0;
   bool _tileBackground = true;
-  bool _adaptiveLayout = true;
   String get _sendBy => context.read<AppState>().sendBy;
   bool _sensitiveEnabled = false;
   bool _sensitiveCanChange = false;
   bool _sensitiveLoaded = false;
+  Timer? _sensitiveTimer;
 
 
   @override
@@ -49,6 +52,15 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     _loadSelfColor();
     _loadCloudThemes();
     _loadContentSettings();
+    _sensitiveTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      _loadContentSettings();
+    });
+  }
+
+  @override
+  void dispose() {
+    _sensitiveTimer?.cancel();
+    super.dispose();
   }
 
   void _loadSelfColor() {
@@ -138,10 +150,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       type: FileType.custom,
       allowedExtensions: ['jpeg', 'jpg', 'png', 'bmp', 'webp'],
     );
-    await _applyPickedWallpaper(result);
-  }
-
-  Future<void> _applyPickedWallpaper(FilePickerResult? result) async {
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
     Uint8List? bytes;
@@ -152,12 +160,25 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     }
     if (bytes == null || !mounted) return;
     final processed = encodeWallpaperJpeg(bytes);
-    final appState = context.read<AppState>();
-    appState.setWallpaper(WallpaperData.fromImage(
-      processed,
-      tiled: _tileBackground,
-    ));
-    setState(() {});
+    final confirmed = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => _BackgroundPreviewBox(
+        imageBytes: processed,
+        initialBlurred: false,
+        initialTiled: _tileBackground,
+      ),
+    );
+    if (confirmed != null && mounted) {
+      final appState = context.read<AppState>();
+      final blurred = confirmed['blurred'] as bool? ?? false;
+      final tiled = confirmed['tiled'] as bool? ?? _tileBackground;
+      appState.setWallpaper(WallpaperData.fromImage(
+        processed,
+        tiled: tiled,
+        blur: blurred,
+      ));
+      setState(() => _tileBackground = tiled);
+    }
   }
 
   @override
@@ -236,7 +257,38 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             currentTheme: appState.themeId,
             accentColor: currentAccent,
             onThemeSelected: (themeId) {
-              appState.applyTestingTheme(themeId);
+              final preset = _themePresets.firstWhere((p) => p.id == themeId);
+              final currentIsNight = appState.themeId == 'night' || appState.themeId == 'night_green';
+              final targetIsNight = preset.isDarkTheme;
+              if (currentIsNight != targetIsNight) {
+                showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Switch Mode'),
+                    content: Text(
+                      targetIsNight
+                          ? 'Switch to night mode?'
+                          : 'Switch to day mode?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        child: const Text('Switch'),
+                      ),
+                    ],
+                  ),
+                ).then((confirmed) {
+                  if (confirmed == true && mounted) {
+                    appState.applyTestingTheme(themeId);
+                  }
+                });
+              } else {
+                appState.applyTestingTheme(themeId);
+              }
             },
           ),
           const SizedBox(height: 8),
@@ -244,6 +296,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             currentColor: currentAccent,
             isDark: isDark,
             themeId: appState.themeId,
+            wallpaper: appState.wallpaper,
             onColorSelected: (color) {
               final hex = '#${color.value.toRadixString(16).padLeft(8, '0').substring(2)}';
               appState.updateAccentColor(hex);
@@ -306,24 +359,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 );
               }
             },
-            onEditTheme: () => _openThemeEditor(context),
-          ),
-          InkWell(
-            onTap: () => _openThemeEditor(context),
-            hoverColor: isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
-            child: Padding(
-              padding: SettingsStyle.iconRowPadding,
-              child: Row(
-                children: [
-                  Icon(Icons.palette_outlined, size: 20, color: currentAccent),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Edit Current Theme',
-                    style: TextStyle(fontSize: 14, color: currentAccent),
-                  ),
-                ],
-              ),
-            ),
+            onEditTheme: _activeCloudThemeId != 0 &&
+                _cloudThemes.any((t) => t.id == _activeCloudThemeId && t.isCreator)
+                ? () => _openThemeEditor(context)
+                : null,
           ),
           const SizedBox(height: 8),
           Container(height: 1, color: dividerColor),
@@ -338,16 +377,41 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           _AutoNightRow(
             isDark: isDark,
             enabled: appState.systemDarkModeEnabled,
-            onChanged: (v) => appState.setSystemDarkMode(v),
+            isEditingTheme: appState.isEditingTheme,
+            onChanged: (v) {
+              if (v && appState.isEditingTheme) {
+                showTelegramToast(context, 'Cannot change theme mode while editing a theme.');
+                return;
+              }
+              appState.setSystemDarkMode(v);
+            },
           ),
           _FontFamilyRow(
             isDark: isDark,
             currentFont: appState.customFontFamily,
             onFontChanged: (f) {
               appState.customFontFamily = f;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Restart app to apply font changes.')),
-              );
+              showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Font Changed'),
+                  content: const Text('The app needs to restart to apply the new font.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      child: const Text('Later'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                      child: const Text('Restart Now'),
+                    ),
+                  ],
+                ),
+              ).then((restart) {
+                if (restart == true && mounted) {
+                  SystemNavigator.pop();
+                }
+              });
             },
           ),
           const SizedBox(height: 7),
@@ -356,7 +420,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           _ChatBackgroundSection(
             isDark: isDark,
             tileBackground: _tileBackground,
-            adaptiveLayout: _adaptiveLayout,
+            adaptiveLayout: appState.adaptiveForWide,
             accentColor: currentAccent,
             wallpaper: appState.wallpaper,
             onTileChanged: (v) {
@@ -375,7 +439,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 ));
               }
             },
-            onAdaptiveChanged: (v) => setState(() => _adaptiveLayout = v),
+            onAdaptiveChanged: (v) => appState.adaptiveForWide = v,
             onPickGallery: _pickFromGallery,
             onPickFile: _pickFromFile,
           ),
@@ -396,6 +460,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           _StickersEmojiSection(
             isDark: isDark,
             accentColor: currentAccent,
+            isPremium: appState.activeAccount?.isPremium ?? false,
             largeEmoji: appState.chatLargeEmoji,
             replaceEmojis: appState.chatReplaceEmojis,
             suggestEmoji: appState.chatSuggestEmoji,
@@ -441,10 +506,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   showDialog<bool>(
                     context: context,
                     builder: (ctx) => AlertDialog(
-                      title: const Text('Sensitive Content'),
+                      title: const Text('Age Verification Required'),
                       content: const Text(
-                        'You must be at least 18 years old to enable sensitive content. '
-                        'Are you sure you want to continue?',
+                        'This content may not be appropriate for all audiences. '
+                        'To display sensitive media in chats, confirm that you are over 18 years of age.',
                       ),
                       actions: [
                         TextButton(
@@ -453,7 +518,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                         ),
                         TextButton(
                           onPressed: () => Navigator.of(ctx).pop(true),
-                          child: const Text('Enable'),
+                          child: const Text('I am over 18'),
                         ),
                       ],
                     ),
@@ -621,7 +686,12 @@ class _ThemeCardRow extends StatelessWidget {
   }
 
   bool _isExactMatch(_ThemePreset preset) {
-    return preset.id == currentTheme;
+    if (preset.id == currentTheme) return true;
+    final isCurrentNight = currentTheme == 'night' || currentTheme == 'night_green' || currentTheme == 'dark';
+    final isCurrentDay = !isCurrentNight;
+    if (isCurrentNight && preset.isDarkTheme && preset.id == 'night') return true;
+    if (isCurrentDay && !preset.isDarkTheme && preset.id == 'day_blue') return true;
+    return false;
   }
 }
 
@@ -767,12 +837,14 @@ class _AccentColorPalette extends StatelessWidget {
   final Color currentColor;
   final bool isDark;
   final String themeId;
+  final WallpaperData? wallpaper;
   final ValueChanged<Color> onColorSelected;
 
   const _AccentColorPalette({
     required this.currentColor,
     required this.isDark,
     required this.themeId,
+    this.wallpaper,
     required this.onColorSelected,
   });
 
@@ -783,6 +855,7 @@ class _AccentColorPalette extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final presets = TelegramPalette.accentsForTheme(themeId);
+    if (presets.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22),
       child: Row(
@@ -826,9 +899,13 @@ class _AccentColorPalette extends StatelessWidget {
   }
 
   void _showHslPicker(BuildContext context) async {
+    final lightnessMin = isDark ? 0.15 : 0.3;
+    final lightnessMax = isDark ? 0.85 : 0.7;
     final result = await showColorPickerBox(
       context: context,
       initialColor: currentColor,
+      lightnessMin: lightnessMin,
+      lightnessMax: lightnessMax,
     );
     if (result != null) onColorSelected(result);
   }
@@ -1411,8 +1488,10 @@ class _EditPeerColorBox extends StatefulWidget {
 class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   late int _selected;
   bool _saving = false;
+  List<PeerColorEntry>? _serverColors;
+  bool _loadingColors = true;
 
-  static const _baseColors = [
+  static const _fallbackColors = [
     Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
     Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae),
     Color(0xFF6ec9cb),
@@ -1421,7 +1500,40 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   @override
   void initState() {
     super.initState();
-    _selected = widget.currentColorId.clamp(0, 6);
+    _selected = widget.currentColorId;
+    _loadColors();
+  }
+
+  Future<void> _loadColors() async {
+    try {
+      final engine = context.read<EngineService>();
+      final colors = await engine.getPeerColors(widget.accountId);
+      if (mounted) {
+        setState(() {
+          _serverColors = colors.where((c) => !c.hidden).toList();
+          _loadingColors = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingColors = false);
+    }
+  }
+
+  Color _colorForEntry(PeerColorEntry entry) {
+    final cols = widget.isDark ? entry.nightColors : entry.dayColors;
+    if (cols.isNotEmpty) return Color(0xFF000000 | (cols.first & 0xFFFFFF));
+    if (entry.colorId < _fallbackColors.length) return _fallbackColors[entry.colorId];
+    return _fallbackColors[entry.colorId % _fallbackColors.length];
+  }
+
+  Color _selectedColor() {
+    if (_serverColors != null) {
+      for (final c in _serverColors!) {
+        if (c.colorId == _selected) return _colorForEntry(c);
+      }
+    }
+    if (_selected >= 0 && _selected < _fallbackColors.length) return _fallbackColors[_selected];
+    return _fallbackColors[0];
   }
 
   @override
@@ -1430,11 +1542,16 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
     final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor = context.palette.windowBgActive;
 
+    final colors = _serverColors ?? [];
+    final displayColors = colors.isEmpty
+        ? List.generate(7, (i) => (i, _fallbackColors[i]))
+        : colors.map((c) => (c.colorId, _colorForEntry(c))).toList();
+
     return Dialog(
       backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 364),
+        constraints: const BoxConstraints(maxWidth: 400),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -1450,34 +1567,41 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                 ),
               ),
               const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(7, (i) {
-                  final isSelected = i == _selected;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selected = i),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: isSelected
-                            ? Border.all(color: accentColor, width: 2.5)
-                            : null,
-                      ),
-                      padding: EdgeInsets.all(isSelected ? 3 : 0),
-                      child: Container(
+              if (_loadingColors)
+                Center(child: SizedBox(
+                    width: 24, height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: accentColor)))
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: displayColors.map((entry) {
+                    final (colorId, color) = entry;
+                    final isSelected = colorId == _selected;
+                    return GestureDetector(
+                      onTap: () => setState(() => _selected = colorId),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 36,
+                        height: 36,
                         decoration: BoxDecoration(
-                          color: _baseColors[i],
                           shape: BoxShape.circle,
+                          border: isSelected
+                              ? Border.all(color: accentColor, width: 2.5)
+                              : null,
+                        ),
+                        padding: EdgeInsets.all(isSelected ? 3 : 0),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 8),
+                    );
+                  }).toList(),
+                ),
+              const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1493,7 +1617,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                       width: 18,
                       height: 18,
                       decoration: BoxDecoration(
-                        color: _baseColors[_selected],
+                        color: _selectedColor(),
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -1503,7 +1627,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: _baseColors[_selected],
+                        color: _selectedColor(),
                       ),
                     ),
                   ],
@@ -1557,17 +1681,20 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
 class _AutoNightRow extends StatelessWidget {
   final bool isDark;
   final bool enabled;
+  final bool isEditingTheme;
   final ValueChanged<bool> onChanged;
 
   const _AutoNightRow({
     required this.isDark,
     required this.enabled,
+    this.isEditingTheme = false,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final accentColor = context.palette.windowBgActive;
 
@@ -1595,9 +1722,18 @@ class _AutoNightRow extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                'Auto-Night Mode',
-                style: TextStyle(fontSize: 14, color: textColor),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Auto-Night Mode',
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                  Text(
+                    enabled ? 'On' : 'Off',
+                    style: TextStyle(fontSize: 12, color: subtextColor),
+                  ),
+                ],
               ),
             ),
             SizedBox(
@@ -1880,7 +2016,7 @@ class _CloudThemeSection extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                if (themes.length > 8)
+                if (themes.length > 4)
                   GestureDetector(
                     onTap: onToggleShowAll,
                     child: Text(
@@ -2367,12 +2503,13 @@ class _ChatBackgroundSectionState extends State<_ChatBackgroundSection>
             ],
           ),
           const SizedBox(height: 12),
-          _SettingsCheckbox(
-            label: 'Tile Background',
-            value: widget.tileBackground,
-            isDark: isDark,
-            onChanged: widget.onTileChanged,
-          ),
+          if (!wallpaper.isPattern && !wallpaper.isSolid)
+            _SettingsCheckbox(
+              label: 'Tile Background',
+              value: widget.tileBackground,
+              isDark: isDark,
+              onChanged: widget.onTileChanged,
+            ),
           if (isWide)
             _SettingsCheckbox(
               label: 'Adaptive Layout for Wide Screens',
@@ -2396,15 +2533,12 @@ class _WallpaperBrowser extends StatelessWidget {
   Widget build(BuildContext context) {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final colorWallpapers = wallpapers.where((w) {
-      final colors = w['colors'] as List<dynamic>?;
-      return colors != null && colors.isNotEmpty;
-    }).toList();
+    final accentColor = context.palette.windowBgActive;
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.6,
+      initialChildSize: 0.7,
       minChildSize: 0.3,
-      maxChildSize: 0.9,
+      maxChildSize: 0.95,
       expand: false,
       builder: (ctx, scrollController) => Column(
         children: [
@@ -2423,7 +2557,7 @@ class _WallpaperBrowser extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: colorWallpapers.isEmpty
+            child: wallpapers.isEmpty
                 ? Center(child: Text('No wallpapers available', style: TextStyle(color: subtextColor)))
                 : GridView.builder(
                     controller: scrollController,
@@ -2433,34 +2567,81 @@ class _WallpaperBrowser extends StatelessWidget {
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 8,
                     ),
-                    itemCount: colorWallpapers.length,
+                    itemCount: wallpapers.length,
                     itemBuilder: (ctx, i) {
-                      final wp = colorWallpapers[i];
-                      final colors = (wp['colors'] as List<dynamic>).cast<int>();
-                      final flutterColors = colors.map((c) => Color(0xFF000000 | (c & 0xFFFFFF))).toList();
+                      final wp = wallpapers[i];
+                      final colors = (wp['colors'] as List<dynamic>?)?.cast<int>() ?? [];
+                      final thumbB64 = wp['thumb_b64'] as String? ?? '';
+                      final isPattern = wp['is_pattern'] as bool? ?? false;
                       final rotation = wp['rotation'] as int? ?? 0;
+
+                      Widget content;
+                      if (thumbB64.isNotEmpty) {
+                        try {
+                          final bytes = Uint8List.fromList(
+                            const Base64Decoder().convert(thumbB64),
+                          );
+                          content = ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(bytes, fit: BoxFit.cover,
+                                width: double.infinity, height: double.infinity),
+                          );
+                        } catch (_) {
+                          content = _colorTile(colors, rotation);
+                        }
+                      } else {
+                        content = _colorTile(colors, rotation);
+                      }
+
+                      if (isPattern) {
+                        content = Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            content,
+                            Positioned(
+                              bottom: 4, right: 4,
+                              child: Icon(Icons.texture, size: 14,
+                                  color: Colors.white.withValues(alpha: 0.7)),
+                            ),
+                          ],
+                        );
+                      }
 
                       return GestureDetector(
                         onTap: () => Navigator.pop(ctx, wp),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            gradient: flutterColors.length > 1
-                                ? LinearGradient(
-                                    colors: flutterColors,
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    transform: GradientRotation(rotation * 3.14159 / 180),
-                                  )
-                                : null,
-                            color: flutterColors.length == 1 ? flutterColors.first : null,
-                          ),
-                        ),
+                        child: content,
                       );
                     },
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _colorTile(List<int> colors, int rotation) {
+    if (colors.isEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: isDark ? const Color(0xFF232E3C) : const Color(0xFFE0E0E0),
+        ),
+        child: Icon(Icons.image, color: isDark ? const Color(0xFF6C7883) : const Color(0xFF999999)),
+      );
+    }
+    final flutterColors = colors.map((c) => Color(0xFF000000 | (c & 0xFFFFFF))).toList();
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        gradient: flutterColors.length > 1
+            ? LinearGradient(
+                colors: flutterColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                transform: GradientRotation(rotation * 3.14159 / 180),
+              )
+            : null,
+        color: flutterColors.length == 1 ? flutterColors.first : null,
       ),
     );
   }
@@ -2605,73 +2786,143 @@ class _ChatListQuickActionSection extends StatelessWidget {
     ('disabled', 'Disabled', Icons.block),
   ];
 
+  IconData _iconForAction(String action) {
+    for (final (v, _, ic) in _actions) {
+      if (v == action) return ic;
+    }
+    return Icons.block;
+  }
+
+  String _labelForAction(String action) {
+    for (final (v, l, _) in _actions) {
+      if (v == action) return l;
+    }
+    return 'Disabled';
+  }
+
   @override
   Widget build(BuildContext context) {
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 22, top: 4, bottom: 8),
-          child: Text(
-            'Chat list quick action',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: accentColor,
+    return InkWell(
+      onTap: () => _showQuickActionChooser(context),
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: SettingsStyle.iconRowPadding,
+        child: Row(
+          children: [
+            Container(
+              width: SettingsStyle.iconSize,
+              height: SettingsStyle.iconSize,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF3E546A) : const Color(0xFF9E9E9E),
+                borderRadius: BorderRadius.circular(SettingsStyle.iconRadius),
+              ),
+              alignment: Alignment.center,
+              child: Icon(_iconForAction(currentAction),
+                  size: SettingsStyle.iconInner, color: Colors.white),
             ),
-          ),
-        ),
-        Center(
-          child: _QuickActionPreview(
-            action: currentAction,
-            isDark: isDark,
-            accentColor: accentColor,
-          ),
-        ),
-        const SizedBox(height: 12),
-        for (final (value, label, icon) in _actions)
-          InkWell(
-            onTap: () => onActionChanged(value),
-            child: Padding(
-              padding: const EdgeInsets.only(
-                  left: 22, top: 5, bottom: 5, right: 10),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: Radio<String>(
-                      value: value,
-                      groupValue: currentAction,
-                      onChanged: (v) {
-                        if (v != null) onActionChanged(v);
-                      },
-                      activeColor: accentColor,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Icon(
-                    icon,
-                    size: 20,
-                    color: value == currentAction ? accentColor : subtextColor,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    label,
-                    style: TextStyle(fontSize: 14, color: textColor),
-                  ),
-                ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Chat List Quick Action',
+                style: TextStyle(fontSize: 14, color: textColor),
               ),
             ),
+            Text(
+              _labelForAction(currentAction),
+              style: TextStyle(fontSize: 14, color: accentColor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showQuickActionChooser(BuildContext context) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    String selected = currentAction;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Chat List Quick Action'),
+          contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: _QuickActionPreview(
+                    action: selected,
+                    isDark: isDark,
+                    accentColor: accentColor,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                for (final (value, label, icon) in _actions)
+                  InkWell(
+                    onTap: () {
+                      setDialogState(() => selected = value);
+                      onActionChanged(value);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                          left: 22, top: 6, bottom: 6, right: 10),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: Radio<String>(
+                              value: value,
+                              groupValue: selected,
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setDialogState(() => selected = v);
+                                  onActionChanged(v);
+                                }
+                              },
+                              activeColor: accentColor,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(
+                            icon,
+                            size: 20,
+                            color: value == selected ? accentColor : subtextColor,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            label,
+                            style: TextStyle(fontSize: 14, color: textColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-      ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -2751,11 +3002,13 @@ class _QuickActionPreviewState extends State<_QuickActionPreview>
         actionLabel = 'Disabled';
     }
 
+    final triggerLabel = action == 'disabled' ? 'Swipe' : 'Both';
+
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 200),
       child: Container(
         key: ValueKey(action),
-        width: 260,
+        constraints: const BoxConstraints(maxWidth: 300),
         height: 62,
         decoration: BoxDecoration(
           color: chatRowBg,
@@ -2766,7 +3019,6 @@ class _QuickActionPreviewState extends State<_QuickActionPreview>
         ),
         child: Stack(
           children: [
-            // The revealed action area (right side).
             Positioned(
               right: 0,
               top: 0,
@@ -2804,7 +3056,6 @@ class _QuickActionPreviewState extends State<_QuickActionPreview>
                 ),
               ),
             ),
-            // The chat row sliding left.
             Positioned(
               left: 0,
               top: 0,
@@ -2862,6 +3113,21 @@ class _QuickActionPreviewState extends State<_QuickActionPreview>
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 2,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Text(
+                  triggerLabel,
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: isDark ? const Color(0xFF6C7883) : const Color(0xFF999999),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
@@ -2932,6 +3198,7 @@ class _CloudThemePreviewPainter extends CustomPainter {
 class _StickersEmojiSection extends StatelessWidget {
   final bool isDark;
   final Color accentColor;
+  final bool isPremium;
   final bool largeEmoji;
   final bool replaceEmojis;
   final bool suggestEmoji;
@@ -2948,6 +3215,7 @@ class _StickersEmojiSection extends StatelessWidget {
   const _StickersEmojiSection({
     required this.isDark,
     required this.accentColor,
+    this.isPremium = false,
     required this.largeEmoji,
     required this.replaceEmojis,
     required this.suggestEmoji,
@@ -3003,7 +3271,7 @@ class _StickersEmojiSection extends StatelessWidget {
           isDark: isDark,
           onChanged: onSuggestEmojiChanged,
         ),
-        if (suggestEmoji)
+        if (suggestEmoji && isPremium)
           _StickerCheckbox(
             label: 'Suggest Animated Emoji',
             value: suggestAnimatedEmoji,
@@ -3128,7 +3396,80 @@ void _showInstalledPacks(BuildContext context, bool isDark, String type) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
     ),
-    builder: (ctx) => DraggableScrollableSheet(
+    builder: (ctx) => _StickerPackManager(
+      accountId: account.id,
+      engine: engine,
+      isDark: isDark,
+      type: type,
+      title: title,
+      textColor: textColor,
+      subtextColor: subtextColor,
+      accentColor: accentColor,
+    ),
+  );
+}
+
+class _StickerPackManager extends StatefulWidget {
+  final String accountId;
+  final EngineService engine;
+  final bool isDark;
+  final String type;
+  final String title;
+  final Color textColor;
+  final Color subtextColor;
+  final Color accentColor;
+
+  const _StickerPackManager({
+    required this.accountId,
+    required this.engine,
+    required this.isDark,
+    required this.type,
+    required this.title,
+    required this.textColor,
+    required this.subtextColor,
+    required this.accentColor,
+  });
+
+  @override
+  State<_StickerPackManager> createState() => _StickerPackManagerState();
+}
+
+class _StickerPackManagerState extends State<_StickerPackManager> {
+  List<StickerPackSummary>? _packs;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final packs = await widget.engine.getInstalledStickerPacks(widget.accountId);
+    if (mounted) setState(() { _packs = packs; _loading = false; });
+  }
+
+  Future<void> _removePack(int index) async {
+    final pack = _packs![index];
+    try {
+      await widget.engine.uninstallStickerSet(widget.accountId, pack.setId, pack.accessHash);
+      setState(() => _packs!.removeAt(index));
+    } catch (_) {
+      if (mounted) showTelegramToast(context, 'Failed to remove pack');
+    }
+  }
+
+  void _reorder(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex--;
+    setState(() {
+      final item = _packs!.removeAt(oldIndex);
+      _packs!.insert(newIndex, item);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
       initialChildSize: 0.6,
       minChildSize: 0.3,
       maxChildSize: 0.9,
@@ -3139,65 +3480,72 @@ void _showInstalledPacks(BuildContext context, bool isDark, String type) {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+                Text(widget.title, style: TextStyle(
+                    fontSize: 17, fontWeight: FontWeight.w600, color: widget.textColor)),
                 const Spacer(),
                 IconButton(
-                  icon: Icon(Icons.close, color: subtextColor),
+                  icon: Icon(Icons.close, color: widget.subtextColor),
                   onPressed: () => Navigator.pop(ctx),
                 ),
               ],
             ),
           ),
           Expanded(
-            child: FutureBuilder<List<StickerPackSummary>>(
-              future: engine.getInstalledStickerPacks(account.id),
-              builder: (ctx, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator(color: accentColor));
-                }
-                final packs = snap.data ?? [];
-                if (packs.isEmpty) {
-                  return Center(
-                    child: Text('No ${type == 'stickers' ? 'sticker packs' : 'emoji sets'} installed',
-                      style: TextStyle(color: subtextColor)),
-                  );
-                }
-                return ListView.builder(
-                  controller: scrollController,
-                  itemCount: packs.length,
-                  itemBuilder: (ctx, i) {
-                    final pack = packs[i];
-                    return ListTile(
-                      leading: pack.stickers.isNotEmpty && pack.stickers.first.fileId.isNotEmpty
-                          ? Container(
-                              width: 40, height: 40,
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Center(child: Text(pack.stickers.first.emoji, style: const TextStyle(fontSize: 24))),
-                            )
-                          : Container(
-                              width: 40, height: 40,
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Icon(Icons.sticky_note_2, color: subtextColor),
+            child: _loading
+                ? Center(child: CircularProgressIndicator(color: widget.accentColor))
+                : _packs == null || _packs!.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No ${widget.type == 'stickers' ? 'sticker packs' : 'emoji sets'} installed',
+                          style: TextStyle(color: widget.subtextColor),
+                        ),
+                      )
+                    : ReorderableListView.builder(
+                        scrollController: scrollController,
+                        itemCount: _packs!.length,
+                        onReorder: _reorder,
+                        itemBuilder: (ctx, i) {
+                          final pack = _packs![i];
+                          return ListTile(
+                            key: ValueKey(pack.setId),
+                            leading: pack.stickers.isNotEmpty && pack.stickers.first.fileId.isNotEmpty
+                                ? Container(
+                                    width: 40, height: 40,
+                                    decoration: BoxDecoration(
+                                      color: widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Center(child: Text(
+                                        pack.stickers.first.emoji,
+                                        style: const TextStyle(fontSize: 24))),
+                                  )
+                                : Container(
+                                    width: 40, height: 40,
+                                    decoration: BoxDecoration(
+                                      color: widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Icon(Icons.sticky_note_2, color: widget.subtextColor),
+                                  ),
+                            title: Text(pack.title,
+                                style: TextStyle(color: widget.textColor, fontSize: 14)),
+                            subtitle: Text(
+                              '${pack.count} ${widget.type == 'stickers' ? 'stickers' : 'emoji'}',
+                              style: TextStyle(color: widget.subtextColor, fontSize: 12),
                             ),
-                      title: Text(pack.title, style: TextStyle(color: textColor, fontSize: 14)),
-                      subtitle: Text('${pack.count} ${type == 'stickers' ? 'stickers' : 'emoji'}',
-                        style: TextStyle(color: subtextColor, fontSize: 12)),
-                    );
-                  },
-                );
-              },
-            ),
+                            trailing: IconButton(
+                              icon: Icon(Icons.delete_outline, size: 20,
+                                  color: widget.subtextColor),
+                              onPressed: () => _removePack(i),
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _StickerNavButton extends StatelessWidget {
@@ -3518,32 +3866,33 @@ class _ReactionChooserButton extends StatefulWidget {
 
 class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
   List<String> _reactions = _ReactionChooserButton._fallbackReactions;
+  bool _loaded = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadReactions();
+    if (!_loaded) _loadReactions();
   }
 
-  void _loadReactions() {
+  Future<void> _loadReactions() async {
     try {
       final engine = context.read<EngineService>();
       final appState = context.read<AppState>();
       final account = appState.activeAccount;
       if (account != null) {
-        final tags = engine.getSavedReactionTags(account.id);
-        if (tags.isNotEmpty) {
-          final fromTags = tags.map((t) => t.emoji).where((e) => e.isNotEmpty).toList();
-          if (fromTags.length >= 4) {
-            setState(() => _reactions = fromTags);
-            return;
-          }
+        final available = await engine.getAvailableReactions(account.id);
+        if (available.isNotEmpty && mounted) {
+          setState(() {
+            _reactions = available;
+            _loaded = true;
+          });
+          return;
         }
       }
     } catch (_) {}
+    _loaded = true;
   }
 
-  @override
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -3564,6 +3913,7 @@ class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
   void _showReactionPicker(BuildContext context) {
     final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = context.palette.windowBgActive;
 
     showDialog(
       context: context,
@@ -3576,36 +3926,44 @@ class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Choose Reaction',
+              Text('Quick Reaction',
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 4),
+              Text('Choose your default quick reaction.',
+                style: TextStyle(fontSize: 13, color: textColor.withValues(alpha: 0.6))),
               const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _reactions.map((emoji) {
-                  final isSelected = emoji == widget.currentReaction;
-                  return GestureDetector(
-                    onTap: () {
-                      widget.onReactionSelected(emoji);
-                      Navigator.pop(ctx);
-                    },
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isSelected
-                            ? (widget.isDark ? const Color(0xFF2B5278) : const Color(0xFFE3F2FD))
-                            : (widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF5F5F5)),
-                        border: isSelected
-                            ? Border.all(color: context.palette.windowBgActive, width: 2)
-                            : null,
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(emoji, style: const TextStyle(fontSize: 22)),
-                    ),
-                  );
-                }).toList(),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 300),
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _reactions.map((emoji) {
+                      final isSelected = emoji == widget.currentReaction;
+                      return GestureDetector(
+                        onTap: () {
+                          widget.onReactionSelected(emoji);
+                          Navigator.pop(ctx);
+                        },
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isSelected
+                                ? (widget.isDark ? const Color(0xFF2B5278) : const Color(0xFFE3F2FD))
+                                : (widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF5F5F5)),
+                            border: isSelected
+                                ? Border.all(color: accentColor, width: 2)
+                                : null,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
               ),
             ],
           ),
@@ -3985,6 +4343,111 @@ class _SensitiveContentSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Background Preview Box (for "Choose from file") ──
+
+class _BackgroundPreviewBox extends StatefulWidget {
+  final Uint8List imageBytes;
+  final bool initialBlurred;
+  final bool initialTiled;
+
+  const _BackgroundPreviewBox({
+    required this.imageBytes,
+    required this.initialBlurred,
+    required this.initialTiled,
+  });
+
+  @override
+  State<_BackgroundPreviewBox> createState() => _BackgroundPreviewBoxState();
+}
+
+class _BackgroundPreviewBoxState extends State<_BackgroundPreviewBox> {
+  late bool _blurred;
+  late bool _tiled;
+
+  @override
+  void initState() {
+    super.initState();
+    _blurred = widget.initialBlurred;
+    _tiled = widget.initialTiled;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = context.palette.windowBgActive;
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 550),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Background Preview',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  height: 300,
+                  width: double.infinity,
+                  child: ImageFiltered(
+                    imageFilter: _blurred
+                        ? ui_dart.ImageFilter.blur(sigmaX: 10, sigmaY: 10)
+                        : ui_dart.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                    child: Image.memory(
+                      widget.imageBytes,
+                      fit: _tiled ? BoxFit.none : BoxFit.cover,
+                      repeat: _tiled ? ImageRepeat.repeat : ImageRepeat.noRepeat,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _SettingsCheckbox(
+                label: 'Blur wallpaper',
+                value: _blurred,
+                isDark: isDark,
+                onChanged: (v) => setState(() => _blurred = v),
+              ),
+              _SettingsCheckbox(
+                label: 'Tile wallpaper',
+                value: _tiled,
+                isDark: isDark,
+                onChanged: (v) => setState(() => _tiled = v),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel', style: TextStyle(color: accentColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop({
+                      'blurred': _blurred,
+                      'tiled': _tiled,
+                    }),
+                    child: Text('Apply', style: TextStyle(color: accentColor)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

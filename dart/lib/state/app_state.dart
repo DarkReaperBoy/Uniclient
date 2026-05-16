@@ -276,6 +276,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _chatShowReplyButton = true;
   bool _chatShowReactionButton = true;
   bool _useSystemAccent = false;
+  bool _adaptiveForWide = true;
   String _customFontFamily = 'Inter';
   String _appIcon = '';
   String _customDeviceModel = '';
@@ -2352,6 +2353,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   set chatShowReactionButton(bool v) { if (_chatShowReactionButton != v) { _chatShowReactionButton = v; _saveWindowPrefs(); notifyListeners(); } }
   bool get useSystemAccent => _useSystemAccent;
   set useSystemAccent(bool v) { if (_useSystemAccent != v) { _useSystemAccent = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get adaptiveForWide => _adaptiveForWide;
+  set adaptiveForWide(bool v) { if (_adaptiveForWide != v) { _adaptiveForWide = v; _saveWindowPrefs(); notifyListeners(); } }
   String get customFontFamily => _customFontFamily;
   set customFontFamily(String v) { if (_customFontFamily != v) { _customFontFamily = v; _saveWindowPrefs(); notifyListeners(); } }
   String get customDeviceModel => _customDeviceModel;
@@ -3160,6 +3163,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _chatShowReplyButton = data['chatShowReplyButton'] as bool? ?? true;
       _chatShowReactionButton = data['chatShowReactionButton'] as bool? ?? true;
       _useSystemAccent = data['useSystemAccent'] as bool? ?? false;
+      _adaptiveForWide = data['adaptiveForWide'] as bool? ?? true;
       _customFontFamily = data['customFontFamily'] as String? ?? 'Inter';
       _customDeviceModel = data['customDeviceModel'] as String? ?? '';
       _appIcon = data['appIcon'] as String? ?? '';
@@ -3408,6 +3412,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'chatShowReplyButton': _chatShowReplyButton,
         'chatShowReactionButton': _chatShowReactionButton,
         'useSystemAccent': _useSystemAccent,
+        'adaptiveForWide': _adaptiveForWide,
         'customFontFamily': _customFontFamily,
         'customDeviceModel': _customDeviceModel,
         'appIcon': _appIcon,

@@ -22,6 +22,8 @@ Future<Color?> showColorPickerBox({
   required Color initialColor,
   String title = 'Choose Color',
   bool showOpacity = false,
+  double? lightnessMin,
+  double? lightnessMax,
 }) {
   return showTelegramBox<Color>(
     context: context,
@@ -29,6 +31,8 @@ Future<Color?> showColorPickerBox({
       initialColor: initialColor,
       title: title,
       showOpacity: showOpacity,
+      lightnessMin: lightnessMin,
+      lightnessMax: lightnessMax,
     ),
   );
 }
@@ -37,11 +41,15 @@ class _ColorPickerBox extends StatefulWidget {
   final Color initialColor;
   final String title;
   final bool showOpacity;
+  final double? lightnessMin;
+  final double? lightnessMax;
 
   const _ColorPickerBox({
     required this.initialColor,
     required this.title,
     this.showOpacity = false,
+    this.lightnessMin,
+    this.lightnessMax,
   });
 
   @override
@@ -193,8 +201,15 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     super.dispose();
   }
 
+  double get _clampedBrightness {
+    var b = _brightness;
+    if (widget.lightnessMin != null && b < widget.lightnessMin!) b = widget.lightnessMin!;
+    if (widget.lightnessMax != null && b > widget.lightnessMax!) b = widget.lightnessMax!;
+    return b;
+  }
+
   Color get _currentColor =>
-      HSVColor.fromAHSV(_opacity, _hue, _saturation, _brightness).toColor();
+      HSVColor.fromAHSV(_opacity, _hue, _saturation, _clampedBrightness).toColor();
 
   static String _hex2(int v) => v.toRadixString(16).padLeft(2, '0');
 
