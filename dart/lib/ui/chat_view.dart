@@ -12108,15 +12108,33 @@ class _FormattingPainter extends CustomPainter {
     const outlineShift = 2.0;
 
     final isCode = entity.type == FormatType.code;
+    final isBlockquote = entity.type == FormatType.blockquote;
     final hasHeader = isCode && entity.language != null && entity.language!.isNotEmpty;
     final headerHeight = hasHeader ? 20.0 : 0.0;
 
+    final gutterOffset = isBlockquote ? -contentPadding.left + 2 : 0.0;
+    final blockLeft = isBlockquote ? gutterOffset : 0.0;
+
     final blockRect = Rect.fromLTRB(
-      0,
+      blockLeft,
       top - vSkip - headerHeight,
       textAreaWidth,
       bottom + vSkip,
     );
+
+    if (isBlockquote) {
+      final bgRect = RRect.fromRectAndCorners(
+        Rect.fromLTRB(
+          blockRect.left + outlineWidth,
+          blockRect.top,
+          blockRect.right,
+          blockRect.bottom,
+        ),
+        topRight: const Radius.circular(radius),
+        bottomRight: const Radius.circular(radius),
+      );
+      canvas.drawRRect(bgRect, Paint()..color = accent.withValues(alpha: 0.08));
+    }
 
     canvas.drawRRect(
       RRect.fromRectAndCorners(
@@ -14053,6 +14071,10 @@ class _ComposeAreaState extends State<_ComposeArea>
         ? widget.controller as RichTextEditingController
         : null;
 
+    final hasBlockquote = richCtrlEarly != null &&
+        richCtrlEarly.entities.any((e) => e.type == FormatType.blockquote);
+    final composeLeftPad = hasBlockquote ? 16.0 : 11.0;
+
     Widget field = ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 36, maxHeight: 224),
       child: TextField(
@@ -14091,7 +14113,7 @@ class _ComposeAreaState extends State<_ComposeArea>
                   : 'Write a message...',
           border: InputBorder.none,
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              EdgeInsets.fromLTRB(composeLeftPad, 8, 11, 8),
           isDense: true,
         ),
       ),
@@ -14258,14 +14280,14 @@ class _ComposeAreaState extends State<_ComposeArea>
                             controller: richCtrl,
                             scrollController: _scrollController,
                             textStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                            contentPadding: EdgeInsets.fromLTRB(composeLeftPad, 8, 11, 8),
                           ),
                         ),
                         _CodeHeaderTapLayer(
                           controller: richCtrl,
                           scrollController: _scrollController,
                           textStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                          contentPadding: EdgeInsets.fromLTRB(composeLeftPad, 8, 11, 8),
                           onLanguageTap: (entity) {
                             richCtrl.selection = TextSelection(
                               baseOffset: entity.offset,

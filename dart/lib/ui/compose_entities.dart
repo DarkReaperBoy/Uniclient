@@ -569,18 +569,7 @@ class RichTextEditingController extends TextEditingController {
           merged = merged.copyWith(color: spoilerFg);
         }
         if (active.contains(FormatType.blockquote) && !hasCode) {
-          final accent = palette.windowActiveTextFg;
-          final bgPaint = Paint()
-            ..shader = LinearGradient(
-              colors: [
-                accent.withValues(alpha: 0.4),
-                accent.withValues(alpha: 0.4),
-                accent.withValues(alpha: 0.08),
-                accent.withValues(alpha: 0.08),
-              ],
-              stops: const [0.0, 0.002, 0.002, 1.0],
-            ).createShader(const Rect.fromLTWH(0, 0, 1000, 1));
-          merged = merged.copyWith(background: bgPaint);
+          merged = merged.copyWith(height: 1.4);
         }
 
         spans.add(TextSpan(text: t.substring(segStart, segEnd), style: merged));
