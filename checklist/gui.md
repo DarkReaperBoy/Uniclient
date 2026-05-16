@@ -371,7 +371,6 @@ The Dart file implements `ColorEditor::Mode::RGBA` layout (HSV picker, vertical 
 
 # contacts_screen — Audit Findings
 
-- [ ] [CRITICAL] `AddContactWithNote` sends `InputUser{}` (ID=0, access_hash=0) — will be rejected by Telegram server; AyuGram passes `user->inputUser()` with resolved ID+hash — `go/cores/telegram.go:24901` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/add_contact_box.cpp` (`ContactsAddContact` with valid InputUser). Root cause: `AddContactWithNote` still has `&tg.InputUser{}` hardcoded. The routing condition `userId.isNotEmpty && (phone.isEmpty || phone == '+0')` misses the case where both userId and phone are present (existing contacts with phone numbers). Fix: change routing to always use `AddContactByUserID` when userId is available, regardless of phone; OR fix `AddContactWithNote` to look up the cached user hash via `t.getCachedUserHash(uid)`. The `AddContactByUserID` path (for username-only contacts) is correctly fixed.
 
 ## create_group_wizard — Backend wiring, missing error codes, clipboard, navigation race
 
