@@ -372,22 +372,6 @@ The Dart file implements `ColorEditor::Mode::RGBA` layout (HSV picker, vertical 
 # contacts_screen — Audit Findings
 
 
-## create_group_wizard — Backend wiring, missing error codes, clipboard, navigation race
-
-- [ ] [MAJOR] `_ContactRow` ignores `contact.lastSeenKind` / `contact.lastSeenTs` fields — subtitle always shows hardcoded `'last seen recently'` for offline contacts instead of real last-seen text (e.g. "last seen 2 hours ago") — `create_group_wizard.dart:1577` ← `boxes/peers/add_participants_box.cpp:868`
-
-- [ ] [MAJOR] `_pasteFromClipboard` silently fails on Windows — "Paste from Clipboard" menu item is shown (no platform guard) but the function only handles Linux (`wl-paste`/`xclip`) and macOS (`osascript`), so Windows always hits "No image in clipboard" — `create_group_wizard.dart:328-337,386-418` ← `boxes/peers/edit_peer_info_box.cpp:2817`
-
-- [ ] [MAJOR] `_submitGroup` / `_submitChannel` do not handle `PEER_FLOOD` or `USER_RESTRICTED` errors — AyuGram shows dedicated in-box error dialogs for both codes; Dart falls through to the generic `_error` string which shows raw API error text — `create_group_wizard.dart:710-724` ← `boxes/add_contact_box.cpp:771-778`
-
-- [ ] [MAJOR] `_navigateToChat` is called immediately after `_chatState.loadChats()` but the newly-created chat often isn't in the list yet (server update arrives after `getChatList` reads the cache) — result is the user is NOT navigated to the new group/channel; AyuGram holds a direct `_createdChannel` reference and passes it to `OpenPeer` — `create_group_wizard.dart:789-792` ← `boxes/add_contact_box.cpp:931-935`
-
-- [ ] [MAJOR] `_EditPeerTypeBoxState` loads `_isForum` from `getChatPermissionFlags` but never uses it anywhere — the field should influence the `CreateTopics` restriction label visibility in the permissions section, matching AyuGram which checks `options.isForum` when building restriction labels — `create_group_wizard.dart:2431,2502` ← `boxes/peers/edit_peer_permissions_box.cpp:104-117`
-
-- [ ] [MAJOR] `_checkUsernameApi` in the new-channel wizard (wizard step, not `_EditPeerTypeBox`) does not re-trigger the check after `_PublicLinksLimitBox` revokes a channel and the user returns — `_usernameValid` stays `false` and the username field status stays stale; the box must re-call `_checkUsernameApi` after the `revoked == true` branch at line 580, but only does so via `_onUsernameChanged` which re-validates client-side first and may not fire if text hasn't changed — `create_group_wizard.dart:574-583` ← `boxes/peers/edit_peer_type_box.cpp:598-606`
-
-- [ ] [MAJOR] `_EditPeerTypeBoxState._save()` does not save `_saving = false` in the success path before `Navigator.pop` — if `_save()` is called a second time (e.g. after the public-link-limit dialog returns `revoked == true` and calls `_save()` recursively at line 2703), `_saving` is never reset if the recursive call also succeeds, leaving the button permanently disabled if the dialog is somehow re-shown — `create_group_wizard.dart:2637-2678` ← `boxes/peers/edit_peer_type_box.cpp:760-786`
-
 # custom_emoji_cache — Audit Findings
 
 - [ ] [MAJOR] `kPreloadFrames * kPerRow` (= 48) used as the max number of emoji document IDs to preload in `preloadBatch`, but both constants are animation-frame concepts: `kPreloadFrames=3` is the lookahead frame count before the next frame is needed (renders 3 frames ahead during playback), and `kPerRow=16` is sprite-sheet columns. Their product has no semantic meaning as a document preload count — `custom_emoji_cache.dart:209` ← `AyuGramDesktop/Telegram/lib_ui/ui/text/custom_emoji_instance.cpp:25` (kPreloadFrames lookahead), `:102` in `custom_emoji_instance.h` (kPerRow sprite columns), `:513` (kPreloadFrames used for frame-ahead preloading only)
