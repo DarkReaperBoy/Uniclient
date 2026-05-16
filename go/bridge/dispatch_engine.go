@@ -4938,6 +4938,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(chats)
 
+	case "SearchGlobalPostMessages":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Query     string `json:"query"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		results, err := e.SearchGlobalPostMessages(params.AccountID, params.Query, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(results)
+
 	case "GetContactSignUpNotification":
 		var params struct {
 			AccountID string `json:"account_id"`

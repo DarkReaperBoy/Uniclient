@@ -567,6 +567,18 @@ class EngineService {
     return list.map((e) => ChatInfo.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  List<SearchResult> searchGlobalPostMessages(String accountId, String query, {int limit = 20}) {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'query': query,
+      'limit': limit,
+    }));
+    final respBytes = _callRaw('__engine', 'SearchGlobalPostMessages', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return [];
+    final list = json.decode(utf8.decode(respBytes)) as List<dynamic>;
+    return list.map((e) => SearchResult.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
   void readMessageContents(String accountId, String chatId, String msgId) {
     final req = epb.EngineReadMessageContentsRequest()
       ..accountId = accountId

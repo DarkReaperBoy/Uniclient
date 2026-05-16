@@ -24926,6 +24926,35 @@ func (t *TelegramCore) SearchGlobalPosts(query string, opts PaginationOpts) ([]D
 	return t.convertMessagesToDialogs(result), nil
 }
 
+// SearchGlobalPostMessages searches public channel posts and returns individual messages.
+func (t *TelegramCore) SearchGlobalPostMessages(query string, limit int) ([]Message, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	result, err := t.api.ChannelsSearchPosts(t.ctx, &tg.ChannelsSearchPostsRequest{
+		Hashtag:    query,
+		OffsetPeer: &tg.InputPeerEmpty{},
+		Limit:      limit,
+	})
+	if err != nil {
+		result, err = t.api.MessagesSearchGlobal(t.ctx, &tg.MessagesSearchGlobalRequest{
+			Q:          query,
+			Filter:     &tg.InputMessagesFilterEmpty{},
+			OffsetPeer: &tg.InputPeerEmpty{},
+			Limit:      limit,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("global post search: %w", err)
+		}
+	}
+	return t.convertMessages(result), nil
+}
+
 func (t *TelegramCore) convertMessagesToDialogs(msgs tg.MessagesMessagesClass) []Dialog {
 	var dialogs []Dialog
 	seen := make(map[string]bool)

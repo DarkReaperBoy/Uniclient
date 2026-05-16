@@ -192,3 +192,44 @@ func (e *Engine) SearchGlobalPosts(accountID, query string, limit int) ([]ChatIn
 	}
 	return result, nil
 }
+
+func (e *Engine) SearchGlobalPostMessages(accountID, query string, limit int) ([]SearchResult, error) {
+	if query == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	type postMessageSearcher interface {
+		SearchGlobalPostMessages(query string, limit int) ([]cores.Message, error)
+	}
+	pm, ok := acc.Core.(postMessageSearcher)
+	if !ok {
+		return nil, nil
+	}
+	msgs, err := pm.SearchGlobalPostMessages(query, limit)
+	if err != nil {
+		return nil, err
+	}
+	var results []SearchResult
+	for _, m := range msgs {
+		chatTitle := ""
+		if e.db != nil {
+			_ = e.db.QueryRow("SELECT title FROM chats WHERE account_id = ? AND chat_id = ?", accountID, m.ChatID).Scan(&chatTitle)
+		}
+		results = append(results, SearchResult{
+			AccountID:  accountID,
+			ChatID:     m.ChatID,
+			MsgID:      m.ID,
+			SenderName: m.SenderName,
+			Text:       m.Text,
+			Timestamp:  m.Timestamp.Unix(),
+			ChatTitle:  chatTitle,
+		})
+	}
+	return results, nil
+}

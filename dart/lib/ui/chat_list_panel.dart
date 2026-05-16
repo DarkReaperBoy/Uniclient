@@ -482,7 +482,9 @@ class _ChatListPanelState extends State<ChatListPanel>
     final appState = context.read<AppState>();
     setState(() {
       _searchResults = _filterByTab(chatState.searchChats(query), chatState);
-      _messageSearchResults = chatState.searchMessages(query, accountId: appState.activeAccountId);
+      _messageSearchResults = _activeSearchTab == _SearchTab.publicPosts
+          ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
+          : chatState.searchMessages(query, accountId: appState.activeAccountId);
     });
   }
 
@@ -501,14 +503,7 @@ class _ChatListPanelState extends State<ChatListPanel>
             return results.where((c) => c.type == ChatType.channel).toList();
         }
       case _SearchTab.publicPosts:
-        final appState = context.read<AppState>();
-        final postsResults = chatState.searchGlobalPosts(
-          appState.activeAccountId,
-          _searchController.text,
-        );
-        return postsResults.isNotEmpty
-            ? postsResults
-            : results.where((c) => c.type == ChatType.channel).toList();
+        return [];
       case _SearchTab.thisPeer:
         final active = chatState.activeChat;
         if (active == null) return [];
@@ -540,7 +535,9 @@ class _ChatListPanelState extends State<ChatListPanel>
       final appState = context.read<AppState>();
       setState(() {
         _searchResults = _filterByTab(chatState.searchChats(query), chatState);
-        _messageSearchResults = chatState.searchMessages(query, accountId: appState.activeAccountId);
+        _messageSearchResults = _activeSearchTab == _SearchTab.publicPosts
+            ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
+            : chatState.searchMessages(query, accountId: appState.activeAccountId);
       });
     }
   }
@@ -556,7 +553,9 @@ class _ChatListPanelState extends State<ChatListPanel>
       final appState = context.read<AppState>();
       setState(() {
         _searchResults = _filterByTab(chatState.searchChats(query), chatState);
-        _messageSearchResults = chatState.searchMessages(query, accountId: appState.activeAccountId);
+        _messageSearchResults = tab == _SearchTab.publicPosts
+            ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
+            : chatState.searchMessages(query, accountId: appState.activeAccountId);
       });
     }
   }
