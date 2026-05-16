@@ -380,31 +380,10 @@ The Dart file implements `ColorEditor::Mode::RGBA` layout (HSV picker, vertical 
 
 ## emoji_panel — GIF/Sticker/Emoji panel full audit
 
-- [ ] [CRITICAL] GIF search results sent via wrong API — inline bot results use `sendSticker(fileId)` instead of `sendInlineBotResult(queryId, resultId)`; `queryId` is discarded at search time and never stored, making correct dispatch impossible — `emoji_panel.dart:2765,2772,2997` ← `gifs_list_widget.cpp` (sendInlineBotResult path)
-
 - [ ] [CRITICAL] Video stickers (webm) are never animated — `_StickerCellState.build()` has branches only for `.isTgs` (Lottie) and `.isWebp` (static Image); `.isWebm` is never checked and no video player path exists; webm stickers always show static thumbnail — `emoji_panel.dart:2335-2402` ← `stickers_list_widget.cpp` (media_clip_reader path for webm)
 
 - [ ] [CRITICAL] Same webm omission in `_CustomEmojiCellState` — custom emoji video stickers never play — `emoji_panel.dart:1289-1303` ← `stickers_list_widget.cpp`
 
-- [ ] [MAJOR] "Send Without Sound" and "Schedule" sticker context menu items are no-ops — both branches call `widget.onStickerSend?.call(sticker.fileId)` with identical args and no flags; `onStickerSend` has no silent/schedule parameter — `emoji_panel.dart:1789,1791` ← `stickers_list_widget.cpp:2167-2175`
-
-- [ ] [MAJOR] "Send Without Sound" and "Schedule" GIF context menu items are also no-ops — both branches call `widget.onGifSend?.call(gif.fileId)` with no flags — `emoji_panel.dart:2799,2801` ← `gifs_list_widget.cpp`
-
-- [ ] [MAJOR] Featured sticker pack tab-bar badge (unread dot) is missing — AyuGram renders a `stickersFeaturedUnreadSize=5px` dot on the footer tab icon when unread featured packs exist; Dart `_StickerPackFooter` has no badge rendering on the strip icons — `emoji_panel.dart:2458-2550` ← `stickers_list_widget.cpp:1266-1305`
-
-- [ ] [MAJOR] Recent stickers not capped to 20 (AyuGram `kRecentDisplayLimit=20`) — all engine-returned items are displayed without client-side limit — `emoji_panel.dart:1597-1614` ← `stickers_list_widget.cpp:80`
-
-- [ ] [MAJOR] Sticker preview overlay on long-press shows stripped JPEG fallback for uncached stickers — `_showStickerPreview()` passes `_stickerFileCache[docId]` which is null if file was never requested; no on-demand fetch triggered for preview — `emoji_panel.dart:1826-1840` ← `stickers_list_widget.cpp:1791`
-
-- [ ] [MAJOR] GIF search has no pagination — `_performSearch` fetches one page with empty offset and never loads more on scroll; AyuGram tracks pagination cursor and loads additional results as user scrolls — `emoji_panel.dart:2759-2768` ← `gifs_list_widget.cpp:400-413`
-
-- [ ] [MAJOR] Emoji skin-tone prefs and recent emojis are module-level globals — `_emojiPrefsLoaded`, `_skinTonePrefs`, `_recentEmojis` never reset between account switches; second account always sees first account's state because `if (_emojiPrefsLoaded) return` short-circuits the load — `emoji_panel.dart:34-36,843-848`
-
-- [ ] [MAJOR] Off-screen GIF cells keep video players running — `_GifCell` plays indefinitely; no visibility-based pause on scroll; AyuGram pauses animations via `visibleTopBottomUpdated()`; with many GIFs this drains CPU — `emoji_panel.dart:3143-3184` ← `stickers_list_widget.cpp:370-413`
-
-- [ ] [MAJOR] `_StickerSetDialog` "View Set" preview renders only static JPEG thumbnails — no Lottie or webm animation for stickers in the set dialog — `emoji_panel.dart:3598-3618` ← sticker_set_box.cpp
-
-- [ ] [MAJOR] Panel show animation scales width/height (50%→100%) instead of opacity + vertical slide-up — AyuGram `tabbed_panel.cpp` uses opacity animation + translate from below, not a scale-from-center distortion — `emoji_panel.dart:383-385` ← `tabbed_panel.cpp`
 
 # ayu_filter — Filter engine audit
 
