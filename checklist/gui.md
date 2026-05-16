@@ -352,10 +352,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 
 # engine_service — Bridge Service Audit
 
-## engine_service — reactToStory drops accountId from payload
-
-- [ ] [CRITICAL] `reactToStory` receives `accountId` parameter but never includes it in the JSON payload — the engine call carries no `account_id` field so the Go engine cannot identify which account should send the reaction; call either fails or acts on wrong account — `engine_service.dart:2125-2131` ← `data/data_stories.cpp:1089-1101` (`Stories::sendReaction` always uses `session().api()` which is account-bound; the peer and story ID are resolved within that session context, never losing account identity)
-
 ## engine_service — activateStealthMode drops accountId from payload
 
 - [ ] [CRITICAL] `activateStealthMode` receives `accountId` but passes `Uint8List(0)` (empty bytes) to the engine — the Go backend has no way to route the `MTPstories_ActivateStealthMode` request to the correct account — `engine_service.dart:2134-2136` ← `data/data_stories.cpp:1076-1087` (`Stories::activateStealthMode` operates on `session().api()` which is implicitly account-bound; the account context is never optional)
