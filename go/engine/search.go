@@ -75,6 +75,16 @@ func (e *Engine) SearchMessages(query string, accountID string, limit int) ([]Se
 	return results, rows.Err()
 }
 
+// CountMessagesFrom counts messages from a specific sender in a chat (local cache).
+func (e *Engine) CountMessagesFrom(accountID, chatID, senderID string) (int, error) {
+	var count int
+	err := e.db.QueryRow(
+		`SELECT COUNT(*) FROM messages WHERE account_id = ? AND chat_id = ? AND sender_id = ?`,
+		accountID, chatID, senderID,
+	).Scan(&count)
+	return count, err
+}
+
 // SearchChats searches chat titles across all accounts.
 func (e *Engine) SearchChats(query string, limit int) ([]ChatInfo, error) {
 	if limit <= 0 {

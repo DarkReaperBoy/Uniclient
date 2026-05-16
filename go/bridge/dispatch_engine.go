@@ -4940,6 +4940,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.AddChatToFolder(params.AccountID, params.ChatID, params.FolderID)
 
+	case "CountMessagesFrom":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			SenderID  string `json:"sender_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		count, err := e.CountMessagesFrom(params.AccountID, params.ChatID, params.SenderID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(count)
+
 	case "GetTopPeers":
 		var params struct {
 			AccountID string `json:"account_id"`

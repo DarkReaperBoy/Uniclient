@@ -2945,13 +2945,18 @@ class _ChatViewState extends State<ChatView>
   }
 
   void _showDeleteMessageConfirm(ChatState chatState, CachedMessage msg, ChatInfo? chat) {
+    final isModerating = chat?.isAdmin == true && !msg.isOutgoing;
     showDeleteConfirmBox(
       context,
       mode: DeleteBoxMode.singleMessage,
       chatType: chat?.type ?? ChatType.dm,
       peerName: chat?.title ?? '',
       canRevoke: chat?.type == ChatType.dm && msg.isOutgoing,
-      showModeratePanel: chat?.isAdmin == true && !msg.isOutgoing,
+      showModeratePanel: isModerating,
+      moderateFromId: isModerating ? msg.senderId : null,
+      moderateFromName: isModerating ? msg.senderName : null,
+      chatId: chat?.chatId,
+      accountId: msg.accountId,
     ).then((result) {
       if (result.confirmed) chatState.deleteMessage(msg.msgId);
     });

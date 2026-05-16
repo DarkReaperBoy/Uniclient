@@ -3,10 +3,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../bridge/engine_service.dart';
 import '../theme/telegram_palette.dart';
 import 'telegram_toast.dart';
 
@@ -417,6 +419,10 @@ Future<DeleteConfirmResult> showDeleteConfirmBox(
   bool canRevoke = false,
   bool showModeratePanel = false,
   bool isSavedMessages = false,
+  String? moderateFromId,
+  String? moderateFromName,
+  String? chatId,
+  String? accountId,
 }) {
   return showTelegramBox<DeleteConfirmResult>(
     context: context,
@@ -428,6 +434,10 @@ Future<DeleteConfirmResult> showDeleteConfirmBox(
       canRevoke: canRevoke,
       showModeratePanel: showModeratePanel,
       isSavedMessages: isSavedMessages,
+      moderateFromId: moderateFromId,
+      moderateFromName: moderateFromName,
+      chatId: chatId,
+      accountId: accountId,
     ),
   ).then((r) => r ?? const DeleteConfirmResult());
 }
@@ -440,6 +450,10 @@ class _DeleteContent extends StatefulWidget {
   final bool canRevoke;
   final bool showModeratePanel;
   final bool isSavedMessages;
+  final String? moderateFromId;
+  final String? moderateFromName;
+  final String? chatId;
+  final String? accountId;
 
   const _DeleteContent({
     required this.mode,
@@ -449,6 +463,10 @@ class _DeleteContent extends StatefulWidget {
     required this.canRevoke,
     required this.showModeratePanel,
     required this.isSavedMessages,
+    this.moderateFromId,
+    this.moderateFromName,
+    this.chatId,
+    this.accountId,
   });
 
   @override
@@ -463,6 +481,7 @@ class _DeleteContentState extends State<_DeleteContent> {
   bool _reportSpam = false;
   bool _deleteAll = false;
   bool _initialized = false;
+  int _totalFromSender = 0;
 
   @override
   void didChangeDependencies() {
@@ -472,6 +491,19 @@ class _DeleteContentState extends State<_DeleteContent> {
       final appState = context.read<AppState>();
       _revokeDefault = !appState.deleteOnlyForYouRemembered;
       _revoke = _revokeDefault;
+      _fetchModerateCount(appState);
+    }
+  }
+
+  void _fetchModerateCount(AppState appState) {
+    if (!widget.showModeratePanel) return;
+    final fromId = widget.moderateFromId;
+    final chatId = widget.chatId;
+    final accountId = widget.accountId ?? appState.activeAccountId;
+    if (fromId == null || chatId == null) return;
+    final count = appState.engine.countMessagesFrom(accountId, chatId, fromId);
+    if (count > 0 && mounted) {
+      setState(() => _totalFromSender = count);
     }
   }
 
@@ -531,9 +563,10 @@ class _DeleteContentState extends State<_DeleteContent> {
         return 'Delete';
       case DeleteBoxMode.singleMessage:
       case DeleteBoxMode.bulkMessages:
-        final suffix = _deleteAll && widget.messageCount > 0
-            ? ' (${widget.messageCount})'
-            : '';
+        final count = _deleteAll && _totalFromSender > 0
+            ? _totalFromSender
+            : (_deleteAll && widget.messageCount > 0 ? widget.messageCount : 0);
+        final suffix = count > 0 ? ' ($count)' : '';
         return 'Delete$suffix';
     }
   }
@@ -608,7 +641,7 @@ class _DeleteContentState extends State<_DeleteContent> {
                 textFg),
             const SizedBox(height: kBoxLittleSkip),
             _checkbox(
-              'Delete All from ${widget.peerName}',
+              'Delete All from ${widget.moderateFromName ?? widget.peerName}',
               _deleteAll,
               (v) => setState(() => _deleteAll = v ?? false),
               checkClr,
@@ -1274,34 +1307,6 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
 
 enum ReportTarget { message, channel, group, bot, story, profilePhoto, user }
 
-Future<String?> showReportReasonBox(
-  BuildContext context, {
-  ReportTarget target = ReportTarget.message,
-}) {
-  String title;
-  switch (target) {
-    case ReportTarget.channel:
-      title = 'Report Channel';
-    case ReportTarget.group:
-      title = 'Report Group';
-    case ReportTarget.bot:
-      title = 'Report Bot';
-    case ReportTarget.story:
-      title = 'Report Story';
-    case ReportTarget.profilePhoto:
-      title = 'Report Profile Photo';
-    case ReportTarget.user:
-      title = 'Report User';
-    case ReportTarget.message:
-      title = 'Report Message';
-  }
-
-  return showTelegramBox<String>(
-    context: context,
-    builder: (ctx) => _ReportReasonBox(title: title, target: target),
-  );
-}
-
 Future<bool> showDynamicReportFlow(
   BuildContext context, {
   required dynamic engine,
@@ -1417,92 +1422,6 @@ class _ReportOptionPickerBox extends StatelessWidget {
   }
 }
 
-class _ReportReasonBox extends StatelessWidget {
-  final String title;
-  final ReportTarget target;
-  const _ReportReasonBox({required this.title, required this.target});
-
-  static const _allReasons = [
-    ('Spam', 'spam', Icons.delete_outline),
-    ('Fake Account', 'fake', Icons.no_accounts_outlined),
-    ('Violence', 'violence', Icons.front_hand_outlined),
-    ('Child Abuse', 'child_abuse', Icons.block),
-    ('Pornography', 'pornography', Icons.eighteen_up_rating_outlined),
-    ('Copyright', 'copyright', Icons.copyright_outlined),
-    ('Illegal Drugs', 'illegal_drugs', Icons.medication_outlined),
-    ('Personal Details', 'personal_details', Icons.badge_outlined),
-    ('Other', 'other', Icons.flag_outlined),
-  ];
-
-  List<(String, String, IconData)> get _filteredReasons {
-    return _allReasons.where((r) {
-      if (r.$2 == 'fake') {
-        return target == ReportTarget.channel ||
-            target == ReportTarget.group ||
-            target == ReportTarget.bot;
-      }
-      if (r.$2 == 'illegal_drugs' || r.$2 == 'personal_details') {
-        return target == ReportTarget.message ||
-            target == ReportTarget.story;
-      }
-      return true;
-    }).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.palette;
-    final textFg = p.boxTextFg;
-    final iconFg = p.windowSubTextFg;
-    final hoverBg = p.windowBgOver;
-    final reasons = _filteredReasons;
-
-    return TelegramBox(
-      title: title,
-      showClose: true,
-      content: Padding(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: reasons.map((r) {
-            return InkWell(
-              onTap: () => Navigator.of(context).pop(r.$2),
-              hoverColor: hoverBg,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(24, 11, 24, 11),
-                child: Row(
-                  children: [
-                    Icon(r.$3, size: 20, color: iconFg),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        r.$1,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: textFg,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-      buttons: [
-        TelegramBoxButton(
-          text: 'CANCEL',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ],
-      scrollableContent: true,
-    );
-  }
-}
-
 Future<String?> showReportDetailsBox(
   BuildContext context, {
   bool optional = true,
@@ -1521,32 +1440,46 @@ class _ReportDetailsBox extends StatefulWidget {
   State<_ReportDetailsBox> createState() => _ReportDetailsBoxState();
 }
 
-class _ReportDetailsBoxState extends State<_ReportDetailsBox> {
-  final _controller = TextEditingController();
+class _ReportDetailsBoxState extends State<_ReportDetailsBox>
+    with SingleTickerProviderStateMixin {
+  final _textController = TextEditingController();
   final _focusNode = FocusNode();
+  late final AnimationController _lottieController;
   String? _errorText;
 
   @override
+  void initState() {
+    super.initState();
+    _lottieController = AnimationController(vsync: this);
+  }
+
+  @override
   void dispose() {
-    _controller.dispose();
+    _textController.dispose();
     _focusNode.dispose();
+    _lottieController.dispose();
     super.dispose();
   }
 
+  void _onLottieLoaded(LottieComposition composition) {
+    _lottieController
+      ..duration = composition.duration
+      ..forward();
+  }
+
   void _submit() {
-    if (!widget.optional && _controller.text.trim().isEmpty) {
+    if (!widget.optional && _textController.text.trim().isEmpty) {
       setState(() => _errorText = 'This field is required');
       _focusNode.requestFocus();
       return;
     }
-    Navigator.of(context).pop(_controller.text);
+    Navigator.of(context).pop(_textController.text);
   }
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
     final textFg = p.boxTextFg;
-    final iconFg = p.windowActiveTextFg;
 
     return TelegramBox(
       title: 'Report',
@@ -1560,7 +1493,16 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.only(top: 8, bottom: 16),
-                child: Icon(Icons.report_outlined, size: 120, color: iconFg),
+                child: SizedBox(
+                  width: 120,
+                  height: 120,
+                  child: Lottie.asset(
+                    'assets/animations/blocked_peers_empty.json',
+                    controller: _lottieController,
+                    onLoaded: _onLottieLoaded,
+                    fit: BoxFit.contain,
+                  ),
+                ),
               ),
             ),
             Text(
@@ -1569,7 +1511,7 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox> {
             ),
             const SizedBox(height: 16),
             TextField(
-              controller: _controller,
+              controller: _textController,
               focusNode: _focusNode,
               maxLines: 3,
               maxLength: 512,

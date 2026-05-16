@@ -4387,6 +4387,17 @@ class EngineService {
     return resp.chats.map(_chatInfoFromProto).toList();
   }
 
+  int countMessagesFrom(String accountId, String chatId, String senderId) {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'sender_id': senderId,
+    }));
+    final respBytes = _callRaw('__engine', 'CountMessagesFrom', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return 0;
+    return json.decode(utf8.decode(respBytes)) as int;
+  }
+
   // ── Media ──
 
   Future<void> requestDownload(String accountId, String chatId, String msgId, {int seq = 0, int priority = 2}) async {
