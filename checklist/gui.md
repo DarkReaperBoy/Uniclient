@@ -490,35 +490,11 @@ return ClipOval(
 ⚠️ **Missing Feature (not a code quality issue):**
 - Collectible emoji animation layer
 
-# forum_topic_icon — Forum Topic Icon Widget
-
-- [ ] [CRITICAL] `Image.memory` used for WebM custom emoji: Flutter's `Image.memory` decodes still images only (JPEG/PNG/GIF/WebP); it cannot render animated WebM video. Animated custom emoji backed by WebM files silently hit `errorBuilder` and display the thumbnail fallback or an empty box instead of the animation. Feature appears wired but is broken for the WebM media type — `forum_topic_icon.dart:530-542` ← `data/data_forum_topic.cpp:85-98` (AyuGram renders all icon media via `QSvgRenderer`/media streaming, not a still-image decoder)
-
-- [ ] [MAJOR] Global cache eviction races between widget instances: `deactivate()` schedules removal of entries from the process-wide `_customEmojiFileCache`, `_customEmojiLottieCache`, and `_customEmojiThumbCache` maps keyed only by `documentId`. When multiple `CustomEmojiTopicIcon` widgets display the same emoji simultaneously (common in any forum topic list), deactivating one widget (scroll off-screen) fires the timer and evicts the cache entry while other still-visible widgets depend on it. Those widgets read `null` on their next build and show an empty box until a redundant network re-fetch completes — `forum_topic_icon.dart:466-474` ← `data/data_forum_topic.cpp:698-716` (AyuGram uses per-topic owned icon storage, not a shared evictable cache)
-
-- [ ] [MAJOR] Per-SVG gradient endpoint offsets ignored — all seven bubble palettes use uniform `Offset(42*s, 84*s)` as the gradient stop point for both fill and stroke gradients. Each color's SVG specifies different `y2` percentages: rose stroke ends at 96.40% (84px×0.964 = 81.0px), red stroke at 98.6%, green stroke at 98.9%, violet fill at 99.76%, blue stroke at 99.40%. At `size=21` the rose stroke gradient is off by ~0.76px (>25% of stroke width); at `size=32` it is ~1.15px. The gradient tones in the lower region of every non-blue bubble are therefore wrong — `forum_topic_icon.dart:268-286` ← `Resources/art/topic_icons/rose.svg` (stroke linearGradient y2="96.4024371%"), `yellow.svg` (stroke y2="99.0141482%"), `green.svg` (stroke y2="98.9250576%"), `blue.svg` (stroke y2="99.39588%")
-
-- [ ] [MAJOR] `extractTopicLetter` incorrectly skips non-BMP letter characters: the guard `if (char.length > 1) continue` (iterating `title.characters` grapheme clusters) discards any character whose UTF-16 encoding is a surrogate pair. This includes legitimate letter characters outside the BMP such as CJK Unified Ideographs Extension B (U+20000–U+2A6DF) and several historic scripts. AyuGram's `ExtractNonEmojiLetter` explicitly assembles the full UCS-4 code point from surrogate pairs and then calls `QChar::isLetterOrNumber(ucs4)`, correctly extracting non-BMP letters. The Dart implementation would return an empty string or a later ASCII character for topic titles that begin with such characters — `forum_topic_icon.dart:116-124` ← `data/data_forum_topic.cpp:101-126`
-
-# ghost_settings_page — Audit findings
-
-- [ ] [MAJOR] `toggleLockForKey` silently rejects locking the last unlocked sub-toggle — no toast, no indication — leaving the user confused when long-press/shift-click on the final lockable row does nothing. AyuGram's `setSendReadMessagesLocked` (and all other lock setters) are unconditional; there is no "at least one must remain unlocked" guard in the C++ — `ghost_settings_page.dart:136` (and lines 148, 160, 172, 184 — all `onLock` callbacks) ← `ayu_settings.cpp:154-157`
-
-- [ ] [MAJOR] `toggleLockForKey` prevents locking all five sub-toggles simultaneously (app_state.dart:643-645: bails when `unlockedCount <= 1`), which means a user who wants every sub-toggle locked to its current value (e.g. permanently lock ghost-active state) cannot do so in Dart. AyuGram allows all toggles to be independently locked, letting users freeze the entire ghost profile so the master Ghost-Mode switch cannot alter any sub-toggle — `ghost_settings_page.dart:136` ← `ayu_settings.cpp:154-182` (each `setSendXxxLocked` is unconditional)
-
-- [ ] [MAJOR] `setGhostModeEnabledForKey` returns early without calling `ghostSettingChanged` / `_saveWindowPrefs` when no sub-toggle state changes (i.e. ghost mode is already effectively in the requested state). AyuGram's `setGhostModeEnabled` always calls `AyuSettings::save()` before returning, ensuring settings are flushed to disk even when nothing changed (resilience against prior partial-write corruption). Dart skips the save entirely — `ghost_settings_page.dart:103-111` (ghost mode toggle `onChanged`) ← `ayu_settings.cpp:143` (`AyuSettings::save()` is unconditional inside `setGhostModeEnabled`)
-
 # hamburger_drawer — Audit vs AyuGram Desktop
-
-- [ ] [MAJOR] Unread badge in account-switcher chevron shows ALL unreads including muted: `computeUnreadBadge()` returns empty string when `allMuted == true`, so the badge is hidden when every other account's unread is muted. Dart sums all accounts' unreads unconditionally and shows the badge even when all are muted — `hamburger_drawer.dart:803-830` ← `window_main_menu.cpp:251-258`
 
 - [ ] [MAJOR] "My Profile" menu item opens `MyProfilePage` instead of the user's Stories info panel: AyuGram navigates to `Info::Stories::Make(controller->session().user())`, which is the profile/stories view. Dart pushes `MyProfilePage()`, a different destination — `hamburger_drawer.dart:163-177` ← `window_main_menu.cpp:712-715`
 
-- [ ] [MAJOR] Archive row appears whenever `hasArchivedChats` is true, ignoring the user's "Show archive in main menu" setting: AyuGram gates the row on `controller->session().settings().archiveInMainMenu()` in addition to the folder being non-empty. Dart has no such check — `hamburger_drawer.dart:474` ← `window_main_menu.cpp:543-548`
-
-- [ ] [MAJOR] Archive right-click menu shows only 2 hardcoded items ("Expand", "Archive Settings") instead of using `FillDialogsEntryMenu`: AyuGram builds the full dialog-entry context menu (Mark as Read, Mute, Archive settings, etc.) via `FillDialogsEntryMenu(_controller, {.key = folder(), ...}, ...)`. Dart's static 2-item list is missing most actions — `hamburger_drawer.dart:523-566` ← `window_main_menu.cpp:574-584`
-
-- [ ] [MAJOR] Reset Scale button uses wrong trigger condition and missing app restart: AyuGram creates the button only when the screen's available geometry is smaller than `windowMinWidth × windowMinHeight` (380×480 px), and clicking it calls `cSetConfigScale(default) → writeSettings → Core::Restart()`. Dart shows it whenever `uiScalePercent != 100` and clicking only calls `setUiScalePercent(100.0)` with no restart — `hamburger_drawer.dart:854-877` ← `window_main_menu.cpp:1040-1069`
+- [ ] [MAJOR] Archive right-click menu missing "How does the archive work?" item: AyuGram's `fillArchiveActions()` (window_peer_menu.cpp:1898-1907) always adds a "How does the archive work?" action that opens `ArchiveHintBox`. Dart's context menu has "Show in chat list", "Mark all as read", separator, "Archive Settings" but omits this item — `hamburger_drawer.dart:523-576` ← `window_main_menu.cpp:574-584`
 
 # info_panel — Audit Findings
 
