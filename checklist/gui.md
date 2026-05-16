@@ -334,24 +334,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 
 ## calls_screen — Calls box, group call list, call history, conference invite, call settings
 
-- [ ] [CRITICAL] macOS and Windows device enumeration uses hardcoded static fake lists — macOS always shows `['Default', 'Built-in Output', 'Headphones']` / `['Default', 'Built-in Microphone']` / `['Default', 'FaceTime HD Camera']`; Windows shows similarly hardcoded entries — real devices are never discovered — `calls_screen.dart:2183-2198` ← `settings_calls.cpp:57-70` (`Core::App().mediaDevices().devicesValue(type)` dynamically enumerates real system devices on all platforms)
-
-- [ ] [CRITICAL] `_GroupCallRow` join button only rendered for `ChatType.channel`, not `ChatType.group` (megagroups) — megagroup active calls show no join button — `calls_screen.dart:536,611` ← `calls_box_controller.cpp:80-81` (`peer()->isChannel()` is true for both regular channels and megagroups in TDesktop's type system, so both receive the right-action button)
-
-- [ ] [MAJOR] GroupCallRow status text doesn't distinguish public/private type — returns plain `'channel'`, `'group'`, or `'chat'` — AyuGram builds "public channel", "private channel", "public group", or "private group" based on `channel->isMegagroup()` and `channel->isPublic()` — `calls_screen.dart:522-531` ← `calls_box_controller.cpp:107-116`
-
-- [ ] [MAJOR] Call history box has no live update subscription — new incoming or outgoing calls made while the box is open are never prepended to the list — `calls_screen.dart:80-94` (only subscribes to `onGroupCallState`) ← `calls_box_controller.cpp:510-518` (`messageUpdates(Flag::NewAdded)` subscription inserts new call rows in real time via `insertRow(update.item, InsertWay::Prepend)`)
-
-- [ ] [MAJOR] Multi-contact conference call invite sends the invite link as plain messages via `engine.sendMessage()` instead of using the proper direct invite API — `calls_screen.dart:989-993` ← `calls_group_invite_controller.cpp:125-176` (AyuGram uses `ConfInviteController` which calls `startOrJoinConferenceCall` with structured `InviteRequest` objects per peer)
-
-- [ ] [MAJOR] `_loadActiveGroupCalls` makes up to 200 sequential `engine.getGroupCall()` API calls on every init AND on every single `GroupCallStateEvent` — `calls_screen.dart:171-198` ← `calls_box_controller.cpp:175-230` (AyuGram subscribes reactively to `Data::PeerUpdate::Flag::GroupCall` and only scans pinned + first `kFirstPageCount` non-pinned chats at startup; individual peer updates are handled incrementally)
-
-- [ ] [MAJOR] `_ConfInviteRow` has no `alreadyIn` state — contacts already participating in the conference call are displayed identically to uninvited contacts with no visual distinction or disabled state — `calls_screen.dart:1587-1810` ← `calls_group_invite_controller.cpp:87-113` (`ConfInviteRow._alreadyIn` flag greys out and disables rows for already-in participants)
-
-- [ ] [MAJOR] "Show in chat" in call history context menu uses a 300 ms `Future.delayed` timer before calling `jumpToMessage(timestamp)` instead of navigating directly to the message by ID — `calls_screen.dart:1930-1937` ← `calls_box_controller.cpp:600-610` (`rowClicked` calls `window->showPeerHistory(peer, Way::ClearStack, itemId)` with the exact `MsgId` immediately)
-
-- [ ] [MAJOR] `_InputLevelMeter` not implemented on Windows — `_startCapture` returns early for non-Linux/non-macOS platforms leaving the meter permanently dark with no audio capture — `calls_screen.dart:2737` ← `settings_calls.cpp:114-151` (AyuGram uses `Webrtc::AudioInputTester` which works on all platforms)
-
 # chat_export — Export Panel Audit
 
 - [ ] [MAJOR] Progress bar foreground color in processing/completed views uses `palette.windowBgActive` instead of `palette.mediaPlayerActiveFg`; AyuGram defines `exportProgressFg: mediaPlayerActiveFg` — `chat_export.dart:2083` ← `export.style:66`
