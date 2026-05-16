@@ -579,8 +579,10 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
           } else {
             deltaX = -deltaX;
           }
-          final delta = (deltaX.abs() > deltaY.abs()) ? deltaX : deltaY;
-          _wheelAccum += delta;
+          // Scale Flutter logical-pixel delta (~40px/notch) to Qt angleDelta
+          // units (~120/notch) so kStep=5 yields ~24 steps/notch like AyuGram.
+          final raw = (deltaX.abs() > deltaY.abs()) ? deltaX : deltaY;
+          _wheelAccum += raw * 3;
           const kStep = 5;
           final steps = _wheelAccum ~/ kStep;
           if (steps != 0) {
