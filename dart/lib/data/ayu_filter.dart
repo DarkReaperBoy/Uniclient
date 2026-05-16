@@ -112,6 +112,7 @@ class _CompiledPattern {
   }
 
   bool matches(String blob) {
+    if (blob.isEmpty) return false;
     if (pattern == null) return false;
     final found = pattern!.hasMatch(blob);
     return filter.reversed ? !found : found;
@@ -178,15 +179,17 @@ String _extractSingleText(CachedMessage msg, {Set<String>? extractedUrls}) {
 
 int _serviceMessageType(CachedMessage msg) {
   if (msg.mediaType == 1) return 11; // service + photo → TYPE_ACTION_PHOTO
-  final text = msg.contentText.toLowerCase();
-  if (text.contains('call')) return 16; // TYPE_PHONE_CALL
-  if (text.contains('suggest') && text.contains('photo')) return 21; // TYPE_SUGGEST_PHOTO
-  if (text.contains('wallpaper')) return 22; // TYPE_ACTION_WALLPAPER
-  if (text.contains('gift') && text.contains('star')) return 30; // TYPE_GIFT_STARS
-  if (text.contains('giveaway') && text.contains('result')) return 28; // TYPE_GIVEAWAY_RESULTS
-  if (text.contains('boost')) return 25; // TYPE_GIFT_PREMIUM_CHANNEL
-  if (text.contains('premium') || text.contains('gift')) return 18; // TYPE_GIFT_PREMIUM
   if (msg.mediaType == 2) return 8; // service + video/gif → TYPE_GIF
+
+  final text = msg.contentText;
+  if (text.startsWith('Voice call') || text.startsWith('Video call')) return 16;
+  if (text.startsWith('Suggested') && text.contains('photo')) return 21;
+  if (text.contains('wallpaper')) return 22;
+  if (text.contains('gifted') && text.contains('star')) return 30;
+  if (text.contains('giveaway') && text.contains('winner')) return 28;
+  if (text.contains('boosted') || text.contains('boost')) return 25;
+  if (text.contains('gifted') && text.contains('Premium')) return 18;
+
   return 10; // TYPE_DATE (generic service)
 }
 
@@ -301,6 +304,10 @@ class AyuFilterEngine extends ChangeNotifier {
 
   ({int added, int updated, int removedFilters, int removedExclusions})
       importFromJson(Map<String, dynamic> data) {
+    final version = data['version'] as int? ?? 0;
+    if (version > _backupVersion) {
+      throw Exception('Unsupported backup version $version (max $_backupVersion)');
+    }
     final filters = (data['filters'] as List<dynamic>?)
         ?.map((e) => RegexFilter.fromJson(e as Map<String, dynamic>))
         .toList() ?? [];
@@ -457,18 +464,32 @@ class AyuFilterEngine extends ChangeNotifier {
     }
   }
 
-  bool filteredMessagesShown(String chatId) =>
-      _filteredMessagesShown[chatId] ?? false;
+  bool? filteredMessagesShown(String chatId) {
+    if (!_filteredMessagesShown.containsKey(chatId) &&
+        !_hasFilteredMessages(chatId)) {
+      return null;
+    }
+    return _filteredMessagesShown[chatId] ?? false;
+  }
+
+  bool _hasFilteredMessages(String chatId) {
+    for (final entry in _messageCache.entries) {
+      if (entry.key.startsWith('$chatId:') && entry.value) return true;
+    }
+    return false;
+  }
 
   void toggleFilteredMessagesShown(String chatId) {
     _filteredMessagesShown[chatId] = !(_filteredMessagesShown[chatId] ?? false);
     notifyListeners();
   }
 
-  void invalidateMessage(String chatId, String msgId, {String? groupedId}) {
+  void invalidateMessage(String chatId, String msgId, {String? groupedId, List<String>? groupMemberIds}) {
     _messageCache.remove('$chatId:$msgId');
-    if (groupedId != null && groupedId.isNotEmpty) {
-      _messageCache.removeWhere((key, _) => key.startsWith('$chatId:'));
+    if (groupedId != null && groupedId.isNotEmpty && groupMemberIds != null) {
+      for (final memberId in groupMemberIds) {
+        _messageCache.remove('$chatId:$memberId');
+      }
     }
   }
 

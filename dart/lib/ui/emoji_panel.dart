@@ -1237,6 +1237,7 @@ class _CustomEmojiCellState extends State<_CustomEmojiCell> with SingleTickerPro
   bool _loadRequested = false;
   Player? _webmPlayer;
   VideoController? _webmVideoController;
+  String? _webmFilePath;
 
   @override
   void initState() {
@@ -1277,11 +1278,22 @@ class _CustomEmojiCellState extends State<_CustomEmojiCell> with SingleTickerPro
     final path = '${dir.path}/uniclient_cemoji_$docId.webm';
     await File(path).writeAsBytes(file.fileData);
     if (!mounted) return;
+    _webmFilePath = path;
+    if (_GifPlayerPool.instance.tryAcquire(this, _createWebmPlayer)) {
+      _createWebmPlayer();
+    }
+  }
+
+  void _createWebmPlayer() {
+    if (!mounted || _webmFilePath == null) {
+      _GifPlayerPool.instance.release(this);
+      return;
+    }
     _webmPlayer = Player();
     _webmVideoController = VideoController(_webmPlayer!);
     _webmPlayer!.setVolume(0);
     _webmPlayer!.setPlaylistMode(PlaylistMode.loop);
-    _webmPlayer!.open(Media(path));
+    _webmPlayer!.open(Media(_webmFilePath!));
     if (mounted) setState(() {});
   }
 
@@ -1298,6 +1310,9 @@ class _CustomEmojiCellState extends State<_CustomEmojiCell> with SingleTickerPro
   void dispose() {
     _lottieController?.dispose();
     _webmPlayer?.dispose();
+    _webmPlayer = null;
+    _webmVideoController = null;
+    _GifPlayerPool.instance.release(this);
     super.dispose();
   }
 
@@ -2431,11 +2446,21 @@ class _StickerCellState extends State<_StickerCell> with SingleTickerProviderSta
     await File(path).writeAsBytes(file.fileData);
     if (!mounted) return;
     _webmFilePath = path;
+    if (_GifPlayerPool.instance.tryAcquire(this, _createWebmPlayer)) {
+      _createWebmPlayer();
+    }
+  }
+
+  void _createWebmPlayer() {
+    if (!mounted || _webmFilePath == null) {
+      _GifPlayerPool.instance.release(this);
+      return;
+    }
     _webmPlayer = Player();
     _webmVideoController = VideoController(_webmPlayer!);
     _webmPlayer!.setVolume(0);
     _webmPlayer!.setPlaylistMode(PlaylistMode.loop);
-    _webmPlayer!.open(Media(path));
+    _webmPlayer!.open(Media(_webmFilePath!));
     if (mounted) setState(() {});
   }
 
@@ -2452,6 +2477,9 @@ class _StickerCellState extends State<_StickerCell> with SingleTickerProviderSta
   void dispose() {
     _lottieController?.dispose();
     _webmPlayer?.dispose();
+    _webmPlayer = null;
+    _webmVideoController = null;
+    _GifPlayerPool.instance.release(this);
     super.dispose();
   }
 
