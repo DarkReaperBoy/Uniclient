@@ -368,19 +368,6 @@ The Dart file implements `ColorEditor::Mode::RGBA` layout (HSV picker, vertical 
 
 `confirm_box.dart` implements the full box/dialog infrastructure: generic confirm box, delete/leave confirm, single-choice radio box, permission dialogs, screen-share chooser, and the full report flow. The generic confirm and delete boxes are largely correct. The report flow and some visual details have critical and major issues.
 
----
-
-- [ ] [CRITICAL] `_ReportReasonBox` uses a hardcoded static list of 9 reason strings (`'spam'`, `'fake'`, etc.). AyuGram replaced the old static-reason flow with a fully server-driven dynamic flow (`Api::CreateReportMessagesOrStoriesCallback`). The server returns option IDs as binary blobs — the Dart's hardcoded string keys cannot be mapped to valid server option IDs, so the report API call will fail or send wrong data. — `confirm_box.dart:1305-1315` ← `report_messages_box.cpp:75-206`
-
-- [ ] [CRITICAL] `_ReportDetailsBox` uses a static `Icon(Icons.report_outlined, size: 72)`. AyuGram uses `AddReportDetailsIconButton` which creates a Lottie animation (`"blocked_peers_empty"`, `normalBoxLottieSize = 120×120px`) that plays once when the box opens via `setShowFinishedCallback`. Static icon, wrong size, no animation. — `confirm_box.dart:1436-1439` ← `report_box_graphics.cpp:209-221`, `boxes.style:551`
-
-- [ ] [MAJOR] `_ReportReasonBox` has no Cancel button at the bottom. AyuGram's `ReportReasonBox` adds `box->addButton(tr::lng_cancel(), [=] { box->closeBox(); })` as a standard bottom button. The Dart uses `showClose: true` (X icon in the title bar) instead — different visual placement, wrong UX pattern. — `confirm_box.dart:1340-1377` ← `report_box_graphics.cpp:122`
-
-- [ ] [MAJOR] `_ReportDetailsBox` "REPORT" button is marked `isDestructive: true`, rendering it in the attention/red color. AyuGram adds the report button with the default button style (`box->addButton(tr::lng_report_button(), submit)` — no `attentionBoxButton` style). The button should be the primary accent color, not red. — `confirm_box.dart:1473-1476` ← `report_box_graphics.cpp:163`
-
-- [ ] [MAJOR] `_ReportDetailsBox` `TextField` has no character limit. AyuGram enforces `details->setMaxLength(kReportReasonLengthMax)` where `kReportReasonLengthMax = 512`. The Dart `TextField` has no `maxLength` property — users can type unlimited text that will be rejected server-side. — `confirm_box.dart:1445-1464` ← `report_box_graphics.cpp:31, 153`
-
-- [ ] [MAJOR] `_DeleteContent` moderate panel does not fetch the actual message count from the server when "Delete All from {user}" is shown. AyuGram starts an `Api::MessagesSearch` (`search->searchMessages({ .from = _moderateFrom })`) to get the real count and dynamically updates the delete button text (e.g. "Delete (47)"). The Dart uses a static `widget.messageCount` which is just the currently-selected message count, not the true total. — `confirm_box.dart:604-611` ← `delete_messages_box.cpp:206-234`
 
 # contacts_screen — Audit Findings
 
