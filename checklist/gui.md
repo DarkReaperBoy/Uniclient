@@ -336,19 +336,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 
 # chat_export — Export Panel Audit
 
-- [ ] [MAJOR] Progress bar foreground color in processing/completed views uses `palette.windowBgActive` instead of `palette.mediaPlayerActiveFg`; AyuGram defines `exportProgressFg: mediaPlayerActiveFg` — `chat_export.dart:2083` ← `export.style:66`
-
-- [ ] [MAJOR] Progress bar background color in processing/completed views hardcoded as `0xFF283848`/`0xFFE0E0E0` instead of `palette.mediaPlayerInactiveFg`; AyuGram defines `exportProgressBg: mediaPlayerInactiveFg` — `chat_export.dart:2085` ← `export.style:67`
-
-- [ ] [MAJOR] Skip-file timer resets on every `onExportProgress` event; AyuGram only restarts the 5-second timer when `fileRandomId` changes (new file starts downloading), meaning the skip link may never appear if the engine sends frequent progress events — `chat_export.dart:856-857` ← `export_view_progress.cpp:339-346`
-
-- [ ] [MAJOR] Error view (`_buildErrorPlaceholder`) calculates top padding as `panelHeight/4 - titleBarHeight = 72px`; AyuGram's `showCriticalError` uses `exportPanelSize.height() / 4 = 120px` top margin in the panel content area — `chat_export.dart:2393` ← `export_view_panel_controller.cpp:271`
-
-- [ ] [MAJOR] `TAKEOUT_INVALID` and `TAKEOUT_INIT_DELAY` errors reset the panel back to settings phase after the inform box is dismissed; AyuGram closes the entire panel via `_panel->hideGetDuration()` when the inform box closes — `chat_export.dart:971-975` ← `export_view_panel_controller.cpp:291-294`
-
-- [ ] [MAJOR] Processing view sets completed step `opacity = 0.5` to visually indicate "done"; AyuGram's `ProgressWidget::Row` never reduces opacity for completed steps — opacity is only used for cross-fade transitions when step label changes, not as a "done" indicator — `chat_export.dart:838,953` ← `export_view_progress.cpp:99-115`
-
-- [ ] [MAJOR] Progress step label changes update in-place with no animation; AyuGram's `Row::updateData` cross-fades the old instance out while fading the new one in using `Instance _current/_old` with `Ui::Animations::Simple opacity` — `chat_export.dart:2102` ← `export_view_progress.cpp:73-91`
 
 ## chat_list_panel — Chat list panel audit vs AyuGram Desktop
 
