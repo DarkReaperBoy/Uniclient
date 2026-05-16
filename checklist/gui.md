@@ -360,7 +360,6 @@ The Dart file implements `ColorEditor::Mode::RGBA` layout (HSV picker, vertical 
 
 # compose_entities — Hardcoded theme colors not matching Telegram
 
-- [ ] [MAJOR] Blockquote styling incomplete — `compose_entities.dart:546-551` ← Only applies backgroundColor for blockquotes, no left border or margin. Visual distinction vs regular text is minimal. Should match AyuGram's blockquote rendering with left border accent.
 
 
 # confirm_box — Audit Findings
