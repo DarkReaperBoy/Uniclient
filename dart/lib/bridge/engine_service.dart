@@ -4471,13 +4471,14 @@ class EngineService {
 
   /// Get shared media items for a chat, optionally filtered by type.
   /// [mediaType]: "image", "video", "audio", "file", or "" for all.
-  List<SharedMediaItem> getSharedMedia(String accountId, String chatId, {String mediaType = '', int limit = 50, int offset = 0}) {
+  List<SharedMediaItem> getSharedMedia(String accountId, String chatId, {String mediaType = '', int limit = 50, int offset = 0, String query = ''}) {
     final req = epb.EngineGetSharedMediaRequest()
       ..accountId = accountId
       ..chatId = chatId
       ..mediaType = mediaType
       ..limit = limit
-      ..offset = offset;
+      ..offset = offset
+      ..query = query;
     final respBytes = _callRaw('__engine', 'GetSharedMedia', req.writeToBuffer());
     final resp = epb.EngineGetSharedMediaResponse.fromBuffer(respBytes);
     return resp.items.map(_sharedMediaItemFromProto).toList();

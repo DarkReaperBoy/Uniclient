@@ -1500,6 +1500,7 @@ const EngineGetSharedMediaRequest$json = {
     {'1': 'media_type', '3': 3, '4': 1, '5': 9, '10': 'mediaType'},
     {'1': 'limit', '3': 4, '4': 1, '5': 5, '10': 'limit'},
     {'1': 'offset', '3': 5, '4': 1, '5': 5, '10': 'offset'},
+    {'1': 'query', '3': 6, '4': 1, '5': 9, '10': 'query'},
   ],
 };
 

@@ -6044,6 +6044,7 @@ type EngineGetSharedMediaRequest struct {
 	MediaType     string                 `protobuf:"bytes,3,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"` // "image", "video", "audio", "file", "" for all
 	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,5,opt,name=offset,proto3" json:"offset,omitempty"`
+	Query         string                 `protobuf:"bytes,6,opt,name=query,proto3" json:"query,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6111,6 +6112,13 @@ func (x *EngineGetSharedMediaRequest) GetOffset() int32 {
 		return x.Offset
 	}
 	return 0
+}
+
+func (x *EngineGetSharedMediaRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
 }
 
 type EngineSharedMediaItem struct {

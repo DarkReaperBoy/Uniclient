@@ -8192,6 +8192,7 @@ class EngineGetSharedMediaRequest extends $pb.GeneratedMessage {
     $core.String? mediaType,
     $core.int? limit,
     $core.int? offset,
+    $core.String? query,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -8209,6 +8210,9 @@ class EngineGetSharedMediaRequest extends $pb.GeneratedMessage {
     if (offset != null) {
       $result.offset = offset;
     }
+    if (query != null) {
+      $result.query = query;
+    }
     return $result;
   }
   EngineGetSharedMediaRequest._() : super();
@@ -8221,6 +8225,7 @@ class EngineGetSharedMediaRequest extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'mediaType')
     ..a<$core.int>(4, _omitFieldNames ? '' : 'limit', $pb.PbFieldType.O3)
     ..a<$core.int>(5, _omitFieldNames ? '' : 'offset', $pb.PbFieldType.O3)
+    ..aOS(6, _omitFieldNames ? '' : 'query')
     ..hasRequiredFields = false
   ;
 
@@ -8289,6 +8294,15 @@ class EngineGetSharedMediaRequest extends $pb.GeneratedMessage {
   $core.bool hasOffset() => $_has(4);
   @$pb.TagNumber(5)
   void clearOffset() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get query => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set query($core.String v) { $_setString(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasQuery() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearQuery() => clearField(6);
 }
 
 class EngineSharedMediaItem extends $pb.GeneratedMessage {

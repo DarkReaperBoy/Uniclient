@@ -700,6 +700,7 @@ message EngineGetSharedMediaRequest {
   string media_type = 3; // "image", "video", "audio", "file", "" for all
   int32  limit      = 4;
   int32  offset     = 5;
+  string query      = 6; // search query for server-side filtering
 }
 
 message EngineSharedMediaItem {

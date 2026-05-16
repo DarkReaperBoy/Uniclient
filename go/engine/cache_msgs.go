@@ -599,7 +599,7 @@ type SharedMediaItem struct {
 // GetSharedMedia queries the media table for all media in a chat, optionally
 // filtered by type ("image", "video", "audio", "file", "" for all).
 // Joins messages table to get timestamps. Returns newest first.
-func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offset int) ([]SharedMediaItem, error) {
+func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offset int, searchQuery string) ([]SharedMediaItem, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -611,22 +611,26 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
 	var typeFilter string
 	switch mediaType {
 	case "image":
-		// image + gif + sticker
 		typeFilter = fmt.Sprintf("AND m.media_type IN (%d, %d, %d)", MediaImage, MediaGIF, MediaSticker)
 	case "video":
-		// video + videonote
 		typeFilter = fmt.Sprintf("AND m.media_type IN (%d, %d)", MediaVideo, MediaVideoNote)
 	case "audio":
-		// audio + voice
 		typeFilter = fmt.Sprintf("AND m.media_type IN (%d, %d)", MediaAudio, MediaVoice)
 	case "file":
 		typeFilter = fmt.Sprintf("AND m.media_type = %d", MediaFile)
 	default:
-		// no filter — all media
 		typeFilter = ""
 	}
 
-	query := fmt.Sprintf(`
+	var queryFilter string
+	args := []interface{}{accountID, chatID}
+	if searchQuery != "" {
+		queryFilter = "AND (LOWER(m.file_name) LIKE ? OR LOWER(m.mime_type) LIKE ? OR LOWER(msg.content_raw) LIKE ?)"
+		pattern := "%" + strings.ToLower(searchQuery) + "%"
+		args = append(args, pattern, pattern, pattern)
+	}
+
+	sqlQuery := fmt.Sprintf(`
 		SELECT m.msg_id, COALESCE(msg.timestamp, 0), m.media_type,
 		       m.file_name, m.mime_type, m.file_size, m.thumb_b64,
 		       m.local_path, m.width, m.height, m.duration_ms,
@@ -636,11 +640,12 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
 		                       AND msg.chat_id = m.chat_id
 		                       AND msg.msg_id = m.msg_id
 		WHERE m.account_id = ? AND m.chat_id = ? AND m.seq = 0
-		%s
+		%s %s
 		ORDER BY COALESCE(msg.timestamp, 0) DESC
-		LIMIT ? OFFSET ?`, typeFilter)
+		LIMIT ? OFFSET ?`, typeFilter, queryFilter)
 
-	rows, err := e.db.Query(query, accountID, chatID, limit, offset)
+	args = append(args, limit, offset)
+	rows, err := e.db.Query(sqlQuery, args...)
 	if err != nil {
 		return nil, err
 	}

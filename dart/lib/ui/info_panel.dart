@@ -3107,36 +3107,322 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
       );
     }
     if (_gridTypes.contains(widget.mediaType)) {
-      return SingleChildScrollView(
-        controller: _contentScrollController,
-        child: _MediaGrid(
-          items: _items,
-          loading: false,
-          theme: widget.theme,
-          mediaType: widget.mediaType,
-        ),
-      );
+      return _buildLazyGrid();
     }
     if (_masonryTypes.contains(widget.mediaType)) {
-      return SingleChildScrollView(
+      return _buildLazyMasonry();
+    }
+    return _buildLazyList();
+  }
+
+  Widget _buildLazyGrid() {
+    final grouped = _MediaGrid._groupByMonth(_items);
+    final entries = <_LazyGridEntry>[];
+    for (final entry in grouped.entries) {
+      entries.add(_LazyGridEntry.header(entry.key));
+      entries.add(_LazyGridEntry.items(entry.value));
+    }
+    if (_loadingMore) {
+      entries.add(_LazyGridEntry.loading());
+    }
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final listWidth = constraints.maxWidth;
+      const sidePadding = _MediaGrid._sidePadding;
+      const skip = _MediaGrid._skip;
+      const minGridSize = _MediaGrid._minGridSize;
+      final contentWidth = listWidth - 2 * sidePadding;
+      final columns = math.max(1, ((contentWidth + skip) / (minGridSize + skip)).floor());
+      final cellSide = ((contentWidth - (columns - 1) * skip) / columns).floorToDouble();
+      final cellHeight = switch (widget.mediaType) {
+        'stories' => (cellSide * _MediaGrid._storyRatio).floorToDouble(),
+        'gifts' => (cellSide * _MediaGrid._giftRatio).floorToDouble(),
+        _ => cellSide,
+      };
+
+      final flatRows = <_LazyRowData>[];
+      for (final entry in entries) {
+        if (entry.isHeader) {
+          flatRows.add(_LazyRowData.header(entry.headerLabel!));
+        } else if (entry.isLoading) {
+          flatRows.add(_LazyRowData.loading());
+        } else {
+          final items = entry.items!;
+          for (var i = 0; i < items.length; i += columns) {
+            flatRows.add(_LazyRowData.row(
+              items.sublist(i, math.min(i + columns, items.length)),
+            ));
+          }
+        }
+      }
+
+      return CustomScrollView(
         controller: _contentScrollController,
-        child: _GifMasonryGrid(
-          items: _items,
-          loading: false,
-          theme: widget.theme,
-        ),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: sidePadding),
+            sliver: SliverList.builder(
+              itemCount: flatRows.length,
+              itemBuilder: (context, index) {
+                final row = flatRows[index];
+                if (row.isHeader) {
+                  return _DateHeader(label: row.headerLabel!, theme: widget.theme);
+                }
+                if (row.isLoading) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(child: SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )),
+                  );
+                }
+                final rowItems = row.items!;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: skip),
+                  child: Row(
+                    children: [
+                      for (var j = 0; j < rowItems.length; j++) ...[
+                        if (j > 0) const SizedBox(width: skip),
+                        _GridCell(item: rowItems[j], size: cellSide, height: cellHeight, theme: widget.theme),
+                      ],
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildLazyMasonry() {
+    final grouped = _MediaGrid._groupByMonth(_items);
+    final flatRows = <_LazyRowData>[];
+    for (final entry in grouped.entries) {
+      flatRows.add(_LazyRowData.header(entry.key));
+      flatRows.add(_LazyRowData.masonryGroup(entry.value));
+    }
+    if (_loadingMore) {
+      flatRows.add(_LazyRowData.loading());
+    }
+
+    return LayoutBuilder(builder: (context, constraints) {
+      const sidePadding = _GifMasonryGrid._sidePadding;
+      const skip = _GifMasonryGrid._skip;
+      const targetHeight = _GifMasonryGrid._rowTargetHeight;
+      final availWidth = constraints.maxWidth - 2 * sidePadding;
+
+      final builtRows = <_LazyRowData>[];
+      for (final row in flatRows) {
+        if (row.isMasonryGroup) {
+          final items = row.items!;
+          var i = 0;
+          while (i < items.length) {
+            double totalAR = 0;
+            int count = 0;
+            while (i + count < items.length) {
+              final item = items[i + count];
+              final ar = (item.width > 0 && item.height > 0)
+                  ? item.width / item.height
+                  : 1.0;
+              totalAR += ar;
+              count++;
+              final rowHeight = (availWidth - (count - 1) * skip) / totalAR;
+              if (rowHeight <= targetHeight && count > 1) break;
+            }
+            builtRows.add(_LazyRowData.masonryRow(
+              items.sublist(i, i + count), totalAR, availWidth,
+            ));
+            i += count;
+          }
+        } else {
+          builtRows.add(row);
+        }
+      }
+
+      return CustomScrollView(
+        controller: _contentScrollController,
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: sidePadding),
+            sliver: SliverList.builder(
+              itemCount: builtRows.length,
+              itemBuilder: (context, index) {
+                final row = builtRows[index];
+                if (row.isHeader) {
+                  return _DateHeader(label: row.headerLabel!, theme: widget.theme);
+                }
+                if (row.isLoading) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(child: SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )),
+                  );
+                }
+                final rowItems = row.items!;
+                final rowHeight = math.min(
+                  targetHeight,
+                  (availWidth - (rowItems.length - 1) * skip) / row.totalAR!,
+                );
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: skip),
+                  child: SizedBox(
+                    height: rowHeight,
+                    child: Row(
+                      children: [
+                        for (var j = 0; j < rowItems.length; j++) ...[
+                          if (j > 0) const SizedBox(width: skip),
+                          _buildGifCellInline(rowItems[j], rowHeight),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildGifCellInline(SharedMediaItem item, double rowHeight) {
+    final ar = (item.width > 0 && item.height > 0)
+        ? item.width / item.height
+        : 1.0;
+    final cellWidth = rowHeight * ar;
+    final isDark = widget.theme.brightness == Brightness.dark;
+    final placeholderColor = isDark
+        ? const Color(0xFF2b3945)
+        : const Color(0xFFe0e0e0);
+
+    Widget content;
+    if (item.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _GridCell._decodeThumb(item.thumbB64);
+        if (_GridCell._isValidImage(bytes)) {
+          content = Image.memory(
+            bytes,
+            width: cellWidth,
+            height: rowHeight,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => Container(color: placeholderColor),
+          );
+        } else {
+          content = Container(color: placeholderColor);
+        }
+      } catch (_) {
+        content = Container(color: placeholderColor);
+      }
+    } else {
+      content = Container(
+        color: placeholderColor,
+        child: Center(child: Icon(Icons.gif, size: 24, color: placeholderColor.withValues(alpha: 0.6))),
       );
     }
-    return SingleChildScrollView(
-      controller: _contentScrollController,
-      child: _MediaListView(
-        items: _items,
-        loading: false,
-        theme: widget.theme,
-        mediaType: widget.mediaType,
-      ),
+
+    return SizedBox(
+      width: cellWidth,
+      height: rowHeight,
+      child: ClipRRect(child: content),
     );
   }
+
+  Widget _buildLazyList() {
+    final grouped = _MediaGrid._groupByMonth(_items);
+    final flatItems = <_LazyRowData>[];
+    for (final entry in grouped.entries) {
+      flatItems.add(_LazyRowData.header(entry.key));
+      for (final item in entry.value) {
+        flatItems.add(_LazyRowData.listItem(item));
+      }
+    }
+    if (_loadingMore) {
+      flatItems.add(_LazyRowData.loading());
+    }
+
+    return CustomScrollView(
+      controller: _contentScrollController,
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          sliver: SliverList.builder(
+            itemCount: flatItems.length,
+            itemBuilder: (context, index) {
+              final row = flatItems[index];
+              if (row.isHeader) {
+                return _DateHeader(label: row.headerLabel!, theme: widget.theme);
+              }
+              if (row.isLoading) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Center(child: SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )),
+                );
+              }
+              final item = row.singleItem!;
+              switch (widget.mediaType) {
+                case 'file': return _FileListItem(item: item, theme: widget.theme);
+                case 'audio': return _AudioListItem(item: item, theme: widget.theme);
+                case 'voice': return _VoiceListItem(item: item, theme: widget.theme);
+                case 'link': return _LinkListItem(item: item, theme: widget.theme);
+                default: return _FileListItem(item: item, theme: widget.theme);
+              }
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LazyGridEntry {
+  final String? headerLabel;
+  final List<SharedMediaItem>? items;
+  final bool isLoading;
+  bool get isHeader => headerLabel != null && items == null && !isLoading;
+
+  const _LazyGridEntry._(this.headerLabel, this.items, this.isLoading);
+  factory _LazyGridEntry.header(String label) => _LazyGridEntry._(label, null, false);
+  factory _LazyGridEntry.items(List<SharedMediaItem> items) => _LazyGridEntry._(null, items, false);
+  factory _LazyGridEntry.loading() => const _LazyGridEntry._(null, null, true);
+}
+
+class _LazyRowData {
+  final String? headerLabel;
+  final List<SharedMediaItem>? items;
+  final SharedMediaItem? singleItem;
+  final bool isLoading;
+  final bool isMasonryGroup;
+  final double? totalAR;
+
+  bool get isHeader => headerLabel != null && items == null && singleItem == null && !isLoading;
+
+  const _LazyRowData._(this.headerLabel, this.items, this.singleItem, this.isLoading, this.isMasonryGroup, this.totalAR);
+  factory _LazyRowData.header(String label) => _LazyRowData._(label, null, null, false, false, null);
+  factory _LazyRowData.row(List<SharedMediaItem> items) => _LazyRowData._(null, items, null, false, false, null);
+  factory _LazyRowData.masonryGroup(List<SharedMediaItem> items) => _LazyRowData._(null, items, null, false, true, null);
+  factory _LazyRowData.masonryRow(List<SharedMediaItem> items, double totalAR, double availWidth) => _LazyRowData._(null, items, null, false, false, totalAR);
+  factory _LazyRowData.listItem(SharedMediaItem item) => _LazyRowData._(null, null, item, false, false, null);
+  factory _LazyRowData.loading() => const _LazyRowData._(null, null, null, true, false, null);
+}
+
+class _MasonryRowData {
+  final String? headerLabel;
+  final List<SharedMediaItem>? items;
+  final double? totalAR;
+  bool get isHeader => headerLabel != null;
+
+  const _MasonryRowData._(this.headerLabel, this.items, this.totalAR);
+  factory _MasonryRowData.header(String label) => _MasonryRowData._(label, null, null);
+  factory _MasonryRowData.row(List<SharedMediaItem> items, double totalAR) => _MasonryRowData._(null, items, totalAR);
 }
 
 class _MusicMiniPlayer extends StatelessWidget {
@@ -4803,17 +5089,12 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
       if (type == 'gifts' && _activeSubTab.isNotEmpty && _activeSubTab != 'all') {
         filterType = 'gifts_$_activeSubTab';
       }
-      var items = engine.getSharedMedia(
+      final query = _searchActive ? _searchController.text.trim() : '';
+      final items = engine.getSharedMedia(
         widget.accountId, widget.chatId,
         mediaType: filterType, limit: 50,
+        query: query,
       );
-      final query = _searchActive ? _searchController.text.trim().toLowerCase() : '';
-      if (query.isNotEmpty) {
-        items = items.where((item) =>
-          item.fileName.toLowerCase().contains(query) ||
-          item.mimeType.toLowerCase().contains(query)
-        ).toList();
-      }
       if (mounted && _expandedGridType == type) {
         setState(() {
           _gridItems = items;
@@ -5555,38 +5836,44 @@ class _MediaGrid extends StatelessWidget {
         _ => cellSide,
       };
 
+      final flatRows = <_LazyRowData>[];
+      for (final entry in grouped.entries) {
+        flatRows.add(_LazyRowData.header(entry.key));
+        final groupItems = entry.value;
+        for (var i = 0; i < groupItems.length; i += columns) {
+          flatRows.add(_LazyRowData.row(
+            groupItems.sublist(i, math.min(i + columns, groupItems.length)),
+          ));
+        }
+      }
+
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final entry in grouped.entries) ...[
-              _DateHeader(label: entry.key, theme: theme),
-              _buildGridRows(entry.value, columns, cellSide, cellHeight),
-            ],
-          ],
+        child: ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: flatRows.length,
+          itemBuilder: (context, index) {
+            final row = flatRows[index];
+            if (row.isHeader) {
+              return _DateHeader(label: row.headerLabel!, theme: theme);
+            }
+            final rowItems = row.items!;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: _skip),
+              child: Row(
+                children: [
+                  for (var j = 0; j < rowItems.length; j++) ...[
+                    if (j > 0) const SizedBox(width: _skip),
+                    _GridCell(item: rowItems[j], size: cellSide, height: cellHeight, theme: theme),
+                  ],
+                ],
+              ),
+            );
+          },
         ),
       );
     });
-  }
-
-  Widget _buildGridRows(List<SharedMediaItem> items, int columns, double cellSide, double cellHeight) {
-    final rows = <Widget>[];
-    for (var i = 0; i < items.length; i += columns) {
-      final rowItems = items.sublist(i, math.min(i + columns, items.length));
-      rows.add(Padding(
-        padding: EdgeInsets.only(bottom: i + columns < items.length ? _skip : 0),
-        child: Row(
-          children: [
-            for (var j = 0; j < rowItems.length; j++) ...[
-              if (j > 0) const SizedBox(width: _skip),
-              _GridCell(item: rowItems[j], size: cellSide, height: cellHeight, theme: theme),
-            ],
-          ],
-        ),
-      ));
-    }
-    return Column(children: rows);
   }
 
   static Map<String, List<SharedMediaItem>> _groupByMonth(List<SharedMediaItem> items) {
@@ -5651,60 +5938,65 @@ class _GifMasonryGrid extends StatelessWidget {
     return LayoutBuilder(builder: (context, constraints) {
       final availWidth = constraints.maxWidth - 2 * _sidePadding;
 
+      final flatRows = <_MasonryRowData>[];
+      for (final entry in grouped.entries) {
+        flatRows.add(_MasonryRowData.header(entry.key));
+        var i = 0;
+        final groupItems = entry.value;
+        while (i < groupItems.length) {
+          double totalAR = 0;
+          int count = 0;
+          while (i + count < groupItems.length) {
+            final item = groupItems[i + count];
+            final ar = (item.width > 0 && item.height > 0)
+                ? item.width / item.height
+                : 1.0;
+            totalAR += ar;
+            count++;
+            final rowHeight = (availWidth - (count - 1) * _skip) / totalAR;
+            if (rowHeight <= _rowTargetHeight && count > 1) break;
+          }
+          flatRows.add(_MasonryRowData.row(
+            groupItems.sublist(i, i + count), totalAR,
+          ));
+          i += count;
+        }
+      }
+
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final entry in grouped.entries) ...[
-              _DateHeader(label: entry.key, theme: theme),
-              _buildMasonryRows(entry.value, availWidth),
-            ],
-          ],
+        child: ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: flatRows.length,
+          itemBuilder: (context, index) {
+            final row = flatRows[index];
+            if (row.isHeader) {
+              return _DateHeader(label: row.headerLabel!, theme: theme);
+            }
+            final rowItems = row.items!;
+            final rowHeight = math.min(
+              _rowTargetHeight,
+              (availWidth - (rowItems.length - 1) * _skip) / row.totalAR!,
+            );
+            return Padding(
+              padding: const EdgeInsets.only(bottom: _skip),
+              child: SizedBox(
+                height: rowHeight,
+                child: Row(
+                  children: [
+                    for (var j = 0; j < rowItems.length; j++) ...[
+                      if (j > 0) const SizedBox(width: _skip),
+                      _buildGifCell(rowItems[j], rowHeight),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       );
     });
-  }
-
-  Widget _buildMasonryRows(List<SharedMediaItem> items, double availWidth) {
-    final rows = <Widget>[];
-    var i = 0;
-    while (i < items.length) {
-      double totalAR = 0;
-      int count = 0;
-      while (i + count < items.length) {
-        final item = items[i + count];
-        final ar = (item.width > 0 && item.height > 0)
-            ? item.width / item.height
-            : 1.0;
-        final newAR = totalAR + ar;
-        final rowHeight = (availWidth - count * _skip) / newAR;
-        count++;
-        totalAR = newAR;
-        if (rowHeight <= _rowTargetHeight && count > 1) break;
-      }
-      final rowItems = items.sublist(i, i + count);
-      final rowHeight = math.min(
-        _rowTargetHeight,
-        (availWidth - (count - 1) * _skip) / totalAR,
-      );
-      rows.add(Padding(
-        padding: EdgeInsets.only(bottom: i + count < items.length ? _skip : 0),
-        child: SizedBox(
-          height: rowHeight,
-          child: Row(
-            children: [
-              for (var j = 0; j < rowItems.length; j++) ...[
-                if (j > 0) const SizedBox(width: _skip),
-                _buildGifCell(rowItems[j], rowHeight),
-              ],
-            ],
-          ),
-        ),
-      ));
-      i += count;
-    }
-    return Column(children: rows);
   }
 
   Widget _buildGifCell(SharedMediaItem item, double rowHeight) {
