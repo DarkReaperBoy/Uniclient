@@ -164,6 +164,7 @@ type User struct {
 	ContactRequirePremium  bool   `json:"contact_require_premium,omitempty"`
 	HasPersonalPhoto       bool   `json:"has_personal_photo,omitempty"`
 	Note                   string `json:"note,omitempty"`
+	BusinessHours          string `json:"business_hours,omitempty"`
 	BannedRights           map[string]bool `json:"banned_rights,omitempty"`
 }
 

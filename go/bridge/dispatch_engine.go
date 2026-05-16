@@ -505,6 +505,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.DeleteContact(req.AccountId, req.UserId)
 
+	case "UpdateContactNote":
+		var params struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+			Note      string `json:"note"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.UpdateContactNote(params.AccountID, params.UserID, params.Note)
+
 	case "MarkChatRead":
 		var req pb.EngineMarkChatReadRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

@@ -534,6 +534,15 @@ class EngineService {
     await _callAsync('__engine', 'DeleteContact', req.writeToBuffer());
   }
 
+  Future<void> updateContactNote(String accountId, String userId, String note) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'user_id': userId,
+      'note': note,
+    }));
+    await _callAsync('__engine', 'UpdateContactNote', Uint8List.fromList(payload));
+  }
+
   void markChatRead(String accountId, String chatId, String upToMsgId) {
     final req = epb.EngineMarkChatReadRequest()
       ..accountId = accountId
@@ -1032,6 +1041,8 @@ class EngineService {
         isBot: map['is_bot'] as bool? ?? false,
         isOnline: map['is_online'] as bool? ?? false,
         role: map['role'] as String? ?? 'member',
+        lastSeenKind: map['last_seen_kind'] as String? ?? '',
+        lastSeenTs: (map['last_seen'] as num?)?.toInt() ?? 0,
         customRank: map['custom_rank'] as String? ?? '',
         promotedBy: map['promoted_by'] as String? ?? '',
         promotedByID: map['promoted_by_id'] as String? ?? '',

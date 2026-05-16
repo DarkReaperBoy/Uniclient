@@ -1605,6 +1605,8 @@ class MemberInfo {
   final bool isBot;
   final bool isOnline;
   final String role; // "owner", "admin", "member", "restricted", "banned"
+  final String lastSeenKind;
+  final int lastSeenTs;
   final int storyCount;
   final bool hasUnreadStory;
   final String customRank;
@@ -1620,6 +1622,8 @@ class MemberInfo {
     this.isBot = false,
     this.isOnline = false,
     this.role = 'member',
+    this.lastSeenKind = '',
+    this.lastSeenTs = 0,
     this.storyCount = 0,
     this.hasUnreadStory = false,
     this.customRank = '',

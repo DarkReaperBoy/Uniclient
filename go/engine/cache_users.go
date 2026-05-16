@@ -38,6 +38,8 @@ type CachedUser struct {
 	ContactRequirePremium  bool   `json:"contact_require_premium,omitempty"`
 	NoForwardsMy           bool   `json:"no_forwards_my,omitempty"`
 	NoForwardsPeer         bool   `json:"no_forwards_peer,omitempty"`
+	Note                   string `json:"notes,omitempty"`
+	BusinessHours          string `json:"business_hours,omitempty"`
 }
 
 // UpsertUser inserts or updates a user profile in the cache.
@@ -49,8 +51,8 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 	}
 
 	_, err := e.db.Exec(
-		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen, last_seen_kind, has_personal_photo, birthday_day, birthday_month, birthday_year, personal_channel_id, personal_channel_name, voice_messages_forbidden, contact_require_premium, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen, last_seen_kind, has_personal_photo, birthday_day, birthday_month, birthday_year, personal_channel_id, personal_channel_name, voice_messages_forbidden, contact_require_premium, note, business_hours, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, user_id) DO UPDATE SET
 		     display_name = excluded.display_name,
 		     username = excluded.username,
@@ -71,12 +73,14 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 		     personal_channel_name = COALESCE(NULLIF(excluded.personal_channel_name, ''), users.personal_channel_name),
 		     voice_messages_forbidden = excluded.voice_messages_forbidden,
 		     contact_require_premium = excluded.contact_require_premium,
+		     note = COALESCE(NULLIF(excluded.note, ''), users.note),
+		     business_hours = COALESCE(NULLIF(excluded.business_hours, ''), users.business_hours),
 		     updated_at = excluded.updated_at`,
 		accountID, u.ID, u.DisplayName, u.Username, u.Phone, u.Bio,
 		boolToInt(u.IsBot), boolToInt(u.IsOnline), boolToInt(u.IsContact), boolToInt(u.IsBlocked), u.BotMenuText, lastSeen,
 		u.LastSeenKind, boolToInt(u.HasPersonalPhoto),
 		u.BirthdayDay, u.BirthdayMonth, u.BirthdayYear, u.PersonalChannelID, u.PersonalChannelName,
-		boolToInt(u.VoiceMessagesForbidden), boolToInt(u.ContactRequirePremium), now)
+		boolToInt(u.VoiceMessagesForbidden), boolToInt(u.ContactRequirePremium), u.Note, u.BusinessHours, now)
 	return err
 }
 
@@ -85,7 +89,7 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	var u CachedUser
 	var displayName, username, phone, bio, avatarPath, botMenuText sql.NullString
 	var personalChannelID, personalChannelName sql.NullString
-	var lastSeenKind sql.NullString
+	var lastSeenKind, note, businessHours sql.NullString
 	var lastSeen sql.NullInt64
 	var isBot, isOnline, isContact, isBlocked int
 	var voiceForbidden, contactPremium, noForwardsMy, noForwardsPeer, hasPersonalPhoto int
@@ -97,7 +101,8 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 		        birthday_day, birthday_month, birthday_year,
 		        personal_channel_id, personal_channel_name,
 		        voice_messages_forbidden, contact_require_premium,
-		        no_forwards_my, no_forwards_peer
+		        no_forwards_my, no_forwards_peer,
+		        note, business_hours
 		 FROM users WHERE account_id = ? AND user_id = ?`,
 		accountID, userID).Scan(
 		&u.AccountID, &u.UserID, &displayName, &username, &phone, &bio, &avatarPath,
@@ -106,7 +111,8 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 		&u.BirthdayDay, &u.BirthdayMonth, &u.BirthdayYear,
 		&personalChannelID, &personalChannelName,
 		&voiceForbidden, &contactPremium,
-		&noForwardsMy, &noForwardsPeer)
+		&noForwardsMy, &noForwardsPeer,
+		&note, &businessHours)
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +135,8 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	u.ContactRequirePremium = contactPremium == 1
 	u.NoForwardsMy = noForwardsMy == 1
 	u.NoForwardsPeer = noForwardsPeer == 1
+	u.Note = note.String
+	u.BusinessHours = businessHours.String
 	if lastSeen.Valid {
 		u.LastSeen = lastSeen.Int64
 	}
@@ -318,6 +326,8 @@ type MemberInfo struct {
 	IsBot        bool   `json:"is_bot"`
 	IsOnline     bool   `json:"is_online"`
 	Role         string `json:"role"` // "owner", "admin", "member", "restricted", "banned"
+	LastSeenKind string `json:"last_seen_kind,omitempty"`
+	LastSeen     int64  `json:"last_seen,omitempty"`
 	CustomRank   string `json:"custom_rank,omitempty"`
 	PromotedBy   string `json:"promoted_by,omitempty"`
 	PromotedByID string `json:"promoted_by_id,omitempty"`
@@ -354,15 +364,20 @@ func (e *Engine) GetChatMembers(accountID, chatID string, limit, offset int) ([]
 		if role == "" {
 			role = "member"
 		}
-		members = append(members, MemberInfo{
-			UserID:      u.ID,
-			Username:    u.Username,
-			DisplayName: u.DisplayName,
-			AvatarB64:   u.AvatarB64,
-			IsBot:       u.IsBot,
-			IsOnline:    u.IsOnline,
-			Role:        role,
-		})
+		mi := MemberInfo{
+			UserID:       u.ID,
+			Username:     u.Username,
+			DisplayName:  u.DisplayName,
+			AvatarB64:    u.AvatarB64,
+			IsBot:        u.IsBot,
+			IsOnline:     u.IsOnline,
+			Role:         role,
+			LastSeenKind: u.LastSeenKind,
+		}
+		if u.LastSeen != nil {
+			mi.LastSeen = u.LastSeen.UnixMilli()
+		}
+		members = append(members, mi)
 	}
 	return members, nil
 }
@@ -409,13 +424,17 @@ func (e *Engine) GetChatMembersByRole(accountID, chatID, role, query string, lim
 			r = "member"
 		}
 		mi := MemberInfo{
-			UserID:      u.ID,
-			Username:    u.Username,
-			DisplayName: u.DisplayName,
-			AvatarB64:   u.AvatarB64,
-			IsBot:       u.IsBot,
-			IsOnline:    u.IsOnline,
-			Role:        r,
+			UserID:       u.ID,
+			Username:     u.Username,
+			DisplayName:  u.DisplayName,
+			AvatarB64:    u.AvatarB64,
+			IsBot:        u.IsBot,
+			IsOnline:     u.IsOnline,
+			Role:         r,
+			LastSeenKind: u.LastSeenKind,
+		}
+		if u.LastSeen != nil {
+			mi.LastSeen = u.LastSeen.UnixMilli()
 		}
 		uid, _ := strconv.ParseInt(u.ID, 10, 64)
 		if ex, ok := extras[uid]; ok {
@@ -974,6 +993,26 @@ func (e *Engine) DeleteContact(accountID, userID string) error {
 	}
 	e.db.Exec("UPDATE users SET is_contact = 0 WHERE account_id = ? AND user_id = ?", accountID, userID)
 	e.emitChatUpdate(accountID, userID)
+	return nil
+}
+
+type contactNoteUpdater interface {
+	UpdateContactNote(userID, note string) error
+}
+
+func (e *Engine) UpdateContactNote(accountID, userID, note string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	nu, ok := acc.Core.(contactNoteUpdater)
+	if !ok {
+		return fmt.Errorf("platform does not support contact notes")
+	}
+	if err := nu.UpdateContactNote(userID, note); err != nil {
+		return err
+	}
+	e.db.Exec("UPDATE users SET note = ? WHERE account_id = ? AND user_id = ?", note, accountID, userID)
 	return nil
 }
 

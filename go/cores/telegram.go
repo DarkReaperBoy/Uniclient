@@ -16025,6 +16025,23 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 			if noteVal, ok := result.FullUser.GetNote(); ok {
 				cu.Note = noteVal.Text
 			}
+			if bwh, ok := result.FullUser.GetBusinessWorkHours(); ok {
+				type interval struct {
+					Start int `json:"start"`
+					End   int `json:"end"`
+				}
+				type bh struct {
+					Timezone  string     `json:"timezone"`
+					Intervals []interval `json:"intervals"`
+				}
+				out := bh{Timezone: bwh.TimezoneID}
+				for _, wo := range bwh.WeeklyOpen {
+					out.Intervals = append(out.Intervals, interval{Start: wo.StartMinute, End: wo.EndMinute})
+				}
+				if data, err := json.Marshal(out); err == nil {
+					cu.BusinessHours = string(data)
+				}
+			}
 			return cu, nil
 		}
 	}
@@ -21305,6 +21322,20 @@ func (t *TelegramCore) ContactsUpdateContactNote(request *tg.ContactsUpdateConta
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return false, ErrAuth }
 	return t.api.ContactsUpdateContactNote(t.ctx, request)
+}
+
+// UpdateContactNote sets or clears a personal note for a contact (engine interface).
+func (t *TelegramCore) UpdateContactNote(userID, note string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	uid, err := tgUserID(userID)
+	if err != nil { return err }
+	hash := t.getCachedUserHash(uid)
+	_, err = t.api.ContactsUpdateContactNote(t.ctx, &tg.ContactsUpdateContactNoteRequest{
+		ID:   &tg.InputUser{UserID: uid, AccessHash: hash},
+		Note: tg.TextWithEntities{Text: note},
+	})
+	return err
 }
 
 // --- Help (21 methods) ---

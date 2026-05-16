@@ -3387,9 +3387,8 @@ class _ChatDetailsState extends State<_ChatDetails> {
           selectable: true,
         ));
       if (profile.businessHours.isNotEmpty)
-        children.add(_TextWithLabel(
-          value: profile.businessHours,
-          label: 'Business Hours',
+        children.add(_BusinessHoursWidget(
+          hoursJson: profile.businessHours,
           theme: widget.theme,
         ));
       if (profile.businessLocation.isNotEmpty)
@@ -3403,6 +3402,14 @@ class _ChatDetailsState extends State<_ChatDetails> {
           value: _formatBirthday(profile.birthdayDay, profile.birthdayMonth, profile.birthdayYear),
           label: 'Birthday',
           theme: widget.theme,
+        ));
+      if (profile.notes.isNotEmpty || profile.isContact)
+        children.add(_ContactNotesWidget(
+          note: profile.notes,
+          theme: widget.theme,
+          accountId: widget.chat.accountId,
+          userId: widget.chat.chatId,
+          onNoteChanged: () => _refetchProfile(),
         ));
       if (profile.personalChannelName.isNotEmpty)
         children.add(_TextWithLabel(
@@ -3499,6 +3506,285 @@ class _TextWithLabel extends StatelessWidget {
     );
     if (onTap == null) return content;
     return InkWell(onTap: onTap, child: content);
+  }
+}
+
+class _BusinessHoursWidget extends StatefulWidget {
+  final String hoursJson;
+  final ThemeData theme;
+
+  const _BusinessHoursWidget({required this.hoursJson, required this.theme});
+
+  @override
+  State<_BusinessHoursWidget> createState() => _BusinessHoursWidgetState();
+}
+
+class _BusinessHoursWidgetState extends State<_BusinessHoursWidget> {
+  bool _expanded = false;
+  late final Map<String, dynamic> _data;
+  late final String _timezone;
+  late final List<_WeekInterval> _intervals;
+  bool _valid = false;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      _data = (json.decode(widget.hoursJson) as Map).cast<String, dynamic>();
+      _timezone = _data['timezone'] as String? ?? '';
+      final rawIntervals = _data['intervals'] as List? ?? [];
+      _intervals = rawIntervals.map((e) {
+        final m = (e as Map).cast<String, dynamic>();
+        return _WeekInterval(m['start'] as int? ?? 0, m['end'] as int? ?? 0);
+      }).toList();
+      _valid = _intervals.isNotEmpty;
+    } catch (_) {
+      _valid = false;
+      _timezone = '';
+      _intervals = [];
+    }
+  }
+
+  bool _isOpenNow() {
+    final now = DateTime.now();
+    final dayOfWeek = (now.weekday - 1) % 7;
+    final minuteOfWeek = dayOfWeek * 1440 + now.hour * 60 + now.minute;
+    for (final iv in _intervals) {
+      if (minuteOfWeek >= iv.start && minuteOfWeek < iv.end) return true;
+    }
+    return false;
+  }
+
+  int _opensInMinutes() {
+    final now = DateTime.now();
+    final dayOfWeek = (now.weekday - 1) % 7;
+    final minuteOfWeek = dayOfWeek * 1440 + now.hour * 60 + now.minute;
+    int minDist = 10080;
+    for (final iv in _intervals) {
+      int dist = iv.start - minuteOfWeek;
+      if (dist <= 0) dist += 10080;
+      if (dist < minDist) minDist = dist;
+    }
+    return minDist;
+  }
+
+  String _opensInText() {
+    final mins = _opensInMinutes();
+    if (mins >= 1440) return 'Opens in ${mins ~/ 1440} day${mins >= 2880 ? 's' : ''}';
+    if (mins >= 60) return 'Opens in ${mins ~/ 60} hour${mins >= 120 ? 's' : ''}';
+    return 'Opens in $mins min';
+  }
+
+  String _dayName(int day) {
+    const names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return names[day % 7];
+  }
+
+  String _formatMinute(int m) {
+    final h = (m ~/ 60) % 24;
+    final min = m % 60;
+    return '${h.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}';
+  }
+
+  List<String> _daySchedule(int day) {
+    final dayStart = day * 1440;
+    final dayEnd = dayStart + 1440;
+    final result = <String>[];
+    for (final iv in _intervals) {
+      if (iv.end > dayStart && iv.start < dayEnd) {
+        final s = (iv.start - dayStart).clamp(0, 1440);
+        final e = (iv.end - dayStart).clamp(0, 1440);
+        result.add('${_formatMinute(s)} – ${_formatMinute(e)}');
+      }
+    }
+    return result.isEmpty ? ['Closed'] : result;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_valid) {
+      return Padding(
+        padding: const EdgeInsets.only(left: 23, top: 9, right: 20, bottom: 7),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.hoursJson, style: widget.theme.textTheme.bodyMedium?.copyWith(fontSize: 14)),
+            const SizedBox(height: 2),
+            Text('Business Hours', style: TextStyle(fontSize: 12, color: widget.theme.colorScheme.primary)),
+          ],
+        ),
+      );
+    }
+
+    final isOpen = _isOpenNow();
+    final statusColor = isOpen ? const Color(0xFF4CAF50) : const Color(0xFFDD4B39);
+    final statusText = isOpen ? 'Open' : 'Closed';
+
+    return InkWell(
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 23, top: 9, right: 20, bottom: 7),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(statusText, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: statusColor)),
+                const SizedBox(width: 8),
+                if (!isOpen) Expanded(child: Text(_opensInText(), style: TextStyle(fontSize: 14, color: widget.theme.textTheme.bodyMedium?.color)))
+                else const Spacer(),
+                Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 18,
+                  color: widget.theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text('Business Hours', style: TextStyle(fontSize: 12, color: widget.theme.colorScheme.primary)),
+            if (_expanded) ...[
+              const SizedBox(height: 8),
+              for (int d = 0; d < 7; d++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 90,
+                        child: Text(
+                          _dayName(d),
+                          style: TextStyle(fontSize: 13, color: widget.theme.textTheme.bodyMedium?.color),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          _daySchedule(d).join(', '),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: _daySchedule(d).first == 'Closed'
+                                ? widget.theme.colorScheme.onSurface.withValues(alpha: 0.5)
+                                : widget.theme.textTheme.bodyMedium?.color,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WeekInterval {
+  final int start;
+  final int end;
+  const _WeekInterval(this.start, this.end);
+}
+
+class _ContactNotesWidget extends StatelessWidget {
+  final String note;
+  final ThemeData theme;
+  final String accountId;
+  final String userId;
+  final VoidCallback? onNoteChanged;
+
+  const _ContactNotesWidget({
+    required this.note,
+    required this.theme,
+    required this.accountId,
+    required this.userId,
+    this.onNoteChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (note.isEmpty) {
+      return InkWell(
+        onTap: () => _editNote(context, ''),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 23, top: 9, right: 20, bottom: 7),
+          child: Row(
+            children: [
+              Icon(Icons.note_add_outlined, size: 18, color: theme.colorScheme.primary),
+              const SizedBox(width: 8),
+              Text('Add a note', style: TextStyle(fontSize: 14, color: theme.colorScheme.primary)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onSecondaryTapDown: (details) => _showContextMenu(context, details.globalPosition),
+      child: InkWell(
+        onTap: () => _editNote(context, note),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 23, top: 9, right: 20, bottom: 7),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(note, style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14), maxLines: 3, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text('Note', style: TextStyle(fontSize: 12, color: theme.colorScheme.primary)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _editNote(BuildContext context, String currentNote) {
+    final controller = TextEditingController(text: currentNote);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(currentNote.isEmpty ? 'Add Note' : 'Edit Note'),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Enter note...'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final engine = ctx.read<EngineService>();
+              engine.updateContactNote(accountId, userId, controller.text.trim());
+              Navigator.pop(ctx);
+              onNoteChanged?.call();
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showContextMenu(BuildContext context, Offset position) {
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: const [
+        TelegramMenuItem(value: 'edit', icon: Icon(Icons.edit), label: 'Edit'),
+        TelegramMenuItem(value: 'delete', icon: Icon(Icons.delete_outline), label: 'Delete', isAttention: true),
+      ],
+    ).then((value) {
+      if (value == null || !context.mounted) return;
+      if (value == 'edit') {
+        _editNote(context, note);
+      } else if (value == 'delete') {
+        final engine = context.read<EngineService>();
+        engine.updateContactNote(accountId, userId, '');
+        onNoteChanged?.call();
+      }
+    });
   }
 }
 
@@ -3725,13 +4011,14 @@ class _GroupActionsSection extends StatelessWidget {
           theme: theme,
           onTap: () => _confirmReport(context, chatState),
         ),
-        _ActionRow(
-          icon: Icons.logout,
-          label: 'Leave Group',
-          theme: theme,
-          color: attentionColor,
-          onTap: () => _confirmLeave(context, chatState),
-        ),
+        if (!chat.notJoined)
+          _ActionRow(
+            icon: Icons.logout,
+            label: 'Leave Group',
+            theme: theme,
+            color: attentionColor,
+            onTap: () => _confirmLeave(context, chatState),
+          ),
       ],
     );
   }
@@ -4044,13 +4331,14 @@ class _ChannelActionsSection extends StatelessWidget {
           theme: theme,
           onTap: () => _confirmReport(context, chatState),
         ),
-        _ActionRow(
-          icon: Icons.logout,
-          label: 'Leave Channel',
-          theme: theme,
-          color: attentionColor,
-          onTap: () => _confirmLeave(context, chatState),
-        ),
+        if (!chat.notJoined)
+          _ActionRow(
+            icon: Icons.logout,
+            label: 'Leave Channel',
+            theme: theme,
+            color: attentionColor,
+            onTap: () => _confirmLeave(context, chatState),
+          ),
       ],
     );
   }
@@ -6305,6 +6593,37 @@ class _MemberRow extends StatelessWidget {
     this.onTap,
   });
 
+  static String _formatLastSeen(String kind, int tsMs) {
+    switch (kind) {
+      case 'online':
+        return 'online';
+      case 'recently':
+        return 'last seen recently';
+      case 'within_week':
+        return 'last seen within a week';
+      case 'within_month':
+        return 'last seen within a month';
+      case 'long_ago':
+        return 'last seen a long time ago';
+      case 'hidden':
+        return 'last seen a long time ago';
+      case 'exact':
+        if (tsMs <= 0) return 'last seen recently';
+        final dt = DateTime.fromMillisecondsSinceEpoch(tsMs);
+        final now = DateTime.now();
+        final diff = now.difference(dt);
+        if (diff.inMinutes < 1) return 'last seen just now';
+        if (diff.inMinutes < 60) return 'last seen ${diff.inMinutes} min ago';
+        if (diff.inHours < 24) return 'last seen ${diff.inHours}h ago';
+        if (diff.inDays < 7) return 'last seen ${diff.inDays}d ago';
+        final month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.month - 1];
+        if (dt.year == now.year) return 'last seen $month ${dt.day}';
+        return 'last seen $month ${dt.day}, ${dt.year}';
+      default:
+        return 'last seen recently';
+    }
+  }
+
   static Widget _memberAvatar(MemberInfo member, Color color, String name, double size, double fontSize) {
     if (member.avatarB64.isNotEmpty) {
       try {
@@ -6356,6 +6675,8 @@ class _MemberRow extends StatelessWidget {
     if (member.isOnline) {
       statusText = 'online';
       statusColor = theme.colorScheme.primary;
+    } else if (member.lastSeenKind.isNotEmpty) {
+      statusText = _formatLastSeen(member.lastSeenKind, member.lastSeenTs);
     } else if (member.role != 'member' && member.role.isNotEmpty && !hasAdminTag) {
       statusText = member.role;
     } else {
