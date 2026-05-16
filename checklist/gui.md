@@ -337,35 +337,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 # chat_export — Export Panel Audit
 
 
-## chat_list_row — swipe action icon area width, closed-topic lock icon, online badge size, draft reply-to icon, special userpic types, and Lottie asset existence
-
-- [ ] [CRITICAL] Swipe action icon draw area is hardcoded to 80×80px (`SizedBox(width: 80, height: 80)`), but AyuGram uses `quickWidth = st::dialogsQuickActionSize * 3 = 20×3 = 60px` for the icon rect width — `chat_list_row.dart:833-836` ← `AyuGram/dialogs/ui/dialogs_layout.cpp:988-996`
-
-- [ ] [CRITICAL] Lottie animation assets (`assets/animations/swipe_mute.json`, `swipe_unmute.json`, `swipe_pin.json`, etc.) are referenced but almost certainly do not exist in the Flutter asset bundle — `chat_list_row.dart:531-553` ← `AyuGram/dialogs/dialogs_quick_action.cpp:120-143` (AyuGram embeds these as Lottie icons; they must exist as real `.json` files in `assets/animations/`)
-
-- [ ] [CRITICAL] Closed forum topic missing lock icon: when `ForumTopic.isClosed == true`, AyuGram renders `st::dialogsLockIcon` in the send-state position; the Dart `_SendStateIcon` widget has no path for this and `chat_list_row.dart` never checks `isClosed` — `chat_list_row.dart:1603-1657` ← `AyuGram/dialogs/ui/dialogs_layout.cpp:769-774`
-
-- [ ] [CRITICAL] Special userpic types missing: AyuGram renders distinct userpics for RepliesMessages (`PaintRepliesMessages`), HiddenAuthor (`PaintHiddenAuthor`), and VerifyCodes (`PaintVerifyCodes`) peers; `_ChatAvatar` in Dart has no handling for these chat types and falls back to a plain initial-letter avatar — `chat_list_row.dart:1022-1037` ← `AyuGram/dialogs/ui/dialogs_layout.cpp:463-498`
-
-- [ ] [CRITICAL] Draft with reply-to is missing a leading mini-reply icon: AyuGram prepends `Ui::Text::IconEmoji(&st::dialogsMiniReplyIcon)` when `draft->reply` is set; Dart's draft preview has no such field or icon — `chat_list_row.dart:329-343` ← `AyuGram/dialogs/ui/dialogs_layout.cpp:676-679`
-
-- [ ] [MAJOR] Online badge is 18×18px with a 3px border in Dart (`width: 18, height: 18, border: Border.all(width: 3)`), but the AyuGram spec is `dialogsOnlineBadgeSize: 12px` with `dialogsOnlineBadgeStroke: 3px` — the Dart badge is 6px too large — `chat_list_row.dart:1083-1098` ← `AyuGram/dialogs/dialogs.style:146,145`
-
-- [ ] [MAJOR] Swipe animation uses a hardcoded fixed 200ms spring-back for below-threshold release and a speed-ratio formula (`offset / 0.35`) for above-threshold; AyuGram's `processEnd` uses `std::min(1., ratio) * st::slideWrapDuration` for the commit animation (proportional to ratio, not offset), and the Dart `kSwipeBackSpeed = 0.35` constant has no counterpart in AyuGram source — `chat_list_row.dart:769-779` ← `AyuGram/ui/controls/swipe_handler.cpp:162-170`
-
-- [ ] [MAJOR] Swipe Lottie animation threshold to start/reset: AyuGram starts the icon animation at `kStartAnimateThreshold = 0.32` (ratio) and resets it at `kResetAnimateThreshold = 0.24`; Dart's `_lottieController.value = _swipeProgress` drives it continuously from 0 with no start/reset threshold gating — `chat_list_row.dart:673-674,742` ← `AyuGram/dialogs/dialogs_inner_widget.cpp:5789-5803`
-
-- [ ] [MAJOR] Swipe `twoLines` parameter in `DrawQuickAction`: AyuGram always defaults `twoLines=false` in the `dialogs_layout.cpp` call to `DrawQuickAction` (no 5th argument), whereas Dart already splits the label on the first space via `replaceFirst(' ', '\n')` — effectively acting as `twoLines=true` always — `chat_list_row.dart:848` ← `AyuGram/dialogs/ui/dialogs_layout.cpp:990-998` and `AyuGram/dialogs/dialogs_quick_action.h:55`
-
-- [ ] [MAJOR] `isSavedMessages` detection uses `chat.isSelf` in `_ChatAvatar`, but the public `isSavedMessages()` free function at line 1661 uses `chat.title == 'Saved Messages' && chat.type == ChatType.dm` — these two checks are inconsistent and the title-based check is fragile/wrong (title can be localized) — `chat_list_row.dart:1005,1661` ← `AyuGram/dialogs/ui/dialogs_layout.cpp:1115-1118` (AyuGram uses `peer->isSelf()`)
-
-- [ ] [MAJOR] Forum row height with tags is `_rowHeightWithTags = 96.0`, matching `taggedForumDialogRow.height: 96px` ✓, but the `hasTags` condition checks `chat.type == ChatType.topic && chat.parentId.isNotEmpty` — this is semantically wrong; the `taggedForumDialogRow` in AyuGram applies when the dialog row has filter tags, not when the chat has a parentId — `chat_list_row.dart:1900-1901` ← `AyuGram/dialogs/dialogs.style:114-117`
-
-- [ ] [MAJOR] `_TopicsPreview` renders topics as a flat comma-separated text list, but AyuGram's `TopicsView::paint` uses `Text::String` with per-title `maxWidth()` spacing (`context.st->topicsSkip = 8px` / `topicsSkipBig = 14px`) and renders them with a `rightCut` clipping for the jump bubble; the Dart implementation truncates the whole row at the `overflow: TextOverflow.ellipsis` boundary without per-topic spacing — `chat_list_row.dart:2122-2163` ← `AyuGram/dialogs/ui/dialogs_topics_view.cpp:221-239`
-
-- [ ] [MAJOR] `_TopicJumpBubble` uses a simple row with `Icons.arrow_forward` icon and a right-to-left arrow, but AyuGram renders a rounded two-area (`area1`/`area2`) bubble with `FillJumpToLastBg`/`FillJumpToLastPrepared`, and the shape adapts to two different topic-title widths; the Dart implementation renders a static pill badge — `chat_list_row.dart:2169-2216` ← `AyuGram/dialogs/ui/dialogs_topics_view.cpp:323-370`
-
-- [ ] [MAJOR] `ForumChatListRow._topicsSkipBig = 14.0` constant matches `st::forumDialogRow.topicsSkipBig: 14px` ✓, but `_topicsSkip = 8.0` is used as a `SizedBox(height: _topicsSkip - 4)` vertical gap between the topics row and jump bubble (`height: 4.0`), not as a horizontal inter-topic spacing as it should be — `chat_list_row.dart:2060` ← `AyuGram/dialogs/dialogs.style:110`
 
 ## chat_settings_screen — Chat Settings Screen Audit
 
