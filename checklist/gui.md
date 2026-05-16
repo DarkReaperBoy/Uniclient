@@ -357,7 +357,6 @@ The Dart file implements `ColorEditor::Mode::RGBA` layout (HSV picker, vertical 
 
 ---
 
-- [ ] [MAJOR] Scroll wheel step size differs: Dart uses raw Flutter pixel delta divided by 5, AyuGram uses Qt `angleDelta` (one notch = 120 units) divided by 5 — the accumulated units are entirely different scales so one mouse wheel notch produces wildly different field step counts across platforms; additionally AyuGram handles Mac-specific delta sign inversion (`if (Platform::IsMac()) deltaY *= -1`) and picks the larger of X/Y deltas, neither of which the Dart does — `color_picker_box.dart:505-513` ← `color_editor.cpp:725-738`
 
 # compose_entities — Hardcoded theme colors not matching Telegram
 
