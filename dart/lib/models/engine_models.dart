@@ -236,6 +236,10 @@ class ChatInfo {
   final bool noForwards;
   final bool isSelf;
   final String username;
+  final bool isReplies;
+  final bool isHiddenAuthor;
+  final String draftReplyToMsgId;
+  final bool isClosed;
 
   const ChatInfo({
     required this.accountId,
@@ -290,6 +294,10 @@ class ChatInfo {
     this.noForwards = false,
     this.isSelf = false,
     this.username = '',
+    this.isReplies = false,
+    this.isHiddenAuthor = false,
+    this.draftReplyToMsgId = '',
+    this.isClosed = false,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -345,6 +353,10 @@ class ChatInfo {
     noForwards: j['no_forwards'] as bool? ?? false,
     isSelf: j['is_self'] as bool? ?? false,
     username: j['username'] as String? ?? '',
+    isReplies: j['is_replies'] as bool? ?? false,
+    isHiddenAuthor: j['is_hidden_author'] as bool? ?? false,
+    draftReplyToMsgId: j['draft_reply_to_msg_id'] as String? ?? '',
+    isClosed: j['is_closed'] as bool? ?? false,
   );
 
   /// Time as DateTime for display.

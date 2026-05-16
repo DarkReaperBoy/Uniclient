@@ -237,8 +237,13 @@ class ChatListRow extends StatelessWidget {
                               ],
                             ),
                           ),
-                          // Spec §2: Send state icons — 20px skip, only for outgoing messages.
-                          if (chat.lastMsgIsOutgoing && chat.lastMsgText.isNotEmpty)
+                          if (chat.isClosed)
+                            _SendStateIcon(
+                              status: MsgStatus.unknown,
+                              isActive: isActive,
+                              isClosed: true,
+                            )
+                          else if (chat.lastMsgIsOutgoing && chat.lastMsgText.isNotEmpty)
                             _SendStateIcon(
                               status: chat.lastMsgStatus,
                               isActive: isActive,
@@ -330,6 +335,14 @@ class ChatListRow extends StatelessWidget {
     if (showDrafts && chat.draftText.isNotEmpty) {
       return Text.rich(
         TextSpan(children: [
+          if (chat.draftReplyToMsgId.isNotEmpty)
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 2),
+                child: Icon(Icons.reply, size: 14, color: palette.dialogsDraftFg),
+              ),
+            ),
           TextSpan(
             text: 'Draft: ',
             style: TextStyle(fontSize: 13, color: palette.dialogsDraftFg),
@@ -626,10 +639,6 @@ class SwipeableChatRow extends StatefulWidget {
   /// actual speed, giving a rubberband feel.
   static const kSwipeSlow = 0.2;
 
-  /// Spec §2.7: Swipe-back speed ratio after release (px per ms).
-  /// Determines spring-back animation duration: offset / kSwipeBackSpeed.
-  static const kSwipeBackSpeed = 0.35;
-
   @override
   State<SwipeableChatRow> createState() => _SwipeableChatRowState();
 }
@@ -652,6 +661,9 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   /// Fires once on threshold crossing, resets on drag end/cancel.
   bool _thresholdCrossed = false;
 
+  /// AyuGram: Lottie animation started flag (starts at ratio > 0.32, resets at < 0.24).
+  bool _lottieStarted = false;
+
   /// Spec §2.7: Swipe progress normalized 0-1 against threshold.
   /// 0 = no swipe, 1 = threshold reached (50px).
   double get _swipeProgress =>
@@ -671,8 +683,6 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
         setState(() {
           _swipeOffset = _resetFrom * (1.0 - _resetController.value);
         });
-        // Spec §2.7: Sync Lottie draw-on with swipe offset during spring-back.
-        _lottieController.value = _swipeProgress;
       });
     // Spec §2.7: Ripple animation for 80px action area on threshold crossing.
     _rippleController = AnimationController(
@@ -701,8 +711,10 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
         weight: 20,
       ),
     ]).animate(_iconEntranceController);
-    // Spec §2.7: Lottie draw-on controller — value tracks swipe progress.
-    _lottieController = AnimationController(vsync: this);
+    _lottieController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
   }
 
   @override
@@ -739,8 +751,15 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
           : details.delta.dx;
       _swipeOffset = (_swipeOffset + dx).clamp(0.0, _maxSwipeOffset);
     });
-    // Spec §2.7: Sync Lottie draw-on progress with swipe distance.
-    _lottieController.value = _swipeProgress;
+    const double kStartAnimateThreshold = 0.32;
+    const double kResetAnimateThreshold = 0.24;
+    if (_swipeProgress > kStartAnimateThreshold && !_lottieStarted) {
+      _lottieStarted = true;
+      _lottieController.forward(from: 0.0);
+    } else if (_swipeProgress < kResetAnimateThreshold && _lottieStarted) {
+      _lottieStarted = false;
+      _lottieController.value = 0.0;
+    }
     // Spec §2.7: Fire HapticEffect::Medium once when crossing threshold.
     // Also trigger 80px ripple area animation.
     if (!_thresholdCrossed &&
@@ -756,22 +775,19 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   void _onDragEnd(DragEndDetails details) {
     _manhattanPassed = false;
     _dragStartGlobal = null;
-    // Spec §2.7: If past threshold, commit the action.
     final pastThreshold = _swipeProgress >= 1.0;
     if (pastThreshold) {
       _committed = true;
       widget.onAction?.call();
     }
     _thresholdCrossed = false;
+    _lottieStarted = false;
     _resetFrom = _swipeOffset;
-    // Spec §2.7: Below-threshold release uses fixed ~200ms spring-back.
-    // Above-threshold (committed) uses speed ratio 0.35 px/ms for proportional return.
+    // AyuGram swipe_handler.cpp:164-168: committed = min(1, ratio) * slideWrapDuration (150ms).
     final int durationMs;
     if (pastThreshold) {
-      // Spec §2.7: speed ratio 0.35 px/ms → duration = offset / 0.35
-      durationMs = (_swipeOffset / 0.35).round().clamp(100, 600);
+      durationMs = (math.min(1.0, _swipeProgress) * 150).round().clamp(50, 150);
     } else {
-      // Spec §2.7: fixed 200ms spring-back for below-threshold release
       durationMs = 200;
     }
     _resetController.duration = Duration(milliseconds: durationMs);
@@ -784,6 +800,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     _manhattanPassed = false;
     _dragStartGlobal = null;
     _thresholdCrossed = false;
+    _lottieStarted = false;
     if (_swipeOffset > 0) {
       _resetFrom = _swipeOffset;
       // Spec §2.7: Cancel is always below-threshold — fixed ~200ms spring-back.
@@ -845,38 +862,37 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
                             : baseScale;
                         final iconScale = progress >= 1.0 ? bounceScale : baseScale;
                         final labelText = _swipeActionLabel(widget.action);
-                        // Spec §2.7: twoLines=true — split on first space.
-                        final displayLabel = labelText.replaceFirst(' ', '\n');
                         return CustomPaint(
                           painter: _SwipeRipplePainter(
                             rippleProgress: _rippleController.value,
                           ),
                           child: Center(
-                            child: Transform.scale(
-                              scale: iconScale,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: Lottie.asset(
-                                      _swipeActionLottiePath(widget.action),
-                                      controller: _lottieController,
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
-                                  if (labelText.isNotEmpty) ...[
-                                    const SizedBox(height: 2),
-                                    // Spec §2.7: 13px semibold label, auto-shrinks
-                                    // to min 5px; twoLines=true splits on first space.
+                            child: SizedBox(
+                              width: 60,
+                              child: Transform.scale(
+                                scale: iconScale,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
                                     SizedBox(
-                                      width: 76,
-                                      height: 32,
-                                      child: _SwipeLabel(text: displayLabel),
+                                      width: 20,
+                                      height: 20,
+                                      child: Lottie.asset(
+                                        _swipeActionLottiePath(widget.action),
+                                        controller: _lottieController,
+                                        fit: BoxFit.contain,
+                                      ),
                                     ),
+                                    if (labelText.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      SizedBox(
+                                        width: 56,
+                                        height: 16,
+                                        child: _SwipeLabel(text: labelText),
+                                      ),
+                                    ],
                                   ],
-                                ],
+                                ),
                               ),
                             ),
                           ),
@@ -924,9 +940,8 @@ class _SwipeRipplePainter extends CustomPainter {
       rippleProgress != old.rippleProgress;
 }
 
-/// Spec §2.7: Swipe action label — 13px semibold, auto-shrinks to minimum 5px
-/// if the localized string doesn't fit, with twoLines=true (already split on
-/// first space by caller). Uses TextPainter to find the largest fitting size.
+/// AyuGram dialogs_layout.cpp:990-998: DrawQuickAction twoLines=false (default).
+/// Single-line label, 13px semibold, auto-shrinks to 5px minimum.
 class _SwipeLabel extends StatelessWidget {
   final String text;
   const _SwipeLabel({required this.text});
@@ -945,10 +960,9 @@ class _SwipeLabel extends StatelessWidget {
         var fontSize = _baseSize;
         final tp = TextPainter(
           text: TextSpan(text: text, style: _baseStyle.copyWith(fontSize: fontSize)),
-          maxLines: 2,
+          maxLines: 1,
           textDirection: TextDirection.ltr,
         )..layout(maxWidth: constraints.maxWidth);
-        // Shrink font until text fits or we hit minimum 5px.
         while ((tp.didExceedMaxLines || tp.height > constraints.maxHeight) &&
             fontSize > _minSize) {
           fontSize = (fontSize - 1.0).clamp(_minSize, _baseSize);
@@ -960,7 +974,7 @@ class _SwipeLabel extends StatelessWidget {
           child: Text(
             text,
             textAlign: TextAlign.center,
-            maxLines: 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: _baseStyle.copyWith(fontSize: fontSize),
           ),
@@ -1023,6 +1037,10 @@ class _ChatAvatar extends StatelessWidget {
     final Widget avatar;
     if (_isSavedMessages) {
       avatar = SavedMessagesUserpic(size: photoSize, borderRadius: avatarRadius);
+    } else if (chat.isReplies) {
+      avatar = _RepliesMessagesUserpic(size: photoSize, borderRadius: avatarRadius);
+    } else if (chat.isHiddenAuthor) {
+      avatar = _HiddenAuthorUserpic(size: photoSize, borderRadius: avatarRadius);
     } else if (chat.avatarPath.isNotEmpty) {
       avatar = ClipRRect(
             borderRadius: BorderRadius.circular(avatarRadius),
@@ -1081,8 +1099,8 @@ class _ChatAvatar extends StatelessWidget {
                   opacity: isOnline ? 1.0 : 0.0,
                   duration: const Duration(milliseconds: 150),
                   child: Container(
-                  width: 18,
-                  height: 18,
+                  width: 12,
+                  height: 12,
                   decoration: BoxDecoration(
                     color: isActive
                         ? palette.dialogsOnlineBadgeFgActive
@@ -1604,17 +1622,33 @@ class _ThreeStateBadgeIcon extends StatelessWidget {
 class _SendStateIcon extends StatelessWidget {
   final MsgStatus status;
   final bool isActive;
+  final bool isClosed;
 
   const _SendStateIcon({
     required this.status,
     required this.isActive,
+    this.isClosed = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    // AyuGram dialogs_layout.cpp:769-774: closed topic → lock icon in send-state position.
+    if (isClosed) {
+      final lockColor = isActive ? palette.dialogsTextFgActive : palette.dialogsSentIconFg;
+      return SizedBox(
+        width: 20,
+        height: 11,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 2),
+          child: Icon(Icons.lock, size: 13, color: lockColor),
+        ),
+      );
+    }
+
     if (status == MsgStatus.unknown) return const SizedBox(width: 20);
 
-    final palette = context.palette;
     final Color iconColor;
     if (isActive) {
       iconColor = palette.dialogsTextFgActive;
@@ -1624,8 +1658,6 @@ class _SendStateIcon extends StatelessWidget {
       iconColor = palette.dialogsSentIconFg;
     }
 
-    // Spec §2: clock 11x11, single check 13x11, double check 18x11.
-    // Tick offset inside 20px slot: point(2,4).
     final IconData icon;
     final double iconSize;
     switch (status) {
@@ -1657,9 +1689,9 @@ class _SendStateIcon extends StatelessWidget {
   }
 }
 
-/// Returns true if [chat] is the Saved Messages self-chat (spec §31.1).
-bool isSavedMessages(ChatInfo chat) =>
-    chat.title == 'Saved Messages' && chat.type == ChatType.dm;
+/// Returns true if [chat] is the Saved Messages self-chat.
+/// AyuGram dialogs_layout.cpp:1115-1118: uses peer->isSelf().
+bool isSavedMessages(ChatInfo chat) => chat.isSelf;
 
 /// Saved Messages bookmark icon userpic (spec §31.1).
 /// Blue vertical-gradient circle with white bookmark silhouette.
@@ -1839,6 +1871,156 @@ class _MyNotesIconPainter extends CustomPainter {
   bool shouldRepaint(_MyNotesIconPainter oldDelegate) => false;
 }
 
+/// AyuGram dialogs_layout.cpp:470-476: PaintRepliesMessages userpic.
+/// Purple gradient circle with a double-arrow (reply) icon.
+class _RepliesMessagesUserpic extends StatelessWidget {
+  final double size;
+  final double borderRadius;
+
+  const _RepliesMessagesUserpic({required this.size, this.borderRadius = -1});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = borderRadius < 0 ? size / 2 : borderRadius;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(r),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(
+          size: Size(size, size),
+          painter: const _RepliesIconPainter(),
+        ),
+      ),
+    );
+  }
+}
+
+class _RepliesIconPainter extends CustomPainter {
+  const _RepliesIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+    final center = Offset(s / 2, s / 2);
+    final radius = s / 2;
+
+    final bgPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF5EB5F7), Color(0xFF3E97DE)],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+    canvas.drawCircle(center, radius, bgPaint);
+
+    final iconPaint = Paint()
+      ..color = const Color(0xFFFFFFFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = s * 0.06
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final arrowSize = s * 0.16;
+    final cx = s / 2;
+    final cy = s / 2;
+
+    // Left arrow (reply arrow)
+    final leftX = cx - s * 0.08;
+    canvas.drawLine(Offset(leftX - arrowSize, cy - s * 0.06),
+        Offset(leftX, cy - s * 0.06 - arrowSize * 0.7), iconPaint);
+    canvas.drawLine(Offset(leftX - arrowSize, cy - s * 0.06),
+        Offset(leftX, cy - s * 0.06 + arrowSize * 0.7), iconPaint);
+    final bodyPath = Path()
+      ..moveTo(leftX - arrowSize, cy - s * 0.06)
+      ..lineTo(leftX + s * 0.12, cy - s * 0.06)
+      ..quadraticBezierTo(leftX + s * 0.2, cy - s * 0.06, leftX + s * 0.2, cy + s * 0.04)
+      ..lineTo(leftX + s * 0.2, cy + s * 0.12);
+    canvas.drawPath(bodyPath, iconPaint);
+  }
+
+  @override
+  bool shouldRepaint(_RepliesIconPainter oldDelegate) => false;
+}
+
+/// AyuGram dialogs_layout.cpp:477-483: PaintHiddenAuthor userpic.
+/// Blue gradient circle with anonymous/ghost silhouette.
+class _HiddenAuthorUserpic extends StatelessWidget {
+  final double size;
+  final double borderRadius;
+
+  const _HiddenAuthorUserpic({required this.size, this.borderRadius = -1});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = borderRadius < 0 ? size / 2 : borderRadius;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(r),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(
+          size: Size(size, size),
+          painter: const _HiddenAuthorIconPainter(),
+        ),
+      ),
+    );
+  }
+}
+
+class _HiddenAuthorIconPainter extends CustomPainter {
+  const _HiddenAuthorIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+    final center = Offset(s / 2, s / 2);
+    final radius = s / 2;
+
+    final bgPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF72B1DF), Color(0xFF5091C2)],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+    canvas.drawCircle(center, radius, bgPaint);
+
+    // Question mark silhouette
+    final iconPaint = Paint()
+      ..color = const Color(0xFFFFFFFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = s * 0.06
+      ..strokeCap = StrokeCap.round;
+
+    final cx = s / 2;
+    final topY = s * 0.30;
+    final arcRadius = s * 0.12;
+    final arcRect = Rect.fromCenter(
+      center: Offset(cx, topY + arcRadius),
+      width: arcRadius * 2,
+      height: arcRadius * 2,
+    );
+    canvas.drawArc(arcRect, -math.pi, math.pi * 0.8, false, iconPaint);
+    canvas.drawLine(
+      Offset(cx + arcRadius * 0.6, topY + arcRadius + arcRadius * 0.6),
+      Offset(cx, topY + arcRadius * 2 + s * 0.06),
+      iconPaint,
+    );
+
+    // Dot below
+    final dotPaint = Paint()
+      ..color = const Color(0xFFFFFFFF)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(
+      Offset(cx, s * 0.72),
+      s * 0.035,
+      dotPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_HiddenAuthorIconPainter oldDelegate) => false;
+}
+
 /// Hover-tracking wrapper that exposes hover state to its builder.
 /// Used for Spec §2 unread pill Over/Active color variants.
 class _HoverBuilder extends StatefulWidget {
@@ -1886,20 +2068,18 @@ class ForumChatListRow extends StatelessWidget {
   });
 
   static const _rowHeight = 80.0;
-  static const _rowHeightWithTags = 96.0;
   static const _avatarSize = 46.0;
   static const _avatarLeft = 10.0;
   static const _contentLeft = 68.0;
   static const _paddingRight = 10.0;
   static const _topicsHeight = 21.0;
-  static const _topicsSkip = 8.0;
-  static const _topicsSkipBig = 14.0;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final hasTags = chat.type == ChatType.topic && chat.parentId.isNotEmpty;
-    final effectiveHeight = hasTags ? _rowHeightWithTags : _rowHeight;
+    // AyuGram dialogs.style:114-117: taggedForumDialogRow applies when row has
+    // active folder filter tags, not based on parentId. Not yet supported.
+    const effectiveHeight = _rowHeight;
 
     final nameColor = isActive ? palette.dialogsNameFgActive : palette.dialogsNameFg;
     final mutedColor = isActive ? palette.dialogsTextFgActive : palette.dialogsTextFg;
@@ -2058,7 +2238,7 @@ class ForumChatListRow extends StatelessWidget {
                             isActive: isActive,
                           ),
                         ),
-                        const SizedBox(height: _topicsSkip - 4),
+                        const SizedBox(height: 4),
                         if (unreadFrontTopic != null)
                           _TopicJumpBubble(
                             topic: unreadFrontTopic,
@@ -2104,6 +2284,7 @@ class ForumChatListRow extends StatelessWidget {
 }
 
 /// §22.4: Horizontal row of up to 8 recent topic names. Unread topics bold.
+/// AyuGram dialogs_topics_view.cpp:221-239: per-topic spacing with topicsSkip=8px.
 class _TopicsPreview extends StatelessWidget {
   final List<ForumTopic> topics;
   final bool isActive;
@@ -2112,6 +2293,8 @@ class _TopicsPreview extends StatelessWidget {
     required this.topics,
     required this.isActive,
   });
+
+  static const _topicsSkip = 8.0;
 
   @override
   Widget build(BuildContext context) {
@@ -2127,18 +2310,12 @@ class _TopicsPreview extends StatelessWidget {
           final topic = topics[i];
           final hasUnread = topic.unreadCount > 0;
           if (i > 0) {
-            children.add(TextSpan(
-              text: ', ',
-              style: TextStyle(
-                fontSize: 13,
-                color: isActive ? palette.dialogsTextFgActive.withValues(alpha: 0.5) : palette.dialogsTextFg,
-              ),
-            ));
+            children.add(const WidgetSpan(child: SizedBox(width: _topicsSkip)));
           }
           children.add(WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: topic.isGeneral
-                ? GeneralForumTopicIcon(size: ForumTopicIcon.defaultSize)
+                ? const GeneralForumTopicIcon(size: ForumTopicIcon.defaultSize)
                 : ForumTopicIcon(
                     colorId: topic.colorId,
                     title: topic.title,
@@ -2160,14 +2337,15 @@ class _TopicsPreview extends StatelessWidget {
         return Text.rich(
           TextSpan(children: children),
           maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          overflow: TextOverflow.clip,
         );
       },
     );
   }
 }
 
-/// §22.4: Topic jump bubble — rounded bubble with arrow for unread front topic.
+/// §22.4: Topic jump bubble — two-area rounded bubble for unread front topic.
+/// AyuGram dialogs_topics_view.cpp:323-370: area1 (topic icon+title) + area2 (arrow).
 class _TopicJumpBubble extends StatelessWidget {
   final ForumTopic topic;
   final bool isActive;
@@ -2184,35 +2362,59 @@ class _TopicJumpBubble extends StatelessWidget {
     final fg = isActive
         ? palette.dialogsUnreadFgActive
         : palette.dialogsUnreadFg;
+    final bgDimmed = isActive
+        ? palette.dialogsUnreadBgActive.withValues(alpha: 0.8)
+        : palette.dialogsUnreadBg.withValues(alpha: 0.8);
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-      padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
-      decoration: BoxDecoration(
-        color: bg,
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(11),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.arrow_forward, size: 12, color: fg),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              topic.isGeneral ? '# ${topic.title}' : topic.title,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: fg,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(5, 3, 5, 3),
+              color: bg,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: topic.isGeneral
+                        ? const GeneralForumTopicIcon(size: 14)
+                        : ForumTopicIcon(
+                            colorId: topic.colorId,
+                            title: topic.title,
+                            size: 14,
+                          ),
+                  ),
+                  const SizedBox(width: 3),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 120),
+                    child: Text(
+                      topic.title,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: fg,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
+            Container(
+              padding: const EdgeInsets.fromLTRB(4, 3, 5, 3),
+              color: bgDimmed,
+              child: Icon(Icons.keyboard_arrow_right, size: 14, color: fg),
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 }
