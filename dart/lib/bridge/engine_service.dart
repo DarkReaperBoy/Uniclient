@@ -5794,6 +5794,17 @@ class EngineService {
     return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> getBoostsList(String accountId, String chatId, {bool isGifts = false, String offset = ''}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'is_gifts': isGifts,
+      'offset': offset,
+    }));
+    final resp = await _callAsync('__engine', 'GetBoostsList', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+  }
+
   // ── Notification Settings ──
 
   Future<bool> getContactSignUpNotification(String accountId) async {

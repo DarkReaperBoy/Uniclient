@@ -15841,6 +15841,105 @@ func (t *TelegramCore) SetBoostsUnrestrict(chatID string, boosts int) error {
 	return err
 }
 
+func (t *TelegramCore) GetBoostsJSON(chatID string) (map[string]interface{}, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return nil, err }
+	inputPeer, err := t.toInputPeer(peer); if err != nil { return nil, err }
+	status, err := t.api.PremiumGetBoostsStatus(t.ctx, inputPeer)
+	if err != nil { return nil, err }
+	out := map[string]interface{}{
+		"level":               status.Level,
+		"boosts":              status.Boosts,
+		"current_level_boosts": status.CurrentLevelBoosts,
+		"next_level_boosts":   status.NextLevelBoosts,
+		"gift_boosts":         status.GiftBoosts,
+		"my_boost":            status.MyBoost,
+		"boost_url":           status.BoostURL,
+	}
+	if pa := status.PremiumAudience; pa.Total > 0 {
+		out["premium_audience"] = map[string]interface{}{
+			"part":  pa.Part,
+			"total": pa.Total,
+		}
+	}
+	if slots, ok := status.GetMyBoostSlots(); ok {
+		out["my_boost_slots"] = slots
+	}
+	if prepaid, ok := status.GetPrepaidGiveaways(); ok && len(prepaid) > 0 {
+		var giveaways []map[string]interface{}
+		for _, pg := range prepaid {
+			switch g := pg.(type) {
+			case *tg.PrepaidGiveaway:
+				giveaways = append(giveaways, map[string]interface{}{
+					"id":       g.ID,
+					"months":   g.Months,
+					"quantity": g.Quantity,
+					"date":     g.Date,
+				})
+			}
+		}
+		out["prepaid_giveaways"] = giveaways
+	}
+	return out, nil
+}
+
+func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset string) (map[string]interface{}, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return nil, err }
+	inputPeer, err := t.toInputPeer(peer); if err != nil { return nil, err }
+	req := &tg.PremiumGetBoostsListRequest{
+		Peer:   inputPeer,
+		Offset: offset,
+		Limit:  50,
+	}
+	if isGifts {
+		req.SetGifts(true)
+	}
+	list, err := t.api.PremiumGetBoostsList(t.ctx, req)
+	if err != nil { return nil, err }
+	out := map[string]interface{}{
+		"count": list.Count,
+	}
+	if nextOff, ok := list.GetNextOffset(); ok {
+		out["next_offset"] = nextOff
+	}
+	var boosters []map[string]interface{}
+	userMap := map[int64]tg.UserClass{}
+	for _, u := range list.Users {
+		if usr, ok := u.(*tg.User); ok {
+			userMap[usr.ID] = usr
+		}
+	}
+	for _, b := range list.Boosts {
+		row := map[string]interface{}{
+			"id":      b.ID,
+			"date":    b.Date,
+			"expires": b.Expires,
+		}
+		if b.Gift { row["gift"] = true }
+		if b.Giveaway { row["giveaway"] = true }
+		if b.Unclaimed { row["unclaimed"] = true }
+		if uid, ok := b.GetUserID(); ok {
+			row["user_id"] = uid
+			if u, exists := userMap[uid]; exists {
+				if usr, ok := u.(*tg.User); ok {
+					name := usr.FirstName
+					if usr.LastName != "" { name += " " + usr.LastName }
+					row["user_name"] = name
+				}
+			}
+		}
+		if mult, ok := b.GetMultiplier(); ok {
+			row["multiplier"] = mult
+		}
+		boosters = append(boosters, row)
+	}
+	out["boosters"] = boosters
+	return out, nil
+}
+
 func (t *TelegramCore) EditChannelTitle(chatID string, title string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ErrAuth }

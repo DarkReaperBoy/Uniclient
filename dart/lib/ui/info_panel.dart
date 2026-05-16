@@ -7556,6 +7556,13 @@ class _BoostsPageState extends State<_BoostsPage> {
   bool _loading = true;
   Map<String, dynamic>? _data;
   String? _error;
+  int _activeTab = 0; // 0=boosters, 1=gifts
+  List<Map<String, dynamic>> _boosters = [];
+  List<Map<String, dynamic>> _gifts = [];
+  String? _boostersNextOffset;
+  String? _giftsNextOffset;
+  bool _loadingBoosters = false;
+  bool _loadingGifts = false;
 
   @override
   void initState() {
@@ -7567,9 +7574,49 @@ class _BoostsPageState extends State<_BoostsPage> {
     try {
       final engine = context.read<EngineService>();
       final data = await engine.getBoosts(widget.chat.accountId, widget.chat.chatId);
-      if (mounted) setState(() { _data = data; _loading = false; });
+      if (!mounted) return;
+      setState(() { _data = data; _loading = false; });
+      _loadBoostersList(isGifts: false);
+      _loadBoostersList(isGifts: true);
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  Future<void> _loadBoostersList({required bool isGifts, bool loadMore = false}) async {
+    if (isGifts) {
+      if (_loadingGifts) return;
+      _loadingGifts = true;
+    } else {
+      if (_loadingBoosters) return;
+      _loadingBoosters = true;
+    }
+    try {
+      final engine = context.read<EngineService>();
+      final offset = loadMore ? (isGifts ? _giftsNextOffset ?? '' : _boostersNextOffset ?? '') : '';
+      final result = await engine.getBoostsList(
+        widget.chat.accountId, widget.chat.chatId,
+        isGifts: isGifts, offset: offset,
+      );
+      if (!mounted) return;
+      final items = (result['boosters'] as List<dynamic>?)
+          ?.whereType<Map<String, dynamic>>().toList() ?? [];
+      final nextOff = result['next_offset'] as String?;
+      setState(() {
+        if (isGifts) {
+          if (loadMore) { _gifts.addAll(items); } else { _gifts = items; }
+          _giftsNextOffset = nextOff;
+          _loadingGifts = false;
+        } else {
+          if (loadMore) { _boosters.addAll(items); } else { _boosters = items; }
+          _boostersNextOffset = nextOff;
+          _loadingBoosters = false;
+        }
+      });
+    } catch (_) {
+      if (mounted) setState(() {
+        if (isGifts) { _loadingGifts = false; } else { _loadingBoosters = false; }
+      });
     }
   }
 
@@ -7616,12 +7663,16 @@ class _BoostsPageState extends State<_BoostsPage> {
     final boosts = _data!['boosts'] as int? ?? 0;
     final currentLevelBoosts = _data!['current_level_boosts'] as int? ?? 0;
     final nextLevelBoosts = _data!['next_level_boosts'] as int? ?? 0;
+    final giftBoosts = _data!['gift_boosts'] as int? ?? 0;
+    final boostUrl = _data!['boost_url'] as String? ?? '';
     final isDark = widget.theme.brightness == Brightness.dark;
+    final subColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
 
     return ListView(
       controller: widget.scrollController,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.zero,
       children: [
+        const SizedBox(height: 16),
         Center(child: Text('Level $level', style: TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.w700,
@@ -7629,23 +7680,328 @@ class _BoostsPageState extends State<_BoostsPage> {
         ))),
         const SizedBox(height: 8),
         Center(child: Text('$boosts boosts', style: TextStyle(
-          fontSize: 14,
-          color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999),
+          fontSize: 14, color: subColor,
         ))),
         const SizedBox(height: 16),
-        if (nextLevelBoosts > 0) ...[
-          LinearProgressIndicator(
-            value: currentLevelBoosts > 0 ? (boosts - currentLevelBoosts) / (nextLevelBoosts - currentLevelBoosts) : 0,
-            backgroundColor: isDark ? const Color(0xFF2b3945) : const Color(0xFFe9ecef),
-            valueColor: AlwaysStoppedAnimation(widget.theme.colorScheme.primary),
+        if (nextLevelBoosts > 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(
+                    value: currentLevelBoosts > 0
+                        ? (boosts - currentLevelBoosts) / (nextLevelBoosts - currentLevelBoosts)
+                        : 0,
+                    minHeight: 6,
+                    backgroundColor: isDark ? const Color(0xFF2b3945) : const Color(0xFFe9ecef),
+                    valueColor: AlwaysStoppedAnimation(widget.theme.colorScheme.primary),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Level $level', style: TextStyle(fontSize: 12, color: subColor)),
+                    Text('Level ${level + 1}', style: TextStyle(fontSize: 12, color: subColor)),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text('$boosts / $nextLevelBoosts boosts for next level',
+                  style: TextStyle(fontSize: 12, color: subColor)),
+              ],
+            ),
           ),
-          const SizedBox(height: 4),
-          Text('$boosts / $nextLevelBoosts boosts for Level ${level + 1}', style: TextStyle(
-            fontSize: 12,
-            color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999),
-          )),
+        const SizedBox(height: 16),
+        Divider(height: 1, color: widget.theme.dividerColor),
+        // Overview section
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Overview', style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w600,
+                color: widget.theme.colorScheme.primary,
+              )),
+              const SizedBox(height: 12),
+              _BoostOverviewRow(label: 'Level', value: '$level', theme: widget.theme),
+              _BoostOverviewRow(label: 'Existing boosts', value: '$boosts', theme: widget.theme),
+              if (giftBoosts > 0)
+                _BoostOverviewRow(label: 'Boosts via gifts', value: '$giftBoosts', theme: widget.theme),
+              if (nextLevelBoosts > 0)
+                _BoostOverviewRow(label: 'Boosts to level up', value: '${nextLevelBoosts - boosts}', theme: widget.theme),
+            ],
+          ),
+        ),
+        Divider(height: 1, color: widget.theme.dividerColor),
+        // Boosters / Gifts tabs
+        if (_boosters.isNotEmpty || _gifts.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildBoosterTabs(),
+          const SizedBox(height: 8),
+          ..._buildBoosterList(),
+          const SizedBox(height: 8),
+          Divider(height: 1, color: widget.theme.dividerColor),
         ],
+        // Boost link section
+        if (boostUrl.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Link for boosting', style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w600,
+                  color: widget.theme.colorScheme.primary,
+                )),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf0f2f5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(boostUrl, style: TextStyle(
+                        fontSize: 13,
+                        color: widget.theme.colorScheme.primary,
+                      ), overflow: TextOverflow.ellipsis)),
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: boostUrl));
+                          showTelegramToast(context, 'Link copied');
+                        },
+                        child: Icon(Icons.copy, size: 18, color: widget.theme.colorScheme.primary),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Share this link with subscribers to get more boosts.',
+                  style: TextStyle(fontSize: 12, color: subColor),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: widget.theme.dividerColor),
+        ],
+        // Get more boosts button
+        InkWell(
+          onTap: () {
+            if (boostUrl.isNotEmpty) {
+              Clipboard.setData(ClipboardData(text: boostUrl));
+              showTelegramToast(context, 'Boost link copied — share it to get more boosts!');
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 28, height: 28,
+                  decoration: BoxDecoration(
+                    color: widget.theme.colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.rocket_launch, size: 16, color: widget.theme.colorScheme.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Get More Boosts', style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w500,
+                  color: widget.theme.colorScheme.primary,
+                ))),
+                Icon(Icons.chevron_right, size: 20, color: subColor),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            'Share the boost link or start a giveaway to get more boosts for your channel.',
+            style: TextStyle(fontSize: 12, color: subColor),
+          ),
+        ),
+        const SizedBox(height: 24),
       ],
+    );
+  }
+
+  Widget _buildBoosterTabs() {
+    final isDark = widget.theme.brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          _BoostTabButton(
+            label: '${_boosters.length} Boosters',
+            active: _activeTab == 0,
+            theme: widget.theme,
+            onTap: () => setState(() => _activeTab = 0),
+          ),
+          const SizedBox(width: 12),
+          _BoostTabButton(
+            label: '${_gifts.length} Gift Boosts',
+            active: _activeTab == 1,
+            theme: widget.theme,
+            onTap: () => setState(() => _activeTab = 1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildBoosterList() {
+    final list = _activeTab == 0 ? _boosters : _gifts;
+    final hasMore = _activeTab == 0 ? _boostersNextOffset != null : _giftsNextOffset != null;
+    final loading = _activeTab == 0 ? _loadingBoosters : _loadingGifts;
+    final isDark = widget.theme.brightness == Brightness.dark;
+    final subColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+
+    if (list.isEmpty && loading) {
+      return [const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()))];
+    }
+    if (list.isEmpty) {
+      return [Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(_activeTab == 0 ? 'No boosters yet' : 'No gift boosts yet',
+          style: TextStyle(fontSize: 13, color: subColor)),
+      )];
+    }
+
+    final widgets = <Widget>[];
+    for (final b in list) {
+      final name = b['user_name'] as String? ?? 'Unknown';
+      final isGift = b['gift'] == true;
+      final isGiveaway = b['giveaway'] == true;
+      final isUnclaimed = b['unclaimed'] == true;
+      final multiplier = b['multiplier'] as int? ?? 1;
+      final expires = b['expires'] as int? ?? 0;
+
+      String subtitle = '';
+      if (isUnclaimed) {
+        subtitle = 'Unclaimed';
+      } else if (isGiveaway) {
+        subtitle = 'Giveaway';
+      } else if (isGift) {
+        subtitle = 'Gift';
+      }
+      if (expires > 0) {
+        final exp = DateTime.fromMillisecondsSinceEpoch(expires * 1000);
+        final now = DateTime.now();
+        final days = exp.difference(now).inDays;
+        if (days > 0) {
+          subtitle += subtitle.isNotEmpty ? ' · ' : '';
+          subtitle += 'Expires in $days days';
+        }
+      }
+
+      widgets.add(Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: widget.theme.colorScheme.primary.withValues(alpha: 0.15),
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: TextStyle(fontSize: 14, color: widget.theme.colorScheme.primary),
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.white : Colors.black87,
+                ), maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (subtitle.isNotEmpty)
+                  Text(subtitle, style: TextStyle(fontSize: 11, color: subColor)),
+              ],
+            )),
+            if (multiplier > 1)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: widget.theme.colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text('×$multiplier', style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w600,
+                  color: widget.theme.colorScheme.primary,
+                )),
+              ),
+          ],
+        ),
+      ));
+    }
+    if (hasMore) {
+      widgets.add(Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: TextButton(
+          onPressed: () => _loadBoostersList(isGifts: _activeTab == 1, loadMore: true),
+          child: Text(loading ? 'Loading...' : 'Show more'),
+        ),
+      ));
+    }
+    return widgets;
+  }
+}
+
+class _BoostOverviewRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final ThemeData theme;
+  const _BoostOverviewRow({required this.label, required this.value, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontSize: 13,
+            color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999))),
+          Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
+            color: isDark ? Colors.white : Colors.black87)),
+        ],
+      ),
+    );
+  }
+}
+
+class _BoostTabButton extends StatelessWidget {
+  final String label;
+  final bool active;
+  final ThemeData theme;
+  final VoidCallback onTap;
+  const _BoostTabButton({required this.label, required this.active, required this.theme, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? theme.colorScheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          border: active ? null : Border.all(color: theme.dividerColor),
+        ),
+        child: Text(label, style: TextStyle(
+          fontSize: 12, fontWeight: FontWeight.w500,
+          color: active ? Colors.white : theme.textTheme.bodyMedium?.color,
+        )),
+      ),
     );
   }
 }
@@ -7801,10 +8157,19 @@ class _StatisticsPageState extends State<_StatisticsPage>
               ? _buildLoadingState()
               : _error != null
                   ? _buildErrorState()
-                  : _buildContent(),
+                  : RefreshIndicator(
+                      onRefresh: _refresh,
+                      child: _buildContent(),
+                    ),
         ),
       ],
     );
+  }
+
+  Future<void> _refresh() async {
+    setState(() { _loading = true; _error = null; });
+    _slideController.value = 1.0;
+    await _loadStats();
   }
 
   Widget _buildLoadingState() {
@@ -9157,11 +9522,18 @@ class _PublicForwardRow extends StatelessWidget {
 
     return InkWell(
       onTap: () {
-        final chatId = forward['chat_id'] as String? ?? '';
-        final msgId = forward['msg_id'] as String? ?? '';
-        if (chatId.isNotEmpty) {
+        final peerId = forward['peer_id'] as String? ?? '';
+        final msgId = forward['msg_id'];
+        final date = forward['date'] as int? ?? 0;
+        if (peerId.isNotEmpty) {
           final chatState = context.read<ChatState>();
+          final chatId = _peerIdToChatId(peerId);
           chatState.openChatById(chatId);
+          if (date > 0) {
+            Future.microtask(() {
+              chatState.jumpToMessage(date * 1000, highlightMsgId: msgId?.toString());
+            });
+          }
         }
       },
       child: Padding(
@@ -9208,6 +9580,17 @@ class _PublicForwardRow extends StatelessWidget {
     if (n >= 10000) return '${(n / 1000).toStringAsFixed(1)}K';
     if (n >= 1000) return '${(n / 1000).toStringAsFixed(2)}K';
     return n.toString();
+  }
+
+  static String _peerIdToChatId(String peerId) {
+    if (peerId.startsWith('channel_')) {
+      return '-100${peerId.substring(8)}';
+    } else if (peerId.startsWith('chat_')) {
+      return '-${peerId.substring(5)}';
+    } else if (peerId.startsWith('user_')) {
+      return peerId.substring(5);
+    }
+    return peerId;
   }
 }
 

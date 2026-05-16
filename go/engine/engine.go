@@ -1474,6 +1474,34 @@ func (e *Engine) SetBoostsUnrestrict(accountID, chatID string, boosts int) error
 	return fmt.Errorf("platform does not support boosts unrestrict")
 }
 
+func (e *Engine) GetBoosts(accountID, chatID string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type boostsGetter interface {
+		GetBoostsJSON(chatID string) (map[string]interface{}, error)
+	}
+	if bg, ok := acc.Core.(boostsGetter); ok {
+		return bg.GetBoostsJSON(chatID)
+	}
+	return nil, fmt.Errorf("platform does not support boosts")
+}
+
+func (e *Engine) GetBoostsList(accountID, chatID string, isGifts bool, offset string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type boostsLister interface {
+		GetBoostsListJSON(chatID string, isGifts bool, offset string) (map[string]interface{}, error)
+	}
+	if bl, ok := acc.Core.(boostsLister); ok {
+		return bl.GetBoostsListJSON(chatID, isGifts, offset)
+	}
+	return nil, fmt.Errorf("platform does not support boosts list")
+}
+
 func (e *Engine) GetFullChat(accountID, chatID string) (*cores.Dialog, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

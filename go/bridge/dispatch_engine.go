@@ -2034,6 +2034,36 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetBoostsUnrestrict(params.AccountID, params.ChatID, params.Boosts)
 
+	case "GetBoosts":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetBoosts(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
+	case "GetBoostsList":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			IsGifts   bool   `json:"is_gifts"`
+			Offset    string `json:"offset"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetBoostsList(params.AccountID, params.ChatID, params.IsGifts, params.Offset)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
 	case "UpdatePaidMessagesPrice":
 		var params struct {
 			AccountID        string `json:"account_id"`
