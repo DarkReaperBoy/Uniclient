@@ -6395,39 +6395,15 @@ class _ChatTopBar extends StatelessWidget {
   static void _showScheduledMenu(BuildContext btnCtx, ChatInfo chat) {
     final button = btnCtx.findRenderObject() as RenderBox;
     final buttonPos = button.localToGlobal(Offset(0, button.size.height));
-    showTelegramMenu<String>(
-      context: btnCtx,
-      position: buttonPos,
-      items: const [
-        TelegramMenuItem(value: 'create_poll', icon: Icon(Icons.poll_outlined, size: 20), label: 'Create Poll'),
-        TelegramMenuItem(value: 'create_todo', icon: Icon(Icons.checklist_outlined, size: 20), label: 'Create To-do List'),
-      ],
-    ).then((value) {
-      if (value == null) return;
-      switch (value) {
-        case 'create_poll':
-          showCreatePollBox(btnCtx).then((result) {
-            if (result == null) return;
-            final engine = btnCtx.read<EngineService>();
-            engine.createPoll(
-              chat.accountId, chat.chatId, result.question, result.options,
-              multipleChoice: result.multipleChoice, anonymous: result.anonymous,
-              quiz: result.quiz, allowRevoting: result.allowRevoting,
-              correctOption: result.correctOptionIndex, solution: result.solution,
-            );
-          });
-        case 'create_todo':
-          showCreatePollBox(btnCtx).then((result) {
-            if (result == null) return;
-            final engine = btnCtx.read<EngineService>();
-            engine.createPoll(
-              chat.accountId, chat.chatId, result.question, result.options,
-              multipleChoice: result.multipleChoice, anonymous: result.anonymous,
-              quiz: result.quiz, allowRevoting: result.allowRevoting,
-              correctOption: result.correctOptionIndex, solution: result.solution,
-            );
-          });
-      }
+    showCreatePollBox(btnCtx).then((result) {
+      if (result == null) return;
+      final engine = btnCtx.read<EngineService>();
+      engine.createPoll(
+        chat.accountId, chat.chatId, result.question, result.options,
+        multipleChoice: result.multipleChoice, anonymous: result.anonymous,
+        quiz: result.quiz, allowRevoting: result.allowRevoting,
+        correctOption: result.correctOptionIndex, solution: result.solution,
+      );
     });
   }
 
@@ -7233,12 +7209,12 @@ class _TopBarTypingDotsState extends State<_TopBarTypingDots>
 }
 
 /// Scrollable message list. Newest at bottom, loads more at top.
-class _MessageList extends StatelessWidget {
+class _MessageList extends StatefulWidget {
   final List<CachedMessage> messages;
   final bool loading;
   final bool isGroupChat;
   final ChatType chatType;
-  final ChatState? senderAvatars; // for looking up sender avatar b64 by ID
+  final ChatState? senderAvatars;
   final ScrollController scrollController;
   final ValueChanged<String> onReply;
   final Set<String> selectedIds;
@@ -7248,11 +7224,8 @@ class _MessageList extends StatelessWidget {
   final ValueChanged<String>? onSenderTap;
   final void Function(String senderId, Offset position)? onSenderContextMenu;
   final ValueChanged<String>? onReplyTap;
-  /// Spec §4.3: ID of the currently highlighted search result message.
   final String? searchHighlightId;
-  /// Spec §4.3: active search query for text highlighting within bubbles.
   final String searchQuery;
-  /// Spec §5 / §49.4: unread count at time chat was opened (for unread bar).
   final int openedUnreadCount;
   final bool isScheduledView;
   final bool isBotChat;
@@ -7290,7 +7263,48 @@ class _MessageList extends StatelessWidget {
   });
 
   @override
+  State<_MessageList> createState() => _MessageListState();
+}
+
+class _MessageListState extends State<_MessageList> {
+  List<_DisplayItem> _cachedDisplayItems = const [];
+  List<CachedMessage>? _lastMessages;
+
+  List<_DisplayItem> get _displayItems {
+    if (!identical(_lastMessages, widget.messages)) {
+      _lastMessages = widget.messages;
+      _cachedDisplayItems = _buildDisplayItems(widget.messages);
+    }
+    return _cachedDisplayItems;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final messages = widget.messages;
+    final loading = widget.loading;
+    final isGroupChat = widget.isGroupChat;
+    final chatType = widget.chatType;
+    final scrollController = widget.scrollController;
+    final selectedIds = widget.selectedIds;
+    final onReply = widget.onReply;
+    final onToggleSelect = widget.onToggleSelect;
+    final onLongPress = widget.onLongPress;
+    final onContextMenu = widget.onContextMenu;
+    final onSenderTap = widget.onSenderTap;
+    final onSenderContextMenu = widget.onSenderContextMenu;
+    final onReplyTap = widget.onReplyTap;
+    final searchHighlightId = widget.searchHighlightId;
+    final searchQuery = widget.searchQuery;
+    final openedUnreadCount = widget.openedUnreadCount;
+    final isScheduledView = widget.isScheduledView;
+    final isBotChat = widget.isBotChat;
+    final botName = widget.botName;
+    final botDescription = widget.botDescription;
+    final highlightedMsgId = widget.highlightedMsgId;
+    final highlightAnimation = widget.highlightAnimation;
+    final highlightMsgKey = widget.highlightMsgKey;
+    final senderAvatars = widget.senderAvatars;
+
     if (messages.isEmpty && !loading) {
       if (isScheduledView) {
         return Center(
@@ -7326,8 +7340,7 @@ class _MessageList extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    // Pre-compute display items: group consecutive album members.
-    final displayItems = _buildDisplayItems(messages);
+    final displayItems = _displayItems;
 
     return ListView.builder(
       controller: scrollController,
@@ -10594,39 +10607,47 @@ class _GroupCallUserpic extends StatelessWidget {
   Widget build(BuildContext context) {
     const double size = 28;
     const double borderWidth = 2;
-    // Color by userId hash for deterministic avatar bg.
     final hue = (participant.userId.hashCode % 360).abs().toDouble();
     final avatarBg = HSLColor.fromAHSL(1, hue, 0.5, 0.45).toColor();
     final initials = participant.displayName.isNotEmpty
         ? participant.displayName[0].toUpperCase()
         : '?';
 
-    final avatar = Container(
+    final borderColor = isSpeaking
+        ? accentGreen
+        : (isDark ? const Color(0xFF17212B) : Colors.white);
+
+    Widget avatarContent;
+    if (participant.avatarPath.isNotEmpty) {
+      try {
+        final bytes = base64Decode(participant.avatarPath);
+        avatarContent = ClipOval(
+          child: Image.memory(bytes, width: size - borderWidth * 2,
+              height: size - borderWidth * 2, fit: BoxFit.cover),
+        );
+      } catch (_) {
+        avatarContent = Text(
+          initials,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+        );
+      }
+    } else {
+      avatarContent = Text(
+        initials,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+      );
+    }
+
+    return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: avatarBg,
-        border: isSpeaking
-            ? Border.all(color: accentGreen, width: borderWidth)
-            : Border.all(
-                color: isDark ? const Color(0xFF17212B) : Colors.white,
-                width: borderWidth,
-              ),
+        border: Border.all(color: borderColor, width: borderWidth),
       ),
-      child: Center(
-        child: Text(
-          initials,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
-      ),
+      child: Center(child: avatarContent),
     );
-
-    return avatar;
   }
 }
 
@@ -18252,16 +18273,14 @@ class _StarGiftSheetState extends State<_StarGiftSheet> {
   }
 
   void _sendStarGift(BuildContext context, StarGiftItem gift) async {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(const SnackBar(content: Text('Sending gift...')));
+    showTelegramToast(context, 'Sending gift...');
     final ok = await widget.engine.sendStarGift(widget.accountId, widget.chatId, gift.id);
     if (!mounted) return;
-    messenger.hideCurrentSnackBar();
     if (ok) {
-      messenger.showSnackBar(const SnackBar(content: Text('Gift sent!')));
+      showTelegramToast(context, 'Gift sent!');
       Navigator.pop(context);
     } else {
-      messenger.showSnackBar(const SnackBar(content: Text('Failed to send gift. Please try again.')));
+      showTelegramToast(context, 'Failed to send gift. Please try again.');
     }
   }
 }
@@ -19846,6 +19865,7 @@ class _MergedReadEntry {
   final WhoReadType type;
   final String? emoji;
   final bool dateReacted;
+  final String avatarB64;
 
   const _MergedReadEntry({
     required this.userId,
@@ -19854,6 +19874,7 @@ class _MergedReadEntry {
     required this.type,
     this.emoji,
     this.dateReacted = false,
+    this.avatarB64 = '',
   });
 }
 
@@ -20005,6 +20026,7 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
           name: p.name,
           date: p.date,
           type: WhoReadType.viewed,
+          avatarB64: p.avatarB64,
         ));
       }
     }
@@ -20170,6 +20192,7 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
                 child: _WhoReadAvatar(
                   name: entries[i].name.isNotEmpty ? entries[i].name : 'User',
                   size: 18,
+                  avatarB64: entries[i].avatarB64,
                 ),
               ),
             ),
@@ -20376,7 +20399,7 @@ class _WhoReadRowState extends State<_WhoReadRow> {
                 child: AnimatedOpacity(
                   opacity: widget.showAvatar ? 1.0 : 0.0,
                   duration: const Duration(milliseconds: 120),
-                  child: _WhoReadAvatar(name: name, size: 30),
+                  child: _WhoReadAvatar(name: name, size: 30, avatarB64: e.avatarB64),
                 ),
               ),
               Positioned(
@@ -20454,8 +20477,9 @@ class _WhoReadRowState extends State<_WhoReadRow> {
 class _WhoReadAvatar extends StatelessWidget {
   final String name;
   final double size;
+  final String avatarB64;
 
-  const _WhoReadAvatar({required this.name, required this.size});
+  const _WhoReadAvatar({required this.name, required this.size, this.avatarB64 = ''});
 
   static const _colors = [
     Color(0xFFE17076),
@@ -20470,6 +20494,14 @@ class _WhoReadAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (avatarB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(avatarB64);
+        return ClipOval(
+          child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover),
+        );
+      } catch (_) {}
+    }
     final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : '?';
     final colorIdx = name.hashCode.abs() % _colors.length;
     return Container(
@@ -20750,7 +20782,7 @@ class _AiIconPainter extends CustomPainter {
 
 // ── §54.9a ComposeAiBox Modal ──
 
-enum _AiMode { translate, style, fix }
+enum _AiMode { translate }
 
 class _ComposeAiBox extends StatefulWidget {
   final String originalText;
@@ -20770,22 +20802,11 @@ class _ComposeAiBox extends StatefulWidget {
 }
 
 class _ComposeAiBoxState extends State<_ComposeAiBox> {
-  _AiMode _mode = _AiMode.translate;
-  String? _selectedStyle;
   String? _result;
   bool _loading = false;
   String? _error;
   bool _originalCollapsed = false;
-  bool _emojify = false;
   String _targetLang = 'en';
-
-  static const _styleOptions = <String, String>{
-    'formal': 'Formal',
-    'casual': 'Casual',
-    'creative': 'Creative',
-    'concise': 'Concise',
-    'academic': 'Academic',
-  };
 
   static const _languages = <String, String>{
     'en': 'English',
@@ -20805,7 +20826,6 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
   };
 
   void _submit() async {
-    if (_mode == _AiMode.style && _selectedStyle == null) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -20813,41 +20833,16 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
     });
 
     try {
-      if (_mode == _AiMode.translate) {
-        final result = await widget.engine.translateFreeText(
-          widget.accountId,
-          widget.originalText,
-          _targetLang,
-        );
-        if (!mounted) return;
-        setState(() {
-          _result = result ?? widget.originalText;
-          _loading = false;
-        });
-      } else if (_mode == _AiMode.fix) {
-        final result = await widget.engine.translateFreeText(
-          widget.accountId,
-          'Fix grammar and spelling: ${widget.originalText}',
-          _targetLang,
-        );
-        if (!mounted) return;
-        setState(() {
-          _result = result ?? widget.originalText;
-          _loading = false;
-        });
-      } else if (_mode == _AiMode.style) {
-        final styleName = _selectedStyle ?? 'formal';
-        final result = await widget.engine.translateFreeText(
-          widget.accountId,
-          'Rewrite in $styleName style: ${widget.originalText}',
-          _targetLang,
-        );
-        if (!mounted) return;
-        setState(() {
-          _result = result ?? widget.originalText;
-          _loading = false;
-        });
-      }
+      final result = await widget.engine.translateFreeText(
+        widget.accountId,
+        widget.originalText,
+        _targetLang,
+      );
+      if (!mounted) return;
+      setState(() {
+        _result = result ?? widget.originalText;
+        _loading = false;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -20874,11 +20869,7 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildHeader(theme),
-            _buildModeTabs(theme, isDark),
-            if (_mode == _AiMode.translate)
-              _buildLanguageSelector(theme, isDark),
-            if (_mode == _AiMode.style)
-              _buildStyleTabs(theme, isDark),
+            _buildLanguageSelector(theme, isDark),
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -20890,8 +20881,6 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
                     if (_loading) _buildLoadingSkeleton(theme, cardBg),
                     if (_error != null) _buildError(theme),
                     if (_result != null) _buildResultCard(theme, cardBg, isDark),
-                    if (_mode == _AiMode.translate)
-                      _buildEmojifyCheckbox(theme),
                     const SizedBox(height: 12),
                   ],
                 ),
@@ -20918,7 +20907,7 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
           ),
           const SizedBox(width: 8),
           Text(
-            'AI Editor',
+            'Translate',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -20936,36 +20925,6 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
     );
   }
 
-  Widget _buildModeTabs(ThemeData theme, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          for (final mode in _AiMode.values)
-            Expanded(
-              child: _AiModeTab(
-                label: switch (mode) {
-                  _AiMode.translate => 'Translate',
-                  _AiMode.style => 'Style',
-                  _AiMode.fix => 'Fix',
-                },
-                selected: _mode == mode,
-                onTap: () {
-                  setState(() {
-                    _mode = mode;
-                    _result = null;
-                    _error = null;
-                    _selectedStyle = null;
-                  });
-                },
-                accentColor: theme.colorScheme.primary,
-                isDark: isDark,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildLanguageSelector(ThemeData theme, bool isDark) {
     return Padding(
@@ -21001,39 +20960,6 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
     );
   }
 
-  Widget _buildStyleTabs(ThemeData theme, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SizedBox(
-        height: 36,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          children: _styleOptions.entries.map((e) {
-            final selected = _selectedStyle == e.key;
-            return Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: ChoiceChip(
-                label: Text(e.value, style: const TextStyle(fontSize: 12)),
-                selected: selected,
-                onSelected: (_) => setState(() {
-                  _selectedStyle = e.key;
-                  _result = null;
-                  _error = null;
-                }),
-                selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
-                labelStyle: TextStyle(
-                  color: selected ? theme.colorScheme.primary : null,
-                  fontWeight: selected ? FontWeight.w600 : null,
-                ),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
 
   Widget _buildOriginalCard(ThemeData theme, Color cardBg, bool isDark) {
     return Container(
@@ -21183,9 +21109,7 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-              child: _mode == _AiMode.fix
-                  ? _buildDiffDisplay(theme)
-                  : Text(
+              child: Text(
                       _result!,
                       style: TextStyle(
                         fontSize: 14,
@@ -21199,99 +21123,9 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
     );
   }
 
-  Widget _buildDiffDisplay(ThemeData theme) {
-    final original = widget.originalText;
-    final result = _result!;
-    final origWords = original.split(RegExp(r'(\s+)'));
-    final resWords = result.split(RegExp(r'(\s+)'));
-
-    final spans = <InlineSpan>[];
-    final oSet = origWords.toSet();
-    final rSet = resWords.toSet();
-
-    for (final w in resWords) {
-      if (w.trim().isEmpty) {
-        spans.add(TextSpan(text: w));
-        continue;
-      }
-      if (!oSet.contains(w)) {
-        spans.add(TextSpan(
-          text: w,
-          style: const TextStyle(
-            color: Color(0xFF2e7d32),
-            decoration: TextDecoration.underline,
-            decorationColor: Color(0xFF2e7d32),
-            fontSize: 14,
-          ),
-        ));
-      } else {
-        spans.add(TextSpan(
-          text: w,
-          style: TextStyle(fontSize: 14, color: theme.textTheme.bodyMedium?.color),
-        ));
-      }
-    }
-
-    for (final w in origWords) {
-      if (w.trim().isEmpty) continue;
-      if (!rSet.contains(w)) {
-        spans.add(const TextSpan(text: ' '));
-        spans.add(TextSpan(
-          text: w,
-          style: const TextStyle(
-            color: Color(0xFFc62828),
-            decoration: TextDecoration.lineThrough,
-            decorationColor: Color(0xFFc62828),
-            fontSize: 14,
-          ),
-        ));
-      }
-    }
-
-    return RichText(
-      text: TextSpan(children: spans),
-    );
-  }
-
-  Widget _buildEmojifyCheckbox(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 20,
-            height: 20,
-            child: Checkbox(
-              value: _emojify,
-              onChanged: (v) => setState(() => _emojify = v ?? false),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Add emoji',
-            style: TextStyle(
-              fontSize: 13,
-              color: theme.textTheme.bodyMedium?.color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildActionBar(ThemeData theme, bool isDark) {
     final canApply = _result != null && !_loading;
-    final canSubmit = _mode != _AiMode.style || _selectedStyle != null;
-    final buttonLabel = _result != null
-        ? 'Apply'
-        : _mode == _AiMode.style && _selectedStyle == null
-            ? 'Select Style'
-            : switch (_mode) {
-                _AiMode.translate => 'Translate',
-                _AiMode.style => 'Restyle',
-                _AiMode.fix => 'Fix',
-              };
+    final buttonLabel = _result != null ? 'Apply' : 'Translate';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
@@ -21301,7 +21135,7 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
             child: FilledButton(
               onPressed: canApply
                   ? () => Navigator.of(context).pop(_result)
-                  : (canSubmit && !_loading ? _submit : null),
+                  : (!_loading ? _submit : null),
               style: FilledButton.styleFrom(
                 minimumSize: const Size(0, 42),
                 shape: RoundedRectangleBorder(
@@ -21326,47 +21160,3 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
   }
 }
 
-class _AiModeTab extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final Color accentColor;
-  final bool isDark;
-
-  const _AiModeTab({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    required this.accentColor,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 36,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected ? accentColor : Colors.transparent,
-              width: 2,
-            ),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            color: selected
-                ? accentColor
-                : (isDark ? const Color(0xFF8899a6) : const Color(0xFF999999)),
-          ),
-        ),
-      ),
-    );
-  }
-}

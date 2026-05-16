@@ -131,9 +131,40 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 
     if (selected != null && mounted) {
       final colors = (selected['colors'] as List<dynamic>?)?.cast<int>() ?? [];
+      final thumbB64 = selected['thumb_b64'] as String? ?? '';
+      final isPattern = selected['is_pattern'] as bool? ?? false;
+      final rotation = selected['rotation'] as int? ?? 0;
+
+      if (thumbB64.isNotEmpty) {
+        Uint8List? imageBytes;
+        try {
+          imageBytes = Uint8List.fromList(const Base64Decoder().convert(thumbB64));
+        } catch (_) {}
+        if (imageBytes != null && mounted) {
+          final confirmed = await showDialog<Map<String, dynamic>>(
+            context: context,
+            builder: (ctx) => _BackgroundPreviewBox(
+              imageBytes: imageBytes!,
+              initialBlurred: false,
+              initialTiled: isPattern || _tileBackground,
+            ),
+          );
+          if (confirmed != null && mounted) {
+            final blurred = confirmed['blurred'] as bool? ?? false;
+            final tiled = confirmed['tiled'] as bool? ?? _tileBackground;
+            appState.setWallpaper(WallpaperData.fromImage(
+              imageBytes,
+              tiled: tiled,
+              blur: blurred,
+            ));
+            setState(() => _tileBackground = tiled);
+          }
+          return;
+        }
+      }
+
       if (colors.isNotEmpty) {
         final bgColors = colors.map((c) => Color(0xFF000000 | (c & 0xFFFFFF))).toList();
-        final rotation = selected['rotation'] as int? ?? 0;
         appState.setWallpaper(WallpaperData(
           type: bgColors.length > 1 ? WallpaperType.gradient : WallpaperType.solid,
           backgroundColors: bgColors,
@@ -1582,26 +1613,35 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                       onTap: () => setState(() => _selected = colorId),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
-                        width: 36,
-                        height: 36,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(12),
                           border: isSelected
                               ? Border.all(color: accentColor, width: 2.5)
                               : null,
                         ),
-                        padding: EdgeInsets.all(isSelected ? 3 : 0),
+                        padding: EdgeInsets.all(isSelected ? 2 : 0),
                         child: Container(
                           decoration: BoxDecoration(
                             color: color,
-                            shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(isSelected ? 8 : 12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'A',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
                     );
                   }).toList(),
                 ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1614,21 +1654,43 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                 child: Row(
                   children: [
                     Container(
-                      width: 18,
-                      height: 18,
+                      width: 30,
+                      height: 30,
                       decoration: BoxDecoration(
                         color: _selectedColor(),
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'A',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Text(
-                      'Your Name',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: _selectedColor(),
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Your Name',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: _selectedColor(),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Message preview text',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: textColor.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -3437,6 +3499,10 @@ class _StickerPackManager extends StatefulWidget {
 class _StickerPackManagerState extends State<_StickerPackManager> {
   List<StickerPackSummary>? _packs;
   bool _loading = true;
+  bool _searchMode = false;
+  String _searchQuery = '';
+  List<StickerPackSummary>? _searchResults;
+  bool _searching = false;
 
   @override
   void initState() {
@@ -3445,8 +3511,27 @@ class _StickerPackManagerState extends State<_StickerPackManager> {
   }
 
   Future<void> _load() async {
-    final packs = await widget.engine.getInstalledStickerPacks(widget.accountId);
-    if (mounted) setState(() { _packs = packs; _loading = false; });
+    if (widget.type == 'emoji') {
+      try {
+        final emojiSets = await widget.engine.getInstalledEmojiSets(widget.accountId);
+        final converted = emojiSets.map((e) => StickerPackSummary(
+          setId: e.setId,
+          accessHash: e.accessHash,
+          title: e.title,
+          shortName: e.shortName,
+          count: e.count,
+          installed: e.installed,
+          stickers: e.stickers,
+        )).toList();
+        if (mounted) setState(() { _packs = converted; _loading = false; });
+      } catch (_) {
+        final packs = await widget.engine.getInstalledStickerPacks(widget.accountId);
+        if (mounted) setState(() { _packs = packs; _loading = false; });
+      }
+    } else {
+      final packs = await widget.engine.getInstalledStickerPacks(widget.accountId);
+      if (mounted) setState(() { _packs = packs; _loading = false; });
+    }
   }
 
   Future<void> _removePack(int index) async {
@@ -3467,6 +3552,32 @@ class _StickerPackManagerState extends State<_StickerPackManager> {
     });
   }
 
+  Future<void> _search(String query) async {
+    if (query.isEmpty) {
+      setState(() { _searchResults = null; _searching = false; });
+      return;
+    }
+    setState(() => _searching = true);
+    try {
+      final results = await widget.engine.searchStickerSets(widget.accountId, query);
+      if (mounted) setState(() { _searchResults = results; _searching = false; });
+    } catch (_) {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Future<void> _installPack(StickerPackSummary pack) async {
+    try {
+      await widget.engine.installStickerSet(widget.accountId, pack.setId, pack.accessHash);
+      if (mounted) {
+        showTelegramToast(context, '${pack.title} added');
+        _load();
+      }
+    } catch (_) {
+      if (mounted) showTelegramToast(context, 'Failed to add pack');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
@@ -3480,18 +3591,53 @@ class _StickerPackManagerState extends State<_StickerPackManager> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Text(widget.title, style: TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.w600, color: widget.textColor)),
+                if (_searchMode)
+                  Expanded(
+                    child: TextField(
+                      autofocus: true,
+                      style: TextStyle(color: widget.textColor, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'Search ${widget.type}...',
+                        hintStyle: TextStyle(color: widget.subtextColor),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      onChanged: (v) {
+                        _searchQuery = v;
+                        _search(v);
+                      },
+                    ),
+                  )
+                else
+                  Text(widget.title, style: TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w600, color: widget.textColor)),
                 const Spacer(),
                 IconButton(
-                  icon: Icon(Icons.close, color: widget.subtextColor),
-                  onPressed: () => Navigator.pop(ctx),
+                  icon: Icon(
+                    _searchMode ? Icons.close : Icons.add,
+                    color: _searchMode ? widget.subtextColor : widget.accentColor,
+                  ),
+                  onPressed: () => setState(() {
+                    _searchMode = !_searchMode;
+                    if (!_searchMode) {
+                      _searchResults = null;
+                      _searchQuery = '';
+                    }
+                  }),
                 ),
+                if (!_searchMode)
+                  IconButton(
+                    icon: Icon(Icons.close, color: widget.subtextColor),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
               ],
             ),
           ),
           Expanded(
-            child: _loading
+            child: _searchMode
+                ? _buildSearchResults(scrollController)
+                : _loading
                 ? Center(child: CircularProgressIndicator(color: widget.accentColor))
                 : _packs == null || _packs!.isEmpty
                     ? Center(
@@ -3544,6 +3690,69 @@ class _StickerPackManagerState extends State<_StickerPackManager> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSearchResults(ScrollController scrollController) {
+    if (_searching) {
+      return Center(child: CircularProgressIndicator(color: widget.accentColor));
+    }
+    if (_searchQuery.isEmpty) {
+      return Center(
+        child: Text(
+          'Search for ${widget.type} to add',
+          style: TextStyle(color: widget.subtextColor),
+        ),
+      );
+    }
+    if (_searchResults == null || _searchResults!.isEmpty) {
+      return Center(
+        child: Text(
+          'No results found',
+          style: TextStyle(color: widget.subtextColor),
+        ),
+      );
+    }
+    final installedIds = _packs?.map((p) => p.setId).toSet() ?? {};
+    return ListView.builder(
+      controller: scrollController,
+      itemCount: _searchResults!.length,
+      itemBuilder: (ctx, i) {
+        final pack = _searchResults![i];
+        final isInstalled = installedIds.contains(pack.setId);
+        return ListTile(
+          leading: pack.stickers.isNotEmpty && pack.stickers.first.emoji.isNotEmpty
+              ? Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Center(child: Text(pack.stickers.first.emoji,
+                      style: const TextStyle(fontSize: 24))),
+                )
+              : Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(Icons.sticky_note_2, color: widget.subtextColor),
+                ),
+          title: Text(pack.title,
+              style: TextStyle(color: widget.textColor, fontSize: 14)),
+          subtitle: Text(
+            '${pack.count} ${widget.type == 'stickers' ? 'stickers' : 'emoji'}',
+            style: TextStyle(color: widget.subtextColor, fontSize: 12),
+          ),
+          trailing: isInstalled
+              ? Icon(Icons.check, size: 20, color: widget.accentColor)
+              : IconButton(
+                  icon: Icon(Icons.add, size: 20, color: widget.accentColor),
+                  onPressed: () => _installPack(pack),
+                ),
+        );
+      },
     );
   }
 }
@@ -3943,6 +4152,11 @@ class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
                       return GestureDetector(
                         onTap: () {
                           widget.onReactionSelected(emoji);
+                          final appState = context.read<AppState>();
+                          final account = appState.activeAccount;
+                          if (account != null) {
+                            context.read<EngineService>().setDefaultReaction(account.id, emoji);
+                          }
                           Navigator.pop(ctx);
                         },
                         child: Container(

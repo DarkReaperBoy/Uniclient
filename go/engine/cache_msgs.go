@@ -1914,6 +1914,25 @@ func (e *Engine) CreatePollEx(accountID, chatID, question string, options []stri
 	return "", nil
 }
 
+type DefaultReactionSetter interface {
+	SetDefaultReaction(emoji string) error
+}
+
+func (e *Engine) SetDefaultReaction(accountID, emoji string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	setter, ok := acc.Core.(DefaultReactionSetter)
+	if !ok {
+		return fmt.Errorf("platform does not support setting default reaction")
+	}
+	return setter.SetDefaultReaction(emoji)
+}
+
 type MessageReporter interface {
 	ReportMessage(chatID string, msgIDs []int, option []byte, message string) (*cores.ReportResult, error)
 }

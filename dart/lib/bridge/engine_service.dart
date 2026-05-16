@@ -1587,6 +1587,18 @@ class EngineService {
     }
   }
 
+  Future<void> setDefaultReaction(String accountId, String emoji) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'emoji': emoji,
+    }));
+    try {
+      await _callAsync('__engine', 'SetDefaultReaction', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'setDefaultReaction failed', e);
+    }
+  }
+
   // ── Poll actions ──
 
   Future<bool> votePoll(String accountId, String chatId, String msgId, int optionIndex) async {
@@ -3336,6 +3348,7 @@ class EngineService {
           userId: ((m['user_id'] as num?)?.toInt() ?? 0).toString(),
           date: (m['date'] as num?)?.toInt() ?? 0,
           name: m['name'] as String? ?? '',
+          avatarB64: m['avatar_b64'] as String? ?? '',
         );
       }).toList();
       return ReadParticipantsResult(participants: participants, privacyState: privacyState);

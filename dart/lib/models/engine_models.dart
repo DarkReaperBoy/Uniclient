@@ -1252,11 +1252,13 @@ class ReadParticipantInfo {
   final String userId;
   final int date;
   final String name;
+  final String avatarB64;
 
   const ReadParticipantInfo({
     required this.userId,
     this.date = 0,
     this.name = '',
+    this.avatarB64 = '',
   });
 }
 

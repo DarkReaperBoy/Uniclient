@@ -1726,6 +1726,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]string{"msg_id": msgID})
 
+	case "SetDefaultReaction":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Emoji     string `json:"emoji"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.SetDefaultReaction(params.AccountID, params.Emoji); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	case "GetAdminedPublicChannels":
 		var params struct {
 			AccountID string `json:"account_id"`

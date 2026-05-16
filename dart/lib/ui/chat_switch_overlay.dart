@@ -194,7 +194,7 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
   int get _shownCount => (_shownPerRow * _shownRows).clamp(1, _list.length);
 
   void _removeSelected() {
-    if (_list.isEmpty || _selected >= _list.length) return;
+    if (_list.isEmpty || _selected < 0 || _selected >= _list.length) return;
     final chat = _list[_selected];
     widget.onRemove(chat);
     setState(() {
@@ -203,12 +203,12 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
         widget.onCancel();
         return;
       }
-      if (_selected >= _list.length) _selected = _list.length - 1;
+      _selected = -1;
     });
   }
 
   void _confirm() {
-    if (_list.isEmpty || _selected >= _list.length) {
+    if (_list.isEmpty || _selected < 0 || _selected >= _list.length) {
       widget.onCancel();
       return;
     }
@@ -267,11 +267,19 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
         rows = rows.clamp(1, _maxRows);
         if (perRow < 1) perRow = 1;
 
-        _shownPerRow = perRow;
-        _shownRows = rows;
-
         final visible = (perRow * rows).clamp(1, count);
         final innerW = perRow * _cellWidth;
+
+        if (_shownPerRow != perRow || _shownRows != rows) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && (_shownPerRow != perRow || _shownRows != rows)) {
+              setState(() {
+                _shownPerRow = perRow;
+                _shownRows = rows;
+              });
+            }
+          });
+        }
 
         if (_selected >= visible) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -354,37 +362,44 @@ class _ChatSwitchCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
+    return SizedBox(
       width: _cellWidth,
       height: _cellHeight,
-      decoration: selected
-          ? BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: accentColor, width: _selectLineWidth),
-            )
-          : null,
-      child: Column(
+      child: Stack(
         children: [
-          SizedBox(height: _userpicTop),
-          _buildAvatar(context.palette),
-          Expanded(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: _nameSkip),
-                child: Text(
-                  chat.title,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: nameColor,
-                    height: 1.2,
+          AnimatedOpacity(
+            opacity: selected ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 150),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: accentColor, width: _selectLineWidth),
+              ),
+            ),
+          ),
+          Column(
+            children: [
+              SizedBox(height: _userpicTop),
+              _buildAvatar(context.palette),
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: _nameSkip),
+                    child: Text(
+                      chat.title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: nameColor,
+                        height: 1.2,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
         ],
       ),
@@ -439,6 +454,10 @@ class _ChatSwitchCell extends StatelessWidget {
     }
 
     if (chat.isForum && chat.type == ChatType.topic) {
+      final topicColor = palette.peerUserpicBg(
+        _colorRemap[(int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs()).abs() % 7],
+      );
+      final topicInitial = chat.title.isNotEmpty ? chat.title.characters.first : '#';
       return SizedBox(
         width: _userpicSize,
         height: _userpicSize,
@@ -452,12 +471,19 @@ class _ChatSwitchCell extends StatelessWidget {
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
-                  color: palette.windowBgActive,
+                  color: topicColor,
                   shape: BoxShape.circle,
                   border: Border.all(color: palette.boxBg, width: 2),
                 ),
                 alignment: Alignment.center,
-                child: const Icon(Icons.tag, size: 14, color: Colors.white),
+                child: Text(
+                  topicInitial,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ],
