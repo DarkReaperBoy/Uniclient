@@ -380,22 +380,7 @@ The Dart file implements `ColorEditor::Mode::RGBA` layout (HSV picker, vertical 
 
 ## emoji_panel — GIF/Sticker/Emoji panel full audit
 
-- [ ] [CRITICAL] Video stickers (webm) are never animated — `_StickerCellState.build()` has branches only for `.isTgs` (Lottie) and `.isWebp` (static Image); `.isWebm` is never checked and no video player path exists; webm stickers always show static thumbnail — `emoji_panel.dart:2335-2402` ← `stickers_list_widget.cpp` (media_clip_reader path for webm)
-
-- [ ] [CRITICAL] Same webm omission in `_CustomEmojiCellState` — custom emoji video stickers never play — `emoji_panel.dart:1289-1303` ← `stickers_list_widget.cpp`
-
-
 # ayu_filter — Filter engine audit
-
-- [ ] [MAJOR] `_serviceMessageType` classifies service messages via fragile text-content heuristics (`text.contains('call')`, `text.contains('suggest') && text.contains('photo')`, etc.) instead of structured media-type checks. AyuGram uses `media->call()`, `media->photo() && !isUserpicSuggestion()`, `media->photo() && isUserpicSuggestion()`, `media->paper()`, `media->gift()->type`, etc. Text heuristics produce false positives (any service message whose display text happens to contain "call" is misclassified as TYPE_PHONE_CALL=16; "gift" alone triggers TYPE_GIFT_PREMIUM=18 before the "gift"+"star" check for TYPE_GIFT_STARS=30; Credits/Ton gift subtypes are never reachable). Additionally, Dart checks photo (`mediaType==1`) before call, whereas AyuGram checks call before photo — `ayu_filter.dart:179-191` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/features/filters/filters_utils.cpp:604-637`
-
-- [ ] [MAJOR] `_CompiledPattern.matches` applies reversed-filter logic to empty text, incorrectly marking empty-body messages as filtered. When `blob` is empty, `pattern!.hasMatch('')` returns false; for a reversed filter `filter.reversed ? !found : found` evaluates to `true`, so the message is hidden. AyuGram guards at the top of `isFiltered`: `if (str.isEmpty()) return std::nullopt;`, and `filtered()` converts nullopt to `false` — `ayu_filter.dart:114-118` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/features/filters/filters_controller.cpp:43-45`
-
-- [ ] [MAJOR] `filteredMessagesShown` returns `bool` (defaulting to `false`), losing the three-state semantics AyuGram requires. AyuGram returns `std::optional<bool>`: `nullopt` = no filtered messages exist in this chat (suppress the show/hide bar entirely); `false` = messages are hidden; `true` = messages are shown. Dart cannot represent the "no filtered messages" state, so the consuming UI would display the show/hide bar for every chat regardless of whether any messages are actually filtered — `ayu_filter.dart:460-461` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/features/filters/filters_controller.cpp:189-195`
-
-- [ ] [MAJOR] `invalidateMessage` over-evicts cache on grouped-message invalidation: when `groupedId` is non-empty it calls `_messageCache.removeWhere((key, _) => key.startsWith('$chatId:'))`, removing every cached result for the entire chat. AyuGram's `invalidate` resolves the group and removes only the specific items belonging to that group (`for groupItem in group->items: invalidateSingle(groupItem)`). This forces all prior filter decisions for the whole chat to be recomputed after any single grouped-message edit/receive — `ayu_filter.dart:468-473` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/features/filters/filters_cache_controller.cpp:216-225`
-
-- [ ] [MAJOR] `importFromJson` (data-layer method at line 303) applies imported filters with no backup-version guard. AyuGram rejects the entire import when `version > BACKUP_VERSION` (currently 2) to avoid applying a format it doesn't understand. Dart blindly parses whatever arrives, risking corrupt filter state from future-format exports — `ayu_filter.dart:303` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/features/filters/filters_utils.cpp:702-705`
 
 # emoji_status_widget — Audit Report
 
