@@ -352,9 +352,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 
 # engine_service — Bridge Service Audit
 
-## engine_service — activateStealthMode drops accountId from payload
-
-- [ ] [CRITICAL] `activateStealthMode` receives `accountId` but passes `Uint8List(0)` (empty bytes) to the engine — the Go backend has no way to route the `MTPstories_ActivateStealthMode` request to the correct account — `engine_service.dart:2134-2136` ← `data/data_stories.cpp:1076-1087` (`Stories::activateStealthMode` operates on `session().api()` which is implicitly account-bound; the account context is never optional)
 
 ## engine_service — sendVoice and sendVideoNote call same endpoint as uploadFile with no distinguishing flag
 
