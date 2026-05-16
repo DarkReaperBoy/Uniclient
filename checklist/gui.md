@@ -353,10 +353,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 # engine_service — Bridge Service Audit
 
 
-## engine_service — sendVoice and sendVideoNote call same endpoint as uploadFile with no distinguishing flag
-
-- [ ] [CRITICAL] Both `sendVoice` (line 4185) and `sendVideoNote` (line 4198) build an `EngineUploadFileRequest` with no `isVoice` or `isVideoNote` field and route to `'UploadFile'` — identical to a regular file upload. The Go backend receives no signal to set `Flag::f_voice` (voice messages) or `Flag::f_round` (video notes), so both will be delivered as plain document attachments instead of as playable voice messages or round-video messages — `engine_service.dart:4185-4209` ← `api/api_sending.cpp:683-708` (AyuGram uses `SendMediaType::Audio` → sets `MTPDmessageMediaDocument::Flag::f_voice`; `SendMediaType::Round` → sets `Flag::f_round`; these are separate code paths with explicit protocol flags, not inferred from file extension)
-
 ## engine_service — dispose() leaks _incomingCallController and _callStateController
 
 - [ ] [MAJOR] `dispose()` closes 18 of 20 StreamControllers but skips `_incomingCallController` (declared line 40) and `_callStateController` (declared line 41) — these broadcast streams stay open and accumulate listeners until the process exits, causing a resource leak — `engine_service.dart:4858-4879` ← `data/data_stories.cpp:1076` (AyuGram's session teardown destroys all subsystems including call state; leaked streams have no C++ counterpart and are a Dart-specific resource management failure)
