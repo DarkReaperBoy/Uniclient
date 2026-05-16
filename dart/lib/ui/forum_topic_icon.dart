@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 
@@ -467,6 +469,9 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
   static const _releaseDuration = Duration(seconds: 5);
   Timer? _releaseTimer;
   AnimationController? _lottieController;
+  Player? _webmPlayer;
+  VideoController? _webmController;
+  File? _webmTempFile;
 
   @override
   void initState() {
@@ -480,6 +485,7 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
     super.didUpdateWidget(old);
     if (old.documentId != widget.documentId) {
       _refRelease(old.documentId);
+      _disposeWebm();
       _refRetain(widget.documentId);
       _lottieController?.dispose();
       _lottieController = null;
@@ -491,8 +497,17 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
   void dispose() {
     _releaseTimer?.cancel();
     _lottieController?.dispose();
+    _disposeWebm();
     _refRelease(widget.documentId);
     super.dispose();
+  }
+
+  void _disposeWebm() {
+    _webmPlayer?.dispose();
+    _webmPlayer = null;
+    _webmController = null;
+    _webmTempFile?.delete().ignore();
+    _webmTempFile = null;
   }
 
   void _refRetain(int docId) {
@@ -518,7 +533,37 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
 
   void _loadData() {
     _fetchCustomEmojiData(widget.engine, widget.accountId, widget.documentId).then((_) {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      final file = _customEmojiFileCache[widget.documentId];
+      if (file != null && file.isWebm && _webmPlayer == null) {
+        _initWebmPlayer(file.fileData);
+      } else {
+        setState(() {});
+      }
+    });
+  }
+
+  Future<void> _initWebmPlayer(Uint8List data) async {
+    final dir = Directory.systemTemp;
+    final tempFile = File('${dir.path}/topic_icon_${widget.documentId}.webm');
+    await tempFile.writeAsBytes(data, flush: true);
+    if (!mounted) {
+      tempFile.delete().ignore();
+      return;
+    }
+    _webmTempFile = tempFile;
+    final player = Player();
+    final controller = VideoController(player);
+    await player.open(Media(tempFile.path), play: true);
+    await player.setPlaylistMode(PlaylistMode.loop);
+    if (!mounted) {
+      await player.dispose();
+      tempFile.delete().ignore();
+      return;
+    }
+    setState(() {
+      _webmPlayer = player;
+      _webmController = controller;
     });
   }
 
@@ -565,7 +610,22 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
         ),
       );
     }
-    // WebM is video — Image.memory cannot decode it; use thumbnail fallback.
+    if (_webmController != null) {
+      return SizedBox(
+        width: s,
+        height: s,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(s / 4),
+          child: Video(
+            controller: _webmController!,
+            width: s,
+            height: s,
+            fit: BoxFit.contain,
+            controls: NoVideoControls,
+          ),
+        ),
+      );
+    }
     return _buildFallback(s);
   }
 

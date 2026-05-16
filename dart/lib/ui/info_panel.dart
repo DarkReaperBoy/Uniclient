@@ -515,6 +515,12 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback? onMessageTap;
   final VoidCallback? onCallTap;
   final Uint8List? avatarBytes;
+  final bool notJoined;
+  final String linkedChatId;
+  final bool isPeerPremium;
+  final VoidCallback? onJoinTap;
+  final VoidCallback? onDiscussTap;
+  final VoidCallback? onGiftTap;
 
   static const double maxHeight = 236.0;
   static const double minHeight = 56.0;
@@ -551,6 +557,12 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     this.onMessageTap,
     this.onCallTap,
     this.avatarBytes,
+    this.notJoined = false,
+    this.linkedChatId = '',
+    this.isPeerPremium = false,
+    this.onJoinTap,
+    this.onDiscussTap,
+    this.onGiftTap,
   });
 
   @override
@@ -573,7 +585,10 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       profileBgColors != old.profileBgColors ||
       emojiStatusId != old.emojiStatusId ||
       pinnedGifts.length != old.pinnedGifts.length ||
-      showStatsMenu != old.showStatsMenu;
+      showStatsMenu != old.showStatsMenu ||
+      notJoined != old.notJoined ||
+      linkedChatId != old.linkedChatId ||
+      isPeerPremium != old.isPeerPremium;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
@@ -633,6 +648,8 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                           _AnimatedEmojiPattern(
                             size: patternSize,
                             isDark: isDark,
+                            emojiStatusId: emojiStatusId,
+                            accountId: accountId,
                           ),
                         if (hasStories)
                           CustomPaint(
@@ -647,12 +664,12 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                           onTap: (isMyNotes || isSelf || (avatarPath.isEmpty && (avatarBytes == null || avatarBytes!.isEmpty)))
                               ? null
                               : () {
-                                  _openAvatarPhotoViewer(context, avatarPath, displayName, avatarBytes: avatarBytes);
+                                  _openAvatarPhotoViewer(context, avatarPath, displayName, avatarBytes: avatarBytes, accountId: accountId, userId: chatId);
                                 },
                           onSecondaryTapUp: (isMyNotes || isSelf || (avatarPath.isEmpty && (avatarBytes == null || avatarBytes!.isEmpty)))
                               ? null
                               : (details) {
-                                  _showAvatarContextMenu(context, details.globalPosition, avatarPath, displayName, avatarBytes: avatarBytes);
+                                  _showAvatarContextMenu(context, details.globalPosition, avatarPath, displayName, avatarBytes: avatarBytes, accountId: accountId, userId: chatId);
                                 },
                           child: SizedBox(
                             width: avatarDisplaySize,
@@ -888,6 +905,12 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
 
   List<_ActionBtnData> _actionButtons() {
     final buttons = <_ActionBtnData>[];
+
+    // "Join" for unjoined channels/groups
+    if (notJoined && (chatType == ChatType.channel || chatType == ChatType.group)) {
+      buttons.add(_ActionBtnData(Icons.add, 'Join', onJoinTap));
+    }
+
     if (chatType == ChatType.dm && !isSelf) {
       buttons.add(_ActionBtnData(Icons.chat_bubble_outline, 'Message', onMessageTap));
     }
@@ -903,9 +926,20 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     if (chatType == ChatType.dm && !isSelf) {
       buttons.add(_ActionBtnData(Icons.call_outlined, 'Call', onCallTap));
     }
-    if (buttons.length > 3) {
-      final overflow = buttons.sublist(2);
-      buttons.removeRange(2, buttons.length);
+
+    // "Discuss" for channels with a linked discussion group
+    if (chatType == ChatType.channel && linkedChatId.isNotEmpty) {
+      buttons.add(_ActionBtnData(Icons.forum_outlined, 'Discuss', onDiscussTap));
+    }
+
+    // "Gift" for premium-eligible peers (non-self, non-bot DMs, or channels with stargifts)
+    if (isPeerPremium && onGiftTap != null) {
+      buttons.add(_ActionBtnData(Icons.card_giftcard_outlined, 'Gift', onGiftTap));
+    }
+
+    if (buttons.length > 4) {
+      final overflow = buttons.sublist(3);
+      buttons.removeRange(3, buttons.length);
       buttons.add(_ActionBtnData(Icons.more_horiz, 'More', null, isOverflow: true, overflowItems: overflow));
     }
     return buttons;
@@ -1037,11 +1071,16 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
         if (data.isMuted)
           const TelegramMenuItem(value: 'unmute', icon: Icon(Icons.notifications), label: 'Unmute')
         else ...[
+          const TelegramMenuItem(value: 'sound_select', icon: Icon(Icons.music_note_outlined), label: 'Notification sound'),
+          const TelegramMenuItem(value: 'sound_toggle', icon: Icon(Icons.volume_off_outlined), label: 'Sound off'),
           const TelegramMenuItem(value: 'mute_1h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 1 hour'),
           const TelegramMenuItem(value: 'mute_4h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 4 hours'),
           const TelegramMenuItem(value: 'mute_8h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 8 hours'),
+          const TelegramMenuItem(value: 'mute_18h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 18 hours'),
           const TelegramMenuItem(value: 'mute_2d', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 2 days'),
+          const TelegramMenuItem(value: 'mute_3d', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 3 days'),
           const TelegramMenuItem(value: 'mute_1w', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 1 week'),
+          const TelegramMenuItem(value: 'mute_custom', icon: Icon(Icons.schedule_outlined), label: 'Mute for...'),
           const TelegramMenuItem(value: 'mute_forever', icon: Icon(Icons.notifications_off), label: 'Mute forever', isAttention: true),
         ],
       ],
@@ -1051,12 +1090,32 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
         data.onTap?.call();
         return;
       }
+      if (value == 'sound_select') {
+        _showSoundSelectDialog(context);
+        return;
+      }
+      if (value == 'sound_toggle') {
+        final engine = context.read<EngineService>();
+        final peerType = switch (chatType) {
+          ChatType.channel => 'channel',
+          ChatType.group => 'group',
+          _ => 'private',
+        };
+        engine.updateDefaultNotifySettings(accountId, peerType: peerType, enabled: true, soundEnabled: false);
+        return;
+      }
+      if (value == 'mute_custom') {
+        _showCustomMuteDurationPicker(context);
+        return;
+      }
       final chatState = context.read<ChatState>();
       final seconds = switch (value) {
         'mute_1h' => 3600,
         'mute_4h' => 4 * 3600,
         'mute_8h' => 8 * 3600,
+        'mute_18h' => 18 * 3600,
         'mute_2d' => 2 * 24 * 3600,
+        'mute_3d' => 3 * 24 * 3600,
         'mute_1w' => 7 * 24 * 3600,
         _ => 0,
       };
@@ -1064,6 +1123,26 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
         chatState.muteChat(accountId, chatId, true, durationSeconds: seconds);
       } else {
         data.onTap?.call();
+      }
+    });
+  }
+
+  void _showSoundSelectDialog(BuildContext context) {
+    final engine = context.read<EngineService>();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => _RingtonePickerDialog(accountId: accountId, engine: engine),
+    );
+  }
+
+  void _showCustomMuteDurationPicker(BuildContext context) {
+    showDialog<int>(
+      context: context,
+      builder: (ctx) => _CustomMuteDurationDialog(),
+    ).then((seconds) {
+      if (seconds != null && seconds > 0) {
+        final chatState = context.read<ChatState>();
+        chatState.muteChat(accountId, chatId, true, durationSeconds: seconds);
       }
     });
   }
@@ -1119,7 +1198,7 @@ class _PinnedGiftWidget extends StatelessWidget {
   }
 }
 
-void _openAvatarPhotoViewer(BuildContext context, String avatarPath, String title, {Uint8List? avatarBytes}) {
+void _openAvatarPhotoViewer(BuildContext context, String avatarPath, String title, {Uint8List? avatarBytes, String? accountId, String? userId}) {
   if (avatarPath.isEmpty && (avatarBytes == null || avatarBytes.isEmpty)) return;
   Navigator.of(context).push(
     PageRouteBuilder(
@@ -1131,14 +1210,20 @@ void _openAvatarPhotoViewer(BuildContext context, String avatarPath, String titl
       pageBuilder: (ctx, animation, _) {
         return FadeTransition(
           opacity: animation,
-          child: _AvatarPhotoViewer(imagePath: avatarPath, title: title, imageBytes: avatarBytes),
+          child: _AvatarPhotoViewer(
+            imagePath: avatarPath,
+            title: title,
+            imageBytes: avatarBytes,
+            accountId: accountId,
+            userId: userId,
+          ),
         );
       },
     ),
   );
 }
 
-void _showAvatarContextMenu(BuildContext context, Offset position, String avatarPath, String title, {Uint8List? avatarBytes}) {
+void _showAvatarContextMenu(BuildContext context, Offset position, String avatarPath, String title, {Uint8List? avatarBytes, String? accountId, String? userId}) {
   showTelegramMenu<String>(
     context: context,
     position: position,
@@ -1151,34 +1236,87 @@ void _showAvatarContextMenu(BuildContext context, Offset position, String avatar
     ],
   ).then((value) {
     if (value == 'open_photo') {
-      _openAvatarPhotoViewer(context, avatarPath, title, avatarBytes: avatarBytes);
+      _openAvatarPhotoViewer(context, avatarPath, title, avatarBytes: avatarBytes, accountId: accountId, userId: userId);
     }
   });
 }
 
-class _AvatarPhotoViewer extends StatelessWidget {
+class _AvatarPhotoViewer extends StatefulWidget {
   final String imagePath;
   final String title;
   final Uint8List? imageBytes;
+  final String? accountId;
+  final String? userId;
 
-  const _AvatarPhotoViewer({required this.imagePath, required this.title, this.imageBytes});
+  const _AvatarPhotoViewer({
+    required this.imagePath,
+    required this.title,
+    this.imageBytes,
+    this.accountId,
+    this.userId,
+  });
+
+  @override
+  State<_AvatarPhotoViewer> createState() => _AvatarPhotoViewerState();
+}
+
+class _AvatarPhotoViewerState extends State<_AvatarPhotoViewer> {
+  int _currentIndex = 0;
+  int _totalPhotos = 1;
+  String? _currentPath;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentPath = widget.imagePath;
+    _loadPhotoCount();
+  }
+
+  Future<void> _loadPhotoCount() async {
+    if (widget.accountId == null || widget.userId == null) return;
+    final engine = context.read<EngineService>();
+    final count = await engine.getUserPhotoCount(widget.accountId!, widget.userId!);
+    if (mounted && count > 0) {
+      setState(() => _totalPhotos = count);
+    }
+  }
+
+  Future<void> _navigateTo(int index) async {
+    if (index < 0 || index >= _totalPhotos || _loading) return;
+    if (widget.accountId == null || widget.userId == null) return;
+    setState(() => _loading = true);
+    final engine = context.read<EngineService>();
+    final path = await engine.getUserPhotoAtIndex(widget.accountId!, widget.userId!, index);
+    if (mounted) {
+      setState(() {
+        _currentIndex = index;
+        if (path != null && path.isNotEmpty) _currentPath = path;
+        _loading = false;
+      });
+    }
+  }
+
+  Widget _buildImage() {
+    if (_currentPath != null && _currentPath!.isNotEmpty) {
+      return Image.file(
+        File(_currentPath!),
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 64, color: Colors.white54),
+      );
+    }
+    if (widget.imageBytes != null && widget.imageBytes!.isNotEmpty) {
+      return Image.memory(
+        widget.imageBytes!,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 64, color: Colors.white54),
+      );
+    }
+    return const Icon(Icons.broken_image, size: 64, color: Colors.white54);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final imageWidget = imagePath.isNotEmpty
-        ? Image.file(
-            File(imagePath),
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 64, color: Colors.white54),
-          )
-        : imageBytes != null && imageBytes!.isNotEmpty
-            ? Image.memory(
-                imageBytes!,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 64, color: Colors.white54),
-              )
-            : const Icon(Icons.broken_image, size: 64, color: Colors.white54);
-
     return GestureDetector(
       onTap: () => Navigator.of(context).pop(),
       child: Scaffold(
@@ -1186,11 +1324,13 @@ class _AvatarPhotoViewer extends StatelessWidget {
         body: Stack(
           children: [
             Center(
-              child: InteractiveViewer(
-                minScale: 0.5,
-                maxScale: 4.0,
-                child: imageWidget,
-              ),
+              child: _loading
+                  ? const CircularProgressIndicator(color: Colors.white54)
+                  : InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 4.0,
+                      child: _buildImage(),
+                    ),
             ),
             Positioned(
               top: 0,
@@ -1207,7 +1347,9 @@ class _AvatarPhotoViewer extends StatelessWidget {
                     ),
                     Expanded(
                       child: Text(
-                        title,
+                        _totalPhotos > 1
+                            ? '${widget.title} (${_currentIndex + 1}/$_totalPhotos)'
+                            : widget.title,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -1220,9 +1362,256 @@ class _AvatarPhotoViewer extends StatelessWidget {
                 ),
               ),
             ),
+            // Navigation arrows
+            if (_totalPhotos > 1) ...[
+              if (_currentIndex > 0)
+                Positioned(
+                  left: 8,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: IconButton(
+                      icon: const Icon(Icons.chevron_left, size: 40, color: Colors.white70),
+                      onPressed: () => _navigateTo(_currentIndex - 1),
+                    ),
+                  ),
+                ),
+              if (_currentIndex < _totalPhotos - 1)
+                Positioned(
+                  right: 8,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: IconButton(
+                      icon: const Icon(Icons.chevron_right, size: 40, color: Colors.white70),
+                      onPressed: () => _navigateTo(_currentIndex + 1),
+                    ),
+                  ),
+                ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RingtonePickerDialog extends StatefulWidget {
+  final String accountId;
+  final EngineService engine;
+
+  const _RingtonePickerDialog({required this.accountId, required this.engine});
+
+  @override
+  State<_RingtonePickerDialog> createState() => _RingtonePickerDialogState();
+}
+
+class _RingtonePickerDialogState extends State<_RingtonePickerDialog> {
+  List<Map<String, dynamic>> _ringtones = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final tones = await widget.engine.getSavedRingtones(widget.accountId);
+    if (mounted) setState(() { _ringtones = tones; _loading = false; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Notification Sound'),
+      content: SizedBox(
+        width: 300,
+        height: 400,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _ringtones.isEmpty
+                ? const Center(child: Text('No saved ringtones'))
+                : ListView.builder(
+                    itemCount: _ringtones.length + 1,
+                    itemBuilder: (ctx, i) {
+                      if (i == 0) {
+                        return ListTile(
+                          leading: const Icon(Icons.notifications_active),
+                          title: const Text('Default'),
+                          onTap: () => Navigator.pop(context),
+                        );
+                      }
+                      final tone = _ringtones[i - 1];
+                      final name = tone['name'] as String? ?? 'Ringtone';
+                      return ListTile(
+                        leading: const Icon(Icons.music_note),
+                        title: Text(name),
+                        onTap: () => Navigator.pop(context),
+                      );
+                    },
+                  ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+}
+
+class _CustomMuteDurationDialog extends StatefulWidget {
+  @override
+  State<_CustomMuteDurationDialog> createState() => _CustomMuteDurationDialogState();
+}
+
+class _CustomMuteDurationDialogState extends State<_CustomMuteDurationDialog> {
+  int _days = 0;
+  int _hours = 1;
+  int _minutes = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Mute for...'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _spinner('Days', _days, 0, 30, (v) => setState(() => _days = v))),
+              const SizedBox(width: 12),
+              Expanded(child: _spinner('Hours', _hours, 0, 23, (v) => setState(() => _hours = v))),
+              const SizedBox(width: 12),
+              Expanded(child: _spinner('Min', _minutes, 0, 59, (v) => setState(() => _minutes = v))),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _formatDuration(),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            final total = _days * 86400 + _hours * 3600 + _minutes * 60;
+            Navigator.pop(context, total > 0 ? total : null);
+          },
+          child: const Text('Mute'),
+        ),
+      ],
+    );
+  }
+
+  String _formatDuration() {
+    final parts = <String>[];
+    if (_days > 0) parts.add('$_days day${_days > 1 ? 's' : ''}');
+    if (_hours > 0) parts.add('$_hours hour${_hours > 1 ? 's' : ''}');
+    if (_minutes > 0) parts.add('$_minutes min');
+    return parts.isEmpty ? 'Select duration' : parts.join(', ');
+  }
+
+  Widget _spinner(String label, int value, int min, int max, ValueChanged<int> onChanged) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            InkWell(
+              onTap: value > min ? () => onChanged(value - 1) : null,
+              child: const Icon(Icons.remove_circle_outline, size: 20),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text('$value', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            InkWell(
+              onTap: value < max ? () => onChanged(value + 1) : null,
+              child: const Icon(Icons.add_circle_outline, size: 20),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _StarGiftPickerDialog extends StatelessWidget {
+  final List<StarGiftItem> gifts;
+
+  const _StarGiftPickerDialog({required this.gifts});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Send a Gift'),
+      content: SizedBox(
+        width: 340,
+        height: 400,
+        child: GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 0.8,
+          ),
+          itemCount: gifts.length,
+          itemBuilder: (ctx, i) {
+            final gift = gifts[i];
+            return InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: gift.soldOut ? null : () => Navigator.pop(context, gift.id),
+              child: Opacity(
+                opacity: gift.soldOut ? 0.4 : 1.0,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Expanded(
+                      child: gift.thumbB64.isNotEmpty
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                base64Decode(gift.thumbB64),
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, size: 40),
+                              ),
+                            )
+                          : const Icon(Icons.card_giftcard, size: 40),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '⭐ ${gift.stars}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                    if (gift.limited)
+                      Text(
+                        gift.soldOut ? 'Sold out' : '${gift.remaining} left',
+                        style: TextStyle(fontSize: 10, color: gift.soldOut ? Colors.red : Colors.grey),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
     );
   }
 }
@@ -1379,41 +1768,31 @@ class _MemberStoryRingPainter extends CustomPainter {
 class _AnimatedEmojiPattern extends StatelessWidget {
   final double size;
   final bool isDark;
+  final String emojiStatusId;
+  final String accountId;
 
-  const _AnimatedEmojiPattern({required this.size, required this.isDark});
+  const _AnimatedEmojiPattern({
+    required this.size,
+    required this.isDark,
+    required this.emojiStatusId,
+    required this.accountId,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size),
-      painter: _EmojiStatusPatternPainter(isDark: isDark),
-    );
-  }
-}
-
-class _EmojiStatusPatternPainter extends CustomPainter {
-  final bool isDark;
-
-  _EmojiStatusPatternPainter({required this.isDark});
-
-  static const _kPaddingScale = 0.8;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final aw = size.width * 0.6;
-    final ah = size.height * 0.6;
+    const paddingScale = 0.8;
+    final cx = size / 2;
+    final cy = size / 2;
+    final aw = size * 0.6;
+    final ah = size * 0.6;
     final ax = cx - aw / 2;
     final ay = cy - ah / 2;
-
-    final p24 = 24.0 * _kPaddingScale;
-    final p16 = 16.0 * _kPaddingScale;
-    final p8 = 8.0 * _kPaddingScale;
-    final p48 = 48.0 * _kPaddingScale;
-    final p96 = 96.0 * _kPaddingScale;
-    final p12 = 12.0 * _kPaddingScale;
-
+    final p24 = 24.0 * paddingScale;
+    final p16 = 16.0 * paddingScale;
+    final p8 = 8.0 * paddingScale;
+    final p48 = 48.0 * paddingScale;
+    final p96 = 96.0 * paddingScale;
+    final p12 = 12.0 * paddingScale;
     final cos120 = math.cos(120 * math.pi / 180);
     final cos160 = math.cos(160 * math.pi / 180);
 
@@ -1438,25 +1817,36 @@ class _EmojiStatusPatternPainter extends CustomPainter {
       _PatternPoint(ax + aw + p96 + p24, cy, 19),
     ];
 
-    final maxDist = size.width;
-    final paint = Paint()..style = PaintingStyle.fill;
-
-    for (final pt in points) {
-      final dx = pt.x - cx;
-      final dy = pt.y - cy;
-      final dist = math.sqrt(dx * dx + dy * dy);
-      final distAlpha = (1.0 - dist / maxDist).clamp(0.0, 1.0);
-      final opacity = (0.5 * distAlpha * 0.5).clamp(0.05, 0.35);
-      paint.color = isDark
-          ? Color.fromRGBO(139, 92, 246, opacity)
-          : Color.fromRGBO(99, 102, 241, opacity);
-      final r = pt.size * 0.25;
-      canvas.drawCircle(Offset(pt.x, pt.y), r, paint);
-    }
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        children: [
+          for (final pt in points)
+            Positioned(
+              left: pt.x - pt.size * 0.25,
+              top: pt.y - pt.size * 0.25,
+              child: Opacity(
+                opacity: _opacityForPoint(pt, cx, cy, size),
+                child: EmojiStatusWidget(
+                  emojiStatusId: emojiStatusId,
+                  accountId: accountId,
+                  size: pt.size * 0.5,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
-  @override
-  bool shouldRepaint(_EmojiStatusPatternPainter old) => isDark != old.isDark;
+  double _opacityForPoint(_PatternPoint pt, double cx, double cy, double maxDist) {
+    final dx = pt.x - cx;
+    final dy = pt.y - cy;
+    final dist = math.sqrt(dx * dx + dy * dy);
+    final distAlpha = (1.0 - dist / maxDist).clamp(0.0, 1.0);
+    return (0.5 * distAlpha * 0.5).clamp(0.05, 0.35);
+  }
 }
 
 class _PatternPoint {
@@ -1979,6 +2369,35 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
     return widget.chat.memberCount >= minMembers;
   }
 
+  bool _isPeerGiftEligible() {
+    final chat = widget.chat;
+    if (chat.isSelf || chat.isBot) return false;
+    if (chat.type == ChatType.dm) return true;
+    if (chat.type == ChatType.channel && !chat.notJoined) return true;
+    return false;
+  }
+
+  void _showStarGiftDialog(BuildContext context) async {
+    final engine = context.read<EngineService>();
+    final gifts = await engine.getStarGifts(widget.chat.accountId);
+    if (gifts == null || !context.mounted) return;
+    final giftList = gifts.gifts;
+    if (giftList.isEmpty) {
+      showTelegramToast(context, 'No gifts available');
+      return;
+    }
+    final selected = await showDialog<int>(
+      context: context,
+      builder: (ctx) => _StarGiftPickerDialog(gifts: giftList),
+    );
+    if (selected != null && context.mounted) {
+      final success = await engine.sendStarGift(widget.chat.accountId, widget.chat.chatId, selected);
+      if (context.mounted) {
+        showTelegramToast(context, success ? 'Gift sent!' : 'Failed to send gift');
+      }
+    }
+  }
+
   void _showStatsMenu(BuildContext context) async {
     final box = context.findRenderObject() as RenderBox;
     final pos = box.localToGlobal(Offset(box.size.width / 2, box.size.height));
@@ -2189,6 +2608,19 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                 final engine = context.read<EngineService>();
                 engine.startCall(widget.chat.accountId, widget.chat.chatId);
               },
+              avatarBytes: widget.chat.avatarPath.isEmpty ? null : null,
+              notJoined: widget.chat.notJoined,
+              linkedChatId: widget.chatState.linkedChatId,
+              isPeerPremium: _isPeerGiftEligible(),
+              onJoinTap: () {
+                widget.chatState.joinChannel(widget.chat.accountId, widget.chat.chatId);
+              },
+              onDiscussTap: widget.chatState.linkedChatId.isNotEmpty
+                  ? () { widget.chatState.openChatById(widget.chatState.linkedChatId); }
+                  : null,
+              onGiftTap: _isPeerGiftEligible()
+                  ? () { _showStarGiftDialog(context); }
+                  : null,
             ),
           ),
           ..._buildInfoSections(context),
