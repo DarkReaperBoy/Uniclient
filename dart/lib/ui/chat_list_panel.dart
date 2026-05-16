@@ -122,7 +122,7 @@ class ChatListPanel extends StatefulWidget {
 }
 
 /// Search-mode tab enum matching Telegram Desktop `ChatSearchTab`.
-enum _SearchTab { myMessages, publicPosts, thisPeer }
+enum _SearchTab { myMessages, publicPosts, thisPeer, thisTopic }
 
 /// Sub-filter for "My Messages" tab (spec §2.2: ChatSearchIn popup menu).
 /// Filters search results by chat type under the My Messages tab.
@@ -136,6 +136,7 @@ class _ChatListPanelState extends State<ChatListPanel>
   bool _showArchived = false;
   List<ChatInfo> _loadedArchivedChats = []; // on-demand archived chats
   List<ChatInfo>? _searchResults;
+  List<SearchResult> _messageSearchResults = [];
   List<ChatInfo>? _lastDisplayChats;
   List<ChatInfo> _cachedSorted = [];
   _SearchTab _activeSearchTab = _SearchTab.myMessages;
@@ -471,12 +472,17 @@ class _ChatListPanelState extends State<ChatListPanel>
 
   void _onSearchChanged(String query) {
     if (query.isEmpty) {
-      setState(() => _searchResults = null);
+      setState(() {
+        _searchResults = null;
+        _messageSearchResults = [];
+      });
       return;
     }
     final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
     setState(() {
       _searchResults = _filterByTab(chatState.searchChats(query), chatState);
+      _messageSearchResults = chatState.searchMessages(query, accountId: appState.activeAccountId);
     });
   }
 
@@ -484,7 +490,6 @@ class _ChatListPanelState extends State<ChatListPanel>
   List<ChatInfo> _filterByTab(List<ChatInfo> results, ChatState chatState) {
     switch (_activeSearchTab) {
       case _SearchTab.myMessages:
-        // Apply sub-filter (Private/Groups/Channels) if set.
         switch (_myMsgSubFilter) {
           case _MyMsgSubFilter.all:
             return results;
@@ -505,9 +510,18 @@ class _ChatListPanelState extends State<ChatListPanel>
             ? postsResults
             : results.where((c) => c.type == ChatType.channel).toList();
       case _SearchTab.thisPeer:
-        // Only results matching the currently active chat.
         final active = chatState.activeChat;
         if (active == null) return [];
+        return results
+            .where((c) =>
+                c.chatId == active.chatId &&
+                c.accountId == active.accountId)
+            .toList();
+      case _SearchTab.thisTopic:
+        final active = chatState.activeChat;
+        if (active == null) return [];
+        final topicId = chatState.activeTopicId;
+        if (topicId == null || topicId.isEmpty) return [];
         return results
             .where((c) =>
                 c.chatId == active.chatId &&
@@ -520,12 +534,13 @@ class _ChatListPanelState extends State<ChatListPanel>
     setState(() {
       _myMsgSubFilter = filter;
     });
-    // Re-run search with new sub-filter.
     final query = _searchController.text;
     if (query.isNotEmpty) {
       final chatState = context.read<ChatState>();
+      final appState = context.read<AppState>();
       setState(() {
         _searchResults = _filterByTab(chatState.searchChats(query), chatState);
+        _messageSearchResults = chatState.searchMessages(query, accountId: appState.activeAccountId);
       });
     }
   }
@@ -533,14 +548,15 @@ class _ChatListPanelState extends State<ChatListPanel>
   void _onSearchTabChanged(_SearchTab tab) {
     setState(() {
       _activeSearchTab = tab;
-      _myMsgSubFilter = _MyMsgSubFilter.all; // Reset sub-filter on tab switch.
+      _myMsgSubFilter = _MyMsgSubFilter.all;
     });
-    // Re-run search with current query under the new tab filter.
     final query = _searchController.text;
     if (query.isNotEmpty) {
       final chatState = context.read<ChatState>();
+      final appState = context.read<AppState>();
       setState(() {
         _searchResults = _filterByTab(chatState.searchChats(query), chatState);
+        _messageSearchResults = chatState.searchMessages(query, accountId: appState.activeAccountId);
       });
     }
   }
@@ -551,6 +567,7 @@ class _ChatListPanelState extends State<ChatListPanel>
     setState(() {
       _searching = false;
       _searchResults = null;
+      _messageSearchResults = [];
       _activeSearchTab = _SearchTab.myMessages;
       _myMsgSubFilter = _MyMsgSubFilter.all;
     });
@@ -697,6 +714,7 @@ class _ChatListPanelState extends State<ChatListPanel>
               _SearchTabsStrip(
                 activeTab: _activeSearchTab,
                 onTabChanged: _onSearchTabChanged,
+                showThisTopic: chatState.isViewingForum && chatState.activeTopicId != null,
               ),
             // Sub-filter row under My Messages (spec §2.2: ChatSearchIn popup).
             if (_searching &&
@@ -748,12 +766,35 @@ class _ChatListPanelState extends State<ChatListPanel>
                         onPointerMove: _onReorderPointerMove,
                         onPointerUp: _onReorderPointerUp,
                         onPointerCancel: _onReorderPointerCancel,
-                        child: ListView.builder(
+                        child: Builder(builder: (context) {
+                          final chatSectionCount = visibleChats.length + (showArchiveRow ? 1 : 0);
+                          final hasMessageResults = _searching && _searchController.text.isNotEmpty && _messageSearchResults.isNotEmpty;
+                          final messageSectionCount = hasMessageResults ? 1 + _messageSearchResults.length : 0;
+                          return ListView.builder(
                           key: _chatListKey,
                           controller: _chatListScrollCtrl,
-                          itemCount: visibleChats.length + (showArchiveRow ? 1 : 0),
+                          itemCount: chatSectionCount + messageSectionCount,
                           itemBuilder: (context, index) {
-                            // First item: Archived Chats row (37px, spec §2.5).
+                            if (hasMessageResults && index >= chatSectionCount) {
+                              final msgIdx = index - chatSectionCount;
+                              if (msgIdx == 0) {
+                                return _SearchSectionHeader(label: 'Messages');
+                              }
+                              final result = _messageSearchResults[msgIdx - 1];
+                              return _SearchMessageRow(
+                                result: result,
+                                onTap: () {
+                                  final allChats = chatState.chatsForAccount(result.accountId);
+                                  final chat = allChats.where((c) => c.chatId == result.chatId).firstOrNull;
+                                  if (chat != null) {
+                                    chatState.openChat(chat);
+                                    if (result.timestamp > 0) {
+                                      chatState.jumpToMessage(result.timestamp, highlightMsgId: result.msgId);
+                                    }
+                                  }
+                                },
+                              );
+                            }
                             if (showArchiveRow && index == 0) {
                               return _ArchivedChatsRow(
                                 unreadCount: archivedUnread,
@@ -914,7 +955,8 @@ class _ChatListPanelState extends State<ChatListPanel>
                             }
                             return row;
                           },
-                        ),
+                        );
+                        }),
                       ),
           ),
         ],
@@ -2444,8 +2486,7 @@ class _FolderTab extends StatelessWidget {
 
 /// Top Peers strip: horizontal scrollable row of 46px circular avatars.
 /// Shown when search bar is focused but no query text entered (spec §2).
-/// Uses DM chats sorted by recent activity as a proxy for top peers.
-class _TopPeersStrip extends StatelessWidget {
+class _TopPeersStrip extends StatefulWidget {
   final List<ChatInfo> chats;
   final void Function(ChatInfo) onTap;
 
@@ -2458,15 +2499,73 @@ class _TopPeersStrip extends StatelessWidget {
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
   @override
+  State<_TopPeersStrip> createState() => _TopPeersStripState();
+}
+
+class _TopPeersStripState extends State<_TopPeersStrip> {
+  bool _enabled = true;
+  bool _checkedEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkEnabled();
+  }
+
+  void _checkEnabled() async {
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
+    final enabled = await chatState.getTopPeersEnabled(appState.activeAccountId);
+    if (mounted && enabled != _enabled) {
+      setState(() {
+        _enabled = enabled;
+        _checkedEnabled = true;
+      });
+    } else {
+      _checkedEnabled = true;
+    }
+  }
+
+  void _showPeerContextMenu(BuildContext ctx, ChatInfo chat, Offset position) {
+    final chatState = ctx.read<ChatState>();
+    final appState = ctx.read<AppState>();
+    showTelegramMenu<String>(
+      context: ctx,
+      position: position,
+      items: const [
+        TelegramMenuItem(
+          value: 'remove',
+          icon: Icon(Icons.person_remove_outlined, size: 20),
+          label: 'Remove from frequent',
+        ),
+        TelegramMenuItem(
+          value: 'hide_all',
+          icon: Icon(Icons.visibility_off_outlined, size: 20),
+          label: 'Hide frequent contacts',
+        ),
+      ],
+    ).then((value) {
+      if (value == null || !ctx.mounted) return;
+      switch (value) {
+        case 'remove':
+          chatState.removeTopPeer(appState.activeAccountId, chat.chatId);
+        case 'hide_all':
+          chatState.toggleTopPeers(appState.activeAccountId, false);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_checkedEnabled && !_enabled) return const SizedBox.shrink();
+
     final palette = context.palette;
     final chatState = context.read<ChatState>();
     final appState = context.read<AppState>();
 
-    // Use server-ranked top peers; fall back to local DM sort.
     var topPeers = chatState.getTopPeers(appState.activeAccountId, limit: 20);
     if (topPeers.isEmpty) {
-      final dmChats = chats
+      final dmChats = widget.chats
           .where((c) => c.type == ChatType.dm && !c.isArchived)
           .toList()
         ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
@@ -2498,7 +2597,7 @@ class _TopPeersStrip extends StatelessWidget {
           ),
         ),
         SizedBox(
-      height: _stripHeight,
+      height: _TopPeersStrip._stripHeight,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 7),
@@ -2506,28 +2605,34 @@ class _TopPeersStrip extends StatelessWidget {
         itemBuilder: (context, index) {
           final chat = topPeers[index];
           final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
-          final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
+          final color = palette.peerUserpicBg(_TopPeersStrip._colorRemap[numId.abs() % 7]);
           final initials = _initials(chat.title);
           final firstName = chat.title.split(RegExp(r'\s+')).first;
 
           return GestureDetector(
-            onTap: () => onTap(chat),
+            onTap: () => widget.onTap(chat),
+            onSecondaryTapUp: (details) =>
+                _showPeerContextMenu(context, chat, details.globalPosition),
+            onLongPress: () {
+              final box = context.findRenderObject() as RenderBox?;
+              final pos = box?.localToGlobal(Offset.zero) ?? Offset.zero;
+              _showPeerContextMenu(context, chat, pos);
+            },
             child: SizedBox(
-              width: _itemWidth,
+              width: _TopPeersStrip._itemWidth,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 8),
-                  // Avatar
                   SizedBox(
-                    width: _avatarSize,
-                    height: _avatarSize,
+                    width: _TopPeersStrip._avatarSize,
+                    height: _TopPeersStrip._avatarSize,
                     child: chat.avatarPath.isNotEmpty
                         ? ClipOval(
                             child: Image.file(
                               File(chat.avatarPath),
-                              width: _avatarSize,
-                              height: _avatarSize,
+                              width: _TopPeersStrip._avatarSize,
+                              height: _TopPeersStrip._avatarSize,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) =>
                                   _fallbackAvatar(color, initials),
@@ -2536,9 +2641,8 @@ class _TopPeersStrip extends StatelessWidget {
                         : _fallbackAvatar(color, initials),
                   ),
                   const SizedBox(height: 6),
-                  // Name (first name only, truncated)
                   SizedBox(
-                    width: _itemWidth - 4,
+                    width: _TopPeersStrip._itemWidth - 4,
                     child: Text(
                       firstName,
                       maxLines: 1,
@@ -2563,8 +2667,8 @@ class _TopPeersStrip extends StatelessWidget {
 
   Widget _fallbackAvatar(Color color, String initials) {
     return Container(
-      width: _avatarSize,
-      height: _avatarSize,
+      width: _TopPeersStrip._avatarSize,
+      height: _TopPeersStrip._avatarSize,
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
@@ -2574,7 +2678,7 @@ class _TopPeersStrip extends StatelessWidget {
         initials,
         style: TextStyle(
           color: Colors.white,
-          fontSize: _avatarSize * 0.38,
+          fontSize: _TopPeersStrip._avatarSize * 0.38,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -2634,6 +2738,7 @@ class _StoriesBarState extends State<_StoriesBar>
   void setExpanded(bool v) => _setExpanded(v);
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
+  Timer? _storyRefreshTimer;
 
   @override
   void initState() {
@@ -2647,10 +2752,16 @@ class _StoriesBarState extends State<_StoriesBar>
       parent: _expandController,
       curve: Curves.easeOutCubic,
     );
+    _storyRefreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (mounted) {
+        context.read<ChatState>().loadChats();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _storyRefreshTimer?.cancel();
     _expandController.dispose();
     super.dispose();
   }
@@ -2683,6 +2794,7 @@ class _StoriesBarState extends State<_StoriesBar>
   @override
   Widget build(BuildContext context) {
     final peers = _storyPeers;
+    if (peers.isEmpty) return const SizedBox.shrink();
 
     final collapsed = _buildCollapsed(peers);
     final expanded = _buildExpanded(peers);
@@ -2715,9 +2827,7 @@ class _StoriesBarState extends State<_StoriesBar>
   Widget _buildOwnStoryThumb() {
     final appState = context.read<AppState>();
     final ownChat = widget.chats.where((c) =>
-      c.type == ChatType.dm &&
-      c.title == 'Saved Messages' &&
-      !c.isArchived
+      c.type == ChatType.dm && c.isSelf && !c.isArchived
     ).firstOrNull;
     final hasOwnStory = ownChat != null && ownChat.storyCount > 0;
 
@@ -3101,8 +3211,8 @@ class _StoriesBarRingPainter extends CustomPainter {
 
 /// Recent Contacts list: vertical list of recent DM contacts shown below the
 /// Top Peers strip when search bar is focused with no query (spec §2.2).
-/// Rows: 56px height, 42px avatar at (16,7), name at (74,9), status at (74,30).
-class _RecentContactsList extends StatelessWidget {
+/// Fetches contacts from server and merges with local DM chats.
+class _RecentContactsList extends StatefulWidget {
   final List<ChatInfo> chats;
   final void Function(ChatInfo) onTap;
   final ChatState chatState;
@@ -3119,12 +3229,51 @@ class _RecentContactsList extends StatelessWidget {
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
   @override
+  State<_RecentContactsList> createState() => _RecentContactsListState();
+}
+
+class _RecentContactsListState extends State<_RecentContactsList> {
+  List<ChatInfo>? _serverContacts;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchContacts();
+  }
+
+  void _fetchContacts() async {
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    try {
+      final contacts = await widget.chatState.getContacts(accountId);
+      if (!mounted) return;
+      final allChats = widget.chatState.chatsForAccount(accountId);
+      final contactChats = <ChatInfo>[];
+      for (final c in contacts) {
+        final chat = allChats.where((ch) => ch.chatId == c.userId).firstOrNull;
+        if (chat != null) contactChats.add(chat);
+      }
+      setState(() => _serverContacts = contactChats);
+    } catch (_) {
+      // Fall back to local data on failure
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final dmChats = chats
-        .where((c) => c.type == ChatType.dm && !c.isArchived)
-        .toList()
-      ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
-    final recent = dmChats.take(30).toList();
+    List<ChatInfo> recent;
+    if (_serverContacts != null && _serverContacts!.isNotEmpty) {
+      recent = List.of(_serverContacts!)
+        ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
+      if (recent.length > 30) recent = recent.sublist(0, 30);
+    } else {
+      final dmChats = widget.chats
+          .where((c) => c.type == ChatType.dm && !c.isArchived)
+          .toList()
+        ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
+      recent = dmChats.take(30).toList();
+    }
     if (recent.isEmpty) return const SizedBox.shrink();
 
     final palette = context.palette;
@@ -3133,20 +3282,20 @@ class _RecentContactsList extends StatelessWidget {
     final hoverBg = palette.dialogsBgOver;
     final subColor = palette.dialogsTextFg;
     final hasChannels =
-        chats.any((c) => c.type == ChatType.channel && !c.isArchived);
+        widget.chats.any((c) => c.type == ChatType.channel && !c.isArchived);
 
     return CustomScrollView(
       slivers: [
         SliverFixedExtentList(
-          itemExtent: _rowHeight,
+          itemExtent: _RecentContactsList._rowHeight,
           delegate: SliverChildBuilderDelegate(
             (context, index) {
               final chat = recent[index];
               final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
-              final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
+              final color = palette.peerUserpicBg(_RecentContactsList._colorRemap[numId.abs() % 7]);
               final initials = _initials(chat.title);
-              final isOnline = chatState.isChatOnline(chat);
-              final lastSeen = chatState.chatLastSeen(chat);
+              final isOnline = widget.chatState.isChatOnline(chat);
+              final lastSeen = widget.chatState.chatLastSeen(chat);
               final statusText = isOnline
                   ? 'online'
                   : formatChatLastSeen(lastSeen);
@@ -3159,13 +3308,12 @@ class _RecentContactsList extends StatelessWidget {
                 nameFg: nameFg,
                 statusFg: statusFg,
                 hoverBg: hoverBg,
-                onTap: () => onTap(chat),
+                onTap: () => widget.onTap(chat),
               );
             },
             childCount: recent.length,
           ),
         ),
-        // §35.8: Empty recent search results section.
         SliverToBoxAdapter(
           child: _EmptySuggestionSection(
             lottieAsset: 'assets/animations/search.json',
@@ -3173,7 +3321,6 @@ class _RecentContactsList extends StatelessWidget {
             subColor: subColor,
           ),
         ),
-        // §35.9: Empty channels list (only when user has no channels).
         if (!hasChannels)
           SliverToBoxAdapter(
             child: _EmptySuggestionSection(
@@ -3385,16 +3532,20 @@ class _RecentContactRowState extends State<_RecentContactRow> {
 class _SearchTabsStrip extends StatefulWidget {
   final _SearchTab activeTab;
   final ValueChanged<_SearchTab> onTabChanged;
+  final bool showThisTopic;
 
   const _SearchTabsStrip({
     required this.activeTab,
     required this.onTabChanged,
+    this.showThisTopic = false,
   });
 
-  static const _tabs = [
+  List<({_SearchTab tab, String label})> get tabs => [
     (tab: _SearchTab.myMessages, label: 'My Messages'),
     (tab: _SearchTab.publicPosts, label: 'Public Posts'),
     (tab: _SearchTab.thisPeer, label: 'This Peer'),
+    if (showThisTopic)
+      (tab: _SearchTab.thisTopic, label: 'This Topic'),
   ];
 
   @override
@@ -3404,7 +3555,7 @@ class _SearchTabsStrip extends StatefulWidget {
 class _SearchTabsStripState extends State<_SearchTabsStrip>
     with SingleTickerProviderStateMixin {
   final _rowKey = GlobalKey();
-  final _labelKeys = List.generate(3, (_) => GlobalKey());
+  List<GlobalKey> _labelKeys = List.generate(4, (_) => GlobalKey());
 
   late final AnimationController _indicatorCtrl;
   late final CurvedAnimation _curvedIndicator;
@@ -3413,7 +3564,7 @@ class _SearchTabsStripState extends State<_SearchTabsStrip>
   bool _indicatorInitialized = false;
 
   int get _activeIndex =>
-      _SearchTabsStrip._tabs.indexWhere((e) => e.tab == widget.activeTab);
+      widget.tabs.indexWhere((e) => e.tab == widget.activeTab);
 
   @override
   void initState() {
@@ -3521,23 +3672,23 @@ class _SearchTabsStripState extends State<_SearchTabsStrip>
               key: _rowKey,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                for (var i = 0; i < _SearchTabsStrip._tabs.length; i++)
+                for (var i = 0; i < widget.tabs.length; i++)
                   _SearchTabItem(
-                    label: _SearchTabsStrip._tabs[i].label,
+                    label: widget.tabs[i].label,
                     labelKey: _labelKeys[i],
-                    isActive: widget.activeTab == _SearchTabsStrip._tabs[i].tab,
+                    isActive: widget.activeTab == widget.tabs[i].tab,
                     activeFg: activeFg,
                     inactiveFg: inactiveFg,
                     hoverColor:
-                        widget.activeTab == _SearchTabsStrip._tabs[i].tab
+                        widget.activeTab == widget.tabs[i].tab
                             ? hoverActive
                             : hoverInactive,
                     splashColor:
-                        widget.activeTab == _SearchTabsStrip._tabs[i].tab
+                        widget.activeTab == widget.tabs[i].tab
                             ? splashActive
                             : splashInactive,
                     onTap: () =>
-                        widget.onTabChanged(_SearchTabsStrip._tabs[i].tab),
+                        widget.onTabChanged(widget.tabs[i].tab),
                   ),
               ],
             ),
@@ -4210,6 +4361,118 @@ class _SkeletonPainter extends CustomPainter {
 
 /// Spec §35.7.1: Search waiting state — search focused, no query entered,
 /// no recent contacts to display.
+class _SearchSectionHeader extends StatelessWidget {
+  final String label;
+  const _SearchSectionHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      height: 28,
+      width: double.infinity,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.only(left: 14),
+      color: palette.dialogsBg,
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
+          color: palette.dialogsTextFg,
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchMessageRow extends StatelessWidget {
+  final SearchResult result;
+  final VoidCallback onTap;
+  const _SearchMessageRow({required this.result, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final hoverBg = palette.dialogsBgOver;
+    final dt = result.timestamp > 0
+        ? DateTime.fromMillisecondsSinceEpoch(result.timestamp)
+        : null;
+    final timeStr = dt != null
+        ? '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}'
+        : '';
+
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      child: SizedBox(
+        height: 56,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      result.chatTitle.isNotEmpty ? result.chatTitle : result.senderName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: palette.dialogsNameFg,
+                      ),
+                    ),
+                  ),
+                  if (timeStr.isNotEmpty)
+                    Text(
+                      timeStr,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: palette.dialogsDateFg,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  if (result.senderName.isNotEmpty && result.chatTitle.isNotEmpty) ...[
+                    Text(
+                      '${result.senderName}: ',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: palette.dialogsTextFgActive,
+                      ),
+                    ),
+                  ],
+                  Expanded(
+                    child: Text(
+                      result.text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: palette.dialogsTextFg,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SearchWaitingState extends StatelessWidget {
   const _SearchWaitingState();
 
@@ -5119,6 +5382,9 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
     final topic = widget.topic;
     final topicId = int.tryParse(topic.id) ?? 0;
     final hasUnread = topic.unreadCount > 0;
+    final parentChat = widget.chatState.chatsForAccount(widget.accountId)
+        .where((c) => c.chatId == widget.chatId).firstOrNull;
+    final isMuted = parentChat?.isMuted ?? false;
 
     final value = await showTelegramMenu<String>(
       context: ctx,
@@ -5135,10 +5401,10 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
           icon: Icon(Icons.info_outline, size: 20),
           label: 'View Info',
         ),
-        const TelegramMenuItem(
-          value: 'mute',
-          icon: Icon(Icons.notifications_off_outlined, size: 20),
-          label: 'Mute',
+        TelegramMenuItem(
+          value: isMuted ? 'unmute' : 'mute',
+          icon: Icon(isMuted ? Icons.notifications_outlined : Icons.notifications_off_outlined, size: 20),
+          label: isMuted ? 'Unmute' : 'Mute',
         ),
         TelegramMenuItem(
           value: 'mark_read',
@@ -5204,6 +5470,8 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
         }
       case 'mute':
         _showMuteSubmenu(ctx, position);
+      case 'unmute':
+        widget.chatState.muteChat(widget.accountId, widget.topic.id, false);
       case 'edit':
         _showEditTopicDialog(ctx);
       case 'toggle_closed':
@@ -5243,7 +5511,7 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
       case 'delete':
         final r = await showDeleteConfirmBox(
           ctx,
-          mode: DeleteBoxMode.clearHistory,
+          mode: DeleteBoxMode.deleteTopic,
           chatType: ChatType.topic,
           peerName: topic.title,
         );

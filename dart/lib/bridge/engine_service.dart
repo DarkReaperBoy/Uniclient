@@ -4553,6 +4553,14 @@ class EngineService {
     await _callAsync('__engine', 'ToggleTopPeers', Uint8List.fromList(payload));
   }
 
+  Future<void> removeTopPeer(String accountId, String peerId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'peer_id': peerId,
+    }));
+    await _callAsync('__engine', 'RemoveTopPeer', Uint8List.fromList(payload));
+  }
+
   // ── Cloud Password (2FA) ──
 
   Future<Map<String, dynamic>?> getCloudPasswordState(String accountId) async {

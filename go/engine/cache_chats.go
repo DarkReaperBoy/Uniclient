@@ -683,6 +683,21 @@ func (e *Engine) ToggleTopPeers(accountID string, enabled bool) error {
 	return err
 }
 
+func (e *Engine) RemoveTopPeer(accountID, peerID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type topPeerRemover interface {
+		RemoveFromTopPeers(peerID string) error
+	}
+	r, ok := acc.Core.(topPeerRemover)
+	if !ok {
+		return fmt.Errorf("platform does not support removing top peers")
+	}
+	return r.RemoveFromTopPeers(peerID)
+}
+
 // ToggleSavedDialogPin pins or unpins a saved dialog sublist.
 func (e *Engine) ToggleSavedDialogPin(accountID, peerID string, pinned bool) error {
 	acc, ok := e.getAccount(accountID)

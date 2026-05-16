@@ -1950,6 +1950,24 @@ class ChatState extends ChangeNotifier {
     return _engine.getTopPeers(accountId, limit: limit);
   }
 
+  Future<bool> getTopPeersEnabled(String accountId) {
+    return _engine.getTopPeersEnabled(accountId);
+  }
+
+  Future<void> removeTopPeer(String accountId, String peerId) async {
+    await _engine.removeTopPeer(accountId, peerId);
+    notifyListeners();
+  }
+
+  Future<void> toggleTopPeers(String accountId, bool enabled) async {
+    await _engine.toggleTopPeers(accountId, enabled);
+    notifyListeners();
+  }
+
+  Future<List<ContactInfo>> getContacts(String accountId) {
+    return _engine.getContacts(accountId);
+  }
+
   List<ChatInfo> searchGlobalChats(String accountId, String query, {int limit = 20}) {
     return _engine.searchGlobalChats(accountId, query, limit: limit);
   }

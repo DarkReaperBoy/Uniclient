@@ -385,7 +385,7 @@ Widget _buildLinkableText(
 
 // ─── Delete / Leave ConfirmBox — §36.2 destructive variant ───────────────────
 
-enum DeleteBoxMode { singleMessage, bulkMessages, clearHistory, leaveChat }
+enum DeleteBoxMode { singleMessage, bulkMessages, clearHistory, leaveChat, deleteTopic }
 
 class DeleteConfirmResult {
   final bool confirmed;
@@ -511,6 +511,8 @@ class _DeleteContentState extends State<_DeleteContent> {
           default:
             return 'Are you sure you want to delete all message history with $name?';
         }
+      case DeleteBoxMode.deleteTopic:
+        return 'Are you sure you want to delete the topic "$name"?';
     }
   }
 
@@ -524,6 +526,7 @@ class _DeleteContentState extends State<_DeleteContent> {
         }
         return 'Delete';
       case DeleteBoxMode.clearHistory:
+      case DeleteBoxMode.deleteTopic:
         return 'Delete';
       case DeleteBoxMode.singleMessage:
       case DeleteBoxMode.bulkMessages:
@@ -575,7 +578,8 @@ class _DeleteContentState extends State<_DeleteContent> {
     final linkFg = p.windowActiveTextFg;
 
     final blockEnter = widget.mode == DeleteBoxMode.clearHistory ||
-        widget.mode == DeleteBoxMode.leaveChat;
+        widget.mode == DeleteBoxMode.leaveChat ||
+        widget.mode == DeleteBoxMode.deleteTopic;
 
     return TelegramBox(
       onConfirm: blockEnter ? null : _confirm,

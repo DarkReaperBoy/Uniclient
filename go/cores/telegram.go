@@ -21224,6 +21224,17 @@ func (t *TelegramCore) ContactsToggleTopPeers(enabled bool) (bool, error) {
 	return t.api.ContactsToggleTopPeers(t.ctx, enabled)
 }
 
+func (t *TelegramCore) RemoveFromTopPeers(peerID string) error {
+	inputPeer, unlock, err := t.withPeer(peerID)
+	if err != nil { return err }
+	defer unlock()
+	_, err = t.api.ContactsResetTopPeerRating(t.ctx, &tg.ContactsResetTopPeerRatingRequest{
+		Category: &tg.TopPeerCategoryCorrespondents{},
+		Peer:     inputPeer,
+	})
+	return err
+}
+
 // ContactsUpdateContactNote sets a personal note for a contact.
 func (t *TelegramCore) ContactsUpdateContactNote(request *tg.ContactsUpdateContactNoteRequest) (bool, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

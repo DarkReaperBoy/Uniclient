@@ -3802,6 +3802,16 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ToggleTopPeers(params.AccountID, params.Enabled)
 
+	case "RemoveTopPeer":
+		var params struct {
+			AccountID string `json:"account_id"`
+			PeerID    string `json:"peer_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.RemoveTopPeer(params.AccountID, params.PeerID)
+
 	case "GetCloudPasswordState":
 		var params struct {
 			AccountID string `json:"account_id"`
