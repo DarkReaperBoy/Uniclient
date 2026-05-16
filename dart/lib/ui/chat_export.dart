@@ -834,9 +834,6 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
           _exportSteps[stepIdx].progress = progress.clamp(0.0, 1.0);
         }
         _exportSteps[stepIdx].info = event.info;
-        if (progress >= 1.0) {
-          _exportSteps[stepIdx].opacity = 0.5;
-        }
         _currentStepIndex = stepIdx;
       }
     } else {
@@ -852,9 +849,11 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
 
     _totalFiles = event.totalFiles;
     _totalSizeBytes = event.totalSizeBytes;
-    _fileRandomId = event.fileRandomId;
-    _showSkipFile = false;
-    _resetSkipFileTimer();
+    if (event.fileRandomId != _fileRandomId) {
+      _fileRandomId = event.fileRandomId;
+      _showSkipFile = false;
+      _resetSkipFileTimer();
+    }
 
     _syncExportBar();
     setState(() {});
@@ -950,7 +949,6 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     if (_currentStepIndex < _exportSteps.length) {
       _exportSteps[_currentStepIndex].progress = 1.0;
       _exportSteps[_currentStepIndex].info = 'Skipped';
-      _exportSteps[_currentStepIndex].opacity = 0.5;
       _showSkipFile = false;
       _resetSkipFileTimer();
       setState(() {});
@@ -967,18 +965,17 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     context.read<ChatState>().stopExportBar();
   }
 
-  void _triggerTakeoutInvalidError() {
+  void _triggerTakeoutInvalidError() async {
     _cleanupExportSubscriptions();
-    setState(() => _phase = ExportPhase.settings);
-    _showExportInformBox(
+    await _showExportInformBox(
       'Sorry, your data export session has expired, please try again.',
     );
+    if (mounted) _closePanel();
   }
 
   void _triggerTakeoutInitDelayError(
-      int hoursRemaining, DateTime availableAt) {
+      int hoursRemaining, DateTime availableAt) async {
     _cleanupExportSubscriptions();
-    setState(() => _phase = ExportPhase.settings);
     const months = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -987,9 +984,10 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         '${availableAt.hour.toString().padLeft(2, '0')}:${availableAt.minute.toString().padLeft(2, '0')}';
     final date =
         '${months[availableAt.month - 1]} ${availableAt.day}, ${availableAt.year}';
-    _showExportInformBox(
+    await _showExportInformBox(
       'Please try again in about $hoursRemaining hours, on $date at $time.',
     );
+    if (mounted) _closePanel();
   }
 
   void _triggerDiskError(String path) {
@@ -1010,7 +1008,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     });
   }
 
-  void _showExportInformBox(String text) {
+  Future<void> _showExportInformBox(String text) async {
     if (!mounted) return;
     final p = PaletteProvider.of(context);
     final boxBg = p.boxBg;
@@ -1018,7 +1016,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final accentColor = p.windowActiveTextFg;
     final closeFg = p.boxTitleAdditionalFg;
 
-    showDialog(
+    await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => PopScope(
@@ -2080,9 +2078,9 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final activeFg =
-        context.palette.windowBgActive;
+        context.palette.mediaPlayerActiveFg;
     final inactiveFg =
-        isDark ? const Color(0xFF283848) : const Color(0xFFE0E0E0);
+        context.palette.mediaPlayerInactiveFg;
     final attentionFg =
         context.palette.attentionButtonFg;
     final linkColor =
@@ -2099,22 +2097,22 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
             children: [
               for (int _si = 0; _si < visibleSteps.length; _si++) ...[
                 if (_si > 0) const SizedBox(height: 10),
-                AnimatedOpacity(
-                  opacity: visibleSteps[_si].opacity,
-                  duration: const Duration(milliseconds: 300),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
-                    child: SizedBox(
-                      height: 30,
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Expanded(
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+                  child: SizedBox(
+                    height: 30,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 300),
                                   child: Text(
                                     visibleSteps[_si].label,
+                                    key: ValueKey(visibleSteps[_si].label),
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
@@ -2123,42 +2121,42 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  visibleSteps[_si].info,
-                                  style: TextStyle(
-                                      fontSize: 14, color: subtextColor),
-                                ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                visibleSteps[_si].info,
+                                style: TextStyle(
+                                    fontSize: 14, color: subtextColor),
+                              ),
+                            ],
                           ),
-                          SizedBox(
-                            height: 3,
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                return Stack(
-                                  children: [
-                                    Container(
-                                      width: constraints.maxWidth,
-                                      height: 3,
-                                      color: inactiveFg,
-                                    ),
-                                    AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 200),
-                                      curve: Curves.easeInOut,
-                                      width: constraints.maxWidth *
-                                          visibleSteps[_si].progress,
-                                      height: 3,
-                                      color: activeFg,
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
+                        ),
+                        SizedBox(
+                          height: 3,
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              return Stack(
+                                children: [
+                                  Container(
+                                    width: constraints.maxWidth,
+                                    height: 3,
+                                    color: inactiveFg,
+                                  ),
+                                  AnimatedContainer(
+                                    duration:
+                                        const Duration(milliseconds: 200),
+                                    curve: Curves.easeInOut,
+                                    width: constraints.maxWidth *
+                                        visibleSteps[_si].progress,
+                                    height: 3,
+                                    color: activeFg,
+                                  ),
+                                ],
+                              );
+                            },
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -2261,9 +2259,9 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final activeFg =
-        context.palette.windowBgActive;
+        context.palette.mediaPlayerActiveFg;
     final inactiveFg =
-        isDark ? const Color(0xFF283848) : const Color(0xFFE0E0E0);
+        context.palette.mediaPlayerInactiveFg;
 
     final completedSteps = _exportSteps.map((s) => _ExportStepInfo(
       label: s.label,
@@ -2390,7 +2388,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     }
 
     final panelHeight = _isPerChat ? 540.0 : _exportPanelHeight;
-    final topPad = (panelHeight / 4 - _titleBarHeight).clamp(0.0, panelHeight);
+    final topPad = (panelHeight / 4).clamp(0.0, panelHeight);
 
     return Padding(
       padding: EdgeInsets.only(top: topPad),
