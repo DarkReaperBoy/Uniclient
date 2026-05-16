@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
 import '../theme/telegram_palette.dart';
 import 'forum_topic_icon.dart';
 
@@ -29,13 +31,6 @@ class _TopicIconEntry {
   final int documentId;
   final String emoji;
   const _TopicIconEntry({required this.documentId, required this.emoji});
-}
-
-class _IconCategory {
-  final IconData icon;
-  final String label;
-  final List<String> emojis;
-  const _IconCategory(this.icon, this.label, this.emojis);
 }
 
 Future<EditForumTopicResult?> showEditForumTopicBox(
@@ -123,9 +118,15 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
 
   List<_TopicIconEntry> _serverIcons = [];
 
+  List<CustomEmojiSetSummary> _emojiSets = [];
+  bool _loadingEmojiSets = false;
+
   final GlobalKey _iconButtonKey = GlobalKey();
   OverlayEntry? _flyOverlay;
   AnimationController? _flyController;
+
+  OverlayEntry? _toastOverlay;
+  AnimationController? _toastAnimController;
 
   @override
   void initState() {
@@ -136,6 +137,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     _remainingColors = List.of(_topicColorIds)..remove(_colorId);
     _titleController.addListener(_onTitleChanged);
     _fetchServerIcons();
+    _fetchInstalledEmojiSets();
   }
 
   @override
@@ -147,6 +149,10 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     _flyController?.stop();
     _flyController?.dispose();
     _flyController = null;
+    _dismissToast();
+    _toastAnimController?.stop();
+    _toastAnimController?.dispose();
+    _toastAnimController = null;
     super.dispose();
   }
 
@@ -156,15 +162,19 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     });
   }
 
+  EngineService? _getEngine() {
+    try {
+      return context.read<EngineService>();
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _fetchServerIcons() async {
     final accountId = widget.accountId;
     if (accountId == null || accountId.isEmpty) return;
-    EngineService? engine;
-    try {
-      engine = context.read<EngineService>();
-    } catch (_) {
-      return;
-    }
+    final engine = _getEngine();
+    if (engine == null) return;
     setState(() => _loadingServerIcons = true);
     try {
       final icons = await engine.getForumTopicDefaultIcons(accountId);
@@ -196,6 +206,25 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     } catch (_) {
       if (!mounted) return;
       setState(() => _loadingServerIcons = false);
+    }
+  }
+
+  Future<void> _fetchInstalledEmojiSets() async {
+    final accountId = widget.accountId;
+    if (accountId == null || accountId.isEmpty) return;
+    final engine = _getEngine();
+    if (engine == null) return;
+    setState(() => _loadingEmojiSets = true);
+    try {
+      final sets = await engine.getInstalledEmojiSets(accountId);
+      if (!mounted) return;
+      setState(() {
+        _emojiSets = sets;
+        _loadingEmojiSets = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingEmojiSets = false);
     }
   }
 
@@ -411,11 +440,13 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                                 ),
                               ),
                             )
-                          : ForumTopicIcon(
-                              colorId: _colorId,
-                              title: _titleController.text,
-                              size: _iconButtonSize,
-                            ),
+                          : (_iconEmojiId != 0 && widget.accountId != null)
+                              ? _buildCustomEmojiPreview()
+                              : ForumTopicIcon(
+                                  colorId: _colorId,
+                                  title: _titleController.text,
+                                  size: _iconButtonSize,
+                                ),
                 ),
               ),
             ),
@@ -469,6 +500,19 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     );
   }
 
+  Widget _buildCustomEmojiPreview() {
+    final engine = _getEngine();
+    if (engine == null) {
+      return SizedBox(width: _iconButtonSize, height: _iconButtonSize);
+    }
+    return CustomEmojiTopicIcon(
+      documentId: _iconEmojiId,
+      accountId: widget.accountId!,
+      engine: engine,
+      size: _iconButtonSize,
+    );
+  }
+
   Widget _buildDividerText(bool isDark) {
     final text = widget.isBot
         ? 'Choose a thread name and icon'
@@ -498,7 +542,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     if (documentId != 0 && !widget.isPremium) {
       final isFree = _serverIcons.any((e) => e.documentId == documentId);
       if (!isFree) {
-        _showPremiumRequiredDialog(emoji);
+        _showPremiumToast(emoji);
         return;
       }
     }
@@ -509,103 +553,104 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     });
   }
 
-  void _showPremiumRequiredDialog(String emoji) {
+  void _selectCustomEmoji(BuildContext cellContext, int documentId, String fallbackEmoji) {
+    if (!widget.isPremium) {
+      final isFree = _serverIcons.any((e) => e.documentId == documentId);
+      if (!isFree) {
+        _showPremiumToast(fallbackEmoji);
+        return;
+      }
+    }
+    _startFlyAnimation(cellContext, fallbackEmoji.isNotEmpty ? fallbackEmoji : '\u{2B50}');
+    setState(() {
+      _iconEmojiId = documentId;
+      _selectedEmojiStr = fallbackEmoji.isNotEmpty ? fallbackEmoji : null;
+    });
+  }
+
+  // ── StickerToast overlay (AyuGram HistoryView::StickerToast §chat.style) ──
+  void _dismissToast() {
+    _toastOverlay?.remove();
+    _toastOverlay = null;
+  }
+
+  void _showPremiumToast(String emoji) {
+    _dismissToast();
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1B2836) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-        content: Row(
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 32)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'This icon is available for Telegram Premium subscribers.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: isDark ? Colors.white : Colors.black87,
+    final overlay = Overlay.of(context);
+
+    _toastAnimController?.stop();
+    _toastAnimController?.dispose();
+    _toastAnimController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    final fadeAnim = CurvedAnimation(parent: _toastAnimController!, curve: Curves.easeOut);
+
+    _toastOverlay = OverlayEntry(builder: (_) {
+      return Positioned(
+        bottom: 64,
+        left: 0,
+        right: 0,
+        child: Center(
+          child: FadeTransition(
+            opacity: fadeAnim,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 160, maxWidth: 380),
+                padding: const EdgeInsets.fromLTRB(19, 13, 19, 12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1B2836) : const Color(0xFFf0f0f0),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: GestureDetector(
+                  onSecondaryTap: _dismissToast,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(emoji, style: const TextStyle(fontSize: 32)),
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: Text(
+                          'This icon is available for\nTelegram Premium subscribers.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'OK',
-              style: TextStyle(color: Color(0xFF40a7e3)),
-            ),
           ),
-        ],
-      ),
-    );
+        ),
+      );
+    });
+
+    overlay.insert(_toastOverlay!);
+    _toastAnimController!.forward();
+
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      _toastAnimController?.reverse().then((_) {
+        if (mounted) _dismissToast();
+      });
+    });
   }
 
-  static const List<_IconCategory> _iconCategories = [
-    _IconCategory(Icons.access_time, 'Topic Icons', []),
-    _IconCategory(Icons.emoji_emotions_outlined, 'Smileys', [
-      '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
-      '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙',
-      '🥲', '😋', '😛', '😜', '🤪', '���', '🤑', '🤗', '🤭', '🤫',
-      '🤔', '🫡', '🤐', '🤨', '😐', '😑', '😶', '🫥', '😏', '😒',
-      '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒',
-      '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠',
-      '🥳', '🥸', '😎', '🤓', '🧐', '😕', '😟', '🙁', '😮', '😯',
-      '😲', '😳', '🥺', '🥹', '😦', '😧', '😨', '😰', '😥', '😢',
-      '😭', '😱', '😖', '😣', '😞', '😓', '😩', '😫', '🥱', '😤',
-      '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👹',
-      '👺', '👻', '👽', '👾', '🤖',
-    ]),
-    _IconCategory(Icons.pets_outlined, 'Nature', [
-      '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯',
-      '🦁', '🐮', '🐷', '🐸', '🐵', '🙈', '����', '🙊', '🐔', '🐧',
-      '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗',
-      '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞', '🐜', '🐢', '🐍',
-      '🦎', '🐙', '🦑', '🦐', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋',
-      '🌸', '💮', '🌹', '🥀', '🌺', '🌻', '🌼', '🌷', '🌱', '🌲',
-      '🌳', '🌴', '🌵', '☘️', '🍀', '🍁', '🍂', '🍃', '🍄',
-    ]),
-    _IconCategory(Icons.restaurant_outlined, 'Food', [
-      '🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🥭', '🍎', '🍏',
-      '��', '����', '🍒', '🍓', '🫐', '🥝', '🍅', '🥥', '🥑', '🍆',
-      '🥔', '🥕', '🌽', '🌶️', '🥒', '🥦', '🍞', '🥐', '🥖', '🥨',
-      '🧀', '🍖', '🍗', '🥩', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮',
-      '🌯', '🥙', '🥚', '🍳', '🍲', '🍱', '🍘', '🍙', '🍚', '🍛',
-      '🍜', '🍝', '🍣', '🍤', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂',
-      '🍰', '🧁', '🍫', '🍬', '🍭', '☕', '🍵', '🍷', '🍸', '🍹',
-    ]),
-    _IconCategory(Icons.sports_soccer_outlined, 'Activities', [
-      '⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱', '🏓', '🏸',
-      '🏒', '🥊', '🥋', '🎽', '🛹', '⛸️', '🎿', '🏆', '🥇', '🥈',
-      '🥉', '🏅', '🎪', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹',
-      '🥁', '🎷', '🎺', '🎸', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮',
-      '🕹️', '🎰', '🧩',
-    ]),
-    _IconCategory(Icons.directions_car_outlined, 'Travel', [
-      '🚗', '🚕', '🚙', '🚌', '🏎️', '🚓', '🚑', '🚒', '🚐', '🚚',
-      '🚜', '🚲', '🛵', '🏍️', '🚁', '✈️', '🚀', '🛸', '🚢', '⛵',
-      '🗽', '🗼', '🏰', '🏯', '🎡', '🎢', '🏖️', '🏝️', '🌋', '⛰️',
-      '🏔️', '🏕️', '🏠', '🏡', '🏢', '🏥', '🏦', '⛪', '🕌', '🕍',
-    ]),
-    _IconCategory(Icons.lightbulb_outline, 'Objects', [
-      '📱', '💻', '🖥️', '🖨️', '📷', '📹', '🎥', '📞', '📺', '📻',
-      '⏰', '💡', '🔦', '💸', '💰', '💳', '💎', '🔧', '🔨', '⚙️',
-      '🔫', '💣', '🔪', '🛡️', '🔮', '💊', '💉', '🧹', '🚽', '🛁',
-      '📦', '📫', '📜', '📊', '📈', '📉', '📋', '📁', '📚', '📖',
-      '🔖', '🔗', '📎', '✂️', '📝', '✏️', '🔍', '🔒', '🔑', '🔔',
-    ]),
-    _IconCategory(Icons.tag, 'Symbols', [
-      '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
-      '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '☮️', '✝️',
-      '☪️', '☸️', '✡️', '☯️', '♈', '♉', '♊', '♋', '♌', '♍',
-      '♎', '♏', '♐', '♑', '♒', '♓', '❌', '⭕', '🚫', '💯',
-      '❗', '❓', '⚠️', '♻️', '✅', '❇️', '✳️', '🔅', '🔆', '⚜️',
-    ]),
-  ];
+  // ── Tab count: 1 (Topic Icons) + N (installed emoji sets) ──
+  int get _tabCount => 1 + _emojiSets.length;
 
   Widget _buildIconSelectorPanel(bool isDark) {
     return Column(
@@ -620,7 +665,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   }
 
   Widget _buildCategoryTabBar(bool isDark) {
-    final tabColors = isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999);
+    final tabColor = isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999);
     const activeColor = Color(0xFF40a7e3);
     return Container(
       height: 36,
@@ -634,91 +679,179 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
       ),
       child: Row(
         children: [
-          for (var i = 0; i < _iconCategories.length; i++)
-            Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedTab = i),
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: _selectedTab == i ? activeColor : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                    child: Center(
-                      child: Icon(
-                        _iconCategories[i].icon,
-                        size: 20,
-                        color: _selectedTab == i ? activeColor : tabColors,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          _buildTabItem(0, isDark, tabColor, activeColor,
+            child: Icon(Icons.access_time, size: 20,
+              color: _selectedTab == 0 ? activeColor : tabColor)),
+          for (var i = 0; i < _emojiSets.length; i++)
+            _buildTabItem(i + 1, isDark, tabColor, activeColor,
+              child: _buildSetTabIcon(_emojiSets[i], i + 1, tabColor, activeColor)),
         ],
       ),
     );
   }
 
-  Widget _buildScrollableIconGrid(bool isDark) {
-    if (_selectedTab == 0) {
-      return SingleChildScrollView(
-        padding: EdgeInsets.all(_gridPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 2,
-              runSpacing: 2,
-              children: [
-                _buildDefaultResetCell(isDark),
-                for (final colorId in _topicColorIds)
-                  _buildGridCell(colorId, isDark),
-                if (_serverIcons.isNotEmpty)
-                  for (final icon in _serverIcons)
-                    _buildServerIconGridCell(icon, isDark),
-                if (_loadingServerIcons)
-                  const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
-    final cat = _iconCategories[_selectedTab];
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(_gridPadding),
-      child: Wrap(
-        spacing: 2,
-        runSpacing: 2,
-        children: [
-          for (final emoji in cat.emojis)
-            Builder(
-              builder: (cellContext) => GestureDetector(
-                onTap: () => _selectEmoji(cellContext, emoji, documentId: 0),
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: SizedBox(
-                    width: _gridCellSize,
-                    height: _gridCellSize,
-                    child: Center(
-                      child: Text(emoji, style: const TextStyle(fontSize: 22)),
-                    ),
-                  ),
+  Widget _buildTabItem(int index, bool isDark, Color tabColor, Color activeColor, {required Widget child}) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedTab = index),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: _selectedTab == index ? activeColor : Colors.transparent,
+                  width: 2,
                 ),
               ),
             ),
+            child: Center(child: child),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSetTabIcon(CustomEmojiSetSummary set, int tabIndex, Color tabColor, Color activeColor) {
+    if (set.stickers.isNotEmpty && set.stickers.first.thumbB64.isNotEmpty) {
+      final bytes = base64Decode(set.stickers.first.thumbB64);
+      return Opacity(
+        opacity: _selectedTab == tabIndex ? 1.0 : 0.6,
+        child: Image.memory(
+          bytes,
+          width: 20,
+          height: 20,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => Icon(Icons.emoji_emotions_outlined, size: 20,
+            color: _selectedTab == tabIndex ? activeColor : tabColor),
+        ),
+      );
+    }
+    if (set.stickers.isNotEmpty && set.stickers.first.emoji.isNotEmpty) {
+      return Text(set.stickers.first.emoji, style: const TextStyle(fontSize: 18));
+    }
+    return Icon(Icons.emoji_emotions_outlined, size: 20,
+      color: _selectedTab == tabIndex ? activeColor : tabColor);
+  }
+
+  Widget _buildScrollableIconGrid(bool isDark) {
+    if (_selectedTab == 0) {
+      return _buildTopicIconsGrid(isDark);
+    }
+    final setIndex = _selectedTab - 1;
+    if (setIndex < 0 || setIndex >= _emojiSets.length) {
+      return const SizedBox.shrink();
+    }
+    return _buildEmojiSetGrid(_emojiSets[setIndex], isDark);
+  }
+
+  Widget _buildTopicIconsGrid(bool isDark) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(_gridPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 2,
+            runSpacing: 2,
+            children: [
+              _buildDefaultResetCell(isDark),
+              for (final colorId in _topicColorIds)
+                _buildGridCell(colorId, isDark),
+              if (_serverIcons.isNotEmpty)
+                for (final icon in _serverIcons)
+                  _buildServerIconGridCell(icon, isDark),
+              if (_loadingServerIcons)
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmojiSetGrid(CustomEmojiSetSummary emojiSet, bool isDark) {
+    final engine = _getEngine();
+    final accountId = widget.accountId;
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(_gridPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6, left: 4),
+            child: Text(
+              emojiSet.title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
+              ),
+            ),
+          ),
+          Wrap(
+            spacing: 2,
+            runSpacing: 2,
+            children: [
+              for (final sticker in emojiSet.stickers)
+                Builder(
+                  builder: (cellContext) {
+                    final docId = int.tryParse(sticker.fileId) ?? 0;
+                    final isSelected = _iconEmojiId == docId && docId != 0;
+                    return GestureDetector(
+                      onTap: () {
+                        if (docId != 0) {
+                          _selectCustomEmoji(cellContext, docId, sticker.emoji);
+                        } else if (sticker.emoji.isNotEmpty) {
+                          _selectEmoji(cellContext, sticker.emoji, documentId: 0);
+                        }
+                      },
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: Container(
+                          width: _gridCellSize,
+                          height: _gridCellSize,
+                          decoration: isSelected
+                              ? BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: isDark
+                                      ? const Color(0xFF2b5278)
+                                      : const Color(0xFFE3F2FD),
+                                )
+                              : null,
+                          child: Center(
+                            child: (engine != null && accountId != null && docId != 0)
+                                ? CustomEmojiTopicIcon(
+                                    documentId: docId,
+                                    accountId: accountId,
+                                    engine: engine,
+                                    size: _gridIconSize,
+                                  )
+                                : (sticker.thumbB64.isNotEmpty)
+                                    ? Image.memory(
+                                        base64Decode(sticker.thumbB64),
+                                        width: _gridIconSize,
+                                        height: _gridIconSize,
+                                        fit: BoxFit.contain,
+                                        gaplessPlayback: true,
+                                      )
+                                    : Text(sticker.emoji, style: const TextStyle(fontSize: 22)),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -760,10 +893,14 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
 
   Widget _buildServerIconGridCell(_TopicIconEntry icon, bool isDark) {
     final isSelected = _iconEmojiId == icon.documentId;
-    final displayEmoji = icon.emoji.isNotEmpty ? icon.emoji : '\u{2753}';
+    final engine = _getEngine();
+    final accountId = widget.accountId;
     return Builder(
       builder: (cellContext) => GestureDetector(
-        onTap: () => _selectEmoji(cellContext, displayEmoji, documentId: icon.documentId),
+        onTap: () {
+          final displayEmoji = icon.emoji.isNotEmpty ? icon.emoji : '\u{2753}';
+          _selectEmoji(cellContext, displayEmoji, documentId: icon.documentId);
+        },
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: Container(
@@ -778,7 +915,17 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                   )
                 : null,
             child: Center(
-              child: Text(displayEmoji, style: const TextStyle(fontSize: 22)),
+              child: (engine != null && accountId != null)
+                  ? CustomEmojiTopicIcon(
+                      documentId: icon.documentId,
+                      accountId: accountId,
+                      engine: engine,
+                      size: _gridIconSize,
+                    )
+                  : Text(
+                      icon.emoji.isNotEmpty ? icon.emoji : '\u{2753}',
+                      style: const TextStyle(fontSize: 22),
+                    ),
             ),
           ),
         ),

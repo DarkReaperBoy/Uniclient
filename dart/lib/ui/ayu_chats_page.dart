@@ -609,7 +609,7 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
           decoration: InputDecoration(
             hintText: widget.title,
             hintStyle: TextStyle(
-                fontSize: 14, color: p.boxTextFg.withValues(alpha: 0.4)),
+                fontSize: 14, fontWeight: FontWeight.w600, color: p.boxTextFg.withValues(alpha: 0.4)),
             enabledBorder: UnderlineInputBorder(
               borderSide: BorderSide(color: p.windowBgActive),
             ),
