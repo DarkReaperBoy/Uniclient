@@ -354,9 +354,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 
 
 
-## engine_service — _memberInfoFromProto silently drops admin rank fields
-
-- [ ] [MAJOR] `_memberInfoFromProto` (proto path used by `getChatMembers`) maps only `userId`, `username`, `displayName`, `avatarB64`, `isBot`, `isOnline`, `role` — the fields `customRank`, `promotedBy`, `promotedByID`, `promotedDate` are silently discarded. The JSON path (`getChatMembersByRole`, lines 979-991) correctly maps all eight fields. Admin members fetched via proto will show no custom rank or promoter info in the UI — `engine_service.dart:5440-5448` ← `data/data_channel_admins.h` (`Admin` struct carries `rights`, `canEdit`, and `rank` (custom title); `ChannelAdminChanges::add` always passes the rank string — dropping it is a protocol-level omission)
 
 ## engine_service — getBlockedUsersCount and getSessionsCount fetch full lists just to count
 
