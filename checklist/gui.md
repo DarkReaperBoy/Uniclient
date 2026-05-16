@@ -501,13 +501,6 @@ return ClipOval(
 ## Members Section
 
 
-## Shared Media
-
-- [ ] [CRITICAL] `_MediaGrid` uses a non-lazy `Column` wrapping all cells at once; causes OOM/jank for large media counts — `info_panel.dart:4786` ← AyuGram uses virtual lazy/sliver grid
-- [ ] [MAJOR] `_SharedMediaSubPageState` wraps `_MediaGrid` in `SingleChildScrollView` instead of `SliverGrid`/`SliverList`; breaks lazy rendering — `info_panel.dart:2517`
-- [ ] [MAJOR] Story album drag-to-reorder calls no engine reorder method; local list reorders but server order is never persisted — `info_panel.dart:4485`
-- [ ] [MAJOR] `_GifMasonryGrid` loads all GIFs into memory simultaneously with no pagination or lazy decode — `info_panel.dart:4894`
-- [ ] [MAJOR] `_MediaSearchRow` has text input but emits no search RPC; results are not filtered server-side — `info_panel.dart:4327`
 
 ## Statistics Page
 
