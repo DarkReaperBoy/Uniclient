@@ -337,10 +337,6 @@ The widget is production-ready and accurately implements the AyuGram Desktop tog
 # chat_export — Export Panel Audit
 
 
-## chat_list_panel — Chat list panel audit vs AyuGram Desktop
-
-- [ ] [CRITICAL] "Public Posts" tab shows channel chats from local list as fallback instead of calling global message search. The spec requires `SearchGlobal` API with `ChatSearchTab::PublicPosts` flag to return actual public post messages. Dart's `_filterByTab` for `publicPosts` calls `chatState.searchGlobalPosts()` which hits `SearchGlobalPosts` bridge, but the return value is `List<ChatInfo>` (peer list), not individual message results. When that list is empty the fallback is `results.where((c) => c.type == ChatType.channel)` — entirely local data with no server round-trip. — `chat_list_panel.dart:498-506` ← `AyuGramDesktop/Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp:3324-3344`
-
 ## chat_list_row — swipe action icon area width, closed-topic lock icon, online badge size, draft reply-to icon, special userpic types, and Lottie asset existence
 
 - [ ] [CRITICAL] Swipe action icon draw area is hardcoded to 80×80px (`SizedBox(width: 80, height: 80)`), but AyuGram uses `quickWidth = st::dialogsQuickActionSize * 3 = 20×3 = 60px` for the icon rect width — `chat_list_row.dart:833-836` ← `AyuGram/dialogs/ui/dialogs_layout.cpp:988-996`

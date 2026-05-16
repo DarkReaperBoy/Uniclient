@@ -750,7 +750,7 @@ class _ChatListPanelState extends State<ChatListPanel>
                         chatState: chatState,
                       )
                     : const _SearchWaitingState()
-                : visibleChats.isEmpty && !showArchiveRow
+                : visibleChats.isEmpty && !showArchiveRow && _messageSearchResults.isEmpty
                     ? _isLoadingChats(appState, chatState)
                         ? const _ChatListSkeleton()
                         : _EmptyState(
