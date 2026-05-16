@@ -492,9 +492,6 @@ return ClipOval(
 
 # hamburger_drawer — Audit vs AyuGram Desktop
 
-- [ ] [MAJOR] "My Profile" menu item opens `MyProfilePage` instead of the user's Stories info panel: AyuGram navigates to `Info::Stories::Make(controller->session().user())`, which is the profile/stories view. Dart pushes `MyProfilePage()`, a different destination — `hamburger_drawer.dart:163-177` ← `window_main_menu.cpp:712-715`
-
-- [ ] [MAJOR] Archive right-click menu missing "How does the archive work?" item: AyuGram's `fillArchiveActions()` (window_peer_menu.cpp:1898-1907) always adds a "How does the archive work?" action that opens `ArchiveHintBox`. Dart's context menu has "Show in chat list", "Mark all as read", separator, "Archive Settings" but omits this item — `hamburger_drawer.dart:523-576` ← `window_main_menu.cpp:574-584`
 
 # info_panel — Audit Findings
 
