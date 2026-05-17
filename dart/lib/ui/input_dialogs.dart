@@ -895,12 +895,16 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
   final _searchFocus = FocusNode();
   String _query = '';
   int _highlightedIndex = -1;
+  late List<CountryInfo> _initList;
   late List<CountryInfo> _cachedList;
+  late Map<String, List<int>> _byLetter;
+  late List<List<String>> _nameWords;
 
   @override
   void initState() {
     super.initState();
-    _cachedList = _buildList();
+    _buildIndex();
+    _cachedList = _initList;
   }
 
   @override
@@ -911,31 +915,63 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
     super.dispose();
   }
 
-  List<CountryInfo> _buildList() {
-    List<CountryInfo> list;
-    if (_query.isEmpty) {
-      list = countries.toList();
-    } else {
-      final q = _query.toLowerCase();
-      list = countries.where((c) {
-        if (c.dialCode.contains(q)) return true;
-        final words = c.name.toLowerCase().split(RegExp(r'[\s\-]+'));
-        return words.any((w) => w.startsWith(q));
-      }).toList();
-    }
+  void _buildIndex() {
+    final list = countries.toList();
     final selIso = widget.selected.iso;
     final idx = list.indexWhere((c) => c.iso == selIso);
     if (idx > 0) {
       final sel = list.removeAt(idx);
       list.insert(0, sel);
     }
-    return list;
+    _initList = list;
+    _byLetter = {};
+    _nameWords = [];
+    for (var i = 0; i < list.length; i++) {
+      final c = list[i];
+      final words = c.name.toLowerCase().split(RegExp(r'[\s\-]+'));
+      final filtered = words.where((w) => w.isNotEmpty).toList();
+      _nameWords.add(filtered);
+      for (final w in filtered) {
+        final ch = w[0];
+        (_byLetter[ch] ??= []);
+        if (_byLetter[ch]!.isEmpty || _byLetter[ch]!.last != i) {
+          _byLetter[ch]!.add(i);
+        }
+      }
+    }
+  }
+
+  List<CountryInfo> _filterList() {
+    if (_query.isEmpty) return _initList;
+    final q = _query.toLowerCase().trim();
+    final words = q.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.isEmpty) return _initList;
+    final firstChar = words.first[0];
+    final candidates = _byLetter[firstChar];
+    final result = <CountryInfo>[];
+    final added = <int>{};
+    if (candidates != null) {
+      for (final idx in candidates) {
+        final names = _nameWords[idx];
+        final allMatch = words.every((w) => names.any((n) => n.startsWith(w)));
+        if (allMatch) {
+          result.add(_initList[idx]);
+          added.add(idx);
+        }
+      }
+    }
+    for (var i = 0; i < _initList.length; i++) {
+      if (!added.contains(i) && _initList[i].dialCode.contains(q)) {
+        result.add(_initList[i]);
+      }
+    }
+    return result;
   }
 
   void _onSearchChanged(String v) {
     setState(() {
       _query = v;
-      _cachedList = _buildList();
+      _cachedList = _filterList();
       _highlightedIndex = _cachedList.isNotEmpty ? 0 : -1;
     });
   }
@@ -976,11 +1012,17 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.pageDown) {
-      _moveHighlight(10);
+      final pageRows = _scrollCtrl.hasClients
+          ? (_scrollCtrl.position.viewportDimension / 36).floor()
+          : 10;
+      _moveHighlight(pageRows);
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.pageUp) {
-      _moveHighlight(-10);
+      final pageRows = _scrollCtrl.hasClients
+          ? (_scrollCtrl.position.viewportDimension / 36).floor()
+          : 10;
+      _moveHighlight(-pageRows);
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.home) {
@@ -1008,6 +1050,7 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
     final textColor = p.boxTextFg;
     final subColor = p.boxTitleAdditionalFg;
     final highlightColor = p.windowBgOver;
+    final codeColor = p.windowSubTextFg;
 
     return TelegramBox(
       title: 'Country',
@@ -1019,78 +1062,99 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-              child: TextField(
-                controller: _searchCtrl,
-                focusNode: _searchFocus,
-                autofocus: true,
-                style: TextStyle(fontSize: 14, color: textColor),
-                decoration: InputDecoration(
-                  hintText: 'Search country',
-                  hintStyle: TextStyle(fontSize: 14, color: subColor),
-                  isDense: true,
-                  prefixIcon:
-                      Icon(Icons.search, size: 20, color: subColor),
-                  border: InputBorder.none,
-                ),
-                onChanged: _onSearchChanged,
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
+              child: Row(
+                children: [
+                  Icon(Icons.search, size: 20, color: subColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchCtrl,
+                      focusNode: _searchFocus,
+                      autofocus: true,
+                      style: TextStyle(fontSize: 14, color: textColor),
+                      decoration: InputDecoration(
+                        hintText: 'Search country',
+                        hintStyle: TextStyle(fontSize: 14, color: subColor),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                        border: InputBorder.none,
+                      ),
+                      onChanged: _onSearchChanged,
+                    ),
+                  ),
+                  if (_searchCtrl.text.isNotEmpty)
+                    GestureDetector(
+                      onTap: () {
+                        _searchCtrl.clear();
+                        _onSearchChanged('');
+                      },
+                      child: Icon(Icons.close, size: 18, color: subColor),
+                    ),
+                ],
               ),
             ),
+            Divider(height: 1, thickness: 1, color: p.shadowFg),
             Flexible(
-              child: _cachedList.isEmpty
-                  ? SizedBox(
-                      height: 100,
-                      child: Center(
-                        child: Text(
-                          'No countries found',
-                          style: TextStyle(fontSize: 13, color: subColor),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 492),
+                child: _cachedList.isEmpty
+                    ? SizedBox(
+                        height: 100,
+                        child: Center(
+                          child: Text(
+                            'No countries found',
+                            style: TextStyle(fontSize: 13, color: subColor),
+                          ),
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: ListView.builder(
+                          controller: _scrollCtrl,
+                          itemCount: _cachedList.length,
+                          itemExtent: 36,
+                          itemBuilder: (ctx, i) {
+                            final c = _cachedList[i];
+                            final isHighlighted = i == _highlightedIndex;
+                            return InkWell(
+                              onTap: () => widget.onSelect(c),
+                              child: Container(
+                                color: isHighlighted ? highlightColor : null,
+                                padding: const EdgeInsets.only(
+                                    left: 22, top: 9, right: 8),
+                                child: Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        c.name,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: textColor,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '+${c.dialCode}',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: isHighlighted
+                                            ? p.windowSubTextFgOver
+                                            : codeColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                    )
-                  : ListView.builder(
-                      controller: _scrollCtrl,
-                      itemCount: _cachedList.length,
-                      itemExtent: 36,
-                      itemBuilder: (ctx, i) {
-                        final c = _cachedList[i];
-                        final isSelected = c.iso == widget.selected.iso;
-                        final isHighlighted = i == _highlightedIndex;
-                        return InkWell(
-                          onTap: () => widget.onSelect(c),
-                          child: Container(
-                            color: isHighlighted ? highlightColor : null,
-                            padding: const EdgeInsets.only(left: 22, top: 9, right: 8),
-                            child: Row(
-                              children: [
-                                Text(c.flag, style: const TextStyle(fontSize: 18)),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    c.name,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: textColor,
-                                      fontWeight: isSelected
-                                          ? FontWeight.w600
-                                          : FontWeight.normal,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                Text(
-                                  '+${c.dialCode}',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontFamily: 'monospace',
-                                    color: subColor,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+              ),
             ),
           ],
         ),
