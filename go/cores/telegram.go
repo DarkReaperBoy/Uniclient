@@ -1356,7 +1356,15 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 	if scheduleDate > 0 {
 		req.SetScheduleDate(scheduleDate)
 	}
-	if msg.ReplyToID != "" {
+	if strings.HasPrefix(msg.ReplyToID, "story:") {
+		storyID, _ := strconv.Atoi(strings.TrimPrefix(msg.ReplyToID, "story:"))
+		if storyID > 0 {
+			req.SetReplyTo(&tg.InputReplyToStory{
+				Peer:    inputPeer,
+				StoryID: storyID,
+			})
+		}
+	} else if msg.ReplyToID != "" {
 		replyID, err := tgMsgID(msg.ReplyToID)
 		if err != nil {
 			return nil, err

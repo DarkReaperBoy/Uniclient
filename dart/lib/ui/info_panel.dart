@@ -91,6 +91,7 @@ class InfoPanel extends StatefulWidget {
   final InfoWrapMode wrapMode;
 
   static void Function(MemberInfo member)? pushUserProfileRequest;
+  static VoidCallback? pushSharedMediaRequest;
 
   const InfoPanel({
     super.key,
@@ -184,6 +185,9 @@ class _InfoPanelState extends State<InfoPanel> {
     if (InfoPanel.pushUserProfileRequest == _pushUserProfile) {
       InfoPanel.pushUserProfileRequest = null;
     }
+    if (InfoPanel.pushSharedMediaRequest == _pushSharedMedia) {
+      InfoPanel.pushSharedMediaRequest = null;
+    }
     _chatUpdatedSub?.cancel();
     for (final c in _scrollControllers.values) {
       c.dispose();
@@ -195,10 +199,15 @@ class _InfoPanelState extends State<InfoPanel> {
     _pushPage(_InfoNavPage(type: _InfoPageType.userProfile, member: member));
   }
 
+  void _pushSharedMedia() {
+    _pushPage(_InfoNavPage(type: _InfoPageType.sharedMedia, mediaType: 'photo', mediaLabel: 'Media'));
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     InfoPanel.pushUserProfileRequest = _pushUserProfile;
+    InfoPanel.pushSharedMediaRequest = _pushSharedMedia;
     final chatState = context.read<ChatState>();
     final chat = chatState.activeChat;
     if (chat != null && chat.chatId != _loadedChatId) {

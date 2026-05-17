@@ -20,6 +20,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
 import 'emoji_panel.dart';
+import 'info_panel.dart';
 import 'photo_crop_editor.dart';
 import 'shell.dart';
 import 'telegram_toast.dart';
@@ -878,10 +879,10 @@ class _MediaViewerState extends State<MediaViewer>
   void _startSpeedBoost() {
     if (!_isVideo || _player == null) return;
     _spaceBoostTimer?.cancel();
-    _spaceBoostActive = false;
+    setState(() => _spaceBoostActive = false);
     _spaceBoostTimer = Timer(const Duration(milliseconds: 200), () {
       if (!mounted) return;
-      _spaceBoostActive = true;
+      setState(() => _spaceBoostActive = true);
       _preBoostSpeed = _playbackSpeed;
       _setSpeed(2.0);
       if (!_isPlaying) _player?.play();
@@ -893,7 +894,7 @@ class _MediaViewerState extends State<MediaViewer>
     _spaceBoostTimer?.cancel();
     _spaceBoostTimer = null;
     if (_spaceBoostActive) {
-      _spaceBoostActive = false;
+      setState(() => _spaceBoostActive = false);
       _setSpeed(_preBoostSpeed);
       return;
     }
@@ -1004,27 +1005,9 @@ class _MediaViewerState extends State<MediaViewer>
         if (!ctrl && _isVideo && _mode == _MediaViewerMode.fullscreen) { _seekToPercent(90); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.arrowLeft:
-        if (alt) {
-          // Alt+Left: jump to previous chapter (no-op if no chapters)
-          return KeyEventResult.handled;
-        }
-        if (_isVideo && _player != null && _mode == _MediaViewerMode.fullscreen) {
-          _player!.seek(_position - const Duration(seconds: 5));
-          _showControls();
-          return KeyEventResult.handled;
-        }
         _goToPrev();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowRight:
-        if (alt) {
-          // Alt+Right: jump to next chapter (no-op if no chapters)
-          return KeyEventResult.handled;
-        }
-        if (_isVideo && _player != null && _mode == _MediaViewerMode.fullscreen) {
-          _player!.seek(_position + const Duration(seconds: 5));
-          _showControls();
-          return KeyEventResult.handled;
-        }
         _goToNext();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.enter:
@@ -1407,6 +1390,10 @@ class _MediaViewerState extends State<MediaViewer>
               ),
 
             _buildSaveToast(),
+            if (_spaceBoostActive)
+              const Center(
+                child: _SpeedBoostOverlay(),
+              ),
           ],
         ),
       ),
@@ -2198,7 +2185,7 @@ class _MediaViewerState extends State<MediaViewer>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
               color: const Color(0xCC000000),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(9),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -2506,15 +2493,35 @@ class _MediaViewerState extends State<MediaViewer>
       ),
       padding: _kMediaviewCaptionPadding,
       child: SingleChildScrollView(
-        child: SelectableText(
-          text,
-          style: const TextStyle(
-            color: _kMediaviewCaptionFg,
-            fontSize: 14,
-            height: 1.35,
-          ),
-        ),
+        child: _buildCaptionRichText(text, msg.contentRich),
       ),
+    );
+  }
+
+  Widget _buildCaptionRichText(String text, String entitiesJson) {
+    const baseStyle = TextStyle(
+      color: _kMediaviewCaptionFg,
+      fontSize: 14,
+      height: 1.35,
+    );
+    if (entitiesJson.isEmpty) {
+      return SelectableText(text, style: baseStyle);
+    }
+    List<_CaptionEntity> entities;
+    try {
+      final list = jsonDecode(entitiesJson) as List;
+      entities = list.map((e) => _CaptionEntity.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return SelectableText(text, style: baseStyle);
+    }
+    if (entities.isEmpty) {
+      return SelectableText(text, style: baseStyle);
+    }
+    entities.sort((a, b) => a.offset.compareTo(b.offset));
+    final spans = _buildCaptionSpans(text, entities, baseStyle);
+    return SelectableText.rich(
+      TextSpan(children: spans),
+      style: baseStyle,
     );
   }
 
@@ -2928,6 +2935,9 @@ class _MediaViewerState extends State<MediaViewer>
   void _showAllMedia(CachedMessage msg) {
     Navigator.of(context).pop();
     UniClientShell.toggleInfoRequest?.call();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      InfoPanel.pushSharedMediaRequest?.call();
+    });
   }
 
   void _cancelDownload(CachedMessage msg) {
@@ -3093,8 +3103,6 @@ class _MediaViewerState extends State<MediaViewer>
         _darkMenuItem('save_as', Icons.save_alt, 'Save As\u2026'),
       if (msg.mediaLocalPath.isNotEmpty)
         _darkMenuItem('show_all', Icons.photo_library, 'Show All Photos'),
-      if (widget.mediaMessages.isNotEmpty && !_isSelfMedia)
-        _darkMenuItem('stealth_mode', Icons.visibility_off_outlined, 'Stealth Mode'),
     ];
   }
 
@@ -3127,7 +3135,14 @@ class _MediaViewerState extends State<MediaViewer>
       case 'show_all':
         _showAllMedia(msg);
       case 'stealth_mode':
-        showStoryStealthModeDialog(context);
+        showStoryStealthModeDialog(context, onActivate: () {
+          final engine = context.read<EngineService>();
+          final appState = context.read<AppState>();
+          final accountId = appState.activeAccountId;
+          if (accountId.isNotEmpty) {
+            engine.activateStealthMode(accountId);
+          }
+        });
     }
   }
 
@@ -3191,11 +3206,36 @@ class _MediaViewerState extends State<MediaViewer>
 
 
 
+  void _recognizeText(CachedMessage msg) async {
+    if (msg.mediaLocalPath.isEmpty) return;
+    final result = await Process.run('which', ['tesseract']);
+    if (result.exitCode != 0) {
+      if (mounted) showTelegramToast(context, 'Install tesseract-ocr for text recognition');
+      return;
+    }
+    if (mounted) showTelegramToast(context, 'Recognizing text…');
+    final ocr = await Process.run('tesseract', [msg.mediaLocalPath, 'stdout']);
+    if (!mounted) return;
+    final text = (ocr.stdout as String).trim();
+    if (text.isEmpty) {
+      showTelegramToast(context, 'No text found in image');
+      return;
+    }
+    Clipboard.setData(ClipboardData(text: text));
+    showTelegramToast(context, 'Text copied to clipboard');
+  }
+
   Widget _buildToolbar(CachedMessage msg) {
     final hasContent = msg.mediaLocalPath.isNotEmpty;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (_isPhoto && hasContent)
+          _ViewerButton(
+            icon: Icons.text_fields,
+            onTap: () => _recognizeText(msg),
+            tooltip: 'Recognize Text',
+          ),
         if (_isPhoto && hasContent)
           _ViewerButton(
             icon: Icons.edit,
@@ -3252,6 +3292,72 @@ class _MediaViewerState extends State<MediaViewer>
       ),
     );
   }
+}
+
+class _CaptionEntity {
+  final String type;
+  final int offset;
+  final int length;
+  final String url;
+
+  const _CaptionEntity({required this.type, required this.offset, required this.length, this.url = ''});
+
+  factory _CaptionEntity.fromJson(Map<String, dynamic> j) => _CaptionEntity(
+    type: j['type'] as String? ?? '',
+    offset: j['offset'] as int? ?? 0,
+    length: j['length'] as int? ?? 0,
+    url: j['url'] as String? ?? '',
+  );
+}
+
+List<InlineSpan> _buildCaptionSpans(String text, List<_CaptionEntity> entities, TextStyle baseStyle) {
+  final spans = <InlineSpan>[];
+  int cursor = 0;
+  for (final e in entities) {
+    if (e.offset > cursor) {
+      spans.add(TextSpan(text: text.substring(cursor, e.offset.clamp(0, text.length))));
+    }
+    final end = (e.offset + e.length).clamp(0, text.length);
+    final seg = text.substring(e.offset.clamp(0, text.length), end);
+    switch (e.type) {
+      case 'bold':
+        spans.add(TextSpan(text: seg, style: const TextStyle(fontWeight: FontWeight.bold)));
+      case 'italic':
+        spans.add(TextSpan(text: seg, style: const TextStyle(fontStyle: FontStyle.italic)));
+      case 'underline':
+        spans.add(TextSpan(text: seg, style: const TextStyle(decoration: TextDecoration.underline)));
+      case 'strikethrough':
+        spans.add(TextSpan(text: seg, style: const TextStyle(decoration: TextDecoration.lineThrough)));
+      case 'code': case 'pre':
+        spans.add(TextSpan(text: seg, style: const TextStyle(fontFamily: 'monospace', backgroundColor: Color(0x33FFFFFF))));
+      case 'text_url':
+        spans.add(TextSpan(
+          text: seg,
+          style: const TextStyle(color: _kMediaviewCaptionLinkFg, decoration: TextDecoration.underline, decorationColor: _kMediaviewCaptionLinkFg),
+          recognizer: TapGestureRecognizer()..onTap = () { if (e.url.isNotEmpty) url_launcher.launchUrl(Uri.parse(e.url)); },
+        ));
+      case 'url':
+        spans.add(TextSpan(
+          text: seg,
+          style: const TextStyle(color: _kMediaviewCaptionLinkFg, decoration: TextDecoration.underline, decorationColor: _kMediaviewCaptionLinkFg),
+          recognizer: TapGestureRecognizer()..onTap = () { url_launcher.launchUrl(Uri.parse(seg)); },
+        ));
+      case 'mention': case 'text_mention':
+        spans.add(TextSpan(
+          text: seg,
+          style: const TextStyle(color: _kMediaviewCaptionLinkFg),
+        ));
+      case 'spoiler':
+        spans.add(TextSpan(text: seg, style: const TextStyle(backgroundColor: Color(0xFFAAAAAA), color: Color(0xFFAAAAAA))));
+      default:
+        spans.add(TextSpan(text: seg));
+    }
+    cursor = end;
+  }
+  if (cursor < text.length) {
+    spans.add(TextSpan(text: text.substring(cursor)));
+  }
+  return spans;
 }
 
 class _PlaybackSlider extends StatefulWidget {
@@ -3712,6 +3818,54 @@ class _ThumbItemState extends State<_ThumbItem> {
     };
     return Center(
       child: Icon(iconData, color: Colors.white38, size: 24),
+    );
+  }
+}
+
+class _SpeedBoostOverlay extends StatefulWidget {
+  const _SpeedBoostOverlay();
+
+  @override
+  State<_SpeedBoostOverlay> createState() => _SpeedBoostOverlayState();
+}
+
+class _SpeedBoostOverlayState extends State<_SpeedBoostOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 200))..forward();
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _anim,
+      child: IgnorePointer(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xB2000000),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.fast_forward, color: Colors.white, size: 20),
+              SizedBox(width: 6),
+              Text('2.0×', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -4281,8 +4435,12 @@ class _PipWidgetState extends State<PipOverlayWidget>
   }
 
   String _formatTime(Duration d) {
+    final h = d.inHours;
     final m = d.inMinutes.remainder(60);
     final s = d.inSeconds.remainder(60);
+    if (h > 0) {
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
@@ -5957,6 +6115,14 @@ class _StoriesViewerState extends State<StoriesViewer>
     final chatState = context.read<ChatState>();
     Navigator.of(context).pop();
     chatState.openChatById(channelId.toString());
+    if (msgId > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        chatState.jumpToMessage(
+          DateTime.now().millisecondsSinceEpoch,
+          highlightMsgId: msgId.toString(),
+        );
+      });
+    }
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
@@ -6663,7 +6829,8 @@ class _StoriesViewerState extends State<StoriesViewer>
             final appState = context.read<AppState>();
             final accountId = appState.activeAccountId;
             if (accountId.isNotEmpty && widget.peerId.isNotEmpty) {
-              engine.sendMessage(accountId, widget.peerId, text);
+              engine.sendMessage(accountId, widget.peerId, text,
+                  replyToId: 'story:${_current.id}');
             }
           },
           onAttach: (paths) {
