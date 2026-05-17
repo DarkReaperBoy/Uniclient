@@ -504,13 +504,6 @@ return ClipOval(
 
 ## Statistics Page
 
-## Actions Sections
-
-- [ ] [MAJOR] "Edit group" in `_GroupActionsSection` callback navigates to no screen; `_editGroup` is a stub — `info_panel.dart:3235`
-- [ ] [MAJOR] "Change type" (edit peer type) is a stub with no destination screen in `_GroupActionsSection` — `info_panel.dart:3242`
-- [ ] [MAJOR] `_ForumTopicsDialog` save calls no engine method when toggling forums on/off — `info_panel.dart:3361`
-- [ ] [MAJOR] `_SavedMediaFilterSection` shows static hardcoded filter list with no engine call to fetch or apply saved-message folder filters — `info_panel.dart:6322`
-
 ## Performance
 
 - [ ] [CRITICAL] `_ChatInfoPageState._buildInfoSections()` rebuilds entire section tree (including inline media grids) on every `setState` from scroll — `info_panel.dart:2016`; sections must be extracted to separate stateful widgets
