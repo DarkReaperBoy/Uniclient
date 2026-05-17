@@ -2498,6 +2498,9 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
         const Divider(height: 24),
         _SavedMediaFilterSection(
           theme: widget.theme,
+          accountId: widget.chat.accountId,
+          chatId: widget.chat.chatId,
+          mediaCounts: widget.mediaCounts,
           onOpenMedia: (type, label) {
             final panelState = context.findAncestorStateOfType<_InfoPanelState>();
             panelState?._pushPage(_InfoNavPage(
@@ -7486,50 +7489,108 @@ class _SimilarChannelRow extends StatelessWidget {
   }
 }
 
-class _SavedMediaFilterSection extends StatelessWidget {
+class _SavedMediaFilterSection extends StatefulWidget {
   final ThemeData theme;
+  final String accountId;
+  final String chatId;
+  final Map<String, int> mediaCounts;
   final void Function(String type, String label)? onOpenMedia;
 
-  const _SavedMediaFilterSection({required this.theme, this.onOpenMedia});
+  const _SavedMediaFilterSection({
+    required this.theme,
+    required this.accountId,
+    required this.chatId,
+    required this.mediaCounts,
+    this.onOpenMedia,
+  });
+
+  @override
+  State<_SavedMediaFilterSection> createState() => _SavedMediaFilterSectionState();
+}
+
+class _SavedMediaFilterSectionState extends State<_SavedMediaFilterSection> {
+  List<SavedReactionTagInfo> _tags = [];
 
   static const _filters = <(IconData, String, String)>[
-    (Icons.photo_outlined, 'Photo', 'photo'),
-    (Icons.videocam_outlined, 'Video', 'video'),
-    (Icons.insert_drive_file_outlined, 'File', 'file'),
+    (Icons.photo_outlined, 'Photos', 'photo'),
+    (Icons.videocam_outlined, 'Videos', 'video'),
+    (Icons.insert_drive_file_outlined, 'Files', 'file'),
     (Icons.music_note_outlined, 'Music', 'audio'),
-    (Icons.link_outlined, 'Link', 'link'),
-    (Icons.poll_outlined, 'Poll', 'poll'),
+    (Icons.link_outlined, 'Links', 'link'),
+    (Icons.poll_outlined, 'Polls', 'poll'),
     (Icons.mic_outlined, 'Voice', 'voice'),
-    (Icons.gif_box_outlined, 'GIF', 'gif'),
+    (Icons.gif_box_outlined, 'GIFs', 'gif'),
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadTags());
+  }
+
+  void _loadTags() {
+    if (!mounted) return;
+    try {
+      final engine = context.read<EngineService>();
+      final tags = engine.getSavedReactionTags(widget.accountId);
+      if (mounted) setState(() => _tags = tags);
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final iconColor = widget.theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final visible = _filters.where((f) {
+      final count = widget.mediaCounts[f.$3] ?? 0;
+      return count > 0;
+    }).toList();
+
+    if (visible.isEmpty && _tags.isEmpty) return const SizedBox.shrink();
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: _filters.map((f) {
-          return InkWell(
-            onTap: () => onOpenMedia?.call(f.$3, f.$2),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Row(
-                children: [
-                  Icon(f.$1, size: 22, color: theme.colorScheme.primary),
-                  const SizedBox(width: 16),
-                  Text(
-                    f.$2,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: theme.textTheme.bodyLarge?.color,
+        children: [
+          if (_tags.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: _tags.map((tag) {
+                  final label = tag.title.isNotEmpty
+                      ? tag.title
+                      : tag.emoji.isNotEmpty ? tag.emoji : '#${tag.customId}';
+                  return ActionChip(
+                    avatar: tag.emoji.isNotEmpty
+                        ? Text(tag.emoji, style: const TextStyle(fontSize: 14))
+                        : null,
+                    label: Text(
+                      '$label (${tag.count})',
+                      style: const TextStyle(fontSize: 12),
                     ),
-                  ),
-                ],
+                    onPressed: () => widget.onOpenMedia?.call(
+                      'tag:${tag.emoji.isNotEmpty ? tag.emoji : tag.customId}',
+                      label,
+                    ),
+                  );
+                }).toList(),
               ),
             ),
-          );
-        }).toList(),
+            if (visible.isNotEmpty) const SizedBox(height: 4),
+          ],
+          for (final (icon, label, type) in visible)
+            _SharedMediaRow(
+              icon: icon,
+              label: label,
+              count: widget.mediaCounts[type] ?? 0,
+              iconColor: iconColor,
+              accentColor: widget.theme.colorScheme.primary,
+              theme: widget.theme,
+              onTap: () => widget.onOpenMedia?.call(type, label),
+            ),
+        ],
       ),
     );
   }
