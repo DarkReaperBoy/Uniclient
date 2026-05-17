@@ -548,9 +548,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-## media_viewer — Arrow Left/Right seeks video instead of navigating
-
-- [ ] [MAJOR] When `_isVideo && _mode == fullscreen`, pressing Arrow Left/Right seeks the video by ±5 seconds instead of navigating to the prev/next media item. AyuGram's keyboard handler uses `Key_Left`/`Key_Right` exclusively for `moveToNext(-1/1)` navigation and never for seeking (seeking is J/L keys and ←/→ only when the controls seek bar is focused). — `media_viewer.dart:1006-1029` ← `media_view_overlay_widget.cpp:6761-6793`
 
 ## media_viewer — Alt+Left/Right consumed as no-op, breaks navigation
 
