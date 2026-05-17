@@ -517,19 +517,7 @@ return ClipOval(
 
 ## _CountryPickerContent
 
-- [ ] [MAJOR] AyuGram's `CountrySelectBox` uses a `Ui::MultiSelect` widget at top (with pill-style chips for filtering) via `st::defaultMultiSelect`. Dart uses a plain `TextField` with search hint — wrong widget type — `input_dialogs.dart:885-897` ← `AyuGram/ui/boxes/country_select_box.cpp:141-142`
-
 - [ ] [MAJOR] AyuGram's `CountrySelectBox::Inner` implements keyboard navigation (`selectSkip`, `selectSkipPage`, Home/End keys) and arrow key forwarding from the search field to the list. Dart's `ListView.builder` has no keyboard navigation — `input_dialogs.dart:912-947` ← `AyuGram/ui/boxes/country_select_box.cpp:401-425, 518-536`
-
-- [ ] [MAJOR] AyuGram's country list uses `_byLetter` map to filter by first letter of each word (true word-prefix search using pre-indexed word lists). Dart filters by calling `c.name.toLowerCase().split(RegExp(r'[\s\-]+'))` and checking `startsWith` — this matches AyuGram's approach structurally but AyuGram additionally indexes by first character of each word into `_byLetter` for O(1) lookup on first char — `input_dialogs.dart:856-866` ← `AyuGram/ui/boxes/country_select_box.cpp:487-513`
-
-- [ ] [MAJOR] AyuGram's country row height is `st::countryRowHeight = 36` and uses `st::countryRowPadding` (left=22, top=9, right=8, bottom=0). Dart uses `itemExtent: 36` (correct) but row padding is `EdgeInsets.only(left: 22, right: 8)` which matches left/right but has no top padding for the text — `input_dialogs.dart:922` ← `AyuGram/ui/boxes/country_select_box.cpp:235, 391`
-
-- [ ] [MAJOR] AyuGram renders the country dialing code right-aligned (`drawTextLeft` at `nameWidth + padding.right` position) and uses separate fonts `st::countryRowCodeFont` and `st::countryRowNameFont`. Dart renders code as plain `Text('+${c.dialCode}')` with no separate font or size difference — `input_dialogs.dart:940-942` ← `AyuGram/ui/boxes/country_select_box.cpp:378-397`
-
-- [ ] [MAJOR] AyuGram's `CountrySelectBox` uses `setDimensions(st::boxWidth, st::boxMaxListHeight)` — it sets full-height scrollable box. Dart constrains with `BoxConstraints(maxHeight: 400)` — no scrollable inner widget, list is not scrollable past 400px — `input_dialogs.dart:900-902` ← `AyuGram/ui/boxes/country_select_box.cpp:181`
-
-- [ ] [MAJOR] AyuGram's country list places the currently-selected country first (via `LastValidISO` tracking and `init()` ordering). Dart moves selected country to index 0 on every `_buildList()` call — this is functionally equivalent but Dart rebuilds and resorts on every filter change while AyuGram only moves it at init time — minor behavioral difference but acceptable.
 
 ---
 
