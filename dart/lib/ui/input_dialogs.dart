@@ -906,6 +906,9 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
     _buildIndex();
     _cachedList = _initList;
     HardwareKeyboard.instance.addHandler(_hardwareKeyHandler);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocus.requestFocus();
+    });
   }
 
   @override
@@ -918,7 +921,7 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
   }
 
   bool _hardwareKeyHandler(KeyEvent event) {
-    if (!mounted || !_searchFocus.hasFocus) return false;
+    if (!mounted) return false;
     final result = _handleKeyEvent(_searchFocus, event);
     return result == KeyEventResult.handled;
   }
