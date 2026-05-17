@@ -515,18 +515,6 @@ return ClipOval(
 
 ---
 
-## _EditInviteLinkContent
-
-- [ ] [MAJOR] AyuGram's expire options list is `{kMaxLimit(Never), -kHour(-1h), -kDay(-1d), -kDay*7(-7d), 0(Custom)}` — negative values mean "relative duration" and positive means "absolute timestamp". The custom option inserts the user's custom value inline. Dart uses a map `{0: 'Never', 3600: '1 hour', 86400: '1 day', 604800: '7 days', 2592000: '30 days', -1: 'Custom'}` — the "30 days" option (2592000) does NOT EXIST in AyuGram's expire list — `input_dialogs.dart:1038-1046` ← `AyuGram/ui/boxes/edit_invite_link.cpp:242`
-
-- [ ] [MAJOR] AyuGram's expire radio buttons show only the four options that fit current value (Never/1h/1d/7d/Custom) — they use `Radiobutton` widgets from `Ui::RadiobuttonGroup`. Dart uses `ChoiceChip` Flutter widgets — wrong widget type — `input_dialogs.dart:1257-1287` ← `AyuGram/ui/boxes/edit_invite_link.cpp:229-236`
-
-- [ ] [MAJOR] AyuGram's "Subscription" toggle is also a `SettingsButton` (provided via `fillSubscription()` callback). Dart renders a `Checkbox` in an `InkWell` row — wrong widget — `input_dialogs.dart:1366-1404` ← `AyuGram/ui/boxes/edit_invite_link.cpp:136-158`
-
-- [ ] [MAJOR] AyuGram places the label field AFTER the request approval and subscription toggles in the layout, but BEFORE the expire/usage sections. Dart places the label field FIRST before all sections — wrong field ordering — `input_dialogs.dart:1237-1248` ← `AyuGram/ui/boxes/edit_invite_link.cpp:160-172`
-
-- [ ] [MAJOR] AyuGram's custom expire picker uses `ChooseDateTimeBox` (a specialized combined date+time picker in a single box). Dart uses separate `showDatePicker` then `showTimePicker` calls — wrong UX flow — `input_dialogs.dart:1097-1120` ← `AyuGram/ui/boxes/edit_invite_link.cpp:315-321`
-
 ---
 
 ## _CreatePollContent
