@@ -515,12 +515,6 @@ return ClipOval(
 
 ---
 
-## _CountryPickerContent
-
-- [ ] [MAJOR] AyuGram's `CountrySelectBox::Inner` implements keyboard navigation (`selectSkip`, `selectSkipPage`, Home/End keys) and arrow key forwarding from the search field to the list. Dart's `ListView.builder` has no keyboard navigation — `input_dialogs.dart:912-947` ← `AyuGram/ui/boxes/country_select_box.cpp:401-425, 518-536`
-
----
-
 ## _EditInviteLinkContent
 
 - [ ] [MAJOR] AyuGram's expire options list is `{kMaxLimit(Never), -kHour(-1h), -kDay(-1d), -kDay*7(-7d), 0(Custom)}` — negative values mean "relative duration" and positive means "absolute timestamp". The custom option inserts the user's custom value inline. Dart uses a map `{0: 'Never', 3600: '1 hour', 86400: '1 day', 604800: '7 days', 2592000: '30 days', -1: 'Custom'}` — the "30 days" option (2592000) does NOT EXIST in AyuGram's expire list — `input_dialogs.dart:1038-1046` ← `AyuGram/ui/boxes/edit_invite_link.cpp:242`
