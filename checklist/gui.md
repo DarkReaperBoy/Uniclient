@@ -551,9 +551,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-## media_viewer — Story replies sent without story-reply context
-
-- [ ] [MAJOR] Story replies use `engine.sendMessage(accountId, widget.peerId, text)` (line 6666), which sends a plain message to the peer. Telegram story replies require a `replyToStory` input field in the API call so the server knows it's a reply to a specific story. Without this field, the message is delivered as a regular DM, not as a story reply with the referenced story shown. — `media_viewer.dart:6662-6667` ← `media_stories_controller.cpp` (story reply sends story ID reference)
 
 ## media_viewer — _showAllMedia uses toggleInfoRequest, not shared media navigation
 
