@@ -521,12 +521,6 @@ return ClipOval(
 
 - [ ] [MAJOR] AyuGram's expire radio buttons show only the four options that fit current value (Never/1h/1d/7d/Custom) — they use `Radiobutton` widgets from `Ui::RadiobuttonGroup`. Dart uses `ChoiceChip` Flutter widgets — wrong widget type — `input_dialogs.dart:1257-1287` ← `AyuGram/ui/boxes/edit_invite_link.cpp:229-236`
 
-- [ ] [MAJOR] AyuGram's usage options are `{kMaxLimit(Unlimited), 1, 10, 100, 0(Custom)}` — exactly matching what's in Dart (`{0: Unlimited, 1: 1 use, 10: 10 uses, 100: 100 uses, -1: Custom}`), but Dart represents Unlimited as key `0` and AyuGram as `kMaxLimit`. More importantly AyuGram maps 0/kMaxLimit to `usageLimit=0` on save; Dart maps key `0` to Unlimited correctly but key mismatch creates off-by-one if `existingUsageLimit==0` is passed — the init logic in Dart checks `_usageOptions.containsKey(0)` which will match for Unlimited correctly — `input_dialogs.dart:1047-1052` ← `AyuGram/ui/boxes/edit_invite_link.cpp:243`
-
-- [ ] [MAJOR] AyuGram's `requestApproval` toggle is a `SettingsButton` (full-width toggle row with icon area). When `requestApproval` is active, the usage section slides out (`usagesSlide->toggleOn(requestApproval.value() | rpl::map(!_1))`). Dart's `_requestApproval` checkbox disables the usage chips but does not hide them — the slide-out is missing — `input_dialogs.dart:1304-1325` ← `AyuGram/ui/boxes/edit_invite_link.cpp:374-375`
-
-- [ ] [MAJOR] AyuGram uses `SettingsButton` (toggle row) for "Request Admin Approval" — a full-width `SettingsButton` with toggle not a checkbox. Dart renders a `Checkbox` in an `InkWell` row — wrong widget — `input_dialogs.dart:1326-1353` ← `AyuGram/ui/boxes/edit_invite_link.cpp:112-133`
-
 - [ ] [MAJOR] AyuGram's "Subscription" toggle is also a `SettingsButton` (provided via `fillSubscription()` callback). Dart renders a `Checkbox` in an `InkWell` row — wrong widget — `input_dialogs.dart:1366-1404` ← `AyuGram/ui/boxes/edit_invite_link.cpp:136-158`
 
 - [ ] [MAJOR] AyuGram places the label field AFTER the request approval and subscription toggles in the layout, but BEFORE the expire/usage sections. Dart places the label field FIRST before all sections — wrong field ordering — `input_dialogs.dart:1237-1248` ← `AyuGram/ui/boxes/edit_invite_link.cpp:160-172`
