@@ -2212,13 +2212,16 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
         if (seconds != null) {
           _addRecentDuration(seconds);
           setState(() => _enabled = false);
+          _persistEnabledState(false);
         }
       } else if (value == 'mute_for') {
         _showMuteDurationPicker(context);
       } else if (value == 'mute_forever') {
         setState(() => _enabled = false);
+        _persistEnabledState(false);
       } else if (value == 'unmute') {
         setState(() => _enabled = true);
+        _persistEnabledState(true);
       }
     });
   }
@@ -2233,6 +2236,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       if (seconds != null) {
         _addRecentDuration(seconds);
         setState(() => _enabled = false);
+        _persistEnabledState(false);
       }
     });
   }
@@ -3048,16 +3052,6 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
                     title: Text('From my contacts',
                         style: TextStyle(color: textColor, fontSize: 14)),
                     value: _ReactionsFrom.contacts,
-                    groupValue: selected,
-                    activeColor: accentColor,
-                    onChanged: (v) {
-                      setDialogState(() => selected = v!);
-                    },
-                  ),
-                  RadioListTile<_ReactionsFrom>(
-                    title: Text('Nobody',
-                        style: TextStyle(color: textColor, fontSize: 14)),
-                    value: _ReactionsFrom.none,
                     groupValue: selected,
                     activeColor: accentColor,
                     onChanged: (v) {
