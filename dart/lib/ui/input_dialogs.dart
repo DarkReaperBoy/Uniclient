@@ -905,14 +905,22 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
     super.initState();
     _buildIndex();
     _cachedList = _initList;
+    HardwareKeyboard.instance.addHandler(_hardwareKeyHandler);
   }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_hardwareKeyHandler);
     _searchCtrl.dispose();
     _scrollCtrl.dispose();
     _searchFocus.dispose();
     super.dispose();
+  }
+
+  bool _hardwareKeyHandler(KeyEvent event) {
+    if (!mounted || !_searchFocus.hasFocus) return false;
+    final result = _handleKeyEvent(_searchFocus, event);
+    return result == KeyEventResult.handled;
   }
 
   void _buildIndex() {
@@ -1056,9 +1064,7 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
       title: 'Country',
       wide: true,
       showClose: true,
-      content: Focus(
-        onKeyEvent: _handleKeyEvent,
-        child: Column(
+      content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
@@ -1157,7 +1163,6 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
               ),
             ),
           ],
-        ),
       ),
       buttons: const [],
     );
