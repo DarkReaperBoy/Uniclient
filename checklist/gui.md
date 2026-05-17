@@ -515,13 +515,6 @@ return ClipOval(
 
 - [ ] [MAJOR] AyuGram's retry mode renders the "not on Telegram" message with the first name substituted (`tr::lng_contact_not_joined(lt_name, _sentName)`) via `QPainter::drawText` in `paintEvent`, hiding all input fields. Dart's `_retry = true` state keeps all input fields visible and only shows an error string in `_error` — the contact form remains visible when it should be replaced with the "not joined" message — `input_dialogs.dart:634-639` ← `AyuGram/boxes/add_contact_box.cpp:354-385, 494-501`
 
-- [ ] [MAJOR] AyuGram's retry button is labelled `tr::lng_try_other_contact()` ("Try another contact"), while Dart uses "Try Again" — `input_dialogs.dart:785` ← `AyuGram/boxes/add_contact_box.cpp:520`
-
-- [ ] [MAJOR] AyuGram's Add Contact box uses `Ui::PhoneInput` (a specialized phone field that handles country groups/formatting from `Countries::Groups`) as a proper single integrated phone field. Dart splits this into a separate dial code text field plus a phone number field — the layout does not match AyuGram which has one unified `PhoneInput` widget — `input_dialogs.dart:705-763` ← `AyuGram/boxes/add_contact_box.cpp:300-306`
-
-- [ ] [MAJOR] AyuGram's Add Contact box title changes dynamically: it shows `tr::lng_confirm_contact_data()` when the phone is pre-filled, and `tr::lng_enter_contact_data()` otherwise. Dart always shows "Add Contact" — `input_dialogs.dart:659` ← `AyuGram/boxes/add_contact_box.cpp:320-323`
-
-- [ ] [MAJOR] AyuGram draws contact and phone icons using `st::contactUserIcon.paint` and `st::contactPhoneIcon.paint` in `paintEvent`. Dart has no icons in the contact form — `input_dialogs.dart:659-791` ← `AyuGram/boxes/add_contact_box.cpp:354-385`
 
 ---
 
