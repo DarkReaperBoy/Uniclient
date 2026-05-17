@@ -8,6 +8,7 @@ import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -1483,10 +1484,14 @@ class _MediaViewerState extends State<MediaViewer>
               ),
 
             _buildSaveToast(),
-            if (_spaceBoostActive)
-              const Center(
-                child: _SpeedBoostOverlay(),
+            Positioned(
+              top: 12,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _SpeedBoostOverlay(active: _spaceBoostActive),
               ),
+            ),
             _buildChapterToast(),
           ],
         ),
@@ -3961,7 +3966,8 @@ class _ThumbItemState extends State<_ThumbItem> {
 }
 
 class _SpeedBoostOverlay extends StatefulWidget {
-  const _SpeedBoostOverlay();
+  final bool active;
+  const _SpeedBoostOverlay({required this.active});
 
   @override
   State<_SpeedBoostOverlay> createState() => _SpeedBoostOverlayState();
@@ -3970,11 +3976,35 @@ class _SpeedBoostOverlay extends StatefulWidget {
 class _SpeedBoostOverlayState extends State<_SpeedBoostOverlay>
     with SingleTickerProviderStateMixin {
   late final AnimationController _anim;
+  bool _visible = false;
 
   @override
   void initState() {
     super.initState();
-    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 200))..forward();
+    _anim = AnimationController(vsync: this);
+    _anim.addStatusListener((status) {
+      if (status == AnimationStatus.dismissed && !widget.active) {
+        setState(() => _visible = false);
+      }
+    });
+    if (widget.active) {
+      _visible = true;
+      _anim.duration = const Duration(milliseconds: 150);
+      _anim.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_SpeedBoostOverlay old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !old.active) {
+      setState(() => _visible = true);
+      _anim.duration = const Duration(milliseconds: 150);
+      _anim.forward();
+    } else if (!widget.active && old.active) {
+      _anim.duration = const Duration(milliseconds: 200);
+      _anim.reverse();
+    }
   }
 
   @override
@@ -3985,21 +4015,38 @@ class _SpeedBoostOverlayState extends State<_SpeedBoostOverlay>
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _anim,
+    if (!_visible) return const SizedBox.shrink();
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, child) {
+        final t = _anim.value;
+        if (t <= 0) return const SizedBox.shrink();
+        final scale = 0.6 + 0.4 * t;
+        return Transform.scale(
+          scale: scale,
+          child: Opacity(
+            opacity: t,
+            child: child,
+          ),
+        );
+      },
       child: IgnorePointer(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: const Color(0xB2000000),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.fast_forward, color: Colors.white, size: 20),
-              SizedBox(width: 6),
-              Text('2.0×', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+              const Text('2.0×', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 16,
+                height: 9,
+                child: _SpeedBoostArrows(),
+              ),
             ],
           ),
         ),
@@ -4007,6 +4054,83 @@ class _SpeedBoostOverlayState extends State<_SpeedBoostOverlay>
     );
   }
 }
+
+class _SpeedBoostArrows extends StatefulWidget {
+  @override
+  State<_SpeedBoostArrows> createState() => _SpeedBoostArrowsState();
+}
+
+class _SpeedBoostArrowsState extends State<_SpeedBoostArrows>
+    with SingleTickerProviderStateMixin {
+  late final Ticker _ticker;
+  double _phase = 0.0;
+  Duration _lastTime = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = createTicker(_onTick)..start();
+  }
+
+  void _onTick(Duration elapsed) {
+    final dt = (_lastTime == Duration.zero)
+        ? 0.016
+        : (elapsed - _lastTime).inMicroseconds / 1000000.0;
+    _lastTime = elapsed;
+    _phase += dt * 1.5 * 2.0;
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _ArrowsPainter(phase: _phase),
+    );
+  }
+}
+
+class _ArrowsPainter extends CustomPainter {
+  final double phase;
+  _ArrowsPainter({required this.phase});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const arrowWidth = 7.0;
+    const arrowHeight = 9.0;
+    const arrowGap = 2.0;
+    const arrowOverlap = 2.0;
+    final arrowStep = arrowWidth + arrowGap - arrowOverlap; // 7
+    final cy = size.height / 2.0;
+
+    for (var i = 0; i < 2; i++) {
+      final arrowPhase = phase + i * 0.17;
+      final pulse = (math.sin(arrowPhase * math.pi) / 2.0) + 1.0;
+      final alpha = (0.2 + 0.75 * pulse).clamp(0.0, 1.0);
+      final ax = i * arrowStep;
+
+      final path = Path()
+        ..moveTo(ax, cy - arrowHeight / 2.0)
+        ..lineTo(ax + arrowWidth, cy)
+        ..lineTo(ax, cy + arrowHeight / 2.0)
+        ..close();
+
+      final paint = Paint()
+        ..color = Colors.white.withValues(alpha: alpha)
+        ..style = PaintingStyle.fill;
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ArrowsPainter old) => old.phase != phase;
+}
+
 
 class _NavArea extends StatefulWidget {
   final IconData icon;
