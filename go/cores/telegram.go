@@ -10677,6 +10677,18 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		} else if author, ok := fwd.GetPostAuthor(); ok && author != "" {
 			m.ForwardFrom = author
 		}
+		if author, ok := fwd.GetPostAuthor(); ok && author != "" && m.ForwardFrom != author {
+			if m.Extra == nil {
+				m.Extra = make(map[string]interface{})
+			}
+			m.Extra["forward_post_author"] = author
+		}
+		if psaType, ok := fwd.GetPsaType(); ok && psaType != "" {
+			if m.Extra == nil {
+				m.Extra = make(map[string]interface{})
+			}
+			m.Extra["forward_psa_type"] = psaType
+		}
 	}
 
 	// Via-bot label: resolve ViaBotID to @username for inline bot attribution.
@@ -11199,6 +11211,9 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 					case *tg.KeyboardButtonSwitchInline:
 						b["type"] = "switch_inline"
 						b["query"] = bt.Query
+						if bt.SamePeer {
+							b["same_peer"] = true
+						}
 					case *tg.KeyboardButtonGame:
 						b["type"] = "game"
 					case *tg.KeyboardButtonBuy:

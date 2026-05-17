@@ -469,6 +469,7 @@ class CachedMessage {
   final String replyPreview;
   final String forwardFrom;
   final String forwardFromId;
+  final String forwardPostAuthor;
   final bool isPinned;
   final bool isOutgoing;
   final bool isService;
@@ -636,6 +637,7 @@ class CachedMessage {
     this.replyPreview = '',
     this.forwardFrom = '',
     this.forwardFromId = '',
+    this.forwardPostAuthor = '',
     this.isPinned = false,
     this.isOutgoing = false,
     this.isService = false,
@@ -762,6 +764,7 @@ class CachedMessage {
       replyPreview: safeStr(j['reply_preview'] as String? ?? ''),
       forwardFrom: safeStr(j['forward_from'] as String? ?? ''),
       forwardFromId: j['forward_from_id'] as String? ?? '',
+      forwardPostAuthor: extra['forward_post_author'] as String? ?? '',
       isPinned: j['is_pinned'] as bool? ?? false,
       isOutgoing: j['is_outgoing'] as bool? ?? false,
       isService: j['is_service'] as bool? ?? false,
@@ -990,6 +993,7 @@ class CachedMessage {
     String? replyPreview,
     String? forwardFrom,
     String? forwardFromId,
+    String? forwardPostAuthor,
     bool? isPinned,
     bool? isOutgoing,
     bool? isService,
@@ -1102,6 +1106,7 @@ class CachedMessage {
     replyPreview: replyPreview ?? this.replyPreview,
     forwardFrom: forwardFrom ?? this.forwardFrom,
     forwardFromId: forwardFromId ?? this.forwardFromId,
+    forwardPostAuthor: forwardPostAuthor ?? this.forwardPostAuthor,
     isPinned: isPinned ?? this.isPinned,
     isOutgoing: isOutgoing ?? this.isOutgoing,
     isService: isService ?? this.isService,
@@ -1366,6 +1371,7 @@ class InlineKeyboardButton {
   final String query;
   final String copyText;
   final int buttonId;
+  final bool samePeer;
   final KeyboardButtonColor color;
 
   const InlineKeyboardButton({
@@ -1376,6 +1382,7 @@ class InlineKeyboardButton {
     this.query = '',
     this.copyText = '',
     this.buttonId = 0,
+    this.samePeer = false,
     this.color = KeyboardButtonColor.normal,
   });
 
@@ -1395,6 +1402,7 @@ class InlineKeyboardButton {
       query: j['query'] as String? ?? '',
       copyText: j['copy_text'] as String? ?? '',
       buttonId: j['button_id'] as int? ?? 0,
+      samePeer: j['same_peer'] as bool? ?? false,
       color: color,
     );
   }

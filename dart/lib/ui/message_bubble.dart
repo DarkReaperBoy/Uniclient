@@ -927,14 +927,26 @@ class _MessageBubbleState extends State<MessageBubble> {
                                   chatState.openChatById(message.forwardFromId);
                                 }
                               : null,
-                          child: Text(
-                            'Forwarded from ${message.forwardFrom}',
+                          child: Text.rich(
+                            TextSpan(
+                              text: 'Forwarded from ',
+                              children: [
+                                TextSpan(
+                                  text: message.forwardFrom,
+                                  style: TextStyle(
+                                    color: message.forwardFromId.isNotEmpty
+                                        ? (isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD))
+                                        : null,
+                                  ),
+                                ),
+                                if (message.forwardPostAuthor.isNotEmpty)
+                                  TextSpan(text: ' (${message.forwardPostAuthor})'),
+                              ],
+                            ),
                             style: TextStyle(
                               fontSize: 12,
                               fontStyle: FontStyle.italic,
-                              color: message.forwardFromId.isNotEmpty
-                                  ? (isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD))
-                                  : theme.textTheme.bodySmall?.color,
+                              color: isDark ? Colors.white60 : theme.textTheme.bodySmall?.color,
                             ),
                           ),
                         ),
@@ -9636,11 +9648,18 @@ class _InlineButtonState extends State<_InlineButton>
       case 'switch_inline':
         final chatState = context.read<ChatState>();
         final msg = chatState.messages.where((m) => m.msgId == widget.messageId).firstOrNull;
-        final botUsername = msg?.viaBotName.isNotEmpty == true
-            ? msg!.viaBotName
-            : (msg?.senderName ?? '');
+        String botUsername = msg?.viaBotName ?? '';
+        if (botUsername.isEmpty) {
+          final chat = chatState.activeChat;
+          if (chat != null && chat.username.isNotEmpty) {
+            botUsername = '@${chat.username}';
+          }
+        }
+        if (!botUsername.startsWith('@') && botUsername.isNotEmpty) {
+          botUsername = '@$botUsername';
+        }
         final query = btn.query;
-        final text = '@$botUsername $query';
+        final text = '$botUsername $query'.trimLeft();
         ChatView.setComposeRequest?.call(text);
       case 'game':
         if (_loading) return;
