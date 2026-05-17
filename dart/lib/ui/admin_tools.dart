@@ -14,6 +14,7 @@ import '../models/engine_models.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../theme/telegram_palette.dart';
+import 'choose_datetime_box.dart';
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
 import 'info_panel.dart';
 import 'telegram_toast.dart';
@@ -5618,7 +5619,6 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
     3600: '1 hour',
     86400: '1 day',
     604800: '7 days',
-    2592000: '30 days',
     -1: 'Custom',
   };
 
@@ -5687,20 +5687,15 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
 
   Future<void> _showCustomExpiry() async {
     final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
+    final result = await showChooseDateTimeBox(
+      context,
       initialDate: now.add(const Duration(days: 1)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
+      title: 'Set Expiry Date',
+      submitText: 'Set',
+      showRepeat: false,
     );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(now),
-    );
-    if (time == null || !mounted) return;
-    final chosen = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    final diffSeconds = chosen.difference(now).inSeconds;
+    if (result == null || !mounted) return;
+    final diffSeconds = result.dateTime.difference(now).inSeconds;
     if (diffSeconds > 0) {
       setState(() {
         _customExpireSeconds = diffSeconds;
@@ -5818,6 +5813,57 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
                   IconButton(icon: Icon(Icons.close, size: 20, color: subColor), onPressed: () => Navigator.pop(context)),
                 ],
               ),
+              // Request Approval toggle (first per AyuGram order)
+              if (!_subscriptionLocked) ...[
+              const SizedBox(height: 16),
+              SwitchListTile(
+                title: Text('Approve New Members', style: TextStyle(fontSize: 14, color: textColor)),
+                subtitle: Text('Requests to join must be approved by an admin', style: TextStyle(fontSize: 12, color: subColor)),
+                value: _requestApproval,
+                onChanged: (v) => setState(() => _requestApproval = v),
+                activeTrackColor: palette.windowBgActive,
+                contentPadding: EdgeInsets.zero,
+              ),
+              ],
+              // Subscription toggle (SwitchListTile, not Checkbox)
+              const SizedBox(height: 4),
+              SwitchListTile(
+                title: Text('Subscription', style: TextStyle(fontSize: 14, color: textColor)),
+                subtitle: Text('Users will pay star credits to subscribe via this link.',
+                  style: TextStyle(fontSize: 12, color: subColor)),
+                value: _subscription,
+                onChanged: (_saving || _subscriptionLocked)
+                    ? (_subscriptionLocked
+                        ? (_) { showTelegramToast(context, 'Subscription links cannot be changed after creation.'); }
+                        : null)
+                    : (v) => setState(() {
+                          _subscription = v;
+                          if (_subscription) _requestApproval = false;
+                        }),
+                activeTrackColor: palette.windowBgActive,
+                contentPadding: EdgeInsets.zero,
+              ),
+              if (_subscription) ...[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.only(left: 16),
+                  child: SizedBox(
+                    width: 180,
+                    child: TextField(
+                      controller: _creditsCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      enabled: !_saving && !_subscriptionLocked,
+                      decoration: InputDecoration(
+                        labelText: 'Star credits',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              // Label field (after toggles, before expire/usage)
               const SizedBox(height: 16),
               Text('Link Name', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: palette.windowActiveTextFg)),
               const SizedBox(height: 8),
@@ -5831,123 +5877,60 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
                   counterText: '',
                 ),
               ),
+              // Expire options (Radio buttons, not ChoiceChips)
               if (!_subscriptionLocked) ...[
               const SizedBox(height: 16),
               Text('Expire After', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: palette.windowActiveTextFg)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8, runSpacing: 6,
-                children: _expireOptions.entries.map((e) => ChoiceChip(
-                  label: Text(e.key == -1 && _expireOption == -1 && _customExpireSeconds > 0
-                    ? _formatCustomExpiry()
-                    : e.value, style: TextStyle(fontSize: 13, color: _expireOption == e.key ? Colors.white : textColor)),
-                  selected: _expireOption == e.key,
-                  selectedColor: palette.windowBgActive,
-                  onSelected: (_) {
-                    if (e.key == -1) {
-                      _showCustomExpiry();
-                    } else {
-                      setState(() => _expireOption = e.key);
-                    }
-                  },
-                )).toList(),
-              ),
+              const SizedBox(height: 4),
+              ..._expireOptions.entries.map((e) => RadioListTile<int>(
+                title: Text(
+                  e.key == -1 && _expireOption == -1 && _customExpireSeconds > 0
+                    ? 'Custom (${_formatCustomExpiry()})'
+                    : e.value,
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+                value: e.key,
+                groupValue: _expireOption,
+                activeColor: palette.windowBgActive,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                onChanged: (v) {
+                  if (v == -1) {
+                    _showCustomExpiry();
+                  } else {
+                    setState(() => _expireOption = v!);
+                  }
+                },
+              )),
+              // Usage limit (Radio buttons, hidden when requestApproval is on)
               if (!_requestApproval) ...[
                 const SizedBox(height: 16),
                 Text('Usage Limit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: palette.windowActiveTextFg)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8, runSpacing: 6,
-                  children: _usageOptions.entries.map((e) => ChoiceChip(
-                    label: Text(e.key == -1 && _usageLimitOption == -1 && _customUsageLimit > 0
-                      ? '$_customUsageLimit uses'
-                      : e.value, style: TextStyle(fontSize: 13, color: _usageLimitOption == e.key ? Colors.white : textColor)),
-                    selected: _usageLimitOption == e.key,
-                    selectedColor: palette.windowBgActive,
-                    onSelected: (_) {
-                      if (e.key == -1) {
-                        _showCustomUsageLimit();
-                      } else {
-                        setState(() => _usageLimitOption = e.key);
-                      }
-                    },
-                  )).toList(),
-                ),
-              ],
-              const SizedBox(height: 16),
-              SwitchListTile(
-                title: Text('Approve New Members', style: TextStyle(fontSize: 14, color: textColor)),
-                subtitle: Text('Requests to join must be approved by an admin', style: TextStyle(fontSize: 12, color: subColor)),
-                value: _requestApproval,
-                onChanged: (v) => setState(() => _requestApproval = v),
-                activeTrackColor: palette.windowBgActive,
-                contentPadding: EdgeInsets.zero,
-              ),
-              ], // end if (!_subscriptionLocked)
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: (_saving || _subscriptionLocked)
-                    ? () {
-                        if (_subscriptionLocked) {
-                          showTelegramToast(context, 'Subscription links cannot be changed after creation.');
-                        }
-                      }
-                    : () => setState(() {
-                          _subscription = !_subscription;
-                          if (_subscription) _requestApproval = false;
-                        }),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 18, height: 18,
-                      child: Checkbox(
-                        value: _subscription,
-                        onChanged: (_saving || _subscriptionLocked)
-                            ? null
-                            : (v) => setState(() {
-                                  _subscription = v ?? false;
-                                  if (_subscription) _requestApproval = false;
-                                }),
-                        activeColor: palette.windowBgActive,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text('Subscription', style: TextStyle(fontSize: 14, color: textColor)),
-                    ),
-                  ],
-                ),
-              ),
-              if (_subscription) ...[
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.only(left: 28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Users will pay star credits to subscribe via this link.',
-                        style: TextStyle(fontSize: 12, color: subColor)),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: 180,
-                        child: TextField(
-                          controller: _creditsCtrl,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          enabled: !_saving && !_subscriptionLocked,
-                          decoration: InputDecoration(
-                            labelText: 'Star credits',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          ),
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 4),
+                ..._usageOptions.entries.map((e) => RadioListTile<int>(
+                  title: Text(
+                    e.key == -1 && _usageLimitOption == -1 && _customUsageLimit > 0
+                      ? 'Custom ($_customUsageLimit uses)'
+                      : e.value,
+                    style: TextStyle(fontSize: 14, color: textColor),
                   ),
-                ),
+                  value: e.key,
+                  groupValue: _usageLimitOption,
+                  activeColor: palette.windowBgActive,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  onChanged: (v) {
+                    if (v == -1) {
+                      _showCustomUsageLimit();
+                    } else {
+                      setState(() => _usageLimitOption = v!);
+                    }
+                  },
+                )),
               ],
+              ], // end if (!_subscriptionLocked)
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity, height: 42,
