@@ -87,6 +87,38 @@ const _kMediaTransitionDuration = Duration(milliseconds: 200);
 const _kRadialBg = Color(0x54000000);
 const _kRadialFg = Color(0xFFFFFFFF);
 
+const _kChapterToastShowing = Duration(milliseconds: 200);
+const _kChapterToastShown = Duration(milliseconds: 1500);
+
+class _VideoChapter {
+  final double position;
+  final String label;
+  const _VideoChapter(this.position, this.label);
+}
+
+final _kTimestampPattern = RegExp(r'(?:(\d{1,2}):)?(\d{1,2}):(\d{2})');
+
+List<_VideoChapter> _parseChapters(String text, int durationMs) {
+  if (text.isEmpty || durationMs <= 0) return const [];
+  final lines = text.split('\n');
+  final chapters = <_VideoChapter>[];
+  for (final line in lines) {
+    final m = _kTimestampPattern.firstMatch(line);
+    if (m == null) continue;
+    final h = int.tryParse(m.group(1) ?? '0') ?? 0;
+    final min = int.tryParse(m.group(2) ?? '0') ?? 0;
+    final sec = int.tryParse(m.group(3) ?? '0') ?? 0;
+    final ms = ((h * 3600) + (min * 60) + sec) * 1000;
+    if (ms > durationMs) continue;
+    final label = line.substring(m.end).trim().replaceFirst(RegExp(r'^[-–—:.\s]+'), '');
+    if (label.isEmpty) continue;
+    chapters.add(_VideoChapter(ms / durationMs, label));
+  }
+  if (chapters.length < 2) return const [];
+  chapters.sort((a, b) => a.position.compareTo(b.position));
+  return chapters;
+}
+
 class PipData {
   final Player player;
   final VideoController videoController;
@@ -350,6 +382,12 @@ class _MediaViewerState extends State<MediaViewer>
   late final AnimationController _saveToastAnim;
   Timer? _saveToastHoldTimer;
   String _saveToastPath = '';
+
+  List<_VideoChapter> _chapters = const [];
+  late final AnimationController _chapterToastAnim;
+  Timer? _chapterToastTimer;
+  String _chapterToastText = '';
+  int _chapterToastDirection = 0;
   late final TapGestureRecognizer _downloadsLinkRecognizer;
 
   _MediaViewerMode _mode = _MediaViewerMode.fullscreen;
@@ -412,6 +450,11 @@ class _MediaViewerState extends State<MediaViewer>
       reverseDuration: _kSaveToastFadeOut,
       vsync: this,
     );
+    _chapterToastAnim = AnimationController(
+      duration: _kChapterToastShowing,
+      reverseDuration: _kChapterToastShowing,
+      vsync: this,
+    );
     _downloadsLinkRecognizer = TapGestureRecognizer()
       ..onTap = () => Process.run('xdg-open', [_saveToastPath]);
     _loadViewerPrefs();
@@ -439,8 +482,10 @@ class _MediaViewerState extends State<MediaViewer>
     _spaceBoostTimer?.cancel();
     _autoHideTimer?.cancel();
     _saveToastHoldTimer?.cancel();
+    _chapterToastTimer?.cancel();
     _downloadsLinkRecognizer.dispose();
     _saveToastAnim.dispose();
+    _chapterToastAnim.dispose();
     _bufferSpinCtrl.dispose();
     _rotationAnimCtrl.dispose();
     _zoomAnimCtrl.dispose();
@@ -504,7 +549,12 @@ class _MediaViewerState extends State<MediaViewer>
           if (mounted && !_isSeeking) setState(() => _position = pos);
         }),
         player.stream.duration.listen((dur) {
-          if (mounted) setState(() => _duration = dur);
+          if (mounted) {
+            setState(() => _duration = dur);
+            if (dur.inMilliseconds > 0 && _chapters.isEmpty) {
+              _chapters = _parseChapters(msg.contentText, dur.inMilliseconds);
+            }
+          }
         }),
         player.stream.completed.listen((completed) {
           if (completed && msg.mediaType == 7) {
@@ -613,6 +663,7 @@ class _MediaViewerState extends State<MediaViewer>
     _bufferSpinCtrl.stop();
     _position = Duration.zero;
     _duration = Duration.zero;
+    _chapters = const [];
   }
 
   bool get _hasPrev => _currentIndex < widget.mediaMessages.length - 1;
@@ -855,6 +906,40 @@ class _MediaViewerState extends State<MediaViewer>
     Navigator.of(context).pop();
   }
 
+  void _navigateChapter(int direction) {
+    if (_chapters.isEmpty || _duration.inMilliseconds <= 0) return;
+    final progress = _position.inMilliseconds / _duration.inMilliseconds;
+    _VideoChapter? target;
+    if (direction > 0) {
+      for (final ch in _chapters) {
+        if (ch.position > progress + 0.001) { target = ch; break; }
+      }
+    } else {
+      for (int i = _chapters.length - 1; i >= 0; i--) {
+        if (_chapters[i].position < progress - 0.01) { target = _chapters[i]; break; }
+      }
+      target ??= _chapters.first;
+    }
+    if (target == null) return;
+    final ms = (target.position * _duration.inMilliseconds).round();
+    _player?.seek(Duration(milliseconds: ms));
+    _showControls();
+    _showChapterToast(target.label, direction);
+  }
+
+  void _showChapterToast(String name, int direction) {
+    if (name.isEmpty) return;
+    _chapterToastTimer?.cancel();
+    setState(() {
+      _chapterToastText = name;
+      _chapterToastDirection = direction;
+    });
+    _chapterToastAnim.forward(from: _chapterToastAnim.value);
+    _chapterToastTimer = Timer(_kChapterToastShown, () {
+      if (mounted) _chapterToastAnim.reverse();
+    });
+  }
+
   void _seekToPercent(int percent) {
     if (!_isVideo || _player == null || _duration == Duration.zero) return;
     final target = _duration * (percent / 100.0);
@@ -1005,9 +1090,17 @@ class _MediaViewerState extends State<MediaViewer>
         if (!ctrl && _isVideo && _mode == _MediaViewerMode.fullscreen) { _seekToPercent(90); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.arrowLeft:
+        if (alt && _chapters.isNotEmpty) {
+          _navigateChapter(-1);
+          return KeyEventResult.handled;
+        }
         _goToPrev();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowRight:
+        if (alt && _chapters.isNotEmpty) {
+          _navigateChapter(1);
+          return KeyEventResult.handled;
+        }
         _goToNext();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.enter:
@@ -1394,6 +1487,7 @@ class _MediaViewerState extends State<MediaViewer>
               const Center(
                 child: _SpeedBoostOverlay(),
               ),
+            _buildChapterToast(),
           ],
         ),
       ),
@@ -1689,6 +1783,7 @@ class _MediaViewerState extends State<MediaViewer>
               ),
 
               _buildSaveToast(),
+              _buildChapterToast(),
             ],
           ),
         ),
@@ -2233,6 +2328,7 @@ class _MediaViewerState extends State<MediaViewer>
                           handleSize: 12,
                           activeColor: const Color(0xFFC7C7C7),
                           inactiveColor: const Color(0xFF252525),
+                          chapters: _chapters.map((c) => c.position).toList(),
                           onChanged: (v) {
                             if (_duration.inMilliseconds == 0) return;
                             setState(() {
@@ -2619,6 +2715,48 @@ class _MediaViewerState extends State<MediaViewer>
                       ),
                     ],
                   ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildChapterToast() {
+    return AnimatedBuilder(
+      animation: _chapterToastAnim,
+      builder: (context, child) {
+        if (_chapterToastAnim.value == 0.0) return const SizedBox.shrink();
+        return Center(
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: _chapterToastAnim.value,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _kMediaviewSaveMsgBg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_chapterToastDirection < 0)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 8),
+                        child: Icon(Icons.chevron_left, color: _kMediaviewSaveMsgFg, size: 18),
+                      ),
+                    Text(
+                      _chapterToastText,
+                      style: const TextStyle(color: _kMediaviewSaveMsgFg, fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    if (_chapterToastDirection > 0)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 8),
+                        child: Icon(Icons.chevron_right, color: _kMediaviewSaveMsgFg, size: 18),
+                      ),
+                  ],
                 ),
               ),
             ),
