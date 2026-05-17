@@ -145,14 +145,24 @@ class _LanguageBoxState extends State<LanguageBox> {
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.pageDown) {
+      final rowHeight = 52.0;
+      final viewportHeight = _scrollController.hasClients
+          ? _scrollController.position.viewportDimension
+          : 492.0;
+      final rowsPerPage = (viewportHeight / rowHeight).floor().clamp(1, entries.length);
       setState(() {
-        _highlightIndex = (_highlightIndex + 10).clamp(0, entries.length - 1);
+        _highlightIndex = (_highlightIndex + rowsPerPage).clamp(0, entries.length - 1);
       });
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.pageUp) {
+      final rowHeight = 52.0;
+      final viewportHeight = _scrollController.hasClients
+          ? _scrollController.position.viewportDimension
+          : 492.0;
+      final rowsPerPage = (viewportHeight / rowHeight).floor().clamp(1, entries.length);
       setState(() {
-        _highlightIndex = (_highlightIndex - 10).clamp(0, entries.length - 1);
+        _highlightIndex = (_highlightIndex - rowsPerPage).clamp(0, entries.length - 1);
       });
       return KeyEventResult.handled;
     }
@@ -281,9 +291,7 @@ class _LanguageBoxState extends State<LanguageBox> {
                 isDark: isDark,
                 textColor: textColor,
                 hoverColor: hoverColor,
-                locked: !(appState.activeAccount?.isPremium ?? false),
                 onChanged: (v) {
-                  if (!(appState.activeAccount?.isPremium ?? false)) return;
                   appState.setTranslateEntireChats(v);
                   _persistLanguagePrefs(appState);
                 },
@@ -430,6 +438,7 @@ class _LanguageBoxState extends State<LanguageBox> {
         .toList();
 
     return ListView.builder(
+      controller: _scrollController,
       shrinkWrap: true,
       padding: EdgeInsets.zero,
       itemCount: _sectionItemCount(official, recent),
@@ -445,10 +454,10 @@ class _LanguageBoxState extends State<LanguageBox> {
 
   int _sectionItemCount(List<_LangEntry> official, List<_LangEntry> recent) {
     int count = 0;
-    if (recent.isNotEmpty) count += 1 + recent.length; // header + rows
+    if (recent.isNotEmpty) count += recent.length;
     if (official.isNotEmpty) {
       if (recent.isNotEmpty) count += 1; // BoxContentDivider
-      count += 1 + official.length; // header + rows
+      count += official.length;
     }
     return count;
   }
@@ -468,8 +477,6 @@ class _LanguageBoxState extends State<LanguageBox> {
     int flatIdx = 0;
 
     if (recent.isNotEmpty) {
-      if (index == offset) return _sectionHeader('Recent', isDark);
-      offset++;
       if (index < offset + recent.length) {
         final ri = index - offset;
         return _languageRow(recent[ri], isDark, textColor, subTextColor, accentColor, hoverColor, highlighted: _highlightIndex == flatIdx + ri);
@@ -479,7 +486,6 @@ class _LanguageBoxState extends State<LanguageBox> {
 
       if (official.isNotEmpty) {
         if (index == offset) {
-          // §19.15: BoxContentDivider between Recent and Official sections.
           return Container(height: 7, color: dividerColor);
         }
         offset++;
@@ -487,8 +493,6 @@ class _LanguageBoxState extends State<LanguageBox> {
     }
 
     if (official.isNotEmpty) {
-      if (index == offset) return _sectionHeader('Official', isDark);
-      offset++;
       if (index < offset + official.length) {
         final oi = index - offset;
         return _languageRow(official[oi], isDark, textColor, subTextColor, accentColor, hoverColor, highlighted: _highlightIndex == flatIdx + oi);
@@ -496,20 +500,6 @@ class _LanguageBoxState extends State<LanguageBox> {
     }
 
     return const SizedBox.shrink();
-  }
-
-  Widget _sectionHeader(String title, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: context.palette.windowBgActive,
-        ),
-      ),
-    );
   }
 
   Widget _languageRow(
@@ -831,12 +821,20 @@ class _SkipLanguagesEditor extends StatefulWidget {
 
 class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
   late Set<String> _selected;
+  String _searchQuery = '';
+  final _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     final appState = context.read<AppState>();
     _selected = Set<String>.from(appState.skipTranslationLanguages);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _toggle(String langCode) {
@@ -871,6 +869,25 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
     Navigator.of(context).pop();
   }
 
+  List<_LangEntry> _sortedFilteredLangs() {
+    var langs = _kTranslationLanguages.toList();
+    if (_searchQuery.isNotEmpty) {
+      final needles = _searchQuery.toLowerCase().split(RegExp(r'\s+'));
+      langs = langs.where((l) {
+        final words = <String>[
+          ...l.name.toLowerCase().split(RegExp(r'\s+')),
+          ...l.nativeName.toLowerCase().split(RegExp(r'\s+')),
+          l.langCode.toLowerCase(),
+        ];
+        return needles.every((n) => words.any((w) => w.startsWith(n)));
+      }).toList();
+    }
+    // Stable partition: selected languages first
+    final selectedLangs = langs.where((l) => _selected.contains(l.langCode)).toList();
+    final unselectedLangs = langs.where((l) => !_selected.contains(l.langCode)).toList();
+    return [...selectedLangs, ...unselectedLangs];
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -880,29 +897,48 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
     final accentColor = p.windowBgActive;
     final hoverColor = p.windowBgOver;
 
-    final screenHeight = MediaQuery.of(context).size.height;
-    final maxDialogHeight = screenHeight - 48;
-
-    final langs = _kTranslationLanguages;
+    final langs = _sortedFilteredLangs();
 
     return Dialog(
       backgroundColor: bgColor,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 320, maxHeight: maxDialogHeight),
+        constraints: const BoxConstraints(maxWidth: 320, maxHeight: 320, minHeight: 320),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 8),
               child: Text(
                 'Do Not Translate',
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
                   color: textColor,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (v) => setState(() => _searchQuery = v),
+                style: TextStyle(fontSize: 13, color: textColor),
+                decoration: InputDecoration(
+                  hintText: 'Search languages',
+                  hintStyle: TextStyle(fontSize: 13, color: subTextColor),
+                  prefixIcon: Icon(Icons.search, size: 18, color: subTextColor),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 28),
+                  border: UnderlineInputBorder(
+                    borderSide: BorderSide(color: p.boxDividerBg),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: accentColor),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  isDense: true,
                 ),
               ),
             ),
@@ -974,12 +1010,19 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: _save,
-                  child: Text('Save', style: TextStyle(color: accentColor)),
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel', style: TextStyle(color: subTextColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _save,
+                    child: Text('Save', style: TextStyle(color: accentColor)),
+                  ),
+                ],
               ),
             ),
           ],
