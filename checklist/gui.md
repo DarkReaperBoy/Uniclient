@@ -544,9 +544,6 @@ The emoji picker is **functionally broken in two ways:**
 
 # media_viewer — Audit Findings
 
-## media_viewer — Caption entities/links not rendered
-
-- [ ] [CRITICAL] Caption uses plain `SelectableText` with no entity or link rendering. AyuGram uses `setMarkedText` with `ClickHandlerPtr` so URLs, bold, mentions, and spoilers in captions are all interactive. Dart caption is read-only unformatted text. — `media_viewer.dart:2509` ← `media_view_overlay_widget.cpp:3901-3914`
 
 ## media_viewer — Speed boost visual overlay missing
 
