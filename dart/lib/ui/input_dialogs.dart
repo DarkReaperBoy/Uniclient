@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
+import '../data/emoji_data.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
@@ -1692,6 +1695,7 @@ class CreatePollResult {
   final String question;
   final String description;
   final List<String> options;
+  final List<String?> optionMediaPaths;
   final bool multipleChoice;
   final bool anonymous;
   final bool quiz;
@@ -1706,6 +1710,7 @@ class CreatePollResult {
     required this.question,
     this.description = '',
     required this.options,
+    this.optionMediaPaths = const [],
     this.multipleChoice = false,
     this.anonymous = true,
     this.quiz = false,
@@ -1741,12 +1746,14 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   static const _kMaxOptions = 32;
 
   final _questionCtrl = TextEditingController();
+  final _questionFocus = FocusNode();
   final _descriptionCtrl = TextEditingController();
   final _solutionCtrl = TextEditingController();
   final List<TextEditingController> _optionCtrls = [
     TextEditingController(),
     TextEditingController(),
   ];
+  final List<String?> _optionMediaPaths = [null, null];
   bool _multipleChoice = false;
   bool _anonymous = true;
   bool _quiz = false;
@@ -1757,9 +1764,23 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   int _durationSeconds = 300;
   int _correctOption = -1;
 
+  List<EmojiEntry> _emojiSuggestions = [];
+  int _emojiSelectedIndex = 0;
+  int _emojiTriggerOffset = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _questionFocus.onKeyEvent = (node, event) {
+      if (_handleEmojiKey(event)) return KeyEventResult.handled;
+      return KeyEventResult.ignored;
+    };
+  }
+
   @override
   void dispose() {
     _questionCtrl.dispose();
+    _questionFocus.dispose();
     _descriptionCtrl.dispose();
     _solutionCtrl.dispose();
     for (final c in _optionCtrls) {
@@ -1770,7 +1791,10 @@ class _CreatePollContentState extends State<_CreatePollContent> {
 
   void _addOption() {
     if (_optionCtrls.length >= _kMaxOptions) return;
-    setState(() => _optionCtrls.add(TextEditingController()));
+    setState(() {
+      _optionCtrls.add(TextEditingController());
+      _optionMediaPaths.add(null);
+    });
   }
 
   void _removeOption(int index) {
@@ -1778,6 +1802,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     setState(() {
       _optionCtrls[index].dispose();
       _optionCtrls.removeAt(index);
+      _optionMediaPaths.removeAt(index);
       if (_correctOption == index) {
         _correctOption = -1;
       } else if (_correctOption > index) {
@@ -1791,6 +1816,8 @@ class _CreatePollContentState extends State<_CreatePollContent> {
       if (newIndex > oldIndex) newIndex--;
       final ctrl = _optionCtrls.removeAt(oldIndex);
       _optionCtrls.insert(newIndex, ctrl);
+      final media = _optionMediaPaths.removeAt(oldIndex);
+      _optionMediaPaths.insert(newIndex, media);
       if (_correctOption == oldIndex) {
         _correctOption = newIndex;
       } else if (_correctOption > oldIndex && _correctOption <= newIndex) {
@@ -1815,12 +1842,20 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   void _submit() {
     if (!_canSubmit) return;
     final question = _questionCtrl.text.trim();
-    final options =
-        _optionCtrls.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList();
+    final mediaPaths = <String?>[];
+    final options = <String>[];
+    for (var i = 0; i < _optionCtrls.length; i++) {
+      final text = _optionCtrls[i].text.trim();
+      if (text.isNotEmpty) {
+        options.add(text);
+        mediaPaths.add(_optionMediaPaths[i]);
+      }
+    }
     Navigator.of(context).pop(CreatePollResult(
       question: question,
       description: _descriptionCtrl.text.trim(),
       options: options,
+      optionMediaPaths: mediaPaths,
       multipleChoice: _multipleChoice,
       anonymous: _anonymous,
       quiz: _quiz,
@@ -1891,6 +1926,110 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     }
   }
 
+  Future<void> _pickOptionMedia(int index) async {
+    final p = context.palette;
+    final textColor = p.boxTextFg;
+    final hasMedia = _optionMediaPaths[index] != null;
+    final choice = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(200, 300, 200, 300),
+      items: [
+        PopupMenuItem(value: 'photo_video', child: Text('Choose Photo or Video', style: TextStyle(color: textColor))),
+        PopupMenuItem(value: 'file', child: Text('Choose File', style: TextStyle(color: textColor))),
+        if (hasMedia)
+          PopupMenuItem(value: 'remove', child: Text('Remove', style: TextStyle(color: p.boxTextFgError))),
+      ],
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'remove') {
+      setState(() => _optionMediaPaths[index] = null);
+      return;
+    }
+    final result = await FilePicker.platform.pickFiles(
+      type: choice == 'photo_video' ? FileType.media : FileType.any,
+      allowMultiple: false,
+    );
+    if (result != null && result.files.isNotEmpty && mounted) {
+      final path = result.files.first.path;
+      if (path != null) {
+        setState(() => _optionMediaPaths[index] = path);
+      }
+    }
+  }
+
+  void _checkEmojiAutocomplete() {
+    final sel = _questionCtrl.selection;
+    if (!sel.isValid || !sel.isCollapsed) {
+      if (_emojiSuggestions.isNotEmpty) setState(() => _emojiSuggestions = []);
+      return;
+    }
+    final text = _questionCtrl.text;
+    final cursor = sel.baseOffset;
+    if (cursor <= 0 || cursor > text.length) {
+      if (_emojiSuggestions.isNotEmpty) setState(() => _emojiSuggestions = []);
+      return;
+    }
+    final before = text.substring(0, cursor);
+    final match = RegExp(r'(?:^|(?<=\s)):(\w{2,})$').firstMatch(before);
+    if (match != null) {
+      final query = match.group(1)!;
+      final triggerOffset = match.start + match.group(0)!.indexOf(':');
+      final results = searchEmoji(query, limit: 20);
+      setState(() {
+        _emojiSuggestions = results;
+        _emojiSelectedIndex = 0;
+        _emojiTriggerOffset = triggerOffset;
+      });
+    } else {
+      if (_emojiSuggestions.isNotEmpty) {
+        setState(() => _emojiSuggestions = []);
+      }
+    }
+  }
+
+  void _insertEmoji(EmojiEntry emoji) {
+    final sel = _questionCtrl.selection;
+    if (!sel.isValid) return;
+    final cursor = sel.baseOffset;
+    final text = _questionCtrl.text;
+    final newText = text.substring(0, _emojiTriggerOffset) +
+        emoji.emoji +
+        text.substring(cursor);
+    _questionCtrl.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(
+          offset: _emojiTriggerOffset + emoji.emoji.length),
+    );
+    setState(() => _emojiSuggestions = []);
+  }
+
+  bool _handleEmojiKey(KeyEvent event) {
+    if (_emojiSuggestions.isEmpty) return false;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      setState(() {
+        _emojiSelectedIndex = (_emojiSelectedIndex + 1).clamp(0, _emojiSuggestions.length - 1);
+      });
+      return true;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      setState(() {
+        _emojiSelectedIndex = (_emojiSelectedIndex - 1).clamp(0, _emojiSuggestions.length - 1);
+      });
+      return true;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.tab) {
+      _insertEmoji(_emojiSuggestions[_emojiSelectedIndex]);
+      return true;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      setState(() => _emojiSuggestions = []);
+      return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -1913,10 +2052,21 @@ class _CreatePollContentState extends State<_CreatePollContent> {
           children: [
             BoxInputField(
               controller: _questionCtrl,
+              focusNode: _questionFocus,
               label: 'Ask a question',
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) {
+                _checkEmojiAutocomplete();
+                setState(() {});
+              },
               inputFormatters: [LengthLimitingTextInputFormatter(_kQuestionLimit)],
             ),
+            if (_emojiSuggestions.isNotEmpty)
+              _PollEmojiSuggestionPanel(
+                emojis: _emojiSuggestions,
+                selectedIndex: _emojiSelectedIndex,
+                onPick: (i) => _insertEmoji(_emojiSuggestions[i]),
+                onHover: (i) => setState(() => _emojiSelectedIndex = i),
+              ),
             if (_questionCtrl.text.length > 80)
               Align(
                 alignment: Alignment.centerRight,
@@ -2142,6 +2292,10 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   }
 
   Widget _buildOptionRow(int i, TelegramPalette p, Color textColor, Color subColor) {
+    final mediaPath = _optionMediaPaths[i];
+    final hasMedia = mediaPath != null;
+    final isImage = hasMedia && _isImagePath(mediaPath);
+
     return Padding(
       key: ValueKey(i),
       padding: const EdgeInsets.only(bottom: 8),
@@ -2179,6 +2333,38 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                   inputFormatters: [LengthLimitingTextInputFormatter(_kOptionLimit)],
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: hasMedia
+                    ? GestureDetector(
+                        onTap: () => _pickOptionMedia(i),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: isImage
+                                ? Image.file(File(mediaPath), fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        Icon(Icons.broken_image, size: 16, color: subColor))
+                                : Container(
+                                    color: p.windowBgActive.withValues(alpha: 0.15),
+                                    child: Icon(Icons.insert_drive_file, size: 16, color: p.windowBgActive),
+                                  ),
+                          ),
+                        ),
+                      )
+                    : SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: IconButton(
+                          icon: Icon(Icons.attach_file, size: 16, color: subColor),
+                          padding: EdgeInsets.zero,
+                          tooltip: 'Attach media',
+                          onPressed: () => _pickOptionMedia(i),
+                        ),
+                      ),
+              ),
               if (_optionCtrls.length > 2)
                 SizedBox(
                   width: 32,
@@ -2209,6 +2395,11 @@ class _CreatePollContentState extends State<_CreatePollContent> {
         ],
       ),
     );
+  }
+
+  static bool _isImagePath(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    return const {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic'}.contains(ext);
   }
 
   Widget _settingsToggle(
@@ -2253,6 +2444,72 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PollEmojiSuggestionPanel extends StatelessWidget {
+  final List<EmojiEntry> emojis;
+  final int selectedIndex;
+  final ValueChanged<int> onPick;
+  final ValueChanged<int> onHover;
+
+  const _PollEmojiSuggestionPanel({
+    required this.emojis,
+    required this.selectedIndex,
+    required this.onPick,
+    required this.onHover,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf7f7f7);
+    final hoverColor = isDark ? const Color(0xFF2b3d4f) : const Color(0xFFe8e8e8);
+    final borderColor = isDark ? const Color(0xFF101a23) : const Color(0xFFdadada);
+
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      margin: const EdgeInsets.only(top: 4),
+      child: ShaderMask(
+        shaderCallback: (bounds) => const LinearGradient(
+          colors: [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
+          stops: [0.0, 0.03, 0.97, 1.0],
+        ).createShader(bounds),
+        blendMode: BlendMode.dstIn,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          itemCount: emojis.length,
+          itemBuilder: (context, index) {
+            final e = emojis[index];
+            final isSelected = index == selectedIndex;
+            return MouseRegion(
+              onEnter: (_) => onHover(index),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onPick(index),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isSelected ? hoverColor : null,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(e.emoji, style: const TextStyle(fontSize: 24)),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

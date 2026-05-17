@@ -2946,6 +2946,7 @@ class EngineService {
 
   Future<String> createPoll(
     String accountId, String chatId, String question, List<String> options, {
+    List<String?> optionMediaPaths = const [],
     bool multipleChoice = false,
     bool anonymous = true,
     bool quiz = false,
@@ -2962,6 +2963,8 @@ class EngineService {
       'chat_id': chatId,
       'question': question,
       'options': options,
+      if (optionMediaPaths.any((p) => p != null))
+        'option_media_paths': optionMediaPaths,
       'multiple_choice': multipleChoice,
       'anonymous': anonymous,
       'quiz': quiz,

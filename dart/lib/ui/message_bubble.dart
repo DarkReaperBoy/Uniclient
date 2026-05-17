@@ -9657,6 +9657,7 @@ class _InlineButtonState extends State<_InlineButton>
           if (chat == null) return;
           final engine = context.read<EngineService>();
           engine.createPoll(chat.accountId, chat.chatId, result.question, result.options,
+              optionMediaPaths: result.optionMediaPaths,
               anonymous: result.anonymous, multipleChoice: result.multipleChoice,
               quiz: result.quiz, allowRevoting: result.allowRevoting,
               shuffleAnswers: result.shuffleAnswers,

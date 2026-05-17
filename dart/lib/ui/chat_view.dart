@@ -5354,9 +5354,14 @@ class _ChatViewState extends State<ChatView>
                       if (result == null) return;
                       final engine = context.read<EngineService>();
                       engine.createPoll(chat.accountId, chat.chatId, result.question, result.options,
+                        optionMediaPaths: result.optionMediaPaths,
                         multipleChoice: result.multipleChoice, anonymous: result.anonymous,
                         quiz: result.quiz, allowRevoting: result.allowRevoting,
-                        correctOption: result.correctOptionIndex, solution: result.solution);
+                        shuffleAnswers: result.shuffleAnswers,
+                        allowAddingOptions: result.allowAddingOptions,
+                        limitDuration: result.limitDuration,
+                        correctOption: result.correctOptionIndex, solution: result.solution,
+                        description: result.description);
                     });
                   case 'web_view' || 'simple_web_view':
                     if (btn.url.isNotEmpty) {
@@ -6364,9 +6369,14 @@ class _ChatTopBar extends StatelessWidget {
       final engine = btnCtx.read<EngineService>();
       engine.createPoll(
         chat.accountId, chat.chatId, result.question, result.options,
+        optionMediaPaths: result.optionMediaPaths,
         multipleChoice: result.multipleChoice, anonymous: result.anonymous,
         quiz: result.quiz, allowRevoting: result.allowRevoting,
+        shuffleAnswers: result.shuffleAnswers,
+        allowAddingOptions: result.allowAddingOptions,
+        limitDuration: result.limitDuration,
         correctOption: result.correctOptionIndex, solution: result.solution,
+        description: result.description,
       );
     });
   }
@@ -14020,6 +14030,7 @@ class _ComposeAreaState extends State<_ComposeArea>
     if (chatId == null) return;
     try {
       await engine.createPoll(accountId, chatId, result.question, result.options,
+        optionMediaPaths: result.optionMediaPaths,
         multipleChoice: result.multipleChoice, anonymous: result.anonymous,
         quiz: result.quiz, allowRevoting: result.allowRevoting,
         shuffleAnswers: result.shuffleAnswers,
