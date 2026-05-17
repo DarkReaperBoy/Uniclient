@@ -517,15 +517,6 @@ return ClipOval(
 
 ---
 
-# instant_view — Audit findings
-
-- [ ] [CRITICAL] `_buildEmbed` renders link-only placeholder instead of actual embedded content — `instant_view.dart:958-960` ← `iv_prepare.cpp:672` — C++ generates a real `<iframe src=...>` tag that the webview renders (YouTube players, Twitter posts, SoundCloud widgets, etc. all play in-page). Dart shows only an icon + URL link box that opens the browser externally. All embedded media blocks are non-functional: YouTube videos cannot be played, Twitter posts cannot be read, SoundCloud clips cannot be heard.
-
-- [ ] [CRITICAL] `_buildMap` sends coordinates to Yandex static maps (third-party) instead of Telegram's internal tile server — `instant_view.dart:1463` ← `iv_prepare.cpp:1233-1238` — C++ routes map images through the internal resource handler at `/map/{geoPointId}&{width},{height}&{zoom}`, served by Telegram's own infrastructure. Dart hardcodes `https://static-maps.yandex.ru/1.x/?...` — an external Yandex service that leaks user-browsed article geo-coordinates to Yandex, fails when Yandex Maps is unavailable or blocked (common in certain regions), and violates Telegram's privacy model for IV.
-
-- [ ] [MAJOR] All IV blocks built eagerly inside `SingleChildScrollView + Column`, no lazy rendering — `instant_view.dart:314-327` — C++ uses a webview that renders progressively. Dart calls `.toList()` on every block at build time, constructing every `_IvBlock` widget (including photos, videos, code blocks, tables, collages) simultaneously. Long IV articles with many media blocks will cause frame jank and potential OOM; should use `ListView.builder` or `CustomScrollView + SliverList` for lazy construction.
-
-- [ ] [MAJOR] Zoom uses a fixed 0.1 float step with no modifier-key precision, and allows below-default zoom (0.5x) which C++ never permits — `instant_view.dart:159-161` ← `iv_controller.cpp:62-65, 126-131` — C++ defines three precision tiers: Alt key = 1 unit, Ctrl key = 5 units, unmodified = 10 units, all applied as integer increments on top of a 100-baseline. It never zooms below the 100-baseline (only up from default). Dart applies a flat 0.1 step regardless of modifiers and clamps to 0.5 (50%), making it possible to shrink text to half size — behavior the C++ deliberately prevents.
 
 # emoji_data — Critical emoji validation & missing backend wiring
 
