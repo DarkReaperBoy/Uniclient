@@ -542,22 +542,6 @@ The emoji picker is **functionally broken in two ways:**
 
 **Test to confirm:** Launch the app, open the emoji picker, search for "wave" or "hand". If no results or only 1-2 results appear instead of multiple hand emoji, the validation bug is active.
 
-# language_box — Language settings box audit
-
-- [ ] [MAJOR] "Recent" and "Official" text section headers don't exist in AyuGram — the source only adds a `BoxContentDivider` between sections with no text labels — `language_box.dart:471,490` ← `AyuGram/boxes/language_box.cpp:1136-1141`
-
-- [ ] [MAJOR] `_SkipLanguagesEditor` missing search/filter field — AyuGram's `ChooseLanguageBox` pins a `MultiSelect` search bar at the top for filtering the 75+ language list — `language_box.dart:888-989` ← `AyuGram/ui/boxes/choose_language_box.cpp:274-278`
-
-- [ ] [MAJOR] `_SkipLanguagesEditor` height constraint wrong — Dart uses `screenHeight - 48` (nearly full screen); AyuGram sets `minHeight` and `maxHeight` both to `st::boxWidth` (320px, making it a square box) — `language_box.dart:883-884` ← `AyuGram/ui/boxes/choose_language_box.cpp:270-271`
-
-- [ ] [MAJOR] `_SkipLanguagesEditor` missing Cancel button — AyuGram's `ChooseLanguageBox` renders both Save (`tr::lng_settings_save`) and Cancel (`tr::lng_cancel`) buttons; Dart only has Save — `language_box.dart:979-982` ← `AyuGram/ui/boxes/choose_language_box.cpp:364-379`
-
-- [ ] [MAJOR] `_SkipLanguagesEditor` does not sort selected languages to the top — AyuGram's `ChooseLanguageBox` calls `ranges::stable_partition` to float already-selected languages before others; Dart iterates `_kTranslationLanguages` in fixed order — `language_box.dart:886` ← `AyuGram/ui/boxes/choose_language_box.cpp:292-295`
-
-- [ ] [MAJOR] PageDown/PageUp keyboard navigation hardcoded at ±10 rows — AyuGram dynamically computes rows per page as `height() / Rows::DefaultRowHeight()` — `language_box.dart:147-158` ← `AyuGram/boxes/language_box.cpp:1527-1529`
-
-- [ ] [MAJOR] "Translate Entire Chats" toggle unnecessarily locked for non-premium users — AyuGram hardcodes `AmPremiumValue` to always return `true`, making the toggle available to everyone — `language_box.dart:284-289` ← `AyuGram/boxes/language_box.cpp:1439-1443`
-
 # media_viewer — Audit Findings
 
 ## media_viewer — Caption entities/links not rendered
