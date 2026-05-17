@@ -542,20 +542,6 @@ The emoji picker is **functionally broken in two ways:**
 
 **Test to confirm:** Launch the app, open the emoji picker, search for "wave" or "hand". If no results or only 1-2 results appear instead of multiple hand emoji, the validation bug is active.
 
-# keyboard_shortcuts — Shortcut System Audit
-
-- [ ] [CRITICAL] `account1`–`account6` commands declared in enum and scope map but have zero registered handlers in `_ShortcutListenerState.initState()` — user-configurable account-switching shortcuts silently do nothing when triggered — `keyboard_shortcuts.dart:46-51,142-147,1048-1355` ← `AyuGram/core/shortcuts.cpp:103-110` (ShowAccount1-6 handled by window controller via `Requests()` stream; Dart has no equivalent listener)
-
-- [ ] [CRITICAL] `message`, `messageSilently`, `messageScheduled` commands declared with `composeRequired` scope but have no registered handlers anywhere in the file — shortcuts are saved/loaded from config and user-assignable, but dispatching them does nothing — `keyboard_shortcuts.dart:69-71,181-183,245-247` ← `AyuGram/core/shortcuts.cpp:132-134` (AyuGram handles `JustSendMessage`/`SendSilentMessage`/`ScheduleMessage` in HistoryWidget via the Requests() stream)
-
-- [ ] [CRITICAL] `_writeCustomTemplate()` writes a file beginning with `//` comment lines (not valid JSON), then `_loadCustomFile()` calls `dart:convert jsonDecode()` on it which throws `FormatException` — `catch (_) {}` at line 575 silently swallows the error, leaving custom shortcuts permanently unloadable on any install where the user never saves a binding — `keyboard_shortcuts.dart:578-595,533-575` ← `AyuGram/core/shortcuts.cpp:254-277` (AyuGram strips comments with `base::parse::stripComments()` before JSON parsing, making its template files self-consistent)
-
-- [ ] [MAJOR] `_layerShown` scope guard (line 465) only blocks non-global shortcuts when a dialog layer is present, but global-scope commands (`closeTelegram`, `lockTelegram`, `quitTelegram`, `minimizeTelegram`) continue to fire through any modal — AyuGram's `Paused` flag blocks ALL shortcuts unconditionally including global ones — `keyboard_shortcuts.dart:463-476` ← `AyuGram/core/shortcuts.cpp:792-797` (`if (Paused) { return false; }` guards the entire `Launch()` call)
-
-- [ ] [MAJOR] Chat-switch overlay (Ctrl+Tab) is implemented as a simple one-shot event fire (`UniClientShell.showChatSwitchRequest?.call()`) with no modifier-held tracking — AyuGram's `HandlePossibleChatSwitch` maintains a full state machine: sets `ChatSwitchStarted`, fires `ChatSwitchRequest` events, then tracks arrow keys / Q / Escape / Enter while Ctrl is held and fires a `Key_Enter` dismiss event on Ctrl release — the Dart overlay has no way to detect Ctrl release or navigate within itself at the shortcut-system level — `keyboard_shortcuts.dart:1085-1091` ← `AyuGram/core/shortcuts.cpp:894-974`
-
-- [ ] [MAJOR] `selfChat` handler (line 1195) searches `chatState.chats` for a chat matching `isSavedMessages()` and returns `false` if not found — if Saved Messages has never been opened it won't be in the loaded chat list, so Ctrl+0 silently does nothing — AyuGram's handler opens the self-peer directly from the session regardless of whether it appears in the recent chat list — `keyboard_shortcuts.dart:1195-1205` ← `AyuGram/core/shortcuts.cpp:522` (`set(u"ctrl+0"_q, Command::ChatSelf)` handled by window controller with direct session access)
-
 # language_box — Language settings box audit
 
 - [ ] [MAJOR] "Recent" and "Official" text section headers don't exist in AyuGram — the source only adds a `BoxContentDivider` between sections with no text labels — `language_box.dart:471,490` ← `AyuGram/boxes/language_box.cpp:1136-1141`
