@@ -507,22 +507,6 @@ return ClipOval(
 
 # input_dialogs — Audit Findings
 
-## _UsernameBoxContent
-
-- [ ] [MAJOR] Username validation regex `^[a-zA-Z][a-zA-Z0-9_]{3,31}$` requires first char to be a letter, but AyuGram's `changed()` method allows digits at any position including first — it only forbids non-alphanumeric/underscore chars and uses `kMinUsernameLength=5` as the only structural constraint — `input_dialogs.dart:126` ← `AyuGram/boxes/username_box.cpp:204-233`
-
-- [ ] [MAJOR] Dart regex enforces minimum of 4 chars after first char (total 5) via `{3,31}` but AyuGram's minimum check is `name.size() < kMinUsernameLength` (5) applied after the per-character loop — the Dart regex rejects e.g. `a1234` at position 0 being digit, while AyuGram allows it — `input_dialogs.dart:126` ← `AyuGram/boxes/peers/edit_peer_common.h:15`
-
-- [ ] [MAJOR] Debounce timer is 200ms, matching `kUsernameCheckTimeout = crl::time(200)` — this is correct. No issue.
-
-- [ ] [MAJOR] `_UsernameBoxContent` only shows "Additional usernames" section by fetching `getAccountUsernames`, but AyuGram renders the full `UsernamesList` widget (`edit_peer_usernames_list.h`) which supports drag-to-reorder via a reorder controller. Dart implementation uses a static list with `Switch` toggles but no drag-to-reorder handle — the drag icon (`Icons.drag_handle`) is purely cosmetic and non-functional — `input_dialogs.dart:313-316` ← `AyuGram/boxes/username_box.cpp:362-393`
-
-- [ ] [MAJOR] AyuGram's `UsernamesList` calls `list->save()` first, then `editor->save()` in sequence (two separate API calls in series). Dart's `_save()` only calls `updateAccountUsername` (the primary username) and ignores toggling additional usernames on save — the toggle is done immediately on switch change which is wrong: AyuGram batches all changes and commits on the Save button — `input_dialogs.dart:276-293, 295-302` ← `AyuGram/boxes/username_box.cpp:372-393`
-
-- [ ] [MAJOR] Username box description in AyuGram is two separate paragraphs joined with `\n\n` produced by combining `tr::lng_username_description1` and `tr::lng_username_description2`. Dart shows a single hardcoded string without the second paragraph about links/mentions — `input_dialogs.dart:364-366` ← `AyuGram/boxes/username_box.cpp:334-361`
-
-- [ ] [MAJOR] AyuGram uses `UsernameInput` (a `MaskedInputField`) that strips the `@` prefix from display and formats it as a masked input with `@` prepended visually. Dart uses a plain `TextField` with no `@` prefix displayed — the field label says "Username" but there is no leading `@` visual. AyuGram always shows `@` as part of the field — `input_dialogs.dart:368-374` ← `AyuGram/boxes/username_box.cpp:89-94`
-
 ---
 
 ## _AddContactBoxContent
