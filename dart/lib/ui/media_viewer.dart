@@ -3319,15 +3319,6 @@ class _MediaViewerState extends State<MediaViewer>
         _saveMediaToDownloads(msg);
       case 'show_all':
         _showAllMedia(msg);
-      case 'stealth_mode':
-        showStoryStealthModeDialog(context, onActivate: () {
-          final engine = context.read<EngineService>();
-          final appState = context.read<AppState>();
-          final accountId = appState.activeAccountId;
-          if (accountId.isNotEmpty) {
-            engine.activateStealthMode(accountId);
-          }
-        });
     }
   }
 
