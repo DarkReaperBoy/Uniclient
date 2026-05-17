@@ -821,6 +821,14 @@ class _UniClientAppState extends State<UniClientApp>
           final layout = (cmd['layout'] as num?)?.toInt() ?? 1;
           ChatView.testDragOverlay?.call(card, layout: layout);
 
+        case 'testSpeedBoost':
+          final active = (cmd['active'] as bool?) ?? true;
+          if (active) {
+            MediaViewer.testSpeedBoostOn();
+          } else {
+            MediaViewer.testSpeedBoostOff();
+          }
+
         case 'dismissPopup':
           _dispatchTap(1, 1);
 

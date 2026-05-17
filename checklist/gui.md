@@ -545,9 +545,6 @@ The emoji picker is **functionally broken in two ways:**
 # media_viewer — Audit Findings
 
 
-## media_viewer — Speed boost visual overlay missing
-
-- [ ] [CRITICAL] When space-hold speed boost is active, AyuGram renders an animated "2.0×" overlay (`paintSpeedBoostContent`) with animated forward-arrows and smooth fade-in/out. Dart has the speed boost logic but zero visual feedback — the user gets no indication that the boost is active or what speed it is. — `media_viewer.dart:878-904` ← `media_view_overlay_widget.cpp:6297-6370`
 
 ## media_viewer — Stealth mode activation is a no-op in media viewer More menu
 

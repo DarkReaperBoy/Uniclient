@@ -224,6 +224,18 @@ class MediaViewer extends StatefulWidget {
   static void copyMedia() => _activeInstance?._copyImageToClipboard(_activeInstance!._currentMessage);
   static void enterPip() => _activeInstance?._enterPip();
   static void close() => _activeInstance?._close();
+  static void testSpeedBoostOn() {
+    final inst = _activeInstance;
+    if (inst == null) return;
+    inst._spaceBoostTimer?.cancel();
+    inst.setState(() => inst._spaceBoostActive = true);
+  }
+  static void testSpeedBoostOff() {
+    final inst = _activeInstance;
+    if (inst == null) return;
+    inst._spaceBoostTimer?.cancel();
+    inst.setState(() => inst._spaceBoostActive = false);
+  }
 
   const MediaViewer({
     super.key,
