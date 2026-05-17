@@ -508,6 +508,7 @@ Future<bool?> showAddContactBox(
   String initialPhone = '',
   String initialFirstName = '',
   String initialLastName = '',
+  String initialUserId = '',
 }) {
   final engine = context.read<EngineService>();
   final appState = context.read<AppState>();
@@ -517,6 +518,7 @@ Future<bool?> showAddContactBox(
       initialPhone: initialPhone,
       initialFirstName: initialFirstName,
       initialLastName: initialLastName,
+      initialUserId: initialUserId,
       engine: engine,
       appState: appState,
     ),
@@ -527,6 +529,7 @@ class _AddContactBoxContent extends StatefulWidget {
   final String initialPhone;
   final String initialFirstName;
   final String initialLastName;
+  final String initialUserId;
   final EngineService engine;
   final AppState appState;
 
@@ -534,6 +537,7 @@ class _AddContactBoxContent extends StatefulWidget {
     required this.initialPhone,
     required this.initialFirstName,
     required this.initialLastName,
+    this.initialUserId = '',
     required this.engine,
     required this.appState,
   });
@@ -665,7 +669,7 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     });
 
     try {
-      final userId = await widget.engine.addContact(account.id, phone, fn, ln);
+      final userId = await widget.engine.addContact(account.id, phone, fn, ln, userId: widget.initialUserId);
       if (mounted) {
         final chatState = context.read<ChatState>();
         chatState.loadChats();
