@@ -671,11 +671,16 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     try {
       final userId = await widget.engine.addContact(account.id, phone, fn, ln, userId: widget.initialUserId);
       if (mounted) {
+        if (userId.isEmpty) {
+          setState(() {
+            _saving = false;
+            _retry = true;
+          });
+          return;
+        }
         final chatState = context.read<ChatState>();
         chatState.loadChats();
-        if (userId.isNotEmpty) {
-          chatState.openChatById(userId);
-        }
+        chatState.openChatById(userId);
         if (mounted) Navigator.of(context).pop(true);
       }
     } catch (e) {
