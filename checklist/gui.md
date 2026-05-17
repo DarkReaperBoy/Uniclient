@@ -547,9 +547,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-## media_viewer — ChannelPost story area drops msgId
-
-- [ ] [CRITICAL] `_handleAreaChannelPost(int channelId, int msgId)` ignores `msgId` entirely and only calls `chatState.openChatById(channelId.toString())` (line 5959). Clicking a channel-post story area opens the channel at the top instead of scrolling to the referenced message. — `media_viewer.dart:5956-5960` ← `media_stories_controller.cpp` (channel post area opens at specific message)
 
 ## media_viewer — Arrow Left/Right seeks video instead of navigating
 
