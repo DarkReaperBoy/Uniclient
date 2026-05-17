@@ -10651,12 +10651,14 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		} else if from, ok := fwd.GetFromID(); ok {
 			switch p := from.(type) {
 			case *tg.PeerUser:
+				m.ForwardFromID = strconv.FormatInt(p.UserID, 10)
 				if name := t.getCachedUserName(p.UserID); name != "" {
 					m.ForwardFrom = name
 				} else {
 					m.ForwardFrom = "User " + strconv.FormatInt(p.UserID, 10)
 				}
 			case *tg.PeerChannel:
+				m.ForwardFromID = strconv.FormatInt(-1000000000000-p.ChannelID, 10)
 				if name := t.getCachedChannelName(p.ChannelID); name != "" {
 					m.ForwardFrom = name
 				} else if author, ok := fwd.GetPostAuthor(); ok && author != "" {
@@ -10665,6 +10667,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 					m.ForwardFrom = "Channel " + strconv.FormatInt(p.ChannelID, 10)
 				}
 			case *tg.PeerChat:
+				m.ForwardFromID = strconv.FormatInt(-p.ChatID, 10)
 				if name := t.getCachedChannelName(p.ChatID); name != "" {
 					m.ForwardFrom = name
 				} else {

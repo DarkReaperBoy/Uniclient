@@ -267,6 +267,7 @@ type Message struct {
 	ReplyToID     string        `json:"reply_to_id,omitempty"`
 	ReplyPreview  string        `json:"reply_preview,omitempty"` // first line of the replied-to message
 	ForwardFrom   string        `json:"forward_from,omitempty"`
+	ForwardFromID string        `json:"forward_from_id,omitempty"`
 	IsEncrypted   bool          `json:"is_encrypted"`
 	DecryptFailed bool          `json:"decrypt_failed"`
 	Attachments   []FileRef     `json:"attachments,omitempty"`

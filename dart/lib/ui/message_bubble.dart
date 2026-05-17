@@ -920,12 +920,22 @@ class _MessageBubbleState extends State<MessageBubble> {
                     if (message.forwardFrom.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
-                        child: Text(
-                          'Forwarded from ${message.forwardFrom}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontStyle: FontStyle.italic,
-                            color: theme.textTheme.bodySmall?.color,
+                        child: GestureDetector(
+                          onTap: message.forwardFromId.isNotEmpty
+                              ? () {
+                                  final chatState = context.read<ChatState>();
+                                  chatState.openChatById(message.forwardFromId);
+                                }
+                              : null,
+                          child: Text(
+                            'Forwarded from ${message.forwardFrom}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: message.forwardFromId.isNotEmpty
+                                  ? (isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD))
+                                  : theme.textTheme.bodySmall?.color,
+                            ),
                           ),
                         ),
                       ),
@@ -3566,33 +3576,43 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                 ),
                 Positioned.fill(
                   child: Center(
-                    child: SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.4),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          AnimatedBuilder(
-                            animation: _uploadSpinController,
-                            builder: (_, __) => CustomPaint(
-                              size: const Size(44, 44),
-                              painter: _IndeterminateProgressPainter(
-                                rotation: _uploadSpinController.value * 2 * math.pi,
-                                strokeWidth: 3,
-                                color: Colors.white,
+                    child: GestureDetector(
+                      onTap: () {
+                        final engine = context.read<EngineService>();
+                        final chatState = context.read<ChatState>();
+                        final chat = chatState.activeChat;
+                        if (chat != null) {
+                          engine.deleteMessage(chat.accountId, chat.chatId, message.msgId);
+                        }
+                      },
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                shape: BoxShape.circle,
                               ),
                             ),
-                          ),
-                          const Icon(Icons.close, color: Colors.white, size: 22),
-                        ],
+                            AnimatedBuilder(
+                              animation: _uploadSpinController,
+                              builder: (_, __) => CustomPaint(
+                                size: const Size(44, 44),
+                                painter: _IndeterminateProgressPainter(
+                                  rotation: _uploadSpinController.value * 2 * math.pi,
+                                  strokeWidth: 3,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const Icon(Icons.close, color: Colors.white, size: 22),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -4850,10 +4870,8 @@ class _LocationIndicatorState extends State<_LocationIndicator> {
 
   static String _staticMapUrl(double lat, double lng, int w, int h) {
     final zoom = 15;
-    final tileX = ((lng + 180) / 360 * (1 << zoom)).floor();
-    final latRad = lat * math.pi / 180;
-    final tileY = ((1 - math.log(math.tan(latRad) + 1 / math.cos(latRad)) / math.pi) / 2 * (1 << zoom)).floor();
-    return 'https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png';
+    final scale = 2;
+    return 'https://maps.telegram.org/static/$lat,$lng,$zoom/${w * scale}x${h * scale}?scale=$scale';
   }
 
   void _openCoordinates() {
@@ -7210,14 +7228,54 @@ class _RichMessageTextState extends State<_RichMessageText> {
         );
       case 'mention':
       case 'mention_name':
-      case 'hashtag':
-      case 'bot_command':
-      case 'cashtag':
+        final mentionRecognizer = TapGestureRecognizer()
+          ..onTap = () {
+            final username = text.startsWith('@') ? text.substring(1) : text;
+            final engine = context.read<EngineService>();
+            final accountId = widget.accountId;
+            if (accountId.isNotEmpty) {
+              engine.resolveUsername(accountId, username).then((chatId) {
+                if (chatId != null && chatId.isNotEmpty && mounted) {
+                  context.read<ChatState>().openChatById(chatId);
+                }
+              });
+            }
+          };
+        _recognizers.add(mentionRecognizer);
         return TextSpan(
           text: text,
           style: TextStyle(
             color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
           ),
+          recognizer: mentionRecognizer,
+        );
+      case 'hashtag':
+      case 'cashtag':
+        final hashRecognizer = TapGestureRecognizer()
+          ..onTap = () {
+            ChatView.openSearchRequest?.call(text);
+          };
+        _recognizers.add(hashRecognizer);
+        return TextSpan(
+          text: text,
+          style: TextStyle(
+            color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
+          ),
+          recognizer: hashRecognizer,
+        );
+      case 'bot_command':
+        final cmdRecognizer = TapGestureRecognizer()
+          ..onTap = () {
+            ChatView.setComposeRequest?.call(text);
+            ChatView.sendComposeRequest?.call();
+          };
+        _recognizers.add(cmdRecognizer);
+        return TextSpan(
+          text: text,
+          style: TextStyle(
+            color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
+          ),
+          recognizer: cmdRecognizer,
         );
       case 'email':
         final recognizer = TapGestureRecognizer()
@@ -8036,7 +8094,7 @@ class _PollWidgetState extends State<_PollWidget>
           ),
           const SizedBox(height: 2),
           Text(
-            isQuiz ? 'Quiz' : (isMultiple ? 'Multiple answers' : 'Anonymous Poll'),
+            isQuiz ? 'Quiz' : (isMultiple ? 'Multiple answers' : (msg.pollPublic ? 'Poll' : 'Anonymous Poll')),
             style: TextStyle(
               fontSize: 12,
               color: isDark ? Colors.white54 : Colors.black45,
@@ -9577,8 +9635,10 @@ class _InlineButtonState extends State<_InlineButton>
         }
       case 'switch_inline':
         final chatState = context.read<ChatState>();
-        final chat = chatState.activeChat;
-        final botUsername = chat?.title ?? '';
+        final msg = chatState.messages.where((m) => m.msgId == widget.messageId).firstOrNull;
+        final botUsername = msg?.viaBotName.isNotEmpty == true
+            ? msg!.viaBotName
+            : (msg?.senderName ?? '');
         final query = btn.query;
         final text = '@$botUsername $query';
         ChatView.setComposeRequest?.call(text);

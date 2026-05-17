@@ -184,6 +184,8 @@ class ChatView extends StatefulWidget {
   static void requestScrollPage(bool isUp) =>
       scrollPageRequest?.call(isUp);
 
+  static void Function(String query)? openSearchRequest;
+
   /// Invoked by the app-level Ctrl+Up / Ctrl+Down bindings. Returns true if
   /// consumed.
   static bool requestCycleReply(int direction) =>
@@ -506,6 +508,7 @@ class _ChatViewState extends State<ChatView>
       }
     };
     ChatView.scrollPageRequest = _scrollPage;
+    ChatView.openSearchRequest = _openSearchWithQuery;
     ChatView.clearFormattingRequest = () {
       _composeController.clearFormatting();
     };
@@ -596,6 +599,9 @@ class _ChatViewState extends State<ChatView>
     ChatView.toggleEmojiPanelRequest = null;
     if (ChatView.scrollPageRequest == _scrollPage) {
       ChatView.scrollPageRequest = null;
+    }
+    if (ChatView.openSearchRequest == _openSearchWithQuery) {
+      ChatView.openSearchRequest = null;
     }
     ChatView.clearFormattingRequest = null;
     ChatView.showSendFilesBoxRequest = null;
@@ -1133,6 +1139,15 @@ class _ChatViewState extends State<ChatView>
       return animValue / fadeInEnd;
     }
     return 1.0 - (animValue - fadeInEnd) / (1.0 - fadeInEnd);
+  }
+
+  void _openSearchWithQuery(String query) {
+    setState(() {
+      _isSearching = true;
+      _searchController.text = query;
+    });
+    _searchFocusNode.requestFocus();
+    _onSearchQueryChanged();
   }
 
   void _scrollPage(bool isUp) {

@@ -2504,6 +2504,7 @@ class EngineService {
         isDeleted: true,
         deletedAt: map['deleted_at'] as int? ?? 0,
         forwardFrom: map['forward_from'] as String? ?? '',
+        forwardFromId: map['forward_from_id'] as String? ?? '',
         replyToId: map['reply_to_id'] as String? ?? '',
         replyPreview: map['reply_preview'] as String? ?? '',
         hasMedia: map['has_media'] == true || map['has_media'] == 1,
