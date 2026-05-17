@@ -931,7 +931,11 @@ class _MediaViewerState extends State<MediaViewer>
       for (int i = _chapters.length - 1; i >= 0; i--) {
         if (_chapters[i].position < progress - 0.01) { target = _chapters[i]; break; }
       }
-      target ??= _chapters.first;
+      if (target == null) {
+        _player?.seek(Duration.zero);
+        _showControls();
+        return;
+      }
     }
     if (target == null) return;
     final ms = (target.position * _duration.inMilliseconds).round();
