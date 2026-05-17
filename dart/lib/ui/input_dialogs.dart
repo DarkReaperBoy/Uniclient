@@ -546,7 +546,6 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _codeCtrl = TextEditingController();
   late final FocusNode _firstNameFocus;
   late final FocusNode _lastNameFocus;
   late final FocusNode _phoneFocus;
@@ -570,7 +569,6 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     _firstNameFocus = FocusNode();
     _lastNameFocus = FocusNode();
     _phoneFocus = FocusNode();
-    _codeCtrl.text = _selectedCountry.dialCode;
     _phoneFormatter = _PhoneNumberFormatter(dialCode: _selectedCountry.dialCode);
     final locale = WidgetsBinding.instance.platformDispatcher.locale;
     _invertNameOrder = const {'ja', 'ko', 'zh', 'hu', 'vi'}.contains(locale.languageCode);
@@ -584,7 +582,6 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _phoneCtrl.dispose();
-    _codeCtrl.dispose();
     _firstNameFocus.dispose();
     _lastNameFocus.dispose();
     _phoneFocus.dispose();
@@ -602,16 +599,6 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     return digits.length >= 8;
   }
 
-  void _onCodeChanged(String val) {
-    final code = val.replaceAll(RegExp(r'\D'), '');
-    if (code.isEmpty) return;
-    final match = countries.where((c) => c.dialCode == code).firstOrNull;
-    if (match != null && match != _selectedCountry) {
-      _phoneFormatter.dialCode = code;
-      setState(() => _selectedCountry = match);
-    }
-  }
-
   void _showCountryPicker() {
     showTelegramBox(
       context: context,
@@ -619,10 +606,7 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
         selected: _selectedCountry,
         onSelect: (country) {
           _phoneFormatter.dialCode = country.dialCode;
-          setState(() {
-            _selectedCountry = country;
-            _codeCtrl.text = country.dialCode;
-          });
+          setState(() => _selectedCountry = country);
           Navigator.of(ctx).pop();
         },
       ),
@@ -649,7 +633,7 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
       return;
     }
 
-    final code = _codeCtrl.text.replaceAll(RegExp(r'\D'), '');
+    final code = _selectedCountry.dialCode;
     final number = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
     final fullPhone = '+$code$number';
 
@@ -773,96 +757,53 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
                       onSubmitted: (_) => _phoneFocus.requestFocus(),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 30),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Icon(Icons.phone_outlined, size: 20, color: subColor),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: InkWell(
-                          onTap: _showCountryPicker,
-                          child: Row(
-                            children: [
-                              Text(
-                                _selectedCountry.flag,
-                                style: const TextStyle(fontSize: 20),
+                        child: TextField(
+                          controller: _phoneCtrl,
+                          focusNode: _phoneFocus,
+                          style: TextStyle(fontSize: 15, color: textColor),
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [_phoneFormatter],
+                          enabled: !_saving,
+                          decoration: InputDecoration(
+                            hintText: 'Phone number',
+                            hintStyle: TextStyle(fontSize: 14, color: subColor),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                            prefixIcon: InkWell(
+                              onTap: _saving ? null : _showCountryPicker,
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(_selectedCountry.flag,
+                                        style: const TextStyle(fontSize: 18)),
+                                    const SizedBox(width: 4),
+                                    Text('+${_selectedCountry.dialCode}',
+                                        style: TextStyle(fontSize: 15, color: textColor)),
+                                    Icon(Icons.arrow_drop_down, size: 16, color: subColor),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                _selectedCountry.name,
-                                style: TextStyle(fontSize: 14, color: textColor),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(Icons.arrow_drop_down, size: 18, color: subColor),
-                            ],
+                            ),
+                            prefixIconConstraints:
+                                const BoxConstraints(minWidth: 0, minHeight: 0),
+                            enabledBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(color: borderColor)),
+                            focusedBorder: UnderlineInputBorder(
+                                borderSide:
+                                    BorderSide(color: focusBorderColor, width: 2)),
                           ),
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 32),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: 70,
-                          child: Row(
-                            children: [
-                              Text('+',
-                                  style: TextStyle(fontSize: 15, color: textColor)),
-                              Expanded(
-                                child: TextField(
-                                  controller: _codeCtrl,
-                                  style: TextStyle(fontSize: 15, color: textColor),
-                                  decoration: InputDecoration(
-                                    border: InputBorder.none,
-                                    isDense: true,
-                                    contentPadding:
-                                        const EdgeInsets.symmetric(vertical: 8),
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.digitsOnly
-                                  ],
-                                  onChanged: _onCodeChanged,
-                                  enabled: !_saving,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          width: 1,
-                          height: 30,
-                          color: borderColor,
-                          margin: const EdgeInsets.symmetric(horizontal: 8),
-                        ),
-                        Expanded(
-                          child: TextField(
-                            controller: _phoneCtrl,
-                            focusNode: _phoneFocus,
-                            style: TextStyle(fontSize: 15, color: textColor),
-                            keyboardType: TextInputType.phone,
-                            inputFormatters: [_phoneFormatter],
-                            enabled: !_saving,
-                            decoration: InputDecoration(
-                              hintText: 'Phone number',
-                              hintStyle: TextStyle(fontSize: 14, color: subColor),
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                              enabledBorder: UnderlineInputBorder(
-                                  borderSide: BorderSide(color: borderColor)),
-                              focusedBorder: UnderlineInputBorder(
-                                  borderSide:
-                                      BorderSide(color: focusBorderColor, width: 2)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
@@ -880,10 +821,11 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
               ),
       ),
       buttons: [
-        TelegramBoxButton(
-          text: 'Cancel',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        if (!_retry)
+          TelegramBoxButton(
+            text: 'Cancel',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         TelegramBoxButton(
           text: _retry ? 'Try another contact' : 'Add',
           onPressed: !_saving ? _submit : null,
