@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
@@ -156,7 +157,9 @@ class _InfoPanelState extends State<InfoPanel> {
   void _restoreScroll() {
     final idx = _navStack.length - 1;
     final old = _scrollControllers.remove(idx + 1);
-    old?.dispose();
+    if (old != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+    }
     final ctrl = _scrollControllers[idx];
     if (ctrl != null && ctrl.hasClients) {
       ctrl.jumpTo(_currentPage.scrollOffset);
@@ -164,13 +167,16 @@ class _InfoPanelState extends State<InfoPanel> {
   }
 
   void _resetNavStack() {
-    for (final c in _scrollControllers.values) {
-      c.dispose();
-    }
+    final oldControllers = List<ScrollController>.of(_scrollControllers.values);
     _scrollControllers.clear();
     _navStack.clear();
     _navStack.add(_InfoNavPage(type: _InfoPageType.chatInfo));
     _isPushing = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final c in oldControllers) {
+        c.dispose();
+      }
+    });
   }
 
   @override
@@ -2311,6 +2317,8 @@ class _ChatInfoPage extends StatefulWidget {
 class _ChatInfoPageState extends State<_ChatInfoPage> {
   static const _snapPoints = [0.0, 112.0, 180.0];
   Timer? _snapTimer;
+  List<Widget>? _cachedSections;
+  int? _sectionsDepsHash;
 
   @override
   void dispose() {
@@ -2431,6 +2439,23 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
   }
 
   List<Widget> _buildInfoSections(BuildContext context) {
+    final depsHash = Object.hashAll([
+      widget.chat.chatId,
+      widget.chat.type,
+      widget.chat.title,
+      widget.chat.isMuted,
+      widget.chat.memberCount,
+      widget.mediaCounts.length,
+      widget.members?.length ?? -1,
+      widget.loadingMembers,
+      widget.isLayer,
+      widget.pinnedGifts.length,
+    ]);
+    if (_cachedSections != null && depsHash == _sectionsDepsHash) {
+      return _cachedSections!;
+    }
+    _sectionsDepsHash = depsHash;
+
     final sections = <Widget>[
       const SizedBox(height: 16),
       _ChatDetails(chat: widget.chat, theme: widget.theme),
@@ -2513,7 +2538,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
       ],
       const SizedBox(height: 16),
     ];
-    return [
+    _cachedSections = [
       SliverList(
         delegate: SliverChildBuilderDelegate(
           (_, index) => sections[index],
@@ -2521,6 +2546,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
         ),
       ),
     ];
+    return _cachedSections!;
   }
 
   @override
@@ -3294,46 +3320,7 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
   }
 
   Widget _buildGifCellInline(SharedMediaItem item, double rowHeight) {
-    final ar = (item.width > 0 && item.height > 0)
-        ? item.width / item.height
-        : 1.0;
-    final cellWidth = rowHeight * ar;
-    final isDark = widget.theme.brightness == Brightness.dark;
-    final placeholderColor = isDark
-        ? const Color(0xFF2b3945)
-        : const Color(0xFFe0e0e0);
-
-    Widget content;
-    if (item.thumbB64.isNotEmpty) {
-      try {
-        final bytes = _GridCell._decodeThumb(item.thumbB64);
-        if (_GridCell._isValidImage(bytes)) {
-          content = Image.memory(
-            bytes,
-            width: cellWidth,
-            height: rowHeight,
-            fit: BoxFit.cover,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => Container(color: placeholderColor),
-          );
-        } else {
-          content = Container(color: placeholderColor);
-        }
-      } catch (_) {
-        content = Container(color: placeholderColor);
-      }
-    } else {
-      content = Container(
-        color: placeholderColor,
-        child: Center(child: Icon(Icons.gif, size: 24, color: placeholderColor.withValues(alpha: 0.6))),
-      );
-    }
-
-    return SizedBox(
-      width: cellWidth,
-      height: rowHeight,
-      child: ClipRRect(child: content),
-    );
+    return _GifCell(item: item, rowHeight: rowHeight, theme: widget.theme);
   }
 
   Widget _buildLazyList() {
@@ -6003,62 +5990,7 @@ class _GifMasonryGrid extends StatelessWidget {
   }
 
   Widget _buildGifCell(SharedMediaItem item, double rowHeight) {
-    final ar = (item.width > 0 && item.height > 0)
-        ? item.width / item.height
-        : 1.0;
-    final cellWidth = rowHeight * ar;
-    final isDark = theme.brightness == Brightness.dark;
-    final placeholderColor = isDark
-        ? const Color(0xFF2b3945)
-        : const Color(0xFFe0e0e0);
-
-    Widget content;
-    if (item.thumbB64.isNotEmpty) {
-      try {
-        final bytes = _GridCell._decodeThumb(item.thumbB64);
-        if (_GridCell._isValidImage(bytes)) {
-          content = Image.memory(
-            bytes,
-            width: cellWidth,
-            height: rowHeight,
-            fit: BoxFit.cover,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => Container(color: placeholderColor),
-          );
-        } else {
-          content = Container(color: placeholderColor);
-        }
-      } catch (_) {
-        content = Container(color: placeholderColor);
-      }
-    } else {
-      content = Container(
-        color: placeholderColor,
-        child: Center(child: Icon(Icons.gif, size: 24, color: placeholderColor.withValues(alpha: 0.6))),
-      );
-    }
-
-    return SizedBox(
-      width: cellWidth,
-      height: rowHeight,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipRRect(child: content),
-          Positioned(
-            left: 4, bottom: 4,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(3),
-              ),
-              child: const Text('GIF', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
-            ),
-          ),
-        ],
-      ),
-    );
+    return _GifCell(item: item, rowHeight: rowHeight, theme: theme);
   }
 }
 
@@ -6449,7 +6381,7 @@ class _DateHeader extends StatelessWidget {
   }
 }
 
-class _GridCell extends StatelessWidget {
+class _GridCell extends StatefulWidget {
   final SharedMediaItem item;
   final double size;
   final double height;
@@ -6463,102 +6395,13 @@ class _GridCell extends StatelessWidget {
   }) : height = height ?? size;
 
   @override
-  Widget build(BuildContext context) {
-    final isDark = theme.brightness == Brightness.dark;
-    final placeholderColor = isDark
-        ? const Color(0xFF2b3945)
-        : const Color(0xFFe0e0e0);
-
-    Widget content;
-    if (item.thumbB64.isNotEmpty) {
-      try {
-        final bytes = _decodeThumb(item.thumbB64);
-        if (_isValidImage(bytes)) {
-          content = Image.memory(
-            bytes,
-            width: size,
-            height: height,
-            fit: BoxFit.cover,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => _placeholder(placeholderColor),
-          );
-        } else {
-          content = _placeholder(placeholderColor);
-        }
-      } catch (_) {
-        content = _placeholder(placeholderColor);
-      }
-    } else if (item.localPath.isNotEmpty && File(item.localPath).existsSync()) {
-      content = Image.file(
-        File(item.localPath),
-        width: size,
-        height: height,
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
-        errorBuilder: (_, __, ___) => _placeholder(placeholderColor),
-      );
-    } else {
-      content = _placeholder(placeholderColor);
-    }
-
-    final isVideo = item.isVideo;
-    return SizedBox(
-      width: size,
-      height: height,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipRRect(child: content),
-          if (isVideo && item.duration > 0)
-            Positioned(
-              right: 4,
-              bottom: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Text(
-                  _formatDuration(item.duration),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _placeholder(Color color) {
-    final isVideo = item.isVideo;
-    return Container(
-      color: color,
-      child: Center(
-        child: Icon(
-          isVideo ? Icons.videocam : Icons.photo,
-          size: 24,
-          color: color.withValues(alpha: 0.6),
-        ),
-      ),
-    );
-  }
-
-  static String _formatDuration(int seconds) {
-    final m = seconds ~/ 60;
-    final s = seconds % 60;
-    return '$m:${s.toString().padLeft(2, '0')}';
-  }
+  State<_GridCell> createState() => _GridCellState();
 
   static bool _isValidImage(Uint8List data) {
     if (data.length < 4) return false;
-    if (data[0] == 0xFF && data[1] == 0xD8) return true; // JPEG
-    if (data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47) return true; // PNG
-    if (data[0] == 0x52 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x46) return true; // WebP (RIFF)
+    if (data[0] == 0xFF && data[1] == 0xD8) return true;
+    if (data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47) return true;
+    if (data[0] == 0x52 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x46) return true;
     return false;
   }
 
@@ -6636,6 +6479,217 @@ class _GridCell extends StatelessWidget {
     tmpl[164] = h;
     tmpl[166] = w;
     return tmpl;
+  }
+}
+
+class _GridCellState extends State<_GridCell> {
+  Uint8List? _decodedBytes;
+  bool _decoding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDecode();
+  }
+
+  @override
+  void didUpdateWidget(_GridCell old) {
+    super.didUpdateWidget(old);
+    if (old.item.thumbB64 != widget.item.thumbB64 ||
+        old.item.localPath != widget.item.localPath) {
+      _decodedBytes = null;
+      _startDecode();
+    }
+  }
+
+  void _startDecode() {
+    if (widget.item.thumbB64.isNotEmpty) {
+      _decoding = true;
+      compute(_decodeThumbIsolate, widget.item.thumbB64).then((bytes) {
+        if (mounted) {
+          setState(() {
+            _decodedBytes = bytes;
+            _decoding = false;
+          });
+        }
+      }).catchError((_) {
+        if (mounted) setState(() => _decoding = false);
+      });
+    }
+  }
+
+  static Uint8List? _decodeThumbIsolate(String b64) {
+    final bytes = _GridCell._decodeThumb(b64);
+    return _GridCell._isValidImage(bytes) ? bytes : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.theme.brightness == Brightness.dark;
+    final placeholderColor = isDark
+        ? const Color(0xFF2b3945)
+        : const Color(0xFFe0e0e0);
+
+    Widget content;
+    if (_decodedBytes != null) {
+      content = Image.memory(
+        _decodedBytes!,
+        width: widget.size,
+        height: widget.height,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => _placeholder(placeholderColor),
+      );
+    } else if (!_decoding && widget.item.localPath.isNotEmpty && File(widget.item.localPath).existsSync()) {
+      content = Image.file(
+        File(widget.item.localPath),
+        width: widget.size,
+        height: widget.height,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => _placeholder(placeholderColor),
+      );
+    } else {
+      content = _placeholder(placeholderColor);
+    }
+
+    final isVideo = widget.item.isVideo;
+    return SizedBox(
+      width: widget.size,
+      height: widget.height,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(child: content),
+          if (isVideo && widget.item.duration > 0)
+            Positioned(
+              right: 4,
+              bottom: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Text(
+                  _formatDuration(widget.item.duration),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder(Color color) {
+    final isVideo = widget.item.isVideo;
+    return Container(
+      color: color,
+      child: Center(
+        child: Icon(
+          isVideo ? Icons.videocam : Icons.photo,
+          size: 24,
+          color: color.withValues(alpha: 0.6),
+        ),
+      ),
+    );
+  }
+
+  static String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+}
+
+class _GifCell extends StatefulWidget {
+  final SharedMediaItem item;
+  final double rowHeight;
+  final ThemeData theme;
+
+  const _GifCell({
+    required this.item,
+    required this.rowHeight,
+    required this.theme,
+  });
+
+  @override
+  State<_GifCell> createState() => _GifCellState();
+}
+
+class _GifCellState extends State<_GifCell> {
+  Uint8List? _decodedBytes;
+  bool _decoding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDecode();
+  }
+
+  @override
+  void didUpdateWidget(_GifCell old) {
+    super.didUpdateWidget(old);
+    if (old.item.thumbB64 != widget.item.thumbB64) {
+      _decodedBytes = null;
+      _startDecode();
+    }
+  }
+
+  void _startDecode() {
+    if (widget.item.thumbB64.isNotEmpty) {
+      _decoding = true;
+      compute(_GridCellState._decodeThumbIsolate, widget.item.thumbB64).then((bytes) {
+        if (mounted) {
+          setState(() {
+            _decodedBytes = bytes;
+            _decoding = false;
+          });
+        }
+      }).catchError((_) {
+        if (mounted) setState(() => _decoding = false);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = (widget.item.width > 0 && widget.item.height > 0)
+        ? widget.item.width / widget.item.height
+        : 1.0;
+    final cellWidth = widget.rowHeight * ar;
+    final isDark = widget.theme.brightness == Brightness.dark;
+    final placeholderColor = isDark
+        ? const Color(0xFF2b3945)
+        : const Color(0xFFe0e0e0);
+
+    Widget content;
+    if (_decodedBytes != null) {
+      content = Image.memory(
+        _decodedBytes!,
+        width: cellWidth,
+        height: widget.rowHeight,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => Container(color: placeholderColor),
+      );
+    } else {
+      content = Container(
+        color: placeholderColor,
+        child: Center(child: Icon(Icons.gif, size: 24, color: placeholderColor.withValues(alpha: 0.6))),
+      );
+    }
+
+    return SizedBox(
+      width: cellWidth,
+      height: widget.rowHeight,
+      child: ClipRRect(child: content),
+    );
   }
 }
 
@@ -9203,6 +9257,15 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
     super.initState();
     widget.scrollController.addListener(_onScroll);
     _loadStats();
+  }
+
+  @override
+  void didUpdateWidget(_MessageStatsPage old) {
+    super.didUpdateWidget(old);
+    if (old.scrollController != widget.scrollController) {
+      old.scrollController.removeListener(_onScroll);
+      widget.scrollController.addListener(_onScroll);
+    }
   }
 
   @override
