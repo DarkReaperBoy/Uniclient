@@ -946,7 +946,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void setIvZoom(double v) {
-    v = v.clamp(0.5, 3.0);
+    v = v.clamp(1.0, 3.0);
     if ((_ivZoom - v).abs() < 0.01) return;
     _ivZoom = v;
     notifyListeners();

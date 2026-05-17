@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -43,6 +44,7 @@ class _InstantViewPageState extends State<InstantViewPage> {
   bool _loading = true;
   String? _error;
   late double _zoomFactor;
+  int _zoomLevel = 100;
   final ScrollController _scrollController = ScrollController();
   bool _showScrollToTop = false;
 
@@ -52,7 +54,9 @@ class _InstantViewPageState extends State<InstantViewPage> {
   @override
   void initState() {
     super.initState();
-    _zoomFactor = context.read<AppState>().ivZoom;
+    final storedZoom = context.read<AppState>().ivZoom;
+    _zoomLevel = (storedZoom * 100).round().clamp(100, 300);
+    _zoomFactor = _zoomLevel / 100.0;
     _scrollController.addListener(_onScroll);
     _navigateTo(widget.url, push: false);
   }
@@ -156,13 +160,22 @@ class _InstantViewPageState extends State<InstantViewPage> {
     });
   }
 
-  void _zoomIn() => _setZoom((_zoomFactor + 0.1).clamp(0.5, 3.0));
-  void _zoomOut() => _setZoom((_zoomFactor - 0.1).clamp(0.5, 3.0));
-  void _zoomReset() => _setZoom(1.0);
+  int _getZoomStep() {
+    if (HardwareKeyboard.instance.isAltPressed) return 1;
+    if (HardwareKeyboard.instance.isControlPressed) return 5;
+    return 10;
+  }
 
-  void _setZoom(double v) {
-    setState(() => _zoomFactor = v);
-    context.read<AppState>().setIvZoom(v);
+  void _zoomIn() => _setZoomLevel((_zoomLevel + _getZoomStep()).clamp(100, 300));
+  void _zoomOut() => _setZoomLevel((_zoomLevel - _getZoomStep()).clamp(100, 300));
+  void _zoomReset() => _setZoomLevel(100);
+
+  void _setZoomLevel(int level) {
+    setState(() {
+      _zoomLevel = level;
+      _zoomFactor = level / 100.0;
+    });
+    context.read<AppState>().setIvZoom(_zoomFactor);
   }
 
   @override
@@ -174,7 +187,9 @@ class _InstantViewPageState extends State<InstantViewPage> {
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.equal, control: true): _zoomIn,
+        const SingleActivator(LogicalKeyboardKey.equal, control: true, alt: true): _zoomIn,
         const SingleActivator(LogicalKeyboardKey.minus, control: true): _zoomOut,
+        const SingleActivator(LogicalKeyboardKey.minus, control: true, alt: true): _zoomOut,
         const SingleActivator(LogicalKeyboardKey.digit0, control: true): _zoomReset,
       },
       child: Focus(
@@ -245,7 +260,7 @@ class _InstantViewPageState extends State<InstantViewPage> {
   }
 
   Widget _buildZoomButton(Color fgColor) {
-    if (_zoomFactor == 1.0) {
+    if (_zoomLevel == 100) {
       return IconButton(
         icon: const Icon(Icons.zoom_in, size: 20),
         tooltip: 'Zoom (Ctrl+/Ctrl-)',
@@ -267,7 +282,7 @@ class _InstantViewPageState extends State<InstantViewPage> {
           ),
           GestureDetector(
             onTap: _zoomReset,
-            child: Text('${(_zoomFactor * 100).round()}%', style: TextStyle(fontSize: 12, color: fgColor)),
+            child: Text('$_zoomLevel%', style: TextStyle(fontSize: 12, color: fgColor)),
           ),
           SizedBox(
             width: 26, height: 26,
@@ -311,21 +326,25 @@ class _InstantViewPageState extends State<InstantViewPage> {
       textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
       child: MediaQuery(
         data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(_zoomFactor)),
-        child: SingleChildScrollView(
+        child: CustomScrollView(
           controller: _scrollController,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: blocks.map((b) {
-              final block = b as Map<String, dynamic>;
-              return _IvBlock(
-                block: block,
-                isDark: isDark,
-                accountId: widget.accountId,
-                onNavigateIV: (url) => _navigateTo(url),
-              );
-            }).toList(),
-          ),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              sliver: SliverList.builder(
+                itemCount: blocks.length,
+                itemBuilder: (context, index) {
+                  final block = blocks[index] as Map<String, dynamic>;
+                  return _IvBlock(
+                    block: block,
+                    isDark: isDark,
+                    accountId: widget.accountId,
+                    onNavigateIV: (url) => _navigateTo(url),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -917,92 +936,22 @@ class _IvBlock extends StatelessWidget {
   }
 
   Widget _buildEmbed(BuildContext context) {
-    final embedUrl = block['url'] as String?;
-    final embedHtml = block['html'] as String?;
-    final w = (block['w'] as num?)?.toDouble() ?? 0;
-    final h = (block['h'] as num?)?.toDouble() ?? 0;
-
-    String? displayUrl = embedUrl;
-    String? embedTitle;
-    IconData embedIcon = Icons.web;
-
-    if (displayUrl != null) {
-      final lower = displayUrl.toLowerCase();
-      if (lower.contains('youtube.com') || lower.contains('youtu.be')) {
-        embedIcon = Icons.play_circle_filled;
-        embedTitle = 'YouTube Video';
-      } else if (lower.contains('twitter.com') || lower.contains('x.com')) {
-        embedIcon = Icons.chat_bubble;
-        embedTitle = 'Post';
-      } else if (lower.contains('instagram.com')) {
-        embedIcon = Icons.photo_camera;
-        embedTitle = 'Instagram';
-      } else if (lower.contains('vimeo.com')) {
-        embedIcon = Icons.play_circle_filled;
-        embedTitle = 'Vimeo Video';
-      } else if (lower.contains('soundcloud.com')) {
-        embedIcon = Icons.music_note;
-        embedTitle = 'SoundCloud';
-      }
-    }
-
-    if (displayUrl == null && embedHtml != null) {
-      final srcMatch = RegExp(r'''src=["']([^"']+)["']''').firstMatch(embedHtml);
-      if (srcMatch != null) displayUrl = srcMatch.group(1);
-    }
-
-    final targetUrl = displayUrl ?? embedUrl;
-
+    final caption = block['caption'];
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GestureDetector(
-        onTap: targetUrl != null
-            ? () => launchUrl(Uri.parse(targetUrl), mode: LaunchMode.externalApplication)
-            : null,
-        child: Container(
-          width: double.infinity,
-          constraints: BoxConstraints(minHeight: h > 0 ? h.clamp(60, 400) : 80),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf4f4f5),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: isDark ? const Color(0xFF2a3a4a) : const Color(0xFFe0e0e0)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _IvEmbedBlock(
+            block: block,
+            isDark: isDark,
+            accountId: accountId,
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(embedIcon, size: 32, color: _accentColor),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (embedTitle != null)
-                          Text(embedTitle, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _textColor)),
-                        if (targetUrl != null)
-                          Text(
-                            targetUrl,
-                            style: TextStyle(fontSize: 13, color: _accentColor, decoration: TextDecoration.underline),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (targetUrl != null)
-                    Icon(Icons.open_in_new, size: 16, color: _subtleColor),
-                ],
-              ),
-              if (block['caption'] != null) ...[
-                const SizedBox(height: 8),
-                _buildCaption(context, block['caption']),
-              ],
-            ],
-          ),
-        ),
+          if (caption != null) ...[
+            const SizedBox(height: 8),
+            _buildCaption(context, caption),
+          ],
+        ],
       ),
     );
   }
@@ -1460,7 +1409,23 @@ class _IvBlock extends StatelessWidget {
 
     if (lat == null || lng == null) return const SizedBox.shrink();
 
-    final tileUrl = 'https://static-maps.yandex.ru/1.x/?lang=en-US&ll=${lng.toDouble()},${lat.toDouble()}&z=$zoom&size=${mapW.clamp(100, 650)},${mapH.clamp(100, 450)}&l=map';
+    final latD = lat.toDouble();
+    final lngD = lng.toDouble();
+    final displayW = mapW.toDouble().clamp(200.0, 800.0);
+    final displayH = mapH.toDouble().clamp(100.0, 400.0);
+
+    final n = 1 << zoom;
+    final latRad = latD * math.pi / 180.0;
+    final worldPixelX = ((lngD + 180.0) / 360.0) * n * 256;
+    final worldPixelY = ((1.0 - math.log(math.tan(latRad) + 1.0 / math.cos(latRad)) / math.pi) / 2.0) * n * 256;
+
+    final viewLeftPixel = worldPixelX - displayW / 2;
+    final viewTopPixel = worldPixelY - displayH / 2;
+
+    final tileXStart = (viewLeftPixel / 256).floor();
+    final tileYStart = (viewTopPixel / 256).floor();
+    final tileXEnd = ((viewLeftPixel + displayW) / 256).floor();
+    final tileYEnd = ((viewTopPixel + displayH) / 256).floor();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -1468,47 +1433,50 @@ class _IvBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onTap: () => launchUrl(Uri.parse('https://www.openstreetmap.org/?mlat=$lat&mlon=$lng#map=$zoom/$lat/$lng'), mode: LaunchMode.externalApplication),
+            onTap: () => launchUrl(Uri.parse('https://www.openstreetmap.org/?mlat=$latD&mlon=$lngD#map=$zoom/$latD/$lngD'), mode: LaunchMode.externalApplication),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Stack(
-                children: [
-                  Image.network(
-                    tileUrl,
-                    width: double.infinity,
-                    height: mapH.toDouble().clamp(100, 400),
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: double.infinity,
-                      height: mapH.toDouble().clamp(100, 400),
-                      color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.place, size: 40, color: _accentColor),
-                            const SizedBox(height: 6),
-                            Text('${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}', style: TextStyle(fontSize: 13, color: _subtleColor)),
-                            const SizedBox(height: 4),
-                            Text('Open in maps', style: TextStyle(fontSize: 12, color: _accentColor, fontWeight: FontWeight.w500)),
-                          ],
+              child: SizedBox(
+                width: displayW,
+                height: displayH,
+                child: Stack(
+                  clipBehavior: Clip.hardEdge,
+                  children: [
+                    for (int ty = tileYStart; ty <= tileYEnd; ty++)
+                      for (int tx = tileXStart; tx <= tileXEnd; tx++)
+                        Positioned(
+                          left: tx * 256.0 - viewLeftPixel,
+                          top: ty * 256.0 - viewTopPixel,
+                          width: 256,
+                          height: 256,
+                          child: Image.network(
+                            'https://tile.openstreetmap.org/$zoom/${((tx % n) + n) % n}/${ty.clamp(0, n - 1)}.png',
+                            fit: BoxFit.fill,
+                            headers: const {'User-Agent': 'UniClient/1.0'},
+                            errorBuilder: (_, __, ___) => Container(
+                              color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed),
+                            ),
+                          ),
+                        ),
+                    Positioned(
+                      left: displayW / 2 - 14,
+                      top: displayH / 2 - 36,
+                      child: Icon(Icons.location_pin, color: Colors.red.shade700, size: 36),
+                    ),
+                    Positioned(
+                      left: 0, right: 0, bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        color: Colors.black45,
+                        child: Text(
+                          '${latD.toStringAsFixed(4)}, ${lngD.toStringAsFixed(4)}',
+                          style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    left: 0, right: 0, bottom: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      color: Colors.black45,
-                      child: Text(
-                        'Open in maps',
-                        style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -2186,6 +2154,353 @@ class _IvAudioBlockState extends State<_IvAudioBlock> {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _IvEmbedBlock extends StatefulWidget {
+  final Map<String, dynamic> block;
+  final bool isDark;
+  final String accountId;
+
+  const _IvEmbedBlock({required this.block, required this.isDark, required this.accountId});
+
+  @override
+  State<_IvEmbedBlock> createState() => _IvEmbedBlockState();
+}
+
+class _IvEmbedBlockState extends State<_IvEmbedBlock> {
+  Player? _player;
+  VideoController? _videoController;
+  bool _playing = false;
+  bool _loading = false;
+
+  Color get _accentColor => widget.isDark ? const Color(0xFF71baf7) : const Color(0xFF168acd);
+  Color get _textColor => widget.isDark ? const Color(0xFFe0e4e8) : const Color(0xFF222222);
+  Color get _subtleColor => widget.isDark ? const Color(0xFF8a9bab) : const Color(0xFF777777);
+
+  @override
+  void dispose() {
+    _player?.dispose();
+    super.dispose();
+  }
+
+  static String? _extractYouTubeId(String url) {
+    for (final p in [
+      RegExp(r'youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})'),
+      RegExp(r'youtu\.be/([a-zA-Z0-9_-]{11})'),
+      RegExp(r'youtube\.com/embed/([a-zA-Z0-9_-]{11})'),
+    ]) {
+      final m = p.firstMatch(url);
+      if (m != null) return m.group(1);
+    }
+    return null;
+  }
+
+  static String? _extractVimeoId(String url) {
+    final m = RegExp(r'vimeo\.com/(\d+)').firstMatch(url);
+    return m?.group(1);
+  }
+
+  Future<void> _playVideo(String url) async {
+    setState(() => _loading = true);
+    try {
+      final player = Player();
+      final controller = VideoController(player);
+      setState(() {
+        _player = player;
+        _videoController = controller;
+        _playing = true;
+        _loading = false;
+      });
+      await player.open(Media(url));
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loading = false);
+        launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      }
+    }
+  }
+
+  void _stopVideo() {
+    _player?.dispose();
+    setState(() { _player = null; _videoController = null; _playing = false; });
+  }
+
+  String _stripHtml(String html) {
+    return html
+        .replaceAll(RegExp(r'<br\s*/?>'), '\n')
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&mdash;', '—')
+        .replaceAll('&ndash;', '–')
+        .trim();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final embedUrl = widget.block['url'] as String?;
+    final embedHtml = widget.block['html'] as String?;
+    final w = (widget.block['w'] as num?)?.toDouble() ?? 0;
+    final h = (widget.block['h'] as num?)?.toDouble() ?? 0;
+
+    String? youtubeId;
+    String? vimeoId;
+    if (embedUrl != null) {
+      youtubeId = _extractYouTubeId(embedUrl);
+      vimeoId ??= _extractVimeoId(embedUrl);
+    }
+    if (youtubeId == null && embedHtml != null) {
+      final srcMatch = RegExp(r"""src=["']([^"']+youtube[^"']+)["']""").firstMatch(embedHtml);
+      if (srcMatch != null) youtubeId = _extractYouTubeId(srcMatch.group(1)!);
+    }
+
+    if (_playing && _videoController != null) {
+      return AspectRatio(
+        aspectRatio: w > 0 && h > 0 ? w / h : 16 / 9,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Video(controller: _videoController!),
+              Positioned(
+                top: 8, right: 8,
+                child: GestureDetector(
+                  onTap: _stopVideo,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                    child: const Icon(Icons.close, color: Colors.white, size: 18),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (youtubeId != null) {
+      return _buildVideoEmbed(
+        thumbnailUrl: 'https://img.youtube.com/vi/$youtubeId/hqdefault.jpg',
+        playUrl: 'https://www.youtube.com/watch?v=$youtubeId',
+        label: 'YouTube',
+        aspectRatio: w > 0 && h > 0 ? w / h : 16 / 9,
+      );
+    }
+
+    if (vimeoId != null) {
+      return _buildVideoEmbed(
+        thumbnailUrl: null,
+        playUrl: 'https://vimeo.com/$vimeoId',
+        label: 'Vimeo',
+        aspectRatio: w > 0 && h > 0 ? w / h : 16 / 9,
+      );
+    }
+
+    final isTwitter = embedUrl != null && (embedUrl.contains('twitter.com') || embedUrl.contains('x.com'));
+    if (isTwitter && embedHtml != null) {
+      return _buildTwitterCard(embedHtml, embedUrl);
+    }
+
+    final isSoundCloud = embedUrl != null && embedUrl.contains('soundcloud.com');
+    if (isSoundCloud) {
+      return _buildSoundCloudCard(embedUrl, embedHtml);
+    }
+
+    return _buildGenericEmbed(embedUrl, embedHtml, w, h);
+  }
+
+  Widget _buildVideoEmbed({
+    required String? thumbnailUrl,
+    required String playUrl,
+    required String label,
+    required double aspectRatio,
+  }) {
+    return GestureDetector(
+      onTap: _loading ? null : () => _playVideo(playUrl),
+      child: AspectRatio(
+        aspectRatio: aspectRatio,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (thumbnailUrl != null)
+                Image.network(
+                  thumbnailUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: widget.isDark ? const Color(0xFF0e1621) : const Color(0xFFe8e8e8),
+                    child: Center(child: Icon(Icons.play_circle_outline, size: 48, color: _subtleColor)),
+                  ),
+                )
+              else
+                Container(
+                  color: widget.isDark ? const Color(0xFF0e1621) : const Color(0xFFe8e8e8),
+                  child: Center(child: Icon(Icons.play_circle_outline, size: 48, color: _subtleColor)),
+                ),
+              Center(
+                child: _loading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Container(
+                        width: 64, height: 64,
+                        decoration: BoxDecoration(
+                          color: label == 'YouTube' ? Colors.red.shade600 : Colors.blue.shade600,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(Icons.play_arrow, color: Colors.white, size: 40),
+                      ),
+              ),
+              Positioned(
+                left: 8, top: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
+                  child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTwitterCard(String html, String? url) {
+    final text = _stripHtml(html);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf4f4f5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(left: BorderSide(color: const Color(0xFF1DA1F2), width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.alternate_email, size: 18, color: const Color(0xFF1DA1F2)),
+              const SizedBox(width: 8),
+              Text('Post', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _textColor)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(text, style: TextStyle(fontSize: 15, color: _textColor, height: 1.5)),
+          if (url != null) ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+              child: Text('View original', style: TextStyle(fontSize: 13, color: _accentColor, decoration: TextDecoration.underline)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSoundCloudCard(String url, String? html) {
+    String? srcUrl;
+    if (html != null) {
+      final m = RegExp(r"""src=["']([^"']+soundcloud[^"']+)["']""").firstMatch(html);
+      srcUrl = m?.group(1);
+    }
+    final playTarget = srcUrl ?? url;
+
+    return GestureDetector(
+      onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf4f4f5),
+          borderRadius: BorderRadius.circular(8),
+          border: Border(left: BorderSide(color: const Color(0xFFFF5500), width: 3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48, height: 48,
+              decoration: BoxDecoration(color: const Color(0xFFFF5500), borderRadius: BorderRadius.circular(8)),
+              child: const Icon(Icons.music_note, color: Colors.white, size: 28),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('SoundCloud', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _textColor)),
+                  const SizedBox(height: 2),
+                  Text(Uri.tryParse(playTarget)?.pathSegments.lastOrNull ?? 'Audio', style: TextStyle(fontSize: 13, color: _subtleColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+            Icon(Icons.open_in_new, size: 16, color: _subtleColor),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGenericEmbed(String? url, String? html, double w, double h) {
+    String? displayUrl = url;
+    if (displayUrl == null && html != null) {
+      final srcMatch = RegExp(r'''src=["']([^"']+)["']''').firstMatch(html);
+      if (srcMatch != null) displayUrl = srcMatch.group(1);
+    }
+
+    String? contentText;
+    if (html != null) {
+      contentText = _stripHtml(html);
+      if (contentText.isEmpty) contentText = null;
+    }
+
+    return GestureDetector(
+      onTap: displayUrl != null
+          ? () => launchUrl(Uri.parse(displayUrl!), mode: LaunchMode.externalApplication)
+          : null,
+      child: Container(
+        width: double.infinity,
+        constraints: BoxConstraints(minHeight: h > 0 ? h.clamp(60, 400) : 80),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf4f4f5),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: widget.isDark ? const Color(0xFF2a3a4a) : const Color(0xFFe0e0e0)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (contentText != null) ...[
+              Text(contentText, style: TextStyle(fontSize: 15, color: _textColor, height: 1.5), maxLines: 10, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 8),
+            ],
+            if (displayUrl != null)
+              Row(
+                children: [
+                  Icon(Icons.web, size: 18, color: _subtleColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      displayUrl,
+                      style: TextStyle(fontSize: 13, color: _accentColor, decoration: TextDecoration.underline),
+                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(Icons.open_in_new, size: 16, color: _subtleColor),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
