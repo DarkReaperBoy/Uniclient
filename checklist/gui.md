@@ -549,9 +549,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-## media_viewer — Alt+Left/Right consumed as no-op, breaks navigation
-
-- [ ] [MAJOR] When Alt is held with Arrow Left/Right, Dart returns `KeyEventResult.handled` without doing anything (lines 1008-1009, 1020-1021). AyuGram has no Alt+Left/Right special handling — the event falls through to `Key_Left`/`Key_Right` which calls `moveToNext`. So in Dart, Alt+Left does nothing, while in AyuGram it navigates to the previous item. — `media_viewer.dart:1007-1010,1019-1022` ← `media_view_overlay_widget.cpp:6761-6793`
 
 ## media_viewer — Video controller border-radius wrong (10px vs 9px)
 
