@@ -551,10 +551,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-## media_viewer — Stealth mode menu item shown for regular media (not story-only)
-
-- [ ] [MAJOR] The `'stealth_mode'` entry is added to the More menu whenever `widget.mediaMessages.isNotEmpty && !_isSelfMedia` (line 3096-3098). This shows a stealth mode option on regular photos/videos/documents that are not stories. Stealth mode is a Telegram Stories-only feature and should never appear in the non-story media viewer. — `media_viewer.dart:3096-3098` ← `media_view_overlay_widget.cpp` (stealth only in stories context)
-
 ## media_viewer — PIP widget _formatTime drops hours
 
 - [ ] [MAJOR] `_PipWidgetState._formatTime` only returns `MM:SS` format and discards hours (`d.inMinutes.remainder(60)`). For videos longer than 60 minutes the PIP time display shows wrong values (e.g. a video at 1h 05m 30s shows "05:30"). The main viewer's `_formatTime` handles hours correctly — the PIP copy-paste dropped it. — `media_viewer.dart:4283-4287` vs `media_viewer.dart:1111-1119`
