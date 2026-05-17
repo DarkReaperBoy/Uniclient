@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 enum ManagerType { native, defaultPopup, dummy }
 
 enum NotificationCorner {
@@ -65,6 +67,7 @@ class NotificationData {
   final bool isReactorPeer;
   final bool isHidden;
   final String senderId;
+  final String contentRich;
 
   const NotificationData({
     required this.accountId,
@@ -120,6 +123,7 @@ class NotificationData {
     this.isReactorPeer = false,
     this.isHidden = false,
     this.senderId = '',
+    this.contentRich = '',
   });
 
   NotificationData copyWith({
@@ -176,6 +180,7 @@ class NotificationData {
     bool? isReactorPeer,
     bool? isHidden,
     String? senderId,
+    String? contentRich,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -231,6 +236,7 @@ class NotificationData {
       isReactorPeer: isReactorPeer ?? this.isReactorPeer,
       isHidden: isHidden ?? this.isHidden,
       senderId: senderId ?? this.senderId,
+      contentRich: contentRich ?? this.contentRich,
     );
   }
 }
@@ -244,12 +250,21 @@ class NotificationContent {
   final String title;
   final String subtitle;
   final String body;
+  final List<NotifEntity> bodyEntities;
 
   const NotificationContent({
     required this.title,
     required this.subtitle,
     required this.body,
+    this.bodyEntities = const [],
   });
+}
+
+class NotifEntity {
+  final String type;
+  final int offset;
+  final int length;
+  const NotifEntity(this.type, this.offset, this.length);
 }
 
 NotificationContent composeNotificationContent(
@@ -259,7 +274,8 @@ NotificationContent composeNotificationContent(
   final title = _composeTitle(data, settings);
   final subtitle = _composeSubtitle(data, settings);
   final body = _composeBody(data, settings);
-  return NotificationContent(title: title, subtitle: subtitle, body: body);
+  final entities = _composeBodyEntities(data, settings, body);
+  return NotificationContent(title: title, subtitle: subtitle, body: body, bodyEntities: entities);
 }
 
 String _composeTitle(NotificationData data, NotificationSettings settings) {
@@ -381,6 +397,32 @@ String _maskLoginCodes(String text) {
   return text.replaceAllMapped(_loginCodePattern, (m) {
     return _spoilerBlock * m.group(0)!.length;
   });
+}
+
+List<NotifEntity> _composeBodyEntities(NotificationData data, NotificationSettings settings, String body) {
+  if (!settings.previewText || data.contentRich.isEmpty) return const [];
+  if (data.isReaction || data.isPollVote) return const [];
+  if (data.forwardFrom.isNotEmpty) return const [];
+  if (data.messageType != 0) return const [];
+  final rawText = data.text;
+  if (rawText.isEmpty || body.isEmpty) return const [];
+  if (body != rawText && body != _maskLoginCodes(rawText)) return const [];
+  try {
+    final list = jsonDecode(data.contentRich) as List;
+    final entities = <NotifEntity>[];
+    for (final e in list) {
+      if (e is! Map<String, dynamic>) continue;
+      final type = e['type'] as String? ?? '';
+      if (type == 'spoiler') continue;
+      final offset = e['offset'] as int? ?? 0;
+      final length = e['length'] as int? ?? 0;
+      if (length <= 0 || offset < 0 || offset + length > body.length) continue;
+      entities.add(NotifEntity(type, offset, length));
+    }
+    return entities;
+  } catch (_) {
+    return const [];
+  }
 }
 
 String _composeReactionText(NotificationData data, {required bool hideMessageText}) {

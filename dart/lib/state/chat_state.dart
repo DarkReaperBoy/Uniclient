@@ -2338,6 +2338,7 @@ class ChatState extends ChangeNotifier {
             chat!.slowmodeNextSendDate > DateTime.now().millisecondsSinceEpoch ~/ 1000,
         requiresStars: (chat?.starsToSend ?? 0) > 0,
         spoilerLoginCode: isLoginCodeSender,
+        contentRich: msg.contentRich,
       ));
     }
     // Refresh saved sublists when messages arrive in Saved Messages.

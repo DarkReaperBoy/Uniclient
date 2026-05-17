@@ -656,22 +656,53 @@ class _NotificationPopupWidget extends StatelessWidget {
   }
 
   InlineSpan _buildBodySpan(NotificationContent content, Color titleColor, Color bodyColor) {
+    final bodySpans = _buildEntitySpans(content.body, content.bodyEntities, bodyColor, titleColor);
     if (content.subtitle.isNotEmpty) {
       return TextSpan(children: [
         TextSpan(
           text: '${content.subtitle}: ',
           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: titleColor),
         ),
-        TextSpan(
-          text: content.body,
-          style: TextStyle(fontSize: 13, color: bodyColor),
-        ),
+        ...bodySpans,
       ]);
     }
-    return TextSpan(
-      text: content.body,
-      style: TextStyle(fontSize: 13, color: bodyColor),
-    );
+    if (bodySpans.length == 1) return bodySpans.first;
+    return TextSpan(children: bodySpans);
+  }
+
+  List<TextSpan> _buildEntitySpans(String text, List<NotifEntity> entities, Color bodyColor, Color accentColor) {
+    if (entities.isEmpty || text.isEmpty) {
+      return [TextSpan(text: text, style: TextStyle(fontSize: 13, color: bodyColor))];
+    }
+    final sorted = [...entities]..sort((a, b) => a.offset.compareTo(b.offset));
+    final spans = <TextSpan>[];
+    var pos = 0;
+    for (final e in sorted) {
+      if (e.offset > pos) {
+        spans.add(TextSpan(text: text.substring(pos, e.offset), style: TextStyle(fontSize: 13, color: bodyColor)));
+      }
+      final end = (e.offset + e.length).clamp(0, text.length);
+      final segment = text.substring(e.offset.clamp(0, text.length), end);
+      spans.add(TextSpan(text: segment, style: _entityStyle(e.type, bodyColor, accentColor)));
+      pos = end;
+    }
+    if (pos < text.length) {
+      spans.add(TextSpan(text: text.substring(pos), style: TextStyle(fontSize: 13, color: bodyColor)));
+    }
+    return spans;
+  }
+
+  TextStyle _entityStyle(String type, Color bodyColor, Color accentColor) {
+    return switch (type) {
+      'bold' => TextStyle(fontSize: 13, color: bodyColor, fontWeight: FontWeight.w600),
+      'italic' => TextStyle(fontSize: 13, color: bodyColor, fontStyle: FontStyle.italic),
+      'code' || 'pre' => TextStyle(fontSize: 12, color: bodyColor, fontFamily: 'monospace'),
+      'underline' => TextStyle(fontSize: 13, color: bodyColor, decoration: TextDecoration.underline),
+      'strikethrough' => TextStyle(fontSize: 13, color: bodyColor, decoration: TextDecoration.lineThrough),
+      'mention' || 'mention_name' || 'url' || 'text_url' || 'hashtag' || 'cashtag' || 'bot_command' =>
+        TextStyle(fontSize: 13, color: accentColor),
+      _ => TextStyle(fontSize: 13, color: bodyColor),
+    };
   }
 }
 
