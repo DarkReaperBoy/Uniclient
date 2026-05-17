@@ -461,8 +461,8 @@ class ShortcutSystem {
   bool Function()? isMediaViewerOpenCallback;
 
   bool _checkScope(ShortcutCommand command) {
+    if (_layerShown) return false;
     final scope = _commandScopes[command] ?? ShortcutScope.global;
-    if (_layerShown && scope != ShortcutScope.global) return false;
     switch (scope) {
       case ShortcutScope.global:
         return true;
@@ -537,7 +537,12 @@ class ShortcutSystem {
         _writeCustomTemplate();
         return;
       }
-      final content = file.readAsStringSync().trim();
+      var content = file.readAsStringSync().trim();
+      if (content.isEmpty) return;
+      content = content.split('\n')
+          .where((l) => !l.trimLeft().startsWith('//'))
+          .join('\n')
+          .trim();
       if (content.isEmpty) return;
       final list = jsonDecode(content);
       if (list is! List) return;
@@ -1192,6 +1197,24 @@ class _ShortcutListenerState extends State<ShortcutListener>
       });
     }
 
+    for (int i = 0; i < 6; i++) {
+      final accountCmd = [
+        ShortcutCommand.account1,
+        ShortcutCommand.account2,
+        ShortcutCommand.account3,
+        ShortcutCommand.account4,
+        ShortcutCommand.account5,
+        ShortcutCommand.account6,
+      ][i];
+      sys.registerHandler(accountCmd, () {
+        final appState = context.read<AppState>();
+        final accounts = appState.accounts;
+        if (i >= accounts.length) return false;
+        appState.setActiveAccountId(accounts[i].id);
+        return true;
+      });
+    }
+
     sys.registerHandler(ShortcutCommand.selfChat, () {
       final chatState = context.read<ChatState>();
       final saved = chatState.chats
@@ -1199,6 +1222,12 @@ class _ShortcutListenerState extends State<ShortcutListener>
           .firstOrNull;
       if (saved != null) {
         chatState.openChat(saved);
+        return true;
+      }
+      final appState = context.read<AppState>();
+      final selfId = appState.activeAccount?.selfUserId ?? '';
+      if (selfId.isNotEmpty) {
+        chatState.openChatById(selfId);
         return true;
       }
       return false;
@@ -1324,6 +1353,16 @@ class _ShortcutListenerState extends State<ShortcutListener>
     sys.registerHandler(ShortcutCommand.formatDate, () {
       ChatView.toggleFormatRequest?.call(FormatType.date);
       return ChatView.toggleFormatRequest != null;
+    });
+
+    sys.registerHandler(ShortcutCommand.message, () {
+      return ChatView.requestSendCompose();
+    });
+    sys.registerHandler(ShortcutCommand.messageSilently, () {
+      return ChatView.requestSendSilentCompose();
+    });
+    sys.registerHandler(ShortcutCommand.messageScheduled, () {
+      return ChatView.requestSendScheduledCompose();
     });
 
     sys.registerHandler(ShortcutCommand.openFilePicker, () {

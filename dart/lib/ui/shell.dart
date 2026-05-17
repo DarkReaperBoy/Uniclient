@@ -21,6 +21,7 @@ import 'hamburger_drawer.dart';
 import 'call_screen.dart';
 import 'chat_switch_overlay.dart';
 import 'info_panel.dart';
+import 'keyboard_shortcuts.dart';
 import '../theme/theme.dart';
 
 /// Layout modes matching Telegram Desktop's responsive breakpoints.
@@ -177,6 +178,7 @@ class _UniClientShellState extends State<UniClientShell>
 
   void _showChatSwitch({bool reverse = false}) {
     if (_chatSwitchActive) return;
+    ShortcutSystem.instance.pause();
     setState(() {
       _chatSwitchReverse = reverse;
       _chatSwitchActive = true;
@@ -185,6 +187,7 @@ class _UniClientShellState extends State<UniClientShell>
 
   void _hideChatSwitch() {
     if (!_chatSwitchActive) return;
+    ShortcutSystem.instance.resume();
     setState(() => _chatSwitchActive = false);
   }
 
@@ -379,6 +382,7 @@ class _UniClientShellState extends State<UniClientShell>
     if (_chatSwitchActive) {
       final history = chatState.collectChatOpenHistory();
       if (history.length < 2) {
+        ShortcutSystem.instance.resume();
         _chatSwitchActive = false;
         return layout;
       }
@@ -390,6 +394,7 @@ class _UniClientShellState extends State<UniClientShell>
               chats: history,
               initialIndex: _chatSwitchReverse ? history.length - 1 : 0,
               onChosen: (chat) {
+                ShortcutSystem.instance.resume();
                 setState(() => _chatSwitchActive = false);
                 chatState.openChat(chat);
               },
@@ -397,6 +402,7 @@ class _UniClientShellState extends State<UniClientShell>
                 chatState.removeChatFromOpenHistory(chat.chatId);
               },
               onCancel: () {
+                ShortcutSystem.instance.resume();
                 setState(() => _chatSwitchActive = false);
               },
             ),

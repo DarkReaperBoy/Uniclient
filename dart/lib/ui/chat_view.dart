@@ -145,10 +145,14 @@ class ChatView extends StatefulWidget {
   /// shortcut. Returns true iff the send fired (non-empty compose + active
   /// chat).
   static bool Function()? sendComposeRequest;
+  static bool Function()? sendSilentComposeRequest;
+  static bool Function()? sendScheduledComposeRequest;
 
   /// Invoked by the harness `ctrl+shift+enter` binding. Returns true if
   /// consumed (send dispatched).
   static bool requestSendCompose() => sendComposeRequest?.call() ?? false;
+  static bool requestSendSilentCompose() => sendSilentComposeRequest?.call() ?? false;
+  static bool requestSendScheduledCompose() => sendScheduledComposeRequest?.call() ?? false;
 
   static void Function(String text, {int? selStart, int? selEnd})? setComposeRequest;
   static void Function(FormatType type)? toggleFormatRequest;
@@ -479,6 +483,8 @@ class _ChatViewState extends State<ChatView>
     // this hook lets the automated harness exercise the same _sendMessage
     // entry point without having to synthesize the full modifier keystream.
     ChatView.sendComposeRequest = _requestSendCompose;
+    ChatView.sendSilentComposeRequest = _requestSendSilentCompose;
+    ChatView.sendScheduledComposeRequest = _requestSendScheduledCompose;
     // Register the Ctrl+Up / Ctrl+Down reply-cycling hook (spec §24.6 lines
     // 2982-2983). Real OS-delivered keystrokes land in the compose TextField's
     // FocusNode.onKeyEvent; this hook exists for the harness path AND for
@@ -558,6 +564,12 @@ class _ChatViewState extends State<ChatView>
     }
     if (ChatView.sendComposeRequest == _requestSendCompose) {
       ChatView.sendComposeRequest = null;
+    }
+    if (ChatView.sendSilentComposeRequest == _requestSendSilentCompose) {
+      ChatView.sendSilentComposeRequest = null;
+    }
+    if (ChatView.sendScheduledComposeRequest == _requestSendScheduledCompose) {
+      ChatView.sendScheduledComposeRequest = null;
     }
     if (ChatView.cycleReplyRequest == _cycleReply) {
       ChatView.cycleReplyRequest = null;
@@ -3836,6 +3848,26 @@ class _ChatViewState extends State<ChatView>
     }
     if (_composeController.text.trim().isEmpty) return false;
     _sendMessage();
+    return true;
+  }
+
+  bool _requestSendSilentCompose() {
+    if (!mounted) return false;
+    if (context.read<ChatState>().activeChat == null) return false;
+    if (_composeController.text.trim().isEmpty) return false;
+    _sendMessage(silent: true);
+    return true;
+  }
+
+  bool _requestSendScheduledCompose() {
+    if (!mounted) return false;
+    if (context.read<ChatState>().activeChat == null) return false;
+    if (_composeController.text.trim().isEmpty) return false;
+    showChooseDateTimeBox(context).then((result) {
+      if (result != null && mounted) {
+        _sendMessage(scheduleDate: result.dateTime.millisecondsSinceEpoch ~/ 1000);
+      }
+    });
     return true;
   }
 
