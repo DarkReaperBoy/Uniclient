@@ -14,6 +14,7 @@ import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import 'confirm_box.dart';
 import 'input_dialogs.dart';
+import 'media_viewer.dart';
 import 'photo_crop_editor.dart';
 import 'telegram_toast.dart';
 import 'popup_menu.dart';
@@ -33,6 +34,8 @@ class MyProfilePage extends StatefulWidget {
 class _MyProfilePageState extends State<MyProfilePage> {
   final _bioController = TextEditingController();
   Timer? _debounceTimer;
+  Timer? _statusRefreshTimer;
+  StreamSubscription? _statusSub;
   String _savedBio = '';
   bool _bioLoaded = false;
   int _selfColorId = -1;
@@ -44,6 +47,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
   bool _birthdayLoaded = false;
   String _birthdayPrivacy = 'contacts';
   String _statusText = '';
+  bool _isStatusOnline = false;
+  UserProfile? _cachedProfile;
 
   @override
   void initState() {
@@ -52,14 +57,58 @@ class _MyProfilePageState extends State<MyProfilePage> {
     _loadColorAndChannel();
     _loadBirthday();
     _loadStatus();
+    _subscribeToStatusEvents();
   }
 
   @override
   void dispose() {
     _flushBio();
     _debounceTimer?.cancel();
+    _statusRefreshTimer?.cancel();
+    _statusSub?.cancel();
     _bioController.dispose();
     super.dispose();
+  }
+
+  void _subscribeToStatusEvents() {
+    final engine = context.read<EngineService>();
+    _statusSub = engine.onUserStatus.listen((event) {
+      final appState = context.read<AppState>();
+      final account = appState.activeAccount;
+      if (account == null) return;
+      if (event.userId == account.selfUserId || event.accountId == account.id) {
+        _refreshStatus();
+      }
+    });
+  }
+
+  void _scheduleStatusRefresh() {
+    _statusRefreshTimer?.cancel();
+    if (!_isStatusOnline && _cachedProfile != null && _cachedProfile!.lastSeen > 0) {
+      final elapsed = DateTime.now().millisecondsSinceEpoch - _cachedProfile!.lastSeen;
+      final refreshIn = elapsed < 60000 ? const Duration(seconds: 30) : const Duration(minutes: 1);
+      _statusRefreshTimer = Timer(refreshIn, _refreshStatus);
+    }
+  }
+
+  void _refreshStatus() {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null || account.selfUserId.isEmpty) return;
+    final engine = context.read<EngineService>();
+    engine.getUserProfile(account.id, account.selfUserId).then((profile) {
+      if (!mounted || profile == null) return;
+      _cachedProfile = profile;
+      final newStatus = _computeStatusText(account.connState, profile);
+      final online = newStatus == 'online';
+      if (newStatus != _statusText || online != _isStatusOnline) {
+        setState(() {
+          _statusText = newStatus;
+          _isStatusOnline = online;
+        });
+      }
+      _scheduleStatusRefresh();
+    });
   }
 
   void _loadBio() {
@@ -120,17 +169,23 @@ class _MyProfilePageState extends State<MyProfilePage> {
     final account = appState.activeAccount;
     if (account == null) return;
     if (account.connState == ConnState.connected) {
-      setState(() => _statusText = 'online');
+      setState(() { _statusText = 'online'; _isStatusOnline = true; });
     } else if (account.connState == ConnState.connecting) {
-      setState(() => _statusText = 'connecting...');
+      setState(() { _statusText = 'connecting...'; _isStatusOnline = false; });
     } else {
-      setState(() => _statusText = 'waiting for network...');
+      setState(() { _statusText = 'waiting for network...'; _isStatusOnline = false; });
     }
     if (account.selfUserId.isEmpty) return;
     final engine = context.read<EngineService>();
     engine.getUserProfile(account.id, account.selfUserId).then((profile) {
       if (!mounted || profile == null) return;
-      setState(() => _statusText = _computeStatusText(account.connState, profile));
+      _cachedProfile = profile;
+      final newStatus = _computeStatusText(account.connState, profile);
+      setState(() {
+        _statusText = newStatus;
+        _isStatusOnline = newStatus == 'online';
+      });
+      _scheduleStatusRefresh();
     });
   }
 
@@ -279,7 +334,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          _ProfilePhotoArea(account: account, isDark: isDark, statusText: _statusText),
+          _ProfilePhotoArea(account: account, isDark: isDark, statusText: _statusText, isStatusOnline: _isStatusOnline),
           Container(height: 8, color: dividerColor),
           _BioInput(
             controller: _bioController,
@@ -663,15 +718,45 @@ class _BioInput extends StatelessWidget {
 /// §14.5.1: Profile photo area — 162px height, 100x100 avatar centered,
 /// upload sub-button at bottom-right, name (17px semibold, 24px max height),
 /// online status below name.
-class _ProfilePhotoArea extends StatelessWidget {
+class _ProfilePhotoArea extends StatefulWidget {
   final AccountInfo? account;
   final bool isDark;
   final String statusText;
+  final bool isStatusOnline;
 
-  const _ProfilePhotoArea({required this.account, required this.isDark, this.statusText = ''});
+  const _ProfilePhotoArea({
+    required this.account,
+    required this.isDark,
+    this.statusText = '',
+    this.isStatusOnline = false,
+  });
+
+  @override
+  State<_ProfilePhotoArea> createState() => _ProfilePhotoAreaState();
+}
+
+class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
+  bool _uploading = false;
+  double _uploadProgress = 0;
+  String? _optimisticAvatarPath;
+
+  Widget _clipAvatar(Widget child, double size) {
+    final appState = context.read<AppState>();
+    final corners = appState.avatarCorners;
+    if (corners >= 23) {
+      return ClipOval(child: child);
+    } else if (corners <= 0) {
+      return ClipRect(child: child);
+    } else {
+      final r = corners / 23.0 * size / 2.0;
+      return ClipRRect(borderRadius: BorderRadius.circular(r), child: child);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final account = widget.account;
     final textColor = isDark
         ? const Color(0xFFF5F5F5)
         : const Color(0xFF000000);
@@ -686,13 +771,14 @@ class _ProfilePhotoArea extends StatelessWidget {
     final numId = int.tryParse(id) ?? id.hashCode.abs();
     final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
 
+    final avatarPath = _optimisticAvatarPath ?? account?.avatarPath ?? '';
+
     return SizedBox(
       height: 162,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
           const SizedBox(height: 2),
-          // 100x100 avatar with upload sub-button overlay.
           SizedBox(
             width: 100,
             height: 100,
@@ -701,24 +787,43 @@ class _ProfilePhotoArea extends StatelessWidget {
               children: [
                 Positioned.fill(
                   child: GestureDetector(
-                    onTap: account != null && account!.avatarPath.isNotEmpty
-                        ? () => _openProfilePhoto(context, account!.avatarPath)
+                    onTap: account != null && avatarPath.isNotEmpty
+                        ? () => _openProfilePhotoViewer(context, account!)
                         : null,
-                    child: account != null && account!.avatarPath.isNotEmpty
-                        ? ClipOval(
-                            child: Image.file(
-                              File(account!.avatarPath),
+                    child: avatarPath.isNotEmpty
+                        ? _clipAvatar(
+                            Image.file(
+                              File(avatarPath),
                               width: 100,
                               height: 100,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) =>
                                   _avatarFallback(color, initials),
                             ),
+                            100,
                           )
                         : _avatarFallback(color, initials),
                   ),
                 ),
-                // §14.5.1: Upload sub-button at bottom-right (6px from right edge).
+                if (_uploading)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: CircularProgressIndicator(
+                          value: _uploadProgress > 0 ? _uploadProgress : null,
+                          strokeWidth: 3,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   right: 0,
                   bottom: 0,
@@ -731,7 +836,6 @@ class _ProfilePhotoArea extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 7),
-          // §14.5.1: Name — 17px semibold, max height 24px.
           if (name.isNotEmpty)
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 24),
@@ -747,13 +851,13 @@ class _ProfilePhotoArea extends StatelessWidget {
               ),
             ),
           if (account != null)
-            Transform.translate(
-              offset: const Offset(0, -1),
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
               child: Text(
-                statusText.isNotEmpty ? statusText : (account!.connState == ConnState.connected ? 'online' : 'connecting...'),
+                widget.statusText.isNotEmpty ? widget.statusText : (account.connState == ConnState.connected ? 'online' : 'connecting...'),
                 style: TextStyle(
                   fontSize: 13,
-                  color: statusText == 'online' || (statusText.isEmpty && account!.connState == ConnState.connected)
+                  color: widget.isStatusOnline || (widget.statusText.isEmpty && account.connState == ConnState.connected)
                       ? context.palette.windowBgActive
                       : subtextColor,
                 ),
@@ -829,9 +933,23 @@ class _ProfilePhotoArea extends StatelessWidget {
       shape: PhotoCropShape.ellipse,
       purpose: PhotoEditorPurpose.setPhoto,
       onDone: (croppedFile) async {
-        await engine.uploadProfilePhoto(accountId, croppedFile.path);
-        if (context.mounted) {
-          showTelegramToast(context, 'Profile photo updated');
+        if (!mounted) return;
+        setState(() {
+          _uploading = true;
+          _uploadProgress = 0;
+          _optimisticAvatarPath = croppedFile.path;
+        });
+        try {
+          await engine.uploadProfilePhoto(accountId, croppedFile.path);
+          if (mounted) {
+            setState(() { _uploading = false; _uploadProgress = 1.0; });
+            showTelegramToast(context, 'Profile photo updated');
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() { _uploading = false; _optimisticAvatarPath = null; });
+            showTelegramToast(context, 'Failed to upload photo: $e');
+          }
         }
       },
     );
@@ -847,44 +965,69 @@ class _ProfilePhotoArea extends StatelessWidget {
       context,
       shape: PhotoCropShape.ellipse,
       onDone: (renderedFile) async {
-        await engine.uploadProfilePhoto(accountId, renderedFile.path);
-        if (context.mounted) {
-          showTelegramToast(context, 'Profile photo updated');
+        if (!mounted) return;
+        setState(() {
+          _uploading = true;
+          _uploadProgress = 0;
+          _optimisticAvatarPath = renderedFile.path;
+        });
+        try {
+          await engine.uploadProfilePhoto(accountId, renderedFile.path);
+          if (mounted) {
+            setState(() { _uploading = false; _uploadProgress = 1.0; });
+            showTelegramToast(context, 'Profile photo updated');
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() { _uploading = false; _optimisticAvatarPath = null; });
+            showTelegramToast(context, 'Failed to upload photo: $e');
+          }
         }
       },
     );
   }
 
-  static Widget _avatarFallback(Color color, String initials) {
-    return Container(
-      width: 100,
-      height: 100,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      alignment: Alignment.center,
-      child: Text(
-        initials,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 40,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  static String _initials(String title) {
-    final t = title.trim();
-    if (t.isEmpty) return '?';
-    final words = t.split(RegExp(r'\s+'));
-    if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
-      return '${words[0][0]}${words[1][0]}'.toUpperCase();
+  void _openProfilePhotoViewer(BuildContext context, AccountInfo account) async {
+    final engine = context.read<EngineService>();
+    try {
+      final count = await engine.getUserPhotoCount(account.id, account.selfUserId);
+      if (!mounted) return;
+      if (count > 0) {
+        final messages = <CachedMessage>[];
+        for (int i = 0; i < count && i < 20; i++) {
+          final path = await engine.getUserPhotoAtIndex(account.id, account.selfUserId, i);
+          if (path != null && path.isNotEmpty) {
+            messages.add(CachedMessage(
+              accountId: account.id,
+              msgId: 'profile_photo_$i',
+              chatId: account.selfUserId,
+              mediaType: 1,
+              mediaLocalPath: path,
+              mediaFileName: 'profile_photo_$i.jpg',
+              senderName: account.displayName,
+              isOutgoing: true,
+              hasMedia: true,
+            ));
+          }
+        }
+        if (!mounted) return;
+        if (messages.isNotEmpty) {
+          if (!mounted) return;
+          MediaViewer.open(
+            context,
+            message: messages.first,
+            allMessages: messages,
+          );
+          return;
+        }
+      }
+      _openProfilePhotoSimple(context, account.avatarPath);
+    } catch (_) {
+      if (mounted) _openProfilePhotoSimple(context, account.avatarPath);
     }
-    return t[0].toUpperCase();
   }
 
-  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
-
-  void _openProfilePhoto(BuildContext context, String path) {
+  void _openProfilePhotoSimple(BuildContext context, String path) {
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
@@ -915,6 +1058,45 @@ class _ProfilePhotoArea extends StatelessWidget {
       ),
     );
   }
+
+  Widget _avatarFallback(Color color, String initials) {
+    final appState = context.read<AppState>();
+    final corners = appState.avatarCorners;
+    final shape = corners >= 23 ? BoxShape.circle : BoxShape.rectangle;
+    final borderRadius = corners < 23 && corners > 0
+        ? BorderRadius.circular(corners / 23.0 * 50.0)
+        : null;
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        color: color,
+        shape: shape,
+        borderRadius: shape == BoxShape.rectangle ? borderRadius : null,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 40,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  static String _initials(String title) {
+    final t = title.trim();
+    if (t.isEmpty) return '?';
+    final words = t.split(RegExp(r'\s+'));
+    if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
+      return '${words[0][0]}${words[1][0]}'.toUpperCase();
+    }
+    return t[0].toUpperCase();
+  }
+
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 }
 
 /// §14.5.5: Birthday row — shows formatted date or "Add", opens date picker.
@@ -1587,7 +1769,7 @@ class _AccountsSection extends StatelessWidget {
         ReorderableListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          buildDefaultDragHandles: true,
+          buildDefaultDragHandles: false,
           proxyDecorator: (child, index, animation) => Material(
             elevation: 4,
             color: Colors.transparent,
@@ -1595,47 +1777,58 @@ class _AccountsSection extends StatelessWidget {
             child: child,
           ),
           itemCount: accounts.length,
-          itemBuilder: (_, i) => _SettingsAccountRow(
-            key: ValueKey(accounts[i].id),
-            account: accounts[i],
-            isActive: accounts[i].id == activeId,
-            unreadCount: chatState.unreadCountForAccount(accounts[i].id),
-            unreadAllMuted: chatState.isAccountUnreadAllMuted(accounts[i].id),
-            labelColor: labelColor,
-            hoverBg: hoverBg,
-            isDark: isDark,
-            onTap: () {
-              if (HardwareKeyboard.instance.logicalKeysPressed
-                  .any((k) => k == LogicalKeyboardKey.controlLeft || k == LogicalKeyboardKey.controlRight || k == LogicalKeyboardKey.metaLeft || k == LogicalKeyboardKey.metaRight)) {
-                final executable = Platform.resolvedExecutable;
-                Process.start(executable, ['--account', accounts[i].id], mode: ProcessStartMode.detached).then((_) {
-                  if (context.mounted) {
-                    showTelegramToast(context, 'Opening ${accounts[i].displayName} in new window');
-                  }
-                }).catchError((e) {
-                  if (context.mounted) {
-                    showTelegramToast(context, 'Could not open new window: $e');
-                  }
-                });
-                return;
-              }
-              if (accounts[i].id == activeId) {
-                Navigator.of(context).pop();
-              } else {
-                appState.setActiveAccountId(accounts[i].id);
-              }
-            },
-            onMarkAllRead: () {
-              chatState.markAllChatsReadForAccount(accounts[i].id);
-            },
-            onLogOut: () {
-              appState.removeAccount(accounts[i].id);
-              if (accounts.length <= 1) {
-                Navigator.of(context).pop();
-              }
-            },
-          ),
-          onReorder: appState.reorderAccounts,
+          itemBuilder: (_, i) {
+            final isLocked = i >= premiumLimit;
+            return _SettingsAccountRow(
+              key: ValueKey(accounts[i].id),
+              account: accounts[i],
+              isActive: accounts[i].id == activeId,
+              isLocked: isLocked,
+              unreadCount: chatState.unreadCountForAccount(accounts[i].id),
+              unreadAllMuted: chatState.isAccountUnreadAllMuted(accounts[i].id),
+              labelColor: labelColor,
+              hoverBg: hoverBg,
+              isDark: isDark,
+              dragHandle: !isLocked ? ReorderableDragStartListener(
+                index: i,
+                child: const Icon(Icons.drag_handle, size: 20, color: Color(0xFF6C7883)),
+              ) : null,
+              onTap: () {
+                if (HardwareKeyboard.instance.logicalKeysPressed
+                    .any((k) => k == LogicalKeyboardKey.controlLeft || k == LogicalKeyboardKey.controlRight || k == LogicalKeyboardKey.metaLeft || k == LogicalKeyboardKey.metaRight)) {
+                  final executable = Platform.resolvedExecutable;
+                  Process.start(executable, ['--account', accounts[i].id], mode: ProcessStartMode.detached).then((_) {
+                    if (context.mounted) {
+                      showTelegramToast(context, 'Opening ${accounts[i].displayName} in new window');
+                    }
+                  }).catchError((e) {
+                    if (context.mounted) {
+                      showTelegramToast(context, 'Could not open new window: $e');
+                    }
+                  });
+                  return;
+                }
+                if (accounts[i].id == activeId) {
+                  Navigator.of(context).pop();
+                } else {
+                  appState.setActiveAccountId(accounts[i].id);
+                }
+              },
+              onMarkAllRead: () {
+                chatState.markAllChatsReadForAccount(accounts[i].id);
+              },
+              onLogOut: () {
+                appState.removeAccount(accounts[i].id);
+                if (accounts.length <= 1) {
+                  Navigator.of(context).pop();
+                }
+              },
+            );
+          },
+          onReorder: (oldIndex, newIndex) {
+            if (oldIndex >= premiumLimit || newIndex >= premiumLimit) return;
+            appState.reorderAccounts(oldIndex, newIndex);
+          },
         ),
         if (appState.canAddAccount)
           _AddAccountButton(
@@ -1653,6 +1846,7 @@ class _AccountsSection extends StatelessWidget {
 class _SettingsAccountRow extends StatelessWidget {
   final AccountInfo account;
   final bool isActive;
+  final bool isLocked;
   final int unreadCount;
   final bool unreadAllMuted;
   final Color labelColor;
@@ -1661,11 +1855,13 @@ class _SettingsAccountRow extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onMarkAllRead;
   final VoidCallback onLogOut;
+  final Widget? dragHandle;
 
   const _SettingsAccountRow({
     super.key,
     required this.account,
     required this.isActive,
+    this.isLocked = false,
     required this.unreadCount,
     required this.unreadAllMuted,
     required this.labelColor,
@@ -1674,6 +1870,7 @@ class _SettingsAccountRow extends StatelessWidget {
     required this.onTap,
     required this.onMarkAllRead,
     required this.onLogOut,
+    this.dragHandle,
   });
 
   void _openInNewWindow(BuildContext context) {
@@ -1761,105 +1958,138 @@ class _SettingsAccountRow extends StatelessWidget {
     });
   }
 
+  Widget _clipAccountAvatar(BuildContext context, Widget child, double size) {
+    final appState = context.read<AppState>();
+    final corners = appState.avatarCorners;
+    if (corners >= 23) {
+      return ClipOval(child: child);
+    } else if (corners <= 0) {
+      return ClipRect(child: child);
+    } else {
+      final r = corners / 23.0 * size / 2.0;
+      return ClipRRect(borderRadius: BorderRadius.circular(r), child: child);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final palette = context.palette;
     final accentColor = palette.windowBgActive;
+    final avatarSize = isActive ? 26.0 : 30.0;
 
-    return GestureDetector(
-      onSecondaryTapUp: (details) =>
-          _showContextMenu(context, details.globalPosition),
-      onLongPressStart: (details) =>
-          _showContextMenu(context, details.globalPosition),
-      child: InkWell(
-        onTap: onTap,
-        hoverColor: hoverBg,
-        splashColor: hoverBg.withValues(alpha: 0.5),
-        child: Padding(
-          padding: const EdgeInsets.only(
-            left: 20, top: 11, bottom: 9, right: 20,
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 36,
-                height: 36,
-                child: Center(
-                  child: Container(
-                    decoration: isActive
-                        ? BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: accentColor,
-                              width: 2,
-                            ),
-                          )
-                        : null,
-                    padding: isActive
-                        ? const EdgeInsets.all(2)
-                        : EdgeInsets.zero,
-                    child: account.avatarPath.isNotEmpty
-                        ? ClipOval(
-                            child: Image.file(
-                              File(account.avatarPath),
-                              width: isActive ? 26 : 30,
-                              height: isActive ? 26 : 30,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  _avatarFallback(isActive ? 26.0 : 30.0),
-                            ),
-                          )
-                        : _avatarFallback(isActive ? 26.0 : 30.0),
-                  ),
-                ),
+    return Listener(
+      onPointerDown: (event) {
+        if (event.buttons == 4 && !isActive) {
+          _openInNewWindow(context);
+        }
+      },
+      child: GestureDetector(
+        onSecondaryTapUp: (details) =>
+            _showContextMenu(context, details.globalPosition),
+        onLongPressStart: (details) =>
+            _showContextMenu(context, details.globalPosition),
+        child: Opacity(
+          opacity: isLocked ? 0.5 : 1.0,
+          child: InkWell(
+            onTap: isLocked ? null : onTap,
+            hoverColor: hoverBg,
+            splashColor: hoverBg.withValues(alpha: 0.5),
+            child: Padding(
+              padding: const EdgeInsets.only(
+                left: 20, top: 11, bottom: 9, right: 20,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        account.displayName.isNotEmpty
-                            ? account.displayName
-                            : _AccountsSection._platformLabel(account.platform),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: labelColor,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Center(
+                      child: Container(
+                        decoration: isActive
+                            ? BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: accentColor,
+                                  width: 2,
+                                ),
+                              )
+                            : null,
+                        padding: isActive
+                            ? const EdgeInsets.all(2)
+                            : EdgeInsets.zero,
+                        child: account.avatarPath.isNotEmpty
+                            ? _clipAccountAvatar(
+                                context,
+                                Image.file(
+                                  File(account.avatarPath),
+                                  width: avatarSize,
+                                  height: avatarSize,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      _avatarFallback(avatarSize),
+                                ),
+                                avatarSize,
+                              )
+                            : _avatarFallback(avatarSize),
                       ),
                     ),
-                    if (account.isPremium) ...[
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.workspace_premium,
-                        size: 16,
-                        color: accentColor,
-                      ),
-                    ],
-                    if (account.isVerified && !account.isPremium) ...[
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.verified,
-                        size: 16,
-                        color: palette.profileVerifiedCheckBg,
-                      ),
-                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            account.displayName.isNotEmpty
+                                ? account.displayName
+                                : _AccountsSection._platformLabel(account.platform),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: labelColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (account.isPremium) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.workspace_premium,
+                            size: 16,
+                            color: accentColor,
+                          ),
+                        ],
+                        if (account.isVerified && !account.isPremium) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.verified,
+                            size: 16,
+                            color: palette.profileVerifiedCheckBg,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (isLocked) ...[
+                    const SizedBox(width: 4),
+                    const Icon(Icons.lock, size: 16, color: Color(0xFF6C7883)),
                   ],
-                ),
+                  if (unreadCount > 0 && !isLocked) ...[
+                    const SizedBox(width: 4),
+                    _SettingsUnreadBadge(
+                      count: unreadCount,
+                      muted: unreadAllMuted,
+                      isDark: isDark,
+                    ),
+                  ],
+                  if (dragHandle != null) ...[
+                    const SizedBox(width: 8),
+                    dragHandle!,
+                  ],
+                ],
               ),
-              if (unreadCount > 0) ...[
-                const SizedBox(width: 4),
-                _SettingsUnreadBadge(
-                  count: unreadCount,
-                  muted: unreadAllMuted,
-                  isDark: isDark,
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),
@@ -2114,9 +2344,50 @@ class _PersonalChannelSelectorState extends State<_PersonalChannelSelector> {
                 Flexible(
                   child: ListView.builder(
                     shrinkWrap: true,
-                    itemCount: _channels!.length,
+                    itemCount: _channels!.length + 1,
                     itemBuilder: (ctx, i) {
-                      final ch = _channels![i];
+                      if (i == 0) {
+                        final isNone = !widget.hasChannel;
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            InkWell(
+                              onTap: isNone ? null : () {
+                                final engine = context.read<EngineService>();
+                                final appState = context.read<AppState>();
+                                engine.clearPersonalChannel(appState.activeAccountId);
+                                widget.onChannelChanged?.call('');
+                                Navigator.of(ctx).pop();
+                                showTelegramToast(context, 'Personal channel removed');
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 36, height: 36,
+                                      decoration: BoxDecoration(
+                                        color: subtextColor.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(18),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Icon(Icons.block, size: 18, color: subtextColor),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text('None', style: TextStyle(fontSize: 14, color: isNone ? accentColor : textColor)),
+                                    const Spacer(),
+                                    if (isNone) Icon(Icons.check_circle, size: 20, color: accentColor),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Divider(height: 1, color: widget.isDark ? const Color(0xFF2A3A4A) : const Color(0xFFE0E0E0)),
+                            const SizedBox(height: 4),
+                          ],
+                        );
+                      }
+                      final i2 = i - 1;
+                      final ch = _channels![i2];
                       final isSelected = ch.title == widget.currentName || ch.username == widget.currentName;
                       return InkWell(
                         onTap: () {
@@ -2164,18 +2435,6 @@ class _PersonalChannelSelectorState extends State<_PersonalChannelSelector> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  if (widget.hasChannel)
-                    TextButton(
-                      onPressed: () {
-                        final engine = context.read<EngineService>();
-                        final appState = context.read<AppState>();
-                        engine.clearPersonalChannel(appState.activeAccountId);
-                        widget.onChannelChanged?.call('');
-                        Navigator.of(context).pop();
-                        showTelegramToast(context, 'Personal channel removed');
-                      },
-                      child: Text('Remove', style: TextStyle(color: Colors.red[400])),
-                    ),
                   const Spacer(),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
@@ -2306,7 +2565,7 @@ class _BirthdayDrumPickerDialogState extends State<_BirthdayDrumPickerDialog> {
                 height: 200,
                 child: Row(
                   children: [
-                    Expanded(child: _buildWheel(
+                    Flexible(flex: 1, child: _buildWheel(
                       controller: _dayController,
                       itemCount: maxDays,
                       textColor: textColor,
@@ -2314,7 +2573,7 @@ class _BirthdayDrumPickerDialogState extends State<_BirthdayDrumPickerDialog> {
                       labelBuilder: (i) => '${i + 1}',
                       onChanged: (i) => setState(() => _selectedDay = i + 1),
                     )),
-                    Expanded(child: _buildWheel(
+                    Flexible(flex: 2, child: _buildWheel(
                       controller: _monthController,
                       itemCount: 12,
                       textColor: textColor,
@@ -2322,7 +2581,7 @@ class _BirthdayDrumPickerDialogState extends State<_BirthdayDrumPickerDialog> {
                       labelBuilder: (i) => _monthNames[i],
                       onChanged: _onMonthChanged,
                     )),
-                    Expanded(child: _buildWheel(
+                    Flexible(flex: 1, child: _buildWheel(
                       controller: _yearController,
                       itemCount: _yearCount,
                       textColor: textColor,
