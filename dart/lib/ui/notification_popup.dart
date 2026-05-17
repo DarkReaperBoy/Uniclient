@@ -178,6 +178,12 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
           }
         },
       );
+      Timer(const Duration(seconds: 1), () {
+        if (!mounted) return;
+        if (!_hasReceivedInput) {
+          _hasReceivedInput = true;
+        }
+      });
     } else {
       _scheduleHideAfterWait(popup);
     }
@@ -423,6 +429,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
           bodyColor: bodyColor,
           closeColor: closeColor,
           accentColor: accentColor,
+          settings: widget.settings,
           onHoverEnter: () => _onHoverEnter(popup),
           onHoverExit: () => _onHoverExit(popup),
           onTap: () => _onTapNotification(popup),
@@ -431,6 +438,14 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
           onReplyClick: () => _onReplyClick(popup),
           onReplySend: () => _onReplySend(popup),
           onReplyCancel: () => _onReplyCancel(popup),
+          onReplyHeightChanged: (h) {
+            if (popup.replyHeight != h) {
+              setState(() {
+                popup.replyHeight = h;
+                _recalcPositions();
+              });
+            }
+          },
         ),
       );
     }
@@ -474,6 +489,8 @@ class _NotificationPopupWidget extends StatelessWidget {
       accentColor;
   final VoidCallback onHoverEnter, onHoverExit, onTap, onRightClick, onClose,
       onReplyClick, onReplySend, onReplyCancel;
+  final NotificationSettings settings;
+  final ValueChanged<double>? onReplyHeightChanged;
 
   const _NotificationPopupWidget({
     super.key,
@@ -496,6 +513,8 @@ class _NotificationPopupWidget extends StatelessWidget {
     required this.onReplyClick,
     required this.onReplySend,
     required this.onReplyCancel,
+    required this.settings,
+    this.onReplyHeightChanged,
   });
 
   @override
@@ -505,6 +524,8 @@ class _NotificationPopupWidget extends StatelessWidget {
         popup.hiding ? Curves.easeInCirc : Curves.linear;
     final hideDuration =
         popup.hiding ? _slowHideDuration : _fadeInDuration;
+    final content = composeNotificationContent(data, settings);
+    final nameHidden = !settings.previewName;
 
     return AnimatedPositioned(
       duration: _shiftDuration,
@@ -540,14 +561,10 @@ class _NotificationPopupWidget extends StatelessWidget {
                           left: _photoPos,
                           top: _photoPos,
                           child: _Avatar(
-                            name: data.chatTitle.isNotEmpty
-                                ? data.chatTitle
-                                : data.senderName,
-                            avatarPath: data.avatarPath,
+                            name: content.title,
+                            avatarPath: nameHidden ? '' : data.avatarPath,
                             accentColor: accentColor,
-                            forceHiddenPlaceholder: data.avatarPath.isEmpty &&
-                                (data.chatTitle == 'UniClient' ||
-                                 data.chatTitle.isEmpty),
+                            forceHiddenPlaceholder: nameHidden,
                           ),
                         ),
                         Positioned(
@@ -555,9 +572,7 @@ class _NotificationPopupWidget extends StatelessWidget {
                           top: _textTop,
                           right: _closeSize + _closePosRight + 4,
                           child: Text(
-                            data.chatTitle.isNotEmpty
-                                ? data.chatTitle
-                                : data.senderName,
+                            content.title,
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -587,7 +602,7 @@ class _NotificationPopupWidget extends StatelessWidget {
                             },
                             blendMode: BlendMode.dstIn,
                             child: Text.rich(
-                              _buildBodySpan(data, titleColor, bodyColor),
+                              _buildBodySpan(content, titleColor, bodyColor),
                               maxLines: 2,
                               overflow: TextOverflow.clip,
                             ),
@@ -629,6 +644,7 @@ class _NotificationPopupWidget extends StatelessWidget {
                       bodyColor: bodyColor,
                       onSend: onReplySend,
                       onCancel: onReplyCancel,
+                      onHeightChanged: onReplyHeightChanged,
                     ),
                 ],
               ),
@@ -639,21 +655,21 @@ class _NotificationPopupWidget extends StatelessWidget {
     );
   }
 
-  InlineSpan _buildBodySpan(NotificationData data, Color titleColor, Color bodyColor) {
-    if (data.subtitle.isNotEmpty) {
+  InlineSpan _buildBodySpan(NotificationContent content, Color titleColor, Color bodyColor) {
+    if (content.subtitle.isNotEmpty) {
       return TextSpan(children: [
         TextSpan(
-          text: '${data.subtitle}: ',
+          text: '${content.subtitle}: ',
           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: titleColor),
         ),
         TextSpan(
-          text: data.text,
+          text: content.body,
           style: TextStyle(fontSize: 13, color: bodyColor),
         ),
       ]);
     }
     return TextSpan(
-      text: data.text,
+      text: content.body,
       style: TextStyle(fontSize: 13, color: bodyColor),
     );
   }
@@ -824,7 +840,7 @@ class _CloseButton extends StatelessWidget {
         width: _closeSize,
         height: _closeSize,
         child: Center(
-          child: Icon(Icons.close, size: 16, color: color),
+          child: Icon(Icons.close, size: 10, color: color),
         ),
       ),
     );
@@ -842,13 +858,22 @@ class _ReplyButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: _replyButtonSize,
-        height: _replyButtonSize,
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: accentColor,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
         ),
-        child: const Icon(Icons.reply, size: 18, color: Colors.white),
+        alignment: Alignment.center,
+        child: const Text(
+          'REPLY',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            letterSpacing: 0.5,
+          ),
+        ),
       ),
     );
   }
@@ -859,6 +884,7 @@ class _ReplyField extends StatefulWidget {
   final double width;
   final Color accentColor, bgColor, bodyColor;
   final VoidCallback onSend, onCancel;
+  final ValueChanged<double>? onHeightChanged;
 
   const _ReplyField({
     required this.controller,
@@ -868,6 +894,7 @@ class _ReplyField extends StatefulWidget {
     required this.bodyColor,
     required this.onSend,
     required this.onCancel,
+    this.onHeightChanged,
   });
 
   @override
@@ -876,15 +903,28 @@ class _ReplyField extends StatefulWidget {
 
 class _ReplyFieldState extends State<_ReplyField> {
   late final FocusNode _focusNode;
+  final GlobalKey _fieldKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     _focusNode = FocusNode();
+    widget.controller.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _fieldKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize) {
+        widget.onHeightChanged?.call(box.size.height);
+      }
+    });
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_onTextChanged);
     _focusNode.dispose();
     super.dispose();
   }
@@ -898,24 +938,30 @@ class _ReplyFieldState extends State<_ReplyField> {
         children: [
           Expanded(
             child: ConstrainedBox(
+              key: _fieldKey,
               constraints: const BoxConstraints(
                 minHeight: _replyFieldMinH,
                 maxHeight: _replyFieldMaxH,
               ),
-              child: KeyboardListener(
+              child: Focus(
                 focusNode: _focusNode,
-                onKeyEvent: (event) {
-                  if (event is KeyDownEvent) {
-                    if (event.logicalKey == LogicalKeyboardKey.escape) {
-                      widget.onCancel();
-                    } else if (event.logicalKey == LogicalKeyboardKey.enter &&
-                        HardwareKeyboard.instance.logicalKeysPressed
-                            .any((k) =>
-                                k == LogicalKeyboardKey.controlLeft ||
-                                k == LogicalKeyboardKey.controlRight)) {
+                onKeyEvent: (node, event) {
+                  if (event is! KeyDownEvent) return KeyEventResult.ignored;
+                  if (event.logicalKey == LogicalKeyboardKey.escape) {
+                    widget.onCancel();
+                    return KeyEventResult.handled;
+                  }
+                  if (event.logicalKey == LogicalKeyboardKey.enter) {
+                    final shift = HardwareKeyboard.instance.logicalKeysPressed
+                        .any((k) =>
+                            k == LogicalKeyboardKey.shiftLeft ||
+                            k == LogicalKeyboardKey.shiftRight);
+                    if (!shift) {
                       widget.onSend();
+                      return KeyEventResult.handled;
                     }
                   }
+                  return KeyEventResult.ignored;
                 },
                 child: TextField(
                   controller: widget.controller,
@@ -930,7 +976,6 @@ class _ReplyFieldState extends State<_ReplyField> {
                         const EdgeInsets.fromLTRB(8, 8, 8, 6),
                     isDense: true,
                   ),
-                  onSubmitted: (_) => widget.onSend(),
                 ),
               ),
             ),
