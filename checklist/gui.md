@@ -550,10 +550,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-## media_viewer — Video controller border-radius wrong (10px vs 9px)
-
-- [ ] [MAJOR] The video controls container uses `BorderRadius.circular(10)` but the spec value is `mediaviewControllerRadius: 9px`. — `media_viewer.dart:2203` ← `media_view.style:95`
-
 ## media_viewer — Recognize Text (OCR) toolbar button missing
 
 - [ ] [MAJOR] AyuGram has a dedicated "Recognize Text" button (`Over::Recognize`) in the media viewer toolbar that triggers `Platform::TextRecognition::RecognizeText`. The Dart toolbar only has Draw/Save/Rotate/More buttons — OCR is completely absent from `_buildToolbar`. — `media_viewer.dart:3194-3224` ← `media_view_overlay_widget.cpp:6457-6461,3396`
