@@ -397,6 +397,7 @@ class _MediaViewerState extends State<MediaViewer>
   String _saveToastPath = '';
 
   List<_VideoChapter> _chapters = const [];
+  int _lastChapterIndex = -1;
   late final AnimationController _chapterToastAnim;
   Timer? _chapterToastTimer;
   String _chapterToastText = '';
@@ -559,7 +560,10 @@ class _MediaViewerState extends State<MediaViewer>
           if (mounted) setState(() => _isPlaying = playing);
         }),
         player.stream.position.listen((pos) {
-          if (mounted && !_isSeeking) setState(() => _position = pos);
+          if (mounted && !_isSeeking) {
+            setState(() => _position = pos);
+            _detectChapterChange(pos);
+          }
         }),
         player.stream.duration.listen((dur) {
           if (mounted) {
@@ -677,6 +681,7 @@ class _MediaViewerState extends State<MediaViewer>
     _position = Duration.zero;
     _duration = Duration.zero;
     _chapters = const [];
+    _lastChapterIndex = -1;
   }
 
   bool get _hasPrev => _currentIndex < widget.mediaMessages.length - 1;
@@ -955,6 +960,27 @@ class _MediaViewerState extends State<MediaViewer>
     _chapterToastTimer = Timer(_kChapterToastShown, () {
       if (mounted) _chapterToastAnim.reverse();
     });
+  }
+
+  void _detectChapterChange(Duration pos) {
+    if (_chapters.isEmpty || _duration.inMilliseconds <= 0) return;
+    final progress = pos.inMilliseconds / _duration.inMilliseconds;
+    var index = -1;
+    for (var i = _chapters.length - 1; i >= 0; i--) {
+      if (_chapters[i].position <= progress) {
+        index = i;
+        break;
+      }
+    }
+    if (index == _lastChapterIndex) return;
+    final previous = _lastChapterIndex;
+    _lastChapterIndex = index;
+    if (index >= 0) {
+      _showChapterToast(
+        _chapters[index].label,
+        (index > previous) ? 1 : -1,
+      );
+    }
   }
 
   void _seekToPercent(int percent) {
