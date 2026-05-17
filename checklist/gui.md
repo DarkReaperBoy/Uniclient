@@ -551,10 +551,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-## media_viewer — PIP widget _formatTime drops hours
-
-- [ ] [MAJOR] `_PipWidgetState._formatTime` only returns `MM:SS` format and discards hours (`d.inMinutes.remainder(60)`). For videos longer than 60 minutes the PIP time display shows wrong values (e.g. a video at 1h 05m 30s shows "05:30"). The main viewer's `_formatTime` handles hours correctly — the PIP copy-paste dropped it. — `media_viewer.dart:4283-4287` vs `media_viewer.dart:1111-1119`
-
 ## media_viewer — Story replies sent without story-reply context
 
 - [ ] [MAJOR] Story replies use `engine.sendMessage(accountId, widget.peerId, text)` (line 6666), which sends a plain message to the peer. Telegram story replies require a `replyToStory` input field in the API call so the server knows it's a reply to a specific story. Without this field, the message is delivered as a regular DM, not as a story reply with the referenced story shown. — `media_viewer.dart:6662-6667` ← `media_stories_controller.cpp` (story reply sends story ID reference)
