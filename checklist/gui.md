@@ -517,30 +517,6 @@ return ClipOval(
 
 ---
 
-## _CreatePollContent
-
-- [ ] [MAJOR] AyuGram's poll options count limit is `appConfig->pollOptionsLimit()` (fetched from server at runtime via `AppConfig`), not a hardcoded 32. Dart hardcodes `_kMaxOptions = 32`. While 32 matches `PollData::kMaxOptions`, AyuGram displays the remaining count as `tr::lng_polls_create_limit(lt_count, max - count)` and "maximum" when full — Dart has no such remaining-count label — `input_dialogs.dart:1500-1501` ← `AyuGram/boxes/create_poll_box.cpp:103-104, 2505-2524`
-
-- [ ] [MAJOR] AyuGram's poll settings section has 6+ toggles: Anonymous Voting, Multiple Answers, Allow Adding Options (open polls), Allow Revoting, Shuffle Answers, Quiz Mode, AND a Limit Duration toggle. Dart only has 4: Anonymous Voting, Multiple Answers, Allow Revoting, Quiz Mode — missing "Shuffle Answers", "Allow Adding Options", and "Limit Duration" — `input_dialogs.dart:1688-1712` ← `AyuGram/boxes/create_poll_box.cpp:2541-2627`
-
-- [ ] [MAJOR] AyuGram's "Settings" section uses `AddPollToggleButton` which renders `DetailedSettingsButton` (full-width toggle rows with icon+description text). Dart renders checkboxes in `InkWell` rows — wrong widget type — `input_dialogs.dart:1760-1783` ← `AyuGram/boxes/create_poll_box.cpp:2554-2616`
-
-- [ ] [MAJOR] AyuGram's poll has a "Description" field (separate from Question) for Premium users via `setupDescription()`. Dart has no description field — `input_dialogs.dart:1586-1606` ← `AyuGram/boxes/create_poll_box.cpp:1317-1368`
-
-- [ ] [MAJOR] AyuGram's poll options support media attachments (photo/video/document per option via `PollMediaButton`) — each option has an attach button. Dart options have only a text field with no media attachment — `input_dialogs.dart:1614-1673` ← `AyuGram/boxes/create_poll_box.cpp:346-348`
-
-- [ ] [MAJOR] AyuGram's "Multiple Answers" toggle, when enabled, sets `quizForceOff` — the quiz toggle is forced off. Dart's implementation sets `_quiz = false` when `_multipleChoice` is set to true — that part matches. However AyuGram also fires `revotingForceOff` events to disable revoting when quiz is on; Dart hardcodes `_allowRevoting = false` in quiz mode — functionally equivalent but Dart does not disable the Allow Revoting checkbox visually/interactively (it passes `null` as `onChanged` for `_checkRow` when `_quiz` is true — acceptable workaround).
-
-- [ ] [MAJOR] AyuGram's `kWarnQuestionLimit = 80` — the warning counter for question appears when chars > 80. Dart shows the counter when `_questionCtrl.text.length > 80` — this is correct.
-
-- [ ] [MAJOR] AyuGram's `kWarnOptionLimit = 30` — warning appears when remaining chars < 30. Dart checks `_kOptionLimit - _optionCtrls[i].text.length < _kWarnOptionLimit` which is equivalent — correct.
-
-- [ ] [MAJOR] AyuGram's `kWarnSolutionLimit = 60` — solution warning threshold. Dart shows solution counter when `_solutionCtrl.text.length > 60` — correct threshold.
-
-- [ ] [MAJOR] AyuGram's poll options support drag-to-reorder via `VerticalLayoutReorder`. Dart has no reorder mechanism for poll options — `input_dialogs.dart:1614-1673` ← `AyuGram/boxes/create_poll_box.cpp:239, setupReorder()`
-
-- [ ] [MAJOR] AyuGram's question field uses `InitField` which calls `InitMessageFieldHandlers` enabling emoji suggestions and markdown. Dart's question field is a plain `BoxInputField` with no emoji suggestions — `input_dialogs.dart:1588-1593` ← `AyuGram/boxes/create_poll_box.cpp:273-292`
-
 # instant_view — Audit findings
 
 - [ ] [CRITICAL] `_buildEmbed` renders link-only placeholder instead of actual embedded content — `instant_view.dart:958-960` ← `iv_prepare.cpp:672` — C++ generates a real `<iframe src=...>` tag that the webview renders (YouTube players, Twitter posts, SoundCloud widgets, etc. all play in-page). Dart shows only an icon + URL link box that opens the browser externally. All embedded media blocks are non-functional: YouTube videos cannot be played, Twitter posts cannot be read, SoundCloud clips cannot be heard.
