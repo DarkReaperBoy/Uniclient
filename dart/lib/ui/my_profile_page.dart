@@ -858,7 +858,7 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
                 style: TextStyle(
                   fontSize: 13,
                   color: widget.isStatusOnline || (widget.statusText.isEmpty && account.connState == ConnState.connected)
-                      ? context.palette.windowBgActive
+                      ? context.palette.windowActiveTextFg
                       : subtextColor,
                 ),
               ),
@@ -1418,8 +1418,10 @@ class _EditPeerColorBox extends StatefulWidget {
 class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   late int _selected;
   bool _saving = false;
+  List<PeerColorEntry>? _serverColors;
+  bool _loadingColors = true;
 
-  static const _baseColors = [
+  static const _fallbackColors = [
     Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
     Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae),
     Color(0xFF6ec9cb),
@@ -1428,7 +1430,40 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   @override
   void initState() {
     super.initState();
-    _selected = widget.currentColorId.clamp(0, 6);
+    _selected = widget.currentColorId;
+    _loadColors();
+  }
+
+  Future<void> _loadColors() async {
+    try {
+      final engine = context.read<EngineService>();
+      final colors = await engine.getPeerColors(widget.accountId);
+      if (mounted) {
+        setState(() {
+          _serverColors = colors.where((c) => !c.hidden).toList();
+          _loadingColors = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingColors = false);
+    }
+  }
+
+  Color _colorForEntry(PeerColorEntry entry) {
+    final cols = widget.isDark ? entry.nightColors : entry.dayColors;
+    if (cols.isNotEmpty) return Color(0xFF000000 | (cols.first & 0xFFFFFF));
+    if (entry.colorId < _fallbackColors.length) return _fallbackColors[entry.colorId];
+    return _fallbackColors[entry.colorId % _fallbackColors.length];
+  }
+
+  Color _selectedColor() {
+    if (_serverColors != null) {
+      for (final c in _serverColors!) {
+        if (c.colorId == _selected) return _colorForEntry(c);
+      }
+    }
+    if (_selected >= 0 && _selected < _fallbackColors.length) return _fallbackColors[_selected];
+    return _fallbackColors[0];
   }
 
   @override
@@ -1437,11 +1472,16 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
     final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor = context.palette.windowBgActive;
 
+    final colors = _serverColors ?? [];
+    final displayColors = colors.isEmpty
+        ? List.generate(7, (i) => (i, _fallbackColors[i]))
+        : colors.map((c) => (c.colorId, _colorForEntry(c))).toList();
+
     return Dialog(
       backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 364),
+        constraints: const BoxConstraints(maxWidth: 400),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -1457,34 +1497,50 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                 ),
               ),
               const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(7, (i) {
-                  final isSelected = i == _selected;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selected = i),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: isSelected
-                            ? Border.all(color: accentColor, width: 2.5)
-                            : null,
-                      ),
-                      padding: EdgeInsets.all(isSelected ? 3 : 0),
-                      child: Container(
+              if (_loadingColors)
+                Center(child: SizedBox(
+                    width: 24, height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: accentColor)))
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: displayColors.map((entry) {
+                    final (colorId, color) = entry;
+                    final isSelected = colorId == _selected;
+                    return GestureDetector(
+                      onTap: () => setState(() => _selected = colorId),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
-                          color: _baseColors[i],
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(12),
+                          border: isSelected
+                              ? Border.all(color: accentColor, width: 2.5)
+                              : null,
+                        ),
+                        padding: EdgeInsets.all(isSelected ? 2 : 0),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: BorderRadius.circular(isSelected ? 8 : 12),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'A',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 8),
+                    );
+                  }).toList(),
+                ),
+              const SizedBox(height: 16),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1497,21 +1553,43 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                 child: Row(
                   children: [
                     Container(
-                      width: 18,
-                      height: 18,
+                      width: 30,
+                      height: 30,
                       decoration: BoxDecoration(
-                        color: _baseColors[_selected],
-                        shape: BoxShape.circle,
+                        color: _selectedColor(),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'A',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Text(
-                      'Your Name',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: _baseColors[_selected],
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Your Name',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: _selectedColor(),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Message preview text',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: textColor.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
