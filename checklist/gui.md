@@ -511,9 +511,6 @@ return ClipOval(
 
 ## _AddContactBoxContent
 
-- [ ] [MAJOR] AyuGram's `AddContactBox` uses `MTPcontacts_ImportContacts` (bulk contact import API) which returns the resolved user. Dart uses `engine.addContact(accountId, phone, firstName, lastName)` — the contact import flow in AyuGram uses a random `client_id` (`_contactId`) to match back the created contact from the response. There is no evidence Dart's engine exposes the same client-id matching logic — the behavior on "not on Telegram" is shown via a `_retrying` paint mode (text rendered directly on the box, not in a widget) not via an error string. Dart's retry mode clears fields but AyuGram's retry mode hides children and shows text in `paintEvent` — `input_dialogs.dart:632-648, 779-789` ← `AyuGram/boxes/add_contact_box.cpp:494-525`
-
-- [ ] [MAJOR] AyuGram's retry mode renders the "not on Telegram" message with the first name substituted (`tr::lng_contact_not_joined(lt_name, _sentName)`) via `QPainter::drawText` in `paintEvent`, hiding all input fields. Dart's `_retry = true` state keeps all input fields visible and only shows an error string in `_error` — the contact form remains visible when it should be replaced with the "not joined" message — `input_dialogs.dart:634-639` ← `AyuGram/boxes/add_contact_box.cpp:354-385, 494-501`
 
 
 ---
