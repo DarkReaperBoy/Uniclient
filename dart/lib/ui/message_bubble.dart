@@ -9658,7 +9658,12 @@ class _InlineButtonState extends State<_InlineButton>
           final engine = context.read<EngineService>();
           engine.createPoll(chat.accountId, chat.chatId, result.question, result.options,
               anonymous: result.anonymous, multipleChoice: result.multipleChoice,
-              quiz: result.quiz, allowRevoting: result.allowRevoting);
+              quiz: result.quiz, allowRevoting: result.allowRevoting,
+              shuffleAnswers: result.shuffleAnswers,
+              allowAddingOptions: result.allowAddingOptions,
+              limitDuration: result.limitDuration,
+              correctOption: result.correctOptionIndex, solution: result.solution,
+              description: result.description);
         });
       case 'request_peer':
         _showPeerSelectionDialog(context, int.tryParse(widget.messageId) ?? 0, btn.buttonId);

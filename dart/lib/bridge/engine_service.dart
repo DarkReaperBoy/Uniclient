@@ -2950,8 +2950,12 @@ class EngineService {
     bool anonymous = true,
     bool quiz = false,
     bool allowRevoting = true,
+    bool shuffleAnswers = false,
+    bool allowAddingOptions = false,
+    int limitDuration = 0,
     int correctOption = -1,
     String solution = '',
+    String description = '',
   }) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -2962,8 +2966,12 @@ class EngineService {
       'anonymous': anonymous,
       'quiz': quiz,
       'allow_revoting': allowRevoting,
+      'shuffle_answers': shuffleAnswers,
+      'allow_adding_options': allowAddingOptions,
+      'limit_duration': limitDuration,
       'correct_option': correctOption,
       'solution': solution,
+      'description': description,
     }));
     final respBytes = await _callAsync('__engine', 'CreatePoll', Uint8List.fromList(payload));
     if (respBytes.isEmpty) return '';

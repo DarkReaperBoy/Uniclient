@@ -122,8 +122,8 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
   bool _checking = false;
   bool _saving = false;
   List<Map<String, dynamic>> _additionalUsernames = [];
+  Map<String, bool> _pendingToggles = {};
   bool _loadingUsernames = false;
-  static final _usernameRegex = RegExp(r'^[a-zA-Z][a-zA-Z0-9_]{3,31}$');
 
   @override
   void initState() {
@@ -160,6 +160,17 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     _ctrl.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  static bool _isValidUsername(String name) {
+    for (var i = 0; i < name.length; i++) {
+      final c = name.codeUnitAt(i);
+      final isLetter = (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A);
+      final isDigit = c >= 0x30 && c <= 0x39;
+      final isUnderscore = c == 0x5F;
+      if (!isLetter && !isDigit && !isUnderscore) return false;
+    }
+    return true;
   }
 
   String _cleanUsername(String raw) {
@@ -212,7 +223,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
       return;
     }
 
-    if (!_usernameRegex.hasMatch(username)) {
+    if (!_isValidUsername(username)) {
       setState(() {
         _statusText = 'Sorry, this username is invalid';
         _purchaseUsername = null;
@@ -279,6 +290,10 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
 
     setState(() => _saving = true);
     try {
+      for (final entry in _pendingToggles.entries) {
+        await widget.engine.toggleAccountUsername(
+            widget.accountId, entry.key, entry.value);
+      }
       await widget.engine.updateAccountUsername(widget.accountId, username);
       if (mounted) Navigator.of(context).pop(username);
     } catch (e) {
@@ -292,50 +307,64 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     }
   }
 
-  Future<void> _toggleUsername(String username, bool active) async {
-    try {
-      await widget.engine.toggleAccountUsername(widget.accountId, username, active);
-      await _loadUsernames();
-    } catch (e) {
-      if (mounted) showTelegramToast(context, 'Failed: $e');
-    }
+  void _toggleUsername(String username, bool active) {
+    setState(() {
+      _pendingToggles[username] = active;
+      final idx = _additionalUsernames.indexWhere(
+          (u) => (u['username'] as String? ?? '') == username);
+      if (idx >= 0) {
+        _additionalUsernames[idx] = Map<String, dynamic>.from(_additionalUsernames[idx])
+          ..['active'] = active;
+      }
+    });
+  }
+
+  void _reorderUsernames(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) newIndex--;
+      final item = _additionalUsernames.removeAt(oldIndex);
+      _additionalUsernames.insert(newIndex, item);
+    });
   }
 
   Widget _usernameRow(Map<String, dynamic> u, Color textColor, Color subColor, TelegramPalette p) {
     final name = u['username'] as String? ?? '';
     final active = u['active'] as bool? ?? false;
     final editable = u['editable'] as bool? ?? false;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          Icon(
-            Icons.drag_handle,
-            size: 18,
-            color: editable ? subColor : subColor.withValues(alpha: 0.3),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '@$name',
-              style: TextStyle(
-                fontSize: 14,
-                color: active ? textColor : subColor,
+    return Material(
+      color: Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(
+          children: [
+            Icon(
+              Icons.drag_handle,
+              size: 18,
+              color: editable ? subColor : subColor.withValues(alpha: 0.3),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '@$name',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: active ? textColor : subColor,
+                ),
               ),
             ),
-          ),
-          if (editable)
-            SizedBox(
-              width: 40,
-              height: 28,
-              child: Switch(
-                value: active,
-                onChanged: (v) => _toggleUsername(name, v),
-                activeColor: p.windowBgActive,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            if (editable)
+              SizedBox(
+                width: 40,
+                height: 28,
+                child: Switch(
+                  value: active,
+                  onChanged: (v) => _toggleUsername(name, v),
+                  activeColor: p.windowBgActive,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -361,16 +390,33 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'You can choose a username on Telegram. If you do, people will be able to find you by this username.',
+              'You can choose a username on Telegram. If you do, people will be able to find you by this username.'
+              '\n\n'
+              'You can use a–z, 0–9 and underscores. Minimum length is 5 characters.',
               style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
             ),
             const SizedBox(height: 16),
-            BoxInputField(
+            TextField(
               controller: _ctrl,
               focusNode: _focusNode,
-              label: 'Username',
-              onChanged: _onChanged,
+              style: TextStyle(fontSize: 15, color: textFg),
               enabled: !_saving,
+              onChanged: _onChanged,
+              decoration: InputDecoration(
+                prefixText: '@',
+                prefixStyle: TextStyle(fontSize: 15, color: textFg),
+                labelText: 'Username',
+                labelStyle: TextStyle(fontSize: 14, color: subColor),
+                floatingLabelStyle: TextStyle(fontSize: 12, color: p.activeLineFg),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: p.boxDividerBg)),
+                focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: p.activeLineFg, width: 2)),
+                disabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: p.boxDividerBg)),
+              ),
             ),
             const SizedBox(height: 8),
             if (_checking)
@@ -414,11 +460,6 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
                   color: _isValid ? goodColor : errorColor,
                 ),
               ),
-            const SizedBox(height: 8),
-            Text(
-              'You can use a–z, 0–9 and underscores. Minimum length is 5 characters.',
-              style: TextStyle(fontSize: 13, color: subColor),
-            ),
             if (_additionalUsernames.isNotEmpty) ...[
               const SizedBox(height: 16),
               Text(
@@ -426,8 +467,21 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.windowActiveTextFg),
               ),
               const SizedBox(height: 8),
-              for (final u in _additionalUsernames)
-                _usernameRow(u, textFg, subColor, p),
+              SizedBox(
+                height: (_additionalUsernames.length * 36.0).clamp(0, 180),
+                child: ReorderableListView(
+                  shrinkWrap: true,
+                  buildDefaultDragHandles: true,
+                  onReorder: _reorderUsernames,
+                  children: [
+                    for (var i = 0; i < _additionalUsernames.length; i++)
+                      KeyedSubtree(
+                        key: ValueKey(_additionalUsernames[i]['username']),
+                        child: _usernameRow(_additionalUsernames[i], textFg, subColor, p),
+                      ),
+                  ],
+                ),
+              ),
             ],
           ],
         ),
@@ -607,9 +661,19 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     _save(fullPhone, firstName, lastName);
   }
 
+  String _sentName = '';
+
   Future<void> _save(String phone, String firstName, String lastName) async {
     final account = widget.appState.activeAccount;
     if (account == null) return;
+
+    var fn = firstName;
+    var ln = lastName;
+    if (fn.isEmpty) {
+      fn = ln;
+      ln = '';
+    }
+    _sentName = fn;
 
     setState(() {
       _saving = true;
@@ -617,7 +681,7 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     });
 
     try {
-      final userId = await widget.engine.addContact(account.id, phone, firstName, lastName);
+      final userId = await widget.engine.addContact(account.id, phone, fn, ln);
       if (mounted) {
         final chatState = context.read<ChatState>();
         chatState.loadChats();
@@ -634,7 +698,6 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
             msg.contains('no new users')) {
           setState(() {
             _saving = false;
-            _error = 'This phone number is not on Telegram yet.';
             _retry = true;
           });
         } else {
@@ -647,6 +710,14 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     }
   }
 
+  String get _title {
+    if (widget.initialPhone.isNotEmpty &&
+        (widget.initialFirstName.isNotEmpty || widget.initialLastName.isNotEmpty)) {
+      return 'Confirm contact data';
+    }
+    return 'Enter contact data';
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -657,124 +728,156 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     final focusBorderColor = p.activeLineFg;
 
     return TelegramBox(
-      title: 'Add Contact',
+      title: _title,
       wide: true,
       onConfirm: !_saving ? _submit : null,
       content: Padding(
         padding: EdgeInsets.fromLTRB(
             kBoxPadding.left, 0, kBoxPadding.right, kBoxPadding.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            BoxInputField(
-              controller: _invertNameOrder ? _lastNameCtrl : _firstNameCtrl,
-              focusNode: _invertNameOrder ? _lastNameFocus : _firstNameFocus,
-              label: _invertNameOrder ? 'Last name' : 'First name',
-              enabled: !_saving,
-              onSubmitted: (_) => (_invertNameOrder ? _firstNameFocus : _lastNameFocus).requestFocus(),
-            ),
-            const SizedBox(height: 9),
-            BoxInputField(
-              controller: _invertNameOrder ? _firstNameCtrl : _lastNameCtrl,
-              focusNode: _invertNameOrder ? _firstNameFocus : _lastNameFocus,
-              label: _invertNameOrder ? 'First name' : 'Last name',
-              enabled: !_saving,
-              onSubmitted: (_) => _phoneFocus.requestFocus(),
-            ),
-            const SizedBox(height: 20),
-            InkWell(
-              onTap: _showCountryPicker,
-              child: Row(
+        child: _retry
+            ? Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  '$_sentName is not on Telegram yet.',
+                  style: TextStyle(fontSize: 14, height: 22 / 14, color: textColor),
+                ),
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    _selectedCountry.flag,
-                    style: const TextStyle(fontSize: 20),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _selectedCountry.name,
-                    style: TextStyle(fontSize: 14, color: textColor),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(Icons.arrow_drop_down, size: 18, color: subColor),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 70,
-                  child: Row(
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('+',
-                          style: TextStyle(fontSize: 15, color: textColor)),
+                      Icon(Icons.person_outline, size: 20, color: subColor),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: TextField(
-                          controller: _codeCtrl,
-                          style: TextStyle(fontSize: 15, color: textColor),
-                          decoration: InputDecoration(
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly
-                          ],
-                          onChanged: _onCodeChanged,
+                        child: BoxInputField(
+                          controller: _invertNameOrder ? _lastNameCtrl : _firstNameCtrl,
+                          focusNode: _invertNameOrder ? _lastNameFocus : _firstNameFocus,
+                          label: _invertNameOrder ? 'Last name' : 'First name',
                           enabled: !_saving,
+                          onSubmitted: (_) => (_invertNameOrder ? _firstNameFocus : _lastNameFocus).requestFocus(),
                         ),
                       ),
                     ],
                   ),
-                ),
-                Container(
-                  width: 1,
-                  height: 30,
-                  color: borderColor,
-                  margin: const EdgeInsets.symmetric(horizontal: 8),
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _phoneCtrl,
-                    focusNode: _phoneFocus,
-                    style: TextStyle(fontSize: 15, color: textColor),
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [_phoneFormatter],
-                    enabled: !_saving,
-                    decoration: InputDecoration(
-                      hintText: 'Phone number',
-                      hintStyle: TextStyle(fontSize: 14, color: subColor),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                      enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: borderColor)),
-                      focusedBorder: UnderlineInputBorder(
-                          borderSide:
-                              BorderSide(color: focusBorderColor, width: 2)),
+                  const SizedBox(height: 9),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32),
+                    child: BoxInputField(
+                      controller: _invertNameOrder ? _firstNameCtrl : _lastNameCtrl,
+                      focusNode: _invertNameOrder ? _firstNameFocus : _lastNameFocus,
+                      label: _invertNameOrder ? 'First name' : 'Last name',
+                      enabled: !_saving,
+                      onSubmitted: (_) => _phoneFocus.requestFocus(),
                     ),
                   ),
-                ),
-              ],
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(_error!, style: TextStyle(fontSize: 13, color: errorColor)),
-            ],
-            if (_saving) ...[
-              const SizedBox(height: 12),
-              const Center(
-                  child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2))),
-            ],
-          ],
-        ),
+                  const SizedBox(height: 20),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Icon(Icons.phone_outlined, size: 20, color: subColor),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: InkWell(
+                          onTap: _showCountryPicker,
+                          child: Row(
+                            children: [
+                              Text(
+                                _selectedCountry.flag,
+                                style: const TextStyle(fontSize: 20),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _selectedCountry.name,
+                                style: TextStyle(fontSize: 14, color: textColor),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(Icons.arrow_drop_down, size: 18, color: subColor),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 70,
+                          child: Row(
+                            children: [
+                              Text('+',
+                                  style: TextStyle(fontSize: 15, color: textColor)),
+                              Expanded(
+                                child: TextField(
+                                  controller: _codeCtrl,
+                                  style: TextStyle(fontSize: 15, color: textColor),
+                                  decoration: InputDecoration(
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding:
+                                        const EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly
+                                  ],
+                                  onChanged: _onCodeChanged,
+                                  enabled: !_saving,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 30,
+                          color: borderColor,
+                          margin: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: _phoneCtrl,
+                            focusNode: _phoneFocus,
+                            style: TextStyle(fontSize: 15, color: textColor),
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [_phoneFormatter],
+                            enabled: !_saving,
+                            decoration: InputDecoration(
+                              hintText: 'Phone number',
+                              hintStyle: TextStyle(fontSize: 14, color: subColor),
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                              enabledBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: borderColor)),
+                              focusedBorder: UnderlineInputBorder(
+                                  borderSide:
+                                      BorderSide(color: focusBorderColor, width: 2)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!, style: TextStyle(fontSize: 13, color: errorColor)),
+                  ],
+                  if (_saving) ...[
+                    const SizedBox(height: 12),
+                    const Center(
+                        child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2))),
+                  ],
+                ],
+              ),
       ),
       buttons: [
         TelegramBoxButton(
@@ -782,7 +885,7 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         TelegramBoxButton(
-          text: _retry ? 'Try Again' : 'Add',
+          text: _retry ? 'Try another contact' : 'Add',
           onPressed: !_saving ? _submit : null,
         ),
       ],
@@ -837,11 +940,23 @@ class _CountryPickerContent extends StatefulWidget {
 
 class _CountryPickerContentState extends State<_CountryPickerContent> {
   final _searchCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
+  final _searchFocus = FocusNode();
   String _query = '';
+  int _highlightedIndex = -1;
+  late List<CountryInfo> _cachedList;
+
+  @override
+  void initState() {
+    super.initState();
+    _cachedList = _buildList();
+  }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _scrollCtrl.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -866,87 +981,168 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
     return list;
   }
 
+  void _onSearchChanged(String v) {
+    setState(() {
+      _query = v;
+      _cachedList = _buildList();
+      _highlightedIndex = _cachedList.isNotEmpty ? 0 : -1;
+    });
+  }
+
+  void _selectHighlighted() {
+    if (_highlightedIndex >= 0 && _highlightedIndex < _cachedList.length) {
+      widget.onSelect(_cachedList[_highlightedIndex]);
+    }
+  }
+
+  void _moveHighlight(int delta) {
+    if (_cachedList.isEmpty) return;
+    setState(() {
+      _highlightedIndex = (_highlightedIndex + delta).clamp(0, _cachedList.length - 1);
+    });
+    final offset = _highlightedIndex * 36.0;
+    if (_scrollCtrl.hasClients) {
+      final viewportHeight = _scrollCtrl.position.viewportDimension;
+      final currentScroll = _scrollCtrl.offset;
+      if (offset < currentScroll) {
+        _scrollCtrl.jumpTo(offset);
+      } else if (offset + 36 > currentScroll + viewportHeight) {
+        _scrollCtrl.jumpTo(offset + 36 - viewportHeight);
+      }
+    }
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      _moveHighlight(1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      _moveHighlight(-1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.pageDown) {
+      _moveHighlight(10);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.pageUp) {
+      _moveHighlight(-10);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.home) {
+      setState(() => _highlightedIndex = 0);
+      if (_scrollCtrl.hasClients) _scrollCtrl.jumpTo(0);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.end) {
+      setState(() => _highlightedIndex = _cachedList.length - 1);
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
+      }
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter) {
+      _selectHighlighted();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
     final textColor = p.boxTextFg;
     final subColor = p.boxTitleAdditionalFg;
-    final filtered = _buildList();
+    final highlightColor = p.windowBgOver;
 
     return TelegramBox(
       title: 'Country',
       wide: true,
       showClose: true,
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-            child: TextField(
-              controller: _searchCtrl,
-              autofocus: true,
-              style: TextStyle(fontSize: 14, color: textColor),
-              decoration: InputDecoration(
-                hintText: 'Search country',
-                hintStyle: TextStyle(fontSize: 14, color: subColor),
-                isDense: true,
-                prefixIcon:
-                    Icon(Icons.search, size: 20, color: subColor),
-                border: InputBorder.none,
+      content: Focus(
+        onKeyEvent: _handleKeyEvent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: TextField(
+                controller: _searchCtrl,
+                focusNode: _searchFocus,
+                autofocus: true,
+                style: TextStyle(fontSize: 14, color: textColor),
+                decoration: InputDecoration(
+                  hintText: 'Search country',
+                  hintStyle: TextStyle(fontSize: 14, color: subColor),
+                  isDense: true,
+                  prefixIcon:
+                      Icon(Icons.search, size: 20, color: subColor),
+                  border: InputBorder.none,
+                ),
+                onChanged: _onSearchChanged,
               ),
-              onChanged: (v) => setState(() => _query = v),
             ),
-          ),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 400),
-            child: filtered.isEmpty
-                ? SizedBox(
-                    height: 100,
-                    child: Center(
-                      child: Text(
-                        'No countries found',
-                        style: TextStyle(fontSize: 13, color: subColor),
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: filtered.length,
-                    itemExtent: 36,
-                    itemBuilder: (ctx, i) {
-                      final c = filtered[i];
-                      final isSelected = c.iso == widget.selected.iso;
-                      return InkWell(
-                        onTap: () => widget.onSelect(c),
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 22, right: 8),
-                          child: Row(
-                            children: [
-                              Text(c.flag, style: const TextStyle(fontSize: 18)),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  c.name,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: textColor,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Text('+${c.dialCode}',
-                                  style: TextStyle(fontSize: 13, color: subColor)),
-                            ],
-                          ),
+            Flexible(
+              child: _cachedList.isEmpty
+                  ? SizedBox(
+                      height: 100,
+                      child: Center(
+                        child: Text(
+                          'No countries found',
+                          style: TextStyle(fontSize: 13, color: subColor),
                         ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollCtrl,
+                      itemCount: _cachedList.length,
+                      itemExtent: 36,
+                      itemBuilder: (ctx, i) {
+                        final c = _cachedList[i];
+                        final isSelected = c.iso == widget.selected.iso;
+                        final isHighlighted = i == _highlightedIndex;
+                        return InkWell(
+                          onTap: () => widget.onSelect(c),
+                          child: Container(
+                            color: isHighlighted ? highlightColor : null,
+                            padding: const EdgeInsets.only(left: 22, top: 9, right: 8),
+                            child: Row(
+                              children: [
+                                Text(c.flag, style: const TextStyle(fontSize: 18)),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    c.name,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: textColor,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                Text(
+                                  '+${c.dialCode}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontFamily: 'monospace',
+                                    color: subColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
       buttons: const [],
     );
@@ -1040,7 +1236,6 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
     3600: '1 hour',
     86400: '1 day',
     604800: '7 days',
-    2592000: '30 days',
     -1: 'Custom',
   };
 
@@ -1096,28 +1291,71 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
 
   Future<void> _showCustomExpiry() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _customExpireDate > 0
-          ? DateTime.fromMillisecondsSinceEpoch(_customExpireDate * 1000)
-          : now.add(const Duration(days: 1)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
+    final initial = _customExpireDate > 0
+        ? DateTime.fromMillisecondsSinceEpoch(_customExpireDate * 1000)
+        : now.add(const Duration(days: 1));
+    final dateCtrl = TextEditingController(
+      text: '${initial.day.toString().padLeft(2, '0')}/'
+          '${initial.month.toString().padLeft(2, '0')}/'
+          '${initial.year}',
     );
-    if (picked != null && mounted) {
-      final time = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.now(),
-      );
-      if (mounted) {
-        final dt = time != null
-            ? DateTime(picked.year, picked.month, picked.day, time.hour, time.minute)
-            : DateTime(picked.year, picked.month, picked.day, 23, 59);
-        setState(() {
-          _customExpireDate = dt.millisecondsSinceEpoch ~/ 1000;
-          _expireOption = -1;
-        });
-      }
+    final timeCtrl = TextEditingController(
+      text: '${initial.hour.toString().padLeft(2, '0')}:'
+          '${initial.minute.toString().padLeft(2, '0')}',
+    );
+    final result = await showTelegramBox<int>(
+      context: context,
+      builder: (ctx) => TelegramBox(
+        title: 'Choose Date and Time',
+        onConfirm: () {
+          final parts = dateCtrl.text.split('/');
+          final tParts = timeCtrl.text.split(':');
+          if (parts.length == 3 && tParts.length == 2) {
+            final day = int.tryParse(parts[0]) ?? 1;
+            final month = int.tryParse(parts[1]) ?? 1;
+            final year = int.tryParse(parts[2]) ?? now.year;
+            final hour = int.tryParse(tParts[0]) ?? 0;
+            final minute = int.tryParse(tParts[1]) ?? 0;
+            final dt = DateTime(year, month, day, hour, minute);
+            Navigator.of(ctx).pop(dt.millisecondsSinceEpoch ~/ 1000);
+          }
+        },
+        content: Padding(
+          padding: EdgeInsets.fromLTRB(kBoxPadding.left, 0, kBoxPadding.right, kBoxPadding.bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              BoxInputField(controller: dateCtrl, label: 'Date (DD/MM/YYYY)'),
+              const SizedBox(height: 12),
+              BoxInputField(controller: timeCtrl, label: 'Time (HH:MM)'),
+            ],
+          ),
+        ),
+        buttons: [
+          TelegramBoxButton(text: 'Cancel', onPressed: () => Navigator.of(ctx).pop()),
+          TelegramBoxButton(text: 'Save', onPressed: () {
+            final parts = dateCtrl.text.split('/');
+            final tParts = timeCtrl.text.split(':');
+            if (parts.length == 3 && tParts.length == 2) {
+              final day = int.tryParse(parts[0]) ?? 1;
+              final month = int.tryParse(parts[1]) ?? 1;
+              final year = int.tryParse(parts[2]) ?? now.year;
+              final hour = int.tryParse(tParts[0]) ?? 0;
+              final minute = int.tryParse(tParts[1]) ?? 0;
+              final dt = DateTime(year, month, day, hour, minute);
+              Navigator.of(ctx).pop(dt.millisecondsSinceEpoch ~/ 1000);
+            }
+          }),
+        ],
+      ),
+    );
+    dateCtrl.dispose();
+    timeCtrl.dispose();
+    if (result != null && result > 0 && mounted) {
+      setState(() {
+        _customExpireDate = result;
+        _expireOption = -1;
+      });
     }
   }
 
@@ -1214,6 +1452,43 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
     }
   }
 
+  Widget _toggleRow(String label, bool value, VoidCallback? onTap, Color textColor, Color checkClr, {String? subtitle, Color? subColor}) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: TextStyle(fontSize: 14, color: textColor)),
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(subtitle, style: TextStyle(fontSize: 12, color: subColor)),
+                    ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: 40,
+              height: 24,
+              child: Switch(
+                value: value,
+                onChanged: onTap != null ? (_) => onTap() : null,
+                activeColor: checkClr,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -1221,7 +1496,6 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
     final subColor = p.boxTitleAdditionalFg;
     final accentColor = p.windowActiveTextFg;
     final checkClr = p.windowBgActive;
-    final chipBg = p.windowBgOver;
 
     return TelegramBox(
       title: _isEdit ? 'Edit Link' : 'Create New Link',
@@ -1234,6 +1508,50 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (!_subscriptionLocked) ...[
+              _toggleRow(
+                'Request Admin Approval',
+                _requestApproval,
+                _saving ? null : () => setState(() {
+                  _requestApproval = !_requestApproval;
+                  if (_requestApproval) _subscription = false;
+                }),
+                textColor,
+                checkClr,
+                subtitle: 'Users will request to join and admins will approve them.',
+                subColor: subColor,
+              ),
+            ],
+            if (!widget.isPublic) ...[
+              _toggleRow(
+                'Subscription',
+                _subscription,
+                (_saving || _subscriptionLocked) ? null : () => setState(() {
+                  _subscription = !_subscription;
+                  if (_subscription) _requestApproval = false;
+                }),
+                textColor,
+                checkClr,
+                subtitle: 'Users will pay star credits to subscribe via this link.',
+                subColor: subColor,
+              ),
+              if (_subscription) ...[
+                Padding(
+                  padding: const EdgeInsets.only(left: 8, bottom: 8),
+                  child: SizedBox(
+                    width: 180,
+                    child: BoxInputField(
+                      controller: _creditsCtrl,
+                      label: 'Star credits',
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      enabled: !_saving && !_subscriptionLocked,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+            const SizedBox(height: 12),
             Text('Link Name',
                 style: TextStyle(
                     fontSize: 13,
@@ -1254,37 +1572,51 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
                     fontWeight: FontWeight.w600,
                     color: accentColor)),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: _expireOptions.entries.map((entry) {
-                final selected = _expireOption == entry.key;
-                String label = entry.value;
-                if (entry.key == -1 && _customExpireDate > 0 && selected) {
-                  final dt = DateTime.fromMillisecondsSinceEpoch(_customExpireDate * 1000);
-                  label = '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
-                }
-                return ChoiceChip(
-                  label: Text(label),
-                  selected: selected,
-                  onSelected: _saving
-                      ? null
-                      : (v) {
-                          if (entry.key == -1) {
-                            _showCustomExpiry();
-                          } else {
-                            setState(() => _expireOption = entry.key);
-                          }
-                        },
-                  labelStyle: TextStyle(
-                    fontSize: 13,
-                    color: selected ? Colors.white : textColor,
+            ..._expireOptions.entries.map((entry) {
+              final selected = _expireOption == entry.key;
+              String label = entry.value;
+              if (entry.key == -1 && _customExpireDate > 0 && selected) {
+                final dt = DateTime.fromMillisecondsSinceEpoch(_customExpireDate * 1000);
+                label = '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+              }
+              return InkWell(
+                onTap: _saving ? null : () {
+                  if (entry.key == -1) {
+                    _showCustomExpiry();
+                  } else {
+                    setState(() => _expireOption = entry.key);
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: Radio<int>(
+                          value: entry.key,
+                          groupValue: _expireOption,
+                          onChanged: _saving ? null : (v) {
+                            if (entry.key == -1) {
+                              _showCustomExpiry();
+                            } else {
+                              setState(() => _expireOption = v ?? 0);
+                            }
+                          },
+                          activeColor: checkClr,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(label, style: TextStyle(fontSize: 14, color: textColor)),
+                    ],
                   ),
-                  selectedColor: checkClr,
-                  backgroundColor: chipBg,
-                  visualDensity: VisualDensity.compact,
-                );
-              }).toList(),
-            ),
+                ),
+              );
+            }),
+            if (!_requestApproval) ...[
             const SizedBox(height: 20),
             Text('Usage Limit',
                 style: TextStyle(
@@ -1292,143 +1624,51 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
                     fontWeight: FontWeight.w600,
                     color: accentColor)),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: _usageOptions.entries.map((entry) {
-                final selected = _usageLimitOption == entry.key;
-                String label = entry.value;
-                if (entry.key == -1 && _customUsageLimit > 0 && selected) {
-                  label = '$_customUsageLimit uses';
-                }
-                return ChoiceChip(
-                  label: Text(label),
-                  selected: selected,
-                  onSelected: _saving || _requestApproval
-                      ? null
-                      : (v) {
-                          if (entry.key == -1) {
-                            _showCustomUsageLimit();
-                          } else {
-                            setState(() => _usageLimitOption = entry.key);
-                          }
-                        },
-                  labelStyle: TextStyle(
-                    fontSize: 13,
-                    color: selected ? Colors.white : textColor,
-                  ),
-                  selectedColor: checkClr,
-                  backgroundColor: chipBg,
-                  visualDensity: VisualDensity.compact,
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 16),
-            InkWell(
-              onTap: _saving
-                  ? null
-                  : () => setState(() => _requestApproval = !_requestApproval),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: Checkbox(
-                      value: _requestApproval,
-                      onChanged: _saving
-                          ? null
-                          : (v) =>
-                              setState(() => _requestApproval = v ?? false),
-                      activeColor: checkClr,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text('Request Admin Approval',
-                        style: TextStyle(fontSize: 14, color: textColor)),
-                  ),
-                ],
-              ),
-            ),
-            if (_requestApproval) ...[
-              const SizedBox(height: 4),
-              Padding(
-                padding: const EdgeInsets.only(left: 28),
-                child: Text(
-                  'Users will request to join and admins will approve them.',
-                  style: TextStyle(fontSize: 12, color: subColor),
-                ),
-              ),
-            ],
-            ], // end if (!_subscriptionLocked)
-            if (!widget.isPublic) ...[
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: (_saving || _subscriptionLocked)
-                    ? () {
-                        if (_subscriptionLocked) {
-                          showTelegramToast(context,
-                              'Subscription links cannot be changed after creation.');
-                        }
-                      }
-                    : () => setState(() {
-                          _subscription = !_subscription;
-                          if (_subscription) _requestApproval = false;
-                        }),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: Checkbox(
-                        value: _subscription,
-                        onChanged: (_saving || _subscriptionLocked)
-                            ? null
-                            : (v) => setState(() {
-                                  _subscription = v ?? false;
-                                  if (_subscription) _requestApproval = false;
-                                }),
-                        activeColor: checkClr,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text('Subscription',
-                          style: TextStyle(fontSize: 14, color: textColor)),
-                    ),
-                  ],
-                ),
-              ),
-              if (_subscription) ...[
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.only(left: 28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            ..._usageOptions.entries.map((entry) {
+              final selected = _usageLimitOption == entry.key;
+              String label = entry.value;
+              if (entry.key == -1 && _customUsageLimit > 0 && selected) {
+                label = '$_customUsageLimit uses';
+              }
+              return InkWell(
+                onTap: _saving ? null : () {
+                  if (entry.key == -1) {
+                    _showCustomUsageLimit();
+                  } else {
+                    setState(() => _usageLimitOption = entry.key);
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
                     children: [
-                      Text(
-                        'Users will pay star credits to subscribe via this link.',
-                        style: TextStyle(fontSize: 12, color: subColor),
-                      ),
-                      const SizedBox(height: 8),
                       SizedBox(
-                        width: 180,
-                        child: BoxInputField(
-                          controller: _creditsCtrl,
-                          label: 'Star credits',
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          enabled: !_saving && !_subscriptionLocked,
+                        width: 20,
+                        height: 20,
+                        child: Radio<int>(
+                          value: entry.key,
+                          groupValue: _usageLimitOption,
+                          onChanged: _saving ? null : (v) {
+                            if (entry.key == -1) {
+                              _showCustomUsageLimit();
+                            } else {
+                              setState(() => _usageLimitOption = v ?? 0);
+                            }
+                          },
+                          activeColor: checkClr,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      Text(label, style: TextStyle(fontSize: 14, color: textColor)),
                     ],
                   ),
                 ),
-              ],
-            ],
+              );
+            }),
+            ], // end if (!_requestApproval)
+            ], // end if (!_subscriptionLocked)
             if (_saving) ...[
               const SizedBox(height: 12),
               const Center(
@@ -1458,21 +1698,29 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
 
 class CreatePollResult {
   final String question;
+  final String description;
   final List<String> options;
   final bool multipleChoice;
   final bool anonymous;
   final bool quiz;
   final bool allowRevoting;
+  final bool shuffleAnswers;
+  final bool allowAddingOptions;
+  final int limitDuration;
   final int correctOptionIndex;
   final String solution;
 
   const CreatePollResult({
     required this.question,
+    this.description = '',
     required this.options,
     this.multipleChoice = false,
     this.anonymous = true,
     this.quiz = false,
     this.allowRevoting = true,
+    this.shuffleAnswers = false,
+    this.allowAddingOptions = false,
+    this.limitDuration = 0,
     this.correctOptionIndex = -1,
     this.solution = '',
   });
@@ -1494,12 +1742,14 @@ class _CreatePollContent extends StatefulWidget {
 
 class _CreatePollContentState extends State<_CreatePollContent> {
   static const _kQuestionLimit = 255;
+  static const _kDescriptionLimit = 255;
   static const _kOptionLimit = 100;
   static const _kWarnOptionLimit = 30;
   static const _kSolutionLimit = 200;
   static const _kMaxOptions = 32;
 
   final _questionCtrl = TextEditingController();
+  final _descriptionCtrl = TextEditingController();
   final _solutionCtrl = TextEditingController();
   final List<TextEditingController> _optionCtrls = [
     TextEditingController(),
@@ -1509,11 +1759,16 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   bool _anonymous = true;
   bool _quiz = false;
   bool _allowRevoting = true;
+  bool _shuffleAnswers = false;
+  bool _allowAddingOptions = false;
+  bool _limitDuration = false;
+  int _durationSeconds = 300;
   int _correctOption = -1;
 
   @override
   void dispose() {
     _questionCtrl.dispose();
+    _descriptionCtrl.dispose();
     _solutionCtrl.dispose();
     for (final c in _optionCtrls) {
       c.dispose();
@@ -1539,12 +1794,28 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     });
   }
 
+  void _reorderOptions(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) newIndex--;
+      final ctrl = _optionCtrls.removeAt(oldIndex);
+      _optionCtrls.insert(newIndex, ctrl);
+      if (_correctOption == oldIndex) {
+        _correctOption = newIndex;
+      } else if (_correctOption > oldIndex && _correctOption <= newIndex) {
+        _correctOption--;
+      } else if (_correctOption < oldIndex && _correctOption >= newIndex) {
+        _correctOption++;
+      }
+    });
+  }
+
+  int get _filledOptionCount =>
+      _optionCtrls.where((c) => c.text.trim().isNotEmpty).length;
+
   bool get _canSubmit {
     final q = _questionCtrl.text.trim();
     if (q.isEmpty || q.length > _kQuestionLimit) return false;
-    final opts =
-        _optionCtrls.map((c) => c.text.trim()).where((s) => s.isNotEmpty);
-    if (opts.length < 2) return false;
+    if (_filledOptionCount < 2) return false;
     if (_quiz && (_correctOption < 0 || _correctOption >= _optionCtrls.length)) return false;
     return true;
   }
@@ -1556,14 +1827,76 @@ class _CreatePollContentState extends State<_CreatePollContent> {
         _optionCtrls.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList();
     Navigator.of(context).pop(CreatePollResult(
       question: question,
+      description: _descriptionCtrl.text.trim(),
       options: options,
       multipleChoice: _multipleChoice,
       anonymous: _anonymous,
       quiz: _quiz,
       allowRevoting: _allowRevoting,
+      shuffleAnswers: _shuffleAnswers,
+      allowAddingOptions: _allowAddingOptions,
+      limitDuration: _limitDuration ? _durationSeconds : 0,
       correctOptionIndex: _quiz ? _correctOption : -1,
       solution: _quiz ? _solutionCtrl.text.trim() : '',
     ));
+  }
+
+  void _showDurationPicker() async {
+    final durations = <int, String>{
+      300: '5 minutes',
+      600: '10 minutes',
+      1800: '30 minutes',
+      3600: '1 hour',
+      7200: '2 hours',
+      14400: '4 hours',
+      28800: '8 hours',
+      43200: '12 hours',
+      86400: '1 day',
+      172800: '2 days',
+      259200: '3 days',
+      604800: '7 days',
+    };
+    final result = await showTelegramBox<int>(
+      context: context,
+      builder: (ctx) {
+        final p = ctx.palette;
+        return TelegramBox(
+          title: 'Poll Duration',
+          showClose: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: durations.entries.map((e) => InkWell(
+              onTap: () => Navigator.of(ctx).pop(e.key),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Radio<int>(
+                        value: e.key,
+                        groupValue: _durationSeconds,
+                        onChanged: (v) => Navigator.of(ctx).pop(v),
+                        activeColor: p.windowBgActive,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(e.value, style: TextStyle(fontSize: 14, color: p.boxTextFg)),
+                  ],
+                ),
+              ),
+            )).toList(),
+          ),
+          buttons: const [],
+        );
+      },
+    );
+    if (result != null && mounted) {
+      setState(() => _durationSeconds = result);
+    }
   }
 
   @override
@@ -1572,7 +1905,8 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     final textColor = p.boxTextFg;
     final subColor = p.boxTitleAdditionalFg;
     final accentColor = p.windowActiveTextFg;
-    final checkClr = p.windowBgActive;
+    final toggleClr = p.windowBgActive;
+    final remaining = _kMaxOptions - _filledOptionCount;
 
     return TelegramBox(
       title: 'Create Poll',
@@ -1604,6 +1938,26 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                   ),
                 ),
               ),
+            const SizedBox(height: 12),
+            BoxInputField(
+              controller: _descriptionCtrl,
+              label: 'Description (optional)',
+              onChanged: (_) => setState(() {}),
+              inputFormatters: [LengthLimitingTextInputFormatter(_kDescriptionLimit)],
+            ),
+            if (_descriptionCtrl.text.length > 80)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  '${_descriptionCtrl.text.length}/$_kDescriptionLimit',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _descriptionCtrl.text.length > _kDescriptionLimit
+                        ? p.boxTextFgError
+                        : subColor,
+                  ),
+                ),
+              ),
             const SizedBox(height: 20),
             Text('Answer Options',
                 style: TextStyle(
@@ -1611,75 +1965,38 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                     fontWeight: FontWeight.w600,
                     color: accentColor)),
             const SizedBox(height: 8),
-            for (var i = 0; i < _optionCtrls.length; i++)
+            ReorderableListView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
+              onReorder: _reorderOptions,
+              children: [
+                for (var i = 0; i < _optionCtrls.length; i++)
+                  _buildOptionRow(i, p, textColor, subColor),
+              ],
+            ),
+            if (_optionCtrls.length < _kMaxOptions)
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        if (_quiz)
-                          SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: Radio<int>(
-                              value: i,
-                              groupValue: _correctOption,
-                              onChanged: (v) => setState(() => _correctOption = v ?? -1),
-                              activeColor: p.windowBgActive,
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ),
-                        if (_quiz) const SizedBox(width: 4),
-                        Expanded(
-                          child: BoxInputField(
-                            controller: _optionCtrls[i],
-                            label: 'Option ${i + 1}',
-                            onChanged: (_) => setState(() {}),
-                            inputFormatters: [LengthLimitingTextInputFormatter(_kOptionLimit)],
-                          ),
-                        ),
-                        if (_optionCtrls.length > 2)
-                          SizedBox(
-                            width: 32,
-                            height: 32,
-                            child: IconButton(
-                              icon: Icon(Icons.close, size: 16, color: subColor),
-                              padding: EdgeInsets.zero,
-                              onPressed: () => _removeOption(i),
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (_kOptionLimit - _optionCtrls[i].text.length < _kWarnOptionLimit)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          _optionCtrls[i].text.length <= _kOptionLimit
-                              ? '${_kOptionLimit - _optionCtrls[i].text.length}'
-                              : '−${_optionCtrls[i].text.length - _kOptionLimit}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _optionCtrls[i].text.length > _kOptionLimit
-                                ? p.boxTextFgError
-                                : subColor,
-                          ),
-                        ),
-                      ),
-                  ],
+                padding: const EdgeInsets.only(top: 4),
+                child: TextButton.icon(
+                  onPressed: _addOption,
+                  icon: Icon(Icons.add, size: 18, color: accentColor),
+                  label: Text('Add Option',
+                      style: TextStyle(fontSize: 13, color: accentColor)),
+                  style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8)),
                 ),
               ),
-            if (_optionCtrls.length < _kMaxOptions)
-              TextButton.icon(
-                onPressed: _addOption,
-                icon: Icon(Icons.add, size: 18, color: accentColor),
-                label: Text('Add Option',
-                    style: TextStyle(fontSize: 13, color: accentColor)),
-                style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8)),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              child: Text(
+                remaining > 0
+                    ? 'You can add $remaining more option${remaining == 1 ? '' : 's'}'
+                    : 'Maximum options reached',
+                style: TextStyle(fontSize: 12, color: subColor),
               ),
+            ),
+            const Divider(height: 1),
             const SizedBox(height: 16),
             Text('Settings',
                 style: TextStyle(
@@ -1687,33 +2004,98 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                     fontWeight: FontWeight.w600,
                     color: accentColor)),
             const SizedBox(height: 8),
-            _checkRow('Anonymous Voting', _anonymous,
-                (v) => setState(() => _anonymous = v ?? true), checkClr, textColor),
-            const SizedBox(height: 8),
-            _checkRow('Multiple Answers', _multipleChoice,
-                (v) => setState(() {
-                  _multipleChoice = v ?? false;
-                  if (_multipleChoice) _quiz = false;
-                }), checkClr, textColor),
-            const SizedBox(height: 8),
-            _checkRow('Allow Revoting', _allowRevoting,
-                _quiz ? null : (v) => setState(() => _allowRevoting = v ?? true),
-                checkClr, textColor),
-            const SizedBox(height: 8),
-            _checkRow('Quiz Mode', _quiz, (v) => setState(() {
-              _quiz = v ?? false;
-              if (_quiz) {
-                _multipleChoice = false;
-                _allowRevoting = false;
-              } else {
-                _correctOption = -1;
-                _solutionCtrl.clear();
-              }
-            }), checkClr, textColor),
+            _settingsToggle(
+              'Anonymous Voting',
+              'Nobody will see who voted for what option',
+              _anonymous,
+              (v) => setState(() => _anonymous = v),
+              toggleClr, textColor, subColor,
+            ),
+            _settingsToggle(
+              'Multiple Answers',
+              'Users will be able to choose several options',
+              _multipleChoice,
+              (v) => setState(() {
+                _multipleChoice = v;
+                if (_multipleChoice) _quiz = false;
+              }),
+              toggleClr, textColor, subColor,
+            ),
+            _settingsToggle(
+              'Allow Adding Options',
+              'Other users will be able to add new options',
+              _allowAddingOptions,
+              (v) => setState(() => _allowAddingOptions = v),
+              toggleClr, textColor, subColor,
+            ),
+            _settingsToggle(
+              'Allow Revoting',
+              'Users will be able to change their vote',
+              _allowRevoting,
+              _quiz ? null : (v) => setState(() => _allowRevoting = v),
+              toggleClr, textColor, subColor,
+            ),
+            _settingsToggle(
+              'Shuffle Answers',
+              'Options will be shown in random order to each user',
+              _shuffleAnswers,
+              (v) => setState(() => _shuffleAnswers = v),
+              toggleClr, textColor, subColor,
+            ),
+            _settingsToggle(
+              'Quiz Mode',
+              _multipleChoice
+                  ? 'Multiple answers and Quiz Mode are incompatible'
+                  : 'One correct answer, no revoting',
+              _quiz,
+              (v) => setState(() {
+                _quiz = v;
+                if (_quiz) {
+                  _multipleChoice = false;
+                  _allowRevoting = false;
+                } else {
+                  _correctOption = -1;
+                  _solutionCtrl.clear();
+                }
+              }),
+              toggleClr, textColor, subColor,
+            ),
+            _settingsToggle(
+              'Limit Duration',
+              'Poll will automatically close after a set time',
+              _limitDuration,
+              (v) => setState(() => _limitDuration = v),
+              toggleClr, textColor, subColor,
+            ),
+            if (_limitDuration) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 8, top: 4, bottom: 8),
+                child: InkWell(
+                  onTap: _showDurationPicker,
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.timer_outlined, size: 16, color: accentColor),
+                        const SizedBox(width: 8),
+                        Text(
+                          _formatDuration(_durationSeconds),
+                          style: TextStyle(fontSize: 13, color: accentColor),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.edit_outlined, size: 14, color: accentColor),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
             if (_quiz) ...[
               const SizedBox(height: 4),
               Padding(
-                padding: const EdgeInsets.only(left: 28),
+                padding: const EdgeInsets.only(left: 8),
                 child: Text(
                   'Select the correct answer by tapping the radio button next to an option.',
                   style: TextStyle(fontSize: 12, color: subColor),
@@ -1757,28 +2139,129 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     );
   }
 
-  Widget _checkRow(String label, bool value, ValueChanged<bool?>? onChanged,
-      Color checkColor, Color textColor) {
+  String _formatDuration(int seconds) {
+    if (seconds < 3600) return '${seconds ~/ 60} minutes';
+    if (seconds < 86400) {
+      final h = seconds ~/ 3600;
+      return '$h hour${h > 1 ? 's' : ''}';
+    }
+    final d = seconds ~/ 86400;
+    return '$d day${d > 1 ? 's' : ''}';
+  }
+
+  Widget _buildOptionRow(int i, TelegramPalette p, Color textColor, Color subColor) {
+    return Padding(
+      key: ValueKey(i),
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              ReorderableDragStartListener(
+                index: i,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(Icons.drag_handle, size: 18, color: subColor),
+                ),
+              ),
+              if (_quiz)
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Radio<int>(
+                    value: i,
+                    groupValue: _correctOption,
+                    onChanged: (v) => setState(() => _correctOption = v ?? -1),
+                    activeColor: p.windowBgActive,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              if (_quiz) const SizedBox(width: 4),
+              Expanded(
+                child: BoxInputField(
+                  controller: _optionCtrls[i],
+                  label: 'Option ${i + 1}',
+                  onChanged: (_) => setState(() {}),
+                  inputFormatters: [LengthLimitingTextInputFormatter(_kOptionLimit)],
+                ),
+              ),
+              if (_optionCtrls.length > 2)
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: IconButton(
+                    icon: Icon(Icons.close, size: 16, color: subColor),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => _removeOption(i),
+                  ),
+                ),
+            ],
+          ),
+          if (_kOptionLimit - _optionCtrls[i].text.length < _kWarnOptionLimit)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                _optionCtrls[i].text.length <= _kOptionLimit
+                    ? '${_kOptionLimit - _optionCtrls[i].text.length}'
+                    : '−${_optionCtrls[i].text.length - _kOptionLimit}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _optionCtrls[i].text.length > _kOptionLimit
+                      ? p.boxTextFgError
+                      : subColor,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _settingsToggle(
+    String label,
+    String subtitle,
+    bool value,
+    ValueChanged<bool>? onChanged,
+    Color toggleColor,
+    Color textColor,
+    Color subColor,
+  ) {
     return InkWell(
       onTap: onChanged != null ? () => onChanged(!value) : null,
-      child: Row(
-        children: [
-          SizedBox(
-            width: 18,
-            height: 18,
-            child: Checkbox(
-              value: value,
-              onChanged: onChanged,
-              activeColor: checkColor,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: TextStyle(
+                    fontSize: 14,
+                    color: onChanged != null ? textColor : subColor,
+                  )),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(subtitle, style: TextStyle(fontSize: 12, color: subColor)),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(label, style: TextStyle(fontSize: 14, color: textColor)),
-          ),
-        ],
+            SizedBox(
+              width: 40,
+              height: 24,
+              child: Switch(
+                value: value,
+                onChanged: onChanged != null ? (v) => onChanged(v) : null,
+                activeColor: toggleColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

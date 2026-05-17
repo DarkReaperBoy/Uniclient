@@ -14022,7 +14022,11 @@ class _ComposeAreaState extends State<_ComposeArea>
       await engine.createPoll(accountId, chatId, result.question, result.options,
         multipleChoice: result.multipleChoice, anonymous: result.anonymous,
         quiz: result.quiz, allowRevoting: result.allowRevoting,
-        correctOption: result.correctOptionIndex, solution: result.solution);
+        shuffleAnswers: result.shuffleAnswers,
+        allowAddingOptions: result.allowAddingOptions,
+        limitDuration: result.limitDuration,
+        correctOption: result.correctOptionIndex, solution: result.solution,
+        description: result.description);
     } catch (e) {
       if (mounted) {
         showTelegramToast(context, 'Failed to create poll: $e');
