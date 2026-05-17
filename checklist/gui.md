@@ -550,10 +550,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-## media_viewer — Recognize Text (OCR) toolbar button missing
-
-- [ ] [MAJOR] AyuGram has a dedicated "Recognize Text" button (`Over::Recognize`) in the media viewer toolbar that triggers `Platform::TextRecognition::RecognizeText`. The Dart toolbar only has Draw/Save/Rotate/More buttons — OCR is completely absent from `_buildToolbar`. — `media_viewer.dart:3194-3224` ← `media_view_overlay_widget.cpp:6457-6461,3396`
-
 ## media_viewer — Chapter name toast display missing
 
 - [ ] [MAJOR] AyuGram shows a chapter name overlay toast (`paintChapterContent`) whenever playback enters a chapter region or Alt+Left/Right chapter navigation is triggered. Dart has chapter markers on the slider track (`_SliderPainter`) but no toast/display showing the chapter name. — `media_viewer.dart:1008-1010,3390-3398` ← `media_view_overlay_widget.cpp:6085-6137`
