@@ -546,9 +546,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-## media_viewer — Stealth mode activation is a no-op in media viewer More menu
-
-- [ ] [CRITICAL] `_handleMenuAction('stealth_mode', ...)` calls `showStoryStealthModeDialog(context)` with no `onActivate` callback (line 3130). When the user presses "Enable" in the dialog, `widget.onActivate?.call()` is a null-op but the toast still says "Stealth Mode enabled". Engine is never called; stealth mode is never actually activated from the media viewer More menu. — `media_viewer.dart:3129-3130` ← `media_stories_controller.cpp:1947-1952`
 
 ## media_viewer — ChannelPost story area drops msgId
 
