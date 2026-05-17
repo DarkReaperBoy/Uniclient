@@ -504,11 +504,6 @@ return ClipOval(
 
 ## Statistics Page
 
-## Performance
-
-- [ ] [CRITICAL] `_ChatInfoPageState._buildInfoSections()` rebuilds entire section tree (including inline media grids) on every `setState` from scroll — `info_panel.dart:2016`; sections must be extracted to separate stateful widgets
-- [ ] [MAJOR] `_GridCell` decodes image thumbnails on the UI thread; must use `compute()` or `Isolate.run` — `info_panel.dart:5435`
-- [ ] [MAJOR] Multiple `ScrollController` listeners added in lifecycle without matching `removeListener`, leaking on hot-reload/rebuild — `info_panel.dart:138`
 
 # input_dialogs — Audit Findings
 
