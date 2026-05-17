@@ -286,7 +286,6 @@ class _UniClientAppState extends State<UniClientApp>
     await CustomEmojiCache.instance.initDiskCache(cacheDir);
     SpoilerAnimationManager.setCacheDir(cacheDir);
 
-    // Initialize emoji keywords with validation and load persisted state.
     EmojiKeywords.instance.init();
     if (!kIsWeb && configDir.isNotEmpty) {
       try {
@@ -296,6 +295,12 @@ class _UniClientAppState extends State<UniClientApp>
           EmojiKeywords.instance.loadState(data);
         }
       } catch (_) {}
+      EmojiKeywords.instance.setSaveCallback(() {
+        try {
+          File('$configDir/emoji_state.json')
+              .writeAsStringSync(jsonEncode(EmojiKeywords.instance.saveState()));
+        } catch (_) {}
+      });
     }
 
     await appState.initialize(

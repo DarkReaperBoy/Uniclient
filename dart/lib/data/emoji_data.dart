@@ -648,31 +648,7 @@ class EmojiEntry {
   const EmojiEntry(this.emoji, this.keywords);
 }
 
-/// Validates that an emoji string contains at least one valid Unicode emoji codepoint.
-bool isValidEmoji(String emoji) {
-  if (emoji.isEmpty) return false;
-  final runes = emoji.runes.toList();
-  if (runes.isEmpty) return false;
-  final first = runes.first;
-  return first >= 0x1F600 || // Emoticons and above (SMP emoji blocks)
-      (first >= 0x2600 && first <= 0x27BF) || // Misc symbols & dingbats
-      (first >= 0x2300 && first <= 0x23FF) || // Misc technical
-      (first >= 0x2190 && first <= 0x21FF) || // Arrows
-      first == 0x200D || // ZWJ (exact, not range)
-      (first >= 0xFE00 && first <= 0xFE0F) || // Variation selectors
-      first == 0x23 || first == 0x2A || // # and * (keycap base)
-      (first >= 0x30 && first <= 0x39) || // 0-9 (keycap base)
-      first == 0x00A9 || first == 0x00AE || // © ®
-      first == 0x2122 || // ™
-      first == 0x2139 || // ℹ
-      first == 0x2194 || // ↔ (already covered by arrows range)
-      first == 0x25AA || first == 0x25AB || first == 0x25B6 || first == 0x25C0 || // ▪▫▶◀
-      first == 0x25FB || first == 0x25FC || first == 0x25FD || first == 0x25FE || // ◻◼◽◾
-      first == 0x2934 || first == 0x2935 || // ⤴⤵
-      first == 0x203C || first == 0x2049 || // ‼⁉
-      first == 0x3030 || first == 0x303D || // 〰〽
-      first == 0x3297 || first == 0x3299; // ㊗㊙
-}
+bool isValidEmoji(String emoji) => emoji.isNotEmpty;
 
 const _kMustAddPostfixCodes = {0x2122, 0x00A9, 0x00AE};
 
@@ -732,18 +708,24 @@ class EmojiKeywords {
   // Emoji variant preferences: base emoji → user-preferred variant
   final Map<String, String> _variantPrefs = {};
 
-  // Validated legacy entries (built once from kEmojiSuggestions on init)
-  List<EmojiEntry>? _validatedLegacy;
-
   Timer? _refreshTimer;
+  Timer? _saveDebounce;
+  void Function()? _onSave;
 
-  void init() {
-    _validatedLegacy ??= kEmojiSuggestions
-        .where((e) => isValidEmoji(e.emoji))
-        .toList();
+  void init() {}
+
+  List<EmojiEntry> get _legacy => kEmojiSuggestions;
+
+  void setSaveCallback(void Function() callback) {
+    _onSave = callback;
   }
 
-  List<EmojiEntry> get _legacy => _validatedLegacy ?? kEmojiSuggestions;
+  void _scheduleSave() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(seconds: 2), () {
+      _onSave?.call();
+    });
+  }
 
   void loadServerKeywords({
     required Map<String, List<String>> keywords,
@@ -768,20 +750,20 @@ class EmojiKeywords {
     _refreshTimer = null;
   }
 
-  /// Record an emoji as recently used. Moves to front if already present.
   void recordRecent(String emoji) {
     _recentEmojis.remove(emoji);
     _recentEmojis.insert(0, emoji);
     if (_recentEmojis.length > _maxRecent) {
       _recentEmojis.removeLast();
     }
+    _scheduleSave();
   }
 
   List<String> get recentEmojis => List.unmodifiable(_recentEmojis);
 
-  /// Set user's preferred variant for a base emoji.
   void setVariant(String baseEmoji, String variant) {
     _variantPrefs[baseEmoji] = variant;
+    _scheduleSave();
   }
 
   /// Look up user's preferred variant, or return the emoji unchanged.
@@ -813,20 +795,19 @@ class EmojiKeywords {
 
     final exactMatches = <EmojiEntry>[];
     final prefixMatches = <EmojiEntry>[];
-    final containsMatches = <EmojiEntry>[];
     final seen = <String>{};
 
     for (final pack in _langPacks.entries) {
-      _searchLangPack(pack.key, pack.value, q, exact, seen, exactMatches, prefixMatches, containsMatches);
+      _searchLangPack(pack.key, pack.value, q, exact, seen, exactMatches, prefixMatches);
     }
 
-    _searchLegacyData(q, exact, seen, exactMatches, prefixMatches, containsMatches);
+    _searchLegacyData(q, exact, seen, exactMatches, prefixMatches);
 
     List<EmojiEntry> result;
     if (exact) {
       result = exactMatches;
     } else {
-      result = [...exactMatches, ...prefixMatches, ...containsMatches];
+      result = [...exactMatches, ...prefixMatches];
     }
 
     result = _prioritizeRecent(result);
@@ -847,7 +828,6 @@ class EmojiKeywords {
     Set<String> seen,
     List<EmojiEntry> exactMatches,
     List<EmojiEntry> prefixMatches,
-    List<EmojiEntry> containsMatches,
   ) {
     if (pack.keywords.isEmpty) return;
     if (q.length > pack.maxKeyLength) return;
@@ -885,23 +865,17 @@ class EmojiKeywords {
     Set<String> seen,
     List<EmojiEntry> exactMatches,
     List<EmojiEntry> prefixMatches,
-    List<EmojiEntry> containsMatches,
   ) {
     for (final e in _legacy) {
       if (seen.contains(e.emoji)) continue;
       bool isExact = false;
       bool isPrefix = false;
-      bool isContains = false;
       for (final kw in e.keywords) {
         if (kw == q) {
           isExact = true;
           break;
-        } else if (!exact) {
-          if (kw.startsWith(q)) {
-            isPrefix = true;
-          } else if (kw.contains(q)) {
-            isContains = true;
-          }
+        } else if (!exact && kw.startsWith(q)) {
+          isPrefix = true;
         }
       }
       if (isExact) {
@@ -910,9 +884,6 @@ class EmojiKeywords {
       } else if (isPrefix) {
         seen.add(e.emoji);
         prefixMatches.add(e);
-      } else if (isContains) {
-        seen.add(e.emoji);
-        containsMatches.add(e);
       }
     }
   }
