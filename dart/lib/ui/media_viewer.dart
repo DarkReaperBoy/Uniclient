@@ -3118,10 +3118,16 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   void _showAllMedia(CachedMessage msg) {
+    final mediaType = switch (msg.mediaType) {
+      2 || 5 || 7 => 'video',
+      3 => 'audio',
+      8 => 'file',
+      _ => 'photo',
+    };
     Navigator.of(context).pop();
-    UniClientShell.toggleInfoRequest?.call();
+    UniClientShell.openInfoRequest?.call();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      InfoPanel.pushSharedMediaRequest?.call();
+      InfoPanel.pushSharedMediaRequest?.call(mediaType);
     });
   }
 

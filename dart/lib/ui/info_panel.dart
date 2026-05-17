@@ -91,7 +91,7 @@ class InfoPanel extends StatefulWidget {
   final InfoWrapMode wrapMode;
 
   static void Function(MemberInfo member)? pushUserProfileRequest;
-  static VoidCallback? pushSharedMediaRequest;
+  static void Function(String mediaType)? pushSharedMediaRequest;
 
   const InfoPanel({
     super.key,
@@ -199,8 +199,8 @@ class _InfoPanelState extends State<InfoPanel> {
     _pushPage(_InfoNavPage(type: _InfoPageType.userProfile, member: member));
   }
 
-  void _pushSharedMedia() {
-    _pushPage(_InfoNavPage(type: _InfoPageType.sharedMedia, mediaType: 'photo', mediaLabel: 'Media'));
+  void _pushSharedMedia(String mediaType) {
+    _pushPage(_InfoNavPage(type: _InfoPageType.sharedMedia, mediaType: mediaType, mediaLabel: 'Media'));
   }
 
   @override

@@ -32,6 +32,7 @@ class UniClientShell extends StatefulWidget {
   const UniClientShell({super.key});
 
   static VoidCallback? toggleInfoRequest;
+  static VoidCallback? openInfoRequest;
   static void Function({bool reverse})? showChatSwitchRequest;
   static VoidCallback? hideChatSwitchRequest;
 
@@ -133,6 +134,7 @@ class _UniClientShellState extends State<UniClientShell>
       curve: Curves.easeOutCirc,
     );
     UniClientShell.toggleInfoRequest = _toggleInfo;
+    UniClientShell.openInfoRequest = _openInfo;
     UniClientShell.showChatSwitchRequest = _showChatSwitch;
     UniClientShell.hideChatSwitchRequest = _hideChatSwitch;
   }
@@ -141,6 +143,9 @@ class _UniClientShellState extends State<UniClientShell>
   void dispose() {
     if (UniClientShell.toggleInfoRequest == _toggleInfo) {
       UniClientShell.toggleInfoRequest = null;
+    }
+    if (UniClientShell.openInfoRequest == _openInfo) {
+      UniClientShell.openInfoRequest = null;
     }
     if (UniClientShell.showChatSwitchRequest == _showChatSwitch) {
       UniClientShell.showChatSwitchRequest = null;
@@ -162,6 +167,15 @@ class _UniClientShellState extends State<UniClientShell>
       } else {
         _thirdColumnAnim.reverse();
       }
+    });
+  }
+
+  void _openInfo() {
+    if (_infoOpen) return;
+    setState(() {
+      _infoOpen = true;
+      _navForward = true;
+      _thirdColumnAnim.forward();
     });
   }
 
