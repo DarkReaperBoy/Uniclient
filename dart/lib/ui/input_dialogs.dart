@@ -12,6 +12,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../utils/country_data.dart';
 import '../theme/telegram_palette.dart';
+import 'choose_datetime_box.dart';
 import 'confirm_box.dart';
 import 'telegram_toast.dart';
 
@@ -1317,68 +1318,21 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
     final initial = _customExpireDate > 0
         ? DateTime.fromMillisecondsSinceEpoch(_customExpireDate * 1000)
         : now.add(const Duration(days: 1));
-    final dateCtrl = TextEditingController(
-      text: '${initial.day.toString().padLeft(2, '0')}/'
-          '${initial.month.toString().padLeft(2, '0')}/'
-          '${initial.year}',
+    final result = await showChooseDateTimeBox(
+      context,
+      initialDate: initial,
+      title: 'Expire After',
+      submitText: 'Save',
+      showRepeat: false,
     );
-    final timeCtrl = TextEditingController(
-      text: '${initial.hour.toString().padLeft(2, '0')}:'
-          '${initial.minute.toString().padLeft(2, '0')}',
-    );
-    final result = await showTelegramBox<int>(
-      context: context,
-      builder: (ctx) => TelegramBox(
-        title: 'Choose Date and Time',
-        onConfirm: () {
-          final parts = dateCtrl.text.split('/');
-          final tParts = timeCtrl.text.split(':');
-          if (parts.length == 3 && tParts.length == 2) {
-            final day = int.tryParse(parts[0]) ?? 1;
-            final month = int.tryParse(parts[1]) ?? 1;
-            final year = int.tryParse(parts[2]) ?? now.year;
-            final hour = int.tryParse(tParts[0]) ?? 0;
-            final minute = int.tryParse(tParts[1]) ?? 0;
-            final dt = DateTime(year, month, day, hour, minute);
-            Navigator.of(ctx).pop(dt.millisecondsSinceEpoch ~/ 1000);
-          }
-        },
-        content: Padding(
-          padding: EdgeInsets.fromLTRB(kBoxPadding.left, 0, kBoxPadding.right, kBoxPadding.bottom),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              BoxInputField(controller: dateCtrl, label: 'Date (DD/MM/YYYY)'),
-              const SizedBox(height: 12),
-              BoxInputField(controller: timeCtrl, label: 'Time (HH:MM)'),
-            ],
-          ),
-        ),
-        buttons: [
-          TelegramBoxButton(text: 'Cancel', onPressed: () => Navigator.of(ctx).pop()),
-          TelegramBoxButton(text: 'Save', onPressed: () {
-            final parts = dateCtrl.text.split('/');
-            final tParts = timeCtrl.text.split(':');
-            if (parts.length == 3 && tParts.length == 2) {
-              final day = int.tryParse(parts[0]) ?? 1;
-              final month = int.tryParse(parts[1]) ?? 1;
-              final year = int.tryParse(parts[2]) ?? now.year;
-              final hour = int.tryParse(tParts[0]) ?? 0;
-              final minute = int.tryParse(tParts[1]) ?? 0;
-              final dt = DateTime(year, month, day, hour, minute);
-              Navigator.of(ctx).pop(dt.millisecondsSinceEpoch ~/ 1000);
-            }
-          }),
-        ],
-      ),
-    );
-    dateCtrl.dispose();
-    timeCtrl.dispose();
-    if (result != null && result > 0 && mounted) {
-      setState(() {
-        _customExpireDate = result;
-        _expireOption = -1;
-      });
+    if (result != null && mounted) {
+      final ts = result.dateTime.millisecondsSinceEpoch ~/ 1000;
+      if (ts > 0) {
+        setState(() {
+          _customExpireDate = ts;
+          _expireOption = -1;
+        });
+      }
     }
   }
 
@@ -1476,37 +1430,32 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
   }
 
   Widget _toggleRow(String label, bool value, VoidCallback? onTap, Color textColor, Color checkClr, {String? subtitle, Color? subColor}) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(label, style: TextStyle(fontSize: 14, color: textColor)),
-                  if (subtitle != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(subtitle, style: TextStyle(fontSize: 12, color: subColor)),
-                    ),
-                ],
-              ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(label, style: TextStyle(fontSize: 14, color: textColor)),
+                ),
+                SizedBox(
+                  width: 40,
+                  height: 24,
+                  child: Switch(
+                    value: value,
+                    onChanged: onTap != null ? (_) => onTap() : null,
+                    activeColor: checkClr,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
             ),
-            SizedBox(
-              width: 40,
-              height: 24,
-              child: Switch(
-                value: value,
-                onChanged: onTap != null ? (_) => onTap() : null,
-                activeColor: checkClr,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1541,8 +1490,15 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
                 }),
                 textColor,
                 checkClr,
-                subtitle: 'Users will request to join and admins will approve them.',
-                subColor: subColor,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  _requestApproval
+                      ? 'Users will request to join and admins will approve them.'
+                      : 'Anyone with this link can join your group.',
+                  style: TextStyle(fontSize: 12, color: subColor),
+                ),
               ),
             ],
             if (!widget.isPublic) ...[
@@ -1555,24 +1511,27 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
                 }),
                 textColor,
                 checkClr,
-                subtitle: 'Users will pay star credits to subscribe via this link.',
-                subColor: subColor,
               ),
-              if (_subscription) ...[
-                Padding(
-                  padding: const EdgeInsets.only(left: 8, bottom: 8),
-                  child: SizedBox(
-                    width: 180,
-                    child: BoxInputField(
-                      controller: _creditsCtrl,
-                      label: 'Star credits',
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      enabled: !_saving && !_subscriptionLocked,
-                    ),
-                  ),
-                ),
-              ],
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                alignment: Alignment.topCenter,
+                child: _subscription
+                    ? Padding(
+                        padding: const EdgeInsets.only(left: 8, bottom: 8),
+                        child: SizedBox(
+                          width: 180,
+                          child: BoxInputField(
+                            controller: _creditsCtrl,
+                            label: 'Star credits',
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            enabled: !_saving && !_subscriptionLocked,
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ],
             const SizedBox(height: 12),
             Text('Link Name',
@@ -1639,58 +1598,68 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
                 ),
               );
             }),
-            if (!_requestApproval) ...[
-            const SizedBox(height: 20),
-            Text('Usage Limit',
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: accentColor)),
-            const SizedBox(height: 8),
-            ..._usageOptions.entries.map((entry) {
-              final selected = _usageLimitOption == entry.key;
-              String label = entry.value;
-              if (entry.key == -1 && _customUsageLimit > 0 && selected) {
-                label = '$_customUsageLimit uses';
-              }
-              return InkWell(
-                onTap: _saving ? null : () {
-                  if (entry.key == -1) {
-                    _showCustomUsageLimit();
-                  } else {
-                    setState(() => _usageLimitOption = entry.key);
-                  }
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: Radio<int>(
-                          value: entry.key,
-                          groupValue: _usageLimitOption,
-                          onChanged: _saving ? null : (v) {
-                            if (entry.key == -1) {
-                              _showCustomUsageLimit();
-                            } else {
-                              setState(() => _usageLimitOption = v ?? 0);
-                            }
-                          },
-                          activeColor: checkClr,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(label, style: TextStyle(fontSize: 14, color: textColor)),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            ], // end if (!_requestApproval)
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: _requestApproval
+                  ? const SizedBox.shrink()
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 20),
+                        Text('Usage Limit',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: accentColor)),
+                        const SizedBox(height: 8),
+                        ..._usageOptions.entries.map((entry) {
+                          final selected = _usageLimitOption == entry.key;
+                          String label = entry.value;
+                          if (entry.key == -1 && _customUsageLimit > 0 && selected) {
+                            label = '$_customUsageLimit uses';
+                          }
+                          return InkWell(
+                            onTap: _saving ? null : () {
+                              if (entry.key == -1) {
+                                _showCustomUsageLimit();
+                              } else {
+                                setState(() => _usageLimitOption = entry.key);
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: Radio<int>(
+                                      value: entry.key,
+                                      groupValue: _usageLimitOption,
+                                      onChanged: _saving ? null : (v) {
+                                        if (entry.key == -1) {
+                                          _showCustomUsageLimit();
+                                        } else {
+                                          setState(() => _usageLimitOption = v ?? 0);
+                                        }
+                                      },
+                                      activeColor: checkClr,
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(label, style: TextStyle(fontSize: 14, color: textColor)),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+            ),
             ], // end if (!_subscriptionLocked)
             if (_saving) ...[
               const SizedBox(height: 12),

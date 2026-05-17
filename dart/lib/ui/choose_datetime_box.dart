@@ -955,6 +955,9 @@ Future<ChooseDateTimeResult?> showChooseDateTimeBox(
   DateTime? initialDate,
   bool isSelfChat = false,
   bool isScheduledToUser = false,
+  String? title,
+  String? submitText,
+  bool showRepeat = true,
 }) {
   return showTelegramBox<ChooseDateTimeResult>(
     context: context,
@@ -962,6 +965,9 @@ Future<ChooseDateTimeResult?> showChooseDateTimeBox(
       initialDate: initialDate,
       isSelfChat: isSelfChat,
       isScheduledToUser: isScheduledToUser,
+      titleOverride: title,
+      submitTextOverride: submitText,
+      showRepeat: showRepeat,
     ),
   );
 }
@@ -970,11 +976,17 @@ class _ChooseDateTimeDialog extends StatefulWidget {
   final DateTime? initialDate;
   final bool isSelfChat;
   final bool isScheduledToUser;
+  final String? titleOverride;
+  final String? submitTextOverride;
+  final bool showRepeat;
 
   const _ChooseDateTimeDialog({
     this.initialDate,
     this.isSelfChat = false,
     this.isScheduledToUser = false,
+    this.titleOverride,
+    this.submitTextOverride,
+    this.showRepeat = true,
   });
 
   @override
@@ -1200,7 +1212,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
 
     return TelegramBox(
       wide: true,
-      title: widget.isSelfChat ? 'Set a reminder' : 'Schedule message',
+      title: widget.titleOverride ?? (widget.isSelfChat ? 'Set a reminder' : 'Schedule message'),
       titleTrailing: widget.isScheduledToUser
           ? IconButton(
               icon: Icon(Icons.more_vert,
@@ -1328,26 +1340,27 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
               },
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-            child: GestureDetector(
-              onTap: _onRepeatTap,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Repeat: ${_repeatPeriods[_repeatPeriod] ?? "Never"}',
-                    style: TextStyle(fontSize: 13, color: accentFg),
-                  ),
-                  const SizedBox(width: 4),
-                  if (_isPremium)
-                    Icon(Icons.arrow_drop_down, size: 18, color: accentFg)
-                  else
-                    Icon(Icons.lock_outline, size: 14, color: accentFg),
-                ],
+          if (widget.showRepeat)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+              child: GestureDetector(
+                onTap: _onRepeatTap,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Repeat: ${_repeatPeriods[_repeatPeriod] ?? "Never"}',
+                      style: TextStyle(fontSize: 13, color: accentFg),
+                    ),
+                    const SizedBox(width: 4),
+                    if (_isPremium)
+                      Icon(Icons.arrow_drop_down, size: 18, color: accentFg)
+                    else
+                      Icon(Icons.lock_outline, size: 14, color: accentFg),
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
       buttons: [
@@ -1356,7 +1369,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
           onPressed: () => Navigator.of(context).pop(),
         ),
         TelegramBoxButton(
-          text: 'Schedule',
+          text: widget.submitTextOverride ?? 'Schedule',
           onPressed: () {
             final isCtrlHeld = HardwareKeyboard.instance.isControlPressed;
             _submit(silent: isCtrlHeld);
