@@ -523,8 +523,6 @@ return ClipOval(
 
 - [ ] [MAJOR] AyuGram draws contact and phone icons using `st::contactUserIcon.paint` and `st::contactPhoneIcon.paint` in `paintEvent`. Dart has no icons in the contact form — `input_dialogs.dart:659-791` ← `AyuGram/boxes/add_contact_box.cpp:354-385`
 
-- [ ] [MAJOR] AyuGram's `save()` lifts empty firstName to lastName if firstName is empty (`firstName = lastName; lastName = QString()`). Dart's `_save()` does not implement this normalization — `input_dialogs.dart:610-648` ← `AyuGram/boxes/add_contact_box.cpp:449-452`
-
 ---
 
 ## _CountryPickerContent
