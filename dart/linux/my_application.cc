@@ -28,6 +28,7 @@ struct _MyApplication {
   int badge_toggle;
   gchar* badge_dir;
 #endif
+  int close_behavior; // 0=Run in Background, 1=Close to Taskbar, 2=Quit
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -444,6 +445,12 @@ static void tray_method_call_handler(FlMethodChannel* channel,
       }
     }
     fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "setCloseBehavior") == 0) {
+    FlValue* args = fl_method_call_get_args(method_call);
+    if (fl_value_get_type(args) == FL_VALUE_TYPE_INT) {
+      self->close_behavior = (int)fl_value_get_int(args);
+    }
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
   } else if (g_strcmp0(method, "isAvailable") == 0) {
 #ifdef HAVE_APPINDICATOR
     g_autoptr(FlValue) result = fl_value_new_bool(TRUE);
@@ -457,17 +464,28 @@ static void tray_method_call_handler(FlMethodChannel* channel,
 }
 
 // Intercept window close to hide instead of destroy.
+// Respects close_behavior: 0=Run in Background, 1=Close to Taskbar, 2=Quit.
 static gboolean on_window_delete(GtkWidget* /*widget*/,
                                  GdkEvent* /*event*/,
                                  gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
+
+  // Behavior 2 = Quit: allow normal close (destroy window).
+  if (self->close_behavior == 2) {
+    return FALSE;
+  }
+
 #ifdef HAVE_APPINDICATOR
-  // If tray is available, minimize to tray instead of quitting.
   if (self->indicator) {
-    gtk_widget_hide(GTK_WIDGET(self->window));
-    if (self->show_hide_item)
-      gtk_menu_item_set_label(GTK_MENU_ITEM(self->show_hide_item), "Show");
-    // Notify Dart that window was hidden.
+    if (self->close_behavior == 1) {
+      // Behavior 1 = Close to Taskbar: iconify (minimize) instead of hiding.
+      gtk_window_iconify(self->window);
+    } else {
+      // Behavior 0 = Run in Background: hide to tray.
+      gtk_widget_hide(GTK_WIDGET(self->window));
+      if (self->show_hide_item)
+        gtk_menu_item_set_label(GTK_MENU_ITEM(self->show_hide_item), "Show");
+    }
     if (self->tray_channel) {
       fl_method_channel_invoke_method(
           self->tray_channel, "onWindowHidden", nullptr, nullptr, nullptr,
@@ -477,7 +495,7 @@ static gboolean on_window_delete(GtkWidget* /*widget*/,
   }
 #endif
   (void)self;
-  return FALSE;  // Allow normal close.
+  return FALSE;  // No tray — allow normal close.
 }
 
 // ── Window control method channel ──
@@ -911,6 +929,7 @@ static void my_application_init(MyApplication* self) {
   self->tray_channel = nullptr;
   self->window_channel = nullptr;
   self->session_bus = nullptr;
+  self->close_behavior = 0;
   self->xdp_settings_signal_id = 0;
 #ifdef HAVE_APPINDICATOR
   self->indicator = nullptr;

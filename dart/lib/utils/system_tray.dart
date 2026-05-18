@@ -375,6 +375,16 @@ class SystemTray {
     }
   }
 
+  Future<void> setCloseBehavior(int behavior) async {
+    try {
+      await _channel.invokeMethod<void>('setCloseBehavior', behavior);
+    } on MissingPluginException {
+      // Not supported on this platform.
+    } catch (e) {
+      Debug.log('TRAY', 'setCloseBehavior failed: $e');
+    }
+  }
+
   /// Toggle window visibility. Guarded against double-clicks matching
   /// AyuGram's `_lastTrayClickTime` + `QApplication::doubleClickInterval()`
   /// check.

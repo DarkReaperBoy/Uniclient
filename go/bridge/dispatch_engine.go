@@ -1132,6 +1132,72 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ClearCache(req.AccountId)
 
+	case "SetProxy":
+		var params struct {
+			AccountID   string `json:"account_id"`
+			Mode        int    `json:"mode"`
+			Host        string `json:"host"`
+			Port        int    `json:"port"`
+			ProxyType   string `json:"proxy_type"`
+			Username    string `json:"username"`
+			Password    string `json:"password"`
+			Secret      string `json:"secret"`
+			IPv6        bool   `json:"ipv6"`
+			UseForCalls bool   `json:"use_for_calls"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		e.SetProxy(params.Mode, params.Host, params.Port, params.ProxyType,
+			params.Username, params.Password, params.Secret, params.IPv6, params.UseForCalls)
+		return nil, nil
+
+	case "CheckProxy":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Host      string `json:"host"`
+			Port      int    `json:"port"`
+			ProxyType string `json:"proxy_type"`
+			Username  string `json:"username"`
+			Password  string `json:"password"`
+			Secret    string `json:"secret"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		pingMs, err := e.CheckProxy(params.Host, params.Port, params.ProxyType,
+			params.Username, params.Password, params.Secret)
+		if err != nil {
+			return json.Marshal(map[string]interface{}{"ok": false, "error": err.Error()})
+		}
+		return json.Marshal(map[string]interface{}{"ok": true, "ping_ms": pingMs})
+
+	case "SetAutoDownload":
+		var params struct {
+			AccountID     string  `json:"account_id"`
+			Source        string  `json:"source"`
+			Photos        bool    `json:"photos"`
+			Files         bool    `json:"files"`
+			DownloadLimit float64 `json:"downloadLimit"`
+			VideoMessages bool    `json:"videoMessages"`
+			Videos        bool    `json:"videos"`
+			Gifs          bool    `json:"gifs"`
+			AutoPlayLimit float64 `json:"autoPlayLimit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		e.SetAutoDownloadSettings(params.Source, map[string]interface{}{
+			"photos":        params.Photos,
+			"files":         params.Files,
+			"downloadLimit": params.DownloadLimit,
+			"videoMessages": params.VideoMessages,
+			"videos":        params.Videos,
+			"gifs":          params.Gifs,
+			"autoPlayLimit": params.AutoPlayLimit,
+		})
+		return nil, nil
+
 	// ── Folders ──
 
 	case "GetFolders":

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import '../theme/telegram_palette.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -34,6 +35,8 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   _UpdateState _updateState = _UpdateState.idle;
   String _latestVersion = '';
   bool _screenReaderDetected = false;
+  bool _downloadingUpdate = false;
+  double _downloadProgress = 0;
 
   @override
   void initState() {
@@ -238,6 +241,70 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     }
   }
 
+  Future<void> _downloadAndApplyUpdate(bool isDark) async {
+    setState(() { _downloadingUpdate = true; _downloadProgress = 0; });
+    try {
+      final exePath = Platform.resolvedExecutable;
+      final tmpPath = '$exePath.update';
+
+      final client = HttpClient();
+      final arch = Platform.version.contains('x86_64') || Platform.version.contains('x64') ? 'x64' : 'arm64';
+      final assetName = Platform.isLinux ? 'uniclient-linux-$arch' : 'uniclient';
+      final url = 'https://github.com/DarkReaperBoy/uniclient/releases/download/v$_latestVersion/$assetName';
+
+      final request = await client.getUrl(Uri.parse(url));
+      request.headers.set('User-Agent', 'UniClient/$_appVersion');
+      final response = await request.close();
+
+      if (response.statusCode == 302 || response.statusCode == 301) {
+        client.close();
+        if (mounted) {
+          setState(() => _downloadingUpdate = false);
+          _openWithSystem('https://github.com/DarkReaperBoy/uniclient/releases/tag/v$_latestVersion');
+        }
+        return;
+      }
+
+      if (response.statusCode != 200) {
+        client.close();
+        if (mounted) {
+          setState(() => _downloadingUpdate = false);
+          showTelegramToast(context, 'Download failed (HTTP ${response.statusCode}). Opening releases page...');
+          _openWithSystem('https://github.com/DarkReaperBoy/uniclient/releases/tag/v$_latestVersion');
+        }
+        return;
+      }
+
+      final totalBytes = response.contentLength;
+      var downloadedBytes = 0;
+      final file = File(tmpPath);
+      final sink = file.openWrite();
+
+      await for (final chunk in response) {
+        sink.add(chunk);
+        downloadedBytes += chunk.length;
+        if (totalBytes > 0 && mounted) {
+          setState(() => _downloadProgress = downloadedBytes / totalBytes);
+        }
+      }
+      await sink.close();
+      client.close();
+
+      await Process.run('chmod', ['+x', tmpPath]);
+      await File(tmpPath).rename(exePath);
+
+      if (mounted) {
+        setState(() => _downloadingUpdate = false);
+        _showRestartDialog(context, isDark);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _downloadingUpdate = false);
+        showTelegramToast(context, 'Update failed: $e');
+      }
+    }
+  }
+
   List<Widget> _buildSoftwareUpdate(bool isDark) {
     final appState = context.watch<AppState>();
     final textColor =
@@ -321,28 +388,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Update UniClient'),
-                    content: Text('Version $_latestVersion is available. Download it from the releases page, replace the current binary, and restart the app.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          _openWithSystem('https://github.com/DarkReaperBoy/uniclient/releases/tag/v$_latestVersion');
-                          Navigator.of(ctx).pop();
-                        },
-                        child: const Text('Download Update'),
-                      ),
-                    ],
-                  ),
-                );
-              },
+              onPressed: _downloadingUpdate ? null : () => _downloadAndApplyUpdate(isDark),
               style: ElevatedButton.styleFrom(
                 backgroundColor: accentColor,
                 foregroundColor: Colors.white,
@@ -351,10 +397,20 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 10),
               ),
-              child: const Text(
-                'Update UniClient',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
+              child: _downloadingUpdate
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                        const SizedBox(width: 8),
+                        Text('Downloading... ${(_downloadProgress * 100).toStringAsFixed(0)}%',
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      ],
+                    )
+                  : const Text(
+                      'Update UniClient',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
             ),
           ),
         ),
@@ -620,7 +676,9 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
       ),
       if (Platform.isLinux)
         _AdvancedToggleRow(
-          label: 'Use system window frame',
+          label: Platform.environment['WAYLAND_DISPLAY'] != null
+              ? 'Use Qt window frame'
+              : 'Use system window frame',
           value: appState.nativeWindowFrame,
           onChanged: (v) => appState.setNativeWindowFrame(v),
           textColor: textColor,
@@ -631,9 +689,11 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   // §14.7.4: Run in Background / Close to Taskbar / Quit radios. Linux/BSD only.
+  // Only shown when tray icon is supported and enabled (matching AyuGram's TrayIconSupported guard).
   List<Widget> _buildWindowCloseBehavior(bool isDark) {
     if (!Platform.isLinux) return const [];
     final appState = context.read<AppState>();
+    if (!appState.showTrayIcon) return const [];
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor =
@@ -824,7 +884,10 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
       _AdvancedToggleRow(
         label: 'Enable hardware acceleration for video',
         value: appState.hardwareAccelVideo,
-        onChanged: (v) => appState.setHardwareAccelVideo(v),
+        onChanged: (v) {
+          appState.setHardwareAccelVideo(v);
+          _showRestartDialog(context, isDark);
+        },
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -916,7 +979,19 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   void _restartApp() {
     final exe = Platform.resolvedExecutable;
     final args = Platform.executableArguments;
-    Process.start(exe, args, mode: ProcessStartMode.detached).then((_) {
+    final appState = context.read<AppState>();
+    final env = Map<String, String>.from(Platform.environment);
+    if (appState.openGlDisabled) {
+      env['LIBGL_ALWAYS_SOFTWARE'] = '1';
+    } else {
+      env.remove('LIBGL_ALWAYS_SOFTWARE');
+    }
+    if (!appState.hardwareAccelVideo) {
+      env['UNICLIENT_NO_HW_VIDEO'] = '1';
+    } else {
+      env.remove('UNICLIENT_NO_HW_VIDEO');
+    }
+    Process.start(exe, args, mode: ProcessStartMode.detached, environment: env).then((_) {
       exit(0);
     }).catchError((_) {
       exit(0);
@@ -1104,8 +1179,8 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   List<Widget> _buildScreenReader(bool isDark) {
-    if (!_screenReaderDetected) return const [];
     final appState = context.read<AppState>();
+    if (!_screenReaderDetected || appState.screenReaderOptimized) return const [];
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor = context.palette.windowBgActive;
@@ -1115,9 +1190,12 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     return [
       _SubsectionTitle(title: 'Screen Reader', color: accentColor),
       _AdvancedToggleRow(
-        label: 'Optimize for screen readers',
-        value: appState.screenReaderOptimized,
-        onChanged: (v) => appState.setScreenReaderOptimized(v),
+        label: 'Disable screen reader optimization',
+        value: !appState.screenReaderOptimized,
+        onChanged: (v) {
+          appState.setScreenReaderOptimized(!v);
+          SemanticsService.announce('Screen reader optimization ${!v ? "disabled" : "enabled"}', TextDirection.ltr);
+        },
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -1155,11 +1233,13 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         hoverBg: hoverBg,
         onTap: () {
           final accountId = appState.activeAccountId;
-          Navigator.of(context).popUntil((route) => route.isFirst);
-          Future.delayed(const Duration(milliseconds: 150), () {
-            if (!context.mounted) return;
+          final nav = Navigator.of(context);
+          nav.popUntil((route) => route.isFirst);
+          Future.delayed(const Duration(milliseconds: 300), () {
+            final ctx = nav.context;
+            if (!ctx.mounted) return;
             showExportPanel(
-              context,
+              ctx,
               ExportTarget(mode: ExportMode.full, accountId: accountId),
             );
           });
@@ -2137,6 +2217,8 @@ class _ManageDictionariesBoxState extends State<_ManageDictionariesBox> {
   }
 
   Future<void> _scanDictionaries() async {
+    final appState = context.read<AppState>();
+    final enabled = appState.enabledDictionaries;
     final entries = <_DictEntry>[];
     if (Platform.isLinux) {
       for (final dir in const ['/usr/share/hunspell', '/usr/share/myspell/dicts']) {
@@ -2154,6 +2236,7 @@ class _ManageDictionariesBoxState extends State<_ManageDictionariesBox> {
                   label: _langLabel(name),
                   hasAff: hasAff,
                   path: f.path,
+                  enabled: enabled.isEmpty || enabled.contains(name),
                 ));
               }
             }
@@ -2232,26 +2315,43 @@ class _ManageDictionariesBoxState extends State<_ManageDictionariesBox> {
                   itemCount: _dicts.length,
                   itemBuilder: (_, i) {
                     final d = _dicts[i];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
-                      child: Row(
-                        children: [
-                          Icon(
-                            d.hasAff ? Icons.check_circle : Icons.warning_amber,
-                            size: 18,
-                            color: d.hasAff ? accentColor : subtextColor,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(d.label, style: TextStyle(fontSize: 14, color: textColor)),
-                                Text(d.code, style: TextStyle(fontSize: 12, color: subtextColor)),
-                              ],
+                    return InkWell(
+                      onTap: () {
+                        setState(() => d.enabled = !d.enabled);
+                        context.read<AppState>().toggleDictionary(d.code);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: Checkbox(
+                                value: d.enabled,
+                                onChanged: (v) {
+                                  setState(() => d.enabled = v ?? true);
+                                  context.read<AppState>().toggleDictionary(d.code);
+                                },
+                                activeColor: accentColor,
+                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(d.label, style: TextStyle(fontSize: 14, color: textColor)),
+                                  Text(d.code, style: TextStyle(fontSize: 12, color: subtextColor)),
+                                ],
+                              ),
+                            ),
+                            if (!d.hasAff)
+                              Icon(Icons.warning_amber, size: 16, color: subtextColor),
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -2283,7 +2383,8 @@ class _DictEntry {
   final String label;
   final bool hasAff;
   final String path;
-  const _DictEntry({required this.code, required this.label, required this.hasAff, required this.path});
+  bool enabled;
+  _DictEntry({required this.code, required this.label, required this.hasAff, required this.path, this.enabled = true});
 }
 
 class PowerSavingBox extends StatefulWidget {
@@ -2331,15 +2432,37 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
 
   Future<void> _checkPowerSaverMode() async {
     if (!Platform.isLinux) return;
+    var detected = false;
     try {
       final result = await Process.run('powerprofilesctl', ['get']);
-      if (!mounted) return;
       final profile = (result.stdout as String).trim();
-      setState(() => _osPowerSaver = profile == 'power-saver');
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _osPowerSaver = false);
+      if (profile == 'power-saver') detected = true;
+    } catch (_) {}
+    if (!detected) {
+      try {
+        final result = await Process.run('gdbus', [
+          'call', '--system',
+          '--dest', 'org.freedesktop.UPower',
+          '--object-path', '/org/freedesktop/UPower',
+          '--method', 'org.freedesktop.DBus.Properties.Get',
+          'org.freedesktop.UPower', 'OnBattery',
+        ]);
+        final out = (result.stdout as String).trim();
+        if (out.contains('true')) detected = true;
+      } catch (_) {}
     }
+    if (!mounted) return;
+    setState(() => _osPowerSaver = detected);
+    if (_autoEnabled && detected) {
+      _applyAutoFlags();
+    }
+  }
+
+  void _applyAutoFlags() {
+    final appState = context.read<AppState>();
+    const allFlags = 0xFFFF;
+    setState(() => _flags = allFlags);
+    appState.setPowerSaving(allFlags, true);
   }
 
   bool get _overlayActive => _autoEnabled && _osPowerSaver;
@@ -2641,6 +2764,8 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
   _ProxyMode _mode = _ProxyMode.disabled;
   bool _ipv6 = false;
   bool _proxyForCalls = false;
+  bool _rotationEnabled = false;
+  int _rotationTimeout = 60;
   final List<_ProxyEntry> _proxies = [];
   int _selectedIndex = -1;
   final FocusNode _focusNode = FocusNode();
@@ -2652,6 +2777,8 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     _mode = _ProxyMode.values[appState.proxyMode.clamp(0, 2)];
     _ipv6 = appState.proxyIpv6;
     _proxyForCalls = appState.proxyForCalls;
+    _rotationEnabled = appState.proxyRotationEnabled;
+    _rotationTimeout = appState.proxyRotationTimeout;
     for (final m in appState.proxyList) {
       _proxies.add(_ProxyEntry(
         type: _ProxyType.values.firstWhere(
@@ -2704,53 +2831,33 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
   Future<void> _checkProxy(int index) async {
     if (index < 0 || index >= _proxies.length) return;
     final proxy = _proxies[index];
-    final sw = Stopwatch()..start();
     try {
-      final socket = await Socket.connect(
-        proxy.host,
-        proxy.port,
-        timeout: const Duration(seconds: 5),
+      final appState = context.read<AppState>();
+      final result = await appState.engine.callGeneric(
+        appState.activeAccountId,
+        'CheckProxy',
+        {
+          'host': proxy.host,
+          'port': proxy.port,
+          'proxy_type': proxy.type.name,
+          'username': proxy.username,
+          'password': proxy.password,
+          'secret': proxy.secret,
+        },
       );
-      var validated = false;
-      try {
-        validated = await _validateProtocol(socket, proxy);
-      } catch (_) {
-        validated = false;
-      }
-      sw.stop();
-      socket.destroy();
       if (!mounted) return;
-      if (validated) {
+      if (result != null && result['ok'] == true) {
         final isActive = _mode == _ProxyMode.custom && _selectedIndex == index;
         setState(() {
           proxy.status = isActive ? _ProxyStatus.online : _ProxyStatus.available;
-          proxy.pingMs = sw.elapsedMilliseconds;
+          proxy.pingMs = (result['ping_ms'] as num?)?.toInt() ?? 0;
         });
       } else {
         setState(() => proxy.status = _ProxyStatus.unavailable);
       }
-    } on SocketException {
-      if (!mounted) return;
-      setState(() => proxy.status = _ProxyStatus.unavailable);
     } catch (_) {
       if (!mounted) return;
       setState(() => proxy.status = _ProxyStatus.unavailable);
-    }
-  }
-
-  Future<bool> _validateProtocol(Socket socket, _ProxyEntry proxy) async {
-    switch (proxy.type) {
-      case _ProxyType.socks5:
-        socket.add([0x05, 0x01, 0x00]);
-        final resp = await socket.first.timeout(const Duration(seconds: 3));
-        return resp.length >= 2 && resp[0] == 0x05;
-      case _ProxyType.http:
-        socket.add(utf8.encode('CONNECT 149.154.167.50:443 HTTP/1.1\r\nHost: 149.154.167.50:443\r\n\r\n'));
-        final resp = await socket.first.timeout(const Duration(seconds: 3));
-        final line = utf8.decode(resp, allowMalformed: true);
-        return line.startsWith('HTTP/') && line.contains('200');
-      case _ProxyType.mtproto:
-        return true;
     }
   }
 
@@ -2939,6 +3046,58 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                     )
                   : const SizedBox.shrink(),
             ),
+
+            // Proxy rotation toggle (visible when multiple proxies exist)
+            if (_mode == _ProxyMode.custom && _proxies.length > 1) ...[
+              InkWell(
+                onTap: () {
+                  setState(() => _rotationEnabled = !_rotationEnabled);
+                  context.read<AppState>().setProxyRotationEnabled(_rotationEnabled);
+                },
+                hoverColor: hoverBg,
+                child: Padding(
+                  padding: SettingsStyle.noIconPadding,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text('Rotate proxies', style: TextStyle(fontSize: 14, color: textColor)),
+                      ),
+                      Switch(
+                        value: _rotationEnabled,
+                        onChanged: (v) {
+                          setState(() => _rotationEnabled = v);
+                          context.read<AppState>().setProxyRotationEnabled(v);
+                        },
+                        activeColor: accentColor,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_rotationEnabled)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+                  child: Row(
+                    children: [
+                      Text('Timeout: ${_rotationTimeout}s', style: TextStyle(fontSize: 13, color: subtextColor)),
+                      Expanded(
+                        child: Slider(
+                          value: _rotationTimeout.toDouble(),
+                          min: 10,
+                          max: 300,
+                          divisions: 29,
+                          onChanged: (v) {
+                            setState(() => _rotationTimeout = v.round());
+                            context.read<AppState>().setProxyRotationTimeout(v.round());
+                          },
+                          activeColor: accentColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
 
             // Divider text
             Padding(

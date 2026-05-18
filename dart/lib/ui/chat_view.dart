@@ -14159,6 +14159,8 @@ class _ComposeAreaState extends State<_ComposeArea>
         richCtrlEarly.entities.any((e) => e.type == FormatType.blockquote);
     final composeLeftPad = hasBlockquote ? 16.0 : 11.0;
 
+    final spellEnabled = context.select<AppState, bool>((s) => s.spellcheckerEnabled);
+
     Widget field = ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 36, maxHeight: 224),
       child: TextField(
@@ -14169,6 +14171,9 @@ class _ComposeAreaState extends State<_ComposeArea>
         maxLines: null,
         textInputAction: TextInputAction.newline,
         style: theme.textTheme.bodyMedium,
+        spellCheckConfiguration: spellEnabled
+            ? const SpellCheckConfiguration()
+            : const SpellCheckConfiguration.disabled(),
         contextMenuBuilder: richCtrlEarly != null
             ? (ctx, editableTextState) => _ComposeContextMenu(
                   anchor: editableTextState.contextMenuAnchors.primaryAnchor,

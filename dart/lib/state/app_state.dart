@@ -175,6 +175,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _roundDockIcon = false; // macOS only
   bool _spellcheckerEnabled = true;
   bool _spellcheckerAutoDownload = true;
+  Set<String> _enabledDictionaries = {};
   bool _screenReaderOptimized = false;
   bool _autoUpdateEnabled = true;
   bool _installBetaVersions = false;
@@ -186,6 +187,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String _selectedProxyType = ''; // e.g. 'SOCKS5', 'HTTP', 'MTPROTO'
   bool _proxyIpv6 = false;
   bool _proxyForCalls = false;
+  bool _proxyRotationEnabled = false;
+  int _proxyRotationTimeout = 60;
   List<Map<String, dynamic>> _proxyList = [];
   Map<String, Map<String, dynamic>> _autoDownloadSettings = {};
   String _cacheDir = '';
@@ -497,6 +500,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get roundDockIcon => _roundDockIcon;
   bool get spellcheckerEnabled => _spellcheckerEnabled;
   bool get spellcheckerAutoDownload => _spellcheckerAutoDownload;
+  Set<String> get enabledDictionaries => Set.unmodifiable(_enabledDictionaries);
   bool get screenReaderOptimized => _screenReaderOptimized;
   bool get autoUpdateEnabled => _autoUpdateEnabled;
   bool get installBetaVersions => _installBetaVersions;
@@ -508,6 +512,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String get selectedProxyType => _selectedProxyType;
   bool get proxyIpv6 => _proxyIpv6;
   bool get proxyForCalls => _proxyForCalls;
+  bool get proxyRotationEnabled => _proxyRotationEnabled;
+  int get proxyRotationTimeout => _proxyRotationTimeout;
   List<Map<String, dynamic>> get proxyList => List.unmodifiable(_proxyList);
   Map<String, Map<String, dynamic>> get autoDownloadSettings => Map.unmodifiable(_autoDownloadSettings);
   String get cacheDir => _cacheDir;
@@ -2002,9 +2008,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
+  void toggleDictionary(String code) {
+    if (_enabledDictionaries.contains(code)) {
+      _enabledDictionaries.remove(code);
+    } else {
+      _enabledDictionaries.add(code);
+    }
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
   void setScreenReaderOptimized(bool v) {
     if (_screenReaderOptimized == v) return;
     _screenReaderOptimized = v;
+    if (v) {
+      WidgetsBinding.instance.ensureSemantics();
+    }
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -2073,6 +2092,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _saveWindowPrefs();
     _syncProxyToEngine();
+  }
+
+  void setProxyRotationEnabled(bool v) {
+    if (_proxyRotationEnabled == v) return;
+    _proxyRotationEnabled = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setProxyRotationTimeout(int v) {
+    if (_proxyRotationTimeout == v) return;
+    _proxyRotationTimeout = v;
+    notifyListeners();
+    _saveWindowPrefs();
   }
 
   void setProxyList(List<Map<String, dynamic>> list) {
@@ -3082,6 +3115,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _roundDockIcon = data['roundDockIcon'] as bool? ?? false;
       _spellcheckerEnabled = data['spellcheckerEnabled'] as bool? ?? true;
       _spellcheckerAutoDownload = data['spellcheckerAutoDownload'] as bool? ?? true;
+      final dicts = data['enabledDictionaries'] as List<dynamic>?;
+      if (dicts != null) _enabledDictionaries = dicts.cast<String>().toSet();
       _screenReaderOptimized = data['screenReaderOptimized'] as bool? ?? false;
       _autoUpdateEnabled = data['autoUpdateEnabled'] as bool? ?? true;
       _installBetaVersions = data['installBetaVersions'] as bool? ?? false;
@@ -3094,6 +3129,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _selectedProxyType = data['selectedProxyType'] as String? ?? '';
       _proxyIpv6 = data['proxyIpv6'] as bool? ?? false;
       _proxyForCalls = data['proxyForCalls'] as bool? ?? false;
+      _proxyRotationEnabled = data['proxyRotationEnabled'] as bool? ?? false;
+      _proxyRotationTimeout = data['proxyRotationTimeout'] as int? ?? 60;
       final pList = data['proxyList'] as List<dynamic>?;
       if (pList != null) _proxyList = pList.cast<Map<String, dynamic>>();
       final adSettings = data['autoDownloadSettings'] as Map<String, dynamic>?;
@@ -3366,6 +3403,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'roundDockIcon': _roundDockIcon,
         'spellcheckerEnabled': _spellcheckerEnabled,
         'spellcheckerAutoDownload': _spellcheckerAutoDownload,
+        'enabledDictionaries': _enabledDictionaries.toList(),
         'screenReaderOptimized': _screenReaderOptimized,
         'autoUpdateEnabled': _autoUpdateEnabled,
         'installBetaVersions': _installBetaVersions,
@@ -3377,6 +3415,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'selectedProxyType': _selectedProxyType,
         'proxyIpv6': _proxyIpv6,
         'proxyForCalls': _proxyForCalls,
+        'proxyRotationEnabled': _proxyRotationEnabled,
+        'proxyRotationTimeout': _proxyRotationTimeout,
         'proxyList': _proxyList,
         'autoDownloadSettings': _autoDownloadSettings,
         'localStorageTotalLimit': _localStorageTotalLimit,

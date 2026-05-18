@@ -133,6 +133,7 @@ class _UniClientAppState extends State<UniClientApp>
   VoidCallback? _trayIconSyncListener;
   VoidCallback? _monochromeSyncListener;
   VoidCallback? _appIconSyncListener;
+  VoidCallback? _closeBehaviorSyncListener;
   String _lastAppIcon = '';
   AppState? _appStateRef;
   ChatState? _chatStateRef;
@@ -324,6 +325,13 @@ class _UniClientAppState extends State<UniClientApp>
     if (!kIsWeb) {
       await _tray.init(showTrayIcon: appState.showTrayIcon);
       _tray.onQuit = () => exit(0);
+
+      // Sync window close behavior to native runner.
+      _tray.setCloseBehavior(appState.windowCloseBehavior);
+      _closeBehaviorSyncListener = () {
+        _tray.setCloseBehavior(appState.windowCloseBehavior);
+      };
+      appState.addListener(_closeBehaviorSyncListener!);
 
       _tray.onWindowHidden = () {
         Debug.log('TRAY', 'window hidden — updating visibility state');

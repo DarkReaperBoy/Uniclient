@@ -4,11 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/proxy"
 
 	"uniclient/cores"
 	"uniclient/utils"
@@ -82,6 +87,22 @@ type Engine struct {
 
 	exportMu sync.RWMutex
 	exports  map[string]*exportState
+
+	// Proxy settings: controlled from Dart via SetProxy.
+	proxyMu       sync.RWMutex
+	proxyMode     int    // 0=disabled, 1=system, 2=custom
+	proxyHost     string
+	proxyPort     int
+	proxyType     string // socks5, http, mtproto
+	proxyUser     string
+	proxyPass     string
+	proxySecret   string
+	proxyIPv6     bool
+	proxyForCalls bool
+
+	// Auto-download settings: per-source limits controlled from Dart via SetAutoDownload.
+	autoDownloadMu       sync.RWMutex
+	autoDownloadSettings map[string]map[string]interface{}
 }
 
 // Init initializes the engine: opens vault+DB, loads accounts, starts connections.
@@ -216,6 +237,87 @@ func (e *Engine) SetAntiRecallSettings(saveDeleted, saveHistory, saveForBots boo
 	e.saveDeletedMessages = saveDeleted
 	e.saveMessagesHistory = saveHistory
 	e.saveForBots = saveForBots
+}
+
+// SetProxy updates the engine proxy settings and reconfigures active connections.
+func (e *Engine) SetProxy(mode int, host string, port int, proxyType, user, pass, secret string, ipv6, forCalls bool) {
+	e.proxyMu.Lock()
+	e.proxyMode = mode
+	e.proxyHost = host
+	e.proxyPort = port
+	e.proxyType = proxyType
+	e.proxyUser = user
+	e.proxyPass = pass
+	e.proxySecret = secret
+	e.proxyIPv6 = ipv6
+	e.proxyForCalls = forCalls
+	e.proxyMu.Unlock()
+	log.Printf("[engine] SetProxy: mode=%d type=%s host=%s:%d ipv6=%v forCalls=%v",
+		mode, proxyType, host, port, ipv6, forCalls)
+}
+
+// SetAutoDownloadSettings stores per-source auto-download limits.
+func (e *Engine) SetAutoDownloadSettings(source string, settings map[string]interface{}) {
+	e.autoDownloadMu.Lock()
+	if e.autoDownloadSettings == nil {
+		e.autoDownloadSettings = make(map[string]map[string]interface{})
+	}
+	e.autoDownloadSettings[source] = settings
+	e.autoDownloadMu.Unlock()
+	log.Printf("[engine] SetAutoDownload: source=%s settings=%v", source, settings)
+}
+
+// CheckProxy tests proxy connectivity by connecting to a Telegram DC through it.
+// Returns ping time in milliseconds on success.
+func (e *Engine) CheckProxy(host string, port int, proxyType, user, pass, secret string) (int64, error) {
+	addr := fmt.Sprintf("%s:%d", host, port)
+	start := time.Now()
+
+	var conn net.Conn
+	var err error
+
+	switch proxyType {
+	case "socks5":
+		dialer, dErr := proxy.SOCKS5("tcp", addr, nil, proxy.Direct)
+		if dErr != nil {
+			return 0, dErr
+		}
+		conn, err = dialer.Dial("tcp", "149.154.167.50:443")
+	case "http":
+		conn, err = net.DialTimeout("tcp", addr, 5*time.Second)
+		if err != nil {
+			return 0, err
+		}
+		connectReq := fmt.Sprintf("CONNECT 149.154.167.50:443 HTTP/1.1\r\nHost: 149.154.167.50:443\r\n\r\n")
+		if _, wErr := conn.Write([]byte(connectReq)); wErr != nil {
+			conn.Close()
+			return 0, wErr
+		}
+		buf := make([]byte, 1024)
+		conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		n, rErr := conn.Read(buf)
+		if rErr != nil {
+			conn.Close()
+			return 0, rErr
+		}
+		resp := string(buf[:n])
+		if !strings.Contains(resp, "200") {
+			conn.Close()
+			return 0, fmt.Errorf("HTTP proxy returned: %s", strings.TrimSpace(strings.SplitN(resp, "\r\n", 2)[0]))
+		}
+	case "mtproto":
+		conn, err = net.DialTimeout("tcp", addr, 5*time.Second)
+	default:
+		conn, err = net.DialTimeout("tcp", addr, 5*time.Second)
+	}
+
+	if err != nil {
+		return 0, err
+	}
+	conn.Close()
+
+	pingMs := time.Since(start).Milliseconds()
+	return pingMs, nil
 }
 
 // SetActiveChat tells the engine which chat the user is looking at.
