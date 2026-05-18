@@ -180,7 +180,6 @@ Ground truth: `/tmp/theme_extract/day-blue/colors.tdesktop-theme`, `/tmp/theme_e
 
 ## Performance
 
-- [ ] [MAJOR] `colorize()` creates a full `TelegramPalette` copy with ~500+ fields on every call with a new accent color, and there is no caching — every accent change triggers complete reconstruction. The C++ uses a lazy colorize pass over only modified entries. While not semantically wrong, recomputing all 500+ fields synchronously on every accent change will cause frame drops on low-end devices when the user adjusts theme color. — `dart/lib/theme/telegram_palette.dart:1249-1784`
 
 ---
 
