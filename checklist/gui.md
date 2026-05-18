@@ -571,35 +571,11 @@ One CRITICAL issue found. All other features (cloud password flow, local passcod
 
 ## Issues Found
 
-- [ ] [CRITICAL] Pie chart font size is 14px but AyuGram uses `st::statisticsPieChartFont: font(20px)` — ~40% deviation; `maxScale = side / (font->height * 2)` formula relies on the 20px font — `stats_chart.dart:2113` ← `AyuGram/statistics/view/stack_linear_chart_view.cpp:718` + `AyuGram/statistics/statistics.style:56`
+- [ ] [MAJOR] Filter button inactive text color uses `colorScheme.onSurface` — AyuGram uses `st::premiumButtonFg` (WHITE, the premium button foreground, not text gray) — inactive button should show white text on white/box background (faded look) — `stats_chart.dart:1424` ← `AyuGram/statistics/widgets/chart_lines_filter_widget.cpp:57`
 
-- [ ] [MAJOR] Filter button inactive text color uses `Colors.white70 : Colors.black87` — AyuGram uses `st::premiumButtonFg` (the premium button foreground color, a theme-defined blue/white, not text gray) — `stats_chart.dart:1358-1363` ← `AyuGram/statistics/widgets/chart_lines_filter_widget.cpp:57`
+- [ ] [MAJOR] Footer dim overlay color uses `colorScheme.surface.withValues(alpha: 0.6)` (white-ish) — AyuGram uses `statisticsChartInactive: #e2eef999` (RGB=0xe2,0xee,0xf9 light-blue-gray, alpha≈0.6) for BOTH light and dark modes — `stats_chart.dart:962-963` ← `AyuGram/lib_ui/ui/colors.palette:665`
 
-- [ ] [MAJOR] Filter button inactive background uses `Theme.of(context).colorScheme.surfaceContainerHighest` — AyuGram uses `st::boxBg` (dialog box background) — `stats_chart.dart:1329` ← `AyuGram/statistics/widgets/chart_lines_filter_widget.cpp:59`
-
-- [ ] [MAJOR] Filter button corner radius hardcoded as `BorderRadius.circular(14)` — AyuGram uses `radius = r.height() / 2.` (fully rounded pill that adapts to button height) — `stats_chart.dart:1335` ← `AyuGram/statistics/widgets/chart_lines_filter_widget.cpp:130`
-
-- [ ] [MAJOR] Pie hover slice offset is a static 8.0px snap with no per-slice animation — AyuGram has `PiePartController` that independently animates each slice's `statisticsPieChartPartOffset: 8px` offset in/out using `st::slideWrapDuration` — `stats_chart.dart:2016-2018` ← `AyuGram/statistics/view/stack_linear_chart_view.cpp:806` + `AyuGram/statistics/statistics.style:57`
-
-- [ ] [MAJOR] Tooltip width hardcoded as `_kTooltipWidth = 180.0` — AyuGram's `PointDetailsWidget` computes width dynamically from max(name widths) + max(value widths) + padding for each dataset, accounting for percentage column, USD column, etc. Long stat names or values will be clipped; short ones waste space — `stats_chart.dart:232` + `stats_chart.dart:1104` ← `AyuGram/statistics/widgets/point_details_widget.cpp:220-262`
-
-- [ ] [MAJOR] Tooltip missing inner `statisticsDetailsPopupPadding: margins(6px, 6px, 6px, 6px)` — Dart applies only `statisticsDetailsPopupMargins (12,8,12,11)` as the sole padding, so the text content sits 6px too close to the card edge vs AyuGram's two-level inset structure — `stats_chart.dart:997` ← `AyuGram/statistics/widgets/point_details_widget.cpp:262-269` + `AyuGram/statistics/statistics.style:22-23`
-
-- [ ] [MAJOR] Date label width estimated using `'May 00'` sample text width + 20px — AyuGram uses `dayStringMaxWidth` precomputed from the actual formatted label strings in `daysLookup[]` (supports hour:minute format and week format labels which have different widths) — `stats_chart.dart:1633-1641` ← `AyuGram/data/data_statistics_chart.cpp:71` + `AyuGram/statistics/chart_widget.cpp:110`
-
-- [ ] [MAJOR] `captionIndicesOffset` missing from date label step calculation — AyuGram shifts the iteration start index by `dayStringMaxWidth / step` so centered labels at the left edge don't overhang the chart boundary; Dart skips this, causing leftmost date labels to paint partially outside the visible area — `stats_chart.dart:1669-1671` ← `AyuGram/statistics/chart_widget.cpp:1024-1025` + `AyuGram/statistics/chart_widget.cpp:119-130`
-
-- [ ] [MAJOR] Footer minimum handle separation is `_kMinRangeFrac = 0.02` (2% of chart width) — AyuGram enforces `statisticsChartFooterBetweenSide: 5px` as an absolute pixel distance between handles; behavior diverges significantly at narrow chart widths — `stats_chart.dart:226` ← `AyuGram/statistics/statistics.style:30` + `AyuGram/statistics/chart_widget.cpp:407-419`
-
-- [ ] [MAJOR] Footer dim overlay color for dark mode hardcoded as `Color(0x99182633)` — AyuGram uses `statisticsChartInactive: #e2eef999` (light mode) from the theme palette; dark-mode dim color is not separately defined in the palette (AyuGram uses the same `statisticsChartInactive` color) meaning Dart's dark-mode dim color is invented and wrong — `stats_chart.dart:2233` ← `AyuGram/lib_ui/ui/colors.palette:665`
-
-- [ ] [MAJOR] `DoubleLinear` footer mini-chart uses a shared global min/max across both lines — AyuGram's linear chart uses independent per-line Y scales for DoubleLinear; sharing the Y scale compresses one line relative to the other in the footer overview — `stats_chart.dart:2290-2301` ← `AyuGram/statistics/view/linear_chart_view.cpp` (DoubleLinear uses separate axis rendering)
-
-- [ ] [MAJOR] Selection indicator vertical line color hardcoded as `Colors.white24` (dark) / `Colors.black12` (light) — AyuGram derives these colors from the theme palette; hardcoded values won't adapt to custom themes or AyuGram-specific palette overrides — `stats_chart.dart:1704-1710` ← `AyuGram/statistics/chart_widget.cpp:951-975`
-
-- [ ] [MAJOR] `TextPainter` allocated fresh on every repaint inside `_drawRulerSet()` and `_paintDateLabelsAtStep()` — during animation (60fps) this creates dozens of `TextPainter` + `layout()` calls per frame for every ruler line and every visible date label; should be cached and invalidated only when data/range/theme changes — `stats_chart.dart:1594-1620` + `stats_chart.dart:1688-1694` ← performance reference: `AyuGram/statistics/view/chart_rulers_view.cpp` (uses pre-laid-out text objects)
-
-- [ ] [MAJOR] Pie label text color hardcoded as `Colors.white` — AyuGram uses `p.setPen(st::premiumButtonFg)` which is a theme-tracked color (`premiumButtonFg` resolves to white in default theme but is palette-overridable) — `stats_chart.dart:2142-2145` ← `AyuGram/statistics/view/stack_linear_chart_view.cpp:721`
+- [ ] [MAJOR] Selection indicator vertical line color hardcoded as `Colors.white/black.withValues(alpha: 0.15)` — AyuGram derives from `st::boxTextFg` (theme-tracked palette color) — fix: pass `theme.colorScheme.onSurface.withValues(alpha: 0.15)` from widget build() into `_ChartAreaPainter` as a named parameter — `stats_chart.dart:1816-1819` ← `AyuGram/statistics/chart_widget.cpp:951-975`
 
 # main — Theme revert overlay radius wrong + system unlock cooldown logic gaps
 
