@@ -562,8 +562,6 @@ One CRITICAL issue found. All other features (cloud password flow, local passcod
 
 ---
 
-- [ ] [CRITICAL] Privacy exception lists (always/never users) are silently wiped on every save — `_EditPrivacyBoxState._save()` calls `setPrivacySetting` without passing `alwaysIds` or `neverIds`, so they default to `[]` and overwrite whatever exceptions were previously set on the server. The widget receives `initialAlwaysUsers`/`initialNeverUsers` from the server but they are never forwarded back on save. Additionally `_EditPrivacyBoxState` has no mutable state fields for exceptions and no UI to add/edit them ("Always share with" / "Never share with" buttons), so the feature is entirely absent. Any user who had exceptions configured via another client will have them silently destroyed the next time they open and save privacy settings here. — `privacy_settings_screen.dart:2139` ← `boxes/edit_privacy_box.cpp:794`
-
 ## reactions_detail — Reactions/read detail panel
 
 - [ ] [CRITICAL] DM read-receipt tab is entirely missing: `_fetchReadCount` at line 129 explicitly skips `ChatType.dm`, but AyuGram uses `MTPmessages_GetOutboxReadDate` for DM messages to fetch and display the read date/tab for single recipients — `reactions_detail.dart:129` ← `AyuGram/api/api_who_reacted.cpp:257-285`
