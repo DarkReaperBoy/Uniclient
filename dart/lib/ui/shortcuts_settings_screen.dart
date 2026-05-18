@@ -148,7 +148,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
   final _currentBindings = <ShortcutCommand, List<KeyBinding>>{};
   ShortcutCommand? _recordingCommand;
   int _recordingIndex = -1;
-  final _conflicted = <String, ShortcutCommand>{};
+  final _removedKeys = <ShortcutCommand, Set<String>>{};
 
   @override
   void initState() {
@@ -179,8 +179,10 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
           .add(bindingToKeyString(b));
     }
     for (final cmd in ShortcutCommand.values) {
+      final removed = _removedKeys[cmd];
       final currKeys = (_currentBindings[cmd] ?? [])
           .map(bindingToKeyString)
+          .where((k) => removed == null || !removed.contains(k))
           .toList()
         ..sort();
       final defKeys = (defaultByCmd[cmd] ?? [])..sort();
@@ -198,7 +200,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
     setState(() {
       _recordingCommand = cmd;
       _recordingIndex = index;
-      _conflicted.clear();
+      _removedKeys.clear();
     });
     ShortcutSystem.instance.startRecording(_onRecordingKeyEvent);
   }
@@ -215,10 +217,10 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
     final keyStr = bindingToKeyString(newBinding);
     setState(() {
       for (final entry in _currentBindings.entries) {
-        for (int i = entry.value.length - 1; i >= 0; i--) {
-          if (bindingToKeyString(entry.value[i]) == keyStr) {
-            _conflicted[keyStr] = entry.key;
-            entry.value.removeAt(i);
+        if (entry.key == _recordingCommand) continue;
+        for (final b in entry.value) {
+          if (bindingToKeyString(b) == keyStr) {
+            _removedKeys.putIfAbsent(entry.key, () => {}).add(keyStr);
           }
         }
       }
@@ -285,7 +287,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
     if (_isRecording) _cancelRecording();
     setState(() {
       _currentBindings.clear();
-      _conflicted.clear();
+      _removedKeys.clear();
       for (final b in ShortcutSystem.defaultBindingsList) {
         _currentBindings.putIfAbsent(b.command, () => []).add(b);
       }
@@ -296,8 +298,12 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
   void _syncToSystem() {
     final sys = ShortcutSystem.instance;
     final allBindings = <KeyBinding>[];
-    for (final bindings in _currentBindings.values) {
-      allBindings.addAll(bindings);
+    for (final entry in _currentBindings.entries) {
+      final removed = _removedKeys[entry.key];
+      for (final b in entry.value) {
+        if (removed != null && removed.contains(bindingToKeyString(b))) continue;
+        allBindings.add(b);
+      }
     }
     sys.replaceAllBindings(allBindings);
     sys.saveToCustomFile();
@@ -468,7 +474,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
       final b = bindings[i];
       final keyStr = ShortcutSystem.displayBindingString(b);
       final isConflictSource =
-          _conflicted.containsKey(bindingToKeyString(b));
+          _removedKeys[cmd]?.contains(bindingToKeyString(b)) ?? false;
 
       rows.add(_ShortcutRow(
         label: label,
