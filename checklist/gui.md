@@ -225,20 +225,9 @@ The `night` preset has pervasive errors: it uses day-theme file type colors unch
 
 - [ ] Test positive pattern (intensity ~50) over light background: should render with SoftLight blend
 - [ ] Test negative pattern (intensity ~-50) over gradient: should darken where pattern is opaque
-- [ ] Test negative pattern intensity == -100: black overlay should NOT be applied (spec: "strict > -1.0")
 - [ ] Test pattern inversion: render dark pattern over dark gradient (HSV ≤ 0.3) — should invert to white-on-transparent
 - [ ] Screenshot comparison: pattern rendering against AyuGram Desktop reference
 - [ ] Verify ColorFilter behavior: test if dstIn mode works correctly for negative patterns
-
-# active_sessions_screen — Audit findings
-
-- [ ] [MAJOR] Session row date format is relative ("2h ago", "3d ago") instead of AyuGram's absolute format (same-day → time "14:35", same-week → weekday name, older → short date) — `active_sessions_screen.dart:462-475` ← `AyuGramDesktop/Telegram/SourceFiles/api/api_authorizations.cpp:258-268`
-
-- [ ] [MAJOR] Current session location line incorrectly appends "• online": Dart calls `formatDate(lastActive)` unconditionally producing "country • online", but C++ skips the date for the current session entirely (hash==0 → `entry.active` not appended) — `active_sessions_screen.dart:1126-1131` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:160-165`
-
-- [ ] [MAJOR] `terminateAll` removes sessions from local list without reloading from server; C++ calls `_authorizations->cancelCurrentRequest()` then `_authorizations->reload()` after the server confirms, so partial failures on the server side leave the Dart UI permanently desynced until the 60 s poll fires — `active_sessions_screen.dart:256-265` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:879-892`
-
-- [ ] [MAJOR] No reactive subscription to server-pushed updates: C++ subscribes to `_authorizations->listValue()` which fires on every `_listChanges` (after reload AND after any terminate), so the list stays live; Dart only polls via a flat 60 s timer — `active_sessions_screen.dart:195` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:761-764` / `api/api_authorizations.cpp:192-198`
 
 ## admin_tools — placeholders, missing admin log events
 
