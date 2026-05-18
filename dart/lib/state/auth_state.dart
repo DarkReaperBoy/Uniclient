@@ -22,7 +22,7 @@ class AuthState extends ChangeNotifier {
   bool _autoInputBusy = false;
 
   DateTime? _lastSrpIdInvalidTime;
-  static const _kSrpIdInvalidTimeout = Duration(seconds: 5);
+  static const _kSrpIdInvalidTimeout = Duration(seconds: 60);
 
   Timer? _qrExpiryTimer;
 

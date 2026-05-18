@@ -818,6 +818,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ForwardMessage(req.AccountId, req.ChatId, req.MsgId, req.ToChatId, req.DropAuthor, req.DropCaptions, req.Silent, req.ScheduleDate)
 
+	case "ForwardMessages":
+		var req pb.EngineForwardMessagesRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ForwardMessages(req.AccountId, req.ChatId, req.MsgIds, req.ToChatId, req.DropAuthor, req.DropCaptions, req.Silent, req.ScheduleDate)
+
 	case "ResendAsOwn":
 		var req pb.EngineResendAsOwnRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

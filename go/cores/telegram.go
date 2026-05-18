@@ -1659,6 +1659,58 @@ func (t *TelegramCore) ForwardMessageWithOptions(fromChatID, msgID, toChatID str
 	return t.extractMessageFromUpdates(result, toChatID), nil
 }
 
+// ForwardMessagesWithOptions forwards multiple messages in a single API call,
+// preserving album grouping.
+func (t *TelegramCore) ForwardMessagesWithOptions(fromChatID string, msgIDs []string, toChatID string, opts ForwardOptions) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+
+	fromPeer, err := t.resolvePeer(fromChatID)
+	if err != nil {
+		return err
+	}
+	toPeer, err := t.resolvePeer(toChatID)
+	if err != nil {
+		return err
+	}
+
+	fromInput, _ := t.toInputPeer(fromPeer)
+	toInput, _ := t.toInputPeer(toPeer)
+
+	ids := make([]int, 0, len(msgIDs))
+	randomIDs := make([]int64, 0, len(msgIDs))
+	for _, mid := range msgIDs {
+		id, err := tgMsgID(mid)
+		if err != nil {
+			return err
+		}
+		ids = append(ids, id)
+		randomIDs = append(randomIDs, time.Now().UnixNano()+int64(len(randomIDs)))
+	}
+
+	req := &tg.MessagesForwardMessagesRequest{
+		FromPeer: fromInput,
+		ToPeer:   toInput,
+		ID:       ids,
+		RandomID: randomIDs,
+	}
+	req.SetDropAuthor(opts.DropAuthor)
+	req.SetDropMediaCaptions(opts.DropCaptions)
+	req.SetSilent(opts.Silent)
+	if opts.ScheduleDate > 0 {
+		req.SetScheduleDate(int(opts.ScheduleDate))
+	}
+
+	_, err = t.api.MessagesForwardMessages(t.ctx, req)
+	if err != nil {
+		return fmt.Errorf("forward messages batch: %w", err)
+	}
+	return nil
+}
+
 // ReactToMessage adds or changes an emoji reaction on a message.
 func (t *TelegramCore) ReactToMessage(chatID string, msgID string, emoji string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)

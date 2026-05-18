@@ -2332,6 +2332,12 @@ class ChatState extends ChangeNotifier {
         requiresStars: (chat?.starsToSend ?? 0) > 0,
         spoilerLoginCode: isLoginCodeSender,
         contentRich: msg.contentRich,
+        isReaction: msg.isReaction,
+        reactionEmoji: msg.reactionEmoji,
+        reactorName: msg.reactorName,
+        reactedToType: msg.reactedToType,
+        isPollVote: msg.isPollVote,
+        pollVoteOption: msg.pollVoteOption,
       ));
     }
     // Refresh saved sublists when messages arrive in Saved Messages.

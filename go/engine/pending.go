@@ -23,8 +23,9 @@ const (
 	ActionEdit        = "edit"
 	ActionDelete      = "delete"
 	ActionReact       = "react"
-	ActionForward     = "forward"
-	ActionSendContact   = "send_contact"
+	ActionForward      = "forward"
+	ActionForwardBatch = "forward_batch"
+	ActionSendContact  = "send_contact"
 	ActionResendAsOwn   = "resend_as_own"
 	ActionResendAlbum   = "resend_album"
 )
@@ -77,6 +78,16 @@ type forwardPayload struct {
 	DropCaptions bool   `json:"drop_captions,omitempty"`
 	Silent       bool   `json:"silent,omitempty"`
 	ScheduleDate int64  `json:"schedule_date,omitempty"`
+}
+
+// forwardBatchPayload is the serialized payload for a "forward_batch" action.
+type forwardBatchPayload struct {
+	MsgIDs       []string `json:"msg_ids"`
+	ToChatID     string   `json:"to_chat_id"`
+	DropAuthor   bool     `json:"drop_author,omitempty"`
+	DropCaptions bool     `json:"drop_captions,omitempty"`
+	Silent       bool     `json:"silent,omitempty"`
+	ScheduleDate int64    `json:"schedule_date,omitempty"`
 }
 
 // resendAsOwnPayload is the serialized payload for a "resend_as_own" action.
@@ -417,6 +428,37 @@ func (e *Engine) ForwardMessage(accountID, chatID, msgID, toChatID string, dropA
 	return nil
 }
 
+// ForwardMessages forwards multiple messages in a single Telegram API call,
+// preserving album grouping. Used by AyuForward for native batch forwarding.
+func (e *Engine) ForwardMessages(accountID, chatID string, msgIDs []string, toChatID string, dropAuthor, dropCaptions, silent bool, scheduleDate int64) error {
+	if len(msgIDs) == 0 {
+		return nil
+	}
+	localID := generateLocalID()
+	now := time.Now().UnixMilli()
+
+	payload, _ := json.Marshal(forwardBatchPayload{
+		MsgIDs: msgIDs, ToChatID: toChatID,
+		DropAuthor: dropAuthor, DropCaptions: dropCaptions,
+		Silent: silent, ScheduleDate: scheduleDate,
+	})
+
+	_, err := e.db.Exec(
+		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		accountID, chatID, localID, ActionForwardBatch, payload, PendingQueued, now)
+	if err != nil {
+		return err
+	}
+
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+		e.processPendingItem(accountID, chatID, localID, ActionForwardBatch, payload)
+	}()
+	return nil
+}
+
 // ResendAsOwn downloads a source message's content and resends it as a new
 // message (no forward header) to toChatID. Used by AyuForward for restricted
 // content that can't be natively forwarded.
@@ -527,7 +569,7 @@ func (e *Engine) PinMessage(accountID, chatID, msgID string, pinned bool) error 
 // processPendingItem executes a pending operation with retry logic.
 func (e *Engine) processPendingItem(accountID, chatID, localID, action string, payload []byte) {
 	// Acquire per-chat lock for ordering (sends only).
-	if action == ActionSend || action == ActionForward || action == ActionResendAsOwn || action == ActionResendAlbum {
+	if action == ActionSend || action == ActionForward || action == ActionForwardBatch || action == ActionResendAsOwn || action == ActionResendAlbum {
 		lock := getChatLock(accountID, chatID)
 		lock.Lock()
 		defer lock.Unlock()
@@ -701,6 +743,32 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		}
 		_, err := acc.Core.ForwardMessage(chatID, p.MsgID, p.ToChatID)
 		return err
+
+	case ActionForwardBatch:
+		var p forwardBatchPayload
+		json.Unmarshal(payload, &p)
+		type batchForwarder interface {
+			ForwardMessagesWithOptions(fromChatID string, msgIDs []string, toChatID string, opts cores.ForwardOptions) error
+		}
+		if bf, ok := acc.Core.(batchForwarder); ok {
+			return bf.ForwardMessagesWithOptions(chatID, p.MsgIDs, p.ToChatID, cores.ForwardOptions{
+				DropAuthor: p.DropAuthor, DropCaptions: p.DropCaptions,
+				Silent: p.Silent, ScheduleDate: p.ScheduleDate,
+			})
+		}
+		for _, msgID := range p.MsgIDs {
+			if fwd, ok := acc.Core.(cores.ForwardWithOptionsSupporter); ok && (p.DropAuthor || p.DropCaptions || p.Silent || p.ScheduleDate > 0) {
+				if _, err := fwd.ForwardMessageWithOptions(chatID, msgID, p.ToChatID, cores.ForwardOptions{
+					DropAuthor: p.DropAuthor, DropCaptions: p.DropCaptions,
+					Silent: p.Silent, ScheduleDate: p.ScheduleDate,
+				}); err != nil {
+					return err
+				}
+			} else if _, err := acc.Core.ForwardMessage(chatID, msgID, p.ToChatID); err != nil {
+				return err
+			}
+		}
+		return nil
 
 	case ActionResendAsOwn:
 		var p resendAsOwnPayload

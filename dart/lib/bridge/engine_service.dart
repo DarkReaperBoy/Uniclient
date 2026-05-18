@@ -3261,6 +3261,26 @@ class EngineService {
     await _callAsync('__engine', 'ForwardMessage', req.writeToBuffer());
   }
 
+  Future<void> forwardMessages(String accountId, String chatId, List<String> msgIds, String toChatId, {
+    bool dropAuthor = false,
+    bool dropCaptions = false,
+    bool silent = false,
+    int scheduleDate = 0,
+  }) async {
+    final req = epb.EngineForwardMessagesRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgIds.addAll(msgIds)
+      ..toChatId = toChatId
+      ..dropAuthor = dropAuthor
+      ..dropCaptions = dropCaptions
+      ..silent = silent;
+    if (scheduleDate > 0) {
+      req.scheduleDate = Int64(scheduleDate);
+    }
+    await _callAsync('__engine', 'ForwardMessages', req.writeToBuffer());
+  }
+
   Future<void> resendAsOwn(String accountId, String sourceChatId, String msgId, String toChatId, {
     bool silent = false,
     int scheduleDate = 0,

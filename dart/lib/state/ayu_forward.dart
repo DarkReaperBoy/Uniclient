@@ -228,18 +228,16 @@ class AyuForward {
         switch (chunk.method) {
           case ForwardMethod.native:
             progress?.update(phase: AyuForwardPhase.sending);
-            for (final msg in chunk.messages) {
-              if (progress?.isCancelled == true) break;
-              await engine.forwardMessage(
-                accountId, sourceChatId, msg.msgId, toChatId,
-                dropAuthor: dropAuthor,
-                dropCaptions: dropCaptions,
-                silent: silent,
-                scheduleDate: scheduleDate,
-              );
-              sentSoFar++;
-              progress?.update(sent: sentSoFar);
-            }
+            final msgIds = chunk.messages.map((m) => m.msgId).toList();
+            await engine.forwardMessages(
+              accountId, sourceChatId, msgIds, toChatId,
+              dropAuthor: dropAuthor,
+              dropCaptions: dropCaptions,
+              silent: silent,
+              scheduleDate: scheduleDate,
+            );
+            sentSoFar += chunk.messages.length;
+            progress?.update(sent: sentSoFar);
           case ForwardMethod.resendAsOwn:
             final albumGroups = _groupByAlbum(chunk.messages);
             for (final group in albumGroups) {

@@ -618,6 +618,16 @@ class CachedMessage {
   final bool isSilent;
   final int scheduleRepeatPeriod;
 
+  // Reaction notification metadata (populated by Go engine for reaction events).
+  final bool isReaction;
+  final String reactionEmoji;
+  final String reactorName;
+  final int reactedToType;
+
+  // Poll vote notification metadata (populated by Go engine for poll vote events).
+  final bool isPollVote;
+  final String pollVoteOption;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -737,6 +747,12 @@ class CachedMessage {
     this.scheduleDate = 0,
     this.isSilent = false,
     this.scheduleRepeatPeriod = 0,
+    this.isReaction = false,
+    this.reactionEmoji = '',
+    this.reactorName = '',
+    this.reactedToType = 0,
+    this.isPollVote = false,
+    this.pollVoteOption = '',
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) {
@@ -866,6 +882,12 @@ class CachedMessage {
       keyboardHide: extra['keyboard_hide'] as bool? ?? false,
       forceReply: extra['force_reply'] as bool? ?? false,
       forceReplyPlaceholder: extra['force_reply_placeholder'] as String? ?? '',
+      isReaction: extra['is_reaction'] as bool? ?? false,
+      reactionEmoji: extra['reaction_emoji'] as String? ?? '',
+      reactorName: extra['reactor_name'] as String? ?? '',
+      reactedToType: _safeInt(extra['reacted_to_type']),
+      isPollVote: extra['is_poll_vote'] as bool? ?? false,
+      pollVoteOption: extra['poll_vote_option'] as String? ?? '',
     );
   }
 
@@ -1120,6 +1142,12 @@ class CachedMessage {
     int? scheduleRepeatPeriod,
     bool? mediaUnread,
     int? ttlSeconds,
+    bool? isReaction,
+    String? reactionEmoji,
+    String? reactorName,
+    int? reactedToType,
+    bool? isPollVote,
+    String? pollVoteOption,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -1239,6 +1267,12 @@ class CachedMessage {
     scheduleRepeatPeriod: scheduleRepeatPeriod ?? this.scheduleRepeatPeriod,
     mediaUnread: mediaUnread ?? this.mediaUnread,
     ttlSeconds: ttlSeconds ?? this.ttlSeconds,
+    isReaction: isReaction ?? this.isReaction,
+    reactionEmoji: reactionEmoji ?? this.reactionEmoji,
+    reactorName: reactorName ?? this.reactorName,
+    reactedToType: reactedToType ?? this.reactedToType,
+    isPollVote: isPollVote ?? this.isPollVote,
+    pollVoteOption: pollVoteOption ?? this.pollVoteOption,
   );
 
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;
