@@ -189,58 +189,6 @@ The `dayBlue` preset incorrectly uses green-tinted values (from the classic day/
 
 The `night` preset has pervasive errors: it uses day-theme file type colors unchanged, wrong call UI colors (green answer button instead of night's blue), wrong selected-state colors (many should be `#ffffff` in night mode but aren't), and wrong bot keyboard overlay colors.
 
-# theme_preview — Rendering issues vs AyuGram Desktop
-
-## Issues Found
-
-- [ ] [CRITICAL] Microphone icon uses static Material Icons.mic instead of animated Lottie icon — `theme_preview.dart:694-695` ← `window_theme_preview.cpp:570-575`
-  - Dart draws static `Icons.mic` with material icon rendering
-  - AyuGram uses `Lottie::MakeIcon()` for animated voice-to-video icon
-  - Dart missing animation entirely
-
-- [ ] [CRITICAL] Emoji button icon uses Material Icons.sentiment_satisfied_alt instead of theme icon — `theme_preview.dart:679-680` ← `window_theme_preview.cpp:584`
-  - Dart: `_drawMaterialIcon(canvas, Icons.sentiment_satisfied_alt, ...)`
-  - AyuGram: `emojiButton.icon[_palette]` from theme styles
-  - Material icon won't match theme colors/style
-
-- [ ] [CRITICAL] Attach icon uses Material Icons.attach_file instead of theme icon — `theme_preview.dart:655` ← `window_theme_preview.cpp:567`
-  - Dart: `_drawMaterialIcon(canvas, Icons.attach_file, ...)`
-  - AyuGram: `st::historyAttach.icon[_palette]` from theme styles
-  - Material icon inconsistent with AyuGram UI
-
-- [ ] [CRITICAL] Top bar icons (search, call, menu) hardcoded to absolute positions assuming 903px width — `theme_preview.dart:264,267,270` ← `window_theme_preview.cpp:537-542`
-  - Dart uses magic numbers: `903 - 36`, `903 - 44 - 4 - 36`, `903 - 44 - 4 - 40 - 34`
-  - These break if canvas is resized to non-903px width (class accepts custom width param at line 14-17)
-  - Canvas scaling (lines 75-78) masks this but doesn't fix underlying non-proportional positioning
-  - AyuGram uses icon width properties: `st::topBarMenuToggle.width`, `st::topBarCall.width`, `st::topBarSearch.width` composed left-to-right
-  - Example: Dart's `903 - 44 - 4 - 36 = 819` hardcodes call icon position; if width=500, this will be off-screen
-
-- [ ] [MAJOR] Photo timestamp rendered with different layer order than AyuGram — `theme_preview.dart:601-636` ← `window_theme_preview.cpp:1008-1017`
-  - Dart rendering order: bubble bg → photo → caption → time background → time
-  - AyuGram rendering order: bubble bg → text/caption → time → **photo** (photo drawn last, on top)
-  - Dart draws photo before text; AyuGram draws photo after text (photo occludes timestamp in AyuGram)
-  - Dart adds explicit semi-transparent background behind time (line 632: `Color(0x80000000)`); AyuGram doesn't
-  - Visual mismatch: in Dart, timestamp visible on photo; in AyuGram, photo covers part of text/timestamp
-
-- [ ] [MAJOR] Dimensions hardcoded as class constants instead of theme-aware — `theme_preview.dart:17-18,65-71` ← `window_theme_preview.cpp:214-227`
-  - Dart static values: `_dialogsWidth = 312`, `_topBarHeight = 54`, `_composeHeight = 46`, `_rowHeight = 62`
-  - AyuGram uses style values: `st::themePreviewDialogsWidth`, `st::topBarHeight`, `st::historySendSize.height()`, `st::dialogsRowHeight`
-  - Dart dimensions can't adapt if theme specifies different layout; only canvas scaling applies (non-uniform if aspect changes)
-  - Not critical for preview, but makes theme customization impossible
-
-- [ ] [MAJOR] Emoji button circle positioning uses relative math instead of theme metrics — `theme_preview.dart:672-690` ← `window_theme_preview.cpp:577-604`
-  - Dart: computes emojiX based on hardcoded compose area width assumptions
-  - AyuGram: uses `emojiButton.width`, `emojiButton.iconPosition.x()`, proper margin calculations
-  - Dart's approach works but is brittle; theme changes break it
-
-- [ ] [MAJOR] Compose field placeholder uses hardcoded text instead of localized string — `theme_preview.dart:668` ← `window_theme_preview.cpp:623`
-  - Dart: hardcoded `'Write a message...'`
-  - AyuGram: uses `tr::lng_message_ph(tr::now)` for localized string
-  - Not a UI bug but violates i18n practices
-
-## Summary
-
-Dart implementation uses Material Design icons and hardcoded positions where AyuGram uses theme icons and style constants. Icon animations missing (Lottie). Photo/timestamp rendering order differs. Hardcoded dimensions prevent theme customization. Multiple icon positions assume 903px width and will break if resized.
 
 # wallpaper.dart — Pattern & gradient rendering
 
