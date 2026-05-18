@@ -151,20 +151,21 @@ class _WebDropZoneState extends State<_WebDropZone> {
   }
 
   Future<void> _readFiles(List<web.File> webFiles) async {
-    final results = <WebDroppedFile>[];
-    for (final wf in webFiles) {
+    final futures = webFiles.map((wf) async {
       try {
         final bytes = await _readFileBytes(wf);
-        results.add(WebDroppedFile(
+        return WebDroppedFile(
           name: wf.name,
           size: wf.size,
           mimeType: wf.type,
           bytes: bytes,
-        ));
+        );
       } catch (_) {
-        // Skip files that can't be read.
+        return null;
       }
-    }
+    });
+    final all = await Future.wait(futures);
+    final results = all.whereType<WebDroppedFile>().toList();
     if (!mounted) return;
     if (results.isNotEmpty) {
       widget.onDrop?.call(results);

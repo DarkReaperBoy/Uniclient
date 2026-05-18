@@ -19,6 +19,8 @@ abstract class NotificationManager {
 
   void clearAll();
 
+  void clearAllFast() => clearAll();
+
   void updateAll() {}
 
   void updateSettings(NotificationSettings settings) {}
@@ -50,4 +52,7 @@ class DummyManager extends NotificationManager {
 
   @override
   void clearAll() {}
+
+  @override
+  void clearAllFast() {}
 }

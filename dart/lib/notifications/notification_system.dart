@@ -36,6 +36,12 @@ class _NotificationKey {
   int get hashCode => Object.hash(messageId, type);
 }
 
+class _AlertRecord {
+  DateTime time;
+  String ringtonePath;
+  _AlertRecord({required this.time, this.ringtonePath = ''});
+}
+
 class _AccountSessionState {
   bool isOnline = true;
   int otherOnlineAt = 0;
@@ -109,15 +115,15 @@ class NotificationSystem {
   // §37.6.3 dedup: threadKey → { (messageId, type) → lastTime }
   final Map<String, Map<_NotificationKey, DateTime>> _whenMaps = {};
 
-  // §37.6.1 sound/flash alert cooldown per thread
-  final Map<String, DateTime> _lastAlertPerThread = {};
+  // §37.6.1 sound/flash alert cooldown per thread, with per-chat ringtone
+  final Map<String, _AlertRecord> _lastAlertPerThread = {};
 
   // §37.6.2 forward/album grouping buffer
   Timer? _groupedTimer;
   final List<NotificationData> _groupedBuffer = [];
 
-  // Pending dispatch timers (cancellable on dispose)
-  final List<Timer> _pendingTimers = [];
+  // Pending dispatch timers keyed by chatKey for per-chat cancellation
+  final Map<String, List<Timer>> _pendingTimers = {};
 
   // Per-account session state for cross-device dedup
   final Map<String, _AccountSessionState> _accountStates = {};
@@ -356,12 +362,15 @@ class NotificationSystem {
       _dispatch(data);
       return;
     }
+    final chatKey = '${data.accountId}:${data.chatId}';
     late final Timer timer;
     timer = Timer(delay, () {
-      _pendingTimers.remove(timer);
+      final timers = _pendingTimers[chatKey];
+      timers?.remove(timer);
+      if (timers != null && timers.isEmpty) _pendingTimers.remove(chatKey);
       _dispatch(data);
     });
-    _pendingTimers.add(timer);
+    _pendingTimers.putIfAbsent(chatKey, () => []).add(timer);
   }
 
   bool _isSameGroup(NotificationData a, NotificationData b) {
@@ -447,6 +456,11 @@ class NotificationSystem {
     }
   }
 
+  static const _otpBotUsernames = {
+    'notifications',
+    'verifycodes',
+  };
+
   void _dispatch(NotificationData data) {
     // §37.12: Apply privacy levels — passcode-locked forces HideAll
     var effectiveSettings = _settings;
@@ -457,13 +471,34 @@ class NotificationSystem {
       );
     }
 
-    final content = composeNotificationContent(data, effectiveSettings);
+    // ITEM 14: spoilerLoginCode for OTP bot messages
+    var effectiveData = data;
+    if (!data.spoilerLoginCode && data.senderName.isNotEmpty) {
+      final lower = data.senderName.toLowerCase().replaceAll('@', '');
+      if (_otpBotUsernames.contains(lower)) {
+        effectiveData = data.copyWith(spoilerLoginCode: true);
+      }
+    }
+
+    // ITEM 15: hideMarkAsRead / hideReplyButton for broadcast/slowmode/stars/reaction/poll
+    if (!effectiveData.hideMarkAsRead) {
+      final shouldHide = effectiveData.isChannel ||
+          effectiveData.slowmodeActive ||
+          effectiveData.requiresStars ||
+          effectiveData.isReaction ||
+          effectiveData.isPollVote;
+      if (shouldHide) {
+        effectiveData = effectiveData.copyWith(hideMarkAsRead: true);
+      }
+    }
+
+    final content = composeNotificationContent(effectiveData, effectiveSettings);
     final forceHideDetails = !effectiveSettings.previewName && !effectiveSettings.previewText;
-    final display = data.copyWith(
+    final display = effectiveData.copyWith(
       chatTitle: content.title,
       subtitle: content.subtitle,
       text: content.body,
-      avatarPath: forceHideDetails ? '' : data.avatarPath,
+      avatarPath: forceHideDetails ? '' : effectiveData.avatarPath,
     );
 
     final dnd = _dndChecker.isActive;
@@ -474,17 +509,31 @@ class NotificationSystem {
       _manager.showNotification(display, effectiveSettings);
     }
 
-    final forceSilent = data.isSilent || data.soundNone || dnd;
+    final forceSilent = effectiveData.isSilent || effectiveData.soundNone || dnd;
 
-    final threadKey = '${data.accountId}:${data.chatId}';
+    final threadKey = '${effectiveData.accountId}:${effectiveData.chatId}';
     final now = DateTime.now();
     final lastAlert = _lastAlertPerThread[threadKey];
     final alertAllowed =
-        lastAlert == null || now.difference(lastAlert) >= _kMinimalAlertDelay;
+        lastAlert == null || now.difference(lastAlert.time) >= _kMinimalAlertDelay;
 
     if (!_manager.handlesSound && alertAllowed && !forceSilent) {
-      _soundPlayer.play(settings: _settings, data: data);
-      _lastAlertPerThread[threadKey] = now;
+      final chatRingtone = lastAlert?.ringtonePath ?? '';
+      final soundPath = effectiveData.soundDocumentPath.isNotEmpty
+          ? effectiveData.soundDocumentPath
+          : chatRingtone;
+      _soundPlayer.play(
+        settings: _settings,
+        data: soundPath.isNotEmpty
+            ? effectiveData.copyWith(soundDocumentPath: soundPath)
+            : effectiveData,
+      );
+      _lastAlertPerThread[threadKey] = _AlertRecord(
+        time: now,
+        ringtonePath: effectiveData.soundDocumentPath.isNotEmpty
+            ? effectiveData.soundDocumentPath
+            : (lastAlert?.ringtonePath ?? ''),
+      );
     }
 
     if (_settings.flashBounce && !dnd && alertAllowed && !forceSilent) {
@@ -544,9 +593,16 @@ class NotificationSystem {
 
   void clearForChat(String accountId, String chatId) {
     _manager.clearForChat(accountId, chatId);
-    _whenMaps.remove('$accountId:$chatId');
-    _lastAlertPerThread.remove('$accountId:$chatId');
-    _settingWaiters.remove('$accountId:$chatId');
+    final chatKey = '$accountId:$chatId';
+    _whenMaps.remove(chatKey);
+    _lastAlertPerThread.remove(chatKey);
+    _settingWaiters.remove(chatKey);
+    final chatTimers = _pendingTimers.remove(chatKey);
+    if (chatTimers != null) {
+      for (final t in chatTimers) {
+        t.cancel();
+      }
+    }
     _groupedBuffer.removeWhere(
         (n) => n.accountId == accountId && n.chatId == chatId);
     if (_groupedBuffer.isEmpty) {
@@ -583,11 +639,22 @@ class NotificationSystem {
     _whenMaps.clear();
     _lastAlertPerThread.clear();
     _settingWaiters.clear();
+    for (final timers in _pendingTimers.values) {
+      for (final t in timers) {
+        t.cancel();
+      }
+    }
+    _pendingTimers.clear();
+    _groupedTimer?.cancel();
+    _groupedTimer = null;
+    _groupedBuffer.clear();
   }
 
   void dispose() {
-    for (final t in _pendingTimers) {
-      t.cancel();
+    for (final timers in _pendingTimers.values) {
+      for (final t in timers) {
+        t.cancel();
+      }
     }
     _pendingTimers.clear();
     _groupedTimer?.cancel();

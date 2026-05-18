@@ -175,7 +175,6 @@ class DefaultManager extends NotificationManager {
       t.cancel();
     }
     _dismissTimers.clear();
-    _inputCheckTimer?.cancel();
   }
 
   void hideAll() {
@@ -287,12 +286,24 @@ class DefaultManager extends NotificationManager {
   void clearAll() => hideAll();
 
   @override
+  void clearAllFast() {
+    for (final t in _dismissTimers.values) {
+      t.cancel();
+    }
+    _dismissTimers.clear();
+    _inputCheckTimer?.cancel();
+    _active.clear();
+    _queue.clear();
+    onHideAllChanged?.call();
+  }
+
+  @override
   void updateSettings(NotificationSettings settings) {
     _maxVisible = settings.maxNotificationCount.clamp(1, 5);
     _corner = settings.corner;
 
     while (_active.length > _maxVisible) {
-      final excess = _active.last;
+      final excess = _active.first;
       dismiss(excess.id);
     }
 

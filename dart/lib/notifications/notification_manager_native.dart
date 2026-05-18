@@ -527,6 +527,8 @@ class NativeManager extends NotificationManager {
       if (soundPath.isNotEmpty) {
         hints[DBusString('sound-file')] =
             DBusVariant(DBusString(soundPath));
+      } else {
+        hints[DBusString('suppress-sound')] = DBusVariant(DBusBoolean(true));
       }
     } else {
       hints[DBusString('suppress-sound')] = DBusVariant(DBusBoolean(true));
@@ -545,7 +547,7 @@ class NativeManager extends NotificationManager {
         [
           DBusString('UniClient'),
           DBusUint32(replacesId),
-          DBusString(''),
+          DBusString(forceHideDetails ? _desktopEntry : ''),
           DBusString(
               data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName),
           DBusString(_buildBody(data)),
@@ -666,10 +668,14 @@ class NativeManager extends NotificationManager {
       final notifId = '${data.accountId}_${data.chatId}_${data.messageId}';
       final title = data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName;
 
+      final body = data.subtitle.isNotEmpty
+          ? '${data.subtitle}: ${data.text}'
+          : data.text;
+
       final notifDict = <DBusValue, DBusValue>{
         DBusString('title'): DBusVariant(DBusString(title)),
-        DBusString('body'): DBusVariant(DBusString(data.text)),
-        DBusString('priority'): DBusVariant(DBusString('normal')),
+        DBusString('body'): DBusVariant(DBusString(body)),
+        DBusString('priority'): DBusVariant(DBusString('high')),
         DBusString('default-action'): DBusVariant(DBusString('app.notification-activate')),
         DBusString('default-action-target'):
             DBusVariant(DBusArray(DBusSignature('s'), [
@@ -678,6 +684,24 @@ class NativeManager extends NotificationManager {
               DBusString(data.messageId),
             ])),
       };
+
+      final forceHideDetails = !settings.previewName && !settings.previewText;
+      if (!forceHideDetails && data.avatarPath.isNotEmpty) {
+        try {
+          final imgPath = await _userpicCache.get(data.avatarPath);
+          if (imgPath != null) {
+            final pngBytes = await File(imgPath).readAsBytes();
+            notifDict[DBusString('icon')] = DBusVariant(
+              DBusStruct([
+                DBusString('bytes'),
+                DBusVariant(DBusArray(
+                    DBusSignature('y'),
+                    pngBytes.map((b) => DBusByte(b)).toList())),
+              ]),
+            );
+          }
+        } catch (_) {}
+      }
 
       if (!data.hideMarkAsRead) {
         notifDict[DBusString('buttons')] = DBusVariant(
