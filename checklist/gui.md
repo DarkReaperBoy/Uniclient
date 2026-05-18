@@ -564,43 +564,7 @@ One CRITICAL issue found. All other features (cloud password flow, local passcod
 
 ## send_files_box — Send Files Dialog audit vs AyuGram C++ source
 
-- [ ] [MAJOR] `_canSpoiler` gate is wrong: Dart checks `!_sendAsDocuments && files.any(isMediaType)` but AyuGram's `hasSpoilerMenu` requires `allAreVideo || (allAreMedia && compress)` — i.e. spoiler menu is only available when ALL files are media (video-only always OK, mixed photo+video only OK when sending as photos). Mixed photo+file batches incorrectly expose the spoiler toggle in Dart. — `send_files_box.dart:1178` ← `AyuGram/ui/chat/attach/attach_prepare.cpp:399`
-
-- [ ] [MAJOR] `_hasHighQualityOption` gate is wrong: Dart checks `!_sendAsDocuments && files.any(photo)` but AyuGram's `hasSendLargePhotosOption` requires `compress && files.any(canUseHighQualityPhoto)` — meaning it must be sending as photos AND the specific file must qualify for high-quality (not all photos do). Dart shows the HD option for any photo file even if it would never be sent compressed. — `send_files_box.dart:1090` ← `AyuGram/ui/chat/attach/attach_prepare.cpp:411`
-
-- [ ] [MAJOR] Caption visibility is not gated on `canAddCaption`. In AyuGram, `updateCaptionVisibility` hides the caption field entirely when the send way doesn't permit captions (e.g. sticker-only sends). Dart always shows the caption field regardless of file types or send way. — `send_files_box.dart:1707` ← `AyuGram/boxes/send_files_box.cpp:1271`
-
-- [ ] [MAJOR] Photo editor hint label is missing. AyuGram shows `_hintLabel` ("Open in photo editor" hint) after the user has edited a photo at least once (`photoEditorHintShown`). Dart has no equivalent hint label at all. — `send_files_box.dart` (absent) ← `AyuGram/boxes/send_files_box.cpp:1795`
-
-- [ ] [MAJOR] Paid-media price is read-only / not changeable. AyuGram exposes `EditPriceBox` via the send menu's `ChangePrice` action for broadcast channels that can post paid media. Dart only shows a static star badge overlay (`starsPerMessage * fileCount`) with no way to change the price in the send files dialog. — `send_files_box.dart:1569` ← `AyuGram/boxes/send_files_box.cpp:1058`
-
-- [ ] [MAJOR] `_showEditCaptionDialog` / `_editFileCaption` uses a plain `AlertDialog` with a bare `TextField` instead of a proper styled caption box. AyuGram uses `EditFileCaptionBox` which includes a full `InputField` with markup support, custom emoji, markdown rendering, and character limit enforcement that calls `validateLength`. — `send_files_box.dart:725` ← `AyuGram/boxes/send_files_box.cpp:180`
-
-- [ ] [MAJOR] Per-file captions are not per-file entity-formatted. AyuGram stores per-file captions as `TextWithTags` (rich text with formatting entities). Dart stores them as plain strings (`Map<int, String> _perFileCaptions`) with no entity support. The caption is then passed to the engine but with no entity data for the per-file slots. — `send_files_box.dart:329` ← `AyuGram/boxes/send_files_box.cpp:605`
-
-- [ ] [MAJOR] `send()` does not call `applyBlockChanges()` + `Storage::ApplyModifications(_list)` equivalents before emitting the result. AyuGram's `send()` applies spoiler states back from block UI to file list and calls `ApplyModifications` before invoking the callback. Dart reads spoiler state from `_files` directly without any re-sync step, which means drag-reordering in the album preview could leave stale spoiler state. — `send_files_box.dart:1272` ← `AyuGram/boxes/send_files_box.cpp:2387`
-
-- [ ] [MAJOR] File-drag reorder for document-only blocks uses swap (not `moveFile`). AyuGram's `moveFile` uses `refreshAllAfterChanges(min(from,to), swap)` which regenerates all blocks from the affected index. Dart swaps two elements in `_files` directly without re-running block/album layout logic, leaving album grouping out of sync for multi-file document blocks. — `send_files_box.dart:1623` ← `AyuGram/boxes/send_files_box.cpp:2473`
-
-- [ ] [MAJOR] `_canSendAsSticker` gates the top-menu "Send as sticker" action only for photos in the top-right "more" menu. AyuGram adds this action to the send-menu (bottom-right send button menu) as well, and correctly handles the WEBP conversion + overrides `overrideSendImagesAsPhotos = false` before closing. Dart's `_sendAsSticker()` just calls `_send(asSticker: true)` with no WEBP conversion or send-way reset. — `send_files_box.dart:1268` ← `AyuGram/boxes/send_files_box.cpp:1188`
-
-- [ ] [MAJOR] `_removeFile` allows removing the last file with no replacement (the length-1 guard returns silently). AyuGram's delete handler closes the entire box with `requestToTakeTextWithTags()` + `closeBox()` when the last file is removed, preserving the caption back to the caller. Dart just silently does nothing, leaving an empty file list with the dialog still open. — `send_files_box.dart:1103` ← `AyuGram/boxes/send_files_box.cpp:1655`
-
-- [ ] [MAJOR] When the last file is deleted and there is a next-to-last file, AyuGram moves that file's per-file caption into the main caption field (`_caption->setTextWithTags(was)`) if the main caption is empty. Dart does no caption promotion on file removal. — `send_files_box.dart:1103` ← `AyuGram/boxes/send_files_box.cpp:1663`
-
-- [ ] [MAJOR] `_showSendMenu` ("quality" toggle) uses `Icons.check` when `_sendLargePhotos=true` as a checkmark indicator, but the label reads "Send in high quality" regardless of current state. AyuGram puts quality and spoiler into `SendMenu::Details` with proper state (PhotoQualityState::High vs Standard), so the menu item renders as a checked/unchecked action. Dart's approach shows a misleading static label "Send in high quality" even when already in high quality, and a check icon that is confusable with confirmation. — `send_files_box.dart:1318` ← `AyuGram/boxes/send_files_box.cpp:741`
-
 - [ ] [MAJOR] `_doEdit` opens `PhotoCropEditor` (crop-only tool) for the photo editor. AyuGram opens `Editor::OpenWithPreparedFile` which is the full photo editor (draw, paint, crop, stickers, text). Dart lacks access to the full photo editor and substitutes crop only. — `send_files_box.dart:2151` ← `AyuGram/boxes/send_files_box.cpp:1361`
-
-- [ ] [MAJOR] Album thumb right-click only fires when `canSpoiler` is true (`onSecondaryTapUp: widget.canSpoiler ? ... : null`). AyuGram shows the context menu on all album thumbs unconditionally (replace, edit, rename, caption, spoiler, cover). When `canSpoiler` is false (e.g. sending as documents), the Dart album context menu is completely disabled. — `send_files_box.dart:2653` ← `AyuGram/boxes/send_files_box.cpp:1524`
-
-- [ ] [MAJOR] Caption preservation on cancel differs: Dart stores the caption in a static `_preservedCaption` field on the class and restores it next time the box opens. AyuGram uses `_cancelled2Callback` which fires with `TextWithTags` to the caller, letting the compose bar receive the text back. The Dart approach works only when the same class is re-instantiated within the same app lifecycle (global static). — `send_files_box.dart:528` ← `AyuGram/boxes/send_files_box.cpp:836`
-
-- [ ] [MAJOR] `_hasGroupOption` only considers media file count for grouping, not documents. In AyuGram, `hasGroupOption` on `PreparedList` considers all files (including document blocks) when `!sendImagesAsPhotos`. Dart's `_hasGroupOption` returns false for pure document batches of 2+ unless `_sendAsDocuments` is true, meaning the "Group files" checkbox never appears for mixed document-only sends. — `send_files_box.dart:1096` ← `AyuGram/boxes/send_files_box.cpp:1822`
-
-- [ ] [CRITICAL] `_doEditCover` / `_editCover` in both `_SingleMediaPreview` and `_AlbumPreviewState` mutate `file.videoCoverPath` directly on the `_PreparedFile` object but never call `setState` on the parent `_SendFilesBoxDialogState`, so the cover path change is silently lost after a `_files` rebuild triggered by any other action. AyuGram refreshes via `refreshAllAfterChanges`. — `send_files_box.dart:2233` ← `AyuGram/boxes/send_files_box.cpp:1517`
-
-- [ ] [CRITICAL] `_doClearCover()` in `_SingleMediaPreview` mutates `file.videoCoverPath = null` without notifying parent state. Same issue: no `setState` is triggered, so the clear is lost on next rebuild. — `send_files_box.dart:2239` ← `AyuGram/boxes/send_files_box.cpp:1517`
 
 # settings_screen — Audit Findings
 
