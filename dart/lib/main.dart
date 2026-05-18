@@ -2153,7 +2153,7 @@ class _ThemeRevertOverlay extends StatefulWidget {
 class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
   static const _totalMs = 15999;
   static const _boxWidth = 364.0;
-  static const _boxRadius = 12.0;
+  static const _boxRadius = 6.0;
   static const _animDuration = Duration(milliseconds: 200);
 
   final _escapeFocus = FocusNode();
@@ -2410,7 +2410,8 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     if (state == AppLifecycleState.resumed && _visible) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _focusNode.requestFocus();
-        if (_showSystemUnlockButton && !_systemUnlockSuggested) {
+        final cooldownElapsed = DateTime.now().difference(_lastSystemUnlockAttempt) >= _systemUnlockCooldown;
+        if (_showSystemUnlockButton && !_systemUnlockSuggested && cooldownElapsed) {
           _triggerSystemUnlock();
         }
       });
@@ -2497,9 +2498,10 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
       case SystemUnlockResult.success:
         context.read<AppState>().unlockPasscode();
       case SystemUnlockResult.floodError:
+        _systemUnlockSuggested = false;
         _showError(TrStrings.lngFloodError());
       case SystemUnlockResult.cancelled:
-        break;
+        _systemUnlockSuggested = false;
     }
   }
 
