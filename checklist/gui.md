@@ -567,31 +567,6 @@ One CRITICAL issue found. All other features (cloud password flow, local passcod
 
 # shell — Audit findings
 
-
-## shell — Dialogs column artificially capped at 540 px; AyuGram removed this cap
-
-- [ ] [MAJOR] Both `_buildTwoColumn` (line 484-485) and `_buildThreeColumn` (line 552) clamp the dialogs column to `_dialogsMax = 540.0`. AyuGram's `countDialogsWidthFromRatio()` has `accumulate_min(result, st::columnMaximalWidthLeft)` commented out, meaning the dialogs panel is NOT capped at 540 px during normal layout. Only `columnMinimalWidthLeft` (260 px) is enforced. Users who drag the divider past 540 px get a wider dialogs list in the reference app; the Dart silently limits them. — `shell.dart:484-485`, `shell.dart:552` ← `window_session_controller.cpp:2554-2555` (cap commented out: `//	accumulate_min(result, st::columnMaximalWidthLeft)`)
-
-# shortcuts_settings_screen — Conflict indicator shown on wrong row
-
-- [ ] [MAJOR] Conflict strikethrough displayed on newly-assigned binding instead of displaced command's binding — `_conflicted[keyStr] = entry.key` stores the OLD command that lost the key, but `isConflictSource = _conflicted.containsKey(bindingToKeyString(b))` is evaluated for the NEW binding rows (since the old binding was already removed from `_currentBindings` in the same `setState`). Net effect: Command B (which just received the key) shows its own key with red strikethrough, while Command A (which lost the key) shows nothing at all. AyuGram does the opposite: Command A's button keeps existing with `removed=true` strikethrough, Command B's button shows the new key normally — `shortcuts_settings_screen.dart:219-221,470-471` ← `AyuGram/settings/sections/settings_shortcuts.cpp:372-388`
-
-# spoiler_animation — Particle animation system
-
-- [ ] [CRITICAL] Fixed RNG seed `math.Random(42)` makes particle layout identical on every app launch — `spoiler_animation.dart:251` ← `spoiler_mess.cpp:357` (`base::BufferedRandom<uint32>(count * 5)` uses system entropy, not a fixed seed; every session produces different particles)
-
-- [ ] [MAJOR] Cache header field order and size wrong: Dart writes `{version, framesCount, canvasSize, dataLen, hash}` (20 bytes) but AyuGram's `Header` struct is `{version, dataLength, dataHash, framesCount, canvasSize, frameDuration}` (24 bytes); the Dart header omits `frameDuration` entirely, so a cached sheet with a changed frame-rate constant will pass validation and corrupt animation — `spoiler_animation.dart:218-223` ← `spoiler_mess.cpp:106-113`
-
-- [ ] [MAJOR] Cache serializes the full RGBA spritesheet as PNG (`ui.ImageByteFormat.png`, 4 channels); AyuGram serializes only the alpha channel as Grayscale8 PNG then reconstructs ARGB on load, producing ~4× smaller cache files — `spoiler_animation.dart:212` ← `spoiler_mess.cpp:694-713`
-
-- [ ] [MAJOR] No maximum cache file size guard: AyuGram rejects any cache file larger than `kMaxCacheSize = 5 * 1024 * 1024` (5 MB) before reading; Dart reads the entire file unconditionally — `spoiler_animation.dart:170` ← `spoiler_mess.cpp:32,209`
-
-- [ ] [MAJOR] Particle opacity capped at 85%: `SpoilerTilePainter` and `tileSpoilerOnRects` multiply final opacity by `0.85` (`opacity * 0.85`), so the spoiler overlay is always 15% transparent even when fully hidden; `FillSpoilerRect` in AyuGram applies no such reduction — `spoiler_animation.dart:503,505,576` ← `spoiler_mess.cpp:431-508`
-
-- [ ] [MAJOR] Image-spoiler darkening applied per tile inside the render loop (sets alpha=32 on every pixel of each tile, lines 391-399), whereas AyuGram applies the dark layer as a single global post-process over the completed sheet before storing it (`image.fill(QColor(0,0,0,32))` then composites particles on top); this means Dart's image spoiler re-darkens the overlap between tiles when the cache is loaded, producing incorrect alpha compositing — `spoiler_animation.dart:391-399` ← `spoiler_mess.cpp:845-868`
-
-- [ ] [MAJOR] Hash algorithm mismatch: Dart uses a hand-rolled FNV-1a-32 (`_fnv1a32`); AyuGram uses XXH32 from the xxhash library; any cache file produced by one cannot be validated by the other if the format were ever shared, and the collision resistance differs — `spoiler_animation.dart:153-160,188` ← `spoiler_mess.cpp:716,741`
-
 # stats_chart — Audit vs AyuGram Desktop
 
 ## Issues Found
