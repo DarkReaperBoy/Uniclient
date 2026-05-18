@@ -222,24 +222,6 @@ The `night` preset has pervasive errors: it uses day-theme file type colors unch
 ---
 
 
-## admin_tools — placeholders, missing admin log events
-
-- [ ] [CRITICAL] Bot "Currency Balance" button is a placeholder toast instead of opening the earnings screen — AyuGram navigates to `Info::ChannelEarn::Make(peer)` (shows actual balance and earnings analytics) — `admin_tools.dart:1212` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1866`
-
-- [ ] [CRITICAL] Bot "Credits Balance" button is a placeholder toast instead of opening the credits screen — AyuGram navigates to `Info::BotEarn::Make(peer)` (shows actual Telegram Stars balance) — `admin_tools.dart:1220` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1925`
-
-- [ ] [CRITICAL] Bot "Edit Intro" button is a placeholder toast — AyuGram resolves @BotFather via `MTPcontacts_ResolveUsername`, then calls `sendBotStart(show, bot, bot, "<username>-intro")` and opens the BotFather conversation — `admin_tools.dart:1236` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1998,2590-2606`
-
-- [ ] [CRITICAL] Bot "Edit Commands" button is a placeholder toast — AyuGram resolves @BotFather and calls `sendBotStart(show, bot, bot, "<username>-commands")` — `admin_tools.dart:1244` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2010,2590-2606`
-
-- [ ] [CRITICAL] Bot "Edit Settings" button is a placeholder toast — AyuGram resolves @BotFather and calls `sendBotStart(show, bot, bot, "<username>")` (no suffix for general settings) — `admin_tools.dart:1252` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2022,2590-2606`
-
-- [ ] [MAJOR] Admin log `_actionDescription()` missing `change_location` event — AyuGram handles `MTPDchannelAdminLogEventActionChangeLocation` and shows "changed group location" / "removed group location" — `admin_tools.dart:4438-4543` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1347-1374`
-
-- [ ] [MAJOR] Admin log `_actionDescription()` missing `toggle_autotranslation` event — AyuGram handles `MTPDchannelAdminLogEventActionToggleAutotranslation` and shows "enabled/disabled auto-translation" — `admin_tools.dart:4438-4543` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:2155-2165`
-
-- [ ] [MAJOR] Admin log `_actionDescription()` missing `participant_edit_rank` event — AyuGram handles `MTPDchannelAdminLogEventActionParticipantEditRank` showing who changed which custom rank — `admin_tools.dart:4438-4543` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:2167-2240`
-
 # bridge_stub.dart — No issues found
 
 ## Summary
