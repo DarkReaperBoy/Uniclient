@@ -31,6 +31,10 @@ class AudioService extends ChangeNotifier {
   static const _pauseTimeoutSec = 60;
   static const _minListenMs = 3000;
 
+  static const _kMinLengthSavePosMusicSec = 20 * 60;
+  static const _kMinLengthSavePosVideoSec = 60;
+  static final Map<String, Duration> _savedPositions = {};
+
   String get currentMsgId => _currentMsgId;
   bool get playing => _playing;
   Duration get position => _position;
@@ -128,6 +132,11 @@ class AudioService extends ChangeNotifier {
 
     try {
       await player.open(Media(filePath));
+      final savedPos = _savedPositions[_currentDocId];
+      if (savedPos != null && savedPos > Duration.zero) {
+        await player.seek(savedPos);
+        _savedPositions.remove(_currentDocId);
+      }
     } catch (e) {
       debugPrint('AudioService: failed to open $filePath: $e');
       await stop();
@@ -143,6 +152,7 @@ class AudioService extends ChangeNotifier {
   }
 
   Future<void> stop() async {
+    _savePositionIfNeeded();
     _accumulateListenTime();
     _reportListenIfNeeded();
     _pauseTimer?.cancel();
@@ -189,6 +199,15 @@ class AudioService extends ChangeNotifier {
     });
   }
 
+  void _savePositionIfNeeded() {
+    if (_currentDocId.isEmpty || _position <= Duration.zero) return;
+    final totalSec = _duration.inSeconds;
+    final minSec = _isSong ? _kMinLengthSavePosMusicSec : _kMinLengthSavePosVideoSec;
+    if (totalSec >= minSec) {
+      _savedPositions[_currentDocId] = _position;
+    }
+  }
+
   void _reportListenIfNeeded() {
     if (!_isSong) {
       _accumulatedMs = 0;
@@ -214,18 +233,7 @@ class AudioService extends ChangeNotifier {
       );
     } on EngineException catch (e) {
       if (e.message.contains('FILE_REFERENCE')) {
-        debugPrint('AudioService: FILE_REFERENCE error, retrying once');
-        try {
-          _engine.reportMusicListen(
-            _currentAccountId,
-            docIdInt,
-            _currentAccessHash,
-            _currentFileRef,
-            duration,
-          );
-        } catch (retryErr) {
-          debugPrint('AudioService: retry failed: $retryErr');
-        }
+        debugPrint('AudioService: FILE_REFERENCE expired, skipping report (engine refresh needed)');
       } else {
         debugPrint('AudioService: reportMusicListen failed: $e');
       }

@@ -252,7 +252,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _notifUseNative = true;
   bool _notifSkipToastsInFocus = false;
   int _notifDisplayIndex = 0;
-  int _notifCorner = 4; // 0=topLeft,1=topCenter,2=topRight,3=bottomLeft,4=bottomRight
+  int _notifCorner = 2; // 0=topLeft,1=topRight,2=bottomRight,3=bottomLeft,4=topCenter
   int _notifCount = 3;
   bool _notifContactJoinedTelegram = true;
   bool _notifPinnedMessages = true;
@@ -1809,7 +1809,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void setRecentStickersCount(int v) {
-    v = v.clamp(0, 200);
+    v = v.clamp(1, 200);
     if (_recentStickersCount == v) return;
     _recentStickersCount = v;
     notifyListeners();
@@ -3151,7 +3151,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _notifUseNative = data['notifUseNative'] as bool? ?? true;
       _notifSkipToastsInFocus = data['notifSkipToastsInFocus'] as bool? ?? false;
       _notifDisplayIndex = data['notifDisplayIndex'] as int? ?? 0;
-      _notifCorner = data['notifCorner'] as int? ?? 4;
+      _notifCorner = data['notifCorner'] as int? ?? 2;
       _notifCount = data['notifCount'] as int? ?? 3;
       _notifContactJoinedTelegram = data['notifContactJoinedTelegram'] as bool? ?? true;
       _notifPinnedMessages = data['notifPinnedMessages'] as bool? ?? true;
@@ -3318,11 +3318,23 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveDebounceTimer = Timer(const Duration(milliseconds: 500), _flushWindowPrefs);
   }
 
+  void _flushWindowPrefsSync() {
+    final path = _windowPrefsPath;
+    if (path.isEmpty) return;
+    try {
+      File(path).writeAsStringSync(jsonEncode(_buildPrefsMap()));
+    } catch (_) {}
+  }
+
   Future<void> _flushWindowPrefs() async {
     final path = _windowPrefsPath;
     if (path.isEmpty) return;
     try {
-      await File(path).writeAsString(jsonEncode({
+      await File(path).writeAsString(jsonEncode(_buildPrefsMap()));
+    } catch (_) {}
+  }
+
+  Map<String, dynamic> _buildPrefsMap() => {
         'nativeWindowFrame': _nativeWindowFrame,
         'mainMenuAccountsShown': _mainMenuAccountsShown,
         'systemDarkMode': _systemDarkMode,
@@ -3524,9 +3536,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'wallpaperRotation': _wallpaper.gradientRotation,
         'wallpaperBlurred': _wallpaper.blurred,
         'wallpaperTiled': _wallpaper.tiled,
-      }));
-    } catch (_) {}
-  }
+      };
 
   void _saveWallpaper() {
     _saveWindowPrefs();
@@ -3626,7 +3636,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _autoLockTimer?.cancel();
     if (_saveDebounceTimer?.isActive ?? false) {
       _saveDebounceTimer!.cancel();
-      _flushWindowPrefs();
+      _flushWindowPrefsSync();
     }
     for (final sub in _subs) {
       sub.cancel();

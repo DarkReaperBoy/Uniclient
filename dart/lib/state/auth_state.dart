@@ -21,6 +21,11 @@ class AuthState extends ChangeNotifier {
   Timer? _autoPollTimer;
   bool _autoInputBusy = false;
 
+  DateTime? _lastSrpIdInvalidTime;
+  static const _kSrpIdInvalidTimeout = Duration(seconds: 5);
+
+  Timer? _qrExpiryTimer;
+
   /// File path for CLI automation input.
   /// Write JSON to this file to control auth flow:
   ///   {"action": "choose", "value": "phone"}   — pick auth method
@@ -41,7 +46,7 @@ class AuthState extends ChangeNotifier {
 
   /// Whether the current state needs user input.
   bool get needsInput => _currentAuth != null && switch (_currentAuth!.state) {
-    'choose' || 'input' || 'otp' || '2fa' || 'signup' => true,
+    'choose' || 'input' || 'otp' || '2fa' || 'signup' || 'recover' || 'email' => true,
     _ => false,
   };
 
@@ -97,19 +102,25 @@ class AuthState extends ChangeNotifier {
       if (result?.state == 'error') {
         final rawError = result!.error.isNotEmpty ? result.error : result.message;
         if (rawError.contains('SRP_ID_INVALID')) {
-          // The Go engine already retries once with fresh SRP params internally.
-          // If it still fails, restore the 2FA input state so the user can re-enter.
-          _currentAuth = AuthStateData(
-            accountId: auth.accountId,
-            platform: auth.platform,
-            state: '2fa',
-            label: auth.label.isNotEmpty ? auth.label : 'Two-Factor Password',
-            hint: auth.hint,
-            hasRecovery: auth.hasRecovery,
-            sentTo: auth.sentTo,
-          );
-          _error = 'Password verification failed. Please try again.';
-          Debug.log('AUTH', 'SRP_ID_INVALID — restored 2FA state for re-entry');
+          final now = DateTime.now();
+          if (_lastSrpIdInvalidTime != null &&
+              now.difference(_lastSrpIdInvalidTime!) < _kSrpIdInvalidTimeout) {
+            _error = 'Server error. Please try again later.';
+            Debug.log('AUTH', 'SRP_ID_INVALID storm detected — aborting');
+          } else {
+            _lastSrpIdInvalidTime = now;
+            _currentAuth = AuthStateData(
+              accountId: auth.accountId,
+              platform: auth.platform,
+              state: '2fa',
+              label: auth.label.isNotEmpty ? auth.label : 'Two-Factor Password',
+              hint: auth.hint,
+              hasRecovery: auth.hasRecovery,
+              sentTo: auth.sentTo,
+            );
+            _error = 'Password verification failed. Please try again.';
+            Debug.log('AUTH', 'SRP_ID_INVALID — restored 2FA state for re-entry');
+          }
         } else {
           _error = rawError;
         }
@@ -152,6 +163,8 @@ class AuthState extends ChangeNotifier {
     _submitting = false;
     _error = null;
     _stopAutoPoll();
+    _qrExpiryTimer?.cancel();
+    _qrExpiryTimer = null;
     notifyListeners();
   }
 
@@ -161,6 +174,8 @@ class AuthState extends ChangeNotifier {
     _submitting = false;
     _error = null;
     _stopAutoPoll();
+    _qrExpiryTimer?.cancel();
+    _qrExpiryTimer = null;
     notifyListeners();
   }
 
@@ -178,7 +193,24 @@ class AuthState extends ChangeNotifier {
     );
     _submitting = false;
     _updateAutoPoll();
+    _updateQrExpiryTimer();
     notifyListeners();
+  }
+
+  void _updateQrExpiryTimer() {
+    _qrExpiryTimer?.cancel();
+    _qrExpiryTimer = null;
+    if (_currentAuth?.state == 'qr' && _currentAuth!.qrExpiresIn > 0) {
+      final delaySecs = (_currentAuth!.qrExpiresIn - 1).clamp(1, 300);
+      _qrExpiryTimer = Timer(Duration(seconds: delaySecs), _onQrExpired);
+    }
+  }
+
+  void _onQrExpired() {
+    final auth = _currentAuth;
+    if (auth == null || auth.state != 'qr') return;
+    Debug.log('AUTH', 'QR code expired, requesting refresh');
+    startAuth(auth.accountId);
   }
 
   // ── CLI automation polling ──
@@ -238,6 +270,7 @@ class AuthState extends ChangeNotifier {
   @override
   void dispose() {
     _stopAutoPoll();
+    _qrExpiryTimer?.cancel();
     _sub?.cancel();
     super.dispose();
   }

@@ -825,7 +825,7 @@ class _NotificationsSettingsScreenState
   }
 }
 
-enum _ScreenCorner { topLeft, topCenter, topRight, bottomRight, bottomLeft }
+enum _ScreenCorner { topLeft, topRight, bottomRight, bottomLeft, topCenter }
 
 bool _isTopCorner(_ScreenCorner c) =>
     c == _ScreenCorner.topLeft ||

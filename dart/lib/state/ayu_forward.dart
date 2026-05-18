@@ -143,6 +143,10 @@ class AyuForward {
       return [ForwardChunk(ForwardMethod.resendAsOwn, messages)];
     }
 
+    if (messages.any((m) => m.senderNoForwards)) {
+      return [ForwardChunk(ForwardMethod.resendAsOwn, messages)];
+    }
+
     final chunks = <ForwardChunk>[];
     ForwardMethod? currentMethod;
     var currentMsgs = <CachedMessage>[];

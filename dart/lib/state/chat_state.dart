@@ -106,8 +106,8 @@ class ChatState extends ChangeNotifier {
   bool _savedSublistsFirstLoad = true;
   SavedSublistInfo? _activeSublist;
   List<SavedSublistInfo> _recentSublists = [];
-  static const _kFirstPerPage = 20;
-  static const _kPerPage = 100;
+  static const _kFirstPerPage = 10;
+  static const _kPerPage = 50;
   static const _kLoadedSublistsMinCount = 20;
   static const _kRecentSublistsMax = 5;
 
@@ -704,21 +704,15 @@ class ChatState extends ChangeNotifier {
     final accountId = _foldersForAccount;
 
     return _chats.where((c) {
-      // Scope to the folder's account.
       if (accountId.isNotEmpty && c.accountId != accountId) return false;
-
-      // Always exclude explicitly excluded chats.
       if (excludeSet.contains(c.chatId)) return false;
 
-      // Exclusion filters.
-      if (folder.excludeMuted && c.isMuted) return false;
-      if (folder.excludeRead && c.unreadCount == 0) return false;
-      if (folder.excludeArchived && c.isArchived) return false;
-
-      // Explicitly included chats always pass.
       if (includeSet.contains(c.chatId)) return true;
 
-      // Type-based filters: include if chat matches any active flag.
+      if (folder.excludeMuted && c.isMuted) return false;
+      if (folder.excludeRead && c.unreadCount == 0 && c.unreadMentionCount == 0) return false;
+      if (folder.excludeArchived && c.isArchived) return false;
+
       if (folder.hasTypeFilters) {
         if (folder.groups && c.type == ChatType.group) return true;
         if (folder.channels && c.type == ChatType.channel) return true;
@@ -729,7 +723,6 @@ class ChatState extends ChangeNotifier {
         }
       }
 
-      // If no type filters are set, only explicit includes match.
       return false;
     }).toList();
   }
