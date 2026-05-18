@@ -21,8 +21,10 @@ const double _kParticleSizeMax = 2.0;
 const int _kAutoPauseTimeoutMs = 1000;
 const int _kColorCacheCapacity = 24;
 const double kSpoilerHiddenOpacity = 0.5;
-const int _kCacheVersion = 2;
-const int _kCacheHeaderSize = 20;
+const int _kCacheVersion = 3;
+const int _kCacheHeaderSize = 24;
+const int _kMaxCacheSize = 5 * 1024 * 1024;
+const int _kFrameDurationMs = 33;
 const int _kImageSpoilerDarkenAlpha = 32;
 
 enum SpoilerType { text, image }
@@ -126,9 +128,6 @@ class SpoilerAnimationManager {
     final expectedTileSize = (_kCanvasSize * dpr).roundToDouble();
     final cached = await _loadSpoilerCache(type, expectedTileSize);
     final sheet = cached ?? await _renderSpriteSheet(type);
-    if (cached == null) {
-      _saveSpoilerCache(type, sheet.image);
-    }
     if (type == SpoilerType.text) {
       _textSheet = sheet;
       for (final c in _textCompleters) {
@@ -150,13 +149,56 @@ String _spoilerCacheDir() {
   return '${SpoilerAnimationManager._cacheDir}/spoiler';
 }
 
-int _fnv1a32(Uint8List data) {
-  int hash = 0x811c9dc5;
-  for (int i = 0; i < data.length; i++) {
-    hash ^= data[i];
-    hash = (hash * 0x01000193) & 0xFFFFFFFF;
+int _rotl32(int x, int r) =>
+    ((x << r) | ((x & 0xFFFFFFFF) >>> (32 - r))) & 0xFFFFFFFF;
+
+int _readLE32(Uint8List d, int o) =>
+    d[o] | (d[o + 1] << 8) | (d[o + 2] << 16) | (d[o + 3] << 24);
+
+int _xxhRound(int acc, int input) {
+  acc = (acc + ((input * 0x85EBCA77) & 0xFFFFFFFF)) & 0xFFFFFFFF;
+  return (_rotl32(acc, 13) * 0x9E3779B1) & 0xFFFFFFFF;
+}
+
+int _xxh32(Uint8List data, [int seed = 0]) {
+  const p1 = 0x9E3779B1, p2 = 0x85EBCA77, p3 = 0xC2B2AE3D;
+  const p4 = 0x27D4EB2F, p5 = 0x165667B1;
+  final len = data.length;
+  int h, i = 0;
+  if (len >= 16) {
+    int v1 = (seed + p1 + p2) & 0xFFFFFFFF;
+    int v2 = (seed + p2) & 0xFFFFFFFF;
+    int v3 = seed & 0xFFFFFFFF;
+    int v4 = (seed - p1) & 0xFFFFFFFF;
+    final limit = len - 16;
+    while (i <= limit) {
+      v1 = _xxhRound(v1, _readLE32(data, i)); i += 4;
+      v2 = _xxhRound(v2, _readLE32(data, i)); i += 4;
+      v3 = _xxhRound(v3, _readLE32(data, i)); i += 4;
+      v4 = _xxhRound(v4, _readLE32(data, i)); i += 4;
+    }
+    h = (_rotl32(v1, 1) + _rotl32(v2, 7) +
+         _rotl32(v3, 12) + _rotl32(v4, 18)) & 0xFFFFFFFF;
+  } else {
+    h = (seed + p5) & 0xFFFFFFFF;
   }
-  return hash;
+  h = (h + len) & 0xFFFFFFFF;
+  while (i + 4 <= len) {
+    h = (h + ((_readLE32(data, i) * p3) & 0xFFFFFFFF)) & 0xFFFFFFFF;
+    h = (_rotl32(h, 17) * p4) & 0xFFFFFFFF;
+    i += 4;
+  }
+  while (i < len) {
+    h = (h + ((data[i] * p5) & 0xFFFFFFFF)) & 0xFFFFFFFF;
+    h = (_rotl32(h, 11) * p1) & 0xFFFFFFFF;
+    i++;
+  }
+  h ^= h >>> 15;
+  h = (h * p2) & 0xFFFFFFFF;
+  h ^= h >>> 13;
+  h = (h * p3) & 0xFFFFFFFF;
+  h ^= h >>> 16;
+  return h;
 }
 
 Future<SpoilerSpriteSheet?> _loadSpoilerCache(
@@ -167,15 +209,19 @@ Future<SpoilerSpriteSheet?> _loadSpoilerCache(
     final name = type == SpoilerType.text ? 'text' : 'image';
     final file = File('$cacheBase/$name.bin');
     if (!file.existsSync()) return null;
+    final stat = file.statSync();
+    if (stat.size > _kMaxCacheSize || stat.size <= _kCacheHeaderSize) {
+      return null;
+    }
     final bytes = await file.readAsBytes();
     if (bytes.length <= _kCacheHeaderSize) return null;
 
     final header = ByteData.sublistView(bytes, 0, _kCacheHeaderSize);
     final version = header.getUint32(0, Endian.little);
-    final framesCount = header.getUint32(4, Endian.little);
-    final canvasSize = header.getUint32(8, Endian.little);
-    final dataLen = header.getUint32(12, Endian.little);
-    final storedHash = header.getUint32(16, Endian.little);
+    final dataLen = header.getUint32(4, Endian.little);
+    final storedHash = header.getUint32(8, Endian.little);
+    final framesCount = header.getInt32(12, Endian.little);
+    final canvasSize = header.getInt32(16, Endian.little);
 
     if (version != _kCacheVersion ||
         framesCount != _kFrameCount ||
@@ -184,24 +230,39 @@ Future<SpoilerSpriteSheet?> _loadSpoilerCache(
       return null;
     }
 
-    final pngData = Uint8List.sublistView(bytes, _kCacheHeaderSize);
-    if (_fnv1a32(pngData) != storedHash) return null;
+    final compressedData = Uint8List.sublistView(bytes, _kCacheHeaderSize);
+    if (_xxh32(compressedData) != storedHash) return null;
 
-    final codec = await ui.instantiateImageCodec(pngData);
-    final frame = await codec.getNextFrame();
-    final image = frame.image;
-    final tileSize = image.width.toDouble() / _kFramesPerRow;
-    if ((tileSize - expectedTileSize).abs() > 0.5) {
-      image.dispose();
-      return null;
+    final alphaBytes = Uint8List.fromList(zlib.decode(compressedData));
+    final sheetW = (expectedTileSize * _kFramesPerRow).toInt();
+    final sheetH = (expectedTileSize * _kRows).toInt();
+    final expectedPixels = sheetW * sheetH;
+    if (alphaBytes.length != expectedPixels) return null;
+
+    final rgbaPixels = Uint8List(expectedPixels * 4);
+    for (int i = 0; i < expectedPixels; i++) {
+      rgbaPixels[i * 4] = 255;
+      rgbaPixels[i * 4 + 1] = 255;
+      rgbaPixels[i * 4 + 2] = 255;
+      rgbaPixels[i * 4 + 3] = alphaBytes[i];
     }
-    return SpoilerSpriteSheet(image, tileSize);
+
+    if (type == SpoilerType.image) {
+      _applyImageDarkening(rgbaPixels);
+    }
+
+    final completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(
+        rgbaPixels, sheetW, sheetH, ui.PixelFormat.rgba8888,
+        completer.complete);
+    return SpoilerSpriteSheet(await completer.future, expectedTileSize);
   } catch (_) {
     return null;
   }
 }
 
-Future<void> _saveSpoilerCache(SpoilerType type, ui.Image image) async {
+Future<void> _saveSpoilerCache(
+    SpoilerType type, Uint8List rgbaPixels, int width, int height) async {
   final cacheBase = _spoilerCacheDir();
   if (cacheBase.isEmpty) return;
   try {
@@ -209,24 +270,47 @@ Future<void> _saveSpoilerCache(SpoilerType type, ui.Image image) async {
     if (!dir.existsSync()) dir.createSync(recursive: true);
     final name = type == SpoilerType.text ? 'text' : 'image';
     final file = File('${dir.path}/$name.bin');
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (byteData == null) return;
+    final tileSize = width ~/ _kFramesPerRow;
 
-    final pngData = byteData.buffer.asUint8List();
-    final tileSize = image.width ~/ _kFramesPerRow;
+    final pixelCount = width * height;
+    final alphaBytes = Uint8List(pixelCount);
+    for (int i = 0; i < pixelCount; i++) {
+      alphaBytes[i] = rgbaPixels[i * 4 + 3];
+    }
+    final compressed = Uint8List.fromList(zlib.encode(alphaBytes));
 
     final header = ByteData(_kCacheHeaderSize);
     header.setUint32(0, _kCacheVersion, Endian.little);
-    header.setUint32(4, _kFrameCount, Endian.little);
-    header.setUint32(8, tileSize, Endian.little);
-    header.setUint32(12, pngData.length, Endian.little);
-    header.setUint32(16, _fnv1a32(pngData), Endian.little);
+    header.setUint32(4, compressed.length, Endian.little);
+    header.setUint32(8, _xxh32(compressed), Endian.little);
+    header.setInt32(12, _kFrameCount, Endian.little);
+    header.setInt32(16, tileSize, Endian.little);
+    header.setInt32(20, _kFrameDurationMs, Endian.little);
 
-    final out = Uint8List(_kCacheHeaderSize + pngData.length);
+    final out = Uint8List(_kCacheHeaderSize + compressed.length);
     out.setRange(0, _kCacheHeaderSize, header.buffer.asUint8List());
-    out.setRange(_kCacheHeaderSize, out.length, pngData);
+    out.setRange(_kCacheHeaderSize, out.length, compressed);
     await file.writeAsBytes(out);
   } catch (_) {}
+}
+
+void _applyImageDarkening(Uint8List pixels) {
+  for (int i = 0; i < pixels.length; i += 4) {
+    final srcA = pixels[i + 3];
+    if (srcA == 0) {
+      pixels[i + 3] = _kImageSpoilerDarkenAlpha;
+    } else {
+      final outA = srcA + _kImageSpoilerDarkenAlpha -
+          (srcA * _kImageSpoilerDarkenAlpha) ~/ 255;
+      if (outA > 0) {
+        final val = (255 * srcA) ~/ outA;
+        pixels[i] = val;
+        pixels[i + 1] = val;
+        pixels[i + 2] = val;
+        pixels[i + 3] = outA;
+      }
+    }
+  }
 }
 
 class _ParticleParams {
@@ -248,7 +332,7 @@ List<Float64List> _computeParticleFrameData(_ParticleParams params) {
   final fadeOutFrames = ((isText ? 200 : 300) / 33).round();
   final totalLifetimeFrames = fadeInFrames + shownFrames + fadeOutFrames;
 
-  final rng = math.Random(42);
+  final rng = math.Random();
   final speedRange = speedMax - speedMin;
   final sizeRange = _kParticleSizeMax - _kParticleSizeMin;
 
@@ -320,10 +404,10 @@ class _ParticleStamp {
 
 class _SpriteGenParams {
   final double tilePx, dpr;
-  final bool isText, isImage;
+  final bool isText;
   final int sheetW, sheetH;
   const _SpriteGenParams(
-      this.tilePx, this.dpr, this.isText, this.isImage, this.sheetW, this.sheetH);
+      this.tilePx, this.dpr, this.isText, this.sheetW, this.sheetH);
 }
 
 List<_ParticleStamp> _buildParticleStamps(double dpr) {
@@ -388,16 +472,6 @@ Uint8List _generateSpriteSheetPixels(_SpriteGenParams p) {
     final tileW = p.tilePx.round();
     final tileH = p.tilePx.round();
 
-    if (p.isImage) {
-      final yEnd = math.min(tileY + tileH, p.sheetH);
-      final xEnd = math.min(tileX + tileW, p.sheetW);
-      for (int y = tileY; y < yEnd; y++) {
-        for (int x = tileX; x < xEnd; x++) {
-          pixels[y * stride + x * 4 + 3] = _kImageSpoilerDarkenAlpha;
-        }
-      }
-    }
-
     final cmds = frameData[f];
     for (int j = 0; j < cmds.length; j += 4) {
       final pa = (cmds[j + 2] * 255).round();
@@ -451,9 +525,14 @@ Future<SpoilerSpriteSheet> _renderSpriteSheet(SpoilerType type) async {
 
   final pixels = await compute(
     _generateSpriteSheetPixels,
-    _SpriteGenParams(tilePx, dpr, type == SpoilerType.text,
-        type == SpoilerType.image, sheetW, sheetH),
+    _SpriteGenParams(tilePx, dpr, type == SpoilerType.text, sheetW, sheetH),
   );
+
+  _saveSpoilerCache(type, pixels, sheetW, sheetH);
+
+  if (type == SpoilerType.image) {
+    _applyImageDarkening(pixels);
+  }
 
   final completer = Completer<ui.Image>();
   ui.decodeImageFromPixels(
@@ -500,9 +579,9 @@ class SpoilerTilePainter extends CustomPainter {
     final paint = Paint();
     if (tintColor != null) {
       paint.colorFilter = SpoilerColorCache.instance.getFilter(tintColor!);
-      paint.color = Color.fromRGBO(255, 255, 255, opacity * 0.85);
+      paint.color = Color.fromRGBO(255, 255, 255, opacity);
     } else {
-      paint.color = Color.fromRGBO(255, 255, 255, opacity * 0.85);
+      paint.color = Color.fromRGBO(255, 255, 255, opacity);
       paint.blendMode = BlendMode.srcOver;
     }
 
@@ -573,7 +652,7 @@ void tileSpoilerOnRects(
   final tile = sheet.tileSize;
   final paint = Paint()
     ..colorFilter = SpoilerColorCache.instance.getFilter(tintColor)
-    ..color = Color.fromRGBO(255, 255, 255, opacity * 0.85);
+    ..color = Color.fromRGBO(255, 255, 255, opacity);
 
   for (final rect in rects) {
     canvas.save();
