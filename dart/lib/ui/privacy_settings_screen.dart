@@ -1929,6 +1929,9 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   late bool _giftAcceptFromChannels;
   late bool _giftAcceptPremium;
 
+  late List<String> _alwaysUsers;
+  late List<String> _neverUsers;
+
   @override
   void initState() {
     super.initState();
@@ -1946,6 +1949,8 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
     _giftAcceptUnique = widget.initialGiftAcceptUnique;
     _giftAcceptFromChannels = widget.initialGiftAcceptFromChannels;
     _giftAcceptPremium = widget.initialGiftAcceptPremium;
+    _alwaysUsers = List<String>.from(widget.initialAlwaysUsers);
+    _neverUsers = List<String>.from(widget.initialNeverUsers);
   }
 
   String _optionLabel(String opt) {
@@ -1956,6 +1961,38 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
       case 'nobody': return 'Nobody';
       default: return opt;
     }
+  }
+
+  bool get _showAlwaysLink => _selected != 'everyone';
+  bool get _showNeverLink => _selected != 'nobody';
+
+  String _exceptionLabel(List<String> users) {
+    if (users.isEmpty) return 'Add Users';
+    return '${users.length} ${users.length == 1 ? 'user' : 'users'}';
+  }
+
+  Future<void> _editExceptions({required bool isAlways}) async {
+    final current = isAlways ? _alwaysUsers : _neverUsers;
+    final opposite = isAlways ? _neverUsers : _alwaysUsers;
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (ctx) => _PrivacyExceptionPicker(
+        accountId: widget.accountId,
+        engine: widget.engine,
+        title: isAlways ? 'Always Share With' : 'Never Share With',
+        initialSelected: current,
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      if (isAlways) {
+        _alwaysUsers = result;
+        _neverUsers = opposite.where((id) => !result.contains(id)).toList();
+      } else {
+        _neverUsers = result;
+        _alwaysUsers = opposite.where((id) => !result.contains(id)).toList();
+      }
+    });
   }
 
   String _forwardTooltipText() {
@@ -2140,6 +2177,8 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
         widget.accountId,
         widget.privacyKey,
         _selected,
+        alwaysIds: _showAlwaysLink ? _alwaysUsers : [],
+        neverIds: _showNeverLink ? _neverUsers : [],
         allowPremium: _isChatInvite && _allowPremium,
       );
       if (_isPhoneNumber && _selected == 'nobody') {
@@ -2748,6 +2787,58 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                 style: TextStyle(fontSize: 13, color: subtextColor),
               ),
             ),
+            if (_showAlwaysLink)
+              InkWell(
+                onTap: () => _editExceptions(isAlways: true),
+                hoverColor: hoverBg,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_add, size: 20, color: accentColor),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Always Share With',
+                          style: TextStyle(fontSize: 14, color: accentColor),
+                        ),
+                      ),
+                      Text(
+                        _exceptionLabel(_alwaysUsers),
+                        style: TextStyle(fontSize: 14, color: subtextColor),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.chevron_right, size: 18, color: subtextColor),
+                    ],
+                  ),
+                ),
+              ),
+            if (_showNeverLink)
+              InkWell(
+                onTap: () => _editExceptions(isAlways: false),
+                hoverColor: hoverBg,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_off, size: 20, color: const Color(0xFFE53935)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Never Share With',
+                          style: TextStyle(fontSize: 14, color: const Color(0xFFE53935)),
+                        ),
+                      ),
+                      Text(
+                        _exceptionLabel(_neverUsers),
+                        style: TextStyle(fontSize: 14, color: subtextColor),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.chevron_right, size: 18, color: subtextColor),
+                    ],
+                  ),
+                ),
+              ),
             if (_isChatInvite) ...[
               InkWell(
                 onTap: () => setState(() => _allowPremium = !_allowPremium),
@@ -6958,5 +7049,233 @@ class _BlockPickerContact {
     this.status = '',
     this.avatarB64 = '',
     this.isBlocked = false,
+  });
+}
+
+class _PrivacyExceptionPicker extends StatefulWidget {
+  final String accountId;
+  final EngineService engine;
+  final String title;
+  final List<String> initialSelected;
+
+  const _PrivacyExceptionPicker({
+    required this.accountId,
+    required this.engine,
+    required this.title,
+    required this.initialSelected,
+  });
+
+  @override
+  State<_PrivacyExceptionPicker> createState() => _PrivacyExceptionPickerState();
+}
+
+class _PrivacyExceptionPickerState extends State<_PrivacyExceptionPicker> {
+  late Set<String> _selected;
+  String _searchQuery = '';
+  Future<List<_ExceptionContact>>? _contactsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set<String>.from(widget.initialSelected);
+    _contactsFuture = _loadContacts();
+  }
+
+  Future<List<_ExceptionContact>> _loadContacts() async {
+    final contacts = await widget.engine.getContacts(widget.accountId);
+    return contacts.map((c) => _ExceptionContact(
+      id: c.userId,
+      name: c.displayName.isNotEmpty ? c.displayName : (c.username.isNotEmpty ? '@${c.username}' : c.userId),
+      status: c.username.isNotEmpty ? '@${c.username}' : (c.phone.isNotEmpty ? c.phone : ''),
+      avatarB64: c.avatarB64,
+    )).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return AlertDialog(
+      backgroundColor: bgColor,
+      title: Text(widget.title, style: TextStyle(color: textColor, fontWeight: FontWeight.w600)),
+      contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+      content: SizedBox(
+        width: 364,
+        height: 400,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                style: TextStyle(color: textColor, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Search',
+                  hintStyle: TextStyle(color: subtextColor, fontSize: 14),
+                  prefixIcon: Icon(Icons.search, color: subtextColor, size: 20),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: isDark ? const Color(0xFF3A4A5C) : const Color(0xFFDDDDDD)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: isDark ? const Color(0xFF3A4A5C) : const Color(0xFFDDDDDD)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: accentColor),
+                  ),
+                ),
+                onChanged: (v) => setState(() => _searchQuery = v),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: FutureBuilder<List<_ExceptionContact>>(
+                future: _contactsFuture,
+                builder: (ctx, snap) {
+                  if (snap.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.error_outline, color: subtextColor, size: 32),
+                          const SizedBox(height: 8),
+                          Text('Failed to load contacts', style: TextStyle(color: subtextColor, fontSize: 13)),
+                        ],
+                      ),
+                    );
+                  }
+                  if (!snap.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final contacts = snap.data!;
+                  final filtered = _searchQuery.isEmpty
+                      ? contacts
+                      : contacts.where((c) => c.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+                  if (filtered.isEmpty) {
+                    return Center(child: Text('No contacts found', style: TextStyle(color: subtextColor)));
+                  }
+                  return ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (ctx, i) {
+                      final c = filtered[i];
+                      final isChecked = _selected.contains(c.id);
+                      return InkWell(
+                        onTap: () {
+                          setState(() {
+                            if (isChecked) {
+                              _selected.remove(c.id);
+                            } else {
+                              _selected.add(c.id);
+                            }
+                          });
+                        },
+                        hoverColor: hoverBg,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Row(
+                            children: [
+                              _exceptionAvatar(c.avatarB64, c.name, 36),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(c.name, style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                                    if (c.status.isNotEmpty)
+                                      Text(c.status, style: TextStyle(color: subtextColor, fontSize: 12), overflow: TextOverflow.ellipsis),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: Checkbox(
+                                  value: isChecked,
+                                  onChanged: (v) {
+                                    setState(() {
+                                      if (v == true) {
+                                        _selected.add(c.id);
+                                      } else {
+                                        _selected.remove(c.id);
+                                      }
+                                    });
+                                  },
+                                  activeColor: accentColor,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Cancel', style: TextStyle(color: subtextColor)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_selected.toList()),
+          child: Text('Save', style: TextStyle(color: accentColor)),
+        ),
+      ],
+    );
+  }
+
+  Widget _exceptionAvatar(String avatarB64, String name, double size) {
+    if (avatarB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(avatarB64);
+        return ClipOval(
+          child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover),
+        );
+      } catch (_) {}
+    }
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final colors = [
+      const Color(0xFFE17076),
+      const Color(0xFF7BC862),
+      const Color(0xFF65AADD),
+      const Color(0xFFEE7AE6),
+      const Color(0xFFFAA774),
+      const Color(0xFF6EC9CB),
+    ];
+    final color = colors[name.hashCode.abs() % colors.length];
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      alignment: Alignment.center,
+      child: Text(initial, style: TextStyle(color: Colors.white, fontSize: size * 0.4, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+class _ExceptionContact {
+  final String id;
+  final String name;
+  final String status;
+  final String avatarB64;
+
+  const _ExceptionContact({
+    required this.id,
+    required this.name,
+    this.status = '',
+    this.avatarB64 = '',
   });
 }
