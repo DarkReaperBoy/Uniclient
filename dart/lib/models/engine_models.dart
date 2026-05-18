@@ -779,11 +779,16 @@ class CachedMessage {
       mediaHeight: j['media_height'] as int? ?? 0,
       mediaDuration: j['media_duration'] as int? ?? 0,
       mediaDownloadState: j['media_download_state'] as int? ?? 0,
+      mediaRemoteRef: j['media_remote_ref'] as String? ?? '',
+      mediaExtra: j['media_extra'] as String? ?? '',
       mediaWaveform: waveform,
+      altQualities: _decodeAltQualities(extra['alt_qualities']),
       isDeleted: j['is_deleted'] as bool? ?? false,
       deletedAt: j['deleted_at'] as int? ?? 0,
       mediaSpoiler: j['media_spoiler'] as bool? ?? (extra['media_spoiler'] as bool? ?? false),
       noForwards: j['no_forwards'] as bool? ?? (extra['no_forwards'] as bool? ?? false),
+      unsupportedTTL: extra['unsupported_ttl'] as bool? ?? false,
+      senderNoForwards: j['sender_no_forwards'] as bool? ?? false,
       groupedId: j['grouped_id'] as String? ?? '',
       reactions: (j['reactions'] as List<dynamic>?)
           ?.map((r) => MessageReaction.fromJson(r as Map<String, dynamic>))
@@ -856,6 +861,11 @@ class CachedMessage {
       ttlSeconds: _safeInt(extra['ttl_seconds']),
       views: _safeInt(rawMsg['views']),
       forwards: _safeInt(rawMsg['forwards']),
+      replyKeyboard: _decodeReplyKeyboard(extra['reply_keyboard']),
+      inlineKeyboard: _decodeInlineKeyboard(extra['inline_keyboard']),
+      keyboardHide: extra['keyboard_hide'] as bool? ?? false,
+      forceReply: extra['force_reply'] as bool? ?? false,
+      forceReplyPlaceholder: extra['force_reply_placeholder'] as String? ?? '',
     );
   }
 
@@ -923,6 +933,29 @@ class CachedMessage {
     } catch (_) {
       return const [];
     }
+  }
+
+  static List<VideoQuality> _decodeAltQualities(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().map((q) => VideoQuality(
+      height: (q['height'] as num?)?.toInt() ?? 0,
+      width: (q['width'] as num?)?.toInt() ?? 0,
+      size: (q['size'] as num?)?.toInt() ?? 0,
+      seq: (q['seq'] as num?)?.toInt() ?? 0,
+    )).where((q) => q.height > 0).toList(growable: false);
+  }
+
+  static ReplyKeyboardData? _decodeReplyKeyboard(dynamic raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    return ReplyKeyboardData.fromJson(raw);
+  }
+
+  static List<List<InlineKeyboardButton>> _decodeInlineKeyboard(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw.map((row) {
+      final r = row as List<dynamic>;
+      return r.map((b) => InlineKeyboardButton.fromJson(b as Map<String, dynamic>)).toList();
+    }).toList();
   }
 
   static int _safeInt(dynamic v) {
@@ -2221,38 +2254,59 @@ class GroupCallParticipant {
   final String userId;
   final String displayName;
   final bool isMuted;
+  final bool mutedByMe;
   final bool isSpeaking;
+  final bool sounding;
   final bool hasVideo;
   final String avatarPath;
   final bool canSelfUnmute;
   final int raisedHandRating;
   final int volume;
   final double audioLevel;
+  final int ssrc;
+  final bool additionalSounding;
+  final bool additionalSpeaking;
+  final int lastActive;
+  final int date;
 
   const GroupCallParticipant({
     this.userId = '',
     this.displayName = '',
     this.isMuted = false,
+    this.mutedByMe = false,
     this.isSpeaking = false,
+    this.sounding = false,
     this.hasVideo = false,
     this.avatarPath = '',
     this.canSelfUnmute = false,
     this.raisedHandRating = 0,
     this.volume = 0,
     this.audioLevel = 0.0,
+    this.ssrc = 0,
+    this.additionalSounding = false,
+    this.additionalSpeaking = false,
+    this.lastActive = 0,
+    this.date = 0,
   });
 
   factory GroupCallParticipant.fromJson(Map<String, dynamic> j) => GroupCallParticipant(
     userId: j['user_id'] as String? ?? '',
     displayName: j['display_name'] as String? ?? '',
     isMuted: j['is_muted'] as bool? ?? false,
+    mutedByMe: j['muted_by_me'] as bool? ?? false,
     isSpeaking: j['is_speaking'] as bool? ?? false,
+    sounding: j['sounding'] as bool? ?? false,
     hasVideo: j['has_video'] as bool? ?? false,
     avatarPath: j['avatar_path'] as String? ?? '',
     canSelfUnmute: j['can_self_unmute'] as bool? ?? false,
     raisedHandRating: (j['raised_hand_rating'] as num?)?.toInt() ?? 0,
     volume: (j['volume'] as num?)?.toInt() ?? 0,
     audioLevel: (j['audio_level'] as num?)?.toDouble() ?? 0.0,
+    ssrc: (j['ssrc'] as num?)?.toInt() ?? 0,
+    additionalSounding: j['additional_sounding'] as bool? ?? false,
+    additionalSpeaking: j['additional_speaking'] as bool? ?? false,
+    lastActive: (j['last_active'] as num?)?.toInt() ?? 0,
+    date: (j['date'] as num?)?.toInt() ?? 0,
   );
 }
 
@@ -2264,6 +2318,8 @@ class GroupCallInfo {
   final List<GroupCallParticipant> participants;
   final bool active;
   final bool isRtmp;
+  final int scheduleDate;
+  final String origin;
 
   const GroupCallInfo({
     this.callId = '',
@@ -2273,6 +2329,8 @@ class GroupCallInfo {
     this.participants = const [],
     this.active = false,
     this.isRtmp = false,
+    this.scheduleDate = 0,
+    this.origin = '',
   });
 
   factory GroupCallInfo.fromJson(Map<String, dynamic> j) => GroupCallInfo(
@@ -2285,6 +2343,8 @@ class GroupCallInfo {
         .toList() ?? [],
     active: j['active'] as bool? ?? false,
     isRtmp: j['is_rtmp'] as bool? ?? false,
+    scheduleDate: (j['schedule_date'] as num?)?.toInt() ?? 0,
+    origin: j['origin'] as String? ?? '',
   );
 }
 
