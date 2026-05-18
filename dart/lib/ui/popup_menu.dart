@@ -200,8 +200,30 @@ class _TelegramMenuOverlay<T> extends StatefulWidget {
       _TelegramMenuOverlayState<T>();
 }
 
-class _TelegramMenuOverlayState<T> extends State<_TelegramMenuOverlay<T>> {
+class _TelegramMenuOverlayState<T> extends State<_TelegramMenuOverlay<T>>
+    with WidgetsBindingObserver {
   Alignment _origin = Alignment.topLeft;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
+      widget.onSelected(null);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -614,7 +636,15 @@ class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
     final key = event.logicalKey;
 
-    if (key == LogicalKeyboardKey.arrowLeft) {
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final closeKey = isRtl
+        ? LogicalKeyboardKey.arrowRight
+        : LogicalKeyboardKey.arrowLeft;
+    final openKey = isRtl
+        ? LogicalKeyboardKey.arrowLeft
+        : LogicalKeyboardKey.arrowRight;
+
+    if (key == closeKey) {
       if (_activeSubmenuIndex >= 0) {
         _hideSubmenu();
         return true;
@@ -636,7 +666,7 @@ class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
       _moveFocus(-1);
       return true;
     }
-    if (key == LogicalKeyboardKey.arrowRight) {
+    if (key == openKey) {
       if (_focusedIndex >= 0 &&
           _focusedIndex < widget.items.length &&
           widget.items[_focusedIndex].submenu != null) {
@@ -688,11 +718,17 @@ class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
         ? const Color(0xFF232f39)
         : const Color(0xFFf1f1f1);
 
+    int effectiveLength = widget.items.length;
+    while (effectiveLength > 0 &&
+        widget.items[effectiveLength - 1].isSeparator) {
+      effectiveLength--;
+    }
+
     return SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: List.generate(widget.items.length, (i) {
+        children: List.generate(effectiveLength, (i) {
           final item = widget.items[i];
           if (item.isSeparator) {
             return Padding(
