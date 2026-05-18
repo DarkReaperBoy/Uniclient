@@ -1176,6 +1176,14 @@ class EngineService {
       final respBytes = await _callAsync('__engine', 'GetStickerSetInfo', req.writeToBuffer());
       if (respBytes.isEmpty) return null;
       final resp = epb.EngineGetStickerSetInfoResponse.fromBuffer(respBytes);
+      final stickerItems = resp.stickers.map((s) => StickerInfoItem(
+        emoji: s.emoji,
+        thumbB64: s.thumbB64,
+        width: s.width,
+        height: s.height,
+        mimeType: s.mimeType,
+        fileId: s.fileId,
+      )).toList();
       return StickerSetInfo(
         title: resp.title,
         shortName: resp.shortName,
@@ -1188,14 +1196,8 @@ class EngineService {
         video: resp.video,
         masks: resp.masks,
         emojis: resp.emojis,
-        stickers: resp.stickers.map((s) => StickerInfoItem(
-          emoji: s.emoji,
-          thumbB64: s.thumbB64,
-          width: s.width,
-          height: s.height,
-          mimeType: s.mimeType,
-          fileId: s.fileId,
-        )).toList(),
+        isPremium: stickerItems.any((s) => s.isPremium),
+        stickers: stickerItems,
       );
     } catch (e) {
       Debug.error('ENGINE', 'getStickerSetInfo failed', e);
@@ -1581,6 +1583,22 @@ class EngineService {
       return true;
     } catch (e) {
       Debug.error('ENGINE', 'uninstallStickerSet failed', e);
+      return false;
+    }
+  }
+
+  Future<bool> archiveStickerSet(String accountId, int setId, int accessHash) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'set_id': setId,
+      'access_hash': accessHash,
+      'archived': true,
+    }));
+    try {
+      await _callAsync('__engine', 'ArchiveStickerSet', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'archiveStickerSet failed', e);
       return false;
     }
   }

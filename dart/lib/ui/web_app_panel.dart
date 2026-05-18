@@ -41,6 +41,7 @@ class WebAppButtonConfig {
   final String text;
   final Color? textColor;
   final Color? bgColor;
+  final String? iconCustomEmojiId;
 
   const WebAppButtonConfig({
     this.visible = false,
@@ -49,6 +50,7 @@ class WebAppButtonConfig {
     this.text = '',
     this.textColor,
     this.bgColor,
+    this.iconCustomEmojiId,
   });
 }
 
@@ -130,6 +132,9 @@ class _WebAppPanelState extends State<WebAppPanel>
 
   WebViewController? _webController;
   bool _webViewAvailable = false;
+  bool _inBlockingRequest = false;
+  bool _allowClipboardRead = false;
+  DateTime _lastWebviewInteraction = DateTime.fromMillisecondsSinceEpoch(0);
 
   final Map<String, String?> _deviceStorage = {};
 
@@ -287,8 +292,9 @@ class _WebAppPanelState extends State<WebAppPanel>
         _postEventToWebView('safe_area_changed',
             {'top': 0, 'bottom': 0, 'left': 0, 'right': 0});
       case 'web_app_request_content_safe_area':
+        final contentTop = _fullscreen ? (_kHeaderHeight + 8).round() : 0;
         _postEventToWebView('content_safe_area_changed',
-            {'top': 0, 'bottom': 0, 'left': 0, 'right': 0});
+            {'top': contentTop, 'bottom': 0, 'left': 0, 'right': 0});
       case 'web_app_open_link':
         _handleOpenLink(data);
       case 'web_app_open_tg_link':
@@ -490,7 +496,15 @@ class _WebAppPanelState extends State<WebAppPanel>
         _accountId,
         'BotHandleInvoice',
         {'bot_id': _botId, 'slug': slug},
-      ).catchError((_) {});
+      ).then((result) {
+        if (!mounted) return;
+        final status = result?['status'] as String? ?? 'failed';
+        _postEventToWebView('invoice_closed', {'slug': slug, 'status': status});
+      }).catchError((_) {
+        if (mounted) {
+          _postEventToWebView('invoice_closed', {'slug': slug, 'status': 'failed'});
+        }
+      });
     }
   }
 
@@ -528,8 +542,14 @@ class _WebAppPanelState extends State<WebAppPanel>
 
   void _handleRequestWriteAccess() {
     if (!mounted) return;
+    if (_inBlockingRequest) {
+      _postEventToWebView('write_access_requested', {'status': 'cancelled'});
+      return;
+    }
+    _inBlockingRequest = true;
     final engine = _engine;
     if (engine == null || _accountId.isEmpty) {
+      _inBlockingRequest = false;
       _postEventToWebView('write_access_requested', {'status': 'cancelled'});
       return;
     }
@@ -568,22 +588,26 @@ class _WebAppPanelState extends State<WebAppPanel>
             'BotAllowWriteAccess',
             {'bot_id': _botId},
           ).then((_) {
+            _inBlockingRequest = false;
             if (mounted) {
               _postEventToWebView(
                   'write_access_requested', {'status': 'allowed'});
             }
           }).catchError((_) {
+            _inBlockingRequest = false;
             if (mounted) {
               _postEventToWebView(
                   'write_access_requested', {'status': 'cancelled'});
             }
           });
         } else {
+          _inBlockingRequest = false;
           _postEventToWebView(
               'write_access_requested', {'status': 'cancelled'});
         }
       });
     }).catchError((_) {
+      _inBlockingRequest = false;
       if (mounted) {
         _postEventToWebView(
             'write_access_requested', {'status': 'cancelled'});
@@ -593,8 +617,14 @@ class _WebAppPanelState extends State<WebAppPanel>
 
   void _handleRequestPhone() {
     if (!mounted) return;
+    if (_inBlockingRequest) {
+      _postEventToWebView('phone_requested', {'status': 'cancelled'});
+      return;
+    }
+    _inBlockingRequest = true;
     final engine = _engine;
     if (engine == null || _accountId.isEmpty) {
+      _inBlockingRequest = false;
       _postEventToWebView('phone_requested', {'status': 'cancelled'});
       return;
     }
@@ -623,15 +653,18 @@ class _WebAppPanelState extends State<WebAppPanel>
           'BotSharePhone',
           {'bot_id': _botId},
         ).then((_) {
+          _inBlockingRequest = false;
           if (mounted) {
             _postEventToWebView('phone_requested', {'status': 'sent'});
           }
         }).catchError((_) {
+          _inBlockingRequest = false;
           if (mounted) {
             _postEventToWebView('phone_requested', {'status': 'cancelled'});
           }
         });
       } else {
+        _inBlockingRequest = false;
         _postEventToWebView('phone_requested', {'status': 'cancelled'});
       }
     });
@@ -679,6 +712,11 @@ class _WebAppPanelState extends State<WebAppPanel>
     final reqId = data['req_id'];
     if (reqId == null) return;
     final result = <String, dynamic>{'req_id': reqId};
+    final timeSinceInteraction = DateTime.now().difference(_lastWebviewInteraction);
+    if (!_allowClipboardRead || timeSinceInteraction.inSeconds > 10) {
+      _postEventToWebView('clipboard_text_received', result);
+      return;
+    }
     try {
       final clipData = await Clipboard.getData(Clipboard.kTextPlain);
       if (clipData?.text != null) {
@@ -842,24 +880,31 @@ class _WebAppPanelState extends State<WebAppPanel>
       });
       return;
     }
-    if (valueObj == null) {
-      _deviceStorage.remove(keyObj);
-      _postEventToWebView('device_storage_key_saved', {'req_id': reqId});
-    } else if (valueObj is! String) {
+    if (valueObj != null && valueObj is! String) {
       _postEventToWebView('device_storage_failed', {
         'req_id': reqId,
         'error': 'VALUE_INVALID',
       });
+      return;
+    }
+    final engine = _engine;
+    if (engine != null && _accountId.isNotEmpty) {
+      engine.callGeneric(
+        _accountId,
+        'BotStorageWrite',
+        {'bot_id': _botId, 'key': keyObj, 'value': valueObj},
+      ).then((_) {
+        if (mounted) {
+          _postEventToWebView('device_storage_key_saved', {'req_id': reqId});
+        }
+      }).catchError((_) {
+        if (mounted) {
+          _postEventToWebView('device_storage_failed', {'req_id': reqId, 'error': 'WRITE_FAILED'});
+        }
+      });
     } else {
-      if (_deviceStorage.length >= 1000 && !_deviceStorage.containsKey(keyObj)) {
-        _postEventToWebView('device_storage_failed', {
-          'req_id': reqId,
-          'error': 'QUOTA_EXCEEDED',
-        });
-      } else {
-        _deviceStorage[keyObj] = valueObj;
-        _postEventToWebView('device_storage_key_saved', {'req_id': reqId});
-      }
+      _deviceStorage[keyObj] = valueObj as String?;
+      _postEventToWebView('device_storage_key_saved', {'req_id': reqId});
     }
   }
 
@@ -873,17 +918,54 @@ class _WebAppPanelState extends State<WebAppPanel>
       });
       return;
     }
-    final value = _deviceStorage[keyObj];
-    _postEventToWebView('device_storage_key_received', {
-      'req_id': reqId,
-      'value': value,
-    });
+    final engine = _engine;
+    if (engine != null && _accountId.isNotEmpty) {
+      engine.callGeneric(
+        _accountId,
+        'BotStorageRead',
+        {'bot_id': _botId, 'key': keyObj},
+      ).then((result) {
+        if (mounted) {
+          _postEventToWebView('device_storage_key_received', {
+            'req_id': reqId,
+            'value': result?['value'],
+          });
+        }
+      }).catchError((_) {
+        if (mounted) {
+          _postEventToWebView('device_storage_key_received', {'req_id': reqId, 'value': null});
+        }
+      });
+    } else {
+      final value = _deviceStorage[keyObj];
+      _postEventToWebView('device_storage_key_received', {
+        'req_id': reqId,
+        'value': value,
+      });
+    }
   }
 
   void _handleDeviceStorageClear(Map<String, dynamic> data) {
     final reqId = data['req_id'] ?? '';
-    _deviceStorage.clear();
-    _postEventToWebView('device_storage_cleared', {'req_id': reqId});
+    final engine = _engine;
+    if (engine != null && _accountId.isNotEmpty) {
+      engine.callGeneric(
+        _accountId,
+        'BotStorageClear',
+        {'bot_id': _botId},
+      ).then((_) {
+        if (mounted) {
+          _postEventToWebView('device_storage_cleared', {'req_id': reqId});
+        }
+      }).catchError((_) {
+        if (mounted) {
+          _postEventToWebView('device_storage_cleared', {'req_id': reqId});
+        }
+      });
+    } else {
+      _deviceStorage.clear();
+      _postEventToWebView('device_storage_cleared', {'req_id': reqId});
+    }
   }
 
   void _handleRequestFileDownload(Map<String, dynamic> data) {
@@ -939,14 +1021,19 @@ class _WebAppPanelState extends State<WebAppPanel>
   void _handleSetupButton(Map<String, dynamic> data, {required bool isMain}) {
     setState(() {
       final prev = isMain ? _mainButton : _secondaryButton;
+      final text = data['text'] as String? ?? prev.text;
+      final emojiId = data['icon_custom_emoji_id'] as String? ?? prev.iconCustomEmojiId;
+      final rawVisible = data['is_visible'] as bool? ?? prev.visible;
+      final effectiveVisible = rawVisible && (text.isNotEmpty || (emojiId != null && emojiId.isNotEmpty));
       final updated = WebAppButtonConfig(
-        visible: data['is_visible'] as bool? ?? prev.visible,
+        visible: effectiveVisible,
         active: data['is_active'] as bool? ?? prev.active,
         showProgress:
             data['is_progress_visible'] as bool? ?? prev.showProgress,
-        text: data['text'] as String? ?? prev.text,
+        text: text,
         textColor: _parseColor(data['text_color']) ?? prev.textColor,
         bgColor: _parseColor(data['color']) ?? prev.bgColor,
+        iconCustomEmojiId: emojiId,
       );
       if (isMain) {
         _mainButton = updated;
@@ -979,17 +1066,14 @@ class _WebAppPanelState extends State<WebAppPanel>
 
   void _handleRequestViewport() {
     if (!mounted) return;
-    _postEventToWebView('viewport_changed', {
-      'height': 0,
-      'width': 0,
-      'is_state_stable': _loadingState == WebAppLoadingState.ready,
-      'is_expanded': true,
-    });
+    final isStable = _loadingState == WebAppLoadingState.ready;
     _webController?.runJavaScript('''
 (function(){
+  var h = window.innerHeight || 0;
+  var w = window.innerWidth || 0;
   if(window.TelegramGameProxy){
     window.TelegramGameProxy.receiveEvent('viewport_changed',
-      {height:window.innerHeight,width:window.innerWidth,is_state_stable:true,is_expanded:true});
+      {height:h,width:w,is_state_stable:$isStable,is_expanded:true});
   }
 })();
 ''');
@@ -1250,6 +1334,14 @@ class _WebAppPanelState extends State<WebAppPanel>
         _launchUrl(
             'https://telegram.org/privacy-miniapp#mini-apps-privacy-policy');
       case 'remove_menu':
+        final engine = _engine;
+        if (engine != null && _accountId.isNotEmpty) {
+          engine.callGeneric(
+            _accountId,
+            'BotHandleMenuButton',
+            {'bot_id': _botId, 'action': 'remove_from_menu'},
+          ).catchError((_) {});
+        }
         _close();
     }
   }
@@ -1632,19 +1724,14 @@ class _WebAppButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(_kButtonRadius),
           splashColor: rippleColor.withValues(alpha: 0.3),
           onTap: active ? onPressed : null,
-          child: Center(
-            child: showProgress
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      valueColor: AlwaysStoppedAnimation(textColor),
-                    ),
-                  )
-                : Padding(
-                    padding:
-                        const EdgeInsets.only(top: _kButtonTextTop - 8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (text.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: _kButtonTextTop - 8),
                     child: Text(
                       text,
                       style: TextStyle(
@@ -1658,6 +1745,20 @@ class _WebAppButton extends StatelessWidget {
                       maxLines: 1,
                     ),
                   ),
+                if (showProgress)
+                  Positioned(
+                    right: 0,
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation(textColor),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

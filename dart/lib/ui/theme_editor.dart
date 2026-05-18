@@ -57,6 +57,8 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   Color? _editingColor;
   final _hexEditController = TextEditingController();
   final _menuButtonKey = GlobalKey();
+  bool _saving = false;
+  Uint8List? _currentBackground;
 
   @override
   void initState() {
@@ -93,12 +95,12 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   }
 
   void _sortByAccentDistance() {
-    final accent = HSLColor.fromColor(_currentPalette.windowBgActive);
+    final accentHsl = HSLColor.fromColor(_currentPalette.windowBgActive);
     final entries = _colorMap.entries.toList();
     entries.sort((a, b) {
-      final da = _hslDistance(accent, HSLColor.fromColor(a.value));
-      final db = _hslDistance(accent, HSLColor.fromColor(b.value));
-      return da.compareTo(db);
+      final sa = _accentSortScore(accentHsl, HSLColor.fromColor(a.value), _referenceChain.containsKey(a.key));
+      final sb = _accentSortScore(accentHsl, HSLColor.fromColor(b.value), _referenceChain.containsKey(b.key));
+      return sa.compareTo(sb);
     });
     final newMap = <String, Color>{};
     for (final e in entries) {
@@ -111,12 +113,12 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     });
   }
 
-  double _hslDistance(HSLColor a, HSLColor b) {
-    final dh = (a.hue - b.hue).abs();
+  int _accentSortScore(HSLColor accent, HSLColor color, bool isCopyOf) {
+    if (isCopyOf) return 365;
+    final dh = (accent.hue - color.hue).abs();
     final minDh = dh < 180 ? dh : 360 - dh;
-    final ds = (a.saturation - b.saturation).abs();
-    final dl = (a.lightness - b.lightness).abs();
-    return minDh / 360.0 + ds + dl;
+    if (minDh > 15) return 363;
+    return (255 - (color.saturation * 255).round()).clamp(0, 255);
   }
 
   static final _searchSplitter = RegExp(r'[\s\-_+.,;:!#@()\[\]{}<>]+');
@@ -247,7 +249,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   void _handleExport() async {
     final result = await showDialog<_ExportResult>(
       context: context,
-      builder: (ctx) => _SaveThemeBox(palette: _currentPalette),
+      builder: (ctx) => _SaveThemeBox(palette: _currentPalette, existingBackground: _currentBackground),
     );
     if (result == null || !mounted) return;
 
@@ -271,22 +273,24 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   }
 
   void _handleSaveToCloud() async {
-    final existingCloud = widget.cloudTheme;
-    final existingMeta = existingCloud != null && existingCloud.id != 0
-        ? CloudThemeMeta(id: existingCloud.id, accessHash: 0)
-        : null;
-
-    final result = await showDialog<_CloudSaveResult>(
-      context: context,
-      builder: (ctx) => _SaveThemeBox(
-        palette: _currentPalette,
-        cloudSave: true,
-        cloudMeta: existingMeta,
-      ),
-    );
-    if (result == null || !mounted) return;
-
+    if (_saving) return;
+    _saving = true;
     try {
+      final existingCloud = widget.cloudTheme;
+      final existingMeta = existingCloud != null && existingCloud.id != 0
+          ? CloudThemeMeta(id: existingCloud.id, accessHash: 0, title: existingCloud.title, slug: existingCloud.slug)
+          : null;
+
+      final result = await showDialog<_CloudSaveResult>(
+        context: context,
+        builder: (ctx) => _SaveThemeBox(
+          palette: _currentPalette,
+          cloudSave: true,
+          cloudMeta: existingMeta,
+        ),
+      );
+      if (result == null || !mounted) return;
+
       final engine = context.read<EngineService>();
       final appState = context.read<AppState>();
       final accountId = appState.activeAccountId;
@@ -327,6 +331,8 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
       if (mounted) {
         showTelegramToast(context, 'Upload failed: $e');
       }
+    } finally {
+      _saving = false;
     }
   }
 
@@ -1201,10 +1207,13 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
   void initState() {
     super.initState();
     final defaultName = widget.cloudMeta != null
-        ? ''
+        ? (widget.cloudMeta!.title ?? '')
         : generateThemeName(widget.palette.windowBgActive);
     _nameController = TextEditingController(text: defaultName);
-    _slugController = TextEditingController(text: _generateSlug());
+    final defaultSlug = widget.cloudMeta != null
+        ? (widget.cloudMeta!.slug ?? _generateSlug())
+        : _generateSlug();
+    _slugController = TextEditingController(text: defaultSlug);
     _backgroundImage = widget.existingBackground;
     _tiled = widget.existingTiled;
   }
@@ -1552,7 +1561,7 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
 
   double _computeThumbnailSize(BuildContext context) {
     const textHeight = 14.0;
-    const smallSkip = 6.0;
+    const smallSkip = 10.0;
     const buttonHeight = 30.0;
     const checkboxHeight = 20.0;
     return textHeight + smallSkip + buttonHeight + smallSkip + checkboxHeight;

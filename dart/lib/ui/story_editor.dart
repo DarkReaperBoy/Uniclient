@@ -31,8 +31,8 @@ const double _canvasZoomStep = 1.15;
 const double _minBrushSize = 0.1;
 const double _maxBrushSize = 1.0;
 const double _brushSizeSliderHeight = 280;
-const double _stickerMinScale = 0.2;
-const double _stickerMaxScale = 6.0;
+const double _stickerMinScale = 0.1;
+const double _stickerMaxScale = 10.0;
 
 const List<Color> _paletteColors = [
   Color(0xFF000000),
@@ -193,7 +193,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   _TextAlign _currentTextAlign = _TextAlign.center;
 
   // Font size for text tool (§32.15.5: range 14-72pt)
-  double _fontSize = 32;
+  double _fontSize = _canvasWidth / 15.0;
   bool _fontSizeSliderExpanded = false;
 
   // Video state (§32.15.3)
@@ -512,46 +512,56 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   }
 
   Future<Uint8List> _renderCanvasToBytes() async {
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight));
+    final w = _canvasWidth.toInt();
+    final h = _canvasHeight.toInt();
+    final canvasBounds = Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight);
 
-    if (_hasMedia && _loadedImage != null) {
-      final src = Rect.fromLTWH(0, 0, _loadedImage!.width.toDouble(), _loadedImage!.height.toDouble());
-      final dst = Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight);
-      canvas.drawImageRect(_loadedImage!, src, dst, Paint());
-    } else if (_hasMedia && _videoCoverFrame != null) {
-      final src = Rect.fromLTWH(0, 0, _videoCoverFrame!.width.toDouble(), _videoCoverFrame!.height.toDouble());
-      final dst = Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight);
-      canvas.drawImageRect(_videoCoverFrame!, src, dst, Paint());
-    } else {
-      final colors = _gradientBackgrounds[_gradientIndex % _gradientBackgrounds.length];
-      final gradient = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: colors,
-      );
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight),
-        Paint()..shader = gradient.createShader(Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight)),
-      );
+    ui.Image bgImage;
+    {
+      final rec = ui.PictureRecorder();
+      final c = Canvas(rec, canvasBounds);
+      if (_hasMedia && _loadedImage != null) {
+        final src = Rect.fromLTWH(0, 0, _loadedImage!.width.toDouble(), _loadedImage!.height.toDouble());
+        c.drawImageRect(_loadedImage!, src, canvasBounds, Paint());
+      } else if (_hasMedia && _videoCoverFrame != null) {
+        final src = Rect.fromLTWH(0, 0, _videoCoverFrame!.width.toDouble(), _videoCoverFrame!.height.toDouble());
+        c.drawImageRect(_videoCoverFrame!, src, canvasBounds, Paint());
+      } else {
+        final colors = _gradientBackgrounds[_gradientIndex % _gradientBackgrounds.length];
+        final gradient = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: colors);
+        c.drawRect(canvasBounds, Paint()..shader = gradient.createShader(canvasBounds));
+      }
+      bgImage = await rec.endRecording().toImage(w, h);
     }
 
-    final canvasBounds = Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight);
-    for (final stroke in _strokes) {
-      if (stroke.tool == _BrushTool.blur) {
+    final blurStrokes = _strokes.where((s) => s.tool == _BrushTool.blur).toList();
+    if (blurStrokes.isNotEmpty) {
+      final blurRec = ui.PictureRecorder();
+      final bc = Canvas(blurRec, canvasBounds);
+      bc.drawImage(bgImage, Offset.zero, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10));
+      final blurredImage = await blurRec.endRecording().toImage(w, h);
+
+      final mergeRec = ui.PictureRecorder();
+      final mc = Canvas(mergeRec, canvasBounds);
+      mc.drawImage(bgImage, Offset.zero, Paint());
+      for (final stroke in blurStrokes) {
         final blurPath = Path();
         final r = stroke.width / 2;
         for (final pt in stroke.points) {
           blurPath.addOval(Rect.fromCircle(center: pt, radius: r));
         }
-        canvas.save();
-        canvas.clipPath(blurPath);
-        canvas.saveLayer(canvasBounds, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10));
-        canvas.drawPaint(Paint()..color = const Color(0x00000000));
-        canvas.restore();
-        canvas.restore();
+        mc.save();
+        mc.clipPath(blurPath);
+        mc.drawImage(blurredImage, Offset.zero, Paint());
+        mc.restore();
       }
+      bgImage = await mergeRec.endRecording().toImage(w, h);
     }
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, canvasBounds);
+    canvas.drawImage(bgImage, Offset.zero, Paint());
+
     canvas.saveLayer(canvasBounds, Paint());
     for (final stroke in _strokes) {
       _StrokePainter.paintStroke(canvas, stroke.points, stroke.color, stroke.width, stroke.tool, 1.0);
@@ -638,7 +648,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     }
 
     final picture = recorder.endRecording();
-    final img = await picture.toImage(_canvasWidth.toInt(), _canvasHeight.toInt());
+    final img = await picture.toImage(w, h);
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
     return byteData!.buffer.asUint8List();
   }
@@ -1111,8 +1121,9 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   }
 
   Widget _buildBrushSizeSlider() {
+    final expandShift = _brushSliderExpanded ? 14.0 : 0.0;
     return Positioned(
-      left: 16,
+      left: expandShift,
       top: 0,
       bottom: 0,
       child: Center(
@@ -1344,7 +1355,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 0),
         margin: const EdgeInsets.all(4),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
@@ -1688,7 +1699,13 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   PopupMenuItem<int> _durationItem(int hours) {
     final isPremiumGated = hours == 48;
     return PopupMenuItem(
-      value: hours,
+      value: isPremiumGated ? null : hours,
+      enabled: !isPremiumGated,
+      onTap: isPremiumGated
+          ? () {
+              showTelegramToast(context, 'Subscribe to Telegram Premium to set 48h duration.');
+            }
+          : null,
       child: Row(
         children: [
           if (_durationHours == hours)
@@ -2378,11 +2395,19 @@ class _ContactPickerDialog extends StatefulWidget {
 class _ContactPickerDialogState extends State<_ContactPickerDialog> {
   late Set<String> _selected;
   String _search = '';
+  final Map<String, Uint8List> _avatarCache = {};
 
   @override
   void initState() {
     super.initState();
     _selected = Set<String>.from(widget.selectedIds);
+    for (final c in widget.contacts) {
+      if (c.avatarB64.isNotEmpty) {
+        try {
+          _avatarCache[c.userId] = Uint8List.fromList(base64Decode(c.avatarB64));
+        } catch (_) {}
+      }
+    }
   }
 
   @override
@@ -2483,10 +2508,10 @@ class _ContactPickerDialogState extends State<_ContactPickerDialog> {
                                   CircleAvatar(
                                     radius: 18,
                                     backgroundColor: const Color(0xFF4DB8FF),
-                                    backgroundImage: c.avatarB64.isNotEmpty
-                                        ? MemoryImage(Uint8List.fromList(base64Decode(c.avatarB64)))
+                                    backgroundImage: _avatarCache.containsKey(c.userId)
+                                        ? MemoryImage(_avatarCache[c.userId]!)
                                         : null,
-                                    child: c.avatarB64.isEmpty
+                                    child: !_avatarCache.containsKey(c.userId)
                                         ? Text(
                                             c.displayName.isNotEmpty
                                                 ? c.displayName[0].toUpperCase()
@@ -2896,6 +2921,7 @@ class _StickerPickerPanelState extends State<_StickerPickerPanel> {
   int _activeTab = 0;
   List<StickerPackSummary>? _stickerPacks;
   bool _loadingPacks = false;
+  final Map<String, Uint8List> _stickerThumbCache = {};
 
   static const _emojiCategories = [
     ['😀', '😂', '🥹', '😍', '🥰', '😎', '🤩', '🥳',
@@ -2923,6 +2949,15 @@ class _StickerPickerPanelState extends State<_StickerPickerPanel> {
     }
     engine.getInstalledStickerPacks(accountId).then((packs) {
       if (mounted) {
+        for (final pack in packs) {
+          for (final sticker in pack.stickers) {
+            if (sticker.thumbB64.isNotEmpty && !_stickerThumbCache.containsKey(sticker.fileId)) {
+              try {
+                _stickerThumbCache[sticker.fileId] = Uint8List.fromList(base64Decode(sticker.thumbB64));
+              } catch (_) {}
+            }
+          }
+        }
         setState(() {
           _stickerPacks = packs;
           _loadingPacks = false;
@@ -3059,27 +3094,18 @@ class _StickerPickerPanelState extends State<_StickerPickerPanel> {
       itemBuilder: (ctx, i) {
         final (sticker, _) = allStickers[i];
         Widget stickerWidget;
-        if (sticker.thumbB64.isNotEmpty) {
-          try {
-            final bytes = base64Decode(sticker.thumbB64);
-            stickerWidget = Image.memory(
-              Uint8List.fromList(bytes),
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Center(
-                child: Text(
-                  sticker.emoji.isNotEmpty ? sticker.emoji : '?',
-                  style: const TextStyle(fontSize: 32),
-                ),
-              ),
-            );
-          } catch (_) {
-            stickerWidget = Center(
+        final cachedThumb = _stickerThumbCache[sticker.fileId];
+        if (cachedThumb != null) {
+          stickerWidget = Image.memory(
+            cachedThumb,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => Center(
               child: Text(
                 sticker.emoji.isNotEmpty ? sticker.emoji : '?',
                 style: const TextStyle(fontSize: 32),
               ),
-            );
-          }
+            ),
+          );
         } else {
           stickerWidget = Center(
             child: Text(

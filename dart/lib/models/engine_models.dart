@@ -2623,6 +2623,9 @@ class StickerSetInfo {
   final bool video;
   final bool masks;
   final bool emojis;
+  final bool official;
+  final bool isPremium;
+  final bool userPremium;
   final List<StickerInfoItem> stickers;
 
   const StickerSetInfo({
@@ -2637,6 +2640,9 @@ class StickerSetInfo {
     this.video = false,
     this.masks = false,
     this.emojis = false,
+    this.official = false,
+    this.isPremium = false,
+    this.userPremium = false,
     this.stickers = const [],
   });
 }

@@ -81,7 +81,7 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
     final isEmoji = _setInfo?.emojis ?? false;
-    final maxSheetHeight = isEmoji ? 270.0 : 393.0;
+    final maxSheetHeight = isEmoji ? 197.0 : 320.0;
     final screenHeight = MediaQuery.of(context).size.height;
     final sheetHeight = maxSheetHeight.clamp(0.0, screenHeight * 0.9);
 
@@ -151,6 +151,14 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
       final success = await widget.engine.installStickerSet(
           accountId, info.setId, info.accessHash);
       if (success && mounted) {
+        final toastMsg = info.masks
+            ? 'Masks installed'
+            : info.emojis
+                ? 'Emoji added'
+                : 'Stickers installed';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(toastMsg), duration: const Duration(seconds: 2)),
+        );
         Navigator.pop(context);
       }
     } catch (_) {}
@@ -160,7 +168,9 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
   void _shareSet() {
     final shortName = _setInfo?.shortName;
     if (shortName == null || shortName.isEmpty) return;
-    Clipboard.setData(ClipboardData(text: 'https://t.me/addstickers/$shortName'));
+    final isEmoji = _setInfo?.emojis ?? false;
+    final prefix = isEmoji ? 'addemoji' : 'addstickers';
+    Clipboard.setData(ClipboardData(text: 'https://t.me/$prefix/$shortName'));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Link copied'), duration: Duration(seconds: 2)),
     );
@@ -172,6 +182,46 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
     if (chat == null) return;
     widget.engine.sendSticker(chat.accountId, chat.chatId, sticker.fileId);
     Navigator.pop(context);
+  }
+
+  void _showOverflowMenu(BuildContext context) {
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+    showMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        const PopupMenuItem(value: 'archive', child: Text('Archive')),
+        const PopupMenuItem(value: 'remove', child: Text('Remove')),
+      ],
+    ).then((value) async {
+      if (value == null || !mounted) return;
+      final info = _setInfo;
+      if (info == null) return;
+      final accountId = widget.message.accountId;
+      if (value == 'remove') {
+        await widget.engine.uninstallStickerSet(accountId, info.setId, info.accessHash);
+        if (mounted) Navigator.pop(context);
+      } else if (value == 'archive') {
+        await widget.engine.archiveStickerSet(accountId, info.setId, info.accessHash);
+        if (mounted) Navigator.pop(context);
+      }
+    });
+  }
+
+  bool get _isOfficialPack => _setInfo?.official ?? false;
+
+  bool get _isPremiumLocked {
+    final info = _setInfo;
+    if (info == null) return false;
+    return info.emojis && info.isPremium && !(info.userPremium);
   }
 
   Widget _buildHeader(Color textColor, bool isDark) {
@@ -207,8 +257,25 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
               ],
             ),
           ),
-          if (info != null && !_loading)
-            if (installed) ...[
+          if (info != null && !_loading) ...[
+            if (installed && _isOfficialPack)
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  foregroundColor: context.palette.windowBgActive,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                child: const Text('OK'),
+              )
+            else if (installed) ...[
+              Builder(
+                builder: (ctx) => IconButton(
+                  icon: Icon(Icons.more_vert, color: textColor, size: 20),
+                  onPressed: () => _showOverflowMenu(ctx),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                ),
+              ),
               TextButton(
                 onPressed: _shareSet,
                 style: TextButton.styleFrom(
@@ -226,7 +293,31 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
                 ),
                 child: const Text('Cancel'),
               ),
-            ] else
+            ] else if (_isPremiumLocked)
+              Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6B93FF), Color(0xFF976FFF)],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: TextButton(
+                  onPressed: () {},
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock, size: 14, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text('Unlock'),
+                    ],
+                  ),
+                ),
+              )
+            else
               TextButton(
                 onPressed: _installing ? null : _installSet,
                 style: TextButton.styleFrom(
@@ -239,6 +330,7 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                     : Text(_addButtonText),
               ),
+          ],
         ],
       ),
     );
@@ -436,6 +528,7 @@ class _StickerTileState extends State<_StickerTile>
 
   @override
   void dispose() {
+    _dismissPreview();
     if (_waitingForSlot) {
       _VideoPlayerPool.instance.removeListener(_onSlotAvailable);
     }
@@ -492,6 +585,9 @@ class _StickerTileState extends State<_StickerTile>
 
     return GestureDetector(
       onTap: widget.onTap,
+      onSecondaryTapUp: (details) => _showContextMenu(context, details.globalPosition),
+      onLongPressStart: (details) => _showStickerPreview(context, details.globalPosition, child),
+      onLongPressEnd: (_) => _dismissPreview(),
       child: TelegramTooltip(
         message: sticker.emoji,
         child: Padding(
@@ -517,6 +613,87 @@ class _StickerTileState extends State<_StickerTile>
         ),
       ),
     );
+  }
+
+  OverlayEntry? _previewEntry;
+
+  void _showContextMenu(BuildContext context, Offset position) {
+    final sticker = widget.sticker;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final relativeRect = RelativeRect.fromRect(
+      Rect.fromLTWH(position.dx, position.dy, 0, 0),
+      Offset.zero & overlay.size,
+    );
+    showMenu<String>(
+      context: context,
+      position: relativeRect,
+      items: [
+        const PopupMenuItem(value: 'send', child: Text('Send')),
+        PopupMenuItem(
+          value: 'fav',
+          child: Text(sticker.isFaved ? 'Remove from Favorites' : 'Add to Favorites'),
+        ),
+        const PopupMenuItem(value: 'pack', child: Text('View Pack')),
+      ],
+    ).then((value) {
+      if (value == null || !mounted) return;
+      switch (value) {
+        case 'send':
+          widget.onTap?.call();
+        case 'fav':
+          final docId = int.tryParse(sticker.fileId);
+            if (docId != null) {
+              widget.engine.faveSticker(widget.accountId, docId, unfave: sticker.isFaved);
+            }
+        case 'pack':
+          break;
+      }
+    });
+  }
+
+  void _showStickerPreview(BuildContext context, Offset position, Widget stickerWidget) {
+    _dismissPreview();
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final screen = MediaQuery.of(context).size;
+    const previewSize = 200.0;
+    final x = (position.dx - previewSize / 2).clamp(8.0, screen.width - previewSize - 8);
+    final y = (position.dy - previewSize - 24).clamp(8.0, screen.height - previewSize - 8);
+    _previewEntry = OverlayEntry(
+      builder: (_) => Positioned(
+        left: x,
+        top: y,
+        child: IgnorePointer(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: previewSize,
+              height: previewSize,
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF1E2C3A)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 16,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(16),
+              child: stickerWidget,
+            ),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(_previewEntry!);
+  }
+
+  void _dismissPreview() {
+    _previewEntry?.remove();
+    _previewEntry = null;
   }
 
   Widget _emojiPlaceholder() {

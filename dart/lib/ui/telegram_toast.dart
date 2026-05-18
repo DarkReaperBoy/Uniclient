@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 enum ToastAttach { none, left, top, right, bottom }
 
@@ -255,12 +256,18 @@ void showStickerToast(
   StickerToastSection section = StickerToastSection.message,
   String stickerEmoji = '',
   String stickerThumbB64 = '',
+  Uint8List? stickerLottieData,
   VoidCallback? onOpenPack,
   VoidCallback? onOpenSavedMessages,
   VoidCallback? onShowPremium,
 }) {
-  _activeStickerEntry?.remove();
-  _activeStickerEntry = null;
+  if (_activeStickerEntry != null) {
+    final oldEntry = _activeStickerEntry;
+    _activeStickerEntry = null;
+    Future.delayed(const Duration(milliseconds: _kFadeOutMs), () {
+      oldEntry?.remove();
+    });
+  }
 
   final effectiveIsEmoji =
       section == StickerToastSection.topicIcon || isEmoji;
@@ -280,6 +287,7 @@ void showStickerToast(
       section: section,
       stickerEmoji: stickerEmoji,
       stickerThumbB64: stickerThumbB64,
+      stickerLottieData: stickerLottieData,
       onOpenPack: onOpenPack,
       onOpenSavedMessages: onOpenSavedMessages,
       onShowPremium: onShowPremium,
@@ -302,6 +310,7 @@ class _StickerToast extends StatefulWidget {
   final StickerToastSection section;
   final String stickerEmoji;
   final String stickerThumbB64;
+  final Uint8List? stickerLottieData;
   final VoidCallback? onOpenPack;
   final VoidCallback? onOpenSavedMessages;
   final VoidCallback? onShowPremium;
@@ -316,6 +325,7 @@ class _StickerToast extends StatefulWidget {
     required this.section,
     this.stickerEmoji = '',
     this.stickerThumbB64 = '',
+    this.stickerLottieData,
     this.onOpenPack,
     this.onOpenSavedMessages,
     this.onShowPremium,
@@ -380,7 +390,7 @@ class _StickerToastState extends State<_StickerToast>
         TextSpan(text: widget.packName, style: bold),
         const TextSpan(text: '\n', style: normal),
         const TextSpan(
-            text: 'Saved to your animated emoji.', style: normal),
+            text: 'Try sending these emoji in Saved Messages for free to test.', style: normal),
       ];
     }
 
@@ -413,18 +423,21 @@ class _StickerToastState extends State<_StickerToast>
       ];
     }
 
+    if (!widget.isEmoji) {
+      return [
+        TextSpan(text: widget.packName, style: bold),
+        const TextSpan(text: '\n', style: normal),
+        const TextSpan(
+            text: 'This set contains premium stickers like this one.', style: normal),
+      ];
+    }
+
     if (widget.packCount > 1) {
       return [
         TextSpan(text: 'Animated Emoji', style: bold),
         const TextSpan(text: '\n', style: normal),
         const TextSpan(
-            text: 'This message contains emoji from ', style: normal),
-        TextSpan(
-          text: '${widget.packCount} packs',
-          style: link,
-          recognizer: TapGestureRecognizer()..onTap = widget.onOpenPack,
-        ),
-        const TextSpan(text: '.', style: normal),
+            text: 'Subscribe to Telegram Premium to unlock this emoji.', style: normal),
       ];
     }
 
@@ -432,18 +445,25 @@ class _StickerToastState extends State<_StickerToast>
       TextSpan(text: 'Animated Emoji', style: bold),
       const TextSpan(text: '\n', style: normal),
       const TextSpan(
-          text: 'This message contains emoji from the ', style: normal),
-      TextSpan(
-        text: '${widget.packName} pack',
-        style: link,
-        recognizer: TapGestureRecognizer()..onTap = widget.onOpenPack,
-      ),
-      const TextSpan(text: '.', style: normal),
+          text: 'Subscribe to Telegram Premium to unlock this emoji.', style: normal),
     ];
   }
 
   Widget _buildPreview() {
     const previewSize = 36.0;
+
+    if (widget.stickerLottieData != null) {
+      return SizedBox(
+        width: previewSize,
+        height: previewSize,
+        child: Lottie.memory(
+          widget.stickerLottieData!,
+          fit: BoxFit.contain,
+          repeat: true,
+          errorBuilder: (_, __, ___) => _buildEmojiText(previewSize),
+        ),
+      );
+    }
 
     if (widget.stickerThumbB64.isNotEmpty) {
       try {
@@ -496,7 +516,7 @@ class _StickerToastState extends State<_StickerToast>
     final viewCb = _viewCallback;
 
     final toastChild = Container(
-      constraints: const BoxConstraints(maxWidth: stickerMaxWidth),
+      constraints: const BoxConstraints(maxWidth: stickerMaxWidth, minWidth: 160.0),
       padding: _kPadding,
       decoration: BoxDecoration(
         color: _kToastBg,
@@ -541,8 +561,7 @@ class _StickerToastState extends State<_StickerToast>
     return Positioned(
       left: 0,
       right: 0,
-      top: 0,
-      bottom: 0,
+      bottom: _kMargin + 56,
       child: Center(
         child: GestureDetector(
           onSecondaryTap: _startHide,

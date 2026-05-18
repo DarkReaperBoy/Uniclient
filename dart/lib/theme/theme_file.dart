@@ -30,8 +30,10 @@ class ThemeFileData {
 class CloudThemeMeta {
   final int id;
   final int accessHash;
+  final String? title;
+  final String? slug;
 
-  const CloudThemeMeta({required this.id, required this.accessHash});
+  const CloudThemeMeta({required this.id, required this.accessHash, this.title, this.slug});
 }
 
 ThemeFileData? parseThemeFile(

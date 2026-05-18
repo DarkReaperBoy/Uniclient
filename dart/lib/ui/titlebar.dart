@@ -75,6 +75,7 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
   bool _isMaximized = false;
   bool _isActive = true;
   bool _oneSideControls = false;
+  bool _resizeEnabled = true;
   _ButtonLayout _layout = _ButtonLayout.fallback;
 
   @override
@@ -106,6 +107,10 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
         if (mounted) {
           setState(() => _oneSideControls = call.arguments as bool);
         }
+      case 'resizeEnabledChanged':
+        if (mounted) {
+          setState(() => _resizeEnabled = call.arguments as bool);
+        }
     }
   }
 
@@ -136,7 +141,6 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
   Future<void> _toggleMaximize() async {
     try {
       await CustomTitlebar.channel.invokeMethod('maximize');
-      await _queryMaximized();
     } catch (_) {}
   }
 
@@ -159,6 +163,9 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
   }
 
   Widget _buildButton(_ButtonType type, TelegramPalette palette) {
+    if (type == _ButtonType.maximize && !_resizeEnabled) {
+      return const SizedBox.shrink();
+    }
     final isClose = type == _ButtonType.close;
 
     final Color bg, bgOver, fg, fgOver;
@@ -227,11 +234,14 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
           ...leftButtons,
           Expanded(
             child: GestureDetector(
-              onPanStart: (_) => _startDrag(),
               onDoubleTap: _toggleMaximize,
               onSecondaryTapUp: (_) => _showWindowMenu(),
               behavior: HitTestBehavior.opaque,
-              child: const SizedBox.expand(),
+              child: Listener(
+                onPointerMove: (_) => _startDrag(),
+                behavior: HitTestBehavior.opaque,
+                child: const SizedBox.expand(),
+              ),
             ),
           ),
           ...rightButtons,
@@ -273,7 +283,10 @@ class _WinButtonState extends State<_WinButton> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
-        onTap: widget.onTap,
+        onTap: () {
+          widget.onTap();
+          setState(() => _hovered = false);
+        },
         child: Container(
           width: CustomTitlebar.buttonWidth,
           height: CustomTitlebar.height,
