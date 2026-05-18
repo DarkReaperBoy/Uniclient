@@ -55,43 +55,9 @@
 Fix both asserts→throws in bridge_web.dart before shipping web version. Desktop/native (FFI) version is solid.
 
 
-# web_drop_web — Web drag-and-drop file handler
-
-- [ ] [MAJOR] Sequential file reading in `_readFiles` blocks each file on the previous — `web_drop_web.dart:153-173` ← `AyuGram/history/history_drag_area.cpp:369-373` (AyuGram passes MimeData directly without serializing bytes; Dart must read bytes for web but does so with `await _readFileBytes(wf)` in a plain `for` loop, so N dropped files take N × fileReadTime instead of max(fileReadTime). Replace with `Future.wait(webFiles.map(_readFileBytes))` to parallelize.)
-
-# notification_manager_default — Audit
-
-- [ ] [MAJOR] `updateSettings` removes newest excess notifications first, but AyuGram removes oldest first — `notification_manager_default.dart:295` (`_active.last` = newest removed) ← `notifications_manager_default.cpp:150-156` (backward iteration preserves newest, unlinks oldest beyond count)
-
-- [ ] [MAJOR] No `clearAllFast` path — the Dart manager and base class have no fast-clear method; `clearAll()` calls `hideAll()` which fires `onDismiss` for each item one by one — `notification_manager_default.dart:287` ← `notifications_manager_default.cpp:383-387` (`doClearAllFast` immediately destroys all widgets without callbacks; called during logout/session-end at `notifications_manager.h:434,437`)
-
-- [ ] [MAJOR] `stopAllHiding` cancels `_inputCheckTimer`, but AyuGram does not — `notification_manager_default.dart:178` cancels `_inputCheckTimer` inside `stopAllHiding` ← `notifications_manager_default.cpp:213-220` (only stops per-notification hide timers; `_inputCheckTimer` keeps polling). Effect: if a notification is still `waitingForInput=true` when hover begins, the input-detection mechanism is killed; the notification can only be dismissed by `startAllHiding` (on hover-leave), bypassing the input-gated delay entirely. AyuGram continues polling during hover and respects the input gate.
-
-# notification_manager_native — DBus/Portal notification manager
-
-- [ ] [MAJOR] DBus Notify: `app_icon` always sent as empty string; AyuGram passes `ApplicationIconName()` when no image hint is present (privacy mode), so the app icon shows in the notification — `notification_manager_native.dart:549` ← `platform/linux/notifications_manager_linux.cpp:772-773`
-
-- [ ] [MAJOR] Sound: when sound capability is present but no sound file is configured (`soundPath.isEmpty`), Dart adds no hint and the daemon plays its own default sound; AyuGram explicitly inserts `suppress-sound=true` in that case, keeping full control over audio — `notification_manager_native.dart:519-533` ← `platform/linux/notifications_manager_linux.cpp:640-657`
-
-- [ ] [MAJOR] Flatpak portal: `set_body` in AyuGram formats body as `"SenderName: message"` (via `lng_dialogs_text_with_from`) when a subtitle (sender name) is present; Dart only sends `data.text` with no subtitle, so group-chat sender names are invisible in portal notifications — `notification_manager_native.dart:671` ← `platform/linux/notifications_manager_linux.cpp:544-554`
-
-- [ ] [MAJOR] Flatpak portal: AyuGram calls `notification.set_icon()` with the peer's userpic PNG when `!options.hideNameAndPhoto`; Dart's `_showFlatpakPortalNotification` never sets an `icon` key in the notification dict, so portal notifications are always icon-less — `notification_manager_native.dart:655-710` ← `platform/linux/notifications_manager_linux.cpp:676-689`
-
-- [ ] [MAJOR] Flatpak portal: AyuGram sets `Gio::NotificationPriority::HIGH_` for chat messages; Dart hardcodes `'normal'`, which means portals/GNOME Shell may not raise the notification to the appropriate urgency level — `notification_manager_native.dart:670` ← `platform/linux/notifications_manager_linux.cpp:561`
-
 # notification_system — NotificationSystem orchestrator
 
-- [ ] [CRITICAL] `clearAll()` does not cancel `_pendingTimers` or `_groupedTimer` — any notification already scheduled via `_scheduleDispatch` will still fire and call `_dispatch()` after the clear, showing stale notifications. AyuGram avoids this because `clearAll()` empties `_waiters` and a single `_waitTimer` naturally produces nothing when `_waiters` is empty; Dart's per-notification individual timers close over their data directly and bypass any queue check. — `notification_system.dart:581` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager.cpp:492`
-
-- [ ] [CRITICAL] `clearForChat()` does not cancel pending per-chat timers in `_pendingTimers` — notifications scheduled for that chat via `_scheduleDispatch` will still fire after the chat is marked read / cleared. The timer list has no chat metadata so no selective cancellation is possible without storing a `{chatKey → [Timer]}` map. — `notification_system.dart:545` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager.cpp:508`
-
-- [ ] [CRITICAL] Missing `spoilerLoginCode` display option — AyuGram's `getNotificationOptions()` sets `spoilerLoginCode=true` for incoming messages from `@Notifications` and `@VerifyCodes` bots so the OTP body is partially masked in the notification preview. Dart's `_dispatch()` only computes `forceHideDetails` (passcode-lock path) and has no equivalent flag, meaning login codes appear in full in notification previews. — `notification_system.dart:450` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager.cpp:1104`
-
 - [ ] [MAJOR] `checkDelayed()` resolves mute state only via the pre-set `muteStateUnknown` flag; AyuGram re-evaluates `computeSkipState()` live against actual settings at check time, so even if the flag is never cleared via `resolveDelayedMuteState()` the notification still dispatches once settings are available. In Dart, if `resolveDelayedMuteState()` is never called for a chat the queued notification is silently dropped. — `notification_system.dart:501` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager.cpp:646`
-
-- [ ] [MAJOR] `_whenAlerts` (AyuGram: `flat_map<Thread*, flat_map<time, PeerData*>>`) enables per-thread, per-sender scheduled alert timing and custom ringtone selection per chat. Dart replaces this with a flat `_lastAlertPerThread` dedup timestamp only — custom per-chat ringtones are never selected (always uses the default sound regardless of chat-specific ringtone settings), and future alert scheduling is lost. — `notification_system.dart:113` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager.cpp:724`
-
-- [ ] [MAJOR] Missing `hideMarkAsRead`/`hideReplyButton` display options — AyuGram's `getNotificationOptions()` suppresses the "Mark as Read" and "Reply" action buttons for broadcast channels, slowmode-active chats, stars-per-message chats, and reaction/poll-vote types. Dart's `_dispatch()` passes no equivalent flags to the manager, so those buttons will appear on notifications where they should be hidden. — `notification_system.dart:460` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager.cpp:1093`
 
 # notification_types — Reaction/PollVote fields never populated from backend
 
