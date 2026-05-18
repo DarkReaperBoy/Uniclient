@@ -121,6 +121,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   Set<String> _blockedIds = {};
   ReadPrivacyState _privacyState = ReadPrivacyState.none;
   StreamSubscription<MsgEditedEvent>? _editSub;
+  StreamSubscription<MsgStatusEvent>? _statusSub;
 
   @override
   void initState() {
@@ -136,6 +137,13 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
           e.chatId == widget.message.chatId &&
           e.msgId == widget.message.msgId) {
         _loadReactors();
+        _fetchReadInfo();
+      }
+    });
+    _statusSub = engine.onMsgStatus.listen((e) {
+      if (e.accountId == widget.message.accountId &&
+          e.chatId == widget.message.chatId &&
+          e.msgId == widget.message.msgId) {
         _fetchReadInfo();
       }
     });
@@ -195,6 +203,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   @override
   void dispose() {
     _editSub?.cancel();
+    _statusSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -1046,7 +1055,9 @@ class _ReactorAvatarState extends State<_ReactorAvatar> {
     }
     final cacheKey = '${widget.accountId}:${widget.peerId}';
     if (_photoCache.containsKey(cacheKey)) {
-      if (mounted) setState(() { _photoPath = _photoCache[cacheKey]; _loaded = true; });
+      final val = _photoCache.remove(cacheKey);
+      _photoCache[cacheKey] = val;
+      if (mounted) setState(() { _photoPath = val; _loaded = true; });
       return;
     }
     try {
