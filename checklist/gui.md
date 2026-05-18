@@ -571,15 +571,6 @@ One CRITICAL issue found. All other features (cloud password flow, local passcod
 
 ## Issues Found
 
-# main — Theme revert overlay radius wrong + system unlock cooldown logic gaps
-
-## Findings
-
-- [ ] [MAJOR] `_ThemeRevertOverlay` uses `_boxRadius = 12.0` but AyuGram uses `Ui::BoxCorners` which is derived from `boxRadius: 6px` — this is 2× the correct value — `main.dart:2112` ← `lib_ui/ui/layers/layers.style:38` (`boxRadius: 6px`) + `window_theme_warning.cpp:66` (`Ui::FillRoundRect(..., Ui::BoxCorners)`)
-
-- [ ] [MAJOR] After a `SystemUnlockResult.floodError`, `_systemUnlockSuggested` stays `true` so the system unlock never auto-suggests again when the window regains focus — AyuGram explicitly calls `_systemUnlockSuggested.destroy()` to reset it after a flood error — `main.dart:2455-2458` ← `window_lock_widgets.cpp:237`
-
-- [ ] [MAJOR] `didChangeAppLifecycleState` auto-triggers system unlock when `!_systemUnlockSuggested` but does NOT check whether the cooldown period has elapsed — AyuGram guards with `!_systemUnlockCooldown.isActive()` before auto-suggesting — `main.dart:2369` ← `window_lock_widgets.cpp:163-167`
 
 # sticker_pack_viewer — Sticker Pack Viewer (modal bottom sheet)
 
