@@ -562,28 +562,6 @@ One CRITICAL issue found. All other features (cloud password flow, local passcod
 
 ---
 
-## reactions_detail — Reactions/read detail panel
-
-- [ ] [CRITICAL] DM read-receipt tab is entirely missing: `_fetchReadCount` at line 129 explicitly skips `ChatType.dm`, but AyuGram uses `MTPmessages_GetOutboxReadDate` for DM messages to fetch and display the read date/tab for single recipients — `reactions_detail.dart:129` ← `AyuGram/api/api_who_reacted.cpp:257-285`
-
-- [ ] [CRITICAL] No real-time reaction/read update subscription: the panel fetches data once on `initState` and never subscribes to live engine events. AyuGram uses `rpl::variable` reactive streams (`context->cacheReacted`, `context->cacheRead`) that push updates to the UI whenever the underlying data changes (e.g. new reactions arrive, userpics load) — `reactions_detail.dart:103-111` ← `AyuGram/api/api_who_reacted.cpp:180-218, 340-392`
-
-- [ ] [CRITICAL] The "Show" button in `_ReadPrivacyNotice` calls `engine.setHideReadMarks(accountId, hide: false)` which directly toggles the privacy setting via an inline confirmation dialog. In AyuGram the callback is `showOrPremium` which opens the Privacy & Security settings page (not a direct API call) so the user can manage the full privacy setting — `reactions_detail.dart:1103-1124` ← `AyuGram/ui/controls/who_reacted_context_action.cpp:567-574`
-
-- [ ] [MAJOR] `_groupedByEmoji` getter uses `r.emoji` as the map key for all reactors, meaning custom-emoji reactors (where `r.emoji` is empty string) all collide under the `""` key instead of a unique `'custom:<docId>'` key. The correct key is `r.reactionKey`. This is a latent correctness bug that corrupts grouping whenever custom emoji reactions are present — `reactions_detail.dart:262` ← `AyuGram/history/view/reactions/history_view_reactions_list.cpp:397-409`
-
-- [ ] [MAJOR] `_fetchReadCount` calls `getMessageReadParticipants` (IDs only, no dates) purely to get a count, while `_loadReactors` separately calls `getMessageReadParticipantsDetailed` for the full data. This is two API calls for the same data — the count should be derived from the detailed result already fetched by `_loadReactors` — `reactions_detail.dart:128-138, 171-187` ← `AyuGram/api/api_who_reacted.cpp:286-315`
-
-- [ ] [MAJOR] `_ReactionTabBar._readTabIcon` returns `Icons.play_arrow` for both `mediaType == 2` (video) and `mediaType == 5` (round video/video note). AyuGram distinguishes `WhoReadType::Watched` (round video) with a distinct "played" icon (`reactionsTabPlayed`) separate from regular video. The Dart code conflates both cases with the same icon — `reactions_detail.dart:546-548` ← `AyuGram/api/api_who_reacted.cpp:230-243`
-
-- [ ] [MAJOR] Panel max width is hardcoded at 392px. AyuGram's reactions list opens as a full `Info::Widget` section panel (full sidebar width), not a fixed-width dialog overlay. A 392px popup is visually and behaviorally different from the intended full side-panel approach — `reactions_detail.dart:62` ← `AyuGram/info/reactions_list/info_reactions_list_widget.cpp:84-113`
-
-- [ ] [MAJOR] On tab switch from read-tab back to a specific emoji tab, `_allReactors` is cleared and `_loadReactors()` is called. The cache check at line 189 (`_selectedTab != null && _masterReactors.isNotEmpty`) is true for emoji tabs, but since `_allReactors` was just cleared it falls through to the network call path anyway, causing unnecessary re-fetches on every read→emoji tab switch — `reactions_detail.dart:189-196, 287-313` ← `AyuGram/history/view/reactions/history_view_reactions_list.cpp:247-280`
-
-- [ ] [MAJOR] Loading state shows a plain `Text('Loading...')` string. AyuGram shows placeholder preloader rows with animated loading text (`tr::lng_contacts_loading`) that visually match the list layout during load, giving proper visual continuity — `reactions_detail.dart:373-381` ← `AyuGram/history/view/reactions/history_view_reactions_list.cpp:241-243`
-
-- [ ] [MAJOR] `_ReactorAvatar` photo cache is a static `Map<String, String?>` that evicts one entry at a time when it exceeds 200 entries (removes `_photoCache.keys.first`). Dart's default `Map` does not guarantee stable iteration order under concurrent modifications, meaning wrong entries may be evicted. Additionally the cache grows unbounded between eviction triggers and holds stale file paths for photos that may have changed — `reactions_detail.dart:960-995` ← AyuGram: no direct equivalent (AyuGram generates userpics on-demand via `PeerData::GenerateUserpicImage` with session-level invalidation)
-
 ## send_files_box — Send Files Dialog audit vs AyuGram C++ source
 
 - [ ] [MAJOR] `_canSpoiler` gate is wrong: Dart checks `!_sendAsDocuments && files.any(isMediaType)` but AyuGram's `hasSpoilerMenu` requires `allAreVideo || (allAreMedia && compress)` — i.e. spoiler menu is only available when ALL files are media (video-only always OK, mixed photo+video only OK when sending as photos). Mixed photo+file batches incorrectly expose the spoiler toggle in Dart. — `send_files_box.dart:1178` ← `AyuGram/ui/chat/attach/attach_prepare.cpp:399`
