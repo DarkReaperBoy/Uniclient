@@ -574,119 +574,23 @@ One CRITICAL issue found. All other features (cloud password flow, local passcod
 
 # sticker_pack_viewer — Sticker Pack Viewer (modal bottom sheet)
 
-- [ ] [CRITICAL] Emoji set max height is 270px but AyuGram uses 197px (37% deviation) — `sticker_pack_viewer.dart:84` ← `chat_helpers/chat_helpers.style:419` (`emojiSetMaxHeight: 197px`)
-
-- [ ] [CRITICAL] No context menu on right-click / long-press: `_StickerTile` only wires `onTap`, completely missing the per-sticker popup menu (Send silently, Schedule, Add to favorites, Add to sticker set, Delete for creators) — `sticker_pack_viewer.dart:493` ← `sticker_set_box.cpp:1702`
-
-- [ ] [CRITICAL] No sticker preview on long-press hold: AyuGram starts a drag-time timer on mouse-down and calls `showMediaPreview` when held; Dart has zero hold/preview logic in `initState` or `build` — `sticker_pack_viewer.dart:332` ← `sticker_set_box.cpp:1425`
-
-- [ ] [CRITICAL] Share link for emoji packs uses wrong URL prefix: Dart hardcodes `https://t.me/addstickers/$shortName` for all set types; AyuGram uses `addemoji/$shortName` for emoji sets so the copied link is non-functional for emoji packs — `sticker_pack_viewer.dart:163` ← `sticker_set_box.cpp:649`
-
-- [ ] [MAJOR] Sticker set max height is 393px but AyuGram uses 320px (23% deviation) — `sticker_pack_viewer.dart:84` ← `chat_helpers/chat_helpers.style:415` (`stickersMaxHeight: 320px`)
-
-- [ ] [MAJOR] Installed "official" packs must show only a single "OK" / Done button; Dart always shows Share + Cancel for any installed set, which is wrong for official (read-only) packs — `sticker_pack_viewer.dart:211` ← `sticker_set_box.cpp:1038`
-
-- [ ] [MAJOR] No three-dot / overflow menu for installed packs: AyuGram adds an `infoTopBarMenu` button with Archive/Remove pack actions; Dart's `_buildHeader` has no such menu at all — `sticker_pack_viewer.dart:177` ← `sticker_set_box.cpp:1051`
-
-- [ ] [MAJOR] Install success does not notify the sticker store: AyuGram calls `notifyStickerSetInstalled` / `notifyEmojiSetInstalled` / shows "Masks installed" toast on success so the sticker panel updates; Dart only calls `Navigator.pop` — `sticker_pack_viewer.dart:154` ← `sticker_set_box.cpp:589`
-
-- [ ] [MAJOR] No "Unlock with Premium" button for premium emoji sets: AyuGram checks `!_session->premium() && _inner->premiumEmojiSet()` and substitutes the Add button with a gradient Premium unlock button; Dart shows the normal Add button unconditionally — `sticker_pack_viewer.dart:230` ← `sticker_set_box.cpp:972`
-
 # story_editor — Audit
-
-- [ ] [CRITICAL] Blur strokes are silently dropped from exported/posted images: `_renderCanvasToBytes` draws a transparent paint inside a saveLayer with a blur imageFilter, which produces no visible output — the layer contains nothing to blur. The live preview uses `BackdropFilter` (correct) but the canvas export at lines 544-553 discards all blur strokes entirely. Users will see blur in the editor but the posted story will have none. — `story_editor.dart:541-553` ← `editor/scene/scene_item_canvas.cpp:126` (blur path actually composites over a captured blurSource image, not transparent paint)
-
-- [ ] [CRITICAL] Item/sticker scale maximum is wrong: `_stickerMaxScale = 6.0` but AyuGram clamps item zoom to `kMaxItemZoom = 10.` — users cannot scale items to 10× as the spec requires; pinch-zoom stops prematurely at 6×. — `story_editor.dart:35` ← `editor/editor_paint.cpp:40`
-
-- [ ] [MAJOR] Item/sticker scale minimum is wrong: `_stickerMinScale = 0.2` should be `0.1` per `kMinItemZoom = 0.1`. — `story_editor.dart:34` ← `editor/editor_paint.cpp:39`
-
-- [ ] [MAJOR] Brush size slider positioned 16px too far from the left edge: `left: 16` is used in the `Positioned` widget, but AyuGram specifies `photoEditorBrushSizeControlLeftSkip: 0px` — the slider should hug the left edge of the canvas. Also the expand-shift behaviour (`photoEditorBrushSizeControlExpandShift: 14px`) is not implemented: when expanded, the control grows symmetrically instead of shifting 14px to the right. — `story_editor.dart:1115` ← `editor/editor.style:157-162`
-
-- [ ] [MAJOR] Text edge-button vertical padding wrong: `EdgeInsets.symmetric(horizontal: 22, vertical: 4)` adds 4px top/bottom; AyuGram defines `photoEditorTextButtonPadding: margins(22px, 0px, 22px, 0px)` — zero vertical padding. Buttons render taller than spec. — `story_editor.dart:1347` ← `editor/editor.style:40`
-
-- [ ] [MAJOR] 48 h story duration premium gate is cosmetic only: `isPremiumGated = hours == 48` only shows a lock icon but the menu item is still selectable, sets `_durationHours = 48`, and passes it straight to `engine.sendStoryWithVideoFile`/`sendStoryWithPhoto` with no premium check. Non-premium accounts will hit a server-side rejection with no meaningful error shown to the user. — `story_editor.dart:1689-1706, 1683-1684` ← `editor/photo_editor.cpp` (premium gating enforced before API call in desktop)
-
-- [ ] [MAJOR] Default text font size wrong: `_fontSize = 32` is hardcoded, but AyuGram derives the default as `shortSide / kDefaultFontSizeDivisor` where `kDefaultFontSizeDivisor = 15.0` — for the 540 px canvas short-side this gives 36 pt, not 32 pt. New text items appear smaller than spec. — `story_editor.dart:196` ← `editor/editor_paint.cpp:75-82`
-
-- [ ] [MAJOR] `base64Decode` called inside `ListView.builder` itemBuilder for contact avatars: `MemoryImage(Uint8List.fromList(base64Decode(c.avatarB64)))` runs on the UI thread on every rebuild (list scroll, search keystroke, setState). For a contact list with hundreds of items this causes jank. Decode should happen once in `initState`/data-loading or via `Isolate.run`. — `story_editor.dart:2487`
-
-- [ ] [MAJOR] `base64Decode` called inside `GridView.builder` itemBuilder for sticker thumbnails: `base64Decode(sticker.thumbB64)` executes synchronously on the UI thread for every visible sticker cell on every grid rebuild. Same fix needed as above. — `story_editor.dart:3064` ← (contrast with AyuGram's `LottieAnimation`/cached `QPixmap` pipeline in `editor/scene/scene_item_sticker.cpp`)
 
 # telegram_toast — Sticker toast dead code + wrong text + wrong position
 
 - [ ] [CRITICAL] `showStickerToast` is defined but never called anywhere in the Dart codebase — the entire sticker/emoji pack toast is dead code with zero backend wiring; no engine event or sticker tap triggers it — `telegram_toast.dart:249` ← `history_view_sticker_toast.cpp:61` (`StickerToast::showFor`)
 
-- [ ] [CRITICAL] Sticker/emoji preview is a static base64 PNG (`Image.memory`); AyuGram renders an animated Lottie player for regular sticker packs (`setupLottiePreview`) and a frame-driven custom emoji renderer for emoji packs (`setupEmojiPreview`) — preview will never animate — `telegram_toast.dart:448-461` ← `history_view_sticker_toast.cpp:264-353`
-
-- [ ] [MAJOR] `_StickerToast.build()` positions the toast center-screen (full-viewport `Center` widget); AyuGram attaches it to the **bottom** (`RectPart::Bottom`) so it appears above the message input — `telegram_toast.dart:541-558` ← `history_view_sticker_toast.cpp:175`
-
-- [ ] [MAJOR] `toSaved` toast body text is wrong: Dart shows `"Saved to your animated emoji."` but AyuGram shows `"Try sending these emoji in Saved Messages for free to test."` (`lng_animated_emoji_saved`) — `telegram_toast.dart:383` ← `lang.strings:290`
-
-- [ ] [MAJOR] Emoji (non-toSaved) toast body text is wrong: Dart shows `"This message contains emoji from the {packName} pack"` but AyuGram shows `"Subscribe to Telegram Premium to unlock this emoji."` (`lng_animated_emoji_text`) — `telegram_toast.dart:431-442` ← `lang.strings:289`
-
-- [ ] [MAJOR] Non-emoji sticker pack toast body text incorrectly says "emoji": Dart falls through to the default emoji branch for `isEmoji=false` stickers; AyuGram shows `"This set contains premium stickers like this one."` (`lng_sticker_premium_text`) — `telegram_toast.dart:431-442` ← `lang.strings:287`
-
-- [ ] [MAJOR] Replacing an active sticker toast calls `.remove()` (immediate removal, no animation); AyuGram calls `strong->hideAnimated()` so the old toast fades out before the new one appears — `telegram_toast.dart:262-263` ← `history_view_sticker_toast.cpp:70-71`
-
-- [ ] [MAJOR] `_StickerToast` has no `minWidth` constraint; AyuGram's `historyPremiumToast` sets `minWidth: msgMinWidth` (160px), same as `defaultMultilineToast` — `telegram_toast.dart:498-499` ← `chat.style:258` (`historyPremiumToast { minWidth: msgMinWidth; }`)
-
 # telegram_tooltip — Audit Findings
-
-- [ ] [CRITICAL] `_ImportantTooltipDelegate.getPositionForChild` uses `_kImportantShift` (12 px) as a permanent positional gap between tooltip and target (`y = targetRect.bottom + shift` for bottom side). In AyuGram, `shift` is animation-only; the tooltip rests flush against the target (`top = _area.y() + _area.height()`). This double-applies the shift: delegate adds 12 px to the base position, then the `AnimatedBuilder` slides from that position +12 px, so at rest the tooltip is 12 px too far from the target. Fix: delegate should use `y = targetRect.bottom` (no shift); keep the animation slide only in `AnimatedBuilder`. — `telegram_tooltip.dart:403-413` ← `tooltip.cpp:382-387` + `widgets.style:1310`
-
-- [ ] [MAJOR] `_resolveSide()` uses hardcoded magic numbers (40 px, 100 px) as minimum required clearance. AyuGram dynamically computes required space as `countInner().height() + _st.shift + _st.arrow` from actual content geometry. The hardcoded values are arbitrary and will misplace the tooltip on short or tall content. — `telegram_tooltip.dart:346-362` ← `tooltip.cpp:263-280`
-
-- [ ] [MAJOR] `TooltipSide.left` / `TooltipSide.right` place the tooltip BODY to the left or right of the target widget (`x = targetRect.right + shift` / `x = targetRect.left - shift - childSize.width`). AyuGram's `ImportantTooltip` never places the body to the side — `RectPart::Left` / `RectPart::Right` are arrow-alignment flags within an above/below tooltip, not placement sides. `countPosition()` always sets `top = _area.y() ± height()` regardless of Left/Right bits. The Dart left/right placement mode is invented behavior with no AyuGram equivalent. — `telegram_tooltip.dart:408-414` ← `tooltip.cpp:263-302, 367-401`
 
 - [ ] [MAJOR] Horizontal arrow-skip offset is missing. AyuGram offsets the tooltip horizontally by `arrowSkip = 66 px` when Left/Right bits are set (`left = areaMiddle + arrowSkip - width()` for Left; `left = areaMiddle - arrowSkip` for Right), plus `accumulate_min/max` clamps using `arrow + arrowSkipMin`. The Dart always centers the tooltip on `targetRect.center.dx - childSize.width / 2` with no such offset, so the arrow never aligns to the intended position relative to the target. — `telegram_tooltip.dart:400-420` ← `tooltip.cpp:371-381` + `widgets.style:1309`
 
 # theme_editor — Theme Editor Screen
 
-- [ ] [CRITICAL] Accent sort algorithm wrong: Dart uses simple Euclidean HSL distance; AyuGram uses a three-tier bucket sort — `copyOf` rows → score 365 (bottom), hue diff > 15° → score 363, others → `255 - fromSaturation` (closest-to-accent by saturation). Result order will be completely different — `theme_editor.dart:95-112` ← `AyuGram/window/themes/window_theme_editor_block.cpp:446-467`
-
-- [ ] [MAJOR] When updating an existing cloud theme, slug always generates a new random value instead of pre-filling with `existingCloud.slug`; the user's public `t.me/addtheme/<slug>` link changes on every update — `theme_editor.dart:1207` ← `AyuGram/window/themes/window_theme_editor_box.cpp:811`
-
-- [ ] [MAJOR] When updating an existing cloud theme, name field starts empty instead of pre-filled with `existingCloud.title`; AyuGram uses `cloud.title` as the initial value — `theme_editor.dart:1203-1205` ← `AyuGram/window/themes/window_theme_editor_box.cpp:789-791`
-
-- [ ] [MAJOR] No double-save guard: `_handleSaveToCloud` has no `_saving` flag; rapid taps on the "SAVE THEME" button can trigger multiple concurrent cloud upload operations — `theme_editor.dart:273-330` ← `AyuGram/window/themes/window_theme_editor_box.cpp:859-860`
-
-- [ ] [MAJOR] Export theme does not auto-include current chat background: `_SaveThemeBox` is opened with no `existingBackground`, so the user must manually re-pick the wallpaper; AyuGram's `CollectForExport` automatically captures `Background()->createCurrentImage()` — `theme_editor.dart:248-251` ← `AyuGram/window/themes/window_theme_editor_box.cpp:757-769`
-
-- [ ] [MAJOR] `_computeThumbnailSize` uses `smallSkip = 6.0` but AyuGram uses `themesSmallSkip = 10px` (40% deviation); thumbnail height will be miscalculated causing the background image preview to misalign with the text/button column beside it — `theme_editor.dart:1555` ← `AyuGram/boxes/boxes.style:716`
-
 # titlebar — Custom titlebar for Linux window controls
 
 - [ ] [MAJOR] Button icons rendered as hand-drawn geometry (lines/rects) instead of the actual PNG icon assets used by AyuGram — `titlebar.dart:308-338` (_TitleButtonIconPainter.paint) ← `AyuGram/Telegram/lib_ui/icons/title_button_minimize.png`, `title_button_maximize.png`, `title_button_restore.png`, `title_button_close.png` (and their @2x/@3x variants). AyuGram uses `IconButton` with real icon images defined in `widgets.style:1599-1667`; the custom-painted shapes won't match the pixel-accurate icon designs.
 
-- [ ] [MAJOR] `_toggleMaximize` makes a redundant async round-trip query after invoking maximize, racing with the `maximizeChanged` native event — `titlebar.dart:136-141` calls `invokeMethod('maximize')` then `_queryMaximized()` (a second channel call), while simultaneously the `maximizeChanged` handler at `titlebar.dart:96-97` can also update `_isMaximized`. AyuGram drives maximize-state updates purely through `QEvent::WindowStateChange` → `handleWindowStateChanged` → `updateButtonsState` with no redundant poll — `AyuGram/Telegram/lib_ui/ui/platform/ui_platform_window_title.cpp:238-243,404-419`. The double-update causes a potential state flicker and an unnecessary channel call on every maximize/restore cycle.
-
-- [ ] [MAJOR] Drag-to-move fires only after Flutter's pan-gesture threshold, whereas AyuGram starts the system move on any mouse movement while pressed — `titlebar.dart:230` uses `onPanStart` (requires minimum drag distance before Flutter commits the pan gesture) ← `AyuGram/Telegram/lib_ui/ui/platform/ui_platform_window_title.cpp:487-495` (`mouseMoveEvent` calls `startSystemMove()` immediately on the first mouse-move pixel while `_mousePressed` is true). The Dart titlebar drags sluggishly compared to the native feel.
-
-- [ ] [MAJOR] Missing maximize-button suppression when the window is not resizable — `titlebar.dart` has no concept of `_resizeEnabled` ← `AyuGram/Telegram/lib_ui/ui/platform/ui_platform_window_title.cpp:356-358` (`if (!_resizeEnabled) eraseControl(Control::Maximize)`). Windows that disable resize (e.g. fixed-size dialogs) must hide the maximize button; the Dart titlebar always shows it.
-
-- [ ] [MAJOR] Hover/press state not cleared on title-button clicks — `titlebar.dart:267-293` (_WinButtonState) has no `clearState` step after a click fires; the button stays visually hovered until the mouse leaves ← `AyuGram/Telegram/lib_ui/ui/platform/ui_platform_window_title.cpp:199-229` (each button's click callback calls `clearState()` on itself immediately after dispatching the window action).
-
 # web_app_panel — WebApp Panel Audit
-
-- [ ] [CRITICAL] `web_app_read_text_from_clipboard` has no security guard: reads clipboard unconditionally. AyuGram requires `_allowClipboardRead` flag (per-bot permission) AND that a webview interaction occurred within 10 seconds (`_lastWebviewInteraction + kClipboardReadTimeout >= now`). Without this guard, any web app can silently harvest clipboard contents at any time — `web_app_panel.dart:678-689` ← `attach_bot_webview.cpp:1622-1633,1645-1652`
-
-- [ ] [CRITICAL] `remove_menu` menu item calls `_close()` instead of calling the engine to remove the bot from the menu. AyuGram calls `botHandleMenuButton(MenuButton::RemoveFromMainMenu)` or `botHandleMenuButton(MenuButton::RemoveFromMenu)` through the delegate, which actually mutates persisted state. Dart just closes the panel with no side-effect — `web_app_panel.dart:1221-1228,1253` ← `attach_bot_webview.cpp:807-829`
-
-- [ ] [CRITICAL] Device storage (`web_app_device_storage_save_key/get_key/clear`) is backed by an in-memory `Map<String, String?>` that is destroyed when the panel closes. AyuGram routes all three operations through `_delegate->botStorageWrite/Read/Clear()` which persists to durable storage. Web apps that rely on device storage for session data will lose everything on every panel close — `web_app_panel.dart:134,834-887` ← `attach_bot_webview.cpp:1305-1353`
-
-- [ ] [CRITICAL] `invoice_closed` event is never posted back to the webview after an invoice is opened. AyuGram has `Panel::invoiceClosed(slug, status)` which posts `invoice_closed` with slug+status and then restores the panel from its `_hiddenForPayment` state. Without this, any web app using `web_app_open_invoice` receives no completion callback — payment flow is permanently broken — `web_app_panel.dart:481-495` ← `attach_bot_webview.cpp:2147-2159`
-
-- [ ] [CRITICAL] Buttons ignore `icon_custom_emoji_id` field entirely. AyuGram's `processButtonMessage` extracts `icon_custom_emoji_id` and passes it to `Button::updateText()`, rendering a custom emoji prefix alongside the text using `Text::SingleCustomEmoji`. Dart's `WebAppButtonConfig` and `_handleSetupButton` have no such field — any web app that sets emoji icons on main/secondary buttons shows nothing — `web_app_panel.dart:37-52,939-961` ← `attach_bot_webview.cpp:1713-1745`
-
-- [ ] [CRITICAL] No `_inBlockingRequest` guard for `requestWriteAccess` and `requestPhone`. AyuGram sets `_inBlockingRequest = true` at the start and immediately replies `false` if already blocking, preventing overlapping dialogs. Dart at lines 529 and 594 has no such guard — a bot can spam requests and show the user an unbounded stack of permission dialogs simultaneously — `web_app_panel.dart:529-638` ← `attach_bot_webview.cpp:1492-1533,1541-1573`
-
-- [ ] [MAJOR] `_handleRequestViewport` sends `height: 0, width: 0` in the initial `viewport_changed` event, then separately runs a JS snippet to post the real size. AyuGram's `sendViewport()` executes a single JS eval with `window.innerHeight` and `window.innerWidth` directly — it never sends zeros. The spurious zero-size event can break web apps that immediately read viewport dimensions on receipt — `web_app_panel.dart:980-996` ← `attach_bot_webview.cpp:1125-1130`
-
-- [ ] [MAJOR] `web_app_request_content_safe_area` always reports `top: 0` even in fullscreen mode. AyuGram computes a non-zero top based on the close button height and DPI when `_fullscreen.current()` is true: `top = shift + fullScreenPanelClose.height + (shift/2)` scaled by device pixel ratio / system screen scale. Dart always sends zeros — `web_app_panel.dart:289-291,339-347` ← `attach_bot_webview.cpp:1143-1160`
-
-- [ ] [MAJOR] Button progress indicator is centered over the entire button instead of right-aligned. AyuGram renders the `InfiniteRadialAnimation` at the right side of the button (right edge minus padding), keeping the button text visible and left-justified during progress. Dart shows a `CircularProgressIndicator` centered and hides the text with an if-else — `web_app_panel.dart:1636-1659` ← `attach_bot_webview.cpp:329-383`
-
-- [ ] [MAJOR] Button visibility ignores empty text: Dart sets `visible` from `data['is_visible']` alone without checking for empty text. AyuGram only makes a button visible when `is_visible && (!text.isEmpty() || iconCustomEmojiId)` — an empty-text button is never shown. Dart can create a visible but blank-looking button — `web_app_panel.dart:943` ← `attach_bot_webview.cpp:1716-1717`
 
 # engine_models — Data model gaps in CachedMessage.fromJson and GroupCallParticipant
 
