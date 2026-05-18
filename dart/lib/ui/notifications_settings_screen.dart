@@ -268,10 +268,24 @@ class _NotificationsSettingsScreenState
                 onNameChanged: (v) {
                   appState.notifPreviewName = v;
                   if (!v) appState.notifPreviewText = false;
+                  final engine = context.read<EngineService>();
+                  final view = (appState.notifPreviewName ? 1 : 0) |
+                      (appState.notifPreviewText ? 2 : 0);
+                  engine.saveLocalNotifyConfig(
+                    appState.activeAccountId,
+                    {'type': 'notify_view', 'view': view},
+                  );
                 },
                 onTextChanged: (v) {
                   appState.notifPreviewText = v;
                   if (v) appState.notifPreviewName = true;
+                  final engine = context.read<EngineService>();
+                  final view = (appState.notifPreviewName ? 1 : 0) |
+                      (appState.notifPreviewText ? 2 : 0);
+                  engine.saveLocalNotifyConfig(
+                    appState.activeAccountId,
+                    {'type': 'notify_view', 'view': view},
+                  );
                 },
                 isDark: isDark,
               )
@@ -442,7 +456,13 @@ class _NotificationsSettingsScreenState
         icon: Icons.add_reaction_outlined,
         label: 'Reactions',
         value: appState.notifReactions,
-        onToggle: (v) => appState.notifReactions = v,
+        onToggle: (v) {
+          appState.notifReactions = v;
+          context.read<EngineService>().saveLocalNotifyConfig(
+            appState.activeAccountId,
+            {'type': 'reactions_enabled', 'enabled': v},
+          );
+        },
         onTap: () => _openTypeSubPage(context, _NotifType.reactions),
         textColor: textColor,
         subtextColor: subtextColor,
@@ -653,7 +673,13 @@ class _NotificationsSettingsScreenState
         _NoIconToggleRow(
           label: 'Use native notifications',
           value: appState.notifUseNative,
-          onChanged: (v) => appState.notifUseNative = v,
+          onChanged: (v) {
+            appState.notifUseNative = v;
+            context.read<EngineService>().saveLocalNotifyConfig(
+              appState.activeAccountId,
+              {'type': 'native_notifications', 'enabled': v},
+            );
+          },
           textColor: textColor,
           accentColor: accentColor,
           hoverBg: hoverBg,
@@ -670,7 +696,13 @@ class _NotificationsSettingsScreenState
                     _NoIconToggleRow(
                       label: 'Respect system Focus mode',
                       value: appState.notifSkipToastsInFocus,
-                      onChanged: (v) => appState.notifSkipToastsInFocus = v,
+                      onChanged: (v) {
+                        appState.notifSkipToastsInFocus = v;
+                        context.read<EngineService>().saveLocalNotifyConfig(
+                          appState.activeAccountId,
+                          {'type': 'skip_toasts_in_focus', 'enabled': v},
+                        );
+                      },
                       textColor: textColor,
                       accentColor: accentColor,
                       hoverBg: hoverBg,
@@ -699,7 +731,13 @@ class _NotificationsSettingsScreenState
                       label: 'Default',
                       value: 0,
                       groupValue: appState.notifDisplayIndex,
-                      onChanged: (v) => appState.notifDisplayIndex = v ?? 0,
+                      onChanged: (v) {
+                        appState.notifDisplayIndex = v ?? 0;
+                        context.read<EngineService>().saveLocalNotifyConfig(
+                          appState.activeAccountId,
+                          {'type': 'display_index', 'index': v ?? 0},
+                        );
+                      },
                       textColor: textColor,
                       accentColor: accentColor,
                       hoverBg: hoverBg,
@@ -710,7 +748,13 @@ class _NotificationsSettingsScreenState
                             'Display ${i + 1} (${displays[i].size.width.toInt()}\u00D7${displays[i].size.height.toInt()})',
                         value: i + 1,
                         groupValue: appState.notifDisplayIndex,
-                        onChanged: (v) => appState.notifDisplayIndex = v ?? 0,
+                        onChanged: (v) {
+                          appState.notifDisplayIndex = v ?? 0;
+                          context.read<EngineService>().saveLocalNotifyConfig(
+                            appState.activeAccountId,
+                            {'type': 'display_index', 'index': v ?? 0},
+                          );
+                        },
                         textColor: textColor,
                         accentColor: accentColor,
                         hoverBg: hoverBg,
@@ -740,8 +784,13 @@ class _NotificationsSettingsScreenState
                     selectedCorner: _ScreenCorner.values[appState.notifCorner.clamp(0, 4)],
                     barCount: appState.notifCount,
                     isDark: isDark,
-                    onCornerChanged: (corner) =>
-                        appState.notifCorner = corner.index,
+                    onCornerChanged: (corner) {
+                      appState.notifCorner = corner.index;
+                      context.read<EngineService>().saveLocalNotifyConfig(
+                        appState.activeAccountId,
+                        {'type': 'notifications_corner', 'corner': corner.index},
+                      );
+                    },
                   ),
                   const SizedBox(height: 14),
                   Padding(
@@ -760,7 +809,13 @@ class _NotificationsSettingsScreenState
                     count: appState.notifCount,
                     isDark: isDark,
                     accentColor: accentColor,
-                    onChanged: (count) => appState.notifCount = count,
+                    onChanged: (count) {
+                      appState.notifCount = count;
+                      context.read<EngineService>().saveLocalNotifyConfig(
+                        appState.activeAccountId,
+                        {'type': 'notifications_count', 'count': count},
+                      );
+                    },
                   ),
                 ],
               )
@@ -1473,12 +1528,22 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
   int _nextToneId = 1;
   final List<_NotifException> _exceptions = [];
   final List<int> _recentMuteDurations = [];
+  StreamSubscription<ChatInfo>? _chatUpdateSub;
 
   @override
   void initState() {
     super.initState();
     _loadExceptions();
     _loadDefaultSettings();
+    _chatUpdateSub = context.read<EngineService>().onChatUpdated.listen((_) {
+      _loadExceptions();
+    });
+  }
+
+  @override
+  void dispose() {
+    _chatUpdateSub?.cancel();
+    super.dispose();
   }
 
   void _loadDefaultSettings() async {
