@@ -221,13 +221,6 @@ The `night` preset has pervasive errors: it uses day-theme file type colors unch
 
 ---
 
-## Verification Checklist
-
-- [ ] Test positive pattern (intensity ~50) over light background: should render with SoftLight blend
-- [ ] Test negative pattern (intensity ~-50) over gradient: should darken where pattern is opaque
-- [ ] Test pattern inversion: render dark pattern over dark gradient (HSV ≤ 0.3) — should invert to white-on-transparent
-- [ ] Screenshot comparison: pattern rendering against AyuGram Desktop reference
-- [ ] Verify ColorFilter behavior: test if dstIn mode works correctly for negative patterns
 
 ## admin_tools — placeholders, missing admin log events
 
