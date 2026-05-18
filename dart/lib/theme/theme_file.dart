@@ -7,7 +7,7 @@ import 'telegram_palette.dart';
 
 const _maxThemeFileSize = 5 * 1024 * 1024; // 5 MB
 const _maxPaletteFileSize = 1 * 1024 * 1024; // 1 MB
-const _kBackgroundMaxPixels = 40 * 1024 * 1024; // 40 megapixels, matches AyuGram kBackgroundSizeLimit
+const _kBackgroundMaxPixels = 25 * 1024 * 1024; // matches AyuGram kBackgroundSizeLimit
 
 class ThemeFileData {
   final TelegramPalette palette;
@@ -94,10 +94,15 @@ PaletteParseResult? parsePaletteText(
     }
     if (inServiceBlock) {
       final stripped = line.startsWith('//') ? line.substring(2).trim() : line;
-      final idMatch = RegExp(r'id:(\d+)').firstMatch(stripped);
-      final hashMatch = RegExp(r'hash:(\d+)').firstMatch(stripped);
-      if (idMatch != null) serviceId = int.tryParse(idMatch.group(1)!);
-      if (hashMatch != null) serviceHash = int.tryParse(hashMatch.group(1)!);
+      final colonPos = stripped.indexOf(': ');
+      if (colonPos >= 0) {
+        final key = stripped.substring(0, colonPos).toUpperCase();
+        final value = int.tryParse(stripped.substring(colonPos + 2).trim());
+        if (value != null) {
+          if (key == 'ID') serviceId = value;
+          if (key == 'ACCESS') serviceHash = value;
+        }
+      }
       continue;
     }
 
@@ -179,8 +184,9 @@ Uint8List exportThemeFile(ThemeFileData data) {
 
 String writeCloudMeta(CloudThemeMeta meta) {
   return '// THEME EDITOR SERVICE INFO START\n'
-      '// id:${meta.id} hash:${meta.accessHash}\n'
-      '// THEME EDITOR SERVICE INFO END\n';
+      '// ID: ${meta.id}\n'
+      '// ACCESS: ${meta.accessHash}\n'
+      '// THEME EDITOR SERVICE INFO END\n\n';
 }
 
 CloudThemeMeta? readCloudMeta(String text) {
@@ -189,14 +195,23 @@ CloudThemeMeta? readCloudMeta(String text) {
   if (startIdx < 0 || endIdx < 0 || endIdx <= startIdx) return null;
 
   final block = text.substring(startIdx, endIdx);
-  final idMatch = RegExp(r'id:(\d+)').firstMatch(block);
-  final hashMatch = RegExp(r'hash:(\d+)').firstMatch(block);
-  if (idMatch == null || hashMatch == null) return null;
+  int? id;
+  int? accessHash;
+  for (final rawLine in block.split('\n')) {
+    final stripped = rawLine.startsWith('//')
+        ? rawLine.substring(2).trim()
+        : rawLine.trim();
+    final colonPos = stripped.indexOf(': ');
+    if (colonPos < 0) continue;
+    final key = stripped.substring(0, colonPos).toUpperCase();
+    final value = int.tryParse(stripped.substring(colonPos + 2).trim());
+    if (value == null) continue;
+    if (key == 'ID') id = value;
+    if (key == 'ACCESS') accessHash = value;
+  }
+  if (id == null || accessHash == null) return null;
 
-  return CloudThemeMeta(
-    id: int.parse(idMatch.group(1)!),
-    accessHash: int.parse(hashMatch.group(1)!),
-  );
+  return CloudThemeMeta(id: id, accessHash: accessHash);
 }
 
 // ── Private helpers ──
@@ -1450,56 +1465,32 @@ class ThemeCacheData {
   });
 }
 
-ThemeCacheData buildThemeCache(Uint8List themeFileBytes, ThemeFileData parsed) {
-  final contentChecksum = getCrc32(themeFileBytes);
+int? _paletteStructureChecksumCache;
 
-  int paletteChecksum = 0;
-  if (_looksLikeZip(themeFileBytes)) {
-    try {
-      final archive = ZipDecoder().decodeBytes(themeFileBytes);
-      for (final file in archive) {
-        final name = file.name.toLowerCase();
-        if (name == 'colors.tdesktop-theme' || name == 'colors.tdesktop-palette') {
-          paletteChecksum = getCrc32(file.content as List<int>);
-          break;
-        }
-      }
-    } catch (e) {
-      debugPrint('THEME: ZIP re-parse for cache checksum failed: $e');
-      paletteChecksum = contentChecksum;
-    }
-  } else {
-    paletteChecksum = contentChecksum;
+int _paletteStructureChecksum() {
+  if (_paletteStructureChecksumCache != null) return _paletteStructureChecksumCache!;
+  final buf = StringBuffer();
+  for (final entry in paletteToMap(TelegramPalette.dayBlue).entries) {
+    buf.write('${entry.key}:${_colorToHex(entry.value)};');
   }
+  _paletteStructureChecksumCache = getCrc32(utf8.encode(buf.toString()));
+  return _paletteStructureChecksumCache!;
+}
 
+ThemeCacheData buildThemeCache(Uint8List themeFileBytes, ThemeFileData parsed) {
   return ThemeCacheData(
     palette: parsed.palette,
     backgroundImage: parsed.backgroundImage,
     tileBg: parsed.backgroundTiled,
-    paletteChecksum: paletteChecksum,
-    contentChecksum: contentChecksum,
+    paletteChecksum: _paletteStructureChecksum(),
+    contentChecksum: getCrc32(themeFileBytes),
     cloudMeta: parsed.cloudMeta,
   );
 }
 
 bool validateThemeCache(ThemeCacheData cache, Uint8List themeFileBytes) {
-  final contentChecksum = getCrc32(themeFileBytes);
-  if (contentChecksum != cache.contentChecksum) return false;
-
-  if (_looksLikeZip(themeFileBytes)) {
-    try {
-      final archive = ZipDecoder().decodeBytes(themeFileBytes);
-      for (final file in archive) {
-        final name = file.name.toLowerCase();
-        if (name == 'colors.tdesktop-theme' || name == 'colors.tdesktop-palette') {
-          return getCrc32(file.content as List<int>) == cache.paletteChecksum;
-        }
-      }
-    } catch (e) {
-      debugPrint('THEME: cache validation ZIP re-parse failed: $e');
-      return false;
-    }
-  }
+  if (cache.paletteChecksum != _paletteStructureChecksum()) return false;
+  if (getCrc32(themeFileBytes) != cache.contentChecksum) return false;
   return true;
 }
 
