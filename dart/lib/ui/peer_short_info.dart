@@ -134,6 +134,12 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   StreamSubscription<bool>? _bufferingSub;
   Duration _videoPosition = Duration.zero;
   Duration _videoDuration = Duration.zero;
+  String _currentPhotoId = '';
+  bool _photoLoading = false;
+  Timer? _statusTimer;
+  int _lastSeenMs = 0;
+  String _lastSeenKind = '';
+  bool _isUserOnline = false;
 
   @override
   void initState() {
@@ -157,9 +163,17 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         if (event.userId == widget.peerId &&
             event.accountId == widget.accountId &&
             mounted) {
+          _isUserOnline = event.isOnline;
+          _lastSeenKind = event.lastSeenKind;
+          if (event.lastSeenMs > 0) _lastSeenMs = event.lastSeenMs;
           setState(() {
-            _statusText = _computeStatusFromEvent(event);
+            _statusText = _computeStatusText();
           });
+        }
+      });
+      _statusTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+        if (mounted && _isDm && _profile != null) {
+          setState(() => _statusText = _computeStatusText());
         }
       });
     }
@@ -174,12 +188,14 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     });
   }
 
-  String _computeStatusFromEvent(UserStatusEvent event) {
-    if (event.isOnline) return 'online';
-    switch (event.lastSeenKind) {
+  String _computeStatusText() {
+    if (_profile?.isBot == true) return 'bot';
+    if (_isUserOnline) return 'online';
+    switch (_lastSeenKind) {
       case 'online':
         return 'online';
       case 'recently':
+      case 'hidden':
         return 'last seen recently';
       case 'within_week':
         return 'last seen within a week';
@@ -187,12 +203,10 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         return 'last seen within a month';
       case 'long_ago':
         return 'last seen a long time ago';
-      case 'hidden':
-        return 'last seen recently';
       case 'exact':
-        if (event.lastSeenMs > 0) {
+        if (_lastSeenMs > 0) {
           final dt =
-              DateTime.fromMillisecondsSinceEpoch(event.lastSeenMs);
+              DateTime.fromMillisecondsSinceEpoch(_lastSeenMs);
           final now = DateTime.now();
           final diff = now.difference(dt);
           if (diff.inMinutes < 1) return 'last seen just now';
@@ -216,6 +230,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
 
   @override
   void dispose() {
+    _statusTimer?.cancel();
     _statusSub?.cancel();
     _chatUpdateSub?.cancel();
     _positionSub?.cancel();
@@ -260,6 +275,9 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         }
       });
       player.open(Media(_profile!.videoAvatarPath));
+      if (_profile!.videoStartPosition > 0) {
+        player.seek(Duration(milliseconds: _profile!.videoStartPosition));
+      }
     }
   }
 
@@ -281,7 +299,11 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           _loadingProfile = false;
           _showRadialLoader = false;
           if (profile != null) {
-            _statusText = _computeInitialStatus(profile);
+            _isUserOnline = profile.isOnline;
+            _lastSeenKind = profile.lastSeenKind;
+            _lastSeenMs = profile.lastSeen;
+            _currentPhotoId = profile.userpicPhotoId;
+            _statusText = _computeStatusText();
           }
         });
         _initVideoIfAvailable();
@@ -294,45 +316,6 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           _showRadialLoader = false;
         });
       }
-    }
-  }
-
-  String _computeInitialStatus(UserProfile profile) {
-    if (profile.isBot) return 'bot';
-    if (profile.isOnline) return 'online';
-    switch (profile.lastSeenKind) {
-      case 'online':
-        return 'online';
-      case 'recently':
-      case 'hidden':
-        return 'last seen recently';
-      case 'within_week':
-        return 'last seen within a week';
-      case 'within_month':
-        return 'last seen within a month';
-      case 'long_ago':
-        return 'last seen a long time ago';
-      case 'exact':
-        if (profile.lastSeen > 0) {
-          final dt = DateTime.fromMillisecondsSinceEpoch(profile.lastSeen);
-          final now = DateTime.now();
-          final diff = now.difference(dt);
-          if (diff.inMinutes < 1) return 'last seen just now';
-          if (diff.inMinutes < 60) {
-            return 'last seen ${diff.inMinutes} min ago';
-          }
-          if (diff.inHours < 24) {
-            return 'last seen ${diff.inHours}h ago';
-          }
-          final months = [
-            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-          ];
-          return 'last seen ${months[dt.month - 1]} ${dt.day}';
-        }
-        return 'last seen recently';
-      default:
-        return 'last seen recently';
     }
   }
 
@@ -355,30 +338,39 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     setState(() {
       _currentPhotoIndex = idx;
       _currentPhotoPath = null;
+      if (idx == 0 && _profile != null) {
+        _currentPhotoId = _profile!.userpicPhotoId;
+      }
     });
     _fetchPhotoAtIndex(idx);
   }
 
   Future<void> _fetchPhotoAtIndex(int index) async {
     if (index == 0) {
-      setState(() => _currentPhotoPath = null);
+      setState(() {
+        _currentPhotoPath = null;
+        _photoLoading = false;
+      });
       return;
     }
+    setState(() => _photoLoading = true);
     try {
       final engine = context.read<EngineService>();
-      final path = await engine.getUserPhotoAtIndex(
+      final result = await engine.getUserPhotoAtIndex(
           widget.accountId, widget.peerId, index);
-      if (mounted && _currentPhotoIndex == index && path.path != null) {
-        setState(() => _currentPhotoPath = path.path);
+      if (mounted && _currentPhotoIndex == index) {
+        setState(() {
+          _currentPhotoPath = result.path;
+          if (result.photoId != null) _currentPhotoId = result.photoId!;
+          _photoLoading = false;
+        });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _photoLoading = false);
+    }
   }
 
   void _showContextMenu(BuildContext context, Offset position) {
-    final chatState = context.read<ChatState>();
-    final isAlreadyOpen = chatState.activeChat?.chatId == widget.peerId &&
-        chatState.activeChat?.accountId == widget.accountId;
-    if (isAlreadyOpen) return;
     showTelegramMenu<String>(
       context: context,
       position: position,
@@ -573,10 +565,15 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
 
   String _computeAdditionalStatus() {
     if (!_isDm || _profile == null) return '';
-    if (_currentPhotoIndex == 0 && _profile!.hasPersonalPhoto) {
+    if (_currentPhotoId.isNotEmpty &&
+        _currentPhotoId == _profile!.userpicPhotoId &&
+        _profile!.hasPersonalPhoto) {
       return 'Set by you';
     }
-    if (_photoCount > 1 && _currentPhotoIndex == _photoCount - 1) {
+    if (_photoCount > 1 &&
+        _currentPhotoIndex == _photoCount - 1 &&
+        _profile!.fallbackPhotoId.isNotEmpty &&
+        _currentPhotoId == _profile!.fallbackPhotoId) {
       return 'Public photo';
     }
     return '';
@@ -672,34 +669,10 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
               fit: StackFit.expand,
               children: [
                 Positioned(
-                  left: 0, right: 0, top: 0,
-                  height: topBarAreaHeight + 10,
-                  child: topGradient,
-                ),
-                Positioned(
                   left: 0, right: 0, bottom: 0,
                   height: _kShadowHeight,
                   child: bottomGradient,
                 ),
-                if (_photoCount > 1)
-                  Positioned(
-                    left: _kBarPadding,
-                    right: _kBarPadding,
-                    top: _kBarPadding,
-                    height: _kBarHeight,
-                    child: CustomPaint(
-                      painter: _PhotoProgressBarsPainter(
-                        count: _photoCount,
-                        activeIndex: _currentPhotoIndex,
-                        barColor: Colors.white,
-                        gap: _kBarGap,
-                        inactiveOpacity: _kInactiveBarOpacity,
-                        videoProgress: _videoController != null
-                            ? _videoProgress
-                            : 1.0,
-                      ),
-                    ),
-                  ),
                 Positioned(
                   left: _kNameX, right: _kNameX, bottom: _kNameY,
                   child: nameWidget,
@@ -725,6 +698,46 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
               ],
             ),
           ),
+          if (_photoCount > 1)
+            ValueListenableBuilder<double>(
+              valueListenable: _scrollNotifier,
+              builder: (context, scrollOffset, child) {
+                final barFadeEnd = _kCoverSize - _kNameY;
+                final opacity = scrollOffset <= 0
+                    ? 1.0
+                    : scrollOffset >= barFadeEnd
+                        ? 0.0
+                        : (1.0 - scrollOffset / barFadeEnd).clamp(0.0, 1.0);
+                return Opacity(opacity: opacity, child: child);
+              },
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: 0, right: 0, top: 0,
+                    height: topBarAreaHeight + 10,
+                    child: topGradient,
+                  ),
+                  Positioned(
+                    left: _kBarPadding,
+                    right: _kBarPadding,
+                    top: _kBarPadding,
+                    height: _kBarHeight,
+                    child: CustomPaint(
+                      painter: _PhotoProgressBarsPainter(
+                        count: _photoCount,
+                        activeIndex: _currentPhotoIndex,
+                        barColor: Colors.white,
+                        gap: _kBarGap,
+                        inactiveOpacity: _kInactiveBarOpacity,
+                        videoProgress: _videoController != null
+                            ? _videoProgress
+                            : 1.0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (_photoCount > 1) ...[
             Positioned(
               left: 0, top: 0, bottom: 0,
@@ -748,11 +761,11 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
               ),
             ),
           ],
-          if (_showRadialLoader || _videoBuffering)
+          if (_showRadialLoader || _videoBuffering || _photoLoading)
             Positioned.fill(
               child: Center(
                 child: AnimatedOpacity(
-                  opacity: (_showRadialLoader || _videoBuffering) ? 1.0 : 0.0,
+                  opacity: (_showRadialLoader || _videoBuffering || _photoLoading) ? 1.0 : 0.0,
                   duration: _kAnimDuration,
                   child: SizedBox(
                     width: 24,
@@ -1203,29 +1216,35 @@ class _PhotoProgressBarsPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (count <= 1) return;
-    final totalGap = gap * (count - 1);
-    final barWidth = (size.width - totalGap) / count;
-    if (barWidth <= 0) return;
+    final available = size.width - gap * (count - 1);
+    final smallWidth = available.floor() ~/ count;
+    if (smallWidth < size.height.toInt()) return;
+    final largeWidth = smallWidth + 1;
+    final single = available / count;
     final radius = Radius.circular(size.height / 2);
     for (int i = 0; i < count; i++) {
-      final x = i * (barWidth + gap);
+      final left = i * (single + gap);
+      final right = left + single;
+      final x = left.roundToDouble();
+      final isSmall = right.round() == left.round() + smallWidth;
+      final barW = (isSmall ? smallWidth : largeWidth).toDouble();
       final isActive = i == activeIndex;
       final bgPaint = Paint()
         ..color = barColor.withValues(alpha: inactiveOpacity)
         ..style = PaintingStyle.fill;
       canvas.drawRRect(
-        RRect.fromLTRBR(x, 0, x + barWidth, size.height, radius),
+        RRect.fromLTRBR(x, 0, x + barW, size.height, radius),
         bgPaint,
       );
       if (isActive) {
-        final fillWidth = barWidth * videoProgress.clamp(0.0, 1.0);
+        final fillWidth = barW * videoProgress.clamp(0.0, 1.0);
         if (fillWidth > 0) {
           final fgPaint = Paint()
             ..color = barColor
             ..style = PaintingStyle.fill;
           canvas.save();
           canvas.clipRRect(
-            RRect.fromLTRBR(x, 0, x + barWidth, size.height, radius),
+            RRect.fromLTRBR(x, 0, x + barW, size.height, radius),
           );
           canvas.drawRect(
             Rect.fromLTWH(x, 0, fillWidth, size.height),
