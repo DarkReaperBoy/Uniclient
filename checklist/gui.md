@@ -564,39 +564,6 @@ One CRITICAL issue found. All other features (cloud password flow, local passcod
 
 ## send_files_box — Send Files Dialog audit vs AyuGram C++ source
 
-- [ ] [MAJOR] `_doEdit` opens `PhotoCropEditor` (crop-only tool) for the photo editor. AyuGram opens `Editor::OpenWithPreparedFile` which is the full photo editor (draw, paint, crop, stickers, text). Dart lacks access to the full photo editor and substitutes crop only. — `send_files_box.dart:2151` ← `AyuGram/boxes/send_files_box.cpp:1361`
-
-# settings_screen — Audit Findings
-
-- [ ] [CRITICAL] `_CallsSettingsTab` output device `onTap: () {}` is an empty stub — opens no device picker, never reads real device list from engine — `settings_screen.dart:2088` ← `settings/sections/settings_calls.cpp:82` (`InitPlaybackButton` opens `ChoosePlaybackDeviceBox` with live `DeviceIdOrDefault` stream)
-
-- [ ] [CRITICAL] `_CallsSettingsTab` input device `onTap: () {}` is an empty stub — opens no device picker, no microphone level meter — `settings_screen.dart:2094` ← `settings/sections/settings_calls.cpp:99` (`InitCaptureButton` wires `ChooseCaptureDeviceBox` and `AudioInputTester` level meter)
-
-- [ ] [CRITICAL] `_CallsSettingsTab` P2P radio buttons all use `onTap: () {}` — selection is never read from or written to the engine; always renders "My contacts" as checked regardless of real setting — `settings_screen.dart:2111` ← `settings/sections/settings_privacy_security.cpp:92` (P2P setting is a privacy rule fetched and saved via `Api::UserPrivacy`)
-
-- [ ] [CRITICAL] `_CallsSettingsTab` missing "Accept Calls" toggle — AyuGram has a toggle that reads/writes `authorizations->callsDisabledHere()` via `api->authorizations().toggleCallsDisabledHere()` — no such control exists anywhere in `_CallsSettingsTab` — `settings_screen.dart:2065` ← `settings/sections/settings_calls.cpp:392`
-
-- [ ] [CRITICAL] `_CallsSettingsTab` missing camera/video section — AyuGram's `BuildCameraSection` shows a video device selector with live preview when a camera is detected; Dart has no camera subsection at all — `settings_screen.dart:2065` ← `settings/sections/settings_calls.cpp:343`
-
-- [ ] [CRITICAL] `_PremiumInfoScreen._loadPremiumInfo` returns a hardcoded static list of 8 strings, never calls any engine method — features are not loaded from the live API — `settings_screen.dart:2198` ← `settings/sections/settings_premium.cpp:240` (AyuGram builds feature rows from `FallbackOrder()` + MTP `premium_promo_order` app config, 21 real entries)
-
-- [ ] [CRITICAL] `_BusinessScreen` is a static info page with no clickable sub-screens — AyuGram's business screen has fully navigable sub-pages (Working Hours, Location, Greeting, Away, Quick Replies, Chatbots, Chat Intro, Chat Links) each backed by real API calls — `settings_screen.dart:2404` ← `settings/sections/settings_business.cpp:100` (`EntryMap()` + `buttonCallback` per feature navigates to dedicated business sub-screens)
-
-- [ ] [CRITICAL] `_CreditsScreen` "Buy Stars" button opens external URL `https://t.me/stars` — AyuGram opens in-app purchase via `BuildCreditsButtons` / `gift_credits_box.h`; no transaction history, no subscription management shown — `settings_screen.dart:2374` ← `settings/sections/settings_credits.cpp:82` (`BuildCreditsButtons` and `setupHistory`/`setupSubscriptions` show full transaction history with tabs In/Out/Full)
-
-- [ ] [MAJOR] `_GiftCatalogScreen` loads gifts via `engine.getStarGifts` (correct) but tapping a gift item has no action — no recipient picker or send flow is wired; the `GridView.builder` items have no `onTap` handler — `settings_screen.dart:2561` ← `settings/sections/settings_main.cpp:593` (`Ui::ChooseStarGiftRecipient(controller)` opens a full recipient-selection flow)
-
-- [ ] [MAJOR] Premium settings section missing "Telegram Currency" (TON/crypto wallet) row — AyuGram shows it when `tonBalanceValue` is non-empty (`main/currency` button with `st::menuIconTon`) — no such row exists in the Dart premium section — `settings_screen.dart:401` ← `settings/sections/settings_main.cpp:563`
-
-- [ ] [MAJOR] `_CallsSettingsTab` device value is hardcoded string `'Default'` — actual selected device name is never fetched from the engine, so the row always shows "Default" even when a specific device is configured — `settings_screen.dart:2086,2092` ← `settings/sections/settings_calls.cpp:56` (`DeviceNameValue` resolves live device name from `Core::App().mediaDevices().devicesValue()`)
-
-- [ ] [MAJOR] `_CallsSettingsTab` missing "Use same device for calls" toggle — AyuGram has `calls/same-devices` toggle that switches between shared audio device and separate call-specific playback/capture devices — `settings_screen.dart:2065` ← `settings/sections/settings_calls.cpp:245`
-
-- [ ] [MAJOR] Username `onTap` copies link to clipboard with `showTelegramToast` — AyuGram's behaviour when username is non-empty is identical (copies link + shows toast), but when username is empty it opens `UsernamesBox` to add one; Dart's `_onUsernameTap` returns early on empty username with no navigation — `settings_screen.dart:895` ← `settings/sections/settings_main.cpp:301`
-
-- [ ] [MAJOR] Profile header photo size is 72px in Dart vs `st::infoProfileCover.photo.size` which resolves to 80px in AyuGram style — Dart uses `CircleAvatar(radius: 36)` = 72px diameter — `settings_screen.dart:628` ← `settings/sections/settings_main.cpp:144` (height = `st::settingsPhotoTop + st::infoProfileCover.photo.size.height() + st::settingsPhotoBottom`)
-
-- [ ] [MAJOR] `_PremiumInfoScreen` "Subscribe to Premium" button opens external URL — AyuGram calls `controller->setPremiumRef("settings")` then opens the in-app Premium payment flow (`showOther(PremiumId())`); Dart uses `_openUrl('https://t.me/premium')` — `settings_screen.dart:2285` ← `settings/sections/settings_main.cpp:538`
 
 # shell — Audit findings
 
