@@ -71,11 +71,7 @@ Fix both asserts→throws in bridge_web.dart before shipping web version. Deskto
 
 # auth_state — Auth flow state machine gaps
 
-- [ ] [MAJOR] SRP_ID_INVALID storm timeout wrong value — Storm protection was added but `_kSrpIdInvalidTimeout = Duration(seconds: 5)` when AyuGram specifies `kHandleSrpIdInvalidTimeout = 60 * crl::time(1000)` = 60s (`core/core_cloud_password.h:14`). A storm with >5s between errors won't be caught. Fix: `Duration(seconds: 60)` — `auth_state.dart:25`
-
 # ayu_forward — Forward state machine and intelligent forward logic
-
-- [ ] [MAJOR] Native forward chunk sends each message individually instead of as a batch — `ForwardMethod.native` case at line 229–242 iterates per message calling `engine.forwardMessage(...)` once per `msg`. AyuGram calls `AyuSync::forwardMessagesSync` with the full item list in one `messages.forwardMessages` Telegram API request preserving album grouping. Per-message Dart calls issue N separate forward requests; album messages in native chunks are forwarded as ungrouped individual messages — `ayu_forward.dart:229` ← `ayu_forward.cpp:299`
 
 # bridge_ffi.dart — No issues found
 
