@@ -247,30 +247,22 @@ class ChatWallpaper extends StatelessWidget {
 
   Widget _buildPattern() {
     final colors = wallpaper.backgroundColors;
-    Widget bg;
-    if (colors.length >= 2) {
-      bg = _MultiColorGradient(colors: colors, rotation: wallpaper.gradientRotation);
-    } else if (colors.isNotEmpty) {
-      bg = ColoredBox(color: colors.first);
-    } else {
-      bg = ColoredBox(color: fallbackColor);
+    if (wallpaper.patternBytes == null) {
+      if (colors.length >= 2) {
+        return _MultiColorGradient(colors: colors, rotation: wallpaper.gradientRotation);
+      } else if (colors.isNotEmpty) {
+        return ColoredBox(color: colors.first);
+      }
+      return ColoredBox(color: fallbackColor);
     }
 
-    if (wallpaper.patternBytes == null) return bg;
-
-    final intensity = wallpaper.patternIntensity;
-    final opacity = wallpaper.patternOpacity.clamp(0.0, 1.0);
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        bg,
-        _PatternOverlay(
-          patternBytes: wallpaper.patternBytes!,
-          intensity: intensity,
-          opacity: opacity,
-        ),
-      ],
+    return _PatternWallpaper(
+      backgroundColors: colors,
+      gradientRotation: wallpaper.gradientRotation,
+      patternBytes: wallpaper.patternBytes!,
+      intensity: wallpaper.patternIntensity,
+      opacity: wallpaper.patternOpacity.clamp(0.0, 1.0),
+      fallbackColor: fallbackColor,
     );
   }
 }
@@ -459,70 +451,233 @@ class _TiledPainter extends CustomPainter {
   bool shouldRepaint(_TiledPainter old) => old.imageBytes != imageBytes;
 }
 
-class _PatternOverlay extends StatelessWidget {
+class _PatternWallpaper extends StatefulWidget {
+  final List<Color> backgroundColors;
+  final int gradientRotation;
   final Uint8List patternBytes;
   final int intensity;
   final double opacity;
+  final Color fallbackColor;
 
-  const _PatternOverlay({
+  const _PatternWallpaper({
+    required this.backgroundColors,
+    required this.gradientRotation,
     required this.patternBytes,
     required this.intensity,
     required this.opacity,
+    required this.fallbackColor,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final patternImage = Image.memory(
-      patternBytes,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      gaplessPlayback: true,
-    );
+  State<_PatternWallpaper> createState() => _PatternWallpaperState();
+}
 
-    if (intensity >= 0) {
-      return Opacity(
-        opacity: opacity,
-        child: ShaderMask(
-          blendMode: BlendMode.softLight,
-          shaderCallback: (bounds) => const LinearGradient(
-            colors: [Colors.white, Colors.white],
-          ).createShader(bounds),
-          child: patternImage,
-        ),
-      );
+class _PatternWallpaperState extends State<_PatternWallpaper>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  ui.Image? _patternImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    )..repeat();
+    _decodePattern();
+  }
+
+  @override
+  void didUpdateWidget(_PatternWallpaper old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.patternBytes, widget.patternBytes)) {
+      _decodePattern();
     }
+  }
 
-    // §25.8.4 / §25.17.4: negative intensity uses DestinationIn + SourceOver black fill
-    return CustomPaint(
-      foregroundPainter: _NegativePatternPainter(
-        darkenOpacity: intensity > -100 ? 1.0 + (intensity / 100.0) : 0.0,
-      ),
-      child: ColorFiltered(
-        colorFilter: const ColorFilter.mode(Colors.white, BlendMode.dstIn),
-        child: patternImage,
-      ),
+  void _decodePattern() {
+    ui.decodeImageFromList(widget.patternBytes, (image) {
+      if (mounted) setState(() => _patternImage = image);
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final powerSaving = context.watch<AppState>().powerSaving(AppState.kPowerSavingChatBackground);
+    if (powerSaving && _ctrl.isAnimating) {
+      _ctrl.stop();
+    } else if (!powerSaving && !_ctrl.isAnimating) {
+      _ctrl.repeat();
+    }
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _PatternWallpaperPainter(
+            colors: widget.backgroundColors,
+            baseRotation: widget.gradientRotation,
+            progress: _ctrl.value,
+            patternImage: _patternImage,
+            intensity: widget.intensity,
+            opacity: widget.opacity,
+            fallbackColor: widget.fallbackColor,
+          ),
+          size: Size.infinite,
+        );
+      },
     );
   }
 }
 
-class _NegativePatternPainter extends CustomPainter {
-  final double darkenOpacity;
-  _NegativePatternPainter({required this.darkenOpacity});
+class _PatternWallpaperPainter extends CustomPainter {
+  final List<Color> colors;
+  final int baseRotation;
+  final double progress;
+  final ui.Image? patternImage;
+  final int intensity;
+  final double opacity;
+  final Color fallbackColor;
+
+  _PatternWallpaperPainter({
+    required this.colors,
+    required this.baseRotation,
+    required this.progress,
+    required this.patternImage,
+    required this.intensity,
+    required this.opacity,
+    required this.fallbackColor,
+  });
+
+  static const _invertColorFilter = ColorFilter.matrix(<double>[
+    0, 0, 0, 1, 0,
+    0, 0, 0, 1, 0,
+    0, 0, 0, 1, 0,
+    0, 0, 0, 1, 0,
+  ]);
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (darkenOpacity > 0.0) {
-      canvas.drawRect(
-        Offset.zero & size,
-        Paint()..color = Color.fromRGBO(0, 0, 0, darkenOpacity),
+    if (patternImage == null) {
+      _drawGradient(canvas, size);
+      return;
+    }
+
+    final rect = Offset.zero & size;
+
+    if (intensity >= 0) {
+      _drawGradient(canvas, size);
+      canvas.saveLayer(
+        rect,
+        Paint()
+          ..blendMode = BlendMode.softLight
+          ..color = Color.fromARGB((opacity * 255).round(), 255, 255, 255),
       );
+      final paint = Paint();
+      if (_isPatternInverted()) {
+        paint.colorFilter = _invertColorFilter;
+      }
+      _tilePattern(canvas, size, patternImage!, paint);
+      canvas.restore();
+    } else {
+      canvas.saveLayer(rect, Paint());
+      _drawGradient(canvas, size);
+      _tilePattern(
+        canvas, size, patternImage!,
+        Paint()..blendMode = BlendMode.dstIn,
+      );
+      if (intensity > -100) {
+        final blackOpacity = 1.0 + (intensity / 100.0);
+        canvas.drawRect(
+          rect,
+          Paint()..color = Color.fromRGBO(0, 0, 0, blackOpacity),
+        );
+      }
+      canvas.restore();
     }
   }
 
+  void _drawGradient(Canvas canvas, Size size) {
+    if (colors.isEmpty) {
+      canvas.drawRect(Offset.zero & size, Paint()..color = fallbackColor);
+      return;
+    }
+    if (colors.length == 1) {
+      canvas.drawRect(Offset.zero & size, Paint()..color = colors.first);
+      return;
+    }
+
+    final realRotation = (baseRotation * 2) % 720;
+    final phase = (realRotation ~/ 360).isOdd;
+    final t = phase ? 1.0 - progress * 0.5 : 0.5 + progress * 0.5;
+    final angle = (realRotation % 360 + t * 360) * math.pi / 180.0;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final stops = <double>[];
+    for (int i = 0; i < colors.length; i++) {
+      stops.add(i / (colors.length - 1));
+    }
+    final dx = math.sin(angle);
+    final dy = -math.cos(angle);
+    final halfDiag = math.sqrt(cx * cx + cy * cy);
+
+    final paint = Paint()
+      ..shader = ui.Gradient.linear(
+        Offset(cx - dx * halfDiag, cy - dy * halfDiag),
+        Offset(cx + dx * halfDiag, cy + dy * halfDiag),
+        colors,
+        stops,
+      );
+    canvas.drawRect(Offset.zero & size, paint);
+  }
+
+  void _tilePattern(Canvas canvas, Size size, ui.Image pattern, Paint paint) {
+    final scaleY = size.height / pattern.height;
+    final scaledW = pattern.width * scaleY;
+    final src = Rect.fromLTWH(
+      0, 0, pattern.width.toDouble(), pattern.height.toDouble(),
+    );
+    final minCols = (size.width / scaledW).ceil();
+    final cols = ((minCols ~/ 2) * 2) + 1;
+    final totalWidth = cols * scaledW;
+    final xOffset = (size.width - totalWidth) / 2;
+
+    for (int x = 0; x < cols; x++) {
+      final dst = Rect.fromLTWH(
+        xOffset + x * scaledW, 0, scaledW, size.height,
+      );
+      canvas.drawImageRect(pattern, src, dst, paint);
+    }
+  }
+
+  bool _isPatternInverted() {
+    if (intensity <= 0 || colors.isEmpty) return false;
+    int r = 0, g = 0, b = 0;
+    for (final c in colors) {
+      r += c.red;
+      g += c.green;
+      b += c.blue;
+    }
+    final n = colors.length;
+    final avg = Color.fromARGB(255, r ~/ n, g ~/ n, b ~/ n);
+    final hsv = HSVColor.fromColor(avg);
+    return hsv.value <= 0.3;
+  }
+
   @override
-  bool shouldRepaint(_NegativePatternPainter old) =>
-      old.darkenOpacity != darkenOpacity;
+  bool shouldRepaint(_PatternWallpaperPainter old) =>
+      old.progress != progress ||
+      old.baseRotation != baseRotation ||
+      old.colors != colors ||
+      old.patternImage != patternImage ||
+      old.intensity != intensity ||
+      old.opacity != opacity;
 }
 
 Color computeAverageColor(Uint8List imageBytes) {
