@@ -103,8 +103,8 @@ const double _kCanvasZoomStepFine = 1.015;
 const double _kBlurSigmaFactor = 0.8;
 const double _kAnnotationHandleSize = 8.0;
 const double _kAnnotationHitSlop = 20.0;
-const double _kAnnotationMinScale = 0.2;
-const double _kAnnotationMaxScale = 5.0;
+const double _kAnnotationMinScale = 0.1;
+const double _kAnnotationMaxScale = 10.0;
 
 const double _kRainbowRingSize = 28.0;
 const double _kRainbowRingBorder = 3.0;
@@ -150,6 +150,7 @@ class _TextAnnotation {
   Color color;
   double fontSize;
   double scale;
+  double rotation;
   Uint8List? imageBytes;
   ui.Image? _decodedImage;
 
@@ -159,6 +160,7 @@ class _TextAnnotation {
     required this.color,
     this.fontSize = 24,
     this.scale = 1.0,
+    this.rotation = 0.0,
     this.imageBytes,
   });
 
@@ -179,6 +181,7 @@ class _TextAnnotation {
     color: color,
     fontSize: fontSize,
     scale: scale,
+    rotation: rotation,
     imageBytes: imageBytes,
   ).._decodedImage = _decodedImage;
 }
@@ -197,6 +200,8 @@ enum _CornerLevel {
 enum PhotoCropShape { ellipse, roundedRect, rect }
 
 enum _EditorMode { transform, paint }
+
+enum _AnnotationHandle { none, resize, rotate, delete }
 
 enum _IconState { idle, active, inactive }
 
@@ -819,6 +824,13 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
     });
   }
 
+  void _rotateAnnotation(int index, double angleDelta) {
+    if (index < 0 || index >= _textAnnotations.length) return;
+    setState(() {
+      _textAnnotations[index].rotation += angleDelta;
+    });
+  }
+
   void _deleteSelectedAnnotation() {
     if (_selectedAnnotation < 0 || _selectedAnnotation >= _textAnnotations.length) return;
     setState(() {
@@ -838,6 +850,30 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   void _onCanvasZoom(double zoomDelta) {
     setState(() {
       _canvasZoom = (_canvasZoom * zoomDelta).clamp(_kMinCanvasZoom, _kMaxCanvasZoom);
+    });
+  }
+
+  void _onCanvasZoomAt(double zoomDelta, Offset screenPos, Size canvasSize) {
+    setState(() {
+      final oldZoom = _canvasZoom;
+      final newZoom = (_canvasZoom * zoomDelta).clamp(_kMinCanvasZoom, _kMaxCanvasZoom);
+      if (newZoom == oldZoom) return;
+      final cx = canvasSize.width / 2;
+      final cy = canvasSize.height / 2;
+      final dx = screenPos.dx - cx;
+      final dy = screenPos.dy - cy;
+      final ratio = newZoom / oldZoom;
+      _canvasOffset = Offset(
+        dx - (dx - _canvasOffset.dx) * ratio,
+        dy - (dy - _canvasOffset.dy) * ratio,
+      );
+      _canvasZoom = newZoom;
+    });
+  }
+
+  void _onCanvasOffsetChanged(Offset delta) {
+    setState(() {
+      _canvasOffset += delta;
     });
   }
 
@@ -953,6 +989,14 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
     }
 
     for (final ann in _textAnnotations) {
+      canvas.save();
+      canvas.translate(
+        ann.position.dx + exportOffset.dx,
+        ann.position.dy + exportOffset.dy,
+      );
+      if (ann.rotation != 0) {
+        canvas.rotate(ann.rotation);
+      }
       if (ann.isSticker && ann._decodedImage != null) {
         final img = ann._decodedImage!;
         final stickerSize = ann.fontSize * ann.scale;
@@ -963,11 +1007,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
         canvas.drawImageRect(
           img,
           Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
-          Rect.fromLTWH(
-            ann.position.dx - w / 2 + exportOffset.dx,
-            ann.position.dy - h / 2 + exportOffset.dy,
-            w, h,
-          ),
+          Rect.fromLTWH(-w / 2, -h / 2, w, h),
           Paint()..filterQuality = FilterQuality.high,
         );
       } else {
@@ -983,11 +1023,9 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
           ),
           textDirection: TextDirection.ltr,
         )..layout();
-        tp.paint(canvas, Offset(
-          ann.position.dx - tp.width / 2 + exportOffset.dx,
-          ann.position.dy - tp.height / 2 + exportOffset.dy,
-        ));
+        tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
       }
+      canvas.restore();
     }
 
     final picture = recorder.endRecording();
@@ -1115,11 +1153,15 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
                                 onAnnotationSelected: _selectAnnotation,
                                 onAnnotationMoved: _moveAnnotation,
                                 onAnnotationScaled: _scaleAnnotation,
+                                onAnnotationRotated: _rotateAnnotation,
                                 onAnnotationDoubleTap: _editAnnotation,
+                                onAnnotationDeleted: _deleteSelectedAnnotation,
                                 editingAnnotation: _editingAnnotationIndex,
                                 canvasZoom: _canvasZoom,
                                 canvasOffset: _canvasOffset,
                                 onZoomChanged: _onCanvasZoom,
+                                onZoomAt: _onCanvasZoomAt,
+                                onPan: _onCanvasOffsetChanged,
                               ),
                   ),
                 ],
@@ -1398,11 +1440,15 @@ class _ImageCropArea extends StatefulWidget {
   final ValueChanged<int>? onAnnotationSelected;
   final void Function(int index, Offset delta)? onAnnotationMoved;
   final void Function(int index, double scaleDelta)? onAnnotationScaled;
+  final void Function(int index, double angleDelta)? onAnnotationRotated;
   final ValueChanged<int>? onAnnotationDoubleTap;
+  final void Function()? onAnnotationDeleted;
   final int editingAnnotation;
   final double canvasZoom;
   final Offset canvasOffset;
   final ValueChanged<double>? onZoomChanged;
+  final void Function(double zoomDelta, Offset pos, Size size)? onZoomAt;
+  final ValueChanged<Offset>? onPan;
 
   const _ImageCropArea({
     super.key,
@@ -1423,11 +1469,15 @@ class _ImageCropArea extends StatefulWidget {
     this.onAnnotationSelected,
     this.onAnnotationMoved,
     this.onAnnotationScaled,
+    this.onAnnotationRotated,
     this.onAnnotationDoubleTap,
+    this.onAnnotationDeleted,
     this.editingAnnotation = -1,
     this.canvasZoom = 1.0,
     this.canvasOffset = Offset.zero,
     this.onZoomChanged,
+    this.onZoomAt,
+    this.onPan,
   });
 
   @override
@@ -1449,7 +1499,11 @@ class _ImageCropAreaState extends State<_ImageCropArea>
 
   List<Offset>? _currentStrokePoints;
   bool _draggingAnnotation = false;
+  bool _resizingAnnotation = false;
+  bool _rotatingAnnotation = false;
+  bool _middleButtonPanning = false;
   Offset _lastDragPos = Offset.zero;
+  Offset _rotateAnchor = Offset.zero;
   DateTime? _lastTapTime;
   int _lastTapAnnotation = -1;
 
@@ -1609,44 +1663,103 @@ class _ImageCropAreaState extends State<_ImageCropArea>
     }
   }
 
+  (double, double) _annotationItemSize(_TextAnnotation ann) {
+    if (ann.isSticker && ann._decodedImage != null) {
+      final img = ann._decodedImage!;
+      final stickerSize = ann.fontSize * ann.scale;
+      final aspect = img.width / img.height;
+      if (aspect >= 1) return (stickerSize, stickerSize / aspect);
+      return (stickerSize * aspect, stickerSize);
+    }
+    final tp = TextPainter(
+      text: TextSpan(
+        text: ann.text,
+        style: TextStyle(fontSize: ann.fontSize * ann.scale, fontWeight: FontWeight.w600),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return (tp.width, tp.height);
+  }
+
   int _hitTestAnnotations(Offset pos) {
     for (int i = widget.textAnnotations.length - 1; i >= 0; i--) {
       final ann = widget.textAnnotations[i];
-      double itemW, itemH;
-      if (ann.isSticker && ann._decodedImage != null) {
-        final img = ann._decodedImage!;
-        final stickerSize = ann.fontSize * ann.scale;
-        final aspect = img.width / img.height;
-        if (aspect >= 1) {
-          itemW = stickerSize;
-          itemH = stickerSize / aspect;
-        } else {
-          itemH = stickerSize;
-          itemW = stickerSize * aspect;
-        }
-      } else {
-        final tp = TextPainter(
-          text: TextSpan(
-            text: ann.text,
-            style: TextStyle(fontSize: ann.fontSize * ann.scale, fontWeight: FontWeight.w600),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        itemW = tp.width;
-        itemH = tp.height;
-      }
+      final localPos = _toAnnotationLocal(pos, ann);
+      final (w, h) = _annotationItemSize(ann);
       final rect = Rect.fromCenter(
         center: ann.position,
-        width: itemW + _kAnnotationHitSlop,
-        height: itemH + _kAnnotationHitSlop,
+        width: w + _kAnnotationHitSlop,
+        height: h + _kAnnotationHitSlop,
       );
-      if (rect.contains(pos)) return i;
+      if (rect.contains(localPos)) return i;
     }
     return -1;
   }
 
+  Offset _toAnnotationLocal(Offset pos, _TextAnnotation ann) {
+    if (ann.rotation == 0) return pos;
+    final dx = pos.dx - ann.position.dx;
+    final dy = pos.dy - ann.position.dy;
+    final cosR = math.cos(-ann.rotation);
+    final sinR = math.sin(-ann.rotation);
+    return Offset(
+      ann.position.dx + dx * cosR - dy * sinR,
+      ann.position.dy + dx * sinR + dy * cosR,
+    );
+  }
+
+  _AnnotationHandle _hitTestAnnotationHandles(Offset pos) {
+    final sel = widget.selectedAnnotation;
+    if (sel < 0 || sel >= widget.textAnnotations.length) {
+      return _AnnotationHandle.none;
+    }
+    final ann = widget.textAnnotations[sel];
+    final localPos = _toAnnotationLocal(pos, ann);
+    final (w, h) = _annotationItemSize(ann);
+    final halfW = (w + 8) / 2;
+    final halfH = (h + 8) / 2;
+    const hs = _kAnnotationHandleSize + 4;
+    final center = ann.position;
+    final corners = [
+      Offset(center.dx - halfW, center.dy - halfH),
+      Offset(center.dx + halfW, center.dy - halfH),
+      Offset(center.dx - halfW, center.dy + halfH),
+      Offset(center.dx + halfW, center.dy + halfH),
+    ];
+    for (final c in corners) {
+      if ((localPos - c).distance < hs) return _AnnotationHandle.resize;
+    }
+    final deleteCenter = Offset(center.dx + halfW + 10, center.dy - halfH - 10);
+    if ((localPos - deleteCenter).distance < hs) return _AnnotationHandle.delete;
+    final rotateCenter = Offset(center.dx, center.dy - halfH - 20);
+    if ((localPos - rotateCenter).distance < hs) return _AnnotationHandle.rotate;
+    return _AnnotationHandle.none;
+  }
+
   void _onPointerDown(PointerDownEvent event) {
     if (widget.isPaintMode) {
+      if (event.buttons == kMiddleMouseButton) {
+        _middleButtonPanning = true;
+        _lastDragPos = event.localPosition;
+        return;
+      }
+      final handle = _hitTestAnnotationHandles(event.localPosition);
+      if (handle == _AnnotationHandle.delete) {
+        widget.onAnnotationDeleted?.call();
+        return;
+      }
+      if (handle == _AnnotationHandle.resize) {
+        _resizingAnnotation = true;
+        _lastDragPos = event.localPosition;
+        return;
+      }
+      if (handle == _AnnotationHandle.rotate) {
+        _rotatingAnnotation = true;
+        final ann = widget.textAnnotations[widget.selectedAnnotation];
+        _rotateAnchor = ann.position;
+        _lastDragPos = event.localPosition;
+        return;
+      }
       final hitIdx = _hitTestAnnotations(event.localPosition);
       if (hitIdx >= 0) {
         final now = DateTime.now();
@@ -1684,6 +1797,29 @@ class _ImageCropAreaState extends State<_ImageCropArea>
 
   void _onPointerMove(PointerMoveEvent event) {
     if (widget.isPaintMode) {
+      if (_middleButtonPanning) {
+        final delta = event.localPosition - _lastDragPos;
+        _lastDragPos = event.localPosition;
+        widget.onPan?.call(delta);
+        return;
+      }
+      if (_resizingAnnotation && widget.selectedAnnotation >= 0) {
+        final ann = widget.textAnnotations[widget.selectedAnnotation];
+        final oldDist = (_lastDragPos - ann.position).distance;
+        final newDist = (event.localPosition - ann.position).distance;
+        if (oldDist > 1) {
+          widget.onAnnotationScaled?.call(widget.selectedAnnotation, newDist / oldDist);
+        }
+        _lastDragPos = event.localPosition;
+        return;
+      }
+      if (_rotatingAnnotation && widget.selectedAnnotation >= 0) {
+        final oldAngle = ((_lastDragPos - _rotateAnchor).direction);
+        final newAngle = ((event.localPosition - _rotateAnchor).direction);
+        widget.onAnnotationRotated?.call(widget.selectedAnnotation, newAngle - oldAngle);
+        _lastDragPos = event.localPosition;
+        return;
+      }
       if (_draggingAnnotation && widget.selectedAnnotation >= 0) {
         final delta = event.localPosition - _lastDragPos;
         _lastDragPos = event.localPosition;
@@ -1715,6 +1851,18 @@ class _ImageCropAreaState extends State<_ImageCropArea>
 
   void _onPointerUp(PointerUpEvent event) {
     if (widget.isPaintMode) {
+      if (_middleButtonPanning) {
+        _middleButtonPanning = false;
+        return;
+      }
+      if (_resizingAnnotation) {
+        _resizingAnnotation = false;
+        return;
+      }
+      if (_rotatingAnnotation) {
+        _rotatingAnnotation = false;
+        return;
+      }
       if (_draggingAnnotation) {
         _draggingAnnotation = false;
         return;
@@ -1754,7 +1902,7 @@ class _ImageCropAreaState extends State<_ImageCropArea>
         final shift = HardwareKeyboard.instance.isShiftPressed;
         final step = shift ? _kCanvasZoomStepFine : _kCanvasZoomStep;
         final factor = event.scrollDelta.dy < 0 ? step : 1.0 / step;
-        widget.onZoomChanged?.call(factor);
+        widget.onZoomAt?.call(factor, event.localPosition, _displaySize);
       }
     }
   }
@@ -1911,6 +2059,7 @@ class _ImageCropAreaState extends State<_ImageCropArea>
                       selectedAnnotation: widget.selectedAnnotation,
                       editingAnnotation: widget.editingAnnotation,
                       canvasZoom: widget.canvasZoom,
+                      canvasOffset: widget.canvasOffset,
                     ),
                   );
                 },
@@ -1939,6 +2088,7 @@ class _CropPainter extends CustomPainter {
   final int selectedAnnotation;
   final int editingAnnotation;
   final double canvasZoom;
+  final Offset canvasOffset;
 
   _CropPainter({
     required this.image,
@@ -1956,13 +2106,17 @@ class _CropPainter extends CustomPainter {
     this.selectedAnnotation = -1,
     this.editingAnnotation = -1,
     this.canvasZoom = 1.0,
+    this.canvasOffset = Offset.zero,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (isPaintMode && canvasZoom != 1.0) {
+    if (isPaintMode && (canvasZoom != 1.0 || canvasOffset != Offset.zero)) {
       canvas.save();
-      canvas.translate(size.width / 2, size.height / 2);
+      canvas.translate(
+        size.width / 2 + canvasOffset.dx,
+        size.height / 2 + canvasOffset.dy,
+      );
       canvas.scale(canvasZoom);
       canvas.translate(-size.width / 2, -size.height / 2);
     }
@@ -1972,7 +2126,7 @@ class _CropPainter extends CustomPainter {
     _drawRegularStrokes(canvas);
     _drawTextAnnotations(canvas);
 
-    if (isPaintMode && canvasZoom != 1.0) {
+    if (isPaintMode && (canvasZoom != 1.0 || canvasOffset != Offset.zero)) {
       canvas.restore();
     }
 
@@ -2141,7 +2295,12 @@ class _CropPainter extends CustomPainter {
       final ann = textAnnotations[i];
 
       double itemW, itemH;
-      Offset origin;
+
+      canvas.save();
+      canvas.translate(ann.position.dx, ann.position.dy);
+      if (ann.rotation != 0) {
+        canvas.rotate(ann.rotation);
+      }
 
       if (ann.isSticker && ann._decodedImage != null) {
         final img = ann._decodedImage!;
@@ -2154,14 +2313,10 @@ class _CropPainter extends CustomPainter {
           itemH = stickerSize;
           itemW = stickerSize * aspect;
         }
-        origin = Offset(
-          ann.position.dx - itemW / 2,
-          ann.position.dy - itemH / 2,
-        );
         canvas.drawImageRect(
           img,
           Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
-          Rect.fromLTWH(origin.dx, origin.dy, itemW, itemH),
+          Rect.fromLTWH(-itemW / 2, -itemH / 2, itemW, itemH),
           Paint()..filterQuality = FilterQuality.high,
         );
       } else {
@@ -2179,17 +2334,14 @@ class _CropPainter extends CustomPainter {
         )..layout();
         itemW = tp.width;
         itemH = tp.height;
-        origin = Offset(
-          ann.position.dx - itemW / 2,
-          ann.position.dy - itemH / 2,
-        );
-        tp.paint(canvas, origin);
+        tp.paint(canvas, Offset(-itemW / 2, -itemH / 2));
       }
 
       if (i == selectedAnnotation && isPaintMode) {
-        final selRect = Rect.fromLTWH(
-          origin.dx - 4, origin.dy - 4,
-          itemW + 8, itemH + 8,
+        final selRect = Rect.fromCenter(
+          center: Offset.zero,
+          width: itemW + 8,
+          height: itemH + 8,
         );
         canvas.drawRRect(
           RRect.fromRectAndRadius(selRect, const Radius.circular(4)),
@@ -2205,7 +2357,38 @@ class _CropPainter extends CustomPainter {
             ..color = const Color(0xCCFFFFFF)
             ..style = PaintingStyle.fill);
         }
+        final deleteCenter = Offset(selRect.right + 10, selRect.top - 10);
+        canvas.drawCircle(deleteCenter, _kAnnotationHandleSize, Paint()
+          ..color = const Color(0xCCFF4444)
+          ..style = PaintingStyle.fill);
+        final xSize = _kAnnotationHandleSize * 0.45;
+        canvas.drawLine(
+          deleteCenter + Offset(-xSize, -xSize),
+          deleteCenter + Offset(xSize, xSize),
+          Paint()..color = Colors.white..strokeWidth = 1.5..strokeCap = StrokeCap.round,
+        );
+        canvas.drawLine(
+          deleteCenter + Offset(xSize, -xSize),
+          deleteCenter + Offset(-xSize, xSize),
+          Paint()..color = Colors.white..strokeWidth = 1.5..strokeCap = StrokeCap.round,
+        );
+        final rotateCenter = Offset(0, selRect.top - 20);
+        canvas.drawCircle(rotateCenter, _kAnnotationHandleSize * 0.75, Paint()
+          ..color = const Color(0xCCFFFFFF)
+          ..style = PaintingStyle.fill);
+        final arcRect = Rect.fromCenter(
+          center: rotateCenter,
+          width: _kAnnotationHandleSize,
+          height: _kAnnotationHandleSize,
+        );
+        canvas.drawArc(arcRect, -math.pi * 0.8, math.pi * 1.3, false, Paint()
+          ..color = const Color(0xFF333333)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..strokeCap = StrokeCap.round);
       }
+
+      canvas.restore();
     }
   }
 
@@ -2336,7 +2519,8 @@ class _CropPainter extends CustomPainter {
       old.isPaintMode != isPaintMode ||
       old.selectedAnnotation != selectedAnnotation ||
       old.editingAnnotation != editingAnnotation ||
-      old.canvasZoom != canvasZoom;
+      old.canvasZoom != canvasZoom ||
+      old.canvasOffset != canvasOffset;
 }
 
 class _ControlBar extends StatelessWidget {
@@ -2669,7 +2853,7 @@ class _CornersButtonState extends State<_CornersButton> {
               enabled: false,
               height: 50,
               child: Text(
-                'Set the radius of the corners for the forum-style photo.',
+                'Choose how rounded the sticker corners should look.',
                 style: TextStyle(color: Color(0x99FFFFFF), fontSize: 12),
               ),
             ),
@@ -2845,7 +3029,7 @@ class _ColorPaletteRow extends StatelessWidget {
   }
 }
 
-class _PaintToolRow extends StatelessWidget {
+class _PaintToolRow extends StatefulWidget {
   final _PaintTool currentTool;
   final Color brushColor;
   final bool isFixedColorTool;
@@ -2871,34 +3055,106 @@ class _PaintToolRow extends StatelessWidget {
   ];
 
   @override
+  State<_PaintToolRow> createState() => _PaintToolRowState();
+}
+
+class _PaintToolRowState extends State<_PaintToolRow>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _slideCtrl;
+  double _indicatorFrom = 0;
+  double _indicatorTo = 0;
+  bool _firstBuild = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _slideCtrl = AnimationController(
+      vsync: this,
+      duration: _kToolSelectDuration,
+    );
+    final idx = _PaintToolRow._tools.indexWhere((t) => t.$1 == widget.currentTool);
+    _indicatorFrom = _indicatorTo = idx.toDouble();
+  }
+
+  @override
+  void didUpdateWidget(_PaintToolRow old) {
+    super.didUpdateWidget(old);
+    if (old.currentTool != widget.currentTool) {
+      final idx = _PaintToolRow._tools.indexWhere((t) => t.$1 == widget.currentTool);
+      _indicatorFrom = _indicatorTo;
+      _indicatorTo = idx.toDouble();
+      _slideCtrl.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _slideCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_firstBuild) {
+      _firstBuild = false;
+      final idx = _PaintToolRow._tools.indexWhere((t) => t.$1 == widget.currentTool);
+      _indicatorFrom = _indicatorTo = idx.toDouble();
+    }
+    const buttonSpacing = _kToolButtonSize + 4;
+    const colorButtonWidth = _kRainbowRingSize;
+    const gap = 8.0;
+
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: _kControlBarWidth),
       child: SizedBox(
         height: _kToolButtonSize + 4,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _RainbowColorButton(
-              currentColor: brushColor,
-              isActive: paletteVisible,
-              onTap: onTogglePalette,
-            ),
-            const SizedBox(width: 8),
-            ..._tools.map((t) {
-              final isSelected = currentTool == t.$1;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: _ToolButton(
-                  icon: t.$2,
-                  label: t.$3,
-                  isSelected: isSelected,
-                  onTap: () => onToolChanged(t.$1),
+        child: AnimatedBuilder(
+          animation: _slideCtrl,
+          builder: (context, _) {
+            final t = Curves.easeOutCirc.transform(_slideCtrl.value);
+            final pos = _indicatorFrom + (_indicatorTo - _indicatorFrom) * t;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  left: colorButtonWidth + gap + pos * buttonSpacing + 2,
+                  top: 2,
+                  child: Container(
+                    width: _kToolButtonSize,
+                    height: _kToolButtonSize,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0x33FFFFFF),
+                    ),
+                  ),
                 ),
-              );
-            }),
-          ],
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _RainbowColorButton(
+                      currentColor: widget.brushColor,
+                      isActive: widget.paletteVisible,
+                      onTap: widget.onTogglePalette,
+                    ),
+                    const SizedBox(width: gap),
+                    ..._PaintToolRow._tools.map((entry) {
+                      final isSelected = widget.currentTool == entry.$1;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: _ToolButton(
+                          icon: entry.$2,
+                          label: entry.$3,
+                          isSelected: isSelected,
+                          onTap: () => widget.onToolChanged(entry.$1),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -2923,8 +3179,9 @@ class _ToolButton extends StatefulWidget {
 }
 
 class _ToolButtonState extends State<_ToolButton>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _selectCtrl;
+  late final AnimationController _hoverCtrl;
   bool _hovering = false;
 
   @override
@@ -2934,6 +3191,10 @@ class _ToolButtonState extends State<_ToolButton>
       vsync: this,
       duration: _kToolSelectDuration,
       value: widget.isSelected ? 1.0 : 0.0,
+    );
+    _hoverCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
     );
   }
 
@@ -2952,38 +3213,43 @@ class _ToolButtonState extends State<_ToolButton>
   @override
   void dispose() {
     _selectCtrl.dispose();
+    _hoverCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
+      onEnter: (_) {
+        setState(() => _hovering = true);
+        _hoverCtrl.forward(from: 0);
+      },
+      onExit: (_) {
+        setState(() => _hovering = false);
+        _hoverCtrl.reverse();
+      },
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedBuilder(
-          animation: _selectCtrl,
+          animation: Listenable.merge([_selectCtrl, _hoverCtrl]),
           builder: (context, _) {
             final t = Curves.easeOutCirc.transform(_selectCtrl.value);
-            return Container(
+            final hoverScale = 1.0 + 0.12 * Curves.easeOut.transform(_hoverCtrl.value);
+            return SizedBox(
               width: _kToolButtonSize,
               height: _kToolButtonSize,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color.lerp(
-                  Colors.transparent,
-                  const Color(0x33FFFFFF),
-                  t,
-                ),
-              ),
-              child: Icon(
-                widget.icon,
-                size: 20,
-                color: Color.lerp(
-                  _hovering ? _kCancelFg : _kIconFgIdle,
-                  _kIconFgActive,
-                  t,
+              child: Center(
+                child: Transform.scale(
+                  scale: hoverScale,
+                  child: Icon(
+                    widget.icon,
+                    size: 20,
+                    color: Color.lerp(
+                      _hovering ? _kCancelFg : _kIconFgIdle,
+                      _kIconFgActive,
+                      t,
+                    ),
+                  ),
                 ),
               ),
             );
