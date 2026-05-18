@@ -189,16 +189,6 @@ The `dayBlue` preset incorrectly uses green-tinted values (from the classic day/
 
 The `night` preset has pervasive errors: it uses day-theme file type colors unchanged, wrong call UI colors (green answer button instead of night's blue), wrong selected-state colors (many should be `#ffffff` in night mode but aren't), and wrong bot keyboard overlay colors.
 
-# theme_file — Cloud meta format incompatibility, wrong background size limit, paletteChecksum semantics mismatch
-
-- [ ] [CRITICAL] `writeCloudMeta` exports in format `// id:X hash:Y` (single line, lowercase keys, no space after colon) but AyuGram `WriteCloudToText` writes `// ID: X\n// ACCESS: Y\n` (separate lines, uppercase keys, `: ` separator). Files exported by Dart are unreadable by Telegram Desktop/AyuGram — `ReadCloudFromText` splits by `\n` and uses `entry.indexOf(": ")` to parse, so `id:X hash:Y` yields no match. Also, AyuGram's `kCloudInTextEnd` ends with `\n\n` (double newline) but Dart writes only `\n`. — `theme_file.dart:181-184` ← `window_theme_editor.cpp:346-356`
-
-- [ ] [CRITICAL] `readCloudMeta` uses regexes `r'id:(\d+)'` and `r'hash:(\d+)'` (lowercase, no space) which cannot parse files from Telegram Desktop/AyuGram that have format `// ID: X` and `// ACCESS: Y`. The `parsePaletteText` service-block parser at lines 95–101 has the same bug: strips `//` then applies `id:(\d+)` — `ID: 12345` (uppercase with space) will never match. Cloud metadata is silently lost when opening any real `.tdesktop-theme` file. — `theme_file.dart:97-100` and `theme_file.dart:186-199` ← `window_theme_editor.cpp:358-381`
-
-- [ ] [CRITICAL] `_kBackgroundMaxPixels = 40 * 1024 * 1024` (40 megapixels) but AyuGram's `kBackgroundSizeLimit = 25 * 1024 * 1024` (25 megapixels). The comment on line 10 says "matches AyuGram kBackgroundSizeLimit" but it is 60% too large. Theme files containing oversized backgrounds that AyuGram would reject are accepted by this parser. — `theme_file.dart:10` ← `window_theme.cpp:56`
-
-- [ ] [MAJOR] `paletteChecksum` has wrong semantics. Dart computes it as `getCrc32(file.content)` (CRC32 of the palette file bytes extracted from the ZIP) at line 1463. AyuGram computes it as `style::palette::Checksum()` — a compile-time structural checksum of the style palette definitions, used to invalidate cache across app version upgrades. These are fundamentally different: AyuGram's checksum is a constant per build version; Dart's is a content hash. The `validateThemeCache` logic based on this value (line 1495) will behave incorrectly — it re-decodes the ZIP to re-hash the palette file instead of comparing a version token. — `theme_file.dart:1456-1473` and `theme_file.dart:1495` ← `window_theme.cpp:376` and `window_theme.cpp:385`
-
 # theme_preview — Rendering issues vs AyuGram Desktop
 
 ## Issues Found
