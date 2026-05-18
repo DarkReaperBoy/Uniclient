@@ -5509,6 +5509,35 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return e.CreateBusinessChatLink(params.AccountID)
 
+	case "StartBot":
+		var params struct {
+			AccountID  string `json:"account_id"`
+			BotID      string `json:"bot_id"`
+			ChatID     string `json:"chat_id"`
+			StartParam string `json:"start_param"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.StartBot(params.AccountID, params.BotID, params.ChatID, params.StartParam); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": true})
+
+	case "GetStarsRevenueStats":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetStarsRevenueStats(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

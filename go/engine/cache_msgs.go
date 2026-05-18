@@ -1831,6 +1831,44 @@ func (e *Engine) ResolveUsername(accountID, username string) (string, error) {
 	return resolver.ResolveUsername(username)
 }
 
+type BotStarter interface {
+	StartBot(botID string, chatID string, startParam string) error
+}
+
+func (e *Engine) StartBot(accountID, botID, chatID, startParam string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	starter, ok := acc.Core.(BotStarter)
+	if !ok {
+		return fmt.Errorf("platform does not support bot start")
+	}
+	return starter.StartBot(botID, chatID, startParam)
+}
+
+type StarsRevenueGetter interface {
+	GetStarsRevenueStats(chatID string) (cores.StarsRevenueResult, error)
+}
+
+func (e *Engine) GetStarsRevenueStats(accountID, chatID string) (cores.StarsRevenueResult, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return cores.StarsRevenueResult{}, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return cores.StarsRevenueResult{}, fmt.Errorf("account not connected: %s", accountID)
+	}
+	getter, ok := acc.Core.(StarsRevenueGetter)
+	if !ok {
+		return cores.StarsRevenueResult{}, fmt.Errorf("platform does not support stars revenue stats")
+	}
+	return getter.GetStarsRevenueStats(chatID)
+}
+
 type InlineBotResultSender interface {
 	SendInlineBotResult(chatID string, queryID int64, resultID string) (int, error)
 }

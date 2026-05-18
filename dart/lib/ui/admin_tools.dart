@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../state/chat_state.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../theme/telegram_palette.dart';
@@ -1209,7 +1210,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           value: '',
           textColor: textColor,
           subTextColor: subTextColor,
-          onTap: () => showTelegramToast(context, 'Currency balance management is available in BotFather'),
+          onTap: () => _showRevenueStats(textColor, subTextColor, isCurrency: true),
         ),
         _EditRow(
           icon: Icons.stars_outlined,
@@ -1217,7 +1218,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           value: '',
           textColor: textColor,
           subTextColor: subTextColor,
-          onTap: () => showTelegramToast(context, 'Credits balance management is available in BotFather'),
+          onTap: () => _showRevenueStats(textColor, subTextColor, isCurrency: false),
         ),
         _EditRow(
           icon: Icons.handshake_outlined,
@@ -1233,7 +1234,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           value: '',
           textColor: textColor,
           subTextColor: subTextColor,
-          onTap: () => showTelegramToast(context, 'Edit bot intro via BotFather /setdescription'),
+          onTap: () => _openBotFather('${widget.chat.username}-intro'),
         ),
         _EditRow(
           icon: Icons.code,
@@ -1241,7 +1242,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           value: '',
           textColor: textColor,
           subTextColor: subTextColor,
-          onTap: () => showTelegramToast(context, 'Edit bot commands via BotFather /setcommands'),
+          onTap: () => _openBotFather('${widget.chat.username}-commands'),
         ),
         _EditRow(
           icon: Icons.settings_outlined,
@@ -1249,7 +1250,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           value: '',
           textColor: textColor,
           subTextColor: subTextColor,
-          onTap: () => showTelegramToast(context, 'Edit bot settings via BotFather /mybots'),
+          onTap: () => _openBotFather(widget.chat.username),
         ),
         _EditRow(
           icon: Icons.verified_outlined,
@@ -1260,6 +1261,88 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           onTap: () => _showVerifyAccountsDialog(textColor, subTextColor),
         ),
       ],
+    );
+  }
+
+  Future<void> _openBotFather(String startParam) async {
+    final engine = context.read<EngineService>();
+    final accountId = widget.chat.accountId;
+    try {
+      final botFatherId = await engine.resolveUsername(accountId, 'BotFather');
+      if (botFatherId == null || botFatherId.isEmpty) {
+        if (mounted) showTelegramToast(context, 'Could not resolve @BotFather');
+        return;
+      }
+      await engine.startBot(accountId, botFatherId, botFatherId, startParam);
+      if (!mounted) return;
+      final chatState = context.read<ChatState>();
+      chatState.openChatById(botFatherId);
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed: $e');
+    }
+  }
+
+  Future<void> _showRevenueStats(Color textColor, Color subTextColor, {required bool isCurrency}) async {
+    final engine = context.read<EngineService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+
+    final stats = await engine.getStarsRevenueStats(
+      widget.chat.accountId,
+      widget.chat.chatId,
+    );
+    if (!mounted) return;
+    if (stats == null) {
+      showTelegramToast(context, 'Could not load revenue stats');
+      return;
+    }
+
+    final currentBalance = stats['current_balance'] as int? ?? 0;
+    final availableBalance = stats['available_balance'] as int? ?? 0;
+    final overallRevenue = stats['overall_revenue'] as int? ?? 0;
+    final withdrawalEnabled = stats['withdrawal_enabled'] as bool? ?? false;
+    final usdRate = stats['usd_rate'] as double? ?? 0.0;
+
+    String formatAmount(int stars) {
+      if (isCurrency && usdRate > 0) {
+        final usd = stars * usdRate / 1000;
+        return '${stars.toString()} ≈ \$${usd.toStringAsFixed(2)}';
+      }
+      return '$stars Stars';
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text(
+          isCurrency ? 'Currency Balance' : 'Stars Balance',
+          style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _RevenueRow(label: 'Available Balance', value: formatAmount(availableBalance), textColor: textColor, subTextColor: subTextColor),
+            const SizedBox(height: 8),
+            _RevenueRow(label: 'Current Balance', value: formatAmount(currentBalance), textColor: textColor, subTextColor: subTextColor),
+            const SizedBox(height: 8),
+            _RevenueRow(label: 'Overall Revenue', value: formatAmount(overallRevenue), textColor: textColor, subTextColor: subTextColor),
+            if (withdrawalEnabled) ...[
+              const SizedBox(height: 12),
+              Text('Withdrawal available', style: TextStyle(color: accentColor, fontSize: 13)),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Close', style: TextStyle(color: subTextColor)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2545,6 +2628,31 @@ class _EditRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RevenueRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color textColor;
+  final Color subTextColor;
+
+  const _RevenueRow({
+    required this.label,
+    required this.value,
+    required this.textColor,
+    required this.subTextColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 14, color: subTextColor)),
+        Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+      ],
     );
   }
 }
@@ -4538,6 +4646,15 @@ class _AdminLogEventTile extends StatelessWidget {
         return 'was accepted to the group';
       case 'participant_volume':
         return 'changed participant volume';
+      case 'change_location':
+        if (event.detail.isEmpty) {
+          return 'removed group location';
+        }
+        return 'changed group location to ${event.detail}';
+      case 'toggle_autotranslation':
+        return '${event.detail == "enabled" ? "enabled" : "disabled"} auto-translation';
+      case 'participant_edit_rank':
+        return 'changed custom title${event.detail.isNotEmpty ? ": ${event.detail}" : ""}';
       default:
         return event.detail.isNotEmpty ? event.detail : event.action;
     }

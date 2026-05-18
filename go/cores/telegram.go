@@ -18827,6 +18827,32 @@ func (t *TelegramCore) GetStarsBalance() (int64, error) {
 	return result.Balance.GetAmount(), nil
 }
 
+type StarsRevenueResult struct {
+	CurrentBalance    int64   `json:"current_balance"`
+	AvailableBalance  int64   `json:"available_balance"`
+	OverallRevenue    int64   `json:"overall_revenue"`
+	WithdrawalEnabled bool    `json:"withdrawal_enabled"`
+	UsdRate           float64 `json:"usd_rate"`
+}
+
+func (t *TelegramCore) GetStarsRevenueStats(chatID string) (StarsRevenueResult, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return StarsRevenueResult{}, ErrAuth }
+	peer, _ := t.resolvePeer(chatID)
+	inputPeer, _ := t.toInputPeer(peer)
+	result, err := t.api.PaymentsGetStarsRevenueStats(t.ctx, &tg.PaymentsGetStarsRevenueStatsRequest{
+		Peer: inputPeer,
+	})
+	if err != nil { return StarsRevenueResult{}, err }
+	return StarsRevenueResult{
+		CurrentBalance:    result.Status.CurrentBalance.GetAmount(),
+		AvailableBalance:  result.Status.AvailableBalance.GetAmount(),
+		OverallRevenue:    result.Status.OverallRevenue.GetAmount(),
+		WithdrawalEnabled: result.Status.WithdrawalEnabled,
+		UsdRate:           result.UsdRate,
+	}, nil
+}
+
 func (t *TelegramCore) GetPremiumStatus() (premiumPossible bool, premiumCanBuy bool, err error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return false, false, ErrAuth }

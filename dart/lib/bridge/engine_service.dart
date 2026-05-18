@@ -3603,6 +3603,37 @@ class EngineService {
     }
   }
 
+  Future<bool> startBot(String accountId, String botId, String chatId, String startParam) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'bot_id': botId,
+      'chat_id': chatId,
+      'start_param': startParam,
+    }));
+    try {
+      await _callAsync('__engine', 'StartBot', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'startBot failed', e);
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getStarsRevenueStats(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetStarsRevenueStats', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'getStarsRevenueStats failed', e);
+      return null;
+    }
+  }
+
   Future<String?> downloadSingleAvatar(String accountId, String chatId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
