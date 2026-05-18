@@ -327,8 +327,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   bool _showEmojiPanel = false;
   int _charCount = 0;
   final Map<int, String> _perFileCaptions = {};
+  final Map<int, String> _perFileCaptionEntities = {};
   late final bool _initialSendAsDocuments;
   late final bool _initialGroupFiles;
+  late int _starsPerMessage;
+  bool _photoEditorHintShown = false;
   bool _preparing = false;
   int _preparingTotal = 0;
   int _preparingDone = 0;
@@ -365,6 +368,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       );
       _preservedCaption = '';
     }
+    _starsPerMessage = widget.starsPerMessage;
     _sendAsDocuments = widget.overrideSendAsDocuments ?? false;
     _groupFiles = widget.overrideGroupFiles ?? true;
     _initialSendAsDocuments = _sendAsDocuments;
@@ -526,9 +530,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   void _closePreservingCaption() {
-    final text = _captionController.text;
-    if (text.isNotEmpty) {
-      _preservedCaption = text;
+    final parsed = _captionController.getTextWithAppliedMarkdown();
+    if (parsed.text.isNotEmpty) {
+      _preservedCaption = parsed.text;
     }
     Navigator.of(context).pop(null);
   }
@@ -725,20 +729,31 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   Future<void> _showEditCaptionDialog(int fileIndex) async {
     _captionDialogOpen = true;
     final current = _perFileCaptions[fileIndex] ?? '';
-    final controller = TextEditingController(text: current);
-    final result = await showDialog<String>(
+    final controller = RichTextEditingController();
+    if (current.isNotEmpty) controller.text = current;
+    final result = await showDialog<({String text, String entities})?>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Edit caption'),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          maxLength: _kCaptionMaxLength,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Caption...',
-            counterText: '',
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _CaptionFormattingToolbar(
+              controller: controller,
+              accentColor: Theme.of(ctx).colorScheme.primary,
+              subColor: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            TextField(
+              controller: controller,
+              maxLines: 3,
+              maxLength: _kCaptionMaxLength,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'Caption...',
+                counterText: '',
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -746,7 +761,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
+            onPressed: () {
+              final parsed = controller.getTextWithAppliedMarkdown();
+              Navigator.pop(ctx, (text: parsed.text, entities: parsed.entitiesJson));
+            },
             child: const Text('Save'),
           ),
         ],
@@ -760,10 +778,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     });
     if (result == null) return;
     setState(() {
-      if (result.isEmpty) {
+      if (result.text.isEmpty) {
         _perFileCaptions.remove(fileIndex);
+        _perFileCaptionEntities.remove(fileIndex);
       } else {
-        _perFileCaptions[fileIndex] = result;
+        _perFileCaptions[fileIndex] = result.text;
+        _perFileCaptionEntities[fileIndex] = result.entities;
       }
     });
   }
@@ -1012,6 +1032,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   void _replaceFile(int idx, _PreparedFile replacement) {
     if (idx < 0 || idx >= _files.length) return;
+    if (_files[idx].type == _FileType.photo) _photoEditorHintShown = true;
     setState(() => _files[idx] = replacement);
     _loadImageDimensions();
   }
@@ -1038,39 +1059,54 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   void _editFileCaption(int idx) {
     if (idx < 0 || idx >= _files.length) return;
     final existing = _perFileCaptions[idx] ?? '';
-    final ctrl = TextEditingController(text: existing);
+    final ctrl = RichTextEditingController();
+    if (existing.isNotEmpty) ctrl.text = existing;
     _captionDialogOpen = true;
-    showDialog<String>(
+    showDialog<({String text, String entities})?>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Edit caption'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          maxLength: _kCaptionMaxLength,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            hintText: 'Add a caption for this file...',
-            counterText: '',
-          ),
-          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _CaptionFormattingToolbar(
+              controller: ctrl,
+              accentColor: Theme.of(ctx).colorScheme.primary,
+              subColor: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              maxLength: _kCaptionMaxLength,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'Add a caption for this file...',
+                counterText: '',
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(ctrl.text),
+            onPressed: () {
+              final parsed = ctrl.getTextWithAppliedMarkdown();
+              Navigator.of(ctx).pop((text: parsed.text, entities: parsed.entitiesJson));
+            },
             child: const Text('Save'),
           ),
         ],
       ),
-    ).then((newCaption) {
+    ).then((result) {
       _captionDialogOpen = false;
-      if (newCaption == null) return;
+      if (result == null) return;
       setState(() {
-        if (newCaption.isEmpty) {
+        if (result.text.isEmpty) {
           _perFileCaptions.remove(idx);
+          _perFileCaptionEntities.remove(idx);
         } else {
-          _perFileCaptions[idx] = newCaption;
+          _perFileCaptions[idx] = result.text;
+          _perFileCaptionEntities[idx] = result.entities;
         }
       });
     });
@@ -1087,22 +1123,68 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   bool get _hasMediaFiles => _files.any((f) => f.isMediaType);
 
+  bool _canUseHighQualityPhoto(_PreparedFile f) {
+    if (f.type != _FileType.photo) return false;
+    if (f.imageWidth == null || f.imageHeight == null) return false;
+    return math.max(f.imageWidth!, f.imageHeight!) > 1280;
+  }
+
   bool get _hasHighQualityOption =>
-      !_sendAsDocuments && _files.any((f) => f.type == _FileType.photo);
+      !_sendAsDocuments && _files.any(_canUseHighQualityPhoto);
 
   bool get _hasCompressedStickers =>
       _files.any((f) => f.isSticker);
 
   bool get _hasGroupOption {
-    if (_sendAsDocuments) return _files.length >= 2;
-    return _files.where((f) => f.isMediaType).length >= 2;
+    if (_files.length < 2) return false;
+    if (_sendAsDocuments) return true;
+    final mediaCount = _files.where((f) => f.isMediaType).length;
+    if (mediaCount >= 2) return true;
+    return (_files.length - mediaCount) >= 2;
+  }
+
+  bool get _canAddCaption {
+    if (_files.isEmpty) return false;
+    if (_files.every((f) => f.isSticker)) return false;
+    return true;
   }
 
   List<String> get _resultPaths => _files.map((f) => f.path).toList();
 
   void _removeFile(int index) {
-    if (_files.length <= 1) return;
-    setState(() => _files.removeAt(index));
+    if (index < 0 || index >= _files.length) return;
+    if (_files.length <= 1) {
+      _closePreservingCaption();
+      return;
+    }
+    if (_files.length == 2 && _captionController.text.isEmpty) {
+      final remainIdx = index == 0 ? 1 : 0;
+      final caption = _perFileCaptions[remainIdx];
+      if (caption != null && caption.isNotEmpty) {
+        _captionController.text = caption;
+      }
+    }
+    setState(() {
+      _files.removeAt(index);
+      final newCaptions = <int, String>{};
+      final newEntities = <int, String>{};
+      for (final entry in _perFileCaptions.entries) {
+        if (entry.key == index) continue;
+        final newIdx = entry.key > index ? entry.key - 1 : entry.key;
+        newCaptions[newIdx] = entry.value;
+      }
+      for (final entry in _perFileCaptionEntities.entries) {
+        if (entry.key == index) continue;
+        final newIdx = entry.key > index ? entry.key - 1 : entry.key;
+        newEntities[newIdx] = entry.value;
+      }
+      _perFileCaptions
+        ..clear()
+        ..addAll(newCaptions);
+      _perFileCaptionEntities
+        ..clear()
+        ..addAll(newEntities);
+    });
   }
 
   Future<void> _addMoreFiles() async {
@@ -1173,12 +1255,15 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     return _DragZoneMode.both;
   }
 
-  bool get _hasPaidPrice => widget.starsPerMessage > 0;
+  bool get _hasPaidPrice => _starsPerMessage > 0;
 
-  bool get _canSpoiler =>
-      !_hasPaidPrice &&
-      !_sendAsDocuments &&
-      _files.any((f) => f.isMediaType);
+  bool get _canSpoiler {
+    if (_hasPaidPrice) return false;
+    if (_files.isEmpty) return false;
+    if (_files.every((f) => f.type == _FileType.video)) return true;
+    if (_sendAsDocuments) return false;
+    return _files.every((f) => f.isMediaType);
+  }
 
   bool get _hasChangedWay =>
       _sendAsDocuments != _initialSendAsDocuments ||
@@ -1284,19 +1369,24 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         coverPaths[i] = _files[i].videoCoverPath!;
       }
     }
+    final spoilers = _files.map((f) {
+      if (!f.isMediaType) return false;
+      return f.spoiler;
+    }).toList();
     Navigator.of(context).pop(SendFilesResult(
       paths: _resultPaths,
       caption: parsed.text,
       captionEntitiesJson: parsed.entitiesJson,
       silent: silent,
       scheduledDate: scheduledDate,
-      spoilers: _files.map((f) => f.spoiler).toList(),
+      spoilers: spoilers,
       sendAsDocuments: _sendAsDocuments,
       groupFiles: _groupFiles,
       remember: _wayRemember,
       sendLargePhotos: _sendLargePhotos,
       captionAbove: _captionAbove,
       perFileCaptions: Map.from(_perFileCaptions),
+      perFileCaptionEntities: Map.from(_perFileCaptionEntities),
       ctrlShiftEnter: ctrlShiftEnter,
       sendAsSticker: asSticker,
       videoCoverPaths: coverPaths,
@@ -1304,7 +1394,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   void _showSendMenu(BuildContext ctx, Offset position) {
-    final hasDetailItems = _hasHighQualityOption || _canSpoiler || _canMoveCaption;
+    final hasDetailItems = _hasHighQualityOption || _canSpoiler || _canMoveCaption || _canSendAsSticker;
     showTelegramMenu<String>(
       context: ctx,
       position: Offset(position.dx, position.dy - 120),
@@ -1320,7 +1410,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
           TelegramMenuItem(
             value: 'quality',
             icon: Icon(_sendLargePhotos ? Icons.check : Icons.hd_outlined),
-            label: 'Send in high quality',
+            label: _sendLargePhotos
+                ? 'Send in standard quality'
+                : 'Send in high quality',
           ),
         if (_canSpoiler)
           TelegramMenuItem(
@@ -1333,6 +1425,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
             value: 'caption_pos',
             icon: Icon(_captionAbove ? Icons.arrow_downward : Icons.arrow_upward),
             label: _captionAbove ? 'Move caption down' : 'Move caption up',
+          ),
+        if (_canSendAsSticker)
+          const TelegramMenuItem(
+            value: 'sticker',
+            icon: Icon(Icons.sticky_note_2_outlined),
+            label: 'Send as sticker',
           ),
       ],
     ).then((value) {
@@ -1352,7 +1450,45 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
           _toggleAllSpoilers();
         case 'caption_pos':
           setState(() => _captionAbove = !_captionAbove);
+        case 'sticker':
+          _sendAsSticker();
       }
+    });
+  }
+
+  void _showEditPriceDialog() {
+    final ctrl = TextEditingController(text: '$_starsPerMessage');
+    showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Set price'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: 'Stars per message',
+            prefixText: '⭐ ',
+          ),
+          onSubmitted: (v) {
+            final n = int.tryParse(v);
+            if (n != null && n > 0) Navigator.pop(ctx, n);
+          },
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              final n = int.tryParse(ctrl.text);
+              if (n != null && n > 0) Navigator.pop(ctx, n);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ).then((price) {
+      if (price == null) return;
+      setState(() => _starsPerMessage = price);
     });
   }
 
@@ -1565,28 +1701,40 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                             sendLargePhotos: _sendLargePhotos,
                             isBroadcast: widget.isBroadcast,
                             isSelfChat: widget.isSelfChat,
+                            onCoverChanged: () => setState(() {}),
                           ),
                           if (_hasPaidPrice)
                             Positioned.fill(
                               child: Center(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xCC000000),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    '⭐ ${widget.starsPerMessage}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
+                                child: GestureDetector(
+                                  onTap: widget.isBroadcast ? _showEditPriceDialog : null,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xCC000000),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      '⭐ $_starsPerMessage',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
                         ],
+                      ),
+                    if (_photoEditorHintShown && showMediaPreview && mediaFiles.any((f) => f.type == _FileType.photo))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Click to open in photo editor',
+                          style: TextStyle(fontSize: 11, color: subFg),
+                        ),
                       ),
                     if (showMediaPreview && mediaFiles.isNotEmpty &&
                         (gifFiles.isNotEmpty || docFiles.isNotEmpty))
@@ -1623,15 +1771,17 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                         onReorder: _files.length > 1 ? (from, to) {
                           final displayFiles = _sendAsDocuments ? _files : docFiles;
                           if (from < 0 || from >= displayFiles.length ||
-                              to < 0 || to >= displayFiles.length) return;
-                          final fA = displayFiles[from];
-                          final fB = displayFiles[to];
-                          final idxA = _files.indexOf(fA);
-                          final idxB = _files.indexOf(fB);
-                          if (idxA >= 0 && idxB >= 0) {
+                              to < 0 || to >= displayFiles.length ||
+                              from == to) return;
+                          final movedFile = displayFiles[from];
+                          final targetFile = displayFiles[to];
+                          final srcIdx = _files.indexOf(movedFile);
+                          final dstIdx = _files.indexOf(targetFile);
+                          if (srcIdx >= 0 && dstIdx >= 0) {
                             setState(() {
-                              _files[idxA] = fB;
-                              _files[idxB] = fA;
+                              _files.removeAt(srcIdx);
+                              final adjustedDst = srcIdx < dstIdx ? dstIdx - 1 : dstIdx;
+                              _files.insert(adjustedDst, movedFile);
                             });
                           }
                         } : null,
@@ -1695,6 +1845,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                 isDark: isDark,
                 onSelect: _insertHashtag,
               ),
+            if (_canAddCaption) ...[
             _CaptionFormattingToolbar(
               controller: _captionController,
               accentColor: accentFg,
@@ -1740,8 +1891,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                 max: _kCaptionMaxLength,
                 accentColor: accentFg,
               ),
+            ],
             EmojiTabbedPanel(
-              visible: _showEmojiPanel,
+              visible: _showEmojiPanel && _canAddCaption,
               onHide: () => setState(() => _showEmojiPanel = false),
               onEmojiSelected: (emoji) {
                 final sel = _captionController.selection;
@@ -1921,6 +2073,7 @@ class _MediaPreview extends StatelessWidget {
   final bool sendLargePhotos;
   final bool isBroadcast;
   final bool isSelfChat;
+  final VoidCallback? onCoverChanged;
 
   const _MediaPreview({
     required this.files,
@@ -1935,6 +2088,7 @@ class _MediaPreview extends StatelessWidget {
     required this.sendLargePhotos,
     this.isBroadcast = false,
     this.isSelfChat = false,
+    this.onCoverChanged,
   });
 
   @override
@@ -1953,6 +2107,7 @@ class _MediaPreview extends StatelessWidget {
         fileIndex: allFiles.indexOf(files.first),
         isBroadcast: isBroadcast,
         isSelfChat: isSelfChat,
+        onCoverChanged: onCoverChanged,
       );
     }
     return _AlbumPreview(
@@ -1968,6 +2123,7 @@ class _MediaPreview extends StatelessWidget {
       sendLargePhotos: sendLargePhotos,
       isBroadcast: isBroadcast,
       isSelfChat: isSelfChat,
+      onCoverChanged: onCoverChanged,
     );
   }
 }
@@ -1985,6 +2141,7 @@ class _SingleMediaPreview extends StatelessWidget {
   final int fileIndex;
   final bool isBroadcast;
   final bool isSelfChat;
+  final VoidCallback? onCoverChanged;
 
   const _SingleMediaPreview({
     required this.file,
@@ -1999,6 +2156,7 @@ class _SingleMediaPreview extends StatelessWidget {
     this.isBroadcast = false,
     this.isSelfChat = false,
     this.fileIndex = 0,
+    this.onCoverChanged,
   });
 
   @override
@@ -2231,6 +2389,7 @@ class _SingleMediaPreview extends StatelessWidget {
         purpose: PhotoEditorPurpose.edit,
         onDone: (croppedFile) async {
           file.videoCoverPath = croppedFile.path;
+          onCoverChanged?.call();
         },
       );
     } catch (_) {}
@@ -2238,6 +2397,7 @@ class _SingleMediaPreview extends StatelessWidget {
 
   void _doClearCover() {
     file.videoCoverPath = null;
+    onCoverChanged?.call();
   }
 }
 
@@ -2323,6 +2483,7 @@ class _AlbumPreview extends StatefulWidget {
   final bool sendLargePhotos;
   final bool isBroadcast;
   final bool isSelfChat;
+  final VoidCallback? onCoverChanged;
 
   const _AlbumPreview({
     required this.files,
@@ -2337,6 +2498,7 @@ class _AlbumPreview extends StatefulWidget {
     required this.sendLargePhotos,
     this.isBroadcast = false,
     this.isSelfChat = false,
+    this.onCoverChanged,
   });
 
   @override
@@ -2496,6 +2658,7 @@ class _AlbumPreviewState extends State<_AlbumPreview>
           _editCover(context, file, allIdx);
         case 'clearcover':
           file.videoCoverPath = null;
+          widget.onCoverChanged?.call();
         case 'remove':
           widget.onRemove(file);
       }
@@ -2606,6 +2769,7 @@ class _AlbumPreviewState extends State<_AlbumPreview>
         purpose: PhotoEditorPurpose.edit,
         onDone: (croppedFile) async {
           file.videoCoverPath = croppedFile.path;
+          widget.onCoverChanged?.call();
         },
       );
     } catch (_) {}
@@ -2650,9 +2814,7 @@ class _AlbumPreviewState extends State<_AlbumPreview>
         onPanStart: (d) => _onPanStart(index, d),
         onPanUpdate: _onPanUpdate,
         onPanEnd: _onPanEnd,
-        onSecondaryTapUp: widget.canSpoiler
-            ? (details) => _showThumbMenu(context, details.globalPosition, file)
-            : null,
+        onSecondaryTapUp: (details) => _showThumbMenu(context, details.globalPosition, file),
         onDoubleTap: () => _openEditor(file),
         child: ClipRRect(
           borderRadius: item.corners,
