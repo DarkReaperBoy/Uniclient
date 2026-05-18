@@ -1196,22 +1196,31 @@ class TelegramPalette {
     _ => dayAccents,
   };
 
-  // ── §25.4.3 HSL Colorizer (spec §25.4.3 + §25.17.1) ──
+  static TelegramPalette? _cachedColorizeResult;
+  static int _cachedColorizeBaseHash = 0;
+  static int _cachedColorizeAccentHash = 0;
+
   TelegramPalette colorize(Color newAccent) {
     final origAccent = windowBgActive;
     if (colorEq(origAccent, newAccent)) return this;
 
+    final baseHash = origAccent.hashCode;
+    final accentHash = newAccent.hashCode;
+    if (_cachedColorizeResult != null &&
+        _cachedColorizeBaseHash == baseHash &&
+        _cachedColorizeAccentHash == accentHash) {
+      return _cachedColorizeResult!;
+    }
+
     final oHsv = HSVColor.fromColor(origAccent);
     final dark = isDark;
-    final double lMin = dark ? 64.0 / 255.0 : 0.0;
-    final double lMax = dark ? 1.0 : 160.0 / 255.0;
-    // Clamp the new accent's HSL lightness before storing as colorizer target
-    // (matches C++ ColorizerFrom() lightnessMin/lightnessMax clamping)
-    final nHslRaw = HSLColor.fromColor(newAccent);
-    final nHslL = nHslRaw.lightness.clamp(lMin, lMax);
-    final nHsv = (nHslL - nHslRaw.lightness).abs() > 0.0001
-        ? HSVColor.fromColor(nHslRaw.withLightness(nHslL).toColor())
-        : HSVColor.fromColor(newAccent);
+    final double vMin = dark ? 64.0 / 255.0 : 0.0;
+    final double vMax = dark ? 1.0 : 160.0 / 255.0;
+    final nHsvRaw = HSVColor.fromColor(newAccent);
+    final nVal = nHsvRaw.value.clamp(vMin, vMax);
+    final nHsv = (nVal - nHsvRaw.value).abs() > 0.0001
+        ? HSVColor.fromAHSV(nHsvRaw.alpha, nHsvRaw.hue, nHsvRaw.saturation, nVal)
+        : nHsvRaw;
     final hDiff = nHsv.hue - oHsv.hue;
     const double hueThreshold = 15.0;
 
@@ -1783,10 +1792,13 @@ class TelegramPalette {
 
     );
 
-    if (!dark) return p;
-    // §25.4.3 keepContrast: Night includes file icon pairs; NightGreen does not
-    final isNight = windowBg == const Color(0xFF17212B);
-    return p._enforceContrast(includeFileIcons: isNight);
+    final result = dark
+        ? p._enforceContrast(includeFileIcons: windowBg == const Color(0xFF17212B))
+        : p;
+    _cachedColorizeResult = result;
+    _cachedColorizeBaseHash = baseHash;
+    _cachedColorizeAccentHash = accentHash;
+    return result;
   }
 
   TelegramPalette adjustServiceColorsForWallpaper(WallpaperData wallpaper) {
@@ -3435,10 +3447,10 @@ class TelegramPalette {
     historyToDownBg: Color(0xFF1D2B3A),
     historyToDownBgOver: Color(0xFF243446),
     historyToDownFg: Color(0xFFADB4BA),
-    historyOutIconFg: Color(0xFF62B2FD),
+    historyOutIconFg: Color(0xFF6BBFFF),
     historySendingOutIconFg: Color(0xFF70A4D2),
     historySendingInIconFg: Color(0xFF76838B),
-    historyIconFgInverted: Color(0xFFFFFFFF),
+    historyIconFgInverted: Color(0xE5FFFFFF),
     historySendingInvertedIconFg: Color(0xC8FFFFFF),
 
     // Peer Name Colors
@@ -3716,7 +3728,7 @@ class TelegramPalette {
     historyFileNameInFgSelected: Color(0xFFF5F5F5),
     historyFileNameOutFg: Color(0xFFF5F5F5),
     historyFileNameOutFgSelected: Color(0xFFF5F5F5),
-    historyOutIconFgSelected: Color(0xFF62B2FD),
+    historyOutIconFgSelected: Color(0xFFFFFFFF),
     historyCallArrowInFg: Color(0xFF5093D6),
     historyCallArrowInFgSelected: Color(0xFFFFFFFF),
     historyCallArrowMissedInFg: Color(0xFFED5050),
@@ -3763,10 +3775,10 @@ class TelegramPalette {
     historyFileThumbRadialFg: Color(0xFFEFEFEF),
     historyFileThumbRadialFgSelected: Color(0xFFFFFFFF),
     historyVideoMessageProgressFg: Color(0xFFEFEFEF),
-    msgWaveformInActiveSelected: Color(0xFF549CD7),
-    msgWaveformInInactiveSelected: Color(0xFF3A4D61),
-    msgWaveformOutActiveSelected: Color(0xFF62B2FD),
-    msgWaveformOutInactiveSelected: Color(0xFF4B7FB3),
+    msgWaveformInActiveSelected: Color(0xFFFFFFFF),
+    msgWaveformInInactiveSelected: Color(0xFF6FA5D4),
+    msgWaveformOutActiveSelected: Color(0xFFFFFFFF),
+    msgWaveformOutInactiveSelected: Color(0xFF6FA5D4),
     msgBotKbOverBgAdd: Color(0x0F80B1DB),
     msgBotKbIconFg: Color(0xFFFFFFFF),
     msgBotKbRippleBg: Color(0x0B92C0E5),
@@ -3815,7 +3827,7 @@ class TelegramPalette {
     mediaviewMenuFg: Color(0xFFFFFFFF),
     mediaviewVideoBg: Color(0xFF000000),
     mediaviewCaptionFg: Color(0xFFFFFFFF),
-    mediaviewTextLinkFg: Color(0xFF4DB8FF),
+    mediaviewTextLinkFg: Color(0xFF70BAF5),
     mediaviewSaveMsgBg: Color(0xE52C3033),
     mediaviewSaveMsgFg: Color(0xFFFFFFFF),
     mediaviewPlaybackInactiveOver: Color(0xFF474747),
@@ -3845,9 +3857,9 @@ class TelegramPalette {
     callHangupBg: Color(0xFFCC4646),
     callHangupRipple: Color(0xFFCA4141),
     callMuteRipple: Color(0x12FFFFFF),
-    callBarBg: Color(0xFF2B5278),
-    callBarMuteRipple: Color(0xFF315A80),
-    callBarBgMuted: Color(0xFF8F8F8F),
+    callBarBg: Color(0xFF366693),
+    callBarMuteRipple: Color(0xFF4B7DAB),
+    callBarBgMuted: Color(0xFF35495D),
     callBarFg: Color(0xFFFFFFFF),
     importantTooltipFg: Color(0xFFFFFFFF),
     importantTooltipFgLink: Color(0xFF4DB8FF),
