@@ -6,6 +6,7 @@ import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
 import '../state/app_state.dart';
 
 enum _DeviceType {
@@ -182,6 +183,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   List<Map<String, dynamic>> _sessions = [];
   bool _loading = true;
   Timer? _refreshTimer;
+  StreamSubscription<ConnStateEvent>? _connSub;
   int _autoTerminateDays = 0;
 
   List<Map<String, dynamic>> _cachedOtherSessions = [];
@@ -193,11 +195,18 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     _loadSessions();
     _loadAutoTerminateDays();
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) => _loadSessions());
+    final engine = context.read<EngineService>();
+    _connSub = engine.onConnState.listen((event) {
+      if (event.state == 'connected' && mounted) {
+        _loadSessions();
+      }
+    });
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _connSub?.cancel();
     super.dispose();
   }
 
@@ -246,10 +255,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final appState = context.read<AppState>();
     final ok = await engine.terminateSession(appState.activeAccountId, sessionId);
     if (ok && mounted) {
-      setState(() {
-        _sessions.removeWhere((s) => s['id'] == sessionId);
-        _recomputeCachedLists();
-      });
+      _loadSessions();
     }
   }
 
@@ -258,10 +264,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final appState = context.read<AppState>();
     final ok = await engine.terminateAllOtherSessions(appState.activeAccountId);
     if (ok && mounted) {
-      setState(() {
-        _sessions.removeWhere((s) => s['is_current'] != true);
-        _recomputeCachedLists();
-      });
+      _loadSessions();
     }
   }
 
@@ -459,17 +462,32 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     );
   }
 
+  static int _isoWeekNumber(DateTime date) {
+    final thursday = date.add(Duration(days: DateTime.thursday - date.weekday));
+    final jan1 = DateTime(thursday.year, 1, 1);
+    return ((thursday.difference(jan1).inDays) ~/ 7) + 1;
+  }
+
+  static const _weekdayNames = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+    'Friday', 'Saturday', 'Sunday',
+  ];
+
   String _formatActiveDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return '';
     try {
       final date = DateTime.parse(dateStr);
       final now = DateTime.now();
-      final diff = now.difference(date);
-      if (diff.inMinutes < 1) return 'online';
-      if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
-      if (diff.inHours < 24) return '${diff.inHours}h ago';
-      if (diff.inDays < 7) return '${diff.inDays}d ago';
-      return '${date.day}.${date.month.toString().padLeft(2, '0')}.${date.year}';
+      final nowDate = DateTime(now.year, now.month, now.day);
+      final lastDate = DateTime(date.year, date.month, date.day);
+
+      if (lastDate == nowDate) {
+        return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      }
+      if (date.year == now.year && _isoWeekNumber(date) == _isoWeekNumber(now)) {
+        return _weekdayNames[date.weekday - 1];
+      }
+      return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
     } catch (_) {
       return '';
     }
@@ -913,6 +931,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
           textColor: textColor,
           subtextColor: subtextColor,
           formatDate: _formatActiveDate,
+          isCurrent: true,
           showTerminate: false,
           customDeviceName: appState.customDeviceModel,
           onTap: () => _showSessionInfoBox(current),
@@ -1086,6 +1105,7 @@ class _SessionRow extends StatelessWidget {
   final Color textColor;
   final Color subtextColor;
   final String Function(String?) formatDate;
+  final bool isCurrent;
   final bool showTerminate;
   final VoidCallback? onTerminate;
   final VoidCallback? onTap;
@@ -1096,6 +1116,7 @@ class _SessionRow extends StatelessWidget {
     required this.textColor,
     required this.subtextColor,
     required this.formatDate,
+    this.isCurrent = false,
     this.showTerminate = false,
     this.onTerminate,
     this.onTap,
@@ -1126,8 +1147,10 @@ class _SessionRow extends StatelessWidget {
     final locationOrIp = location.isNotEmpty ? location : ip;
     final locationParts = <String>[];
     if (locationOrIp.isNotEmpty) locationParts.add(locationOrIp);
-    final dateStr = formatDate(lastActive);
-    if (dateStr.isNotEmpty) locationParts.add(dateStr);
+    if (!isCurrent) {
+      final dateStr = formatDate(lastActive);
+      if (dateStr.isNotEmpty) locationParts.add(dateStr);
+    }
     final locationLine = locationParts.join(' • ');
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
