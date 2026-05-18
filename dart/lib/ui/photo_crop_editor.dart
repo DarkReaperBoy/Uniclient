@@ -247,6 +247,7 @@ class PhotoCropEditor extends StatefulWidget {
   final String? aboutText;
   final PhotoEditorPurpose purpose;
   final Future<void> Function(File croppedFile)? onDone;
+  final bool startInPaintMode;
 
   static bool Function(String keyCombo)? _activeKeyHandler;
 
@@ -262,6 +263,7 @@ class PhotoCropEditor extends StatefulWidget {
     this.aboutText,
     this.purpose = PhotoEditorPurpose.setPhoto,
     this.onDone,
+    this.startInPaintMode = false,
   });
 
   static Future<void> open(
@@ -271,6 +273,7 @@ class PhotoCropEditor extends StatefulWidget {
     String? aboutText,
     PhotoEditorPurpose purpose = PhotoEditorPurpose.setPhoto,
     Future<void> Function(File croppedFile)? onDone,
+    bool startInPaintMode = false,
   }) {
     return Navigator.of(context).push(
       PageRouteBuilder(
@@ -294,6 +297,7 @@ class PhotoCropEditor extends StatefulWidget {
               aboutText: aboutText,
               purpose: purpose,
               onDone: onDone,
+              startInPaintMode: startInPaintMode,
             ),
           );
         },
@@ -363,6 +367,9 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
         tool: _ToolBrush(color: _kDefaultToolColors[tool]!),
     };
     _brushColor = _kDefaultToolColors[_PaintTool.pen]!;
+    if (widget.startInPaintMode) {
+      _editorMode = _EditorMode.paint;
+    }
     _loadImage();
   }
 

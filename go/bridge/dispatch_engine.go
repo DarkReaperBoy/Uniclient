@@ -5413,6 +5413,95 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SendLocation(params.AccountID, params.ChatID, params.Lat, params.Lon)
 
+	case "GetPremiumFeatures":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		features, err := e.GetPremiumFeatures(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"features": features})
+
+	case "OpenPremiumSubscription":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Ref       string `json:"ref"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.OpenPremiumSubscription(params.AccountID, params.Ref)
+
+	case "OpenStarsPurchase":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.OpenStarsPurchase(params.AccountID)
+
+	case "GetStarsTransactions":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return e.GetStarsTransactions(params.AccountID)
+
+	case "GetTonBalance":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return e.GetTonBalance(params.AccountID)
+
+	case "GetBusinessInfo":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return e.GetBusinessInfo(params.AccountID)
+
+	case "GetBusinessFeature":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Feature   string `json:"feature"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return e.GetBusinessFeature(params.AccountID, params.Feature)
+
+	case "SetBusinessFeature":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Feature   string `json:"feature"`
+			Data      map[string]interface{} `json:"data"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetBusinessFeature(params.AccountID, params.Feature, params.Data)
+
+	case "CreateBusinessChatLink":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return e.CreateBusinessChatLink(params.AccountID)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

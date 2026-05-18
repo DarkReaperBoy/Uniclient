@@ -24,6 +24,7 @@ import 'ayugram_settings_screen.dart';
 import 'my_profile_page.dart';
 import 'notifications_settings_screen.dart';
 import 'privacy_settings_screen.dart';
+import 'input_dialogs.dart' show showUsernameBox;
 import 'settings_style.dart';
 import 'telegram_toast.dart';
 import '../theme/telegram_palette.dart';
@@ -63,6 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _premiumPossible = false;
   bool _premiumCanBuy = false;
   int _starsBalance = 0;
+  String _tonBalance = '';
   bool _dialogFiltersEnabled = false;
   bool _premiumLoaded = false;
 
@@ -84,6 +86,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       engine.getPremiumStatus(accountId),
       engine.getStarsBalance(accountId),
       engine.getDialogFiltersEnabled(accountId),
+      engine.getTonBalance(accountId),
     ]);
 
     if (!mounted) return;
@@ -93,6 +96,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _premiumCanBuy = premiumStatus.premiumCanBuy;
       _starsBalance = results[1] as int;
       _dialogFiltersEnabled = results[2] as bool;
+      _tonBalance = results[3] as String;
       _premiumLoaded = true;
     });
   }
@@ -438,6 +442,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 );
               },
             ),
+            if (_tonBalance.isNotEmpty)
+              _PremiumRow(
+                icon: Icons.currency_exchange,
+                label: 'Telegram Currency',
+                isDark: isDark,
+                trailing: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Text(
+                    _tonBalance,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: context.palette.windowBgActive,
+                    ),
+                  ),
+                ),
+                onTap: () {
+                  showTelegramToast(context, 'Telegram Currency management is available in the official app');
+                },
+              ),
             _SettingsRow(
               icon: Icons.diamond_outlined,
               iconBg: const Color(0xFF3A3A5C),
@@ -624,12 +647,12 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
               child: GestureDetector(
                 onTap: () => _showAvatarMenu(context),
                 child: SizedBox(
-                  width: 72,
-                  height: 72,
+                  width: 80,
+                  height: 80,
                   child: Stack(
                     children: [
                       CircleAvatar(
-                        radius: 36,
+                        radius: 40,
                         backgroundColor: theme.colorScheme.primary,
                         backgroundImage:
                             account?.avatarPath.isNotEmpty == true
@@ -893,7 +916,17 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
   }
 
   void _onUsernameTap(BuildContext context, String username) {
-    if (username.isEmpty) return;
+    if (username.isEmpty) {
+      final appState = context.read<AppState>();
+      final account = appState.activeAccount;
+      if (account == null) return;
+      showUsernameBox(
+        context,
+        accountId: appState.activeAccountId,
+        currentUsername: account.username,
+      );
+      return;
+    }
     final link = 'https://t.me/$username';
     Clipboard.setData(ClipboardData(text: link));
     showTelegramToast(context, 'Link copied: $link');
@@ -2062,8 +2095,128 @@ class _DevicesScreen extends StatelessWidget {
   }
 }
 
-class _CallsSettingsTab extends StatelessWidget {
+class _CallsSettingsTab extends StatefulWidget {
   const _CallsSettingsTab();
+
+  @override
+  State<_CallsSettingsTab> createState() => _CallsSettingsTabState();
+}
+
+class _CallsSettingsTabState extends State<_CallsSettingsTab> {
+  List<String> _outputDevices = [];
+  List<String> _inputDevices = [];
+  List<String> _cameraDevices = [];
+  String _selectedOutput = 'Default';
+  String _selectedInput = 'Default';
+  String _selectedCamera = 'Default';
+  String _p2pOption = 'contacts';
+  bool _callsDisabled = false;
+  bool _sameDevice = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
+    final results = await Future.wait([
+      engine.getAudioDevices(accountId, 'playback'),
+      engine.getAudioDevices(accountId, 'capture'),
+      engine.getAudioDevices(accountId, 'camera'),
+      engine.getPrivacySetting(accountId, 'phone_p2p'),
+    ]);
+
+    if (!mounted) return;
+    final outputDevs = results[0] as List<String>;
+    final inputDevs = results[1] as List<String>;
+    final cameraDevs = results[2] as List<String>;
+    final p2pSetting = results[3] as Map<String, dynamic>?;
+
+    setState(() {
+      _outputDevices = outputDevs.isNotEmpty ? outputDevs : ['Default'];
+      _inputDevices = inputDevs.isNotEmpty ? inputDevs : ['Default'];
+      _cameraDevices = cameraDevs.isNotEmpty ? cameraDevs : [];
+      _selectedOutput = outputDevs.isNotEmpty ? outputDevs.first : 'Default';
+      _selectedInput = inputDevs.isNotEmpty ? inputDevs.first : 'Default';
+      _selectedCamera = cameraDevs.isNotEmpty ? cameraDevs.first : 'Default';
+      final opt = p2pSetting?['option'] as String? ?? 'contacts';
+      _p2pOption = opt;
+      _loading = false;
+    });
+  }
+
+  Future<void> _setP2P(String option) async {
+    setState(() => _p2pOption = option);
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    await engine.setPrivacySetting(appState.activeAccountId, 'phone_p2p', option);
+  }
+
+  Future<void> _toggleCallsDisabled(bool disabled) async {
+    setState(() => _callsDisabled = disabled);
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    await engine.setCallsDisabledHere(appState.activeAccountId, disabled: disabled);
+  }
+
+  void _showDevicePicker(String title, List<String> devices, String selected, void Function(String) onSelect) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = context.palette.windowBgActive;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+        content: SizedBox(
+          width: 300,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: devices.length,
+            itemBuilder: (ctx, i) {
+              final dev = devices[i];
+              final isSelected = dev == selected;
+              return InkWell(
+                onTap: () {
+                  onSelect(dev);
+                  Navigator.of(ctx).pop();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                        size: 20,
+                        color: isSelected ? accentColor : textColor.withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(dev, style: TextStyle(fontSize: 14, color: textColor))),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel', style: TextStyle(color: accentColor)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2072,6 +2225,17 @@ class _CallsSettingsTab extends StatelessWidget {
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final accentColor = context.palette.windowBgActive;
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE7E7E7);
+
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final p2pOptions = [
+      ('everyone', 'Everyone'),
+      ('contacts', 'My contacts'),
+      ('nobody', 'Nobody'),
+    ];
 
     return ListView(
       children: [
@@ -2083,20 +2247,101 @@ class _CallsSettingsTab extends StatelessWidget {
         const SizedBox(height: 8),
         _DeviceSettingRow(
           label: 'Output device',
-          value: 'Default',
+          value: _selectedOutput,
           isDark: isDark,
-          onTap: () {},
+          onTap: () => _showDevicePicker('Output device', _outputDevices, _selectedOutput, (dev) async {
+            setState(() => _selectedOutput = dev);
+            final appState = context.read<AppState>();
+            final engine = context.read<EngineService>();
+            await engine.setCallAudioDevice(appState.activeAccountId, 'playback', dev);
+          }),
         ),
         _DeviceSettingRow(
           label: 'Input device',
-          value: 'Default',
+          value: _selectedInput,
           isDark: isDark,
-          onTap: () {},
+          onTap: () => _showDevicePicker('Input device', _inputDevices, _selectedInput, (dev) async {
+            setState(() => _selectedInput = dev);
+            final appState = context.read<AppState>();
+            final engine = context.read<EngineService>();
+            await engine.setCallAudioDevice(appState.activeAccountId, 'capture', dev);
+          }),
         ),
+        const SizedBox(height: 4),
+        InkWell(
+          onTap: () {
+            final val = !_sameDevice;
+            setState(() => _sameDevice = val);
+          },
+          hoverColor: hoverBg,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text('Use same device for calls', style: TextStyle(fontSize: 14, color: textColor)),
+                ),
+                SizedBox(
+                  width: 36,
+                  height: 20,
+                  child: Switch(
+                    value: _sameDevice,
+                    onChanged: (v) => setState(() => _sameDevice = v),
+                    activeColor: accentColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_cameraDevices.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            child: Text('Camera', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
+          ),
+          const SizedBox(height: 8),
+          _DeviceSettingRow(
+            label: 'Video device',
+            value: _selectedCamera,
+            isDark: isDark,
+            onTap: () => _showDevicePicker('Video device', _cameraDevices, _selectedCamera, (dev) {
+              setState(() => _selectedCamera = dev);
+            }),
+          ),
+        ],
+        const SizedBox(height: 16),
+        Container(height: 1, color: dividerColor),
         const SizedBox(height: 16),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 22),
           child: Text('Calls', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () => _toggleCallsDisabled(!_callsDisabled),
+          hoverColor: hoverBg,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text('Accept calls on this device', style: TextStyle(fontSize: 14, color: textColor)),
+                ),
+                SizedBox(
+                  width: 36,
+                  height: 20,
+                  child: Switch(
+                    value: !_callsDisabled,
+                    onChanged: (v) => _toggleCallsDisabled(!v),
+                    activeColor: accentColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: 8),
         Padding(
@@ -2106,25 +2351,33 @@ class _CallsSettingsTab extends StatelessWidget {
             style: TextStyle(fontSize: 14, color: textColor),
           ),
         ),
-        for (final option in ['Everyone', 'My contacts', 'Nobody'])
+        for (final (key, label) in p2pOptions)
           InkWell(
-            onTap: () {},
+            onTap: () => _setP2P(key),
             hoverColor: hoverBg,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
               child: Row(
                 children: [
                   Icon(
-                    option == 'My contacts' ? Icons.radio_button_checked : Icons.radio_button_off,
+                    _p2pOption == key ? Icons.radio_button_checked : Icons.radio_button_off,
                     size: 20,
-                    color: option == 'My contacts' ? accentColor : subtextColor,
+                    color: _p2pOption == key ? accentColor : subtextColor,
                   ),
                   const SizedBox(width: 12),
-                  Text(option, style: TextStyle(fontSize: 14, color: textColor)),
+                  Text(label, style: TextStyle(fontSize: 14, color: textColor)),
                 ],
               ),
             ),
           ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Text(
+            'Peer-to-peer calls can expose your IP address to the other party.',
+            style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
+          ),
+        ),
       ],
     );
   }
@@ -2195,15 +2448,39 @@ class _PremiumInfoScreenState extends State<_PremiumInfoScreen> {
   }
 
   Future<void> _loadPremiumInfo() async {
-    _features = [
-      'Increased limits for channels, folders and pins',
-      'Faster downloads and no speed limits',
-      'Voice-to-text conversion for voice messages',
-      'No ads in public channels',
-      'Unique reactions and stickers',
-      'Custom emoji and profile colors',
-      'Premium badges and animated profile photos',
-      'Real-time translation of messages',
+    final engine = context.read<EngineService>();
+    try {
+      final result = await engine.getPremiumFeatures(widget.accountId);
+      if (result.isNotEmpty && mounted) {
+        setState(() {
+          _features = result;
+          _loading = false;
+        });
+        return;
+      }
+    } catch (_) {}
+    _features = const [
+      'Upgraded Stories',
+      '4 GB file uploads',
+      'Doubled limits',
+      'Last seen control',
+      'Voice-to-text',
+      'Faster downloads',
+      'Real-time translation',
+      'Animated emoji',
+      'Emoji status',
+      'Tags for messages',
+      'Chat wallpapers',
+      'Profile badge',
+      'Message privacy',
+      'Advanced chat management',
+      'No ads',
+      'Unique reactions',
+      'Animated profile photos',
+      'Premium stickers',
+      'Business features',
+      'Message effects',
+      'AI-powered compose',
     ];
     if (mounted) setState(() => _loading = false);
   }
@@ -2282,7 +2559,16 @@ class _PremiumInfoScreenState extends State<_PremiumInfoScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                      onPressed: () => _openUrl('https://t.me/premium'),
+                      onPressed: () async {
+                        final engine = context.read<EngineService>();
+                        try {
+                          await engine.openPremiumSubscription(widget.accountId, ref: 'settings');
+                        } catch (_) {
+                          if (mounted) {
+                            showTelegramToast(context, 'Premium subscription is managed through the official Telegram app');
+                          }
+                        }
+                      },
                       child: const Text('Subscribe to Premium', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                     ),
                   ),
@@ -2303,20 +2589,50 @@ class _CreditsScreen extends StatefulWidget {
   State<_CreditsScreen> createState() => _CreditsScreenState();
 }
 
-class _CreditsScreenState extends State<_CreditsScreen> {
+class _CreditsScreenState extends State<_CreditsScreen> with SingleTickerProviderStateMixin {
   late int _balance;
+  late TabController _tabController;
+  List<Map<String, dynamic>> _allTransactions = [];
+  List<Map<String, dynamic>> _inTransactions = [];
+  List<Map<String, dynamic>> _outTransactions = [];
+  bool _txLoading = true;
 
   @override
   void initState() {
     super.initState();
     _balance = widget.balance;
+    _tabController = TabController(length: 3, vsync: this);
     _refreshBalance();
+    _loadTransactions();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _refreshBalance() async {
     final engine = context.read<EngineService>();
     final balance = await engine.getStarsBalance(widget.accountId);
     if (mounted) setState(() => _balance = balance);
+  }
+
+  Future<void> _loadTransactions() async {
+    final engine = context.read<EngineService>();
+    try {
+      final txList = await engine.getStarsTransactions(widget.accountId);
+      if (mounted) {
+        setState(() {
+          _allTransactions = txList;
+          _inTransactions = txList.where((t) => (t['amount'] as num? ?? 0) > 0).toList();
+          _outTransactions = txList.where((t) => (t['amount'] as num? ?? 0) < 0).toList();
+          _txLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _txLoading = false);
+    }
   }
 
   @override
@@ -2339,59 +2655,175 @@ class _CreditsScreenState extends State<_CreditsScreen> {
         ),
         title: Text('Telegram Stars', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF5F5F5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                Icon(Icons.star, size: 48, color: const Color(0xFFFFB743)),
-                const SizedBox(height: 8),
-                Text(
-                  '$_balance',
-                  style: TextStyle(fontSize: 36, fontWeight: FontWeight.w700, color: textColor),
-                ),
-                const SizedBox(height: 4),
-                Text('Stars Balance', style: TextStyle(fontSize: 14, color: subtextColor)),
-              ],
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.star, size: 48, color: Color(0xFFFFB743)),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$_balance',
+                    style: TextStyle(fontSize: 36, fontWeight: FontWeight.w700, color: textColor),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('Stars Balance', style: TextStyle(fontSize: 14, color: subtextColor)),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: accentColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accentColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () async {
+                  final engine = context.read<EngineService>();
+                  try {
+                    await engine.openStarsPurchase(widget.accountId);
+                  } catch (_) {
+                    if (mounted) {
+                      showTelegramToast(context, 'Stars can be purchased in the official Telegram app');
+                    }
+                  }
+                },
+                child: const Text('Buy Stars', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               ),
-              onPressed: () => _openUrl('https://t.me/stars'),
-              child: const Text('Buy Stars', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             ),
           ),
           const SizedBox(height: 16),
-          Text('About Telegram Stars', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: accentColor)),
-          const SizedBox(height: 8),
-          Text(
-            'Use Telegram Stars to buy digital goods and services in bots and mini apps, unlock paid content from channels, send paid reactions, and more.',
-            style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
+          TabBar(
+            controller: _tabController,
+            labelColor: accentColor,
+            unselectedLabelColor: subtextColor,
+            indicatorColor: accentColor,
+            tabs: const [
+              Tab(text: 'All'),
+              Tab(text: 'Incoming'),
+              Tab(text: 'Outgoing'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildTransactionList(_allTransactions, textColor, subtextColor, isDark),
+                _buildTransactionList(_inTransactions, textColor, subtextColor, isDark),
+                _buildTransactionList(_outTransactions, textColor, subtextColor, isDark),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildTransactionList(
+    List<Map<String, dynamic>> transactions,
+    Color textColor,
+    Color subtextColor,
+    bool isDark,
+  ) {
+    if (_txLoading) return const Center(child: CircularProgressIndicator());
+    if (transactions.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.receipt_long, size: 48, color: subtextColor),
+            const SizedBox(height: 12),
+            Text('No transactions yet', style: TextStyle(fontSize: 16, color: subtextColor)),
+          ],
+        ),
+      );
+    }
+    return ListView.builder(
+      itemCount: transactions.length,
+      itemBuilder: (ctx, i) {
+        final tx = transactions[i];
+        final amount = (tx['amount'] as num?)?.toInt() ?? 0;
+        final title = tx['title'] as String? ?? tx['peer'] as String? ?? 'Transaction';
+        final date = tx['date'] as String? ?? '';
+        final isPositive = amount > 0;
+        return ListTile(
+          leading: Icon(
+            isPositive ? Icons.arrow_downward : Icons.arrow_upward,
+            color: isPositive ? const Color(0xFF4CAF50) : const Color(0xFFE53935),
+          ),
+          title: Text(title, style: TextStyle(fontSize: 14, color: textColor)),
+          subtitle: date.isNotEmpty ? Text(date, style: TextStyle(fontSize: 12, color: subtextColor)) : null,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.star, size: 14, color: Color(0xFFFFB743)),
+              const SizedBox(width: 4),
+              Text(
+                '${isPositive ? '+' : ''}$amount',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isPositive ? const Color(0xFF4CAF50) : const Color(0xFFE53935),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
-class _BusinessScreen extends StatelessWidget {
+class _BusinessScreen extends StatefulWidget {
   final String accountId;
 
   const _BusinessScreen({required this.accountId});
+
+  @override
+  State<_BusinessScreen> createState() => _BusinessScreenState();
+}
+
+class _BusinessScreenState extends State<_BusinessScreen> {
+  Map<String, dynamic> _businessInfo = {};
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBusinessInfo();
+  }
+
+  Future<void> _loadBusinessInfo() async {
+    final engine = context.read<EngineService>();
+    try {
+      final info = await engine.getBusinessInfo(widget.accountId);
+      if (mounted) setState(() { _businessInfo = info; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _openBusinessSubPage(String featureKey, String title) {
+    Navigator.of(context).push(settingsPageRoute(
+      _BusinessSubPage(
+        accountId: widget.accountId,
+        featureKey: featureKey,
+        title: title,
+      ),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2400,15 +2832,17 @@ class _BusinessScreen extends StatelessWidget {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor = context.palette.windowBgActive;
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     final features = [
-      ('Business Hours', 'Set working hours so clients know when to reach you', Icons.schedule),
-      ('Business Location', 'Display your business address on your profile', Icons.location_on),
-      ('Greeting Messages', 'Send automatic greeting messages to new clients', Icons.waving_hand),
-      ('Away Messages', 'Automatically reply when you are unavailable', Icons.flight),
-      ('Quick Replies', 'Set up shortcuts for frequently used messages', Icons.flash_on),
-      ('Chatbot Integration', 'Connect a Telegram bot to manage conversations', Icons.smart_toy),
-      ('Custom Start Page', 'Customize your chat intro with an image and text', Icons.view_agenda),
+      ('hours', 'Business Hours', 'Set working hours so clients know when to reach you', Icons.schedule),
+      ('location', 'Business Location', 'Display your business address on your profile', Icons.location_on),
+      ('greeting', 'Greeting Messages', 'Send automatic greeting messages to new clients', Icons.waving_hand),
+      ('away', 'Away Messages', 'Automatically reply when you are unavailable', Icons.flight),
+      ('quick_replies', 'Quick Replies', 'Set up shortcuts for frequently used messages', Icons.flash_on),
+      ('chatbots', 'Chatbot Integration', 'Connect a Telegram bot to manage conversations', Icons.smart_toy),
+      ('intro', 'Chat Intro', 'Customize your chat intro with an image and text', Icons.view_agenda),
+      ('links', 'Chat Links', 'Create direct chat links for customers', Icons.link),
     ];
 
     return Scaffold(
@@ -2423,65 +2857,516 @@ class _BusinessScreen extends StatelessWidget {
         ),
         title: Text('Telegram Business', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF3A3A5C), Color(0xFF5C5C8A)],
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
               children: [
-                const Icon(Icons.diamond_outlined, size: 48, color: Colors.white),
-                const SizedBox(height: 8),
-                const Text('Telegram Business', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
-                const SizedBox(height: 4),
-                Text('Tools for businesses on Telegram', style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.8))),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF3A3A5C), Color(0xFF5C5C8A)],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.diamond_outlined, size: 48, color: Colors.white),
+                        const SizedBox(height: 8),
+                        const Text('Telegram Business', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
+                        const SizedBox(height: 4),
+                        Text('Tools for businesses on Telegram', style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.8))),
+                      ],
+                    ),
+                  ),
+                ),
+                for (final (key, name, desc, icon) in features)
+                  InkWell(
+                    onTap: () => _openBusinessSubPage(key, name),
+                    hoverColor: hoverBg,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                      child: Row(
+                        children: [
+                          Icon(icon, size: 24, color: accentColor),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+                                const SizedBox(height: 2),
+                                Text(desc, style: TextStyle(fontSize: 13, color: subtextColor)),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right, size: 20, color: subtextColor),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
+class _BusinessSubPage extends StatefulWidget {
+  final String accountId;
+  final String featureKey;
+  final String title;
+
+  const _BusinessSubPage({required this.accountId, required this.featureKey, required this.title});
+
+  @override
+  State<_BusinessSubPage> createState() => _BusinessSubPageState();
+}
+
+class _BusinessSubPageState extends State<_BusinessSubPage> {
+  Map<String, dynamic> _data = {};
+  bool _loading = true;
+  bool _saving = false;
+  final _textController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    final engine = context.read<EngineService>();
+    try {
+      final data = await engine.getBusinessFeature(widget.accountId, widget.featureKey);
+      if (mounted) {
+        setState(() {
+          _data = data;
+          if (widget.featureKey == 'greeting' || widget.featureKey == 'away') {
+            _textController.text = _data['message'] as String? ?? '';
+          } else if (widget.featureKey == 'intro') {
+            _textController.text = _data['text'] as String? ?? '';
+          } else if (widget.featureKey == 'location') {
+            _textController.text = _data['address'] as String? ?? '';
+          }
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _saveData() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final engine = context.read<EngineService>();
+    try {
+      final update = Map<String, dynamic>.from(_data);
+      if (widget.featureKey == 'greeting' || widget.featureKey == 'away') {
+        update['message'] = _textController.text;
+      } else if (widget.featureKey == 'intro') {
+        update['text'] = _textController.text;
+      } else if (widget.featureKey == 'location') {
+        update['address'] = _textController.text;
+      }
+      await engine.setBusinessFeature(widget.accountId, widget.featureKey, update);
+      if (mounted) {
+        showTelegramToast(context, '${widget.title} saved');
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed to save: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(widget.title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : _saveData,
+            child: _saving
+                ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: accentColor))
+                : Text('Save', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _buildContent(textColor, subtextColor, accentColor, isDark),
+    );
+  }
+
+  Widget _buildContent(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
+    switch (widget.featureKey) {
+      case 'hours':
+        return _buildHoursEditor(textColor, subtextColor, accentColor, isDark);
+      case 'location':
+        return _buildLocationEditor(textColor, subtextColor, accentColor);
+      case 'greeting':
+      case 'away':
+        return _buildMessageEditor(textColor, subtextColor, accentColor);
+      case 'quick_replies':
+        return _buildQuickRepliesEditor(textColor, subtextColor, accentColor, isDark);
+      case 'chatbots':
+        return _buildChatbotsEditor(textColor, subtextColor, accentColor, isDark);
+      case 'intro':
+        return _buildIntroEditor(textColor, subtextColor, accentColor);
+      case 'links':
+        return _buildLinksEditor(textColor, subtextColor, accentColor, isDark);
+      default:
+        return Center(child: Text('Not available', style: TextStyle(color: subtextColor)));
+    }
+  }
+
+  Widget _buildHoursEditor(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
+    final enabled = _data['enabled'] as bool? ?? false;
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    final hours = _data['hours'] as Map<String, dynamic>? ?? {};
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        InkWell(
+          onTap: () => setState(() => _data['enabled'] = !enabled),
+          hoverColor: hoverBg,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              children: [
+                Expanded(child: Text('Enable Business Hours', style: TextStyle(fontSize: 14, color: textColor))),
+                Switch(value: enabled, onChanged: (v) => setState(() => _data['enabled'] = v), activeColor: accentColor),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          for (final (name, desc, icon) in features)
+        ),
+        if (enabled) ...[
+          const SizedBox(height: 12),
+          Text('Set your availability', style: TextStyle(fontSize: 13, color: subtextColor)),
+          const SizedBox(height: 8),
+          for (final day in days)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(icon, size: 24, color: accentColor),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
-                        const SizedBox(height: 2),
-                        Text(desc, style: TextStyle(fontSize: 13, color: subtextColor)),
-                      ],
-                    ),
+                  Expanded(child: Text(day, style: TextStyle(fontSize: 14, color: textColor))),
+                  Text(
+                    hours[day.toLowerCase()] as String? ?? '9:00 - 18:00',
+                    style: TextStyle(fontSize: 13, color: accentColor),
                   ),
                 ],
               ),
             ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: accentColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildLocationEditor(Color textColor, Color subtextColor, Color accentColor) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Business Address', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _textController,
+          maxLines: 3,
+          style: TextStyle(fontSize: 14, color: textColor),
+          decoration: InputDecoration(
+            hintText: 'Enter your business address...',
+            hintStyle: TextStyle(color: subtextColor),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: accentColor)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text('This address will be displayed on your profile.', style: TextStyle(fontSize: 13, color: subtextColor)),
+      ],
+    );
+  }
+
+  Widget _buildMessageEditor(Color textColor, Color subtextColor, Color accentColor) {
+    final isGreeting = widget.featureKey == 'greeting';
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          isGreeting ? 'Greeting Message' : 'Away Message',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _textController,
+          maxLines: 5,
+          style: TextStyle(fontSize: 14, color: textColor),
+          decoration: InputDecoration(
+            hintText: isGreeting ? 'Hello! How can I help you?' : 'I\'m currently away, I\'ll get back to you soon.',
+            hintStyle: TextStyle(color: subtextColor),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: accentColor)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          isGreeting
+              ? 'This message will be sent automatically to new customers who write to you for the first time.'
+              : 'This message will be sent automatically when you are unavailable.',
+          style: TextStyle(fontSize: 13, color: subtextColor),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickRepliesEditor(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
+    final replies = _data['replies'] as List<dynamic>? ?? [];
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Quick Replies', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+        const SizedBox(height: 8),
+        Text('Set up shortcuts for frequently used messages.', style: TextStyle(fontSize: 13, color: subtextColor)),
+        const SizedBox(height: 16),
+        for (var i = 0; i < replies.length; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(8),
               ),
-              onPressed: () => _openUrl('https://t.me/business'),
-              child: const Text('Learn More', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              child: Row(
+                children: [
+                  Text('/${replies[i]['shortcut'] ?? ''}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(replies[i]['message'] as String? ?? '', style: TextStyle(fontSize: 14, color: textColor), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                ],
+              ),
             ),
+          ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: () => _showAddQuickReplyDialog(textColor, subtextColor, accentColor, isDark),
+          icon: const Icon(Icons.add),
+          label: const Text('Add Quick Reply'),
+          style: OutlinedButton.styleFrom(foregroundColor: accentColor, side: BorderSide(color: accentColor)),
+        ),
+      ],
+    );
+  }
+
+  void _showAddQuickReplyDialog(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final shortcutCtrl = TextEditingController();
+    final messageCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Add Quick Reply', style: TextStyle(color: textColor)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: shortcutCtrl,
+              style: TextStyle(color: textColor),
+              decoration: InputDecoration(hintText: 'Shortcut (e.g. hello)', hintStyle: TextStyle(color: subtextColor)),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: messageCtrl,
+              maxLines: 3,
+              style: TextStyle(color: textColor),
+              decoration: InputDecoration(hintText: 'Message text', hintStyle: TextStyle(color: subtextColor)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('Cancel', style: TextStyle(color: subtextColor))),
+          TextButton(
+            onPressed: () {
+              if (shortcutCtrl.text.isNotEmpty && messageCtrl.text.isNotEmpty) {
+                final replies = List<dynamic>.from(_data['replies'] as List<dynamic>? ?? []);
+                replies.add({'shortcut': shortcutCtrl.text, 'message': messageCtrl.text});
+                setState(() => _data['replies'] = replies);
+                Navigator.of(ctx).pop();
+              }
+            },
+            child: Text('Add', style: TextStyle(color: accentColor)),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildChatbotsEditor(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
+    final botUsername = _data['bot_username'] as String? ?? '';
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Connected Chatbot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+        const SizedBox(height: 8),
+        Text('Connect a Telegram bot to manage customer conversations.', style: TextStyle(fontSize: 13, color: subtextColor)),
+        const SizedBox(height: 16),
+        if (botUsername.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.smart_toy, color: accentColor),
+                const SizedBox(width: 12),
+                Expanded(child: Text('@$botUsername', style: TextStyle(fontSize: 14, color: textColor))),
+                IconButton(
+                  icon: Icon(Icons.close, size: 20, color: subtextColor),
+                  onPressed: () => setState(() => _data['bot_username'] = ''),
+                ),
+              ],
+            ),
+          ),
+        ] else
+          OutlinedButton.icon(
+            onPressed: () {
+              final ctrl = TextEditingController();
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF),
+                  title: Text('Connect Bot', style: TextStyle(color: textColor)),
+                  content: TextField(
+                    controller: ctrl,
+                    style: TextStyle(color: textColor),
+                    decoration: InputDecoration(hintText: '@bot_username', hintStyle: TextStyle(color: subtextColor)),
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('Cancel', style: TextStyle(color: subtextColor))),
+                    TextButton(
+                      onPressed: () {
+                        if (ctrl.text.isNotEmpty) {
+                          setState(() => _data['bot_username'] = ctrl.text.replaceFirst('@', ''));
+                          Navigator.of(ctx).pop();
+                        }
+                      },
+                      child: Text('Connect', style: TextStyle(color: accentColor)),
+                    ),
+                  ],
+                ),
+              );
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Connect Bot'),
+            style: OutlinedButton.styleFrom(foregroundColor: accentColor, side: BorderSide(color: accentColor)),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildIntroEditor(Color textColor, Color subtextColor, Color accentColor) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Chat Intro', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+        const SizedBox(height: 8),
+        Text('Customize the intro that new customers see when they open a chat with you.', style: TextStyle(fontSize: 13, color: subtextColor)),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _textController,
+          maxLines: 4,
+          style: TextStyle(fontSize: 14, color: textColor),
+          decoration: InputDecoration(
+            hintText: 'Welcome to our business! How can we help?',
+            hintStyle: TextStyle(color: subtextColor),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: accentColor)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLinksEditor(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
+    final links = _data['links'] as List<dynamic>? ?? [];
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Chat Links', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+        const SizedBox(height: 8),
+        Text('Create direct links that customers can use to start a chat with you.', style: TextStyle(fontSize: 13, color: subtextColor)),
+        const SizedBox(height: 16),
+        for (var i = 0; i < links.length; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.link, color: accentColor),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(links[i] as String? ?? '', style: TextStyle(fontSize: 14, color: textColor), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  IconButton(
+                    icon: Icon(Icons.copy, size: 18, color: subtextColor),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: links[i] as String? ?? ''));
+                      showTelegramToast(context, 'Link copied');
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final engine = context.read<EngineService>();
+            try {
+              final link = await engine.createBusinessChatLink(widget.accountId);
+              if (link.isNotEmpty && mounted) {
+                final newLinks = List<dynamic>.from(links)..add(link);
+                setState(() => _data['links'] = newLinks);
+              }
+            } catch (e) {
+              if (mounted) showTelegramToast(context, 'Failed to create link');
+            }
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('Create Link'),
+          style: OutlinedButton.styleFrom(foregroundColor: accentColor, side: BorderSide(color: accentColor)),
+        ),
+      ],
     );
   }
 }
@@ -2514,6 +3399,92 @@ class _GiftCatalogScreenState extends State<_GiftCatalogScreen> {
         _loading = false;
       });
     }
+  }
+
+  void _showRecipientPicker(BuildContext context, StarGiftItem gift) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+    final engine = context.read<EngineService>();
+    final chatState = context.read<ChatState>();
+
+    final chats = chatState.chats
+        .where((c) => c.type == ChatType.dm && c.chatId.isNotEmpty)
+        .toList();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        String searchQuery = '';
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final filtered = searchQuery.isEmpty
+                ? chats
+                : chats.where((c) => c.title.toLowerCase().contains(searchQuery.toLowerCase())).toList();
+
+            return AlertDialog(
+              backgroundColor: bgColor,
+              title: Text('Choose Recipient', style: TextStyle(color: textColor, fontWeight: FontWeight.w600)),
+              content: SizedBox(
+                width: 300,
+                height: 400,
+                child: Column(
+                  children: [
+                    TextField(
+                      style: TextStyle(color: textColor),
+                      decoration: InputDecoration(
+                        hintText: 'Search contacts...',
+                        hintStyle: TextStyle(color: subtextColor),
+                        prefixIcon: Icon(Icons.search, color: subtextColor),
+                      ),
+                      onChanged: (v) => setDialogState(() => searchQuery = v),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? Center(child: Text('No contacts found', style: TextStyle(color: subtextColor)))
+                          : ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (ctx, i) {
+                                final chat = filtered[i];
+                                return ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: accentColor,
+                                    child: Text(chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?',
+                                        style: const TextStyle(color: Colors.white)),
+                                  ),
+                                  title: Text(chat.title, style: TextStyle(fontSize: 14, color: textColor)),
+                                  onTap: () async {
+                                    Navigator.of(ctx).pop();
+                                    try {
+                                      final success = await engine.sendStarGift(widget.accountId, chat.chatId, gift.id);
+                                      if (context.mounted) {
+                                        showTelegramToast(context, success ? 'Gift sent!' : 'Failed to send gift');
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) showTelegramToast(context, 'Error: $e');
+                                    }
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text('Cancel', style: TextStyle(color: subtextColor)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -2560,48 +3531,51 @@ class _GiftCatalogScreenState extends State<_GiftCatalogScreen> {
                   itemCount: _gifts.length,
                   itemBuilder: (ctx, i) {
                     final gift = _gifts[i];
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF5F5F5),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (gift.thumbB64.isNotEmpty)
-                            Image.memory(
-                              base64Decode(gift.thumbB64),
-                              width: 60,
-                              height: 60,
-                              fit: BoxFit.contain,
-                            )
-                          else
-                            Icon(Icons.card_giftcard, size: 48, color: accentColor),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.star, size: 14, color: Color(0xFFFFB743)),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${gift.stars}',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: textColor,
+                    return GestureDetector(
+                      onTap: () => _showRecipientPicker(context, gift),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF5F5F5),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (gift.thumbB64.isNotEmpty)
+                              Image.memory(
+                                base64Decode(gift.thumbB64),
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.contain,
+                              )
+                            else
+                              Icon(Icons.card_giftcard, size: 48, color: accentColor),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.star, size: 14, color: Color(0xFFFFB743)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${gift.stars}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: textColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (gift.remaining > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  '${gift.remaining} left',
+                                  style: TextStyle(fontSize: 11, color: subtextColor),
                                 ),
                               ),
-                            ],
-                          ),
-                          if (gift.remaining > 0)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                '${gift.remaining} left',
-                                style: TextStyle(fontSize: 11, color: subtextColor),
-                              ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     );
                   },

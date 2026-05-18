@@ -2313,6 +2313,7 @@ class _SingleMediaPreview extends StatelessWidget {
       imageFile: File(file.path),
       shape: PhotoCropShape.rect,
       purpose: PhotoEditorPurpose.edit,
+      startInPaintMode: true,
       onDone: (croppedFile) async {
         final codec = await ui.instantiateImageCodec(await croppedFile.readAsBytes());
         final frame = await codec.getNextFrame();

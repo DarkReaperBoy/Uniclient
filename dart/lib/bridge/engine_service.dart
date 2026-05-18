@@ -5068,6 +5068,120 @@ class EngineService {
     await _callAsync('__engine', 'SetPrivacySetting', Uint8List.fromList(payload));
   }
 
+  // ── Premium / Business / Credits ──
+
+  Future<List<String>> getPremiumFeatures(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetPremiumFeatures', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final data = json.decode(utf8.decode(respBytes));
+      if (data is Map && data['features'] is List) {
+        return (data['features'] as List).map((e) => e.toString()).toList();
+      }
+      return [];
+    } catch (e) {
+      Debug.error('ENGINE', 'getPremiumFeatures failed', e);
+      return [];
+    }
+  }
+
+  Future<void> openPremiumSubscription(String accountId, {String ref = ''}) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId, 'ref': ref}));
+    try {
+      await _callAsync('__engine', 'OpenPremiumSubscription', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'openPremiumSubscription failed', e);
+      rethrow;
+    }
+  }
+
+  Future<void> openStarsPurchase(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      await _callAsync('__engine', 'OpenStarsPurchase', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'openStarsPurchase failed', e);
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getStarsTransactions(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetStarsTransactions', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final data = json.decode(utf8.decode(respBytes));
+      if (data is Map && data['transactions'] is List) {
+        return (data['transactions'] as List).cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      Debug.error('ENGINE', 'getStarsTransactions failed', e);
+      return [];
+    }
+  }
+
+  Future<String> getTonBalance(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetTonBalance', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return '';
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return data['balance'] as String? ?? '';
+    } catch (e) {
+      Debug.error('ENGINE', 'getTonBalance failed', e);
+      return '';
+    }
+  }
+
+  Future<Map<String, dynamic>> getBusinessInfo(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetBusinessInfo', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return {};
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'getBusinessInfo failed', e);
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> getBusinessFeature(String accountId, String feature) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId, 'feature': feature}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetBusinessFeature', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return {};
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'getBusinessFeature($feature) failed', e);
+      return {};
+    }
+  }
+
+  Future<void> setBusinessFeature(String accountId, String feature, Map<String, dynamic> data) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId, 'feature': feature, 'data': data}));
+    try {
+      await _callAsync('__engine', 'SetBusinessFeature', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'setBusinessFeature($feature) failed', e);
+      rethrow;
+    }
+  }
+
+  Future<String> createBusinessChatLink(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'CreateBusinessChatLink', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return '';
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return data['link'] as String? ?? '';
+    } catch (e) {
+      Debug.error('ENGINE', 'createBusinessChatLink failed', e);
+      return '';
+    }
+  }
+
   // ── Shutdown ──
 
   void shutdown() {
