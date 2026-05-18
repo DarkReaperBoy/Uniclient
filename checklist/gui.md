@@ -552,26 +552,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-# photo_crop_editor — Paint tools incomplete, stickers fake, text non-interactive
-
-## MAJOR
-
-- [ ] [MAJOR] Canvas zoom not implemented — AyuGram supports 1×–8× zoom via mouse-wheel on the paint QGraphicsView and per-item zoom (0.1×–10×); Dart has no zoom — `photo_crop_editor.dart:1380-1451` (no zoom code) ← `editor/editor_paint.cpp:173-199`, `editor/photo_editor_content.cpp:127-149`
-
-- [ ] [MAJOR] Paint annotations have no selection/drag/resize interaction — AyuGram text and sticker items are QGraphicsItems with handles (move, scale, rotate, delete); Dart `_TextAnnotation` objects are baked-in and immovable after placement — `photo_crop_editor.dart:1570-1588` ← `editor/editor_paint.cpp:56-67`
-
-- [ ] [MAJOR] Animated tool-selection sliding indicator missing — AyuGram draws a filled ellipse that slides between tool buttons using `anim::easeOutCirc`; Dart changes only the icon color — `photo_crop_editor.dart:1783-1813` ← `editor/color_picker.cpp:512-547`
-
-- [ ] [MAJOR] Lottie-animated tool-button icons missing — AyuGram uses `ToolLottieButton` with TGS animations (hover plays forward, leave resets); Dart uses plain `Material Icons` — `photo_crop_editor.dart:1782-1813` ← `editor/color_picker.cpp:187-263`, `332-346`
-
-- [ ] [MAJOR] Cancel in paint mode keeps strokes instead of discarding — AyuGram emits `Action::Discard` when cancel is pressed in paint mode, reverting all paint changes; Dart just toggles `_editorMode` back to transform, leaving `_paintStrokes` and `_textAnnotations` intact — `photo_crop_editor.dart:406-412` ← `editor/photo_editor.cpp:334-342`
-
-- [ ] [MAJOR] Per-tool brush state not persisted across tool switches — AyuGram stores a separate `Brush` (color + sizeRatio) for each of the 5 tools in `_toolBrushes` and restores it when switching; Dart shares a single `_brushColor` and `_brushWidth` for all tools — `photo_crop_editor.dart:250-253` ← `editor/photo_editor.cpp:80-92`, `editor/color_picker.cpp:549-567`
-
-- [ ] [MAJOR] Default per-tool colors wrong — AyuGram defaults: Pen=#EA2739, Arrow=#FC964D, Marker=#FCDE65, Eraser/Blur=#000000; Dart initialises `_brushColor` to #EA2739 for all tools — `photo_crop_editor.dart:250` ← `editor/photo_editor.cpp:61-70`
-
-- [ ] [MAJOR] Corners popup menu missing description label — AyuGram prepends a `MultilineAction` with `tr::lng_photo_editor_corners_about` text above the four corner options; Dart corners `PopupMenuButton` has no description item — `photo_crop_editor.dart:2057-2086` ← `editor/photo_editor_controls.cpp:543-551`
-
 # popup_menu — Context menu widget audit
 
 - [ ] [MAJOR] RTL keyboard navigation not implemented: AyuGram swaps left/right arrow keys for RTL locales — left arrow opens submenu and right arrow closes/escapes in RTL, opposite of LTR. Dart hardcodes left=close-submenu/escape and right=open-submenu regardless of locale, breaking menu keyboard navigation for Arabic/Hebrew/Persian users — `popup_menu.dart:617-647` ← `AyuGram/Telegram/lib_ui/ui/widgets/popup_menu.cpp:428-439`
