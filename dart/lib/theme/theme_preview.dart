@@ -62,6 +62,8 @@ class _ThemePreviewPainter extends CustomPainter {
 
   _ThemePreviewPainter({required this.palette, this.photoImage});
 
+  static const double _canvasWidth = 903;
+  static const double _canvasHeight = 584;
   static const double _dialogsWidth = 312;
   static const double _topBarHeight = 54;
   static const double _composeHeight = 46;
@@ -72,8 +74,8 @@ class _ThemePreviewPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final scaleX = size.width / 903;
-    final scaleY = size.height / 584;
+    final scaleX = size.width / _canvasWidth;
+    final scaleY = size.height / _canvasHeight;
     canvas.save();
     canvas.scale(scaleX, scaleY);
 
@@ -85,7 +87,7 @@ class _ThemePreviewPainter extends CustomPainter {
 
   void _drawDialogsPanel(Canvas canvas) {
     canvas.drawRect(
-      const Rect.fromLTWH(0, 0, _dialogsWidth, 584),
+      const Rect.fromLTWH(0, 0, _dialogsWidth, _canvasHeight),
       Paint()..color = palette.dialogsBg,
     );
 
@@ -137,7 +139,7 @@ class _ThemePreviewPainter extends CustomPainter {
 
     for (int i = 0; i < 8; i++) {
       final y = startY + i * _rowHeight;
-      if (y + _rowHeight > 584) break;
+      if (y + _rowHeight > _canvasHeight) break;
 
       final isActive = i == activeIndex;
 
@@ -226,18 +228,18 @@ class _ThemePreviewPainter extends CustomPainter {
 
     // Separator shadow
     canvas.drawRect(
-      const Rect.fromLTWH(_dialogsWidth - 1, 0, 1, 584),
+      const Rect.fromLTWH(_dialogsWidth - 1, 0, 1, _canvasHeight),
       Paint()..color = palette.shadowFg,
     );
   }
 
   void _drawChatPanel(Canvas canvas) {
     const left = _dialogsWidth;
-    const chatWidth = 903.0 - _dialogsWidth;
+    const chatWidth = _canvasWidth - _dialogsWidth;
 
     // Chat background
     canvas.drawRect(
-      const Rect.fromLTWH(left, 0, chatWidth, 584),
+      const Rect.fromLTWH(left, 0, chatWidth, _canvasHeight),
       Paint()..color = palette.windowBg,
     );
 
@@ -257,17 +259,13 @@ class _ThemePreviewPainter extends CustomPainter {
     _drawText(canvas, 'online', left + 17, 32, 13,
         palette.contactsStatusFgOnline, FontWeight.normal);
 
-    // Top bar: right-aligned icons (search, call, menu)
+    // Top bar: right-aligned icons, positioned from right edge
     final iconFg = palette.dialogsMenuIconFg;
+    final rightEdge = left + chatWidth;
 
-    // Menu toggle (rightmost, 44px zone)
-    _drawMaterialIcon(canvas, Icons.more_vert, 903 - 36, 15, 24, iconFg);
-
-    // Call icon
-    _drawMaterialIcon(canvas, Icons.call, 903 - 44 - 4 - 36, 15, 24, iconFg);
-
-    // Search icon
-    _drawMaterialIcon(canvas, Icons.search, 903 - 44 - 4 - 40 - 34, 15, 24, iconFg);
+    _drawDotsVertIcon(canvas, rightEdge - 36, 15, 24, iconFg);
+    _drawPhoneCallIcon(canvas, rightEdge - 84, 15, 24, iconFg);
+    _drawSearchIcon(canvas, rightEdge - 122, 15, 24, iconFg);
 
     // Message area
     _drawMessageArea(canvas, left, chatWidth);
@@ -277,7 +275,7 @@ class _ThemePreviewPainter extends CustomPainter {
   }
 
   void _drawMessageArea(Canvas canvas, double left, double chatWidth) {
-    final areaBottom = 584.0 - _composeHeight;
+    final areaBottom = _canvasHeight - _composeHeight;
 
     var historyBottom = areaBottom - 8.0;
 
@@ -623,77 +621,59 @@ class _ThemePreviewPainter extends CustomPainter {
     _drawText(canvas, 'To reach a port, we must sail. \u{1f978}',
         bubbleX + 11, y + photoH + 5, 13, palette.historyTextInFg, FontWeight.normal);
 
-    // Time in photo area
+    // Time in caption area (AyuGram draws time in text portion, not overlaid on photo)
     final timeW = _estimateTextWidth('7:00', 11);
-    final timeBgRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(bubbleX + bubbleW - timeW - 18, y + photoH - 22, timeW + 12, 18),
-      const Radius.circular(9),
-    );
-    canvas.drawRRect(timeBgRect, Paint()..color = const Color(0x80000000));
     _drawText(canvas, '7:00',
-        bubbleX + bubbleW - timeW - 12, y + photoH - 20, 11, Colors.white, FontWeight.normal);
+        bubbleX + bubbleW - timeW - 12, y + totalH - 16, 11,
+        palette.msgInDateFg, FontWeight.normal);
 
     return y - 6;
   }
 
   void _drawComposeArea(Canvas canvas, double left, double chatWidth) {
-    final composeY = 584.0 - _composeHeight;
+    final composeY = _canvasHeight - _composeHeight;
+    const attachWidth = 44.0;
+    const emojiWidth = 44.0;
+    const sendWidth = 44.0;
 
-    // Background
     canvas.drawRect(
       Rect.fromLTWH(left, composeY, chatWidth, _composeHeight),
       Paint()..color = palette.historyReplyBg,
     );
 
-    // Top border
     canvas.drawRect(
       Rect.fromLTWH(left, composeY, chatWidth, 1),
       Paint()..color = palette.shadowFg,
     );
 
-    // Attach icon (left side, 44px zone — AyuGram: "chat/input_attach")
-    _drawMaterialIcon(canvas, Icons.attach_file, left + 10, composeY + 11, 24, palette.historyComposeIconFg);
+    _drawPaperclipIcon(canvas, left + 10, composeY + 11, 24, palette.historyComposeIconFg);
 
-    // Text input field background
-    const fieldLeft = 44.0;
-    const fieldRight = 88.0;
+    _drawMicrophoneIcon(
+      canvas, left + chatWidth - sendWidth + 10, composeY + 11, 24,
+      palette.historyComposeIconFg,
+    );
+
+    // Emoji button (right-edge relative: AyuGram builds from right using button widths)
+    final emojiLeft = left + chatWidth - sendWidth - emojiWidth;
+    canvas.drawRect(
+      Rect.fromLTWH(emojiLeft, composeY, emojiWidth, _composeHeight),
+      Paint()..color = palette.historyComposeAreaBg,
+    );
+    const emojiIconSize = 22.0;
+    final emojiIconX = emojiLeft + (emojiWidth - emojiIconSize) / 2;
+    final emojiIconY = composeY + (_composeHeight - emojiIconSize) / 2;
+    _drawEmojiSmileyIcon(canvas, emojiIconX, emojiIconY, emojiIconSize, palette.historyComposeIconFg);
+
     final fieldRect = Rect.fromLTWH(
-        left + fieldLeft, composeY + 7, chatWidth - fieldLeft - fieldRight, 32);
+        left + attachWidth, composeY + 7,
+        chatWidth - attachWidth - emojiWidth - sendWidth, 32);
     canvas.drawRRect(
       RRect.fromRectAndRadius(fieldRect, const Radius.circular(16)),
       Paint()..color = palette.historyComposeAreaBg,
     );
 
-    // Placeholder text
-    _drawText(canvas, 'Write a message...', left + fieldLeft + 12, composeY + 14, 13,
+    _drawText(canvas, 'Message', left + attachWidth + 12, composeY + 14, 13,
         palette.historyComposeAreaFg.withValues(alpha: 0.5), FontWeight.normal);
-
-    // Emoji button (right of field, before record button)
-    final emojiX = left + chatWidth - 86;
-    final emojiCY = composeY + _composeHeight / 2;
-    canvas.drawRect(
-      Rect.fromLTWH(emojiX - 2, composeY, 44, _composeHeight),
-      Paint()..color = palette.historyComposeAreaBg,
-    );
-    _drawMaterialIcon(
-      canvas, Icons.sentiment_satisfied_alt,
-      emojiX, emojiCY - 11, 22, palette.historyComposeIconFg,
-    );
-    // Circle outline: AyuGram historyEmojiCircle=20x20, historyEmojiCircleFg=historyComposeIconFg
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(emojiX + 11, emojiCY), width: 20, height: 20),
-      Paint()
-        ..color = palette.historyComposeIconFg
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
-        ..strokeCap = StrokeCap.round,
-    );
-
-    // Microphone icon (rightmost 44px zone)
-    _drawMaterialIcon(
-      canvas, Icons.mic,
-      left + chatWidth - 38, composeY + 11, 24, palette.historyComposeIconFg,
-    );
   }
 
   // ── Icon Drawing Helpers ──
@@ -714,6 +694,141 @@ class _ThemePreviewPainter extends CustomPainter {
     );
     tp.layout();
     tp.paint(canvas, Offset(x, y));
+  }
+
+  void _drawDotsVertIcon(Canvas canvas, double x, double y, double size, Color color) {
+    final paint = Paint()..color = color;
+    final cx = x + size / 2;
+    final r = size * 0.1;
+    for (final f in [0.24, 0.5, 0.76]) {
+      canvas.drawCircle(Offset(cx, y + size * f), r, paint);
+    }
+  }
+
+  void _drawSearchIcon(Canvas canvas, double x, double y, double size, Color color) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size * 0.09
+      ..strokeCap = StrokeCap.round;
+    final r = size * 0.28;
+    final cx = x + size * 0.42;
+    final cy = y + size * 0.42;
+    canvas.drawCircle(Offset(cx, cy), r, paint);
+    canvas.drawLine(
+      Offset(cx + r * 0.71, cy + r * 0.71),
+      Offset(x + size * 0.82, y + size * 0.82),
+      paint,
+    );
+  }
+
+  void _drawPhoneCallIcon(Canvas canvas, double x, double y, double size, Color color) {
+    final s = size / 24;
+    final path = Path()
+      ..moveTo(x + 6.6 * s, y + 10.8 * s)
+      ..cubicTo(x + 8.1 * s, y + 13.6 * s, x + 10.4 * s, y + 15.9 * s,
+          x + 13.2 * s, y + 17.4 * s)
+      ..lineTo(x + 14.5 * s, y + 16.1 * s)
+      ..cubicTo(x + 14.8 * s, y + 15.8 * s, x + 15.3 * s, y + 15.7 * s,
+          x + 15.7 * s, y + 15.8 * s)
+      ..cubicTo(x + 17.1 * s, y + 16.4 * s, x + 18.7 * s, y + 16.7 * s,
+          x + 20.3 * s, y + 16.7 * s)
+      ..cubicTo(x + 21.0 * s, y + 16.7 * s, x + 21.6 * s, y + 17.3 * s,
+          x + 21.6 * s, y + 18.0 * s)
+      ..lineTo(x + 21.6 * s, y + 20.0 * s)
+      ..cubicTo(x + 21.6 * s, y + 20.6 * s, x + 21.0 * s, y + 21.0 * s,
+          x + 20.5 * s, y + 21.0 * s)
+      ..cubicTo(x + 11.3 * s, y + 21.0 * s, x + 3.0 * s, y + 13.3 * s,
+          x + 3.0 * s, y + 4.0 * s)
+      ..cubicTo(x + 3.0 * s, y + 3.4 * s, x + 3.4 * s, y + 3.0 * s,
+          x + 4.0 * s, y + 3.0 * s)
+      ..lineTo(x + 7.0 * s, y + 3.0 * s)
+      ..cubicTo(x + 7.6 * s, y + 3.0 * s, x + 8.0 * s, y + 3.4 * s,
+          x + 8.0 * s, y + 4.0 * s)
+      ..cubicTo(x + 8.0 * s, y + 5.6 * s, x + 8.3 * s, y + 7.1 * s,
+          x + 8.8 * s, y + 8.5 * s)
+      ..cubicTo(x + 8.9 * s, y + 8.9 * s, x + 8.8 * s, y + 9.3 * s,
+          x + 8.5 * s, y + 9.6 * s)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  void _drawMicrophoneIcon(Canvas canvas, double x, double y, double size, Color color) {
+    final s = size / 24;
+    final fill = Paint()..color = color;
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5 * s
+      ..strokeCap = StrokeCap.round;
+    final cx = x + size / 2;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - 3.5 * s, y + 3 * s, 7 * s, 10 * s),
+        Radius.circular(3.5 * s),
+      ),
+      fill,
+    );
+    canvas.drawArc(
+      Rect.fromLTWH(cx - 5.5 * s, y + 7 * s, 11 * s, 11 * s),
+      0, math.pi, false, stroke,
+    );
+    canvas.drawLine(
+      Offset(cx, y + 18 * s), Offset(cx, y + 21 * s), stroke,
+    );
+  }
+
+  void _drawEmojiSmileyIcon(Canvas canvas, double x, double y, double size, Color color) {
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size * 0.08
+      ..strokeCap = StrokeCap.round;
+    final fill = Paint()..color = color;
+    final cx = x + size / 2;
+    final cy = y + size / 2;
+    final r = size * 0.42;
+    canvas.drawCircle(Offset(cx, cy), r, stroke);
+    final eyeR = size * 0.05;
+    final eyeY = cy - r * 0.2;
+    canvas.drawCircle(Offset(cx - r * 0.35, eyeY), eyeR, fill);
+    canvas.drawCircle(Offset(cx + r * 0.35, eyeY), eyeR, fill);
+    final smileR = r * 0.5;
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx, cy + r * 0.05), radius: smileR),
+      0.2, math.pi - 0.4, false, stroke,
+    );
+  }
+
+  void _drawPaperclipIcon(Canvas canvas, double x, double y, double size, Color color) {
+    final s = size / 24;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6 * s
+      ..strokeCap = StrokeCap.round;
+    final path = Path()
+      ..moveTo(x + 18 * s, y + 7 * s)
+      ..lineTo(x + 18 * s, y + 17.5 * s)
+      ..arcToPoint(
+        Offset(x + 7 * s, y + 17.5 * s),
+        radius: Radius.circular(5.5 * s),
+        clockwise: false,
+      )
+      ..lineTo(x + 7 * s, y + 5 * s)
+      ..arcToPoint(
+        Offset(x + 15 * s, y + 5 * s),
+        radius: Radius.circular(4 * s),
+        clockwise: false,
+      )
+      ..lineTo(x + 15 * s, y + 15.5 * s)
+      ..arcToPoint(
+        Offset(x + 10 * s, y + 15.5 * s),
+        radius: Radius.circular(2.5 * s),
+        clockwise: false,
+      )
+      ..lineTo(x + 10 * s, y + 7 * s);
+    canvas.drawPath(path, paint);
   }
 
   void _drawCheckIcon(Canvas canvas, double x, double y, Color color, bool isDouble) {
