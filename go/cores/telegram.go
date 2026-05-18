@@ -710,6 +710,132 @@ func (t *TelegramCore) initClient() {
 		})
 		return nil
 	})
+
+	// Reaction notification handlers — fire synthetic messages with Extra fields
+	// so the Dart notification system can distinguish reactions from regular messages.
+
+	dispatcher.OnBotMessageReaction(func(ctx context.Context, e tg.Entities, u *tg.UpdateBotMessageReaction) error {
+		if len(u.NewReactions) == 0 {
+			return nil
+		}
+		chatID := peerToID(u.Peer)
+		var actorName string
+		var actorID string
+		if p, ok := u.Actor.(*tg.PeerUser); ok {
+			actorID = strconv.FormatInt(p.UserID, 10)
+			actorName = t.getCachedUserName(p.UserID)
+		} else {
+			actorID = peerToID(u.Actor)
+		}
+		emoji := tgReactionEmoji(u.NewReactions[0])
+		m := &Message{
+			ID:         fmt.Sprintf("react_%d_%d", u.MsgID, u.Date),
+			ChatID:     chatID,
+			SenderID:   actorID,
+			SenderName: actorName,
+			Text:       emoji,
+			Timestamp:  time.Unix(int64(u.Date), 0),
+			Status:     MessageStatusSent,
+			Platform:   tgPlatform,
+			Extra: map[string]interface{}{
+				"is_reaction":    true,
+				"reaction_emoji": emoji,
+				"reactor_name":   actorName,
+				"reacted_to_type": 0,
+			},
+		}
+		t.fireUpdate(Update{
+			Type:     UpdateNewMessage,
+			ChatID:   chatID,
+			Message:  m,
+			Platform: tgPlatform,
+		})
+		return nil
+	})
+
+	dispatcher.OnMessageReactions(func(ctx context.Context, e tg.Entities, u *tg.UpdateMessageReactions) error {
+		recent, ok := u.Reactions.GetRecentReactions()
+		if !ok {
+			return nil
+		}
+		chatID := peerToID(u.Peer)
+		for _, r := range recent {
+			if !r.Unread {
+				continue
+			}
+			var actorName string
+			var actorID string
+			if p, ok := r.PeerID.(*tg.PeerUser); ok {
+				actorID = strconv.FormatInt(p.UserID, 10)
+				actorName = t.getCachedUserName(p.UserID)
+			} else {
+				actorID = peerToID(r.PeerID)
+			}
+			emoji := tgReactionEmoji(r.Reaction)
+			m := &Message{
+				ID:         fmt.Sprintf("react_%d_%d", u.MsgID, r.Date),
+				ChatID:     chatID,
+				SenderID:   actorID,
+				SenderName: actorName,
+				Text:       emoji,
+				Timestamp:  time.Unix(int64(r.Date), 0),
+				Status:     MessageStatusSent,
+				Platform:   tgPlatform,
+				Extra: map[string]interface{}{
+					"is_reaction":    true,
+					"reaction_emoji": emoji,
+					"reactor_name":   actorName,
+					"reacted_to_type": 0,
+				},
+			}
+			t.fireUpdate(Update{
+				Type:     UpdateNewMessage,
+				ChatID:   chatID,
+				Message:  m,
+				Platform: tgPlatform,
+			})
+		}
+		return nil
+	})
+
+	dispatcher.OnMessagePollVote(func(ctx context.Context, e tg.Entities, u *tg.UpdateMessagePollVote) error {
+		var voterID string
+		var voterName string
+		if p, ok := u.Peer.(*tg.PeerUser); ok {
+			voterID = strconv.FormatInt(p.UserID, 10)
+			voterName = t.getCachedUserName(p.UserID)
+		} else {
+			voterID = peerToID(u.Peer)
+		}
+		var optionText string
+		if len(u.Options) > 0 {
+			optionText = string(u.Options[0])
+		}
+		pollIDStr := strconv.FormatInt(u.PollID, 10)
+		m := &Message{
+			ID:         fmt.Sprintf("pollvote_%s_%s", pollIDStr, voterID),
+			ChatID:     voterID,
+			SenderID:   voterID,
+			SenderName: voterName,
+			Text:       optionText,
+			Timestamp:  time.Now(),
+			Status:     MessageStatusSent,
+			Platform:   tgPlatform,
+			Extra: map[string]interface{}{
+				"is_poll_vote":    true,
+				"poll_vote_option": optionText,
+				"reactor_name":    voterName,
+			},
+		}
+		t.fireUpdate(Update{
+			Type:     UpdateNewMessage,
+			ChatID:   m.ChatID,
+			Message:  m,
+			Platform: tgPlatform,
+		})
+		return nil
+	})
+
 	// following the tgcalls protocol spec in docs/tgcalls_protocol.md
 }
 
@@ -745,6 +871,19 @@ func tgActionString(a tg.SendMessageActionClass) string {
 		return "cancel"
 	default:
 		return "typing"
+	}
+}
+
+func tgReactionEmoji(r tg.ReactionClass) string {
+	switch v := r.(type) {
+	case *tg.ReactionEmoji:
+		return v.Emoticon
+	case *tg.ReactionCustomEmoji:
+		return fmt.Sprintf("custom_%d", v.DocumentID)
+	case *tg.ReactionPaid:
+		return "⭐"
+	default:
+		return "👍"
 	}
 }
 
