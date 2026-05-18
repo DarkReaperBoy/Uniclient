@@ -223,13 +223,15 @@ const _kChartHeight = 200.0;
 const _kFooterHeight = 42.0;
 const _kHandleWidth = 10.0;
 const _kHandleRadius = 6.0;
-const _kMinRangeFrac = 0.02;
+const _kHandleSepPx = 5.0;
 const _kLineWidth = 2.0;
 const _kDotRadius = 5.0;
 const _kBottomCaptionHeight = 15.0;
 const _kBottomCaptionSkip = 6.0;
 const _kTooltipRadius = 8.0;
-const _kTooltipWidth = 180.0;
+const _kTooltipPadH = 18.0;
+const _kTooltipPadTop = 14.0;
+const _kTooltipPadBottom = 17.0;
 const _kXExpandDuration = 200;
 const _kDtHeightSpeed1 = 0.06;
 const _kDtHeightSpeed2 = 0.06;
@@ -305,6 +307,8 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
   late AnimationController _pieAnimController;
   int? _pieDataIndex;
   int _pieHoverSlice = -1;
+  Map<int, double> _pieSliceHoverProgress = {};
+  final Map<String, TextPainter> _textPainterCache = {};
 
   late AnimationController _shakeController;
 
@@ -361,6 +365,10 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
   @override
   void didUpdateWidget(StatsChartWidget old) {
     super.didUpdateWidget(old);
+    if (widget.data != old.data || widget.theme.brightness != old.theme.brightness) {
+      for (final tp in _textPainterCache.values) tp.dispose();
+      _textPainterCache.clear();
+    }
     if (widget.data.lines.length != old.data.lines.length) {
       for (final key in _lineAlphaControllers.keys.toList()) {
         if (!widget.data.lines.any((l) => l.id == key)) {
@@ -402,6 +410,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
   }
 
   void _exitPieMode() {
+    _pieSliceHoverProgress.clear();
     _pieAnimController.reverse().then((_) {
       if (mounted) setState(() => _pieDataIndex = null);
     });
@@ -452,6 +461,9 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     _shakeController.dispose();
     for (final c in _lineAlphaControllers.values) {
       c.dispose();
+    }
+    for (final tp in _textPainterCache.values) {
+      tp.dispose();
     }
     super.dispose();
   }
@@ -663,13 +675,41 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
       dirty = true;
     }
 
+    if (_pieSliceHoverProgress.isNotEmpty || _pieHoverSlice >= 0) {
+      const hoverSpeed = 1.0 / 18.0;
+      final spd = hoverSpeed * fpsM;
+      if (_pieHoverSlice >= 0 &&
+          !_pieSliceHoverProgress.containsKey(_pieHoverSlice)) {
+        _pieSliceHoverProgress[_pieHoverSlice] = 0.0;
+      }
+      for (final key in _pieSliceHoverProgress.keys.toList()) {
+        if (key == _pieHoverSlice) {
+          _pieSliceHoverProgress[key] =
+              (_pieSliceHoverProgress[key]! + spd).clamp(0.0, 1.0);
+        } else {
+          final v = (_pieSliceHoverProgress[key]! - spd).clamp(0.0, 1.0);
+          if (v <= 0) {
+            _pieSliceHoverProgress.remove(key);
+          } else {
+            _pieSliceHoverProgress[key] = v;
+          }
+        }
+      }
+      if (_pieSliceHoverProgress.values.any((v) => v > 0 && v < 1)) {
+        dirty = true;
+      }
+    }
+
     if (dirty) {
       setState(() {});
     }
 
+    final pieHoverDone = _pieSliceHoverProgress.isEmpty ||
+        _pieSliceHoverProgress.values.every((v) => v >= 1.0 || v <= 0.0);
     if (_yProgress >= 1.0 &&
         _footerYProgress >= 1.0 &&
-        _dateLabelProgress >= 1.0) {
+        _dateLabelProgress >= 1.0 &&
+        pieHoverDone) {
       _chartTicker.stop();
       _prevTickDuration = Duration.zero;
     }
@@ -862,6 +902,8 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
               pieProgress: isStackLinear ? pieT : 0.0,
               pieDataIndex: isStackLinear ? _pieDataIndex : null,
               pieHoverSlice: _pieHoverSlice,
+              pieSliceHoverProgress: _pieSliceHoverProgress,
+              textCache: _textPainterCache,
             );
             return Stack(
               clipBehavior: Clip.none,
@@ -917,6 +959,8 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
                     accentColor: widget.theme.colorScheme.primary,
                     lineAlphas: _lineAlphas,
                     animatedFooterYMax: _footerAnimatedMax,
+                    dimOverlayColor: widget.theme.colorScheme.surface
+                        .withValues(alpha: 0.6),
                   ),
                 ),
               );
@@ -987,14 +1031,57 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
         widget.data.currencyRate != null &&
         widget.data.currencyRate! > 0;
 
-    const gap = 12.0;
-    var left = xPx - _kTooltipWidth - gap;
-    if (left < 0) left = xPx + gap;
-    if (left + _kTooltipWidth > chartWidth) left = 0;
-
     final allLines = widget.data.lines;
+
+    final nameStyle = TextStyle(fontSize: 12, color: subColor);
+    final valStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: fgColor);
+    final pctStyle = TextStyle(fontSize: 12, color: subColor);
+    double maxNameW = 0, maxValW = 0, maxPctW = 0;
+    for (final line in allLines) {
+      final ntp = TextPainter(
+        text: TextSpan(text: line.name, style: nameStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      if (ntp.width > maxNameW) maxNameW = ntp.width;
+      ntp.dispose();
+
+      final val = idx < line.values.length ? line.values[idx] : 0.0;
+      final vText = hasCurrency
+          ? '${_formatValue(val)} ${widget.data.currency}'
+          : _formatValue(val);
+      final vtp = TextPainter(
+        text: TextSpan(text: vText, style: valStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      if (vtp.width > maxValW) maxValW = vtp.width;
+      vtp.dispose();
+
+      if (widget.data.hasPercentages && totalAtIdx > 0) {
+        final pText = '${(val / totalAtIdx * 100).toStringAsFixed(0)}%';
+        final ptp = TextPainter(
+          text: TextSpan(text: pText, style: pctStyle),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        if (ptp.width > maxPctW) maxPctW = ptp.width;
+        ptp.dispose();
+      }
+    }
+
+    double tooltipWidth = _kTooltipPadH * 2 + maxNameW + 8.0 + maxValW;
+    if (widget.data.hasPercentages && totalAtIdx > 0) {
+      tooltipWidth += 4.0 + maxPctW;
+    }
+    tooltipWidth = math.max(tooltipWidth, 140.0);
+
+    const gap = 12.0;
+    var left = xPx - tooltipWidth - gap;
+    if (left < 0) left = xPx + gap;
+    if (left + tooltipWidth > chartWidth) left = 0;
+    left = left.clamp(0.0, math.max(0.0, chartWidth - tooltipWidth));
+
     final content = Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 11),
+      padding: const EdgeInsets.fromLTRB(
+          _kTooltipPadH, _kTooltipPadTop, _kTooltipPadH, _kTooltipPadBottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -1101,7 +1188,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
         child: InkWell(
           onTap: zoomEnabled ? () => _requestServerZoom(idx) : null,
           borderRadius: BorderRadius.circular(_kTooltipRadius),
-          child: SizedBox(width: _kTooltipWidth, child: content),
+          child: SizedBox(width: tooltipWidth, child: content),
         ),
       ),
     );
@@ -1150,14 +1237,15 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
   void _onFooterPanUpdate(DragUpdateDetails details, double width) {
     if (_dragMode == _DragMode.none || width <= 0) return;
     final dFrac = (details.localPosition.dx - _dragStartX) / width;
+    final minFrac = _kHandleSepPx / width;
     setState(() {
       switch (_dragMode) {
         case _DragMode.leftHandle:
           _rangeStart = (_rangeStartAtDrag + dFrac)
-              .clamp(0.0, _rangeEnd - _kMinRangeFrac);
+              .clamp(0.0, _rangeEnd - minFrac);
         case _DragMode.rightHandle:
           _rangeEnd = (_rangeEndAtDrag + dFrac)
-              .clamp(_rangeStart + _kMinRangeFrac, 1.0);
+              .clamp(_rangeStart + minFrac, 1.0);
         case _DragMode.panCenter:
           final span = _rangeEndAtDrag - _rangeStartAtDrag;
           var newStart = _rangeStartAtDrag + dFrac;
@@ -1240,12 +1328,18 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
       final val = idx < lines[i].values.length ? lines[i].values[idx] : 0.0;
       final sweep = (val / total) * 2 * math.pi;
       if (clampAngle >= cumAngle && clampAngle < cumAngle + sweep) {
-        if (_pieHoverSlice != i) setState(() => _pieHoverSlice = i);
+        if (_pieHoverSlice != i) {
+          setState(() => _pieHoverSlice = i);
+          _ensureTickerRunning();
+        }
         return;
       }
       cumAngle += sweep;
     }
-    setState(() => _pieHoverSlice = -1);
+    if (_pieHoverSlice != -1) {
+      setState(() => _pieHoverSlice = -1);
+      _ensureTickerRunning();
+    }
   }
 
   String? _shakeLineId;
@@ -1326,13 +1420,14 @@ class _FilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final inactiveBg = Theme.of(context).colorScheme.surfaceContainerHighest;
+    final inactiveBg = Theme.of(context).colorScheme.surface;
+    final inactiveText = Theme.of(context).colorScheme.onSurface;
     Widget btn = AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.fromLTRB(8, 5, 10, 5),
       decoration: BoxDecoration(
         color: active ? color : inactiveBg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(100),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1356,9 +1451,7 @@ class _FilterButton extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: active
-                  ? Colors.white
-                  : (isDark ? Colors.white70 : Colors.black87),
+              color: active ? Colors.white : inactiveText,
             ),
           ),
         ],
@@ -1445,6 +1538,8 @@ class _ChartAreaPainter extends CustomPainter {
   final double pieProgress;
   final int? pieDataIndex;
   final int pieHoverSlice;
+  final Map<int, double> pieSliceHoverProgress;
+  final Map<String, TextPainter> textCache;
 
   _ChartAreaPainter({
     required this.data,
@@ -1465,6 +1560,8 @@ class _ChartAreaPainter extends CustomPainter {
     this.pieProgress = 0.0,
     this.pieDataIndex,
     this.pieHoverSlice = -1,
+    this.pieSliceHoverProgress = const {},
+    this.textCache = const {},
   });
 
   static const _months = [
@@ -1489,6 +1586,21 @@ class _ChartAreaPainter extends CustomPainter {
     if (mn == double.infinity) { mn = 0; mx = 1; }
     if (mx == mn) mx = mn + 1;
     return (mn, mx);
+  }
+
+  TextPainter _cachedTP(String text, TextStyle style) {
+    final key = '$text|${style.fontSize}';
+    var tp = textCache[key];
+    if (tp == null) {
+      tp = TextPainter(textDirection: TextDirection.ltr);
+      textCache[key] = tp;
+    }
+    final span = TextSpan(text: text, style: style);
+    if (tp.text != span) {
+      tp.text = span;
+      tp.layout();
+    }
+    return tp;
   }
 
   static int _computeRulerLineCount(double mn, double mx) {
@@ -1591,32 +1703,19 @@ class _ChartAreaPainter extends CustomPainter {
       final y = top + chartH * (1 - i / rulerCount);
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
       final val = mn + (mx - mn) * i / rulerCount;
-      final tp = TextPainter(
-        text: TextSpan(
-            text: _formatShort(val),
-            style: TextStyle(fontSize: 10, color: leftLabelColor)),
-        textDirection: TextDirection.ltr,
-      )..layout();
+      final tp = _cachedTP(
+          _formatShort(val), TextStyle(fontSize: 10, color: leftLabelColor));
       tp.paint(canvas, Offset(0, y - tp.height - 4));
 
       if (rightMn != null && rightMx != null) {
         final rVal = rightMn + (rightMx - rightMn) * i / rulerCount;
-        final rTp = TextPainter(
-          text: TextSpan(
-              text: _formatShort(rVal),
-              style: TextStyle(fontSize: 10, color: rightLabelColor)),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        final rTp = _cachedTP(
+            _formatShort(rVal), TextStyle(fontSize: 10, color: rightLabelColor));
         rTp.paint(canvas, Offset(size.width - rTp.width, y - rTp.height - 4));
       } else if (currencyRate != null && currencyRate > 0) {
         final cVal = val * currencyRate;
-        final cText = '\$${_formatShort(cVal)}';
-        final cTp = TextPainter(
-          text: TextSpan(
-              text: cText,
-              style: TextStyle(fontSize: 10, color: rightLabelColor)),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        final cTp = _cachedTP(
+            '\$${_formatShort(cVal)}', TextStyle(fontSize: 10, color: rightLabelColor));
         cTp.paint(canvas, Offset(size.width - cTp.width, y - cTp.height - 4));
       }
     }
@@ -1630,15 +1729,27 @@ class _ChartAreaPainter extends CustomPainter {
     if (span <= 0) return;
     final pxPerPoint = size.width / (span * (n - 1));
 
-    final sampleTp = TextPainter(
-      text: TextSpan(
-          text: 'May 00',
-          style: TextStyle(
-              fontSize: 10,
-              color: isDark ? Colors.white60 : Colors.black54)),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final captionMaxWidth = sampleTp.width + 20;
+    double captionMaxWidth;
+    if (data.dayStringMaxWidth != null && data.dayStringMaxWidth! > 0) {
+      captionMaxWidth = data.dayStringMaxWidth!;
+    } else {
+      final labelStyle = TextStyle(
+          fontSize: 10, color: isDark ? Colors.white60 : Colors.black54);
+      double maxW = 0;
+      final si = (rangeStart * (n - 1)).floor().clamp(0, n - 1);
+      final ei = (rangeEnd * (n - 1)).ceil().clamp(0, n - 1);
+      final sampleCount = math.min(10, ei - si + 1);
+      final sampleStep = math.max(1, (ei - si + 1) ~/ sampleCount);
+      for (int i = si; i <= ei; i += sampleStep) {
+        final ts = data.timestamps[i];
+        final dt = DateTime.fromMillisecondsSinceEpoch(
+            ts.abs() > 1e12 ? ts : ts * 1000);
+        final label = '${_months[dt.month - 1]} ${dt.day}';
+        final tp = _cachedTP(label, labelStyle);
+        if (tp.width > maxW) maxW = tp.width;
+      }
+      captionMaxWidth = maxW + 16;
+    }
 
     int step = 1;
     while (step * pxPerPoint < captionMaxWidth && step < n) {
@@ -1646,27 +1757,28 @@ class _ChartAreaPainter extends CustomPainter {
     }
 
     final edgeFade = captionMaxWidth / 4;
+    final captionOffset = step > 0 ? (captionMaxWidth / (step * pxPerPoint)).ceil() : 0;
 
     if (prevDateStep != curDateStep && dateLabelAlpha < 1.0) {
       final prevAlpha = math.max((1.0 - dateLabelAlpha) - _kFastAlphaSpeed, 0.0);
       _paintDateLabelsAtStep(
-          canvas, size, prevDateStep, prevAlpha, edgeFade);
+          canvas, size, prevDateStep, prevAlpha, edgeFade, captionOffset);
       _paintDateLabelsAtStep(
-          canvas, size, curDateStep, dateLabelAlpha, edgeFade);
+          canvas, size, curDateStep, dateLabelAlpha, edgeFade, captionOffset);
     } else {
       _paintDateLabelsAtStep(
-          canvas, size, step, dateLabelAlpha, edgeFade);
+          canvas, size, step, dateLabelAlpha, edgeFade, captionOffset);
     }
   }
 
   void _paintDateLabelsAtStep(Canvas canvas, Size size, int step,
-      double baseAlpha, double edgeFade) {
+      double baseAlpha, double edgeFade, int captionOffset) {
     final n = data.timestamps.length;
     if (n < 2 || step < 1) return;
     final y = size.height - _kBottomCaptionHeight;
     final si = (rangeStart * (n - 1)).floor().clamp(0, n - 1);
     final ei = (rangeEnd * (n - 1)).ceil().clamp(0, n - 1);
-    final firstLabel = ((si + step - 1) ~/ step) * step;
+    final firstLabel = (((si + captionOffset) + step - 1) ~/ step) * step;
 
     for (int idx = firstLabel; idx <= ei; idx += step) {
       final x = _dataXToPixel(idx, n, size.width);
@@ -1685,11 +1797,7 @@ class _ChartAreaPainter extends CustomPainter {
       final labelColor = isDark
           ? Colors.white.withValues(alpha: 0.6 * alpha)
           : Colors.black.withValues(alpha: 0.6 * alpha);
-      final tp = TextPainter(
-        text: TextSpan(
-            text: label, style: TextStyle(fontSize: 10, color: labelColor)),
-        textDirection: TextDirection.ltr,
-      )..layout();
+      final tp = _cachedTP(label, TextStyle(fontSize: 10, color: labelColor));
       tp.paint(canvas, Offset(x - tp.width / 2, y));
     }
   }
@@ -1705,7 +1813,9 @@ class _ChartAreaPainter extends CustomPainter {
       Offset(x, top),
       Offset(x, top + chartH),
       Paint()
-        ..color = isDark ? Colors.white24 : Colors.black12
+        ..color = isDark
+            ? Colors.white.withValues(alpha: 0.15)
+            : Colors.black.withValues(alpha: 0.15)
         ..strokeWidth = 1,
     );
 
@@ -2005,18 +2115,16 @@ class _ChartAreaPainter extends CustomPainter {
     }
 
     if (t >= 1.0) {
-      // Fully transitioned: draw pie wedges directly
       for (int k = 0; k < rLines.length; k++) {
         final (line, alpha) = rLines[k];
         final sweep = pieSweepAngles[k];
         if (sweep <= 0) continue;
 
         final midAngle = pieStartAngles[k] + sweep / 2;
-        double offsetX = 0, offsetY = 0;
-        if (k == pieHoverSlice) {
-          offsetX = math.cos(midAngle) * 8.0;
-          offsetY = math.sin(midAngle) * 8.0;
-        }
+        final hoverProgress = pieSliceHoverProgress[k] ?? 0.0;
+        final offsetDist = 8.0 * hoverProgress;
+        final offsetX = math.cos(midAngle) * offsetDist;
+        final offsetY = math.sin(midAngle) * offsetDist;
 
         final rect = Rect.fromCircle(
           center: Offset(cx + offsetX, cy + offsetY),
@@ -2110,11 +2218,12 @@ class _ChartAreaPainter extends CustomPainter {
   void _paintPieLabelsInternal(Canvas canvas, Size size,
       List<(ChartLine, double)> rLines, double total, double side,
       double cx, double cy, double t) {
-    const baseFontSize = 14.0;
+    const baseFontSize = 20.0;
     final maxScale = side / (baseFontSize * 2);
     final minScale = maxScale * 0.3;
     const kMinPercentage = 0.039;
     const kPieAngleOffset = 90.0;
+    final pieLabelColor = isDark ? Colors.white : Colors.white;
 
     double startAngleDeg = -180.0;
     final idx = pieDataIndex!;
@@ -2136,17 +2245,11 @@ class _ChartAreaPainter extends CustomPainter {
           : minScale + percentage * (maxScale - minScale);
 
       final pct = (percentage * 100).round();
-      final tp = TextPainter(
-        text: TextSpan(
-          text: '$pct%',
-          style: const TextStyle(
-            fontSize: baseFontSize,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+      final tp = _cachedTP('$pct%', TextStyle(
+        fontSize: baseFontSize,
+        fontWeight: FontWeight.w600,
+        color: pieLabelColor,
+      ));
       final textXShift = tp.width / 2;
       final textYShift = tp.height / 2;
 
@@ -2192,7 +2295,8 @@ class _ChartAreaPainter extends CustomPainter {
       curDateStep != old.curDateStep ||
       pieProgress != old.pieProgress ||
       pieDataIndex != old.pieDataIndex ||
-      pieHoverSlice != old.pieHoverSlice;
+      pieHoverSlice != old.pieHoverSlice ||
+      pieSliceHoverProgress != old.pieSliceHoverProgress;
 }
 
 class _FooterPainter extends CustomPainter {
@@ -2204,6 +2308,7 @@ class _FooterPainter extends CustomPainter {
   final Color accentColor;
   final Map<String, double> lineAlphas;
   final double animatedFooterYMax;
+  final Color dimOverlayColor;
 
   _FooterPainter({
     required this.data,
@@ -2214,6 +2319,7 @@ class _FooterPainter extends CustomPainter {
     required this.accentColor,
     this.lineAlphas = const {},
     this.animatedFooterYMax = 0,
+    required this.dimOverlayColor,
   });
 
   @override
@@ -2229,9 +2335,7 @@ class _FooterPainter extends CustomPainter {
 
     final leftX = rangeStart * w;
     final rightX = rangeEnd * w;
-    final dimColor = isDark
-        ? const Color(0x99182633)
-        : const Color(0x99E2EEF9);
+    final dimColor = dimOverlayColor;
 
     if (leftX > 0) {
       canvas.drawRect(
@@ -2287,35 +2391,16 @@ class _FooterPainter extends CustomPainter {
 
     switch (data.chartType) {
       case 'Linear' || 'DoubleLinear':
-        final isDouble = data.chartType == 'DoubleLinear';
-        double sharedMn = double.infinity, sharedMx = double.negativeInfinity;
-        if (isDouble) {
-          for (final line in lines) {
-            if ((lineAlphas[line.id] ?? 1.0) < 0.01) continue;
-            for (final v in line.values) {
-              if (v < sharedMn) sharedMn = v;
-              if (v > sharedMx) sharedMx = v;
-            }
-          }
-          if (sharedMn == double.infinity) { sharedMn = 0; sharedMx = 1; }
-          if (sharedMx == sharedMn) sharedMx = sharedMn + 1;
-        }
         for (final line in lines) {
           final alpha = lineAlphas[line.id] ?? 1.0;
           if (alpha < 0.01) continue;
-          double mn, mx;
-          if (isDouble) {
-            mn = sharedMn;
-            mx = sharedMx;
-          } else {
-            mn = double.infinity;
-            mx = double.negativeInfinity;
-            for (final v in line.values) {
-              if (v < mn) mn = v;
-              if (v > mx) mx = v;
-            }
-            if (mx == mn) mx = mn + 1;
+          double mn = double.infinity, mx = double.negativeInfinity;
+          for (final v in line.values) {
+            if (v < mn) mn = v;
+            if (v > mx) mx = v;
           }
+          if (mn == double.infinity) { mn = 0; mx = 1; }
+          if (mx == mn) mx = mn + 1;
           final count = math.min(line.values.length, n);
           if (count < 2) continue;
           final path = Path();
@@ -2433,6 +2518,7 @@ class _FooterPainter extends CustomPainter {
       rangeEnd != old.rangeEnd ||
       lineVisible != old.lineVisible ||
       lineAlphas != old.lineAlphas ||
-      animatedFooterYMax != old.animatedFooterYMax;
+      animatedFooterYMax != old.animatedFooterYMax ||
+      dimOverlayColor != old.dimOverlayColor;
 }
 
