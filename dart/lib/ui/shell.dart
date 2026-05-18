@@ -64,7 +64,6 @@ class _UniClientShellState extends State<UniClientShell>
 
   // Spec §1 column constants (window.style:20-24).
   static const _dialogsMin = 260.0;
-  static const _dialogsMax = 540.0;
   static const _chatMin = 380.0;
   static const _thirdMin = 292.0;
   static const _thirdMax = 392.0;
@@ -501,7 +500,7 @@ class _UniClientShellState extends State<UniClientShell>
   Widget _buildTwoColumn(BuildContext context, double bodyWidth,
       bool showFilters, ChatState chatState) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final maxDialogs = (bodyWidth - _chatMin).clamp(_dialogsMin, _dialogsMax);
+    final maxDialogs = bodyWidth - _chatMin;
     final dialogsWidth = (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, maxDialogs);
 
     final columns = Row(
@@ -524,13 +523,15 @@ class _UniClientShellState extends State<UniClientShell>
         _ColumnShadow(),
         _ResizeHandle(
           onDragStart: () => setState(() => _isDragging = true),
-          onDragEnd: () => setState(() => _isDragging = false),
+          onDragEnd: () {
+            setState(() => _isDragging = false);
+            _saveLayoutPrefs();
+          },
           onDrag: (dx) {
             setState(() {
               final raw = (bodyWidth * _dialogsWidthRatio + dx);
               final newWidth = raw.clamp(_dialogsMin, maxDialogs);
               _dialogsWidthRatio = newWidth / bodyWidth;
-              _saveLayoutPrefs();
             });
           },
         ),
@@ -569,7 +570,7 @@ class _UniClientShellState extends State<UniClientShell>
       bool showFilters, ChatState chatState) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    var dw = (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, _dialogsMax);
+    var dw = (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, bodyWidth);
     var tw = _thirdColumnWidth.clamp(_thirdMin, _thirdMax);
 
     if (dw + tw + _chatMin > bodyWidth) {
@@ -589,7 +590,7 @@ class _UniClientShellState extends State<UniClientShell>
         tw = bodyWidth - _dialogsMin - _chatMin;
       }
       tw = tw.clamp(_thirdMin, _thirdMax);
-      dw = dw.clamp(_dialogsMin, _dialogsMax);
+      dw = dw.clamp(_dialogsMin, bodyWidth);
     }
 
     return Row(
@@ -615,12 +616,15 @@ class _UniClientShellState extends State<UniClientShell>
         _ColumnShadow(),
         _ResizeHandle(
           onDragStart: () => setState(() => _isDragging = true),
-          onDragEnd: () => setState(() => _isDragging = false),
+          onDragEnd: () {
+            setState(() => _isDragging = false);
+            _saveLayoutPrefs();
+          },
           onDrag: (dx) {
             setState(() {
               final raw = dw + dx;
-              _dialogsWidthRatio = raw.clamp(_dialogsMin, _dialogsMax) / bodyWidth;
-              _saveLayoutPrefs();
+              final maxDw = bodyWidth - _chatMin - tw;
+              _dialogsWidthRatio = raw.clamp(_dialogsMin, maxDw) / bodyWidth;
             });
           },
         ),
@@ -649,11 +653,13 @@ class _UniClientShellState extends State<UniClientShell>
           if (_infoOpen)
             _ResizeHandle(
               onDragStart: () => setState(() => _isDragging = true),
-              onDragEnd: () => setState(() => _isDragging = false),
+              onDragEnd: () {
+                setState(() => _isDragging = false);
+                _saveLayoutPrefs();
+              },
               onDrag: (dx) {
                 setState(() {
                   _thirdColumnWidth = (tw - dx).clamp(_thirdMin, _thirdMax);
-                  _saveLayoutPrefs();
                 });
               },
             ),
@@ -1148,7 +1154,8 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
   }
 
   Widget _buildPill(ConnState state, TelegramPalette p, bool proxyEnabled) {
-    final showText = _isHovered || _isWaiting;
+    final showProgress = state != ConnState.connected;
+    final showText = showProgress && (_isHovered || _isWaiting);
 
     final String text;
     if (_isWaiting && _reconnectCountdown > 0) {
@@ -1177,14 +1184,15 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: p.menuIconFg,
+          if (showProgress)
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: p.menuIconFg,
+              ),
             ),
-          ),
           if (showText) ...[
             const SizedBox(width: 8),
             Text(
@@ -1208,7 +1216,7 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
             ],
           ],
           if (proxyEnabled) ...[
-            const SizedBox(width: 4),
+            if (showProgress || showText) const SizedBox(width: 4),
             Icon(
               Icons.shield_outlined,
               size: 16,
