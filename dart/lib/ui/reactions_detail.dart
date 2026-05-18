@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -11,6 +12,8 @@ import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
 import 'custom_emoji_cache.dart';
 import 'info_panel.dart';
+import 'privacy_settings_screen.dart';
+import 'settings_style.dart';
 import 'shell.dart';
 
 String _formatCountDecimal(int n) {
@@ -31,16 +34,20 @@ class ReactionsDetailPanel extends StatefulWidget {
   final CachedMessage message;
   final String? initialEmoji;
   final ChatType chatType;
+  final VoidCallback? onShowPrivacy;
 
   const ReactionsDetailPanel({
     super.key,
     required this.message,
     this.initialEmoji,
     this.chatType = ChatType.unspec,
+    this.onShowPrivacy,
   });
 
   static void show(BuildContext context, CachedMessage message, {String? initialEmoji, ChatType chatType = ChatType.unspec}) {
     final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final outerNav = Navigator.of(context);
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
@@ -57,18 +64,32 @@ class ReactionsDetailPanel extends StatefulWidget {
         );
       },
       pageBuilder: (ctx, anim, secondaryAnim) {
+        final screenW = MediaQuery.of(ctx).size.width;
+        final panelWidth = screenW < 600 ? screenW * 0.92 : (screenW * 0.35).clamp(320.0, 440.0);
         return Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: 392,
+              maxWidth: panelWidth,
               maxHeight: MediaQuery.of(ctx).size.height * 0.8,
             ),
-            child: Provider.value(
-              value: engine,
-              child: ReactionsDetailPanel(
-                message: message,
-                initialEmoji: initialEmoji,
-                chatType: chatType,
+            child: ChangeNotifierProvider.value(
+              value: appState,
+              child: Provider.value(
+                value: engine,
+                child: ReactionsDetailPanel(
+                  message: message,
+                  initialEmoji: initialEmoji,
+                  chatType: chatType,
+                  onShowPrivacy: () {
+                    Navigator.of(ctx).pop();
+                    outerNav.push(settingsPageRoute(
+                      ChangeNotifierProvider.value(
+                        value: appState,
+                        child: const PrivacySettingsScreen(),
+                      ),
+                    ));
+                  },
+                ),
               ),
             ),
           ),
@@ -99,6 +120,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   final ScrollController _scrollController = ScrollController();
   Set<String> _blockedIds = {};
   ReadPrivacyState _privacyState = ReadPrivacyState.none;
+  StreamSubscription<MsgEditedEvent>? _editSub;
 
   @override
   void initState() {
@@ -106,8 +128,17 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
     _selectedTab = widget.initialEmoji;
     _loadBlockedUsers();
     _loadReactors();
-    _fetchReadCount();
+    _fetchReadInfo();
     _scrollController.addListener(_onScroll);
+    final engine = context.read<EngineService>();
+    _editSub = engine.onMsgEdited.listen((e) {
+      if (e.accountId == widget.message.accountId &&
+          e.chatId == widget.message.chatId &&
+          e.msgId == widget.message.msgId) {
+        _loadReactors();
+        _fetchReadInfo();
+      }
+    });
   }
 
   Future<void> _loadBlockedUsers() async {
@@ -125,20 +156,45 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
     } catch (_) {}
   }
 
-  Future<void> _fetchReadCount() async {
-    if (widget.message.isOutgoing && widget.chatType != ChatType.dm) {
+  Future<void> _fetchReadInfo() async {
+    if (!widget.message.isOutgoing) return;
+    final engine = context.read<EngineService>();
+    if (widget.chatType == ChatType.dm) {
       try {
-        final engine = context.read<EngineService>();
-        final ids = await engine.getMessageReadParticipants(
+        final result = await engine.getOutboxReadDate(
           widget.message.accountId, widget.message.chatId, widget.message.msgId,
         );
-        if (mounted) setState(() => _readCount = ids.length);
+        if (!mounted) return;
+        _cachedPrivacyState = result.privacyState;
+        if (result.date > 0) {
+          _cachedReadParticipants = [
+            ReadParticipantInfo(
+              userId: widget.message.chatId,
+              date: result.date,
+            ),
+          ];
+          setState(() => _readCount = 1);
+        } else {
+          _cachedReadParticipants = [];
+          setState(() => _readCount = 0);
+        }
+      } catch (_) {}
+    } else {
+      try {
+        final result = await engine.getMessageReadParticipantsDetailed(
+          widget.message.accountId, widget.message.chatId, widget.message.msgId,
+        );
+        if (!mounted) return;
+        _cachedReadParticipants = result.participants;
+        _cachedPrivacyState = result.privacyState;
+        setState(() => _readCount = result.participants.length);
       } catch (_) {}
     }
   }
 
   @override
   void dispose() {
+    _editSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -259,7 +315,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   Map<String, List<ReactorInfo>> get _groupedByEmoji {
     final map = <String, List<ReactorInfo>>{};
     for (final r in _allReactors) {
-      map.putIfAbsent(r.emoji, () => []).add(r);
+      map.putIfAbsent(r.reactionKey, () => []).add(r);
     }
     return map;
   }
@@ -289,11 +345,21 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
     final isReadTab = tab == _ReactionTabBar.kReadTab;
     final wasReadTab = _selectedTab == _ReactionTabBar.kReadTab;
 
-    if (!isReadTab && !wasReadTab && _masterReactors.isNotEmpty) {
+    if (!isReadTab && _masterReactors.isNotEmpty) {
       setState(() {
         _selectedTab = tab;
         _allReactors = _masterReactors;
         _nextOffset = _masterNextOffset;
+        _loading = false;
+      });
+      return;
+    }
+
+    if (isReadTab && _cachedReadParticipants.isNotEmpty) {
+      setState(() {
+        _selectedTab = tab;
+        _readParticipants = _cachedReadParticipants;
+        _privacyState = _cachedPrivacyState;
         _loading = false;
       });
       return;
@@ -329,11 +395,13 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
     }
   }
 
+  bool get _showReadTab => _readCount > 0 || _cachedPrivacyState != ReadPrivacyState.none;
+
   String _buildTitle() {
     if (_readCount > 0) {
       final mt = widget.message.mediaType;
       if (mt == 3 || mt == 4) return 'Listened by $_readCount';
-      if (mt == 2 || mt == 5) return 'Watched by $_readCount';
+      if (mt == 5) return 'Watched by $_readCount';
       return 'Seen by $_readCount';
     }
     return 'Reactions';
@@ -358,12 +426,13 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
             palette: palette,
             onClose: () => Navigator.of(context).pop(),
           ),
-          if (reactions.isNotEmpty || _readCount > 0)
+          if (reactions.isNotEmpty || _showReadTab)
             _ReactionTabBar(
               reactions: reactions,
               grouped: grouped,
               selectedTab: _selectedTab,
               readCount: _readCount,
+              showReadTab: _showReadTab,
               palette: palette,
               onTabSelected: _onTabSelected,
               mediaType: widget.message.mediaType,
@@ -371,15 +440,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
             ),
           Divider(height: 1, color: palette.windowFg.withValues(alpha: 0.08)),
           if (_loading)
-            Padding(
-              padding: const EdgeInsets.all(32),
-              child: Center(
-                child: Text(
-                  'Loading...',
-                  style: TextStyle(fontSize: 13, color: palette.windowSubTextFg),
-                ),
-              ),
-            )
+            _LoadingPlaceholder(palette: palette)
           else if (_isReadTab)
             _filteredReadParticipants.isEmpty && _privacyState == ReadPrivacyState.none
               ? Padding(
@@ -428,6 +489,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
                           privacyState: _privacyState,
                           palette: palette,
                           accountId: widget.message.accountId,
+                          onShowPrivacy: widget.onShowPrivacy,
                         ),
                     ],
                   ),
@@ -524,6 +586,7 @@ class _ReactionTabBar extends StatelessWidget {
   final Map<String, List<ReactorInfo>> grouped;
   final String? selectedTab;
   final int readCount;
+  final bool showReadTab;
   final TelegramPalette palette;
   final ValueChanged<String?> onTabSelected;
   final int mediaType;
@@ -536,6 +599,7 @@ class _ReactionTabBar extends StatelessWidget {
     required this.grouped,
     required this.selectedTab,
     this.readCount = 0,
+    this.showReadTab = false,
     required this.palette,
     required this.onTabSelected,
     this.mediaType = 0,
@@ -543,7 +607,7 @@ class _ReactionTabBar extends StatelessWidget {
   });
 
   IconData get _readTabIcon {
-    if (mediaType == 2 || mediaType == 5) return Icons.play_arrow;
+    if (mediaType == 5) return Icons.play_circle_outline;
     if (mediaType == 3 || mediaType == 4) return Icons.headphones;
     return Icons.done_all;
   }
@@ -560,10 +624,10 @@ class _ReactionTabBar extends StatelessWidget {
         spacing: 8,
         runSpacing: 8,
         children: [
-          if (readCount > 0)
+          if (showReadTab)
             _TabPill(
               iconData: _readTabIcon,
-              label: _formatCountDecimal(readCount),
+              label: readCount > 0 ? _formatCountDecimal(readCount) : '',
               isSelected: selectedTab == kReadTab,
               palette: palette,
               onTap: () => onTabSelected(kReadTab),
@@ -1042,11 +1106,13 @@ class _ReadPrivacyNotice extends StatelessWidget {
   final ReadPrivacyState privacyState;
   final TelegramPalette palette;
   final String accountId;
+  final VoidCallback? onShowPrivacy;
 
   const _ReadPrivacyNotice({
     required this.privacyState,
     required this.palette,
     required this.accountId,
+    this.onShowPrivacy,
   });
 
   @override
@@ -1100,35 +1166,7 @@ class _ReadPrivacyNotice extends StatelessWidget {
               bottom: 0,
               child: Center(
                 child: GestureDetector(
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        backgroundColor: palette.windowBg,
-                        title: Text(
-                          'Read Time',
-                          style: TextStyle(color: palette.windowFg, fontWeight: FontWeight.w600),
-                        ),
-                        content: Text(
-                          'Others will also be able to see when you read their messages.',
-                          style: TextStyle(color: palette.windowSubTextFg),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            child: Text('Cancel', style: TextStyle(color: palette.windowSubTextFg)),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(ctx).pop();
-                              context.read<EngineService>().setHideReadMarks(accountId, hide: false);
-                            },
-                            child: Text('Show My Read Time', style: TextStyle(color: palette.windowBgActive)),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                  onTap: onShowPrivacy,
                   child: Container(
                     padding: const EdgeInsets.fromLTRB(6, 0, 6, 2),
                     decoration: BoxDecoration(
@@ -1149,6 +1187,88 @@ class _ReadPrivacyNotice extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _LoadingPlaceholder extends StatefulWidget {
+  final TelegramPalette palette;
+  const _LoadingPlaceholder({required this.palette});
+
+  @override
+  State<_LoadingPlaceholder> createState() => _LoadingPlaceholderState();
+}
+
+class _LoadingPlaceholderState extends State<_LoadingPlaceholder>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (ctx, _) {
+        final t = _ctrl.value;
+        final pulse = t < 0.5 ? t * 2 : (1 - t) * 2;
+        final baseColor = widget.palette.windowFg.withValues(alpha: 0.06);
+        final highlightColor = widget.palette.windowFg.withValues(alpha: 0.14);
+        final c = Color.lerp(baseColor, highlightColor, pulse)!;
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) => SizedBox(
+            height: 58,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 12, top: 6,
+                  child: Container(
+                    width: 46, height: 46,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: c),
+                  ),
+                ),
+                Positioned(
+                  left: 68, top: 14,
+                  right: 40 + i * 20.0,
+                  child: Container(
+                    height: 12,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      color: c,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 68, top: 34,
+                  right: 80 + i * 30.0,
+                  child: Container(
+                    height: 10,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(5),
+                      color: c,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )),
+        );
+      },
     );
   }
 }
