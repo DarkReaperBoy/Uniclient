@@ -54,11 +54,6 @@
 ## Recommendation:
 Fix both asserts→throws in bridge_web.dart before shipping web version. Desktop/native (FFI) version is solid.
 
-# system_tray — 2 issues
-
-- [ ] [MAJOR] `onTrayIconClick` hides the window whenever `_windowVisible` is true, but AyuGram hides only when the window is visible **and focused** (`isActiveForTrayMenu()` = `!isHidden() && _isActive`); when the window is visible but not focused, AyuGram brings it to the foreground instead of hiding it — so a single tray click on an unfocused window incorrectly hides it — `system_tray.dart:457-462` ← `tray.cpp:68-76`, `window/main_window.h:94-97`
-
-- [ ] [MAJOR] `_rememberedSoundNotifyFromTray` and `_rememberedFlashBounceNotifyFromTray` are plain instance fields (always `false` after construction) and are never written to persistent storage, so if the user disables notifications from the tray, restarts the app, then re-enables them, the sound/flash state is NOT restored; AyuGram persists these via `settings.setRememberedSoundNotifyFromTray()` / `settings.setRememberedFlashBounceNotifyFromTray()` followed by `Core::App().saveSettingsDelayed()` — `system_tray.dart:40-41`, `system_tray.dart:197-219` ← `tray.cpp:215-240,243`
 
 # web_drop_web — Web drag-and-drop file handler
 
