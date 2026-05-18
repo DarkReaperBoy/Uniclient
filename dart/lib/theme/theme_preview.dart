@@ -259,13 +259,16 @@ class _ThemePreviewPainter extends CustomPainter {
     _drawText(canvas, 'online', left + 17, 32, 13,
         palette.contactsStatusFgOnline, FontWeight.normal);
 
-    // Top bar: right-aligned icons, positioned from right edge
+    // Top bar: right-aligned icons using AyuGram button widths
+    // topBarMenuToggle.width=44, topBarSkip=-5, topBarCall.width=40, topBarSearch.width=40
+    // right accumulates: menu=44, call=44+(-5)+40=79, search=79+40=119
+    // Icon centers at rightEdge - (buttonRight - buttonWidth/2), icon x = center - 12
     final iconFg = palette.dialogsMenuIconFg;
     final rightEdge = left + chatWidth;
 
-    _drawDotsVertIcon(canvas, rightEdge - 36, 15, 24, iconFg);
-    _drawPhoneCallIcon(canvas, rightEdge - 84, 15, 24, iconFg);
-    _drawSearchIcon(canvas, rightEdge - 122, 15, 24, iconFg);
+    _drawDotsVertIcon(canvas, rightEdge - 34, 15, 24, iconFg);
+    _drawPhoneCallIcon(canvas, rightEdge - 71, 15, 24, iconFg);
+    _drawSearchIcon(canvas, rightEdge - 111, 15, 24, iconFg);
 
     // Message area
     _drawMessageArea(canvas, left, chatWidth);
@@ -588,7 +591,16 @@ class _ThemePreviewPainter extends CustomPainter {
       Paint()..color = palette.msgInBg,
     );
 
-    // Photo area: use bundled image if loaded, otherwise gradient fallback
+    // Caption and time drawn BEFORE photo (AyuGram draws photo last, on top)
+    _drawText(canvas, 'To reach a port, we must sail. \u{1f978}',
+        bubbleX + 11, y + photoH + 5, 13, palette.historyTextInFg, FontWeight.normal);
+
+    final timeW = _estimateTextWidth('7:00', 11);
+    _drawText(canvas, '7:00',
+        bubbleX + bubbleW - timeW - 12, y + totalH - 16, 11,
+        palette.msgInDateFg, FontWeight.normal);
+
+    // Photo area drawn last (matches AyuGram rendering order)
     final photoRect = RRect.fromRectAndCorners(
       Rect.fromLTWH(bubbleX, y, photoW, photoH),
       topLeft: const Radius.circular(16),
@@ -617,24 +629,17 @@ class _ThemePreviewPainter extends CustomPainter {
     }
     canvas.restore();
 
-    // Caption
-    _drawText(canvas, 'To reach a port, we must sail. \u{1f978}',
-        bubbleX + 11, y + photoH + 5, 13, palette.historyTextInFg, FontWeight.normal);
-
-    // Time in caption area (AyuGram draws time in text portion, not overlaid on photo)
-    final timeW = _estimateTextWidth('7:00', 11);
-    _drawText(canvas, '7:00',
-        bubbleX + bubbleW - timeW - 12, y + totalH - 16, 11,
-        palette.msgInDateFg, FontWeight.normal);
-
     return y - 6;
   }
 
   void _drawComposeArea(Canvas canvas, double left, double chatWidth) {
     final composeY = _canvasHeight - _composeHeight;
+    // AyuGram: historyAttach.width=44, historySendSize=44x46, historySendRight=2,
+    // historyAttachEmoji.inner.width=44, historySendPadding=9
     const attachWidth = 44.0;
     const emojiWidth = 44.0;
     const sendWidth = 44.0;
+    const sendRight = 2.0;
 
     canvas.drawRect(
       Rect.fromLTWH(left, composeY, chatWidth, _composeHeight),
@@ -646,15 +651,19 @@ class _ThemePreviewPainter extends CustomPainter {
       Paint()..color = palette.shadowFg,
     );
 
+    // Attach button icon centered in 44px button (iconPosition auto-centered)
     _drawPaperclipIcon(canvas, left + 10, composeY + 11, 24, palette.historyComposeIconFg);
 
+    // Mic/record icon: AyuGram paints in historySendSize area offset by historySendRight
+    final sendAreaLeft = left + chatWidth - sendRight - sendWidth;
     _drawMicrophoneIcon(
-      canvas, left + chatWidth - sendWidth + 10, composeY + 11, 24,
+      canvas, sendAreaLeft + 10, composeY + 11, 24,
       palette.historyComposeIconFg,
     );
 
-    // Emoji button (right-edge relative: AyuGram builds from right using button widths)
-    final emojiLeft = left + chatWidth - sendWidth - emojiWidth;
+    // Emoji button positioned from right using AyuGram's accumulation:
+    // right = historySendRight(2) + sendWidth(44) + emojiWidth(44) = 90
+    final emojiLeft = left + chatWidth - sendRight - sendWidth - emojiWidth;
     canvas.drawRect(
       Rect.fromLTWH(emojiLeft, composeY, emojiWidth, _composeHeight),
       Paint()..color = palette.historyComposeAreaBg,
@@ -664,14 +673,16 @@ class _ThemePreviewPainter extends CustomPainter {
     final emojiIconY = composeY + (_composeHeight - emojiIconSize) / 2;
     _drawEmojiSmileyIcon(canvas, emojiIconX, emojiIconY, emojiIconSize, palette.historyComposeIconFg);
 
+    // Field area: between attach button and emoji button
     final fieldRect = Rect.fromLTWH(
         left + attachWidth, composeY + 7,
-        chatWidth - attachWidth - emojiWidth - sendWidth, 32);
+        chatWidth - attachWidth - emojiWidth - sendWidth - sendRight, 32);
     canvas.drawRRect(
       RRect.fromRectAndRadius(fieldRect, const Radius.circular(16)),
       Paint()..color = palette.historyComposeAreaBg,
     );
 
+    // AyuGram: lng_message_ph = "Message" (localized placeholder)
     _drawText(canvas, 'Message', left + attachWidth + 12, composeY + 14, 13,
         palette.historyComposeAreaFg.withValues(alpha: 0.5), FontWeight.normal);
   }
@@ -779,10 +790,11 @@ class _ThemePreviewPainter extends CustomPainter {
   }
 
   void _drawEmojiSmileyIcon(Canvas canvas, double x, double y, double size, Color color) {
+    // AyuGram: historyEmojiCircleLine = 1.5px stroke width
     final stroke = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = size * 0.08
+      ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
     final fill = Paint()..color = color;
     final cx = x + size / 2;
