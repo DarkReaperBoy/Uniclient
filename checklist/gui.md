@@ -567,10 +567,6 @@ One CRITICAL issue found. All other features (cloud password flow, local passcod
 
 # shell — Audit findings
 
-## shell — Connecting pill shows spinner + wrong text when proxy-enabled and connected
-
-- [ ] [CRITICAL] `_buildPill()` accepts a `ConnState state` parameter but never uses it. When the widget is visible due to proxy being enabled but the connection state is `connected`, the method still renders a `CircularProgressIndicator` spinner and shows "Connecting…" text on hover. In AyuGram, `computeLayout()` sets `progressShown = (state.type != State::Type::Connected)` and the progress widget is hidden when connected; only the proxy icon is shown. The Dart should hide the spinner and suppress the hover-text when `state == ConnState.connected`. — `shell.dart:1130` (unused `state` param), `shell.dart:1160-1167` (unconditional spinner) ← `window_connecting_widget.cpp:442` (`progressShown = state.type != Connected`), `window_connecting_widget.cpp:629-633` (`setProgressVisibility`)
-
 ## shell — Synchronous file write on every drag pixel
 
 - [ ] [MAJOR] `_saveLayoutPrefs()` is called inside the `onDrag` callback of every `_ResizeHandle` instance — including both the dialogs/chat divider and the chat/info divider. `_saveLayoutPrefs()` calls `File.writeAsStringSync()` (a blocking synchronous write) on the Flutter UI thread at up to ~60 Hz during a drag. AyuGram separates the two concerns: `moveLeftCallback` updates the ratio in memory only (`updateDialogsWidthRatio`, no disk I/O), and `moveFinishedCallback` persists once with `Core::App().saveSettingsDelayed()` after the drag ends. The fix is to call `_saveLayoutPrefs()` only in `onDragEnd`, not `onDrag`. — `shell.dart:506-515` (dialogs resize), `shell.dart:596-605` (three-col dialogs), `shell.dart:629-638` (info panel resize) ← `mainwidget.cpp:2593-2611` (`moveLeftCallback` updates memory; `moveFinishedCallback` saves delayed)
