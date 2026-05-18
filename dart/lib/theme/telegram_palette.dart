@@ -1199,8 +1199,9 @@ class TelegramPalette {
   static TelegramPalette? _cachedColorizeResult;
   static int _cachedColorizeBaseHash = 0;
   static int _cachedColorizeAccentHash = 0;
+  static double _cachedColorizeThreshold = 0;
 
-  TelegramPalette colorize(Color newAccent) {
+  TelegramPalette colorize(Color newAccent, {double hueThreshold = 15.0}) {
     final origAccent = windowBgActive;
     if (colorEq(origAccent, newAccent)) return this;
 
@@ -1208,7 +1209,8 @@ class TelegramPalette {
     final accentHash = newAccent.hashCode;
     if (_cachedColorizeResult != null &&
         _cachedColorizeBaseHash == baseHash &&
-        _cachedColorizeAccentHash == accentHash) {
+        _cachedColorizeAccentHash == accentHash &&
+        _cachedColorizeThreshold == hueThreshold) {
       return _cachedColorizeResult!;
     }
 
@@ -1222,7 +1224,6 @@ class TelegramPalette {
         ? HSVColor.fromAHSV(nHsvRaw.alpha, nHsvRaw.hue, nHsvRaw.saturation, nVal)
         : nHsvRaw;
     final hDiff = nHsv.hue - oHsv.hue;
-    const double hueThreshold = 15.0;
 
     Color s(Color c) {
       if (c.a < 0.004) return c;
@@ -1798,6 +1799,7 @@ class TelegramPalette {
     _cachedColorizeResult = result;
     _cachedColorizeBaseHash = baseHash;
     _cachedColorizeAccentHash = accentHash;
+    _cachedColorizeThreshold = hueThreshold;
     return result;
   }
 
