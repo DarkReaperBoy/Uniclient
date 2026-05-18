@@ -200,7 +200,10 @@ class _InfoPanelState extends State<InfoPanel> {
   }
 
   void _pushSharedMedia(String mediaType) {
-    _pushPage(_InfoNavPage(type: _InfoPageType.sharedMedia, mediaType: mediaType, mediaLabel: 'Media'));
+    setState(() {
+      _resetNavStack();
+      _navStack.add(_InfoNavPage(type: _InfoPageType.sharedMedia, mediaType: mediaType, mediaLabel: 'Media'));
+    });
   }
 
   @override

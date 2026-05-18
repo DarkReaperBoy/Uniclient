@@ -3119,8 +3119,12 @@ class _MediaViewerState extends State<MediaViewer>
 
   void _showAllMedia(CachedMessage msg) {
     final mediaType = switch (msg.mediaType) {
-      2 || 5 || 7 => 'video',
+      1 => 'photo',
+      2 => 'video',
       3 => 'audio',
+      4 => 'voice',
+      5 => 'round',
+      7 => 'gif',
       8 => 'file',
       _ => 'photo',
     };
