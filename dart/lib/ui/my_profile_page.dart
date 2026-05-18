@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -1420,6 +1421,11 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   bool _saving = false;
   List<PeerColorEntry>? _serverColors;
   bool _loadingColors = true;
+  int _selectedEmojiId = 0;
+  List<int> _backgroundEmojiIds = [];
+  Map<int, CustomEmojiThumbData> _emojiThumbs = {};
+  bool _loadingEmojis = true;
+  bool _showEmojiPicker = false;
 
   static const _fallbackColors = [
     Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
@@ -1432,6 +1438,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
     super.initState();
     _selected = widget.currentColorId;
     _loadColors();
+    _loadBackgroundEmojis();
   }
 
   Future<void> _loadColors() async {
@@ -1446,6 +1453,28 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
       }
     } catch (_) {
       if (mounted) setState(() => _loadingColors = false);
+    }
+  }
+
+  Future<void> _loadBackgroundEmojis() async {
+    try {
+      final engine = context.read<EngineService>();
+      final ids = await engine.getBackgroundEmojiList(widget.accountId);
+      if (!mounted) return;
+      _backgroundEmojiIds = ids;
+      if (ids.isNotEmpty) {
+        final thumbs = await engine.getCustomEmojiThumbs(widget.accountId, ids.take(50).toList());
+        if (mounted) {
+          setState(() {
+            _emojiThumbs = thumbs;
+            _loadingEmojis = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _loadingEmojis = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingEmojis = false);
     }
   }
 
@@ -1470,6 +1499,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   Widget build(BuildContext context) {
     final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
     final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor = context.palette.windowBgActive;
 
     final colors = _serverColors ?? [];
@@ -1594,6 +1624,46 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: _backgroundEmojiIds.isEmpty ? null : () {
+                  setState(() => _showEmojiPicker = !_showEmojiPicker);
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: (widget.isDark
+                        ? const Color(0xFF17212B)
+                        : const Color(0xFFF5F5F5)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.emoji_emotions_outlined, size: 20, color: accentColor),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Background Emoji',
+                          style: TextStyle(fontSize: 14, color: textColor),
+                        ),
+                      ),
+                      Text(
+                        _selectedEmojiId == 0 ? 'Off' : '•',
+                        style: TextStyle(fontSize: 14, color: subtextColor),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        _showEmojiPicker ? Icons.expand_less : Icons.expand_more,
+                        size: 20, color: subtextColor,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_showEmojiPicker && _backgroundEmojiIds.isNotEmpty)
+                _buildEmojiGrid(accentColor, textColor),
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -1621,11 +1691,98 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
     );
   }
 
+  Widget _buildEmojiGrid(Color accentColor, Color textColor) {
+    final subtextColor = widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _selectedEmojiId = 0),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: _selectedEmojiId == 0
+                    ? accentColor.withValues(alpha: 0.15)
+                    : null,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.block, size: 16, color: subtextColor),
+                  const SizedBox(width: 6),
+                  Text('Off', style: TextStyle(fontSize: 13, color: textColor)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 120),
+            child: _loadingEmojis
+                ? const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+                : SingleChildScrollView(
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: _backgroundEmojiIds.take(50).map((emojiId) {
+                        final isSelected = emojiId == _selectedEmojiId;
+                        final thumb = _emojiThumbs[emojiId];
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedEmojiId = emojiId),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: isSelected
+                                  ? Border.all(color: accentColor, width: 2)
+                                  : null,
+                              color: isSelected
+                                  ? accentColor.withValues(alpha: 0.1)
+                                  : null,
+                            ),
+                            alignment: Alignment.center,
+                            child: thumb != null && thumb.thumbB64.isNotEmpty
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.memory(
+                                      base64Decode(thumb.thumbB64),
+                                      width: 28,
+                                      height: 28,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) =>
+                                          _emojiPlaceholder(emojiId, textColor),
+                                    ),
+                                  )
+                                : _emojiPlaceholder(emojiId, textColor),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emojiPlaceholder(int emojiId, Color textColor) {
+    return Text(
+      '#${(emojiId % 1000).toString().padLeft(3, '0')}',
+      style: TextStyle(fontSize: 9, color: textColor.withValues(alpha: 0.5)),
+    );
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
       final engine = context.read<EngineService>();
-      await engine.updateNameColor(widget.accountId, _selected);
+      await engine.updateNameColor(widget.accountId, _selected, backgroundEmojiId: _selectedEmojiId);
       widget.onColorSaved(_selected);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {

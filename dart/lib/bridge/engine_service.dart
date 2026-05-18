@@ -3730,12 +3730,27 @@ class EngineService {
     await _callAsync('__engine', 'UpdateProfile', Uint8List.fromList(payload));
   }
 
-  Future<void> updateNameColor(String accountId, int colorId) async {
+  Future<void> updateNameColor(String accountId, int colorId, {int backgroundEmojiId = 0}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'color_id': colorId,
+      if (backgroundEmojiId != 0) 'background_emoji_id': backgroundEmojiId,
     }));
     await _callAsync('__engine', 'UpdateNameColor', Uint8List.fromList(payload));
+  }
+
+  Future<List<int>> getBackgroundEmojiList(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetBackgroundEmojiList', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      final ids = data['emoji_ids'] as List<dynamic>?;
+      if (ids == null) return [];
+      return ids.map((e) => (e as num).toInt()).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<({bool sensitiveEnabled, bool sensitiveCanChange})> getContentSettings(String accountId) async {

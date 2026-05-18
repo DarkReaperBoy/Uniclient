@@ -16356,11 +16356,14 @@ func (t *TelegramCore) GetSelfColorAndChannel() (int, string, error) {
 	return colorID, channelName, nil
 }
 
-func (t *TelegramCore) UpdateNameColor(colorID int) error {
+func (t *TelegramCore) UpdateNameColor(colorID int, backgroundEmojiID int64) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ErrAuth }
 	pc := &tg.PeerColor{}
 	pc.SetColor(colorID)
+	if backgroundEmojiID != 0 {
+		pc.SetBackgroundEmojiID(backgroundEmojiID)
+	}
 	req := &tg.AccountUpdateColorRequest{}
 	req.SetColor(pc)
 	_, err := t.api.AccountUpdateColor(t.ctx, req)
@@ -16369,6 +16372,19 @@ func (t *TelegramCore) UpdateNameColor(colorID int) error {
 	t.userColorIDs[t.selfID] = colorID
 	t.peerMu.Unlock()
 	return nil
+}
+
+func (t *TelegramCore) GetBackgroundEmojiList() ([]int64, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	result, err := t.api.AccountGetDefaultBackgroundEmojis(t.ctx, 0)
+	if err != nil { return nil, err }
+	switch v := result.(type) {
+	case *tg.EmojiList:
+		return v.DocumentID, nil
+	default:
+		return nil, nil
+	}
 }
 
 func (t *TelegramCore) GetContentSettings() (sensitiveEnabled bool, sensitiveCanChange bool, err error) {

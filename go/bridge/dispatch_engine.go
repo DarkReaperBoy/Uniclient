@@ -3066,13 +3066,27 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "UpdateNameColor":
 		var params struct {
-			AccountID string `json:"account_id"`
-			ColorID   int    `json:"color_id"`
+			AccountID         string `json:"account_id"`
+			ColorID           int    `json:"color_id"`
+			BackgroundEmojiID int64  `json:"background_emoji_id"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		return nil, e.UpdateNameColor(params.AccountID, params.ColorID)
+		return nil, e.UpdateNameColor(params.AccountID, params.ColorID, params.BackgroundEmojiID)
+
+	case "GetBackgroundEmojiList":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		ids, err := e.GetBackgroundEmojiList(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]any{"emoji_ids": ids})
 
 	case "GetContentSettings":
 		var params struct {
