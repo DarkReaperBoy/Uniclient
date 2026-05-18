@@ -554,12 +554,6 @@ The emoji picker is **functionally broken in two ways:**
 
 # popup_menu — Context menu widget audit
 
-- [ ] [MAJOR] RTL keyboard navigation not implemented: AyuGram swaps left/right arrow keys for RTL locales — left arrow opens submenu and right arrow closes/escapes in RTL, opposite of LTR. Dart hardcodes left=close-submenu/escape and right=open-submenu regardless of locale, breaking menu keyboard navigation for Arabic/Hebrew/Persian users — `popup_menu.dart:617-647` ← `AyuGram/Telegram/lib_ui/ui/widgets/popup_menu.cpp:428-439`
-
-- [ ] [MAJOR] Trailing separator not cleaned up before display: AyuGram always calls `_menu->clearLastSeparator()` before showing the popup, ensuring menus never end with a visible separator line. Dart renders all items including any trailing `TelegramMenuItem.separator()`, causing a stray line at the bottom of the menu whenever callers conditionally append separators — `popup_menu.dart:695-705` ← `AyuGram/Telegram/lib_ui/ui/widgets/popup_menu.cpp:843-846`
-
-- [ ] [MAJOR] Focus-loss does not dismiss menu on desktop: AyuGram closes the popup via `focusOutEvent` when the window loses focus (e.g. user alt-tabs away). Flutter's `barrierDismissible: true` only captures taps on the barrier overlay — it does not fire when the OS moves focus to another window, leaving the menu visually open until the user taps back into the app — `popup_menu.dart:110` ← `AyuGram/Telegram/lib_ui/ui/widgets/popup_menu.cpp:465-469`
-
 # privacy_settings_screen — Audit
 
 ## Summary
