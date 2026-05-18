@@ -551,45 +551,7 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-# notifications_settings_screen — Audit findings
-
-- [ ] [CRITICAL] `notifReactions` toggle not wired to engine — toggling only calls `appState.notifReactions = v` (AppState setter line 2218 also has no engine call), so the Telegram API `reactionsNotifySettings.setAllFrom()` is never invoked — `notifications_settings_screen.dart:445` ← `settings_notifications.cpp:318-323`
-
-- [ ] [CRITICAL] Notification preview name/text changes not persisted to engine — `onNameChanged`/`onTextChanged` only update AppState booleans with no `saveLocalNotifyConfig` or `engine.*` call, so `notifyView` is never saved via `Core::App().settings().setNotifyView()` — `notifications_settings_screen.dart:268-274` ← `settings_notifications.cpp:1136-1166`
-
-- [ ] [CRITICAL] `notifUseNative` toggle not wired to engine — `onChanged: (v) => appState.notifUseNative = v` makes no engine call; C++ calls `Core::App().settings().setNativeNotifications()` and `Core::App().notifications().createManager()` — `notifications_settings_screen.dart:656` ← `settings_notifications.cpp:1483-1491`
-
-- [ ] [CRITICAL] `notifSkipToastsInFocus` toggle not wired to engine — `onChanged: (v) => appState.notifSkipToastsInFocus = v` makes no engine call; C++ calls `Core::App().settings().setSkipToastsInFocus()` and triggers `notifySettingsChanged(ChangeType::DesktopEnabled)` — `notifications_settings_screen.dart:673` ← `settings_notifications.cpp:1500-1510`
-
-- [ ] [CRITICAL] `notifDisplayIndex` radio selection not wired to engine — `onChanged: (v) => appState.notifDisplayIndex = v ?? 0` makes no engine call; C++ computes `ScreenNameChecksum` and calls `setNotificationsDisplayChecksum()` + `notifySettingsChanged(ChangeType::Corner)` — `notifications_settings_screen.dart:702-716` ← `settings_notifications.cpp:1565-1583`
-
-- [ ] [CRITICAL] `notifCorner` change not wired to engine — `onCornerChanged: (corner) => appState.notifCorner = corner.index` makes no engine call; C++ calls `Core::App().settings().setNotificationsCorner()` + `notifySettingsChanged(ChangeType::Corner)` — `notifications_settings_screen.dart:744` ← `settings_notifications.cpp:646-651`
-
-- [ ] [CRITICAL] `notifCount` slider change not wired to engine — `onChanged: (count) => appState.notifCount = count` makes no engine call; C++ calls `Core::App().settings().setNotificationsCount()` + `notifySettingsChanged(ChangeType::MaxCount)` — `notifications_settings_screen.dart:763` ← `settings_notifications.cpp:407-412`
-
-- [ ] [MAJOR] Exception list is static — loaded once in `initState` with no subscription to backend peer-update or exception-update events; C++ `ExceptionsController` subscribes to `exceptionsUpdates()` and `peerUpdates(Flag::Notifications)` to reactively refresh rows — `notifications_settings_screen.dart:1540-1598` ← `settings_notifications_type.cpp:213-234`
-
 # payment_panel — Payment Panel Audit
-
-- [ ] [CRITICAL] `_panelChooseTips()` (line 1326) is dead code — method is defined but never called from any UI element. In AyuGram the tips amount label in the price section is a clickable link (`overrideLinkClickHandler`) that opens the custom tip dialog. Dart has no equivalent click handler on the tips row, making custom tip entry completely inaccessible — `payment_panel.dart:1326` ← `payments_form_summary.cpp:362`
-
-- [ ] [CRITICAL] SmartGlocal tokenization always uses the playground/test URL (`tgb-playground.smart-glocal.com`). AyuGram's `ComputeApiUrl()` uses the `tokenizeUrl` field from `nativeParams` if valid, otherwise chooses production (`tgb.smart-glocal.com`) vs test based on the invoice `isTest` flag. Dart ignores `tokenizeUrl` and hardcodes the playground endpoint for all transactions including live ones — `payment_panel.dart:1238` ← `smartglocal_api_client.cpp:22`
-
-- [ ] [CRITICAL] SmartGlocal tokenization uses `publishableKey` as the `X-PUBLIC-TOKEN` header. AyuGram uses `_configuration.publicToken` (a separate `publicToken` field) not `publishableKey`. These are distinct fields in the native params — `payment_panel.dart:1240` ← `smartglocal_api_client.cpp:64`
-
-- [ ] [CRITICAL] Payment method editing skips the saved-method chooser. AyuGram's `choosePaymentMethod()` shows a `SingleChoiceBox` listing "New card" + all saved methods + additional methods, letting the user pick. Dart's `_editPaymentMethod()` jumps directly to URL or native card form without any saved-method selection step — `payment_panel.dart:973` ← `payments_panel.cpp:637`
-
-- [ ] [CRITICAL] Pre-submission warning box is missing. AyuGram's `showWarning(bot, provider)` displays a confirmation box (with bot name + provider name) that the user must explicitly accept before the payment is sent. Dart calls `engine.sendPaymentForm()` directly with no equivalent warning step — `payment_panel.dart:312` ← `payments_panel.cpp:710`
-
-- [ ] [CRITICAL] Terms acceptance dialog has wrong behavior. AyuGram shows a checkbox + "Accept" button; clicking Accept validates the checkbox is checked and shows an error if not (`showError()`), only then calling `panelAcceptTermsAndSubmit()`. Dart's `_showTermsDialog` auto-closes the dialog and immediately calls `_submitPayment()` on checkbox toggle without requiring any "Accept" button click — `payment_panel.dart:367` ← `payments_panel.cpp:788`
-
-- [ ] [MAJOR] Progress fade duration is 400 ms vs AyuGram's 200 ms (`kProgressDuration = crl::time(200)`), making the loading indicator fade 2× slower than the reference — `payment_panel.dart:31` ← `payments_panel.cpp:33`
-
-- [ ] [MAJOR] Bottom button area padding is wrong. AyuGram: `paymentsPanelPadding: margins(8px, 12px, 15px, 12px)` (left=8, top=12, right=15, bottom=12). Dart uses `EdgeInsets.symmetric(horizontal: _kSubmitHPadding / 2, vertical: 8)` = left=18, top=8, right=18, bottom=8 — both horizontal and vertical padding deviate — `payment_panel.dart:1400` ← `payments.style:28`
-
-- [ ] [MAJOR] Suggested tip buttons use `Wrap` with uniform spacing instead of AyuGram's row-fill layout algorithm. AyuGram's `setupSuggestedTips()` distributes button widths evenly across each row so buttons stretch to fill available width. Dart's `Wrap` leaves unequal gaps at row ends — `payment_panel.dart:820` ← `payments_form_summary.cpp:408`
-
-- [ ] [MAJOR] Stripe tokenization is missing required headers `X-Stripe-User-Agent` and `Stripe-Version: 2015-10-12`. AyuGram sends all three auth/version headers. Dart only sends `Authorization: Bearer` and `Content-Type`, which may cause Stripe API rejections — `payment_panel.dart:1201` ← `stripe_api_client.cpp:53`
 
 - [ ] [MAJOR] Country name resolution uses a hardcoded 53-entry map. AyuGram calls `Countries::Instance().countryNameByISO2()` which is a complete country database. Any country not in the Dart map (e.g. HN, MK, LB, and hundreds more) silently displays its 2-letter ISO code instead of the full name — `payment_panel.dart:1485` ← `payments_form_summary.cpp:517`
 
