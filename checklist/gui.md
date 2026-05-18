@@ -567,9 +567,6 @@ One CRITICAL issue found. All other features (cloud password flow, local passcod
 
 # shell — Audit findings
 
-## shell — Synchronous file write on every drag pixel
-
-- [ ] [MAJOR] `_saveLayoutPrefs()` is called inside the `onDrag` callback of every `_ResizeHandle` instance — including both the dialogs/chat divider and the chat/info divider. `_saveLayoutPrefs()` calls `File.writeAsStringSync()` (a blocking synchronous write) on the Flutter UI thread at up to ~60 Hz during a drag. AyuGram separates the two concerns: `moveLeftCallback` updates the ratio in memory only (`updateDialogsWidthRatio`, no disk I/O), and `moveFinishedCallback` persists once with `Core::App().saveSettingsDelayed()` after the drag ends. The fix is to call `_saveLayoutPrefs()` only in `onDragEnd`, not `onDrag`. — `shell.dart:506-515` (dialogs resize), `shell.dart:596-605` (three-col dialogs), `shell.dart:629-638` (info panel resize) ← `mainwidget.cpp:2593-2611` (`moveLeftCallback` updates memory; `moveFinishedCallback` saves delayed)
 
 ## shell — Dialogs column artificially capped at 540 px; AyuGram removed this cap
 
