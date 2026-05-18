@@ -551,25 +551,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-
-## media_viewer — _showAllMedia uses toggleInfoRequest, not shared media navigation
-
-- [ ] [MAJOR] `_showAllMedia` calls `UniClientShell.toggleInfoRequest?.call()` (line 2930) which opens the info panel, not the shared media tab. AyuGram's equivalent navigates to the "Shared Media" section within the profile panel to show all media from that chat. — `media_viewer.dart:2928-2931` ← `media_view_overlay_widget.cpp:2041,2071`
-
-# message_bubble — Audit findings
-
-- [ ] [MAJOR] Forward header is plain italic text; no click handler to open originator's profile/channel. AyuGram renders it as a clickable link that opens the forwarded-from peer. Multiple variants are missing: forwarded story, forwarded via channel, forwarded with PSA type, hidden-sender ("anonymous channel"), signed author name — all collapsed into a single "Forwarded from <string>" label with no interactivity — `message_bubble.dart:918-929` ← `AyuGramDesktop/Telegram/SourceFiles/history/history_item_components.cpp:241-349` (`HistoryMessageForwarded::create`) and `history_view_message.cpp:948-958`
-
-- [ ] [MAJOR] Poll subtitle always shows "Anonymous Poll" when not a quiz/multiple-choice; the `pollPublic` field is populated in `CachedMessage` (engine_models.dart line 531) but is never read by `_PollWidget`. Public polls must show "Poll" (not "Anonymous Poll") — `message_bubble.dart:8027` ← `AyuGramDesktop/Telegram/SourceFiles/history/view/media/history_view_poll.cpp:2078-2083` (PublicVotes flag)
-
-- [ ] [MAJOR] `mention`, `hashtag`, `bot_command`, `cashtag` entities are displayed with link colour but have no `TapGestureRecognizer` — tapping them does nothing. AyuGram opens the peer profile on mention tap, triggers a hashtag search on hashtag tap, and sends the command on bot_command tap — `message_bubble.dart:7199-7209` ← `AyuGramDesktop/Telegram/SourceFiles/core/click_handler_types.cpp:401-418` (MentionClickHandler::onClick) and line 459 (HashtagClickHandler::onClick) and line 485 (BotCommandClickHandler::onClick)
-
-- [ ] [MAJOR] Upload cancel button in the media overlay (`_isUploading` branch) shows a close icon but has no `GestureDetector`/`onTap` — tapping it does nothing. AyuGram cancels the upload on tap. No `cancelUpload` / `cancelSend` method is wired here — `message_bubble.dart:3560-3598` (close icon at 3592 with no GestureDetector wrapping it)
-
-- [ ] [MAJOR] `switch_inline` button handler reads `chat?.title` (the chat's display name, which may contain spaces or be a channel name) as the bot username, then constructs `@<chatTitle> <query>` and puts it in the compose box. The correct behaviour is to use the originating bot's username (from the button's bot field), not the active chat title. For `switch_inline_same` (same-peer variant) AyuGram keeps the user in the same chat; no such distinction is made in Dart — `message_bubble.dart:9566-9572` ← `AyuGramDesktop/Telegram/SourceFiles/history/history_item_reply_markup.cpp:213-225` (SwitchInline / SwitchInlineSame types)
-
-- [ ] [MAJOR] Location map tile uses `tile.openstreetmap.org` (third-party). Telegram Desktop fetches tiles from `maps.telegram.org` (Telegram's own static-maps provider, configurable via `static_maps_provider` in server config). Using OpenStreetMap leaks user coordinates to a third party and deviates from the spec — `message_bubble.dart:4844-4845` ← `AyuGramDesktop/Telegram/SourceFiles/mtproto/scheme/api.tl:494` (`static_maps_provider` field in Config TL object)
-
 ## my_profile_page — Profile page audit vs AyuGram Desktop
 
 - [ ] [CRITICAL] `_EditPeerColorBox` shows only 7 hardcoded colors (`_baseColors`) and no background-emoji picker, missing the full `EditPeerColorBox` which loads server-provided color indices (`peerColors().suggestedValue()`), a live message preview, and an emoji-icon picker row — `my_profile_page.dart:1240-1378` ← `AyuGram/boxes/peers/edit_peer_color_box.cpp:1843-1900`
