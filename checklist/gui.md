@@ -167,15 +167,6 @@ The FFI bridge implementation is **correctly designed and fully functional**. Al
 
 The FFI bridge is production-ready. All memory management is correct, event handling is robust, platform loading is comprehensive, and integration with Go backend is properly wired. The code exemplifies proper Dart FFI patterns (Isolate.run for blocking, NativeCallable.listener for callbacks, proper cleanup).
 
-# chat_state — Saved-sublists pagination wrong, folder filter logic wrong
-
-- [ ] [MAJOR] `_kFirstPerPage = 20` should be 10 — the comment at line 1203 even says "kFirstPerPage=10" but the constant is 20, causing 2× too many saved sublists fetched on first load — `chat_state.dart:109` ← `data_saved_messages.cpp:31` (`constexpr auto kFirstPerPage = 10`)
-
-- [ ] [MAJOR] `_kPerPage = 100` should be 50 — subsequent saved-sublist pages are 2× oversized vs AyuGram — `chat_state.dart:110` ← `data_saved_messages.cpp:30` (`constexpr auto kPerPage = 50`)
-
-- [ ] [MAJOR] Folder filter applies exclusion flags (excludeMuted / excludeRead / excludeArchived) **before** checking the explicit include list, so an explicitly-included chat that is muted/read/archived is incorrectly hidden. AyuGram evaluates it as `(typeFilter AND exclusionConditions) OR _always.contains(history)` — `_always` (explicit includes) bypasses all exclusion conditions. Dart checks `excludeMuted/Read/Archived` first and only reaches `includeSet.contains()` afterwards — `chat_state.dart:706-734` ← `data_chat_filters.cpp:366-386`
-
-- [ ] [MAJOR] When `excludeRead` is set, AyuGram still shows chats with an unread mention (`state.mention`) — Dart checks only `c.unreadCount == 0` with no mention exception, incorrectly hiding chats that have an unread mention but total unreadCount = 0 — `chat_state.dart:715` ← `data_chat_filters.cpp:379-382`
 
 # telegram_palette — Color value deviations and algorithm differences
 
