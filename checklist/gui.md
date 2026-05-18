@@ -551,14 +551,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-# payment_panel — Payment Panel Audit
-
-- [ ] [MAJOR] Country name resolution uses a hardcoded 53-entry map. AyuGram calls `Countries::Instance().countryNameByISO2()` which is a complete country database. Any country not in the Dart map (e.g. HN, MK, LB, and hundreds more) silently displays its 2-letter ISO code instead of the full name — `payment_panel.dart:1485` ← `payments_form_summary.cpp:517`
-
-- [ ] [MAJOR] `askSetPassword()` equivalent is missing. AyuGram has a `panelAskSetPassword()` flow that prompts the user to set a 2FA cloud password when `passwordMissing` is true in the payment form. Dart has no such prompt — payments requiring a cloud password will silently fail instead of guiding the user — `payment_panel.dart:253` ← `payments_panel.cpp:679`
-
-- [ ] [MAJOR] `_downloadAndCachePhoto()` is called from `_buildThumbnail()` inside `build()` without a concurrent-download guard. The early-return check `if (_cachedPhotoPath != null) return` does not prevent multiple concurrent futures from launching before any one sets `_cachedPhotoPath`. Each rebuild before photo arrival spawns another `HttpClient` download — `payment_panel.dart:728` ← `payments_form_summary.cpp:241`
-
 # peer_short_info — PeerShortInfoBox audit
 
 - [ ] [CRITICAL] "Public photo" label shown unconditionally at last photo index — Dart shows `'Public photo'` whenever `_currentPhotoIndex == _photoCount - 1`, but AyuGram only shows it when `state->photoId == SyncUserFallbackPhotoViewer(peer->asUser())` (the actual fallback/public photo ID). If the last photo is not the public fallback, Dart mislabels it — `peer_short_info.dart:579` ← `prepare_short_info_box.cpp:369`
