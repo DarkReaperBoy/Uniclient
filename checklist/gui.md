@@ -551,61 +551,11 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-## my_profile_page — Profile page audit vs AyuGram Desktop
-
-- [ ] [CRITICAL] `_EditPeerColorBox` shows only 7 hardcoded colors (`_baseColors`) and no background-emoji picker, missing the full `EditPeerColorBox` which loads server-provided color indices (`peerColors().suggestedValue()`), a live message preview, and an emoji-icon picker row — `my_profile_page.dart:1240-1378` ← `AyuGram/boxes/peers/edit_peer_color_box.cpp:1843-1900`
-
-- [ ] [CRITICAL] Profile photo click opens a local `Image.file` viewer instead of the proper media viewer via `controller->openPhoto(photo, _peer)` which opens the full photo gallery — `my_profile_page.dart:887-917` ← `AyuGram/ui/controls/userpic_button.cpp:528`
-
-- [ ] [CRITICAL] After photo upload, the avatar area is not updated optimistically (no local userpic update like `UpdatePhotoLocally`), and no upload-progress overlay is shown on the avatar; in AyuGram both happen immediately before the server responds — `my_profile_page.dart:811-838` ← `AyuGram/settings/sections/settings_information.cpp:327-338`
-
-- [ ] [CRITICAL] Status text in `_ProfilePhotoArea` is fetched once on init and never refreshed reactively; in AyuGram `StatusValue` subscribes to `peerFlagsValue(OnlineStatus)` and sets a timer to re-compute "last seen X min ago" automatically — `my_profile_page.dart:118-135` ← `AyuGram/settings/sections/settings_information.cpp:281-300`
-
-- [ ] [CRITICAL] Profile photo and all account-row avatars always use `ClipOval` (circle only), ignoring the configurable `avatarCorners` setting (0–23) that AyuGram applies via `AyuUserpic::PaintShape`; other widgets in the app already read `appState.avatarCorners` — `my_profile_page.dart:708-718, 1802-1813` ← `AyuGram/ayu/ui/ayu_userpic.cpp:56-79`
-
-- [ ] [MAJOR] Online status renders with accent color using `palette.windowBgActive` only when the string equals `'online'`; AyuGram uses `tr::link()` to wrap the text making FlatLabel apply `windowActiveTextFg` for any truly-online state, while last-seen text always stays `windowSubTextFg` — `my_profile_page.dart:756-760` ← `AyuGram/settings/sections/settings_information.cpp:288-289`
-
-- [ ] [MAJOR] Status text position uses `Transform.translate(offset: Offset(0, -1))` (fixed 1px up-shift), but AyuGram positions it relative to name bottom plus `settingsInfoNameSkip: -1px` — since name height is variable the fixed offset can mis-align when name wraps — `my_profile_page.dart:750-761` ← `AyuGram/settings/sections/settings_information.cpp:375-378`, `AyuGram/settings/settings.style:213`
-
-- [ ] [MAJOR] Birthday editing opens a custom `_BirthdayDrumPickerDialog` dialog (inline Flutter wheel pickers), but AyuGram opens `EditBirthdayBox` via `Core::App().openInternalUrl("internal:edit_birthday")` which uses `Ui::VerticalDrumPicker` with proper layout (day on left 25% / month in centre 50% / year on right 25%); the Dart dialog splits all three columns equally — `my_profile_page.dart:182-210` ← `AyuGram/ui/boxes/edit_birthday_box.cpp:91-99`
-
-- [ ] [MAJOR] Personal Channel editing opens `_PersonalChannelSelector` (lists owned channels fetched from engine), but AyuGram opens the editor via `Core::App().openInternalUrl("internal:edit_personal_channel")` which shows a proper selection box; there is no "None / Remove" separator item shown before the channel list as in the real box — `my_profile_page.dart:1091-1101` ← `AyuGram/settings/sections/settings_information.cpp:507-512`
-
-- [ ] [MAJOR] Locked account rows (those at index >= premiumLimit) are omitted entirely from the Dart list because `nextIsLocked` causes `button = nullptr` in AyuGram and skips rendering; the Dart `_AccountsSection` renders all accounts without any lock indicator or greyed-out treatment for over-limit accounts — `my_profile_page.dart:1597-1637` ← `AyuGram/settings/sections/settings_information.cpp:1093-1134`
-
-- [ ] [MAJOR] Account row reorder in AyuGram persists order via `Core::App().settings().setAccountsOrder()` and only moves accounts above `premiumLimit` (extras are pinned via `addPinnedInterval`); the Dart `ReorderableListView` calls `appState.reorderAccounts` for all items with no premium-limit pinning — `my_profile_page.dart:1587-1639` ← `AyuGram/settings/sections/settings_information.cpp:1060-1148`
-
-- [ ] [MAJOR] Middle-mouse click on an account row to open in a new window is not handled in Dart (only Ctrl+left-click and right-click context menu "Open in New Window" are wired); AyuGram maps `Qt::MiddleButton` to `callback(Qt::ControlModifier)` — `my_profile_page.dart:1607-1637` ← `AyuGram/settings/sections/settings_information.cpp:857-860`
-
-# notification_popup — Audit Findings
-
-- [ ] [CRITICAL] Reply field Enter key adds a newline instead of sending — Dart uses `maxLines: null` (multiline `TextField`) where Enter inserts `\n`; `onSubmitted` never fires for multiline on desktop; only Ctrl+Enter sends via `KeyboardListener`. AyuGram uses `setSubmitSettings(Both)` so plain Enter alone sends immediately — `notification_popup.dart:898-920` ← `notifications_manager_default.cpp:1138`
-
-- [ ] [CRITICAL] `forceHiddenPlaceholder` uses hardcoded sentinel string `'UniClient'` to detect hidden-name notifications instead of reading the actual `hideNameAndPhoto` flag from notification options — fragile: any chat named "UniClient" gets the hidden userpic — `notification_popup.dart:534-537` ← `notifications_manager_default.cpp:923-924`
-
-- [ ] [CRITICAL] Chat title text is never replaced when `hideNameAndPhoto` is active — AyuGram sets the title to `"AyuGram Desktop"` when the privacy setting hides sender identity; the Dart widget always renders `data.chatTitle` / `data.senderName` verbatim, leaking the real name even when the userpic is hidden — `notification_popup.dart:544-547` ← `notifications_manager_default.cpp:1024-1025`
-
-- [ ] [MAJOR] `_PopupState.replyHeight` is initialized to `_replyFieldMinH = 36.0` and is never updated when the user types multiple lines — `totalHeight` stays at 117 px while the actual widget grows up to 153 px (36 → 72 px max), so `_recalcPositions()` places other popups using a stale height, causing overlap — `notification_popup.dart:45,59,62-66,294,331` ← `notifications_manager_default.cpp:787-789`
-
-- [ ] [MAJOR] Reply action button is a circular `Icons.reply` icon instead of the localized text `RoundButton` AyuGram uses (`tr::lng_notification_reply()` uppercased); the visual presentation and size are wrong — `notification_popup.dart:829-841` ← `notifications_manager_default.cpp:678-679`
-
-- [ ] [MAJOR] Close button renders `Icons.close` (Material icon, 16 px) instead of AyuGram's `smallCloseIcon` (10 px glyph inside 30×30 area at `iconPosition: point(10px, 10px)`) — icon content and visual weight differ — `notification_popup.dart:814` ← `window.style:35-47`
-
-- [ ] [MAJOR] Message body text is rendered as plain `Text` / `Text.rich` with no entity or markdown parsing — AyuGram uses `Ui::Text::String` with `TextParseMarkdown | TextParseColorized`, renders custom emoji, colored reaction author names, and spoiler text; Dart strips all formatting from real message previews — `notification_popup.dart:576-645` ← `notifications_manager_default.cpp:952-1001`
-
-- [ ] [MAJOR] Hide-countdown only starts after a Flutter pointer event (`onPointerDown` / `onPointerHover`) inside the overlay, not after OS-level user input — AyuGram polls `base::Platform::LastUserInputTimeSupported()` / `Core::App().lastNonIdleTime()` so the countdown waits until the user interacts with *any* window; Dart keeps notifications up indefinitely if the user never moves the mouse into the Flutter surface — `notification_popup.dart:145-167` ← `notifications_manager_default.cpp:186-199`
-
 # notifications_settings_screen — Audit findings
 
 - [ ] [CRITICAL] `notifReactions` toggle not wired to engine — toggling only calls `appState.notifReactions = v` (AppState setter line 2218 also has no engine call), so the Telegram API `reactionsNotifySettings.setAllFrom()` is never invoked — `notifications_settings_screen.dart:445` ← `settings_notifications.cpp:318-323`
 
 - [ ] [CRITICAL] Notification preview name/text changes not persisted to engine — `onNameChanged`/`onTextChanged` only update AppState booleans with no `saveLocalNotifyConfig` or `engine.*` call, so `notifyView` is never saved via `Core::App().settings().setNotifyView()` — `notifications_settings_screen.dart:268-274` ← `settings_notifications.cpp:1136-1166`
-
-- [ ] [CRITICAL] `_showMuteMenu` "mute forever" and "unmute" actions not persisted to engine — both branches only do `setState(() => _enabled = false/true)` without calling `_persistEnabledState()`, so no `updateDefaultNotifySettings` is fired — `notifications_settings_screen.dart:2218-2221` ← `settings_notifications_type.cpp:428-442`
-
-- [ ] [CRITICAL] `_showMuteMenu` "recent duration" mute not persisted — selecting a recent mute preset calls `setState(() => _enabled = false)` only, no engine call with mute duration/expiry time — `notifications_settings_screen.dart:2210-2215` ← `settings_notifications_type.cpp:428-442`
-
-- [ ] [CRITICAL] `_showMuteDurationPicker` selection not persisted to engine — after picking a custom duration only `setState(() => _enabled = false)` is called; no engine mute-for-duration call is made — `notifications_settings_screen.dart:2233-2237` ← `settings_notifications_type.cpp:428-442`
 
 - [ ] [CRITICAL] `notifUseNative` toggle not wired to engine — `onChanged: (v) => appState.notifUseNative = v` makes no engine call; C++ calls `Core::App().settings().setNativeNotifications()` and `Core::App().notifications().createManager()` — `notifications_settings_screen.dart:656` ← `settings_notifications.cpp:1483-1491`
 
@@ -616,8 +566,6 @@ The emoji picker is **functionally broken in two ways:**
 - [ ] [CRITICAL] `notifCorner` change not wired to engine — `onCornerChanged: (corner) => appState.notifCorner = corner.index` makes no engine call; C++ calls `Core::App().settings().setNotificationsCorner()` + `notifySettingsChanged(ChangeType::Corner)` — `notifications_settings_screen.dart:744` ← `settings_notifications.cpp:646-651`
 
 - [ ] [CRITICAL] `notifCount` slider change not wired to engine — `onChanged: (count) => appState.notifCount = count` makes no engine call; C++ calls `Core::App().settings().setNotificationsCount()` + `notifySettingsChanged(ChangeType::MaxCount)` — `notifications_settings_screen.dart:763` ← `settings_notifications.cpp:407-412`
-
-- [ ] [MAJOR] Reactions "from" dialog includes a "Nobody" radio option which is wrong — C++ `ShowFromBox` only offers All/Contacts radio buttons (None is achieved via the toggle, not inside the box); Dart adds a third "Nobody" radio inside `_showFromDialog` — `notifications_settings_screen.dart:3057-3066` ← `settings_notifications_reactions.cpp:59-88`
 
 - [ ] [MAJOR] Exception list is static — loaded once in `initState` with no subscription to backend peer-update or exception-update events; C++ `ExceptionsController` subscribes to `exceptionsUpdates()` and `peerUpdates(Flag::Notifications)` to reactively refresh rows — `notifications_settings_screen.dart:1540-1598` ← `settings_notifications_type.cpp:213-234`
 
