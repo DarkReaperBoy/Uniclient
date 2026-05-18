@@ -298,6 +298,7 @@ class _ImportantTooltipState extends State<ImportantTooltip>
         side: side,
         shift: _kImportantShift,
         screenSize: screen,
+        arrowSkip: widget.arrowSkip,
       ),
       child: CustomPaint(
         foregroundPainter: _ArrowPainter(
@@ -373,12 +374,14 @@ class _ImportantTooltipDelegate extends SingleChildLayoutDelegate {
   final TooltipSide side;
   final double shift;
   final Size screenSize;
+  final double arrowSkip;
 
   _ImportantTooltipDelegate({
     required this.targetRect,
     required this.side,
     required this.shift,
     required this.screenSize,
+    this.arrowSkip = _kArrowSkip,
   });
 
   @override
@@ -400,10 +403,10 @@ class _ImportantTooltipDelegate extends SingleChildLayoutDelegate {
         x = targetRect.center.dx - childSize.width / 2;
         y = targetRect.top - childSize.height;
       case TooltipSide.right:
-        x = targetRect.center.dx - childSize.width / 2;
+        x = targetRect.center.dx - arrowSkip;
         y = targetRect.top - childSize.height;
       case TooltipSide.left:
-        x = targetRect.center.dx - childSize.width / 2;
+        x = targetRect.center.dx + arrowSkip - childSize.width;
         y = targetRect.top - childSize.height;
     }
 

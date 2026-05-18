@@ -1584,6 +1584,16 @@ class _ChatViewState extends State<ChatView>
           _saveGif(msg);
         case 'view_sticker_set':
           StickerPackViewer.show(context, msg);
+          if (msg.stickerPremium) {
+            showStickerToast(
+              context,
+              packName: msg.stickerSetShortName.isNotEmpty
+                  ? msg.stickerSetShortName
+                  : 'Premium Stickers',
+              isEmoji: false,
+              onOpenPack: () => StickerPackViewer.show(context, msg),
+            );
+          }
         case 'fave_sticker':
           _faveSticker(msg);
         case 'copy_link':

@@ -292,13 +292,16 @@ class _WinButtonState extends State<_WinButton> {
           height: CustomTitlebar.height,
           color: _hovered ? widget.bgOverColor : widget.bgColor,
           alignment: Alignment.center,
-          child: CustomPaint(
-            size: const Size(10, 10),
-            painter: _TitleButtonIconPainter(
-              type: widget.type,
-              isMaximized: widget.isMaximized,
-              color: _hovered ? widget.fgOverColor : widget.fgColor,
-            ),
+          child: Icon(
+            switch (widget.type) {
+              _ButtonType.minimize => Icons.remove,
+              _ButtonType.maximize => widget.isMaximized
+                  ? Icons.filter_none
+                  : Icons.crop_square,
+              _ButtonType.close => Icons.close,
+            },
+            size: 10,
+            color: _hovered ? widget.fgOverColor : widget.fgColor,
           ),
         ),
       ),
@@ -306,52 +309,3 @@ class _WinButtonState extends State<_WinButton> {
   }
 }
 
-class _TitleButtonIconPainter extends CustomPainter {
-  final _ButtonType type;
-  final bool isMaximized;
-  final Color color;
-
-  _TitleButtonIconPainter({
-    required this.type,
-    required this.isMaximized,
-    required this.color,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-
-    switch (type) {
-      case _ButtonType.minimize:
-        final y = size.height / 2;
-        canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-      case _ButtonType.maximize:
-        if (isMaximized) {
-          final d = 2.0;
-          canvas.drawRect(
-              Rect.fromLTWH(0, d, size.width - d, size.height - d), paint);
-          final backPath = Path()
-            ..moveTo(d, d)
-            ..lineTo(d, 0)
-            ..lineTo(size.width, 0)
-            ..lineTo(size.width, size.height - d)
-            ..lineTo(size.width - d, size.height - d);
-          canvas.drawPath(backPath, paint);
-        } else {
-          canvas.drawRect(
-              Rect.fromLTWH(0, 0, size.width, size.height), paint);
-        }
-      case _ButtonType.close:
-        canvas.drawLine(Offset.zero, Offset(size.width, size.height), paint);
-        canvas.drawLine(
-            Offset(size.width, 0), Offset(0, size.height), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_TitleButtonIconPainter old) =>
-      type != old.type || isMaximized != old.isMaximized || color != old.color;
-}

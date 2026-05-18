@@ -3430,7 +3430,19 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                   );
                 }
               : canOpenStickerPack
-                  ? () => StickerPackViewer.show(context, message)
+                  ? () {
+                      StickerPackViewer.show(context, message);
+                      if (message.stickerPremium) {
+                        showStickerToast(
+                          context,
+                          packName: message.stickerSetShortName.isNotEmpty
+                              ? message.stickerSetShortName
+                              : 'Premium Stickers',
+                          isEmoji: false,
+                          onOpenPack: () => StickerPackViewer.show(context, message),
+                        );
+                      }
+                    }
                   : null,
       child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
