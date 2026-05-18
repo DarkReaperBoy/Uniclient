@@ -103,6 +103,10 @@ class NotificationSystem {
 
   void Function()? onFlashBounce;
 
+  // Live mute-state query: returns null=unknown, true=muted, false=not muted.
+  // Matches AyuGram's computeSkipState() pattern for checkDelayed().
+  bool? Function(String accountId, String chatId)? onQueryMuteState;
+
   static const _kMinimalDelay = Duration(milliseconds: 100);
   static const _kMinimalForwardDelay = Duration(milliseconds: 500);
   static const _kMinimalAlertDelay = Duration(milliseconds: 500);
@@ -553,8 +557,21 @@ class NotificationSystem {
     final promoted = <NotificationData>[];
     final toRemove = <String>[];
     for (final entry in _settingWaiters.entries) {
-      final data = entry.value;
-      if (data.muteStateUnknown) continue;
+      var data = entry.value;
+      if (data.muteStateUnknown) {
+        final query = onQueryMuteState;
+        if (query != null) {
+          final liveMuted = query(data.accountId, data.chatId);
+          if (liveMuted == null) continue;
+          data = data.copyWith(
+            muteStateUnknown: false,
+            isMuted: liveMuted,
+            isSenderMuted: liveMuted,
+          );
+        } else {
+          continue;
+        }
+      }
       toRemove.add(entry.key);
       if (data.isMuted && data.isSenderMuted) continue;
       promoted.add(data);

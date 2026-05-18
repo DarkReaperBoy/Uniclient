@@ -466,6 +466,13 @@ class _UniClientAppState extends State<UniClientApp>
     _chatStateRef ??= chatState;
     _notifSystem.init(const NotificationSettings());
     _notifSystem.onFlashBounce = () => _tray.flashWindow();
+    _notifSystem.onQueryMuteState = (accountId, chatId) {
+      final chat = chatState.chats
+          .where((c) => c.accountId == accountId && c.chatId == chatId)
+          .firstOrNull;
+      if (chat == null) return null;
+      return chat.isMuted;
+    };
     _tray.updateNotificationsItem(
         enabled: _notifSystem.settings.desktopNotify);
 
