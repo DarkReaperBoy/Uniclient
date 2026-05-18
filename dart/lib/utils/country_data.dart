@@ -91,6 +91,14 @@ String formatPhoneDigits(String digits, String dialCode) {
   return buf.toString();
 }
 
+final _countryByIso = <String, String>{
+  for (final c in countries) c.iso: c.name,
+};
+
+String countryNameByIso(String iso2) {
+  return _countryByIso[iso2.toUpperCase()] ?? iso2;
+}
+
 const countries = <CountryInfo>[
   CountryInfo('Afghanistan', 'AF', '93'),
   CountryInfo('Albania', 'AL', '355'),

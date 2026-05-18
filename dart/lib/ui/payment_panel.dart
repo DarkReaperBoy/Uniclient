@@ -8,6 +8,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
 import '../theme/telegram_palette.dart';
+import '../utils/country_data.dart';
+import 'privacy_settings_screen.dart';
+import 'settings_style.dart';
 
 const _kPanelWidth = 392.0;
 const _kPanelHeight = 600.0;
@@ -28,7 +31,7 @@ const _kSubmitHPadding = 36.0;
 const _kProgressSize = 24.0;
 const _kProgressStroke = 4.0;
 const _kProgressOpacity = 0.3;
-const _kProgressFadeDuration = Duration(milliseconds: 400);
+const _kProgressFadeDuration = Duration(milliseconds: 200);
 const _kSectionsTopSkip = 11.0;
 const _kCornerRadius = 12.0;
 const _kHeaderHeight = 54.0;
@@ -129,6 +132,7 @@ class _PaymentPanelState extends State<PaymentPanel>
   String? _requestedInfoId;
   String? _credentialsData;
   String? _cachedPhotoPath;
+  bool _photoDownloading = false;
 
   int _receiptDate = 0;
   int _tipAmount = 0;
@@ -238,6 +242,7 @@ class _PaymentPanelState extends State<PaymentPanel>
           }
         }
 
+        _passwordMissing = data['password_missing'] == true;
         _state = _PanelState.form;
       });
       _progressFade.animateTo(0.0, duration: _kProgressFadeDuration);
@@ -250,10 +255,45 @@ class _PaymentPanelState extends State<PaymentPanel>
     }
   }
 
+  bool _warningAccepted = false;
+  bool _passwordMissing = false;
+
   Future<void> _submitPayment() async {
+    if (_passwordMissing) {
+      _showPasswordMissingDialog();
+      return;
+    }
     if (_termsUrl.isNotEmpty && !_termsAccepted) {
       _showTermsDialog();
       return;
+    }
+    if (!_warningAccepted) {
+      final botName = widget.data.botName.isNotEmpty
+          ? widget.data.botName
+          : 'this bot';
+      final providerName = _formData['native_provider'] as String? ?? 'the payment provider';
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Payment Confirmation'),
+          content: Text(
+            'You are about to pay via $providerName as requested by @$botName. '
+            'Please confirm that you want to proceed with this payment.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      );
+      if (accepted != true || !mounted) return;
+      _warningAccepted = true;
     }
     setState(() => _state = _PanelState.submitting);
     final engine = context.read<EngineService>();
@@ -333,52 +373,113 @@ class _PaymentPanelState extends State<PaymentPanel>
       _nameRequested || _phoneRequested || _emailRequested || _shippingRequested;
 
   void _showTermsDialog() {
+    var accepted = _termsAccepted;
+    String? errorText;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Terms of Service'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'By completing this payment, you agree to the Terms of Service of the payment provider.',
+              ),
+              if (_termsUrl.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () => launchUrl(Uri.parse(_termsUrl),
+                      mode: LaunchMode.externalApplication),
+                  child: Text(
+                    _termsUrl,
+                    style: const TextStyle(
+                      color: Colors.blue,
+                      decoration: TextDecoration.underline,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Checkbox(
+                    value: accepted,
+                    onChanged: (v) {
+                      setDialogState(() {
+                        accepted = v ?? false;
+                        errorText = null;
+                      });
+                    },
+                  ),
+                  const Expanded(child: Text('I agree to the Terms of Service')),
+                ],
+              ),
+              if (errorText != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    errorText!,
+                    style: const TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (!accepted) {
+                  setDialogState(() {
+                    errorText = 'You must accept the Terms of Service to continue.';
+                  });
+                  return;
+                }
+                setState(() => _termsAccepted = true);
+                Navigator.of(ctx).pop();
+                _submitPayment();
+              },
+              child: const Text('Accept'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPasswordMissingDialog() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Terms of Service'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'By completing this payment, you agree to the Terms of Service of the payment provider.',
-            ),
-            if (_termsUrl.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: () => launchUrl(Uri.parse(_termsUrl),
-                    mode: LaunchMode.externalApplication),
-                child: Text(
-                  _termsUrl,
-                  style: const TextStyle(
-                    color: Colors.blue,
-                    decoration: TextDecoration.underline,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Checkbox(
-                  value: _termsAccepted,
-                  onChanged: (v) {
-                    setState(() => _termsAccepted = v ?? false);
-                    Navigator.of(ctx).pop();
-                    if (v == true) _submitPayment();
-                  },
-                ),
-                const Expanded(child: Text('I agree to the Terms of Service')),
-              ],
-            ),
-          ],
+        title: const Text('Cloud Password Required'),
+        content: const Text(
+          'To complete this payment, you need to set a Two-Step Verification password.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              final engine = context.read<EngineService>();
+              Navigator.of(context).push(settingsPageRoute(
+                CloudPasswordStart(
+                  accountId: widget.data.accountId,
+                  engine: engine,
+                  onPasswordSet: () {
+                    setState(() => _passwordMissing = false);
+                  },
+                ),
+              ));
+            },
+            child: const Text('Set Password'),
           ),
         ],
       ),
@@ -618,6 +719,20 @@ class _PaymentPanelState extends State<PaymentPanel>
         if (_suggestedTips.isNotEmpty && !_isReceipt) ...[
           const SizedBox(height: 4),
           _buildTipsSection(accent, fg, isDark, currency),
+          if (_selectedTip > 0)
+            Padding(
+              padding: _kPricePadding,
+              child: GestureDetector(
+                onTap: () => _panelChooseTips(currency, accent, fg, isDark),
+                child: _priceRow(
+                  'Tips',
+                  _formatAmount(_selectedTip, currency),
+                  fg,
+                  accent,
+                  false,
+                ),
+              ),
+            ),
         ],
         if (_isReceipt && _tipAmount > 0) ...[
           Padding(
@@ -814,40 +929,86 @@ class _PaymentPanelState extends State<PaymentPanel>
     );
   }
 
+  Widget _buildTipButton(int tip, String currency, Color accent, bool isDark) {
+    final isSelected = _selectedTip == tip;
+    return Expanded(
+      child: SizedBox(
+        height: _kTipButtonHeight,
+        child: TextButton(
+          onPressed: () {
+            setState(() {
+              _selectedTip = isSelected ? 0 : tip;
+            });
+          },
+          style: TextButton.styleFrom(
+            backgroundColor: isSelected
+                ? accent.withValues(alpha: 0.8)
+                : accent.withValues(alpha: 0.1),
+            foregroundColor: isSelected
+                ? Colors.white
+                : accent,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14)),
+            textStyle:
+                const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+          child: Text(_formatAmount(tip, currency), overflow: TextOverflow.ellipsis),
+        ),
+      ),
+    );
+  }
+
   Widget _buildTipsSection(
       Color accent, Color fg, bool isDark, String currency) {
+    final allItems = [
+      ..._suggestedTips,
+    ];
+    const maxPerRow = 3;
+    final rows = <List<int>>[];
+    for (var i = 0; i < allItems.length; i += maxPerRow) {
+      rows.add(allItems.sublist(i, (i + maxPerRow).clamp(0, allItems.length)));
+    }
+
     return Padding(
       padding: _kTipButtonsPadding,
-      child: Wrap(
-        spacing: _kTipButtonSkip,
-        runSpacing: _kTipButtonSkip,
-        children: _suggestedTips.map((tip) {
-          final isSelected = _selectedTip == tip;
-          return SizedBox(
-            height: _kTipButtonHeight,
-            child: TextButton(
-              onPressed: () {
-                setState(() {
-                  _selectedTip = isSelected ? 0 : tip;
-                });
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: isSelected
-                    ? accent.withValues(alpha: 0.8)
-                    : accent.withValues(alpha: 0.1),
-                foregroundColor: isSelected
-                    ? (isDark ? Colors.white : Colors.white)
-                    : accent,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                textStyle:
-                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              child: Text(_formatAmount(tip, currency)),
+      child: Column(
+        children: [
+          for (final row in rows) ...[
+            Row(
+              children: [
+                for (var i = 0; i < row.length; i++) ...[
+                  if (i > 0) const SizedBox(width: _kTipButtonSkip),
+                  _buildTipButton(row[i], currency, accent, isDark),
+                ],
+              ],
             ),
-          );
-        }).toList(),
+            const SizedBox(height: _kTipButtonSkip),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: _kTipButtonHeight,
+                  child: TextButton(
+                    onPressed: () =>
+                        _panelChooseTips(currency, accent, fg, isDark),
+                    style: TextButton.styleFrom(
+                      backgroundColor: accent.withValues(alpha: 0.1),
+                      foregroundColor: accent,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      textStyle: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    child: const Text('Other'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -971,6 +1132,60 @@ class _PaymentPanelState extends State<PaymentPanel>
   }
 
   void _editPaymentMethod() {
+    final savedMethods = (_formData['saved_methods'] as List<dynamic>?)
+            ?.whereType<Map<String, dynamic>>()
+            .toList() ??
+        [];
+    final additionalMethods = (_formData['additional_methods'] as List<dynamic>?)
+            ?.whereType<Map<String, dynamic>>()
+            .toList() ??
+        [];
+
+    if (savedMethods.isEmpty && additionalMethods.isEmpty) {
+      _openPaymentMethodDirect();
+      return;
+    }
+
+    final options = <Map<String, dynamic>>[
+      {'title': 'New card', 'id': '__new_card__'},
+      ...savedMethods,
+      ...additionalMethods,
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Payment Method'),
+        children: options.map((opt) {
+          final title = opt['title'] as String? ?? '';
+          return SimpleDialogOption(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              final id = opt['id'] as String? ?? '';
+              if (id == '__new_card__') {
+                _openPaymentMethodDirect();
+              } else {
+                setState(() {
+                  _paymentMethod = title;
+                  _credentialsData = json.encode({
+                    'type': 'saved',
+                    'id': id,
+                    'tmp_password': opt['tmp_password'] ?? '',
+                  });
+                });
+              }
+            },
+            child: ListTile(
+              title: Text(title),
+              contentPadding: EdgeInsets.zero,
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  void _openPaymentMethodDirect() {
     final url = _formData['url'] as String?;
     if (url != null && url.isNotEmpty) {
       launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
@@ -1200,6 +1415,8 @@ class _PaymentPanelState extends State<PaymentPanel>
       final request = await client.postUrl(Uri.parse('https://api.stripe.com/v1/tokens'));
       request.headers.set('Authorization', 'Bearer $publishableKey');
       request.headers.set('Content-Type', 'application/x-www-form-urlencoded');
+      request.headers.set('Stripe-Version', '2015-10-12');
+      request.headers.set('X-Stripe-User-Agent', '{"lang":"dart","publisher":"anthropic"}');
       final encodedBody = body.entries
           .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
           .join('&');
@@ -1232,12 +1449,22 @@ class _PaymentPanelState extends State<PaymentPanel>
         'security_code': cvc,
       },
     });
+    final nativeParams = _formData['native_params'] as Map<String, dynamic>? ?? {};
+    final tokenizeUrl = nativeParams['tokenize_url'] as String? ?? '';
+    final publicToken = nativeParams['public_token'] as String? ?? publishableKey;
+    final String apiUrl;
+    if (tokenizeUrl.isNotEmpty) {
+      apiUrl = tokenizeUrl.endsWith('/') ? '${tokenizeUrl}cds/v1/tokenize/card' : tokenizeUrl;
+    } else {
+      final isTest = widget.data.isTest || (_formData['invoice_is_test'] == true);
+      apiUrl = isTest
+          ? 'https://tgb-playground.smart-glocal.com/cds/v1/tokenize/card'
+          : 'https://tgb.smart-glocal.com/cds/v1/tokenize/card';
+    }
     final client = HttpClient();
     try {
-      final request = await client.postUrl(
-        Uri.parse('https://tgb-playground.smart-glocal.com/cds/v1/tokenize/card'),
-      );
-      request.headers.set('X-PUBLIC-TOKEN', publishableKey);
+      final request = await client.postUrl(Uri.parse(apiUrl));
+      request.headers.set('X-PUBLIC-TOKEN', publicToken);
       request.headers.set('Content-Type', 'application/json');
       request.write(body);
       final response = await request.close();
@@ -1397,8 +1624,7 @@ class _PaymentPanelState extends State<PaymentPanel>
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: divider, width: 1)),
       ),
-      padding: const EdgeInsets.symmetric(
-          horizontal: _kSubmitHPadding / 2, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(8, 12, 15, 12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1482,26 +1708,7 @@ class _PaymentPanelState extends State<PaymentPanel>
     return parts.isEmpty ? null : parts.join(', ');
   }
 
-  static String _countryName(String iso2) {
-    const countries = {
-      'US': 'United States', 'GB': 'United Kingdom', 'DE': 'Germany',
-      'FR': 'France', 'IT': 'Italy', 'ES': 'Spain', 'CA': 'Canada',
-      'AU': 'Australia', 'JP': 'Japan', 'CN': 'China', 'IN': 'India',
-      'BR': 'Brazil', 'RU': 'Russia', 'KR': 'South Korea', 'MX': 'Mexico',
-      'NL': 'Netherlands', 'SE': 'Sweden', 'NO': 'Norway', 'DK': 'Denmark',
-      'FI': 'Finland', 'PL': 'Poland', 'AT': 'Austria', 'CH': 'Switzerland',
-      'BE': 'Belgium', 'PT': 'Portugal', 'CZ': 'Czech Republic',
-      'IE': 'Ireland', 'NZ': 'New Zealand', 'SG': 'Singapore',
-      'HK': 'Hong Kong', 'TW': 'Taiwan', 'TH': 'Thailand',
-      'MY': 'Malaysia', 'PH': 'Philippines', 'ID': 'Indonesia',
-      'TR': 'Turkey', 'SA': 'Saudi Arabia', 'AE': 'United Arab Emirates',
-      'IL': 'Israel', 'EG': 'Egypt', 'ZA': 'South Africa', 'NG': 'Nigeria',
-      'AR': 'Argentina', 'CL': 'Chile', 'CO': 'Colombia', 'PE': 'Peru',
-      'UA': 'Ukraine', 'RO': 'Romania', 'HU': 'Hungary', 'GR': 'Greece',
-      'IR': 'Iran',
-    };
-    return countries[iso2.toUpperCase()] ?? iso2;
-  }
+  static String _countryName(String iso2) => countryNameByIso(iso2);
 
   static String _formatPhoneDisplay(String phone) {
     if (phone.isEmpty) return phone;
@@ -1527,8 +1734,11 @@ class _PaymentPanelState extends State<PaymentPanel>
     return buf.toString();
   }
 
+  bool _photoFailed = false;
+
   Future<void> _downloadAndCachePhoto(String url) async {
-    if (_cachedPhotoPath != null) return;
+    if (_cachedPhotoPath != null || _photoDownloading || _photoFailed) return;
+    _photoDownloading = true;
     try {
       final client = HttpClient();
       final request = await client.getUrl(Uri.parse(url));
@@ -1543,9 +1753,14 @@ class _PaymentPanelState extends State<PaymentPanel>
         if (mounted) {
           setState(() => _cachedPhotoPath = tmpFile.path);
         }
+      } else {
+        _photoFailed = true;
       }
       client.close();
-    } catch (_) {}
+    } catch (_) {
+      _photoFailed = true;
+    }
+    _photoDownloading = false;
   }
 }
 

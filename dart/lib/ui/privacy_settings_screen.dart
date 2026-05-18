@@ -521,7 +521,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       ));
     } else {
       Navigator.of(context).push(settingsPageRoute(
-        _CloudPasswordStart(
+        CloudPasswordStart(
           accountId: accountId,
           engine: engine,
           onPasswordSet: () => _fetchPasswordState(),
@@ -2975,12 +2975,12 @@ enum _ForgotPasswordAction { recover, cancelReset, reset }
 
 // ── CloudPasswordStart: Intro screen when no password set ──
 
-class _CloudPasswordStart extends StatelessWidget {
+class CloudPasswordStart extends StatelessWidget {
   final String accountId;
   final EngineService engine;
   final VoidCallback onPasswordSet;
 
-  const _CloudPasswordStart({
+  const CloudPasswordStart({
     required this.accountId,
     required this.engine,
     required this.onPasswordSet,

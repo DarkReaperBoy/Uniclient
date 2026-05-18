@@ -368,8 +368,8 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       final engine = context.read<EngineService>();
       final path = await engine.getUserPhotoAtIndex(
           widget.accountId, widget.peerId, index);
-      if (mounted && _currentPhotoIndex == index && path != null) {
-        setState(() => _currentPhotoPath = path);
+      if (mounted && _currentPhotoIndex == index && path.path != null) {
+        setState(() => _currentPhotoPath = path.path);
       }
     } catch (_) {}
   }
