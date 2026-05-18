@@ -904,6 +904,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
               pieHoverSlice: _pieHoverSlice,
               pieSliceHoverProgress: _pieSliceHoverProgress,
               textCache: _textPainterCache,
+              selectionLineColor: widget.theme.colorScheme.onSurface.withValues(alpha: 0.15),
             );
             return Stack(
               clipBehavior: Clip.none,
@@ -959,8 +960,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
                     accentColor: widget.theme.colorScheme.primary,
                     lineAlphas: _lineAlphas,
                     animatedFooterYMax: _footerAnimatedMax,
-                    dimOverlayColor: widget.theme.colorScheme.surface
-                        .withValues(alpha: 0.6),
+                    dimOverlayColor: const Color(0x99e2eef9),
                   ),
                 ),
               );
@@ -1421,7 +1421,7 @@ class _FilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inactiveBg = Theme.of(context).colorScheme.surface;
-    final inactiveText = Theme.of(context).colorScheme.onSurface;
+    const inactiveText = Colors.white;
     Widget btn = AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.fromLTRB(8, 5, 10, 5),
@@ -1540,6 +1540,7 @@ class _ChartAreaPainter extends CustomPainter {
   final int pieHoverSlice;
   final Map<int, double> pieSliceHoverProgress;
   final Map<String, TextPainter> textCache;
+  final Color selectionLineColor;
 
   _ChartAreaPainter({
     required this.data,
@@ -1562,6 +1563,7 @@ class _ChartAreaPainter extends CustomPainter {
     this.pieHoverSlice = -1,
     this.pieSliceHoverProgress = const {},
     this.textCache = const {},
+    required this.selectionLineColor,
   });
 
   static const _months = [
@@ -1813,9 +1815,7 @@ class _ChartAreaPainter extends CustomPainter {
       Offset(x, top),
       Offset(x, top + chartH),
       Paint()
-        ..color = isDark
-            ? Colors.white.withValues(alpha: 0.15)
-            : Colors.black.withValues(alpha: 0.15)
+        ..color = selectionLineColor
         ..strokeWidth = 1,
     );
 
@@ -2296,7 +2296,8 @@ class _ChartAreaPainter extends CustomPainter {
       pieProgress != old.pieProgress ||
       pieDataIndex != old.pieDataIndex ||
       pieHoverSlice != old.pieHoverSlice ||
-      pieSliceHoverProgress != old.pieSliceHoverProgress;
+      pieSliceHoverProgress != old.pieSliceHoverProgress ||
+      selectionLineColor != old.selectionLineColor;
 }
 
 class _FooterPainter extends CustomPainter {
