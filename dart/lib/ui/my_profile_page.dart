@@ -996,7 +996,8 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
       if (count > 0) {
         final messages = <CachedMessage>[];
         for (int i = 0; i < count && i < 20; i++) {
-          final path = await engine.getUserPhotoAtIndex(account.id, account.selfUserId, i);
+          final result = await engine.getUserPhotoAtIndex(account.id, account.selfUserId, i);
+          final path = result.path;
           if (path != null && path.isNotEmpty) {
             messages.add(CachedMessage(
               accountId: account.id,

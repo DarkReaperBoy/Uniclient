@@ -163,6 +163,10 @@ type User struct {
 	VoiceMessagesForbidden bool   `json:"voice_messages_forbidden,omitempty"`
 	ContactRequirePremium  bool   `json:"contact_require_premium,omitempty"`
 	HasPersonalPhoto       bool   `json:"has_personal_photo,omitempty"`
+	PersonalPhotoId        string `json:"personal_photo_id,omitempty"`
+	FallbackPhotoId        string `json:"fallback_photo_id,omitempty"`
+	UserpicPhotoId         string `json:"userpic_photo_id,omitempty"`
+	VideoStartPosition     int    `json:"video_start_position,omitempty"`
 	Note                   string `json:"note,omitempty"`
 	BusinessHours          string `json:"business_hours,omitempty"`
 	BannedRights           map[string]bool `json:"banned_rights,omitempty"`

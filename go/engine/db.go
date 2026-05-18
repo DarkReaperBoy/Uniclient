@@ -138,6 +138,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV35,
 	migrateV36,
 	migrateV37,
+	migrateV38,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -770,6 +771,30 @@ func migrateV37(tx *sql.Tx) error {
 	}
 	if !columnExists(tx, "users", "business_hours") {
 		if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN business_hours TEXT`); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateV38(tx *sql.Tx) error {
+	if !columnExists(tx, "users", "personal_photo_id") {
+		if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN personal_photo_id TEXT`); err != nil {
+			return err
+		}
+	}
+	if !columnExists(tx, "users", "fallback_photo_id") {
+		if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN fallback_photo_id TEXT`); err != nil {
+			return err
+		}
+	}
+	if !columnExists(tx, "users", "userpic_photo_id") {
+		if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN userpic_photo_id TEXT`); err != nil {
+			return err
+		}
+	}
+	if !columnExists(tx, "users", "video_start_position") {
+		if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN video_start_position INTEGER NOT NULL DEFAULT 0`); err != nil {
 			return err
 		}
 	}

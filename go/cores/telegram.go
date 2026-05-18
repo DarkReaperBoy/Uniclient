@@ -16146,7 +16146,30 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 			}
 			cu.VoiceMessagesForbidden = result.FullUser.VoiceMessagesForbidden
 			cu.ContactRequirePremium = result.FullUser.ContactRequirePremium
-			_, cu.HasPersonalPhoto = result.FullUser.GetPersonalPhoto()
+			if pp, ok := result.FullUser.GetPersonalPhoto(); ok {
+				cu.HasPersonalPhoto = true
+				if photo, ok := pp.(*tg.Photo); ok {
+					cu.PersonalPhotoId = fmt.Sprintf("%d", photo.ID)
+					if photo.VideoSizes != nil {
+						for _, vs := range photo.VideoSizes {
+							if sv, ok := vs.(*tg.VideoSize); ok {
+								cu.VideoStartPosition = int(sv.VideoStartTs * 1000)
+								break
+							}
+						}
+					}
+				}
+			}
+			if fp, ok := result.FullUser.GetFallbackPhoto(); ok {
+				if photo, ok := fp.(*tg.Photo); ok {
+					cu.FallbackPhotoId = fmt.Sprintf("%d", photo.ID)
+				}
+			}
+			if pp, ok := result.FullUser.GetProfilePhoto(); ok {
+				if photo, ok := pp.(*tg.Photo); ok {
+					cu.UserpicPhotoId = fmt.Sprintf("%d", photo.ID)
+				}
+			}
 			if noteVal, ok := result.FullUser.GetNote(); ok {
 				cu.Note = noteVal.Text
 			}
@@ -16428,6 +16451,68 @@ func (t *TelegramCore) GetUserPhotos(userID string, limit int) (int, error) {
 	case *tg.PhotosPhotosSlice: return r.Count, nil
 	}
 	return 0, nil
+}
+
+// GetUserPhotoAtIndex downloads the profile photo at a specific index and returns its path and photo ID.
+func (t *TelegramCore) GetUserPhotoAtIndex(userID string, index int) (string, string, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return "", "", ErrAuth }
+	id, err := tgUserID(userID)
+	if err != nil { return "", "", err }
+	hash := t.getCachedUserHash(id)
+	result, err := t.api.PhotosGetUserPhotos(t.ctx, &tg.PhotosGetUserPhotosRequest{
+		UserID: &tg.InputUser{UserID: id, AccessHash: hash},
+		Offset: index,
+		Limit:  1,
+	})
+	if err != nil { return "", "", err }
+	var photos []tg.PhotoClass
+	switch r := result.(type) {
+	case *tg.PhotosPhotos: photos = r.Photos
+	case *tg.PhotosPhotosSlice: photos = r.Photos
+	}
+	if len(photos) == 0 { return "", "", fmt.Errorf("no photo at index %d", index) }
+	photo, ok := photos[0].(*tg.Photo)
+	if !ok { return "", "", fmt.Errorf("photo at index %d is not available", index) }
+	photoId := fmt.Sprintf("%d", photo.ID)
+	avatarDir := filepath.Join(os.TempDir(), "uniclient_photos")
+	os.MkdirAll(avatarDir, 0o755)
+	destPath := filepath.Join(avatarDir, fmt.Sprintf("%s_%d_%d.jpg", userID, index, photo.ID))
+	if _, err := os.Stat(destPath); err == nil {
+		return destPath, photoId, nil
+	}
+	var bestSize tg.PhotoSizeClass
+	var bestW int
+	for _, s := range photo.Sizes {
+		switch sz := s.(type) {
+		case *tg.PhotoSize:
+			if sz.W > bestW { bestW = sz.W; bestSize = s }
+		case *tg.PhotoCachedSize:
+			if sz.W > bestW { bestW = sz.W; bestSize = s }
+		case *tg.PhotoStrippedSize:
+			if bestSize == nil { bestSize = s }
+		}
+	}
+	if bestSize == nil { return "", photoId, fmt.Errorf("no downloadable size for photo") }
+	var sizeType string
+	switch sz := bestSize.(type) {
+	case *tg.PhotoSize: sizeType = sz.Type
+	case *tg.PhotoCachedSize: sizeType = sz.Type
+	case *tg.PhotoStrippedSize: sizeType = sz.Type
+	}
+	location := &tg.InputPhotoFileLocation{
+		ID:            photo.ID,
+		AccessHash:    photo.AccessHash,
+		FileReference: photo.FileReference,
+		ThumbSize:     sizeType,
+	}
+	f, err := os.Create(destPath)
+	if err != nil { return "", photoId, err }
+	defer f.Close()
+	d := downloader.NewDownloader()
+	_, err = d.Download(t.api, location).Stream(t.ctx, f)
+	if err != nil { os.Remove(destPath); return "", photoId, err }
+	return destPath, photoId, nil
 }
 
 // GetAccountTTL returns the account self-destruct timer.

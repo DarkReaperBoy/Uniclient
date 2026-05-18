@@ -1303,11 +1303,11 @@ class _AvatarPhotoViewerState extends State<_AvatarPhotoViewer> {
     if (widget.accountId == null || widget.userId == null) return;
     setState(() => _loading = true);
     final engine = context.read<EngineService>();
-    final path = await engine.getUserPhotoAtIndex(widget.accountId!, widget.userId!, index);
+    final result = await engine.getUserPhotoAtIndex(widget.accountId!, widget.userId!, index);
     if (mounted) {
       setState(() {
         _currentIndex = index;
-        if (path != null && path.isNotEmpty) _currentPath = path;
+        if (result.path != null && result.path!.isNotEmpty) _currentPath = result.path;
         _loading = false;
       });
     }

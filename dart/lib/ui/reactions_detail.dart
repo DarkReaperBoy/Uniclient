@@ -987,10 +987,10 @@ class _ReactorAvatarState extends State<_ReactorAvatar> {
     }
     try {
       final engine = context.read<EngineService>();
-      final path = await engine.getUserPhotoAtIndex(widget.accountId, widget.peerId, 0);
-      _photoCache[cacheKey] = path;
+      final result = await engine.getUserPhotoAtIndex(widget.accountId, widget.peerId, 0);
+      _photoCache[cacheKey] = result.path;
       _evictIfNeeded();
-      if (mounted) setState(() { _photoPath = path; _loaded = true; });
+      if (mounted) setState(() { _photoPath = result.path; _loaded = true; });
     } catch (_) {
       if (mounted) setState(() => _loaded = true);
     }

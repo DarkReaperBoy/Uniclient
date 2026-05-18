@@ -3613,7 +3613,7 @@ class EngineService {
     }
   }
 
-  Future<String?> getUserPhotoAtIndex(String accountId, String userId, int index) async {
+  Future<({String? path, String? photoId})> getUserPhotoAtIndex(String accountId, String userId, int index) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'user_id': userId,
@@ -3621,12 +3621,12 @@ class EngineService {
     }));
     try {
       final respBytes = await _callAsync('__engine', 'GetUserPhotoAtIndex', Uint8List.fromList(payload));
-      if (respBytes.isEmpty) return null;
+      if (respBytes.isEmpty) return (path: null, photoId: null);
       final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
-      return data['path'] as String?;
+      return (path: data['path'] as String?, photoId: data['photo_id'] as String?);
     } catch (e) {
       Debug.error('ENGINE', 'getUserPhotoAtIndex failed', e);
-      return null;
+      return (path: null, photoId: null);
     }
   }
 

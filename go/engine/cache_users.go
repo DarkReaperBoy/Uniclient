@@ -29,6 +29,10 @@ type CachedUser struct {
 	LastSeen            int64  `json:"last_seen,omitempty"`
 	LastSeenKind        string `json:"last_seen_kind,omitempty"`
 	HasPersonalPhoto    bool   `json:"has_personal_photo,omitempty"`
+	PersonalPhotoId     string `json:"personal_photo_id,omitempty"`
+	FallbackPhotoId     string `json:"fallback_photo_id,omitempty"`
+	UserpicPhotoId      string `json:"userpic_photo_id,omitempty"`
+	VideoStartPosition  int    `json:"video_start_position,omitempty"`
 	BirthdayDay         int    `json:"birthday_day,omitempty"`
 	BirthdayMonth       int    `json:"birthday_month,omitempty"`
 	BirthdayYear        int    `json:"birthday_year,omitempty"`
@@ -51,8 +55,8 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 	}
 
 	_, err := e.db.Exec(
-		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen, last_seen_kind, has_personal_photo, birthday_day, birthday_month, birthday_year, personal_channel_id, personal_channel_name, voice_messages_forbidden, contact_require_premium, note, business_hours, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen, last_seen_kind, has_personal_photo, personal_photo_id, fallback_photo_id, userpic_photo_id, video_start_position, birthday_day, birthday_month, birthday_year, personal_channel_id, personal_channel_name, voice_messages_forbidden, contact_require_premium, note, business_hours, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, user_id) DO UPDATE SET
 		     display_name = excluded.display_name,
 		     username = excluded.username,
@@ -66,6 +70,10 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 		     last_seen = COALESCE(excluded.last_seen, users.last_seen),
 		     last_seen_kind = COALESCE(NULLIF(excluded.last_seen_kind, ''), users.last_seen_kind),
 		     has_personal_photo = excluded.has_personal_photo,
+		     personal_photo_id = COALESCE(NULLIF(excluded.personal_photo_id, ''), users.personal_photo_id),
+		     fallback_photo_id = COALESCE(NULLIF(excluded.fallback_photo_id, ''), users.fallback_photo_id),
+		     userpic_photo_id = COALESCE(NULLIF(excluded.userpic_photo_id, ''), users.userpic_photo_id),
+		     video_start_position = CASE WHEN excluded.video_start_position > 0 THEN excluded.video_start_position ELSE users.video_start_position END,
 		     birthday_day = CASE WHEN excluded.birthday_day > 0 THEN excluded.birthday_day ELSE users.birthday_day END,
 		     birthday_month = CASE WHEN excluded.birthday_month > 0 THEN excluded.birthday_month ELSE users.birthday_month END,
 		     birthday_year = CASE WHEN excluded.birthday_year > 0 THEN excluded.birthday_year ELSE users.birthday_year END,
@@ -78,7 +86,7 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 		     updated_at = excluded.updated_at`,
 		accountID, u.ID, u.DisplayName, u.Username, u.Phone, u.Bio,
 		boolToInt(u.IsBot), boolToInt(u.IsOnline), boolToInt(u.IsContact), boolToInt(u.IsBlocked), u.BotMenuText, lastSeen,
-		u.LastSeenKind, boolToInt(u.HasPersonalPhoto),
+		u.LastSeenKind, boolToInt(u.HasPersonalPhoto), u.PersonalPhotoId, u.FallbackPhotoId, u.UserpicPhotoId, u.VideoStartPosition,
 		u.BirthdayDay, u.BirthdayMonth, u.BirthdayYear, u.PersonalChannelID, u.PersonalChannelName,
 		boolToInt(u.VoiceMessagesForbidden), boolToInt(u.ContactRequirePremium), u.Note, u.BusinessHours, now)
 	return err
@@ -90,6 +98,7 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	var displayName, username, phone, bio, avatarPath, botMenuText sql.NullString
 	var personalChannelID, personalChannelName sql.NullString
 	var lastSeenKind, note, businessHours sql.NullString
+	var personalPhotoId, fallbackPhotoId, userpicPhotoId sql.NullString
 	var lastSeen sql.NullInt64
 	var isBot, isOnline, isContact, isBlocked int
 	var voiceForbidden, contactPremium, noForwardsMy, noForwardsPeer, hasPersonalPhoto int
@@ -98,6 +107,7 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 		`SELECT account_id, user_id, display_name, username, phone, bio, avatar_path,
 		        is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen,
 		        last_seen_kind, has_personal_photo,
+		        personal_photo_id, fallback_photo_id, userpic_photo_id, video_start_position,
 		        birthday_day, birthday_month, birthday_year,
 		        personal_channel_id, personal_channel_name,
 		        voice_messages_forbidden, contact_require_premium,
@@ -108,6 +118,7 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 		&u.AccountID, &u.UserID, &displayName, &username, &phone, &bio, &avatarPath,
 		&isBot, &isOnline, &isContact, &isBlocked, &botMenuText, &lastSeen,
 		&lastSeenKind, &hasPersonalPhoto,
+		&personalPhotoId, &fallbackPhotoId, &userpicPhotoId, &u.VideoStartPosition,
 		&u.BirthdayDay, &u.BirthdayMonth, &u.BirthdayYear,
 		&personalChannelID, &personalChannelName,
 		&voiceForbidden, &contactPremium,
@@ -129,6 +140,9 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	u.BotMenuText = botMenuText.String
 	u.LastSeenKind = lastSeenKind.String
 	u.HasPersonalPhoto = hasPersonalPhoto == 1
+	u.PersonalPhotoId = personalPhotoId.String
+	u.FallbackPhotoId = fallbackPhotoId.String
+	u.UserpicPhotoId = userpicPhotoId.String
 	u.PersonalChannelID = personalChannelID.String
 	u.PersonalChannelName = personalChannelName.String
 	u.VoiceMessagesForbidden = voiceForbidden == 1
@@ -185,6 +199,43 @@ func (e *Engine) GetUserProfile(accountID, userID string) (*CachedUser, error) {
 	}
 
 	return e.GetOrFetchUser(accountID, userID)
+}
+
+type userPhotoCounter interface {
+	GetUserPhotos(userID string, limit int) (int, error)
+}
+
+type userPhotoAtIndexGetter interface {
+	GetUserPhotoAtIndex(userID string, index int) (path string, photoId string, err error)
+}
+
+func (e *Engine) GetUserPhotoCount(accountID, userID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 1, fmt.Errorf("account %q not connected", accountID)
+	}
+	if pc, ok := acc.Core.(userPhotoCounter); ok {
+		count, err := pc.GetUserPhotos(userID, 100)
+		if err != nil {
+			return 1, err
+		}
+		if count < 1 {
+			return 1, nil
+		}
+		return count, nil
+	}
+	return 1, nil
+}
+
+func (e *Engine) GetUserPhotoAtIndex(accountID, userID string, index int) (string, string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", "", fmt.Errorf("account %q not connected", accountID)
+	}
+	if pg, ok := acc.Core.(userPhotoAtIndexGetter); ok {
+		return pg.GetUserPhotoAtIndex(userID, index)
+	}
+	return "", "", fmt.Errorf("core does not support GetUserPhotoAtIndex")
 }
 
 type profilePhotoUploader interface {

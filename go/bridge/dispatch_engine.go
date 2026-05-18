@@ -3000,6 +3000,35 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(user)
 
+	case "GetUserPhotoCount":
+		var params struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		count, err := e.GetUserPhotoCount(params.AccountID, params.UserID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]int{"count": count})
+
+	case "GetUserPhotoAtIndex":
+		var params struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+			Index     int    `json:"index"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		path, photoId, err := e.GetUserPhotoAtIndex(params.AccountID, params.UserID, params.Index)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"path": path, "photo_id": photoId})
+
 	case "GetSelfBio":
 		var params struct {
 			AccountID string `json:"account_id"`

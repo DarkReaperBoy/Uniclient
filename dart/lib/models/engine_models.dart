@@ -1847,6 +1847,10 @@ class UserProfile {
   final int lastSeen;
   final String lastSeenKind;
   final bool hasPersonalPhoto;
+  final String personalPhotoId;
+  final String fallbackPhotoId;
+  final String userpicPhotoId;
+  final int videoStartPosition;
   final int birthdayDay;
   final int birthdayMonth;
   final int birthdayYear;
@@ -1873,6 +1877,10 @@ class UserProfile {
     this.lastSeen = 0,
     this.lastSeenKind = '',
     this.hasPersonalPhoto = false,
+    this.personalPhotoId = '',
+    this.fallbackPhotoId = '',
+    this.userpicPhotoId = '',
+    this.videoStartPosition = 0,
     this.birthdayDay = 0,
     this.birthdayMonth = 0,
     this.birthdayYear = 0,
@@ -1902,6 +1910,10 @@ class UserProfile {
     lastSeen: j['last_seen'] as int? ?? 0,
     lastSeenKind: j['last_seen_kind'] as String? ?? '',
     hasPersonalPhoto: j['has_personal_photo'] as bool? ?? false,
+    personalPhotoId: j['personal_photo_id'] as String? ?? '',
+    fallbackPhotoId: j['fallback_photo_id'] as String? ?? '',
+    userpicPhotoId: j['userpic_photo_id'] as String? ?? '',
+    videoStartPosition: j['video_start_position'] as int? ?? 0,
     birthdayDay: j['birthday_day'] as int? ?? 0,
     birthdayMonth: j['birthday_month'] as int? ?? 0,
     birthdayYear: j['birthday_year'] as int? ?? 0,

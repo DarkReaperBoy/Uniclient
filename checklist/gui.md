@@ -551,23 +551,6 @@ The emoji picker is **functionally broken in two ways:**
 
 
 
-# peer_short_info — PeerShortInfoBox audit
-
-- [ ] [CRITICAL] "Public photo" label shown unconditionally at last photo index — Dart shows `'Public photo'` whenever `_currentPhotoIndex == _photoCount - 1`, but AyuGram only shows it when `state->photoId == SyncUserFallbackPhotoViewer(peer->asUser())` (the actual fallback/public photo ID). If the last photo is not the public fallback, Dart mislabels it — `peer_short_info.dart:579` ← `prepare_short_info_box.cpp:369`
-
-- [ ] [CRITICAL] No loading feedback during photo navigation — `_fetchPhotoAtIndex` fetches asynchronously with zero visual feedback; cover stays on old image silently. AyuGram drives a radial progress indicator via `_photoLoadingProgress` (updated 0→1 in `applyUserpic`/`updateRadialState` as the photo downloads) — `peer_short_info.dart:362-374` ← `peer_short_info_box.cpp:493-522`
-
-- [ ] [MAJOR] Photo-bar fade threshold wrong — Dart fades bars together with the name/status overlay at `fadeEnd = _kCoverSize - _kShadowHeight = 224 px`. AyuGram fades bars independently at `hiddenAt = _st.size - _st.namePosition.y() = 304 - 37 = 267 px` (bars stay visible ~43 px longer while scrolling) — `peer_short_info.dart:662-669` ← `peer_short_info_box.cpp:277-287`
-
-- [ ] [MAJOR] Bar width precision missing — Dart divides bar area equally with floating-point `barWidth = (size.width - totalGap) / count`. AyuGram computes `_smallWidth` and `_largeWidth = _smallWidth + 1` to distribute sub-pixel remainder with discrete pre-rendered images, preventing fractional drift across bars — `peer_short_info.dart:1206-1211` ← `peer_short_info_box.cpp:589-621`
-
-- [ ] [MAJOR] Context menu "Open in New Window" condition incorrect — Dart suppresses the menu when `activeChat.chatId == peerId` (chat is currently open in main window). AyuGram suppresses it only when a **separate window** already exists for the peer (`window->windowId() == peerSeparateId`). If the chat is active in the main window the menu must still appear; Dart incorrectly hides it — `peer_short_info.dart:379-381` ← `prepare_short_info_box.cpp:505-510`
-
-- [ ] [MAJOR] Video always starts at position 0 — Dart calls `player.open(Media(...))` with no start offset. AyuGram stores `videoStartPosition` from photo metadata and passes it as `options.position` when starting playback, so videos begin at the correct frame — `peer_short_info.dart:262` ← `prepare_short_info_box.cpp:196-198`, `peer_short_info_box.cpp:543-545`
-
-- [ ] [MAJOR] "Set by you" label uses index instead of photo identity — Dart shows "Set by you" when `_currentPhotoIndex == 0 && hasPersonalPhoto`. AyuGram checks `state->photoId == userpicPhotoId` (current photo's actual ID equals the profile photo). Diverges if the userpic photo is not the first in the slice — `peer_short_info.dart:576` ← `prepare_short_info_box.cpp:364-368`
-
-- [ ] [MAJOR] Status text never auto-advances with elapsed time — Dart subscribes only to `engine.onUserStatus` events; "last seen 5 min ago" will not tick to "last seen 6 min ago" without a server event. AyuGram schedules a `base::Timer` via `Data::OnlineChangeTimeout` to re-push status text as time passes — `peer_short_info.dart:156-164` ← `prepare_short_info_box.cpp:257-259`
 
 # photo_crop_editor — Paint tools incomplete, stickers fake, text non-interactive
 
