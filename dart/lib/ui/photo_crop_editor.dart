@@ -150,6 +150,8 @@ class _TextAnnotation {
   Color color;
   double fontSize;
   double scale;
+  Uint8List? imageBytes;
+  ui.Image? _decodedImage;
 
   _TextAnnotation({
     required this.position,
@@ -157,7 +159,19 @@ class _TextAnnotation {
     required this.color,
     this.fontSize = 24,
     this.scale = 1.0,
+    this.imageBytes,
   });
+
+  bool get isSticker => imageBytes != null;
+
+  Future<void> decodeImage() async {
+    if (imageBytes == null || _decodedImage != null) return;
+    try {
+      final codec = await ui.instantiateImageCodec(imageBytes!);
+      final frame = await codec.getNextFrame();
+      _decodedImage = frame.image;
+    } catch (_) {}
+  }
 
   _TextAnnotation copy() => _TextAnnotation(
     position: position,
@@ -165,7 +179,8 @@ class _TextAnnotation {
     color: color,
     fontSize: fontSize,
     scale: scale,
-  );
+    imageBytes: imageBytes,
+  ).._decodedImage = _decodedImage;
 }
 
 enum _CornerLevel {
@@ -313,6 +328,11 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   int _selectedAnnotation = -1;
   double _canvasZoom = 1.0;
   Offset _canvasOffset = Offset.zero;
+  TextEditingController? _inlineTextController;
+  FocusNode? _inlineTextFocusNode;
+  Offset? _inlineTextPosition;
+  int _editingAnnotationIndex = -1;
+  bool _inlineTextActive = false;
 
   bool get _isProfilePhoto => widget.shape != PhotoCropShape.rect;
 
@@ -346,6 +366,8 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
     if (PhotoCropEditor._activeKeyHandler == _handleKeyCombo) {
       PhotoCropEditor._activeKeyHandler = null;
     }
+    _inlineTextController?.dispose();
+    _inlineTextFocusNode?.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -589,61 +611,64 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   }
 
   void _openTextTool([String initialText = '']) {
-    final controller = TextEditingController(text: initialText);
-    showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        return Center(
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              width: 300,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xE6222222),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: controller,
-                    autofocus: true,
-                    style: const TextStyle(color: Colors.white, fontSize: 18),
-                    maxLines: null,
-                    decoration: const InputDecoration(
-                      hintText: 'Enter text...',
-                      hintStyle: TextStyle(color: Color(0x66FFFFFF)),
-                      border: InputBorder.none,
-                    ),
-                    onSubmitted: (v) => Navigator.of(ctx).pop(v),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        child: const Text('Cancel', style: TextStyle(color: Color(0x99FFFFFF))),
-                      ),
-                      const SizedBox(width: 8),
-                      TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(controller.text),
-                        child: const Text('Done', style: TextStyle(color: _kDoneLinkFg)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    ).then((text) {
-      if (text != null && text.isNotEmpty) {
-        _addTextAnnotation(text);
+    final cropState = _cropKey.currentState;
+    if (cropState == null) return;
+    final center = cropState._cropRect.center;
+    _startInlineTextEdit(center, initialText);
+  }
+
+  void _startInlineTextEdit(Offset position, [String initialText = '']) {
+    _inlineTextController?.dispose();
+    _inlineTextFocusNode?.dispose();
+    _inlineTextController = TextEditingController(text: initialText);
+    _inlineTextFocusNode = FocusNode();
+    _inlineTextFocusNode!.addListener(() {
+      if (!_inlineTextFocusNode!.hasFocus && _inlineTextActive) {
+        _commitInlineText();
       }
     });
+    setState(() {
+      _inlineTextPosition = position;
+      _inlineTextActive = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _inlineTextFocusNode?.requestFocus();
+    });
+  }
+
+  void _commitInlineText() {
+    final text = _inlineTextController?.text ?? '';
+    if (text.isNotEmpty) {
+      if (_editingAnnotationIndex >= 0 &&
+          _editingAnnotationIndex < _textAnnotations.length) {
+        setState(() {
+          _textAnnotations[_editingAnnotationIndex].text = text;
+          _textAnnotations[_editingAnnotationIndex].color = _brushColor;
+        });
+      } else {
+        _addTextAnnotation(text);
+      }
+    } else if (_editingAnnotationIndex >= 0 &&
+               _editingAnnotationIndex < _textAnnotations.length) {
+      setState(() {
+        _textAnnotations.removeAt(_editingAnnotationIndex);
+        _selectedAnnotation = -1;
+      });
+    }
+    _dismissInlineText();
+  }
+
+  void _dismissInlineText() {
+    _inlineTextController?.dispose();
+    _inlineTextFocusNode?.dispose();
+    _inlineTextController = null;
+    _inlineTextFocusNode = null;
+    setState(() {
+      _inlineTextPosition = null;
+      _inlineTextActive = false;
+      _editingAnnotationIndex = -1;
+    });
+    _focusNode.requestFocus();
   }
 
   void _addTextAnnotation(String text) {
@@ -670,7 +695,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   }
 
   void _openStickersTool() {
-    showModalBottomSheet<String>(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xF0222222),
       isScrollControlled: true,
@@ -678,18 +703,19 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => _EditorStickerPicker(
-        onSelected: (emoji) {
-          Navigator.of(ctx).pop(emoji);
+        onEmojiSelected: (emoji) {
+          Navigator.of(ctx).pop();
+          _addEmojiAnnotation(emoji);
+        },
+        onStickerSelected: (sticker) {
+          Navigator.of(ctx).pop();
+          _addStickerAnnotation(sticker);
         },
       ),
-    ).then((emoji) {
-      if (emoji != null && emoji.isNotEmpty) {
-        _addStickerAnnotation(emoji);
-      }
-    });
+    );
   }
 
-  void _addStickerAnnotation(String emoji) {
+  void _addEmojiAnnotation(String emoji) {
     final cropState = _cropKey.currentState;
     if (cropState == null) return;
     final center = cropState._cropRect.center;
@@ -705,6 +731,44 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
         color: Colors.white,
         fontSize: fontSize,
       ));
+      _undoTracker.add(_UndoKind.text);
+      _redoTracker.clear();
+      _undoneStrokes.clear();
+      _undoneAnnotations.clear();
+    });
+  }
+
+  void _addStickerAnnotation(StickerInfoItem sticker) {
+    final cropState = _cropKey.currentState;
+    if (cropState == null) return;
+    final center = cropState._cropRect.center;
+    final shortSide = math.min(
+      cropState._displaySize.width,
+      cropState._displaySize.height,
+    );
+    final stickerSize = (shortSide / 4).clamp(48.0, 160.0);
+
+    Uint8List? imgBytes;
+    if (sticker.thumbB64.isNotEmpty) {
+      try {
+        imgBytes = Uint8List.fromList(base64Decode(sticker.thumbB64));
+      } catch (_) {}
+    }
+
+    final ann = _TextAnnotation(
+      position: center,
+      text: sticker.emoji,
+      color: Colors.white,
+      fontSize: stickerSize,
+      imageBytes: imgBytes,
+    );
+
+    ann.decodeImage().then((_) {
+      if (mounted) setState(() {});
+    });
+
+    setState(() {
+      _textAnnotations.add(ann);
       _undoTracker.add(_UndoKind.text);
       _redoTracker.clear();
       _undoneStrokes.clear();
@@ -766,11 +830,9 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   void _editAnnotation(int index) {
     if (index < 0 || index >= _textAnnotations.length) return;
     final ann = _textAnnotations[index];
-    _openTextTool(ann.text);
-    setState(() {
-      _textAnnotations.removeAt(index);
-      _selectedAnnotation = -1;
-    });
+    if (ann.isSticker) return;
+    setState(() => _editingAnnotationIndex = index);
+    _startInlineTextEdit(ann.position, ann.text);
   }
 
   void _onCanvasZoom(double zoomDelta) {
@@ -891,22 +953,41 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
     }
 
     for (final ann in _textAnnotations) {
-      final effectiveFontSize = ann.fontSize * ann.scale;
-      final tp = TextPainter(
-        text: TextSpan(
-          text: ann.text,
-          style: TextStyle(
-            fontSize: effectiveFontSize,
-            color: ann.color,
-            fontWeight: FontWeight.w600,
+      if (ann.isSticker && ann._decodedImage != null) {
+        final img = ann._decodedImage!;
+        final stickerSize = ann.fontSize * ann.scale;
+        final aspect = img.width / img.height;
+        double w, h;
+        if (aspect >= 1) { w = stickerSize; h = stickerSize / aspect; }
+        else { h = stickerSize; w = stickerSize * aspect; }
+        canvas.drawImageRect(
+          img,
+          Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+          Rect.fromLTWH(
+            ann.position.dx - w / 2 + exportOffset.dx,
+            ann.position.dy - h / 2 + exportOffset.dy,
+            w, h,
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, Offset(
-        ann.position.dx - tp.width / 2 + exportOffset.dx,
-        ann.position.dy - tp.height / 2 + exportOffset.dy,
-      ));
+          Paint()..filterQuality = FilterQuality.high,
+        );
+      } else {
+        final effectiveFontSize = ann.fontSize * ann.scale;
+        final tp = TextPainter(
+          text: TextSpan(
+            text: ann.text,
+            style: TextStyle(
+              fontSize: effectiveFontSize,
+              color: ann.color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, Offset(
+          ann.position.dx - tp.width / 2 + exportOffset.dx,
+          ann.position.dy - tp.height / 2 + exportOffset.dy,
+        ));
+      }
     }
 
     final picture = recorder.endRecording();
@@ -935,6 +1016,18 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
       autofocus: true,
       onKeyEvent: (_, event) {
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (_inlineTextActive) {
+          if (event.logicalKey == LogicalKeyboardKey.escape) {
+            _dismissInlineText();
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.enter &&
+              !HardwareKeyboard.instance.isShiftPressed) {
+            _commitInlineText();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        }
         final ctrl = HardwareKeyboard.instance.isControlPressed;
         final shift = HardwareKeyboard.instance.isShiftPressed;
         final key = event.logicalKey;
@@ -1023,6 +1116,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
                                 onAnnotationMoved: _moveAnnotation,
                                 onAnnotationScaled: _scaleAnnotation,
                                 onAnnotationDoubleTap: _editAnnotation,
+                                editingAnnotation: _editingAnnotationIndex,
                                 canvasZoom: _canvasZoom,
                                 canvasOffset: _canvasOffset,
                                 onZoomChanged: _onCanvasZoom,
@@ -1045,6 +1139,46 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
                 ),
               ),
             ),
+
+            if (_inlineTextActive && _inlineTextPosition != null)
+              Positioned(
+                left: _kContentMarginLeft + _inlineTextPosition!.dx - 120,
+                top: _kContentMarginTop +
+                    (widget.aboutText != null ? 30 : 0) +
+                    _inlineTextPosition!.dy - 20,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    width: 240,
+                    constraints: const BoxConstraints(minHeight: 40),
+                    decoration: BoxDecoration(
+                      color: const Color(0xCC222222),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0x44FFFFFF),
+                        width: 1,
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: EditableText(
+                      controller: _inlineTextController!,
+                      focusNode: _inlineTextFocusNode!,
+                      style: TextStyle(
+                        color: _brushColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      cursorColor: _brushColor,
+                      backgroundCursorColor: Colors.grey,
+                      maxLines: null,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
 
             Positioned(
               left: 0,
@@ -1265,6 +1399,7 @@ class _ImageCropArea extends StatefulWidget {
   final void Function(int index, Offset delta)? onAnnotationMoved;
   final void Function(int index, double scaleDelta)? onAnnotationScaled;
   final ValueChanged<int>? onAnnotationDoubleTap;
+  final int editingAnnotation;
   final double canvasZoom;
   final Offset canvasOffset;
   final ValueChanged<double>? onZoomChanged;
@@ -1289,6 +1424,7 @@ class _ImageCropArea extends StatefulWidget {
     this.onAnnotationMoved,
     this.onAnnotationScaled,
     this.onAnnotationDoubleTap,
+    this.editingAnnotation = -1,
     this.canvasZoom = 1.0,
     this.canvasOffset = Offset.zero,
     this.onZoomChanged,
@@ -1476,17 +1612,33 @@ class _ImageCropAreaState extends State<_ImageCropArea>
   int _hitTestAnnotations(Offset pos) {
     for (int i = widget.textAnnotations.length - 1; i >= 0; i--) {
       final ann = widget.textAnnotations[i];
-      final tp = TextPainter(
-        text: TextSpan(
-          text: ann.text,
-          style: TextStyle(fontSize: ann.fontSize * ann.scale, fontWeight: FontWeight.w600),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+      double itemW, itemH;
+      if (ann.isSticker && ann._decodedImage != null) {
+        final img = ann._decodedImage!;
+        final stickerSize = ann.fontSize * ann.scale;
+        final aspect = img.width / img.height;
+        if (aspect >= 1) {
+          itemW = stickerSize;
+          itemH = stickerSize / aspect;
+        } else {
+          itemH = stickerSize;
+          itemW = stickerSize * aspect;
+        }
+      } else {
+        final tp = TextPainter(
+          text: TextSpan(
+            text: ann.text,
+            style: TextStyle(fontSize: ann.fontSize * ann.scale, fontWeight: FontWeight.w600),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        itemW = tp.width;
+        itemH = tp.height;
+      }
       final rect = Rect.fromCenter(
         center: ann.position,
-        width: tp.width + _kAnnotationHitSlop,
-        height: tp.height + _kAnnotationHitSlop,
+        width: itemW + _kAnnotationHitSlop,
+        height: itemH + _kAnnotationHitSlop,
       );
       if (rect.contains(pos)) return i;
     }
@@ -1757,6 +1909,7 @@ class _ImageCropAreaState extends State<_ImageCropArea>
                           : null,
                       isPaintMode: widget.isPaintMode,
                       selectedAnnotation: widget.selectedAnnotation,
+                      editingAnnotation: widget.editingAnnotation,
                       canvasZoom: widget.canvasZoom,
                     ),
                   );
@@ -1784,6 +1937,7 @@ class _CropPainter extends CustomPainter {
   final _PaintStroke? currentStroke;
   final bool isPaintMode;
   final int selectedAnnotation;
+  final int editingAnnotation;
   final double canvasZoom;
 
   _CropPainter({
@@ -1800,6 +1954,7 @@ class _CropPainter extends CustomPainter {
     this.currentStroke,
     this.isPaintMode = false,
     this.selectedAnnotation = -1,
+    this.editingAnnotation = -1,
     this.canvasZoom = 1.0,
   });
 
@@ -1982,29 +2137,59 @@ class _CropPainter extends CustomPainter {
 
   void _drawTextAnnotations(Canvas canvas) {
     for (int i = 0; i < textAnnotations.length; i++) {
+      if (i == editingAnnotation) continue;
       final ann = textAnnotations[i];
-      final effectiveFontSize = ann.fontSize * ann.scale;
-      final tp = TextPainter(
-        text: TextSpan(
-          text: ann.text,
-          style: TextStyle(
-            fontSize: effectiveFontSize,
-            color: ann.color,
-            fontWeight: FontWeight.w600,
+
+      double itemW, itemH;
+      Offset origin;
+
+      if (ann.isSticker && ann._decodedImage != null) {
+        final img = ann._decodedImage!;
+        final stickerSize = ann.fontSize * ann.scale;
+        final aspect = img.width / img.height;
+        if (aspect >= 1) {
+          itemW = stickerSize;
+          itemH = stickerSize / aspect;
+        } else {
+          itemH = stickerSize;
+          itemW = stickerSize * aspect;
+        }
+        origin = Offset(
+          ann.position.dx - itemW / 2,
+          ann.position.dy - itemH / 2,
+        );
+        canvas.drawImageRect(
+          img,
+          Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+          Rect.fromLTWH(origin.dx, origin.dy, itemW, itemH),
+          Paint()..filterQuality = FilterQuality.high,
+        );
+      } else {
+        final effectiveFontSize = ann.fontSize * ann.scale;
+        final tp = TextPainter(
+          text: TextSpan(
+            text: ann.text,
+            style: TextStyle(
+              fontSize: effectiveFontSize,
+              color: ann.color,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final origin = Offset(
-        ann.position.dx - tp.width / 2,
-        ann.position.dy - tp.height / 2,
-      );
-      tp.paint(canvas, origin);
+          textDirection: TextDirection.ltr,
+        )..layout();
+        itemW = tp.width;
+        itemH = tp.height;
+        origin = Offset(
+          ann.position.dx - itemW / 2,
+          ann.position.dy - itemH / 2,
+        );
+        tp.paint(canvas, origin);
+      }
 
       if (i == selectedAnnotation && isPaintMode) {
         final selRect = Rect.fromLTWH(
           origin.dx - 4, origin.dy - 4,
-          tp.width + 8, tp.height + 8,
+          itemW + 8, itemH + 8,
         );
         canvas.drawRRect(
           RRect.fromRectAndRadius(selRect, const Radius.circular(4)),
@@ -2150,6 +2335,7 @@ class _CropPainter extends CustomPainter {
       old.currentStroke != currentStroke ||
       old.isPaintMode != isPaintMode ||
       old.selectedAnnotation != selectedAnnotation ||
+      old.editingAnnotation != editingAnnotation ||
       old.canvasZoom != canvasZoom;
 }
 
@@ -2888,9 +3074,13 @@ class _RainbowRingPainter extends CustomPainter {
 }
 
 class _EditorStickerPicker extends StatefulWidget {
-  final ValueChanged<String> onSelected;
+  final ValueChanged<String> onEmojiSelected;
+  final void Function(StickerInfoItem sticker) onStickerSelected;
 
-  const _EditorStickerPicker({required this.onSelected});
+  const _EditorStickerPicker({
+    required this.onEmojiSelected,
+    required this.onStickerSelected,
+  });
 
   @override
   State<_EditorStickerPicker> createState() => _EditorStickerPickerState();
@@ -2992,7 +3182,7 @@ class _EditorStickerPickerState extends State<_EditorStickerPicker> {
       ),
       itemCount: allEmoji.length,
       itemBuilder: (_, i) => GestureDetector(
-        onTap: () => widget.onSelected(allEmoji[i]),
+        onTap: () => widget.onEmojiSelected(allEmoji[i]),
         child: Center(child: Text(allEmoji[i], style: const TextStyle(fontSize: 28))),
       ),
     );
@@ -3051,7 +3241,7 @@ class _EditorStickerPickerState extends State<_EditorStickerPicker> {
                   itemBuilder: (_, i) {
                     final sticker = _packs![_selectedPack].stickers[i];
                     return GestureDetector(
-                      onTap: () => widget.onSelected(sticker.emoji),
+                      onTap: () => widget.onStickerSelected(sticker),
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: sticker.thumbB64.isNotEmpty
