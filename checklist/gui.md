@@ -554,12 +554,6 @@ The emoji picker is **functionally broken in two ways:**
 
 # photo_crop_editor — Paint tools incomplete, stickers fake, text non-interactive
 
-## CRITICAL
-
-- [ ] [CRITICAL] Sticker panel places emoji strings instead of real Telegram sticker images — `_EditorStickerPicker` now loads real packs via `engine.getInstalledStickerPacks()` and shows thumbnails, BUT `onSelected(sticker.emoji)` passes only the emoji string, so `_addStickerAnnotation` places it as `_TextAnnotation` with emoji text; AyuGram creates `ItemSticker` from actual `DocumentData*` — stickers on posted images render as emoji characters, not sticker images — `photo_crop_editor.dart:680-690,3054` ← `editor/editor_paint.cpp:145-153`
-
-- [ ] [CRITICAL] Text tool has no inline editing — drag and corner handles are now implemented (`_draggingAnnotation`, `onAnnotationMoved`, `onAnnotationScaled`, corner dots drawn in `_drawTextAnnotations`), but text entry/editing still uses `showDialog` (a custom modal); AyuGram's `createTextItem()` produces an `ItemText` with click-to-edit directly on canvas — double-tap reopens the same dialog, no in-place TextField overlay — `photo_crop_editor.dart:591-644` ← `editor/photo_editor.cpp:312-315`
-
 ## MAJOR
 
 - [ ] [MAJOR] Canvas zoom not implemented — AyuGram supports 1×–8× zoom via mouse-wheel on the paint QGraphicsView and per-item zoom (0.1×–10×); Dart has no zoom — `photo_crop_editor.dart:1380-1451` (no zoom code) ← `editor/editor_paint.cpp:173-199`, `editor/photo_editor_content.cpp:127-149`
