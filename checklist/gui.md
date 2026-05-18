@@ -62,11 +62,6 @@ Fix both asserts→throws in bridge_web.dart before shipping web version. Deskto
 
 ## Critical Issues
 
-- [ ] [CRITICAL] **Reaction and poll vote notifications show as regular messages** — The notification composition logic in `notification_types.dart` has complete support for reactions and poll votes (functions `_composeReactionText`, `_composePollVoteText`, subtitle generation for reactions), and the notification system checks these flags (`notification_system.dart:276-277`), but the fields `isReaction`, `isPollVote`, `reactionEmoji`, `reactorName`, `pollVoteOption`, `reactedToType` are never populated from the engine. In `chat_state.dart:2304-2342`, `NotificationData` is created without setting these fields, so they default to false/empty. Result: all reactions and poll votes display as regular messages, with wrong text composition and missing reaction emoji.
-  - `notification_types.dart:40,55,96,111` ← Backend wiring bug: engine never populates these fields
-  - `chat_state.dart:2304-2342` ← Where notifications are created, reaction/poll fields never set
-  - `notification_system.dart:276-277` ← Code expects these fields but never receives them
-  - Proto definition `engine.pb.dart` lacks these fields entirely — Go backend not sending them
 
 
 # auth_state — Auth flow state machine gaps
