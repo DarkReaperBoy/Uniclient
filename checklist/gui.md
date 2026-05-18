@@ -556,17 +556,9 @@ The emoji picker is **functionally broken in two ways:**
 
 ## CRITICAL
 
-- [ ] [CRITICAL] Blur and Eraser paint tools entirely absent — AyuGram has 5 tools (Pen, Arrow, Marker, Blur, Eraser); Dart enum only has 3 — `photo_crop_editor.dart:89` ← `editor/color_picker.cpp:44-52` + `editor/photo_editor.cpp:28-37`
+- [ ] [CRITICAL] Sticker panel places emoji strings instead of real Telegram sticker images — `_EditorStickerPicker` now loads real packs via `engine.getInstalledStickerPacks()` and shows thumbnails, BUT `onSelected(sticker.emoji)` passes only the emoji string, so `_addStickerAnnotation` places it as `_TextAnnotation` with emoji text; AyuGram creates `ItemSticker` from actual `DocumentData*` — stickers on posted images render as emoji characters, not sticker images — `photo_crop_editor.dart:680-690,3054` ← `editor/editor_paint.cpp:145-153`
 
-- [ ] [CRITICAL] Sticker panel shows hardcoded emoji strings instead of real Telegram sticker documents — `_openStickersTool` uses `_kSuggestedEmoji` (32 static strings); AyuGram creates `ItemSticker` from actual `DocumentData*` via `StickersPanelController::stickerChosen` — `photo_crop_editor.dart:545-580` ← `editor/editor_paint.cpp:145-153`
-
-- [ ] [CRITICAL] Text tool uses AlertDialog + static `_TextAnnotation` instead of interactive QGraphics scene item — AyuGram calls `createTextItem()` which produces a draggable, resizable, inline-editable `ItemText` on the canvas; Dart text is placed at crop center with no handles, no drag, no edit-in-place — `photo_crop_editor.dart:484-543` ← `editor/photo_editor.cpp:312-315`
-
-- [ ] [CRITICAL] Custom color picker "+" button missing — AyuGram shows a `PlusCircle` at end of palette that opens a full `ColorEditor::Mode::HSL` box; Dart `_ColorPaletteRow` has only 10 fixed swatches with no path to pick arbitrary colors — `photo_crop_editor.dart:2158-2206` ← `editor/color_picker.cpp:737-771`
-
-- [ ] [CRITICAL] Rainbow-ring `ColorButton` toggle missing — AyuGram renders a circular rainbow-gradient ring (with current-color dot) that toggles palette visibility on click; Dart shows the palette as a permanently-visible static row with no toggle — `photo_crop_editor.dart:872-876` ← `editor/color_picker.cpp:110-185`, `387-389`
-
-- [ ] [CRITICAL] Paint-mode tool buttons placed in wrong bar — AyuGram's paint bottom bar contains only: Cancel | paintModeActiveIcon | (stickers) | textButton | Done; the 5 tool buttons live beside the ColorButton in the separate ColorPicker row; Dart stuffs pen/arrow/marker/text/stickers all into the main bottom bar — `photo_crop_editor.dart:1779-1822` ← `editor/photo_editor_controls.cpp:292-320`
+- [ ] [CRITICAL] Text tool has no inline editing — drag and corner handles are now implemented (`_draggingAnnotation`, `onAnnotationMoved`, `onAnnotationScaled`, corner dots drawn in `_drawTextAnnotations`), but text entry/editing still uses `showDialog` (a custom modal); AyuGram's `createTextItem()` produces an `ItemText` with click-to-edit directly on canvas — double-tap reopens the same dialog, no in-place TextField overlay — `photo_crop_editor.dart:591-644` ← `editor/photo_editor.cpp:312-315`
 
 ## MAJOR
 
