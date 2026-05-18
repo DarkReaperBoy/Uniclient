@@ -1216,13 +1216,19 @@ class TelegramPalette {
 
     final oHsv = HSVColor.fromColor(origAccent);
     final dark = isDark;
-    final double vMin = dark ? 64.0 / 255.0 : 0.0;
-    final double vMax = dark ? 1.0 : 160.0 / 255.0;
-    final nHsvRaw = HSVColor.fromColor(newAccent);
-    final nVal = nHsvRaw.value.clamp(vMin, vMax);
-    final nHsv = (nVal - nHsvRaw.value).abs() > 0.0001
-        ? HSVColor.fromAHSV(nHsvRaw.alpha, nHsvRaw.hue, nHsvRaw.saturation, nVal)
-        : nHsvRaw;
+    // C++ ColorizerFrom clamps HSL lightness, not HSV value
+    final double lMin = dark ? 64.0 / 255.0 : 0.0;
+    final double lMax = dark ? 1.0 : 160.0 / 255.0;
+    final nHsl = HSLColor.fromColor(newAccent);
+    final clampedL = nHsl.lightness.clamp(lMin, lMax);
+    final HSVColor nHsv;
+    if ((clampedL - nHsl.lightness).abs() > 0.0001) {
+      final clamped = HSLColor.fromAHSL(
+        nHsl.alpha, nHsl.hue, nHsl.saturation, clampedL).toColor();
+      nHsv = HSVColor.fromColor(clamped);
+    } else {
+      nHsv = HSVColor.fromColor(newAccent);
+    }
     final hDiff = nHsv.hue - oHsv.hue;
 
     Color s(Color c) {
