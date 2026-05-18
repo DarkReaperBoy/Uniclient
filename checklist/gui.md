@@ -571,12 +571,6 @@ One CRITICAL issue found. All other features (cloud password flow, local passcod
 
 ## Issues Found
 
-- [ ] [MAJOR] Filter button inactive text color uses `colorScheme.onSurface` — AyuGram uses `st::premiumButtonFg` (WHITE, the premium button foreground, not text gray) — inactive button should show white text on white/box background (faded look) — `stats_chart.dart:1424` ← `AyuGram/statistics/widgets/chart_lines_filter_widget.cpp:57`
-
-- [ ] [MAJOR] Footer dim overlay color uses `colorScheme.surface.withValues(alpha: 0.6)` (white-ish) — AyuGram uses `statisticsChartInactive: #e2eef999` (RGB=0xe2,0xee,0xf9 light-blue-gray, alpha≈0.6) for BOTH light and dark modes — `stats_chart.dart:962-963` ← `AyuGram/lib_ui/ui/colors.palette:665`
-
-- [ ] [MAJOR] Selection indicator vertical line color hardcoded as `Colors.white/black.withValues(alpha: 0.15)` — AyuGram derives from `st::boxTextFg` (theme-tracked palette color) — fix: pass `theme.colorScheme.onSurface.withValues(alpha: 0.15)` from widget build() into `_ChartAreaPainter` as a named parameter — `stats_chart.dart:1816-1819` ← `AyuGram/statistics/chart_widget.cpp:951-975`
-
 # main — Theme revert overlay radius wrong + system unlock cooldown logic gaps
 
 ## Findings
