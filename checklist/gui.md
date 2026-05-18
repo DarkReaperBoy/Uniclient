@@ -586,43 +586,4 @@ One CRITICAL issue found. All other features (cloud password flow, local passcod
 
 # web_app_panel — WebApp Panel Audit
 
-# engine_models — Data model gaps in CachedMessage.fromJson and GroupCallParticipant
-
-## Background
-
-`engine_models.dart` contains two distinct parsing paths for `CachedMessage`:
-1. **Proto path** — `engine_service.dart:5182–5317` constructs `CachedMessage` from protobuf fields. Correctly populates all fields including keyboard data, `altQualities`, `mediaRemoteRef`, `mediaExtra`.
-2. **JSON event path** — `engine_service.dart:5034` → `MsgReceivedEvent.fromJson` → `CachedMessage.fromJson`. Used for real-time `msg_received` events. **Missing multiple fields.**
-
-All CRITICAL issues below affect the JSON event path, meaning newly received messages (while the app is open) will silently lose data that existing cached messages have correctly.
-
----
-
-## Findings
-
-- [ ] [CRITICAL] `CachedMessage.fromJson` never parses `inlineKeyboard`, `replyKeyboard`, `keyboardHide`, `forceReply`, `forceReplyPlaceholder` from `extra`. The proto path (engine_service.dart:5312–5316) does parse them. Real-time received bot messages will show no keyboard buttons — `engine_models.dart:723` ← `AyuGram/Telegram/SourceFiles/history/history_item_reply_markup.h:29`
-
-- [ ] [CRITICAL] `CachedMessage.fromJson` never parses `altQualities` from `extra`. Proto path uses `_altQualitiesFromParsed(extra)` (engine_service.dart:5252). Video quality selector will always be empty for newly received video messages — `engine_models.dart:723` ← `AyuGram/Telegram/SourceFiles/data/data_group_call.h:54`
-
-- [ ] [CRITICAL] `CachedMessage.fromJson` never parses `mediaRemoteRef` or `mediaExtra` from the top-level JSON. Proto path reads them from `p.mediaRemoteRef`/`p.mediaExtra` (engine_service.dart:5239–5240). Sticker favouriting and GIF operations rely on these fields and will break for event-received messages — `engine_models.dart:723` ← `AyuGram/Telegram/SourceFiles/history/history_item_reply_markup.h:141`
-
-- [ ] [CRITICAL] `CachedMessage.fromJson` never parses `unsupportedTTL` from `extra['unsupported_ttl']`. Proto path parses it (engine_service.dart:5250). Self-destructing media that has already been opened will be shown as normal media for real-time received messages — `engine_models.dart:723` ← `AyuGram/Telegram/SourceFiles/history/history_item_components.h`
-
-- [ ] [MAJOR] `GroupCallParticipant` is missing `mutedByMe` field. AyuGram uses it in 8+ places in the members UI to show a different mute icon when the *local* user muted a participant vs the server muting them, and to determine the mute/unmute action label — `engine_models.dart:2160` ← `AyuGram/Telegram/SourceFiles/data/data_group_call.h:51`
-
-- [ ] [MAJOR] `GroupCallParticipant` is missing `sounding` field (participant's audio is actively playing through local speakers). AyuGram tracks sounding rows in a `_soundingRowBySsrc` map and drives a `_soundingAnimation` from them. `isSpeaking` (`speaking`) is a different state — `engine_models.dart:2160` ← `AyuGram/Telegram/SourceFiles/data/data_group_call.h:46`
-
-- [ ] [MAJOR] `GroupCallParticipant` is missing `ssrc` field. AyuGram maps SSRCs to participant rows (`_soundingRowBySsrc`, calls_group_members.cpp:201) to drive speaking animations and route tgcalls audio per-participant. Without it the audio engine cannot be wired to the UI — `engine_models.dart:2160` ← `AyuGram/Telegram/SourceFiles/data/data_group_call.h:44`
-
-- [ ] [MAJOR] `GroupCallParticipant` is missing `additionalSounding` and `additionalSpeaking` fields for screen-share audio. AyuGram tracks these separately from main camera audio — `engine_models.dart:2160` ← `AyuGram/Telegram/SourceFiles/data/data_group_call.h:48`
-
-- [ ] [MAJOR] `GroupCallParticipant` is missing `lastActive` field (last time participant spoke/was active). AyuGram uses it to sort participants list by recency — `engine_models.dart:2160` ← `AyuGram/Telegram/SourceFiles/data/data_group_call.h:42`
-
-- [ ] [MAJOR] `GroupCallParticipant` is missing `date` field (Unix timestamp when participant joined the call). AyuGram shows "recently joined" based on this — `engine_models.dart:2160` ← `AyuGram/Telegram/SourceFiles/data/data_group_call.h:41`
-
-- [ ] [MAJOR] `GroupCallInfo` is missing `scheduleDate` field. AyuGram tracks scheduled voice chats and shows a countdown timer before they start — `engine_models.dart:2199` ← `AyuGram/Telegram/SourceFiles/data/data_group_call.h:74`
-
-- [ ] [MAJOR] `GroupCallInfo` is missing `origin` field (`Group`/`Conference`/`VideoStream`). AyuGram distinguishes these call types with different UI behaviour (`GroupCallOrigin` enum) — `engine_models.dart:2199` ← `AyuGram/Telegram/SourceFiles/data/data_group_call.h:63`
-
-- [ ] [MAJOR] `CachedMessage.fromJson` never parses `senderNoForwards` from the JSON. Proto path reads it from `p.senderNoForwards` (engine_service.dart:5251). The "no-forwards" restriction for specific senders will not be enforced for real-time received messages — `engine_models.dart:723` ← `AyuGram/Telegram/SourceFiles/history/history_item.h`
 
