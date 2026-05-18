@@ -176,12 +176,6 @@ Ground truth: `/tmp/theme_extract/day-blue/colors.tdesktop-theme`, `/tmp/theme_e
 
 ---
 
-## Colorizer algorithm — Wrong domain
-
-- [ ] [MAJOR] The `colorize()` method operates in HSV throughout (lines 1204, 1218-1246). The C++ colorizer (`style_palette_colorizer.cpp`) also works entirely in HSV (`QColor::fromHsv`, `getHsv`). However the Dart code clamps the new accent's lightness using HSL (`HSLColor.fromColor`, line 1210-1213), then converts back to HSV. The C++ `ColorizerFrom()` operates purely in HSV with `lightnessMin`/`lightnessMax` fields that are HSV value (0-255), not HSL lightness. Converting through HSL introduces non-equivalence for saturated colors. — `dart/lib/theme/telegram_palette.dart:1210-1213` ← `AyuGram/Telegram/lib_ui/ui/style/style_palette_colorizer.h:17-19`
-
-- [ ] [MAJOR] The colorizer's `hueThreshold` is hardcoded as `15.0` (line 1216). The C++ `hueThreshold` is set per-theme by `ColorizerFrom()`. The value 15 is used for the built-in Telegram Desktop themes (via `kThemeHueDistance = 15` in `window_themes.cpp`). This is coincidentally correct for standard themes but any custom `colorizer` with a different threshold won't be respected. — `dart/lib/theme/telegram_palette.dart:1216` ← `AyuGram/Telegram/lib_ui/ui/style/style_palette_colorizer.h:17`
-
 ---
 
 ## Performance
