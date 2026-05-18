@@ -69,35 +69,13 @@ Fix both asserts→throws in bridge_web.dart before shipping web version. Deskto
   - Proto definition `engine.pb.dart` lacks these fields entirely — Go backend not sending them
 
 
-# app_state — AppState / GhostModeAccountSettings
-
-- [ ] [MAJOR] `_notifCorner` enum ordering mismatches AyuGram spec — Dart maps `1=topCenter, 2=topRight, 4=bottomRight`; AyuGram `ScreenCorner` maps `1=TopRight, 2=BottomRight, 4=TopCenter`. Positions 1, 2, and 4 are swapped. Additionally, AyuGram's default is `BottomRight = 2`, but Dart defaults to `4`. Any rendering code indexed against AyuGram's enum values will place the notification popup in the wrong corner for values 1, 2, and 4 — `app_state.dart:252` ← `AyuGram/core/core_settings.h:101-105,1088`
-
-- [ ] [MAJOR] `setRecentStickersCount` allows minimum of 0 but AyuGram validates minimum of 1 — `v = v.clamp(0, 200)` should be `v.clamp(1, 200)`; setting 0 is spec-invalid and could produce a broken sticker panel — `app_state.dart:1809` ← `AyuGram/ayu/ayu_settings.cpp:519`
-
-- [ ] [MAJOR] `_flushWindowPrefs()` is called without `await` inside `dispose()` — the method is `Future<void>` and performs async file I/O; calling it unawaited means settings changed close to app exit are silently lost on shutdown — `app_state.dart:3604-3606`
-
-# audio_service — 2 issues
-
-- [ ] [MAJOR] FILE_REFERENCE retry sends the same stale file reference — `audio_service.dart:219-225` retries `_engine.reportMusicListen(...)` with the same `_currentFileRef` that caused the initial `FILE_REFERENCE_*` error, so the retry is guaranteed to fail. AyuGram calls `document->session().api().refreshFileReference(origin, callback)` to fetch a fresh reference from the original message, then only retries if the reference actually changed — `media_player_listen_tracker.cpp:82-93`
-
-- [ ] [MAJOR] Playback position never saved or restored — `audio_service.dart` always opens files from position 0 with no seek-to-saved-position after open. AyuGram saves position for songs ≥ 20 minutes and videos ≥ 1 minute (`kMinLengthForSavePositionMusic = 20*60`, `kMinLengthForSavePositionVideo = 60`) via `session.local().setMediaLastPlaybackPosition()`, and restores it at `result.position = local.mediaLastPlaybackPosition(document->id)` on open — `media_player_instance.cpp:55-56,140,885`
-
 # auth_state — Auth flow state machine gaps
 
-- [ ] [CRITICAL] `needsInput` misses the `'recover'` state — if the Go engine emits a password-recovery code entry state, `needsInput` returns `false`, auto-poll stops, and the UI will not prompt for recovery code input — `auth_state.dart:44` ← `intro_password_check.cpp:292`
-
-- [ ] [MAJOR] SRP_ID_INVALID handling has no loop/storm protection — AyuGram records `_lastSrpIdInvalidTime` and compares against `kHandleSrpIdInvalidTimeout`; a second SRP_ID_INVALID within the timeout shows a server error and aborts. Dart unconditionally restores the 2FA input state with "Password verification failed. Please try again." so a server-side SRP storm leaves the user looping forever with no escape — `auth_state.dart:99-112` ← `intro_password_check.cpp:169-178`
-
-- [ ] [MAJOR] QR code expiry not handled — AyuGram calls `_refreshTimer.callOnce(std::max(left, 1) * 1000)` based on the server-reported `expires` field to refresh the token before it goes stale. `auth_state.dart` has no such timer; if the Go engine does not proactively push a new QR auth event before expiry, the displayed QR code silently becomes invalid with no UI feedback — `auth_state.dart:49` ← `intro_qr.cpp:432-441`
-
-- [ ] [MAJOR] `needsInput` misses the `'email'` state — AyuGram has a dedicated `EmailWidget` step for email verification during 2FA setup. If the Go engine emits an `'email'` state, `needsInput` returns `false`, auto-poll stops, and the user cannot submit the email code — `auth_state.dart:44` ← `intro_email.cpp:30`
+- [ ] [MAJOR] SRP_ID_INVALID storm timeout wrong value — Storm protection was added but `_kSrpIdInvalidTimeout = Duration(seconds: 5)` when AyuGram specifies `kHandleSrpIdInvalidTimeout = 60 * crl::time(1000)` = 60s (`core/core_cloud_password.h:14`). A storm with >5s between errors won't be caught. Fix: `Duration(seconds: 60)` — `auth_state.dart:25`
 
 # ayu_forward — Forward state machine and intelligent forward logic
 
-- [ ] [CRITICAL] Sender-level noForwards triggers `intelligentForward` but `buildChunks` never routes those messages to `resendAsOwn` — `needsIntelligentForward` at line 286 returns `true` when any `msg.senderNoForwards` is set, calling `intelligentForward`, but `buildChunks` (line 138–165) only checks `isMessageRestricted` (message-level `noForwards` flag) — so messages from restricted senders get assigned `ForwardMethod.native` and are natively forwarded in violation of the sender restriction. In C++ this case is caught first in `ApiWrap::forwardMessages` (apiwrap.cpp:3487): `isFullAyuForwardNeeded` checks `item->from()->isAyuNoForwards()` and, if true, routes the **entire batch** to `AyuForward::forwardMessages` (full resendAsOwn) before `intelligentForward` is ever reached. The Dart has no equivalent full-batch resendAsOwn path for sender-level restriction — `ayu_forward.dart:281` ← `apiwrap.cpp:3487` + `ayu_forward.cpp:233`
-
-- [ ] [MAJOR] Native forward chunk sends each message individually instead of as a batch — `ForwardMethod.native` case at line 227–238 iterates per message calling `engine.forwardMessage(...)` once per `msg`. In C++ `intelligentForward` (ayu_forward.cpp:299), native chunks call `AyuSync::forwardMessagesSync(session, chunk.items, action, draft.options)` with the full item list in one call, which maps to a single `messages.forwardMessages` Telegram API request preserving album grouping. Per-message Dart calls issue N separate forward requests; album messages in native chunks are forwarded as ungrouped individual messages — `ayu_forward.dart:229` ← `ayu_forward.cpp:299`
+- [ ] [MAJOR] Native forward chunk sends each message individually instead of as a batch — `ForwardMethod.native` case at line 229–242 iterates per message calling `engine.forwardMessage(...)` once per `msg`. AyuGram calls `AyuSync::forwardMessagesSync` with the full item list in one `messages.forwardMessages` Telegram API request preserving album grouping. Per-message Dart calls issue N separate forward requests; album messages in native chunks are forwarded as ungrouped individual messages — `ayu_forward.dart:229` ← `ayu_forward.cpp:299`
 
 # bridge_ffi.dart — No issues found
 
