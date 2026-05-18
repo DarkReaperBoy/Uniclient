@@ -35,10 +35,8 @@ class SystemTray {
   bool _iconCreated = false;
   int _lastUnread = -1;
   bool _windowVisible = true;
+  bool _windowActive = true;
   int _lastTrayClickTime = 0;
-
-  bool _rememberedSoundNotifyFromTray = false;
-  bool _rememberedFlashBounceNotifyFromTray = false;
 
   /// Whether the native tray icon is active.
   bool get isAvailable => _available && _iconCreated;
@@ -182,43 +180,62 @@ class SystemTray {
   /// Tray::toggleSoundNotifications(). Saves sound and flash-bounce state
   /// when disabling, restores when re-enabling.
   ///
-  /// Returns updated values: `(desktopNotify, soundNotify?, flashBounce?)`.
-  /// Null sound/flash means unchanged.
-  ({bool desktopNotify, bool? soundNotify, bool? flashBounce})
+  /// [rememberedSound] and [rememberedFlash] are the persisted "remembered"
+  /// flags from AppState. Returns updated values including the new remembered
+  /// state — caller MUST persist the returned values via
+  /// `AppState.rememberedSoundNotifyFromTray` / `...FlashBounce...` followed
+  /// by `saveSettingsDelayed()`, matching AyuGram's tray.cpp:243.
+  ({
+    bool desktopNotify,
+    bool? soundNotify,
+    bool? flashBounce,
+    bool rememberedSound,
+    bool rememberedFlash,
+  })
       toggleSoundNotifications({
     required bool currentDesktopNotify,
     required bool currentSoundNotify,
     required bool currentFlashBounce,
+    required bool rememberedSound,
+    required bool rememberedFlash,
   }) {
     final toggled = !currentDesktopNotify;
     bool? newSound;
     bool? newFlash;
+    var newRememberedSound = rememberedSound;
+    var newRememberedFlash = rememberedFlash;
 
     if (toggled) {
-      if (_rememberedSoundNotifyFromTray && !currentSoundNotify) {
+      if (rememberedSound && !currentSoundNotify) {
         newSound = true;
-        _rememberedSoundNotifyFromTray = false;
+        newRememberedSound = false;
       }
-      if (_rememberedFlashBounceNotifyFromTray && !currentFlashBounce) {
+      if (rememberedFlash && !currentFlashBounce) {
         newFlash = true;
-        _rememberedFlashBounceNotifyFromTray = false;
+        newRememberedFlash = false;
       }
     } else {
       if (currentSoundNotify) {
         newSound = false;
-        _rememberedSoundNotifyFromTray = true;
+        newRememberedSound = true;
       } else {
-        _rememberedSoundNotifyFromTray = false;
+        newRememberedSound = false;
       }
       if (currentFlashBounce) {
         newFlash = false;
-        _rememberedFlashBounceNotifyFromTray = true;
+        newRememberedFlash = true;
       } else {
-        _rememberedFlashBounceNotifyFromTray = false;
+        newRememberedFlash = false;
       }
     }
 
-    return (desktopNotify: toggled, soundNotify: newSound, flashBounce: newFlash);
+    return (
+      desktopNotify: toggled,
+      soundNotify: newSound,
+      flashBounce: newFlash,
+      rememberedSound: newRememberedSound,
+      rememberedFlash: newRememberedFlash,
+    );
   }
 
   /// Render an unread-count badge overlay on the tray icon.
@@ -447,6 +464,9 @@ class SystemTray {
         if (accountId != null) {
           onAccountSwitch?.call(accountId, ctrlPressed: ctrlPressed);
         }
+      case 'onWindowFocusChanged':
+        final focused = call.arguments as bool? ?? false;
+        _windowActive = focused;
       case 'onTrayIconClick':
         final now = DateTime.now().millisecondsSinceEpoch;
         if (_lastTrayClickTime > 0 &&
@@ -454,11 +474,21 @@ class SystemTray {
           return;
         }
         _lastTrayClickTime = now;
-        if (_windowVisible) {
+        // AyuGram: isActiveForTrayMenu() = !isHidden() && _isActive
+        // Only hide when window is visible AND focused. If visible but
+        // unfocused, bring it to the foreground instead of hiding.
+        bool isActiveForTray = _windowVisible && _windowActive;
+        final args = call.arguments;
+        if (args is Map && args.containsKey('isActive')) {
+          isActiveForTray = args['isActive'] as bool? ?? isActiveForTray;
+        }
+        if (isActiveForTray) {
           _windowVisible = false;
+          _windowActive = false;
           onWindowHidden?.call();
         } else {
           _windowVisible = true;
+          _windowActive = true;
           onWindowShown?.call();
         }
       default:

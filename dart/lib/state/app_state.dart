@@ -219,6 +219,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool? _rememberedSendAsDocuments;
   bool? _rememberedGroupFiles;
 
+  bool _rememberedSoundNotifyFromTray = false;
+  bool _rememberedFlashBounceNotifyFromTray = false;
+
   /// Spec §7.3: When true, empty-field send button shows Round (camera) instead of Record (mic).
   bool _recordVideoMessages = false;
 
@@ -2290,6 +2293,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  bool get rememberedSoundNotifyFromTray => _rememberedSoundNotifyFromTray;
+  set rememberedSoundNotifyFromTray(bool value) {
+    if (_rememberedSoundNotifyFromTray != value) {
+      _rememberedSoundNotifyFromTray = value;
+      _saveWindowPrefs();
+    }
+  }
+
+  bool get rememberedFlashBounceNotifyFromTray => _rememberedFlashBounceNotifyFromTray;
+  set rememberedFlashBounceNotifyFromTray(bool value) {
+    if (_rememberedFlashBounceNotifyFromTray != value) {
+      _rememberedFlashBounceNotifyFromTray = value;
+      _saveWindowPrefs();
+    }
+  }
+
   // §15: Notification settings getters/setters
   bool get notifDesktopNotify => _notifDesktopNotify;
   set notifDesktopNotify(bool v) { if (_notifDesktopNotify != v) { _notifDesktopNotify = v; _saveWindowPrefs(); notifyListeners(); } }
@@ -3040,6 +3059,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _swipeAction = data['swipeAction'] as String? ?? 'archive';
       _rememberedSendAsDocuments = data['rememberedSendAsDocuments'] as bool?;
       _rememberedGroupFiles = data['rememberedGroupFiles'] as bool?;
+      _rememberedSoundNotifyFromTray = data['rememberedSoundNotifyFromTray'] as bool? ?? false;
+      _rememberedFlashBounceNotifyFromTray = data['rememberedFlashBounceNotifyFromTray'] as bool? ?? false;
       _recordVideoMessages = data['recordVideoMessages'] as bool? ?? false;
       _powerSavingFlags = data['powerSavingFlags'] as int? ?? 0;
       _autoPowerSaving = data['autoPowerSaving'] as bool? ?? false;
@@ -3309,6 +3330,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'swipeAction': _swipeAction,
         if (_rememberedSendAsDocuments != null) 'rememberedSendAsDocuments': _rememberedSendAsDocuments,
         if (_rememberedGroupFiles != null) 'rememberedGroupFiles': _rememberedGroupFiles,
+        'rememberedSoundNotifyFromTray': _rememberedSoundNotifyFromTray,
+        'rememberedFlashBounceNotifyFromTray': _rememberedFlashBounceNotifyFromTray,
         'recordVideoMessages': _recordVideoMessages,
         'powerSavingFlags': _powerSavingFlags,
         'autoPowerSaving': _autoPowerSaving,

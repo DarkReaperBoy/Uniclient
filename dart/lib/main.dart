@@ -411,12 +411,16 @@ class _UniClientAppState extends State<UniClientApp>
           currentDesktopNotify: current.desktopNotify,
           currentSoundNotify: current.allowSound,
           currentFlashBounce: current.flashBounce,
+          rememberedSound: appState.rememberedSoundNotifyFromTray,
+          rememberedFlash: appState.rememberedFlashBounceNotifyFromTray,
         );
         _notifSystem.updateSettings(current.copyWith(
           desktopNotify: result.desktopNotify,
           allowSound: result.soundNotify,
           flashBounce: result.flashBounce,
         ));
+        appState.rememberedSoundNotifyFromTray = result.rememberedSound;
+        appState.rememberedFlashBounceNotifyFromTray = result.rememberedFlash;
         _tray.updateNotificationsItem(enabled: result.desktopNotify);
       };
 
