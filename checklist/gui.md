@@ -57,7 +57,6 @@ Fix both asserts→throws in bridge_web.dart before shipping web version. Deskto
 
 # notification_system — NotificationSystem orchestrator
 
-- [ ] [MAJOR] `checkDelayed()` resolves mute state only via the pre-set `muteStateUnknown` flag; AyuGram re-evaluates `computeSkipState()` live against actual settings at check time, so even if the flag is never cleared via `resolveDelayedMuteState()` the notification still dispatches once settings are available. In Dart, if `resolveDelayedMuteState()` is never called for a chat the queued notification is silently dropped. — `notification_system.dart:501` ← `AyuGramDesktop/Telegram/SourceFiles/window/notifications_manager.cpp:646`
 
 # notification_types — Reaction/PollVote fields never populated from backend
 
