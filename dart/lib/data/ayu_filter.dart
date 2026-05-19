@@ -94,6 +94,35 @@ class RegexFilterExclusion {
   int get hashCode => Object.hash(dialogId, filterId);
 }
 
+class ImportChanges {
+  final List<RegexFilter> filtersToAdd;
+  final List<RegexFilter> filtersToUpdate;
+  final List<RegexFilterExclusion> exclusionsToAdd;
+  final List<String> filterIdsToRemove;
+  final List<RegexFilterExclusion> exclusionsToRemove;
+
+  const ImportChanges({
+    required this.filtersToAdd,
+    required this.filtersToUpdate,
+    required this.exclusionsToAdd,
+    required this.filterIdsToRemove,
+    required this.exclusionsToRemove,
+  });
+
+  bool get hasChanges =>
+      filtersToAdd.isNotEmpty ||
+      filtersToUpdate.isNotEmpty ||
+      exclusionsToAdd.isNotEmpty ||
+      filterIdsToRemove.isNotEmpty ||
+      exclusionsToRemove.isNotEmpty;
+
+  int get addedCount => filtersToAdd.length;
+  int get updatedCount => filtersToUpdate.length;
+  int get removedFiltersCount => filterIdsToRemove.length;
+  int get removedExclusionsCount => exclusionsToRemove.length;
+  int get newExclusionsCount => exclusionsToAdd.length;
+}
+
 class _CompiledPattern {
   final RegexFilter filter;
   final RegExp? pattern;
@@ -188,20 +217,13 @@ int _serviceMessageType(CachedMessage msg) {
       case 'gift_premium': return 18;
       case 'gift_stars': return 30;
       case 'giveaway_results': return 28;
-      case 'boost': return 10; // boost has no distinct filter type, falls through to DATE
+      case 'boost': return 10;
       case 'group_call': return 16;
     }
   }
 
   if (msg.mediaType == 1) return 11;
   if (msg.mediaType == 2) return 8;
-
-  final text = msg.contentText;
-  if (text.startsWith('Voice call') || text.startsWith('Video call')) return 16;
-  if (text.contains('wallpaper')) return 22;
-  if (text.contains('gifted') && text.contains('star')) return 30;
-  if (text.contains('giveaway') && text.contains('winner')) return 28;
-  if (text.contains('gifted') && text.contains('Premium')) return 18;
 
   return 10;
 }
@@ -330,8 +352,7 @@ class AyuFilterEngine extends ChangeNotifier {
     'peers': peers,
   };
 
-  ({int added, int updated, int removedFilters, int removedExclusions, bool noChanges})
-      importFromJson(Map<String, dynamic> data) {
+  ImportChanges previewImport(Map<String, dynamic> data) {
     final version = data['version'] as int? ?? 0;
     if (version > _backupVersion) {
       throw Exception('Unsupported backup version $version (max $_backupVersion)');
@@ -349,44 +370,45 @@ class AyuFilterEngine extends ChangeNotifier {
         ?.map((e) => RegexFilterExclusion.fromJson(e as Map<String, dynamic>))
         .toList() ?? [];
 
-    int wouldAdd = 0, wouldUpdate = 0;
+    final toAdd = <RegexFilter>[];
+    final toUpdate = <RegexFilter>[];
     for (final f in filters) {
       if (_filters.any((ef) => ef.id == f.id)) {
-        wouldUpdate++;
+        toUpdate.add(f);
       } else {
-        wouldAdd++;
+        toAdd.add(f);
       }
     }
-    final newExcl = exclusions.where((e) => !_exclusions.contains(e)).length;
-    if (wouldAdd == 0 && wouldUpdate == 0 && newExcl == 0 &&
-        removeIds.isEmpty && removeExcl.isEmpty) {
-      return (added: 0, updated: 0, removedFilters: 0, removedExclusions: 0, noChanges: true);
-    }
+    final newExcl = exclusions.where((e) => !_exclusions.contains(e)).toList();
 
-    int added = 0, updated = 0;
-    for (final f in filters) {
-      if (_filters.any((ef) => ef.id == f.id)) {
-        updateFilter(f);
-        updated++;
-      } else {
-        addFilter(f);
-        added++;
-      }
-    }
-    for (final e in exclusions) {
-      addExclusion(e);
-    }
-    for (final id in removeIds) {
-      deleteFilter(id);
-    }
-    for (final e in removeExcl) {
-      deleteExclusion(e.dialogId, e.filterId);
-    }
-    return (added: added, updated: updated, removedFilters: removeIds.length,
-        removedExclusions: removeExcl.length, noChanges: false);
+    return ImportChanges(
+      filtersToAdd: toAdd,
+      filtersToUpdate: toUpdate,
+      exclusionsToAdd: newExcl,
+      filterIdsToRemove: removeIds,
+      exclusionsToRemove: removeExcl,
+    );
   }
 
-  Future<String?> importFromLink(String url) async {
+  void applyImport(ImportChanges changes) {
+    for (final f in changes.filtersToAdd) {
+      addFilter(f);
+    }
+    for (final f in changes.filtersToUpdate) {
+      updateFilter(f);
+    }
+    for (final e in changes.exclusionsToAdd) {
+      addExclusion(e);
+    }
+    for (final id in changes.filterIdsToRemove) {
+      deleteFilter(id);
+    }
+    for (final e in changes.exclusionsToRemove) {
+      deleteExclusion(e.dialogId, e.filterId);
+    }
+  }
+
+  Future<({ImportChanges? changes, String? error})> importFromLink(String url) async {
     try {
       final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 10);
@@ -395,14 +417,16 @@ class AyuFilterEngine extends ChangeNotifier {
       final body = await response.transform(utf8.decoder).join();
       client.close();
       final parsed = jsonDecode(body);
-      if (parsed is! Map<String, dynamic>) return 'Failed to import filters';
-      final result = importFromJson(parsed);
-      if (result.noChanges) return 'No changes to import';
-      return null;
+      if (parsed is! Map<String, dynamic>) {
+        return (changes: null, error: 'Failed to import filters');
+      }
+      final changes = previewImport(parsed);
+      if (!changes.hasChanges) return (changes: null, error: 'No changes to import');
+      return (changes: changes, error: null);
     } on FormatException {
-      return 'Failed to import filters';
+      return (changes: null, error: 'Failed to import filters');
     } catch (e) {
-      return 'Failed to fetch filters';
+      return (changes: null, error: 'Failed to fetch filters');
     }
   }
 
