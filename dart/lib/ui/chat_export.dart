@@ -186,6 +186,8 @@ class _ExportPanelController {
 
   static void showAndActivate(BuildContext context, ExportTarget target) {
     if (_entry != null) {
+      _entry!.remove();
+      Overlay.of(context).insert(_entry!);
       _entry!.markNeedsBuild();
       return;
     }
@@ -265,7 +267,7 @@ class _FloatingExportPanelState extends State<_FloatingExportPanel>
   }
 }
 
-void showExportSuggestBox(BuildContext context, {VoidCallback? onStart}) {
+void showExportSuggestBox(BuildContext context, {required VoidCallback onStart}) {
   showDialog(
     context: context,
     barrierDismissible: false,
@@ -624,7 +626,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_hideOnDeactivate && state == AppLifecycleState.inactive) {
-      Navigator.of(context).pop();
+      _closePanel();
     }
   }
 
@@ -680,7 +682,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 14, 24, 8),
                 child: Text(
-                  'Are you sure you want to stop exporting your data?',
+                  'Are you sure you want to stop exporting your data?\n\nIf you do, you\'ll need to start over.',
                   style: TextStyle(
                     fontSize: 14,
                     height: 22 / 14,
@@ -768,9 +770,10 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         .where((e) => e.accountId == accountId)
         .listen(_onExportComplete);
 
-    final exportLocation = _exportLocation.isNotEmpty
-        ? _exportLocation
-        : _defaultExportLocation;
+    final isDefaultLocation = _exportLocation.isEmpty;
+    final exportLocation = isDefaultLocation
+        ? _defaultExportLocation
+        : _exportLocation;
 
     final exportParams = <String, dynamic>{
       'personal_info': _personalInfo,
@@ -783,6 +786,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       'private_channels': _privateChannels,
       'public_groups': _publicGroups,
       'public_channels': _publicChannels,
+      'full_personal_chats': true,
+      'full_bot_chats': true,
       'media_photos': _mediaPhotos,
       'media_video': _mediaVideo,
       'media_voice': _mediaVoice,
@@ -793,6 +798,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       'size_limit_mb': _sizeLimitMB,
       'format': _format.name,
       'export_location': exportLocation,
+      'force_sub_path': isDefaultLocation,
       'chat_id': widget.target.chatId ?? '',
       'topic_root_id': widget.target.topicRootId ?? 0,
       'sessions': _sessions,
@@ -834,6 +840,13 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
           _exportSteps[stepIdx].progress = progress.clamp(0.0, 1.0);
         }
         _exportSteps[stepIdx].info = event.info;
+        _exportSteps[stepIdx].opacity = 1.0;
+        if (stepIdx > _currentStepIndex) {
+          for (int i = _currentStepIndex; i < stepIdx; i++) {
+            _exportSteps[i].progress = 1.0;
+            _exportSteps[i].opacity = 0.5;
+          }
+        }
         _currentStepIndex = stepIdx;
       }
     } else {
@@ -843,6 +856,13 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
           _exportSteps[existing].progress = progress.clamp(0.0, 1.0);
         }
         _exportSteps[existing].info = event.info;
+        _exportSteps[existing].opacity = 1.0;
+        if (existing > _currentStepIndex) {
+          for (int i = _currentStepIndex; i < existing; i++) {
+            _exportSteps[i].progress = 1.0;
+            _exportSteps[i].opacity = 0.5;
+          }
+        }
         _currentStepIndex = existing;
       }
     }
@@ -968,7 +988,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   void _triggerTakeoutInvalidError() async {
     _cleanupExportSubscriptions();
     await _showExportInformBox(
-      'Sorry, your data export session has expired, please try again.',
+      'Sorry, you started a new data export, so this data export has been canceled.',
     );
     if (mounted) _closePanel();
   }
@@ -980,12 +1000,13 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
-    final time =
-        '${availableAt.hour.toString().padLeft(2, '0')}:${availableAt.minute.toString().padLeft(2, '0')}';
     final date =
         '${months[availableAt.month - 1]} ${availableAt.day}, ${availableAt.year}';
     await _showExportInformBox(
-      'Please try again in about $hoursRemaining hours, on $date at $time.',
+      'For security reasons, you will be able to begin downloading your data in $hoursRemaining hours. '
+      'We have notified all your devices about the export request to make sure it\'s authorized '
+      'and give you time to react if it\'s not.\n\n'
+      'Please come back on $date and repeat the request using the same device.',
     );
     if (mounted) _closePanel();
   }
@@ -1245,7 +1266,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   ),
 
                   // §29.3.2 Chats section
-                  _buildSectionHeader('Chats', headerColor),
+                  _buildSectionHeader('Chat export settings', headerColor),
                   _buildChatTypeOption(
                     'Personal chats',
                     _personalChats,
@@ -1337,7 +1358,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   ),
 
                   // §29.3.5 Output Format section
-                  _buildSectionHeader('Output format', headerColor),
+                  _buildSectionHeader('Location and format', headerColor),
                   _buildLocationLabel(accentColor, subtextColor),
                   _buildFormatRadio(
                       'Human-readable HTML', _ExportFormat.html, textColor),
@@ -1536,7 +1557,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader('Media', headerColor),
+        _buildSectionHeader('Media export settings', headerColor),
         _buildMediaCheckbox('Photos', _mediaPhotos,
             (v) => _updateSetting(() => _mediaPhotos = v!), textColor),
         _buildMediaCheckbox('Video files', _mediaVideo,
@@ -1558,7 +1579,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               Text(
-                '$_sizeLimitMB MB',
+                'Size limit: $_sizeLimitMB MB',
                 style: TextStyle(fontSize: 13, color: accentColor),
               ),
             ],
@@ -1619,7 +1640,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         height: 21,
         child: Row(
           children: [
-            Text('Location: ', style: TextStyle(fontSize: 13, color: subtextColor)),
+            Text('Download path: ', style: TextStyle(fontSize: 13, color: subtextColor)),
             Expanded(
               child: GestureDetector(
                 onTap: _pickExportFolder,
@@ -1731,7 +1752,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                 controller: _scrollController,
                 padding: EdgeInsets.zero,
                 children: [
-                  if (!_isPerChat) _buildSectionHeader('Media', headerColor),
+                  if (!_isPerChat) _buildSectionHeader('Media export settings', headerColor),
                   _buildMediaCheckbox('Photos', _mediaPhotos,
                       (v) => _updateSetting(() => _mediaPhotos = v!), textColor),
                   _buildMediaCheckbox('Video files', _mediaVideo,
@@ -1751,7 +1772,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Text('$_sizeLimitMB MB',
+                        Text('Size limit: $_sizeLimitMB MB',
                             style: TextStyle(fontSize: 13, color: accentColor)),
                       ],
                     ),
@@ -2097,66 +2118,74 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
             children: [
               for (int _si = 0; _si < visibleSteps.length; _si++) ...[
                 if (_si > 0) const SizedBox(height: 10),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
-                  child: SizedBox(
-                    height: 30,
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 300),
-                                  child: Text(
-                                    visibleSteps[_si].label,
-                                    key: ValueKey(visibleSteps[_si].label),
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: textColor,
+                AnimatedOpacity(
+                  opacity: visibleSteps[_si].opacity,
+                  duration: const Duration(milliseconds: 300),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+                    child: SizedBox(
+                      height: 30,
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 300),
+                                    child: Text(
+                                      visibleSteps[_si].label,
+                                      key: ValueKey(visibleSteps[_si].label),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: textColor,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                visibleSteps[_si].info,
-                                style: TextStyle(
-                                    fontSize: 14, color: subtextColor),
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(
-                          height: 3,
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              return Stack(
-                                children: [
-                                  Container(
-                                    width: constraints.maxWidth,
-                                    height: 3,
-                                    color: inactiveFg,
+                                const SizedBox(width: 8),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: Text(
+                                    visibleSteps[_si].info,
+                                    key: ValueKey('${_si}_${visibleSteps[_si].info}'),
+                                    style: TextStyle(
+                                        fontSize: 14, color: subtextColor),
                                   ),
-                                  AnimatedContainer(
-                                    duration:
-                                        const Duration(milliseconds: 200),
-                                    curve: Curves.easeInOut,
-                                    width: constraints.maxWidth *
-                                        visibleSteps[_si].progress,
-                                    height: 3,
-                                    color: activeFg,
-                                  ),
-                                ],
-                              );
-                            },
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                          SizedBox(
+                            height: 3,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                return Stack(
+                                  children: [
+                                    Container(
+                                      width: constraints.maxWidth,
+                                      height: 3,
+                                      color: inactiveFg,
+                                    ),
+                                    AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 200),
+                                      curve: Curves.easeInOut,
+                                      width: constraints.maxWidth *
+                                          visibleSteps[_si].progress,
+                                      height: 3,
+                                      color: activeFg,
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -2180,7 +2209,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                         ? SystemMouseCursors.click
                         : SystemMouseCursors.basic,
                     child: Text(
-                      'Skip file',
+                      'Skip this file',
                       style: TextStyle(
                         fontSize: 13,
                         color: linkColor,
@@ -2199,7 +2228,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Please wait, export is in progress.',
+              'You can close this window now. Please don\'t quit Telegram until the data export is completed.',
               style: TextStyle(fontSize: 14, color: subtextColor),
             ),
           ),
@@ -2331,6 +2360,17 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   ),
                 ),
               ],
+              if (_totalFiles > 0)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Total files: ${_formatFileCount(_totalFiles)}',
+                      style: TextStyle(fontSize: 14, color: subtextColor),
+                    ),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
                 child: Align(
@@ -2366,7 +2406,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              child: const Text('Show My Data'),
+              child: const Text('Show my data'),
             ),
           ),
         ),
@@ -3001,9 +3041,9 @@ class _ChooseFormatBoxState extends State<_ChooseFormatBox> {
 }
 
 class _ExportSuggestBox extends StatelessWidget {
-  final VoidCallback? onStart;
+  final VoidCallback onStart;
 
-  const _ExportSuggestBox({this.onStart});
+  const _ExportSuggestBox({required this.onStart});
 
   @override
   Widget build(BuildContext context) {
@@ -3035,7 +3075,7 @@ class _ExportSuggestBox extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Export Your Data',
+                'Data export ready',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -3044,9 +3084,7 @@ class _ExportSuggestBox extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'You can export your data from Telegram, including chats, '
-                'messages, and media. The export will be processed by '
-                'Telegram servers and may take some time.',
+                'You can now download the data you requested. Start exporting data?',
                 style: TextStyle(fontSize: 14, color: textColor, height: 1.4),
               ),
               const SizedBox(height: 20),
@@ -3056,7 +3094,7 @@ class _ExportSuggestBox extends StatelessWidget {
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     child: Text(
-                      'Cancel',
+                      'Not now',
                       style: TextStyle(
                         fontSize: 14,
                         color: theme.colorScheme.primary,
@@ -3067,7 +3105,7 @@ class _ExportSuggestBox extends StatelessWidget {
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
-                      onStart?.call();
+                      onStart();
                     },
                     child: Text(
                       'OK',
