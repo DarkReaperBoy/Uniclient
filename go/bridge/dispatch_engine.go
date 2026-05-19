@@ -5239,6 +5239,29 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(count)
 
+	case "SearchMessagesFromCount":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			SenderID  string `json:"sender_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		acc := e.GetAccountCore(params.AccountID)
+		if acc == nil {
+			return nil, fmt.Errorf("account not found")
+		}
+		tgCore, ok := acc.(*cores.TelegramCore)
+		if !ok {
+			return json.Marshal(0)
+		}
+		count, err := tgCore.SearchMessagesFromCount(params.ChatID, params.SenderID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(count)
+
 	case "GetTopPeers":
 		var params struct {
 			AccountID string `json:"account_id"`

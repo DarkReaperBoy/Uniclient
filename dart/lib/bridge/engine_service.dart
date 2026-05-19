@@ -4668,6 +4668,17 @@ class EngineService {
     return json.decode(utf8.decode(respBytes)) as int;
   }
 
+  Future<int> searchMessagesFromCount(String accountId, String chatId, String senderId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'sender_id': senderId,
+    }));
+    final respBytes = await _callAsync('__engine', 'SearchMessagesFromCount', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return 0;
+    return json.decode(utf8.decode(respBytes)) as int;
+  }
+
   // ── Media ──
 
   Future<void> requestDownload(String accountId, String chatId, String msgId, {int seq = 0, int priority = 2}) async {

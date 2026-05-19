@@ -503,6 +503,7 @@ class _DeleteContentState extends State<_DeleteContent> {
   bool _initialized = false;
   bool _confirmedPaidPost = false;
   int _totalFromSender = 0;
+  bool _countLoading = false;
 
   @override
   void didChangeDependencies() {
@@ -522,10 +523,19 @@ class _DeleteContentState extends State<_DeleteContent> {
     final chatId = widget.chatId;
     final accountId = widget.accountId ?? appState.activeAccountId;
     if (fromId == null || chatId == null) return;
-    final count = appState.engine.countMessagesFrom(accountId, chatId, fromId);
-    if (count > 0 && mounted) {
-      setState(() => _totalFromSender = count);
-    }
+    setState(() => _countLoading = true);
+    appState.engine.searchMessagesFromCount(accountId, chatId, fromId).then((count) {
+      if (mounted) {
+        setState(() {
+          _totalFromSender = count;
+          _countLoading = false;
+        });
+      }
+    }).catchError((_) {
+      if (mounted) {
+        setState(() => _countLoading = false);
+      }
+    });
   }
 
   String get _bodyText {
@@ -608,9 +618,10 @@ class _DeleteContentState extends State<_DeleteContent> {
       case DeleteBoxMode.singleMessage:
       case DeleteBoxMode.bulkMessages:
         if (widget.isSavedMusic) return 'Remove';
-        final count = _deleteAll && _totalFromSender > 0
+        if (!_deleteAll || _countLoading) return 'Delete';
+        final count = _totalFromSender > 0
             ? _totalFromSender
-            : (_deleteAll && widget.messageCount > 0 ? widget.messageCount : 0);
+            : (widget.messageCount > 0 ? widget.messageCount : 0);
         final suffix = count > 0 ? ' ($count)' : '';
         return 'Delete$suffix';
     }

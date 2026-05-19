@@ -25741,6 +25741,49 @@ func (t *TelegramCore) SearchMessages(chatID string, query string, opts Paginati
 	return t.convertMessages(result), nil
 }
 
+// SearchMessagesFromCount returns the server-side total count of messages
+// sent by a specific user in a chat. Uses messages.search with from_id filter.
+func (t *TelegramCore) SearchMessagesFromCount(chatID string, senderID string) (int, error) {
+	chatPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return 0, err
+	}
+	defer unlock()
+
+	senderPeer, err := t.resolvePeer(senderID)
+	if err != nil {
+		return 0, fmt.Errorf("resolve sender: %w", err)
+	}
+	senderInput, err := t.toInputPeer(senderPeer)
+	if err != nil {
+		return 0, fmt.Errorf("sender input peer: %w", err)
+	}
+
+	req := &tg.MessagesSearchRequest{
+		Peer:   chatPeer,
+		Q:      "",
+		Filter: &tg.InputMessagesFilterEmpty{},
+		Limit:  1,
+	}
+	req.SetFromID(senderInput)
+
+	result, err := t.api.MessagesSearch(t.ctx, req)
+	if err != nil {
+		return 0, fmt.Errorf("search from count: %w", err)
+	}
+
+	switch r := result.(type) {
+	case *tg.MessagesMessages:
+		return len(r.Messages), nil
+	case *tg.MessagesMessagesSlice:
+		return r.Count, nil
+	case *tg.MessagesChannelMessages:
+		return r.Count, nil
+	default:
+		return 0, nil
+	}
+}
+
 // SearchGlobal searches for messages across all chats matching a query.
 func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
 	t.mu.RLock()
