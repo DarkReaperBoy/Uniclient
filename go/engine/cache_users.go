@@ -1136,21 +1136,21 @@ func (e *Engine) GetBackgroundEmojiList(accountID string) ([]int64, error) {
 }
 
 type contentSettingsGetter interface {
-	GetContentSettings() (sensitiveEnabled bool, sensitiveCanChange bool, err error)
+	GetContentSettings() (sensitiveEnabled bool, sensitiveCanChange bool, ageVerifyNeeded bool, err error)
 }
 
 type contentSettingsSetter interface {
 	SetContentSettings(sensitiveEnabled bool) error
 }
 
-func (e *Engine) GetContentSettings(accountID string) (bool, bool, error) {
+func (e *Engine) GetContentSettings(accountID string) (bool, bool, bool, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
-		return false, false, fmt.Errorf("account %q not connected", accountID)
+		return false, false, false, fmt.Errorf("account %q not connected", accountID)
 	}
 	g, ok := acc.Core.(contentSettingsGetter)
 	if !ok {
-		return false, false, fmt.Errorf("platform does not support content settings")
+		return false, false, false, fmt.Errorf("platform does not support content settings")
 	}
 	return g.GetContentSettings()
 }

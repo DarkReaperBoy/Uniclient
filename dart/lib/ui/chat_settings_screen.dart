@@ -40,6 +40,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   String get _sendBy => context.read<AppState>().sendBy;
   bool _sensitiveEnabled = false;
   bool _sensitiveCanChange = false;
+  bool _ageVerifyNeeded = false;
   bool _sensitiveLoaded = false;
   Timer? _sensitiveTimer;
 
@@ -87,6 +88,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       setState(() {
         _sensitiveEnabled = result.sensitiveEnabled;
         _sensitiveCanChange = result.sensitiveCanChange;
+        _ageVerifyNeeded = result.ageVerifyNeeded;
         _sensitiveLoaded = true;
       });
     });
@@ -98,6 +100,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     final engine = context.read<EngineService>();
     final settings = await engine.getContentSettings(account.id);
     if (!mounted) return;
+    if (settings.ageVerifyNeeded) {
+      showTelegramToast(context, 'Age verification is required to change this setting. Please verify your age on one of the official Telegram apps first.');
+      return;
+    }
     if (!settings.sensitiveCanChange) {
       showTelegramToast(context, 'This option is not available for your account.');
       return;
@@ -448,7 +454,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
               }
             },
             onEditTheme: _activeCloudThemeId != 0 &&
-                _cloudThemes.any((t) => t.id == _activeCloudThemeId && t.isCreator)
+                _cloudThemes.any((t) => t.id == _activeCloudThemeId && t.isCreator && t.documentId != 0)
                 ? () => _openThemeEditor(context)
                 : null,
             onThemeDeleted: () {
@@ -587,7 +593,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             onShowReplyButtonChanged: (v) => appState.chatShowReplyButton = v,
             onShowReactionButtonChanged: (v) => appState.chatShowReactionButton = v,
           ),
-          if (_sensitiveLoaded && _sensitiveCanChange) ...[
+          if (_sensitiveLoaded && (_sensitiveCanChange || _ageVerifyNeeded)) ...[
             const SizedBox(height: 7),
             Container(height: 1, color: dividerColor),
             const SizedBox(height: 7),
@@ -4840,36 +4846,54 @@ class _BackgroundPreviewBox extends StatefulWidget {
   State<_BackgroundPreviewBox> createState() => _BackgroundPreviewBoxState();
 }
 
-class _BackgroundPreviewBoxState extends State<_BackgroundPreviewBox> {
+class _BackgroundPreviewBoxState extends State<_BackgroundPreviewBox>
+    with SingleTickerProviderStateMixin {
   late bool _blurred;
   late bool _tiled;
   Uint8List? _fullBytes;
   bool _downloading = false;
+  late AnimationController _progressController;
 
   @override
   void initState() {
     super.initState();
     _blurred = widget.initialBlurred;
     _tiled = widget.initialTiled;
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    );
     if (widget.onLoadFull != null) {
       _downloadFull();
     }
   }
 
+  @override
+  void dispose() {
+    _progressController.dispose();
+    super.dispose();
+  }
+
   Future<void> _downloadFull() async {
     setState(() => _downloading = true);
+    _progressController.forward();
     try {
       final bytes = await widget.onLoadFull!();
       if (mounted && bytes != null) {
+        _progressController.stop();
         setState(() {
           _fullBytes = bytes;
           _downloading = false;
         });
       } else if (mounted) {
+        _progressController.stop();
         setState(() => _downloading = false);
       }
     } catch (_) {
-      if (mounted) setState(() => _downloading = false);
+      if (mounted) {
+        _progressController.stop();
+        setState(() => _downloading = false);
+      }
     }
   }
 
@@ -4918,7 +4942,15 @@ class _BackgroundPreviewBoxState extends State<_BackgroundPreviewBox> {
                               if (_downloading)
                                 Container(
                                   color: Colors.black26,
-                                  child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                  child: Center(
+                                    child: AnimatedBuilder(
+                                      animation: _progressController,
+                                      builder: (context, _) => CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        value: Curves.easeOut.transform(_progressController.value) * 0.85,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                             ],
                           ),
@@ -4926,7 +4958,15 @@ class _BackgroundPreviewBoxState extends State<_BackgroundPreviewBox> {
                       : Container(
                           color: isDark ? const Color(0xFF232E3C) : const Color(0xFFE0E0E0),
                           child: _downloading
-                              ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                              ? Center(
+                                  child: AnimatedBuilder(
+                                    animation: _progressController,
+                                    builder: (context, _) => CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      value: Curves.easeOut.transform(_progressController.value) * 0.85,
+                                    ),
+                                  ),
+                                )
                               : Icon(Icons.image, size: 48,
                                   color: isDark ? const Color(0xFF6C7883) : const Color(0xFF999999)),
                         ),

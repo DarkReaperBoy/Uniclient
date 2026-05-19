@@ -3210,13 +3210,14 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		enabled, canChange, err := e.GetContentSettings(params.AccountID)
+		enabled, canChange, ageVerify, err := e.GetContentSettings(params.AccountID)
 		if err != nil {
 			return nil, err
 		}
 		return json.Marshal(map[string]interface{}{
 			"sensitive_enabled":    enabled,
 			"sensitive_can_change": canChange,
+			"age_verify_needed":   ageVerify,
 		})
 
 	case "SetContentSettings":

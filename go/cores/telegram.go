@@ -16601,12 +16601,28 @@ func (t *TelegramCore) GetBackgroundEmojiList() ([]int64, error) {
 	}
 }
 
-func (t *TelegramCore) GetContentSettings() (sensitiveEnabled bool, sensitiveCanChange bool, err error) {
+func (t *TelegramCore) GetContentSettings() (sensitiveEnabled bool, sensitiveCanChange bool, ageVerifyNeeded bool, err error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
-	if !t.authed || t.api == nil { return false, false, ErrAuth }
+	if !t.authed || t.api == nil { return false, false, false, ErrAuth }
 	cs, err := t.api.AccountGetContentSettings(t.ctx)
-	if err != nil { return false, false, err }
-	return cs.SensitiveEnabled, cs.SensitiveCanChange, nil
+	if err != nil { return false, false, false, err }
+	if !cs.SensitiveCanChange {
+		result, err2 := t.api.HelpGetAppConfig(t.ctx, 0)
+		if err2 == nil {
+			if cfg, ok := result.(*tg.HelpAppConfig); ok && cfg.Config != nil {
+				if obj, ok2 := cfg.Config.(*tg.JSONObject); ok2 {
+					for _, kv := range obj.Value {
+						if kv.Key == "need_age_video_verification" {
+							if b, ok3 := kv.Value.(*tg.JSONBool); ok3 {
+								ageVerifyNeeded = b.Value
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return cs.SensitiveEnabled, cs.SensitiveCanChange, ageVerifyNeeded, nil
 }
 
 func (t *TelegramCore) SetContentSettings(sensitiveEnabled bool) error {

@@ -3865,7 +3865,7 @@ class EngineService {
     }
   }
 
-  Future<({bool sensitiveEnabled, bool sensitiveCanChange})> getContentSettings(String accountId) async {
+  Future<({bool sensitiveEnabled, bool sensitiveCanChange, bool ageVerifyNeeded})> getContentSettings(String accountId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
     }));
@@ -3875,10 +3875,11 @@ class EngineService {
       return (
         sensitiveEnabled: data['sensitive_enabled'] as bool? ?? false,
         sensitiveCanChange: data['sensitive_can_change'] as bool? ?? false,
+        ageVerifyNeeded: data['age_verify_needed'] as bool? ?? false,
       );
     } catch (e) {
       Debug.error('ENGINE', 'getContentSettings failed', e);
-      return (sensitiveEnabled: false, sensitiveCanChange: false);
+      return (sensitiveEnabled: false, sensitiveCanChange: false, ageVerifyNeeded: false);
     }
   }
 
