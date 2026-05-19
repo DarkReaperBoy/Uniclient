@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -120,6 +121,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
 
   List<CustomEmojiSetSummary> _emojiSets = [];
   bool _loadingEmojiSets = false;
+  final Map<String, Uint8List> _decodedThumbCache = {};
 
   final GlobalKey _iconButtonKey = GlobalKey();
   OverlayEntry? _flyOverlay;
@@ -218,6 +220,16 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     try {
       final sets = await engine.getInstalledEmojiSets(accountId);
       if (!mounted) return;
+      _decodedThumbCache.clear();
+      for (final set in sets) {
+        for (final sticker in set.stickers) {
+          if (sticker.thumbB64.isNotEmpty && !_decodedThumbCache.containsKey(sticker.thumbB64)) {
+            try {
+              _decodedThumbCache[sticker.thumbB64] = base64Decode(sticker.thumbB64);
+            } catch (_) {}
+          }
+        }
+      }
       setState(() {
         _emojiSets = sets;
         _loadingEmojiSets = false;
@@ -628,6 +640,21 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                           ),
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: () {
+                          _dismissToast();
+                          Navigator.of(context).pop();
+                        },
+                        child: const Text(
+                          'View Premium',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF40a7e3),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -714,19 +741,21 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
 
   Widget _buildSetTabIcon(CustomEmojiSetSummary set, int tabIndex, Color tabColor, Color activeColor) {
     if (set.stickers.isNotEmpty && set.stickers.first.thumbB64.isNotEmpty) {
-      final bytes = base64Decode(set.stickers.first.thumbB64);
-      return Opacity(
-        opacity: _selectedTab == tabIndex ? 1.0 : 0.6,
-        child: Image.memory(
-          bytes,
-          width: 20,
-          height: 20,
-          fit: BoxFit.contain,
-          gaplessPlayback: true,
-          errorBuilder: (_, __, ___) => Icon(Icons.emoji_emotions_outlined, size: 20,
-            color: _selectedTab == tabIndex ? activeColor : tabColor),
-        ),
-      );
+      final bytes = _decodedThumbCache[set.stickers.first.thumbB64];
+      if (bytes != null) {
+        return Opacity(
+          opacity: _selectedTab == tabIndex ? 1.0 : 0.6,
+          child: Image.memory(
+            bytes,
+            width: 20,
+            height: 20,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => Icon(Icons.emoji_emotions_outlined, size: 20,
+              color: _selectedTab == tabIndex ? activeColor : tabColor),
+          ),
+        );
+      }
     }
     if (set.stickers.isNotEmpty && set.stickers.first.emoji.isNotEmpty) {
       return Text(set.stickers.first.emoji, style: const TextStyle(fontSize: 18));
@@ -780,80 +809,88 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   Widget _buildEmojiSetGrid(CustomEmojiSetSummary emojiSet, bool isDark) {
     final engine = _getEngine();
     final accountId = widget.accountId;
+    final stickers = emojiSet.stickers;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(_gridPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6, left: 4),
-            child: Text(
-              emojiSet.title,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(_gridPadding, _gridPadding, _gridPadding, 0),
+          sliver: SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 6, left: 4),
+              child: Text(
+                emojiSet.title,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
+                ),
               ),
             ),
           ),
-          Wrap(
-            spacing: 2,
-            runSpacing: 2,
-            children: [
-              for (final sticker in emojiSet.stickers)
-                Builder(
-                  builder: (cellContext) {
-                    final docId = int.tryParse(sticker.fileId) ?? 0;
-                    final isSelected = _iconEmojiId == docId && docId != 0;
-                    return GestureDetector(
-                      onTap: () {
-                        if (docId != 0) {
-                          _selectCustomEmoji(cellContext, docId, sticker.emoji);
-                        } else if (sticker.emoji.isNotEmpty) {
-                          _selectEmoji(cellContext, sticker.emoji, documentId: 0);
-                        }
-                      },
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: Container(
-                          width: _gridCellSize,
-                          height: _gridCellSize,
-                          decoration: isSelected
-                              ? BoxDecoration(
-                                  borderRadius: BorderRadius.circular(8),
-                                  color: isDark
-                                      ? const Color(0xFF2b5278)
-                                      : const Color(0xFFE3F2FD),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(_gridPadding, 0, _gridPadding, _gridPadding),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: _gridCellSize + 2,
+              mainAxisSpacing: 2,
+              crossAxisSpacing: 2,
+              childAspectRatio: 1,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final sticker = stickers[index];
+                final docId = int.tryParse(sticker.fileId) ?? 0;
+                final isSelected = _iconEmojiId == docId && docId != 0;
+                return Builder(
+                  builder: (cellContext) => GestureDetector(
+                    onTap: () {
+                      if (docId != 0) {
+                        _selectCustomEmoji(cellContext, docId, sticker.emoji);
+                      } else if (sticker.emoji.isNotEmpty) {
+                        _selectEmoji(cellContext, sticker.emoji, documentId: 0);
+                      }
+                    },
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Container(
+                        decoration: isSelected
+                            ? BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                color: isDark
+                                    ? const Color(0xFF2b5278)
+                                    : const Color(0xFFE3F2FD),
+                              )
+                            : null,
+                        child: Center(
+                          child: (engine != null && accountId != null && docId != 0)
+                              ? CustomEmojiTopicIcon(
+                                  documentId: docId,
+                                  accountId: accountId,
+                                  engine: engine,
+                                  size: _gridIconSize,
                                 )
-                              : null,
-                          child: Center(
-                            child: (engine != null && accountId != null && docId != 0)
-                                ? CustomEmojiTopicIcon(
-                                    documentId: docId,
-                                    accountId: accountId,
-                                    engine: engine,
-                                    size: _gridIconSize,
-                                  )
-                                : (sticker.thumbB64.isNotEmpty)
-                                    ? Image.memory(
-                                        base64Decode(sticker.thumbB64),
-                                        width: _gridIconSize,
-                                        height: _gridIconSize,
-                                        fit: BoxFit.contain,
-                                        gaplessPlayback: true,
-                                      )
-                                    : Text(sticker.emoji, style: const TextStyle(fontSize: 22)),
-                          ),
+                              : (sticker.thumbB64.isNotEmpty && _decodedThumbCache.containsKey(sticker.thumbB64))
+                                  ? Image.memory(
+                                      _decodedThumbCache[sticker.thumbB64]!,
+                                      width: _gridIconSize,
+                                      height: _gridIconSize,
+                                      fit: BoxFit.contain,
+                                      gaplessPlayback: true,
+                                    )
+                                  : Text(sticker.emoji, style: const TextStyle(fontSize: 22)),
                         ),
                       ),
-                    );
-                  },
-                ),
-            ],
+                    ),
+                  ),
+                );
+              },
+              childCount: stickers.length,
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
