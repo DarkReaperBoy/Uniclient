@@ -322,10 +322,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 # chat_view — Audit chunk 48
 
-## chat_view — Missing bars, voice listen state, group call defects
-
-- [ ] [CRITICAL] `_ContactStatusBar` handles only three states (isBlocked → Unblock, isBot → label, non-contact → Add/Block); AyuGram's `ContactStatus` has nine states, five of which are completely unimplemented: `UnarchiveOrBlock`, `UnarchiveOrReport`, `SharePhoneNumber`, `RequestChatInfo`, and `SetBotPhoto` — `chat_view.dart:9345` ← `AyuGram/Telegram/SourceFiles/history/view/history_view_contact_status.cpp:348`
-
 ## choose_datetime_box — schedule/calendar/time-picker dialog suite
 
 - [ ] [MAJOR] Non-premium repeat click shows a custom `TelegramBox` dialog instead of a toast notification — C++ calls `Settings::ShowPremiumPromoToast(...)` which displays a dismissable toast with a clickable "Premium" link; Dart pops up a full box with a hardcoded text block — `choose_datetime_box.dart:1173` ← `history_view_schedule_box.cpp:129-143`
