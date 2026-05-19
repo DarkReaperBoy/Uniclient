@@ -318,10 +318,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — `_buildCompletedPlaceholder` copies _exportSteps but does not reflect actual completed step data from engine
-
-- [ ] [MAJOR] The completed view creates `completedSteps` by mapping existing `_exportSteps` and substituting `info: 'Done'` for empty info fields. However `_exportSteps` is populated by `_buildExportStepList()` at start time and may not reflect what the engine actually completed (e.g. if the engine added steps dynamically via `_onExportProgress`). Steps that were never updated will show placeholder "Done" labels with no real info. — `chat_export.dart:2266-2271` ← `export_view_progress.cpp:310-353`
-
 ## chat_export — Completed view missing total file count display
 
 - [ ] [MAJOR] AyuGram's completed state shows `lng_export_total_amount` = "Total files: {amount}" (in the done state via `showDone()`). Dart's completed view does not display total file count anywhere despite `_totalFiles` and `_totalSizeBytes` being tracked. — `chat_export.dart:2257-2375` ← `lang.strings` "lng_export_total_amount"
