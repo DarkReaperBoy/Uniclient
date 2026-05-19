@@ -2841,6 +2841,8 @@ class InlineBotResult {
   final int thumbW;
   final int thumbH;
   final String thumbB64;
+  final int documentId;
+  final String documentExtra;
 
   const InlineBotResult({
     this.id = '',
@@ -2852,6 +2854,8 @@ class InlineBotResult {
     this.thumbW = 0,
     this.thumbH = 0,
     this.thumbB64 = '',
+    this.documentId = 0,
+    this.documentExtra = '',
   });
 
   factory InlineBotResult.fromJson(Map<String, dynamic> json) {
@@ -2865,6 +2869,8 @@ class InlineBotResult {
       thumbW: json['thumb_w'] as int? ?? 0,
       thumbH: json['thumb_h'] as int? ?? 0,
       thumbB64: json['thumb_b64'] as String? ?? '',
+      documentId: json['document_id'] as int? ?? 0,
+      documentExtra: json['document_extra'] as String? ?? '',
     );
   }
 }

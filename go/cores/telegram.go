@@ -16974,15 +16974,17 @@ func (t *TelegramCore) RequestBotWebView(chatID string, botID string) (string, e
 
 // InlineBotResult represents a single inline bot result for the UI.
 type InlineBotResult struct {
-	ID          string `json:"id"`
-	Type        string `json:"type"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	ThumbURL    string `json:"thumb_url,omitempty"`
-	ContentURL  string `json:"content_url,omitempty"`
-	ThumbW      int    `json:"thumb_w,omitempty"`
-	ThumbH      int    `json:"thumb_h,omitempty"`
-	ThumbB64    string `json:"thumb_b64,omitempty"`
+	ID            string `json:"id"`
+	Type          string `json:"type"`
+	Title         string `json:"title"`
+	Description   string `json:"description"`
+	ThumbURL      string `json:"thumb_url,omitempty"`
+	ContentURL    string `json:"content_url,omitempty"`
+	ThumbW        int    `json:"thumb_w,omitempty"`
+	ThumbH        int    `json:"thumb_h,omitempty"`
+	ThumbB64      string `json:"thumb_b64,omitempty"`
+	DocumentID    int64  `json:"document_id,omitempty"`
+	DocumentExtra string `json:"document_extra,omitempty"`
 }
 
 // InlineBotResults holds the full response from an inline bot query.
@@ -17082,6 +17084,9 @@ func (t *TelegramCore) GetInlineBotResultsFull(botID string, query string, offse
 			}
 			if doc, ok := v.GetDocument(); ok {
 				if d, ok := doc.(*tg.Document); ok {
+					item.DocumentID = d.ID
+					item.DocumentExtra = encodeFileExtra(d.AccessHash, d.FileReference)
+					t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
 					if item.ThumbB64 == "" {
 						item.ThumbB64 = extractStrippedThumbB64(d.Thumbs)
 					}

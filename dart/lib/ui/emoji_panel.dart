@@ -3034,8 +3034,7 @@ class _GifTabState extends State<_GifTab> {
   }
 
   void _onSearchResultContextMenu(InlineBotResult result, Offset globalPos) async {
-    final fileId = int.tryParse(result.id);
-    if (fileId == null || fileId == 0) return;
+    if (result.documentId == 0) return;
     widget.onContextMenuToggle?.call(true);
     final menuResult = await showMenu<String>(
       context: context,
@@ -3052,7 +3051,7 @@ class _GifTabState extends State<_GifTab> {
       final engine = context.read<EngineService>();
       final activeAccount = appState.activeAccount;
       if (activeAccount == null) return;
-      await engine.saveGif(activeAccount.id, fileId);
+      await engine.saveGif(activeAccount.id, result.documentId, extra: result.documentExtra);
     }
   }
 
