@@ -244,18 +244,6 @@ All method signatures match both the FFI implementation (`bridge_ffi.dart`) and 
 
 # auth_screen — Auth screen behavioral and wiring issues
 
-- [ ] [CRITICAL] Language picker stores `_selectedLanguageCode` preference but never downloads or applies Telegram language packs from the API — picker appears fully functional but is not engine-wired; AyuGram fetches packs via `lang_cloud_manager` on selection — `auth_screen.dart:2150-2170,2236` ← `AyuGram/Telegram/SourceFiles/lang/lang_cloud_manager.cpp`
-
-- [ ] [MAJOR] `SRP_ID_INVALID` maps to the string `'Session expired, retrying...'` but nothing in the Dart actually re-fetches password data; AyuGram calls `requestPasswordData()` → `MTPaccount_GetPassword` to obtain fresh SRP parameters before retrying — without this the user is stuck on the 2FA screen — `auth_screen.dart:743` ← `AyuGramDesktop/Telegram/SourceFiles/intro/intro_password_check.cpp:157-177`
-
-- [ ] [MAJOR] `"Didn't get the code?"` button rendered unconditionally inside `_OtpCodeInput`; AyuGram's equivalent (`_noTelegramCode` / "No Telegram account?") is only shown when `getData()->codeByTelegram == true` — when code is delivered via SMS the button must be hidden — `auth_screen.dart:1957-1966` ← `AyuGramDesktop/Telegram/SourceFiles/intro/intro_code.cpp:103-107`
-
-- [ ] [MAJOR] `PASSWORD_RECOVERY_EXPIRED` is mapped to an error string but the UI stays in recovery mode; AyuGram clears `_emailPattern` and calls `toPassword()` to return the user to password entry — `auth_screen.dart:749` ← `AyuGramDesktop/Telegram/SourceFiles/intro/intro_password_check.cpp:260-262`
-
-- [ ] [MAJOR] `PASSWORD_RECOVERY_NA` is mapped to the string `'Recovery not available.'` but the reset button is never shown; AyuGram's `recoverStartFail()` calls `showReset()` → `showResetButton()` so the user can still reset the account — `auth_screen.dart:749` ← `AyuGramDesktop/Telegram/SourceFiles/intro/intro_password_check.cpp:258-259,334-345`
-
-- [ ] [MAJOR] `_CoverGradient` is displayed statically during `qr` and `input` (phone) steps; every AyuGram intro step is constructed with `hasCover = false` (default), so the cover gradient is never statically visible — it only appears during cross-step transition animations — showing it as a persistent 208 px header for those two steps has no equivalent in AyuGram — `auth_screen.dart:137,367-370` ← `AyuGramDesktop/Telegram/SourceFiles/intro/intro_step.cpp:325-326`, `intro_phone.cpp:54`, `intro_qr.cpp:198`
-
 # ayu_appearance_page — Audit findings
 
 - [ ] [CRITICAL] App icon change not applied to running app: selecting an icon only calls `appState.setAppIcon(v)` (state save) but never calls the equivalent of `applyIcon()` — no window icon refresh, no tray icon update, no notification badge refresh — `ayu_appearance_page.dart:988` ← `AyuGram/ayu/ui/components/icon_picker.cpp:42-52,178` (`applyIcon()` calls `Window::OverrideApplicationIcon`, `refreshApplicationIcon`, `tray().updateIconCounters`, `notifyUnreadBadgeChanged`)
@@ -264,67 +252,19 @@ All method signatures match both the FFI implementation (`bridge_ffi.dart`) and 
 
 - [ ] [MAJOR] Icon picker deselection has no fade-out animation: `_prevSelected` is tracked (dart:987) but `wasPrev` (dart:983) is never used in the `AnimatedOpacity` opacity expression — old selection snaps instantly to opacity 0 while new one fades in; C++ crossfades both simultaneously — `ayu_appearance_page.dart:983,994-998` ← `AyuGram/ayu/ui/components/icon_picker.cpp:119-129` (`opacity = 1.0f - _animation.value(1.0f)` for old, `_animation.value(1.0f)` for new)
 
-- [ ] [MAJOR] Font selector has no keyboard navigation: Dart dialog has no key handler for `Up`/`Down`/`PageUp`/`PageDown` to move selection through the font list — `ayu_appearance_page.dart:759-888` ← `AyuGram/ayu/ui/boxes/font_selector.cpp:967-989` (`keyPressEvent` handles `Key_Up`, `Key_Down`, `Key_PageUp`, `Key_PageDown` with scroll-to-selected)
-
 # ayu_chats_page — Audit Findings
 
 - [ ] [CRITICAL] `_MessagePreviewStandalone` is a static Flutter mockup with hardcoded fake bubbles — AyuGram's `MessagePreview` renders real `HistoryItem` objects through the full Telegram rendering pipeline (`view->draw(p, context)`), subscribes to all relevant settings changes via `rpl::merge(...)` and calls `refresh()` automatically. The Dart version approximates appearance but cannot reflect how messages actually render (font metrics, actual theme colors, real bubble geometry from `Ui::SetBubbleRadiusOverride`). The preview is non-authoritative. — `ayu_chats_page.dart:643` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/components/message_preview.cpp:52-140`
 
-- [ ] [CRITICAL] Wide multiplier `min` is `0.5` in Dart but `kMinSize = 1.00` in AyuGram — allows 10 invalid extra values (0.50–0.95) that AyuGram never permits — `ayu_chats_page.dart:363` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_chats.cpp:241`
-
-- [ ] [MAJOR] Wide multiplier `divisions: 70` in Dart but AyuGram uses 61 steps (`(4.00 - 1.00) / 0.05 + 1 = 61`) — with correct `min=1.0` that means `divisions=60`; Dart's 70 divisions produce 71 discrete positions over the wrong range — `ayu_chats_page.dart:365` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_chats.cpp:277`
-
-- [ ] [MAJOR] Recent Stickers Count slider `steps: 200` is off-by-one — AyuGram uses `.steps = 200 + 1` (201 steps, yielding values 0–200); Dart's 200 steps only reaches index 199 — `ayu_chats_page.dart:61` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_chats.cpp:79`
-
-- [ ] [MAJOR] Bubble radius slider does not update the preview in real-time during drag — AyuGram fires `previewState->widget->setBubbleRadius(index)` on every `onChanged` tick (during drag); Dart only calls `widget.onChanged` inside `onChangeEnd` after a blocking confirm dialog. Preview stays stale while dragging — `ayu_chats_page.dart:474-490` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_chats.cpp:255-265`
-
-- [ ] [MAJOR] Context menu description text is shown **before** the choose-buttons in Dart but AyuGram places it **after** all buttons (`builder.addSkip(); builder.addDividerText(...); builder.addSkip();` at the end of `BuildContextMenuElements`) — `ayu_chats_page.dart:176-179` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_chats.cpp:373-375`
-
-- [ ] [MAJOR] Missing section divider between the stickers toggles and the Recent Stickers Count slider — AyuGram's `BuildStickersAndEmoji` ends with `ayu.addSectionDivider()` before `BuildRecentStickersLimit` is called, creating a visual break; Dart places the slider directly after the reactions toggle with no intervening divider — `ayu_chats_page.dart:58-66` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_chats.cpp:70,73`
-
-- [ ] [MAJOR] Message Shot description uses `b.addDescription(...)` widget directly after the toggle, with no surrounding skips — AyuGram wraps it as `builder.addSkip(); builder.addDividerText(...); builder.addSkip();` (styled `DividerText` with vertical spacing on both sides) — `ayu_chats_page.dart:90-91` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_chats.cpp:127-129`
-
-- [ ] [MAJOR] Wide multiplier description text is missing — AyuGram renders `builder.addDividerText(tr::ayu_SettingsWideMultiplierDescription())` with surrounding skips after the wide multiplier slider; Dart renders it inline as a plain `Text` inside `_WideMultiplierSliderState.build` without the divider-text style — `ayu_chats_page.dart:387-392` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_chats.cpp:291-293`
-
-- [ ] [MAJOR] Bubble radius `onFinalChanged` in AyuGram applies the setting **immediately** then shows a non-blocking restart prompt via `ShowRestartPrompt(controller)` — Dart instead shows a **blocking** confirm dialog before applying, and cancelling the dialog reverts the slider. This is a UX contract inversion — `ayu_chats_page.dart:478-489` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_chats.cpp:260-265`
-
 # ayu_filters_page — Audit findings
-
-- [ ] [CRITICAL] "Restrict" snackbar action adds a global exclusion (telling the engine "don't apply this shared filter in this dialog") instead of converting the filter to a per-dialog filter (setting `filter.dialogId = dialogId` and updating it so it is no longer shared). The user sees "Tap to restrict to this dialog" but the code does the opposite — it excludes the newly-created shared filter from the current dialog rather than binding it to that dialog. — `ayu_filters_page.dart:1270-1274` ← `AyuGram/ayu/ui/settings/filters/edit_filter.cpp:228-239`
-
-- [ ] [MAJOR] Export `_doExport` collects `dialogId` values from both per-dialog filters **and** exclusions when building the `peers` hint map, so the exported JSON contains peer hints for dialog IDs that only appear as exclusion targets. AyuGram only collects peers from filters whose `dialogId` is non-null (per-dialog filters), never from exclusions. — `ayu_filters_page.dart:1711-1713` ← `AyuGram/ayu/features/filters/filters_utils.cpp:511-514`
-
-- [ ] [MAJOR] `_ShadowBanRowState._resolvePeerInfo()` resolves a shadow-banned peer by checking `chat.chatId.endsWith(idStr)` as a fallback. Telegram channel IDs are stored as `-100XXXXXXXXXX` so the bare numeric part can appear as a suffix of unrelated IDs, potentially matching the wrong peer. AyuGram strips the sign and applies `PeerId::kChatTypeMask` bit-masking (`abs(dialogId)` + `PeerIdHelper`) to get the correct peer regardless of sign or type prefix. — `ayu_filters_page.dart:1039` ← `AyuGram/ayu/ui/settings/filters/per_dialog_filter.cpp:28-29,36`
 
 # ayugram_settings_screen — Category icon mismatches
 
-- [ ] [MAJOR] "AyuGram" category button uses `Icons.favorite_border` (heart outline) but AyuGram uses `menuIconGroupReactions` → `"menu/group_reactions"` (animated emoji reactions icon) — `ayugram_settings_screen.dart:136` ← `AyuGram/ayu/ui/settings/settings_main.cpp:106` + `AyuGram/ui/menu_icons.style:140`
-
-- [ ] [MAJOR] "Filters" category button uses `Icons.filter_list` but AyuGram uses `menuIconTagFilter` → `"menu/tag_filter"` — `ayugram_settings_screen.dart:142` ← `AyuGram/ayu/ui/settings/settings_main.cpp:109` + `AyuGram/ui/menu_icons.style:165`
-
-- [ ] [MAJOR] "General" category button uses `Icons.grid_view` but AyuGram uses `menuIconShowAll` → `"menu/all_media"` (show-all icon, not a grid) — `ayugram_settings_screen.dart:148` ← `AyuGram/ayu/ui/settings/settings_main.cpp:113` + `AyuGram/ui/menu_icons.style:153`
-
-- [ ] [MAJOR] "Other" category button uses `Icons.star` but AyuGram uses `menuIconFave` → `"menu/favorite"` (Telegram's specific favorites star asset) — `ayugram_settings_screen.dart:167` ← `AyuGram/ayu/ui/settings/settings_main.cpp:131` + `AyuGram/ui/menu_icons.style:37`
-
 # ayu_other_page — 4 issues
-
-- [ ] [CRITICAL] Donation amounts (USD/TON/RUB) and donate username are compile-time `String.fromEnvironment()` constants with hardcoded defaults (`'5.00'`, `'3.50'`, `'386'`, `'RadianceTG'`); AyuGram fetches all four values at runtime via `RCManager` which polls `https://update.ayugram.one/rc/current/desktop2` every hour (with extera fallback), so they can change without an app rebuild — `ayu_other_page.dart:421-428` ← `rc_manager.cpp:179-203` + `donate_info_box.cpp:179-182`
 
 - [ ] [MAJOR] DonateInfoBox username tap uses `launchUrl(Uri.parse('https://t.me/...'), mode: LaunchMode.externalApplication)` (opens external browser/Telegram app); AyuGram creates an in-app deep link via `controller->session().createInternalLinkFull(usernameTrimmed)` so clicking opens the user's profile/chat within the client — `ayu_other_page.dart:443-445` ← `donate_info_box.cpp:211`
 
-- [ ] [MAJOR] `_SupportDescription` wraps the entire paragraph in `InkWell` making all text tappable; AyuGram uses `AddDividerText` with `Ui::Text::Link(...)` so only the "contact support" span is a link — `ayu_other_page.dart:394-415` ← `settings_other.cpp:161-167`
-
-- [ ] [MAJOR] QR box address display uses `SelectableText` (plain selectable label); AyuGram uses `Ui::InviteLinkLabel` which is a specialized copyable-link widget with dedicated visual treatment for addresses — `ayu_other_page.dart:665-668` ← `donate_qr_box.cpp:142-146`
-
 # ayu_section_builder — Settings Section Builder Audit
-
-- [ ] [MAJOR] Nested checkbox left padding 44px vs AyuGram's 57px (23% off) — `ayu_section_builder.dart:770` ← `settings.style:567` (`powerSavingButton: padding: margins(57px, 8px, 22px, 8px)`) + `settings_ayu_utils.cpp:233`
-
-- [ ] [MAJOR] Nested checkbox vertical padding 6px top/bottom vs AyuGram's 8px (25% off) — `ayu_section_builder.dart:770` ← `settings.style:568` (`powerSavingButton: padding: margins(57px, 8px, 22px, 8px)`)
-
-- [ ] [MAJOR] Toggle row bottom padding 10px vs AyuGram's 8px for no-icon variant (25% off) — `ayu_section_builder.dart:274` (`EdgeInsets.symmetric(vertical: 10)`) ← `settings.style:26` (`settingsButtonNoIcon: padding: margins(22px, 10px, 22px, 8px)`)
-
-- [ ] [MAJOR] `_NestedCheckbox` uses plain `GestureDetector` with no ripple feedback; AyuGram creates a `Ui::RippleButton` child stacked behind each checkbox to provide click ripple — `ayu_section_builder.dart:756` ← `settings_ayu_utils.cpp:364` (`Ui::CreateChild<Ui::RippleButton>(verticalLayout, st::defaultRippleAnimation)`)
 
 # ayu_toggle — No issues found
 
@@ -377,15 +317,7 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 # call_panel — Call Panel UI
 
-- [ ] [CRITICAL] Signal quality scale mismatch — `call_panel.dart:1926-1927` computes `(quality * _barCount / 100).ceil()` treating `quality` as a 0–100 percentage. The engine bridge returns 0–4 directly (matching AyuGram `Call::kSignalBarCount = 4`; confirmed by `engine_models.dart:2526` defaulting `signalQuality = 4`). At full signal (quality=4): `(4×4/100)⌈⌉ = 1` — shows only 1 of 4 bars. Correct mapping is `quality.clamp(0, _barCount)`. ← `AyuGramDesktop/Telegram/SourceFiles/calls/calls_signal_bars.cpp:38-39` (`i < _count` where `_count` is 0–4 directly)
-
-- [ ] [CRITICAL] Rating dialog shown unconditionally on every call close — `call_panel.dart:2179-2183` always calls `showCallRatingDialog(context, callId: effectiveCallId)` regardless of server intent. AyuGram only shows the rating box when the server sets `need_rating` on the `PhoneCallDiscarded` update (`calls_call.cpp:809`). This will display a rating prompt after every call including ones the user declines or that fail. ← `AyuGramDesktop/Telegram/SourceFiles/calls/calls_call.cpp:809`
-
 - [ ] [CRITICAL] `showCallPanel` dialog state is frozen at creation — `call_panel.dart:2173` calls `showDialog` capturing a static `CallPanelInfo` object. There is no mechanism to push state updates into the dialog after it is shown (no `StatefulBuilder`, no stream, no `Provider` rebuild scope). Accepting an incoming call (`onAccept` at line 2201) fires `engine.acceptCall` but the panel stays on the `incoming` UI with Decline/Answer buttons forever — it never transitions to `connecting`/`active`, never shows the controls row, never updates mute/camera state, never shows video streams. AyuGram's panel is a live reactive widget updated via `replaceCall()` and observable streams. ← `AyuGramDesktop/Telegram/SourceFiles/calls/calls_panel.cpp:1126-1150` (`requestControlsHidden`/`updateControlsShown` react to live state changes)
-
-- [ ] [MAJOR] Controls auto-hide never fires while mouse is stationary over panel in non-fullscreen video mode — `call_panel.dart:304-310` `_onMouseMove()` only schedules the hide timer (`_kHideControlsFullscreen = 5s`) when `widget.info.isFullscreen`. In non-fullscreen video mode, `onHover`/`onEnter` show controls but no hide timer is started; controls only hide when mouse exits (2s). In AyuGram, any mouse movement in a windowed video call restarts `kHideControlsQuickTimeout` (2s), so controls auto-hide after 2s of inactivity even when not fullscreen. ← `AyuGramDesktop/Telegram/SourceFiles/calls/calls_panel.cpp:79,309` (`kHideControlsQuickTimeout = 2s` applies to all video modes)
-
-- [ ] [MAJOR] 1-to-conference upgrade has a race condition that can orphan the user — `call_panel.dart:435-443`: `createConferenceCall` → `endCall` (existing 1:1) → `joinGroupCall` → `inviteToConferenceCall`. If `createConferenceCall` succeeds but the subsequent `endCall` or `joinGroupCall` throws, the original 1:1 call is terminated with no conference to fall back into. AyuGram handles this atomically server-side via `phone.upgradePherenceCall` / migration path in `calls_instance.cpp:startOrJoinConferenceCall`. ← `AyuGramDesktop/Telegram/SourceFiles/calls/calls_instance.cpp` (`startOrJoinConferenceCall` with atomic migration)
 
 # call_screen — GroupCallPanel / MinimisedCallBar audit
 
