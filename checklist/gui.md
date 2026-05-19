@@ -314,9 +314,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 # chat_export — Audit Findings
 
 
-## chat_export — Progress view: "please wait" text deviates from AyuGram spec
-
-- [ ] [MAJOR] Processing phase shows "Please wait, export is in progress." AyuGram uses `lng_export_progress` = "You can close this window now. Please don't quit Telegram until the data export is completed." — the Dart text is entirely different in meaning (it says wait, AyuGram says you can close the window). — `chat_export.dart:2201-2205` ← `export_view_progress.cpp:264-268` and `lang.strings` "lng_export_progress"
 
 ## chat_export — Completed view: "Show My Data" button label wrong
 
