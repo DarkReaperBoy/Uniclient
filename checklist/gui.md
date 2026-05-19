@@ -325,31 +325,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 ## choose_datetime_box — schedule/calendar/time-picker dialog suite
 
 
-# engine_service — Bridge/engine service layer audit
-
-## Scope
-`dart/lib/bridge/engine_service.dart` (~5,800 lines). Pure service layer — all methods call through to the Go FFI engine via `_callRaw` (sync) or `_callAsync` (background isolate). No UI code. Compared against AyuGram `data_group_call.h`, `data_changes.h`, and general Telegram data model patterns.
-
----
-
-- [ ] [MAJOR] `getMessages` uses synchronous `_callRaw` (blocks UI thread): loads up to 50 messages including proto decode + per-message `jsonDecode(contentRaw)` in `_cachedMsgFromProto`. On a slow device with rich messages this easily exceeds 16 ms/frame. Should use `_callAsync` — `engine_service.dart:2432` ← AyuGram `data/data_histories.h` (all history requests are async)
-
-- [ ] [MAJOR] `searchMessages` uses synchronous `_callRaw` (blocks UI thread): full-text search across cached messages is unbounded and could be slow — `engine_service.dart:4455` ← AyuGram `data/data_search_controller.h` (search is async/deferred with `DelayedSearchController`)
-
-- [ ] [MAJOR] `_cachedMsgFromProto` never populates `forwardFromId` — the converter at line 5563 reads `p.forwardFrom` (display name) but no `p.forwardFromId` or `extra['forward_from_id']` extraction. Meanwhile `getDeletedMessages` JSON path (line 2526) correctly sets `forwardFromId: map['forward_from_id']`. Every message loaded via the normal proto path (getMessages / fetchLiveMessages / getScheduledMessages / getPinnedMessages) has `forwardFromId == ''`, breaking "Forwarded from" click-to-open-chat navigation — `engine_service.dart:5580` ← `engine_service.dart:2526`
-
-- [ ] [MAJOR] `GroupCallParticipant` constructed at `getGroupCall` (line 1946) only populates 6 fields: `userId`, `displayName`, `isMuted`, `isSpeaking`, `hasVideo`, `avatarPath`. Missing from AyuGram's participant struct: `volume` (per-participant audio volume), `mutedByMe` (admin-muted vs self-muted — these need different icons/behaviour), `canSelfUnmute`, `sounding`, `additionalSpeaking`. Without `mutedByMe` the call participant list cannot distinguish admin-muted from self-muted state — `engine_service.dart:1946` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h` (muted/mutedByMe/canSelfUnmute/volume fields)
-
-- [ ] [MAJOR] `_dispatchEngineEvent` switch has no `default` case (line 5336): unknown event types are silently dropped. Any future engine event additions (story_updated, forum_topic_updated, scheduled_sent, call_signal_bars, etc.) will be black-holed without error — `engine_service.dart:5336` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_changes.h` (`Changes::storyUpdated`, `topicUpdated`, etc.)
-
-- [ ] [MAJOR] `getStickerFiles` (line 1787) and `getGifFiles` (line 1807) both reuse `EngineGetCustomEmojiFilesRequest` / `EngineGetCustomEmojiFilesResponse` proto types for completely different content types. If the custom-emoji proto ever gains new fields the sticker/GIF paths will silently forward garbage fields. Should have dedicated proto messages — `engine_service.dart:1787` ← `engine_service.dart:1360` (custom emoji uses same request type legitimately)
-
-- [ ] [MAJOR] `getGroupCall` event-path (`group_call_state`) uses `GroupCallInfo.fromJson` (line 5450) while the poll-path uses the inline proto converter (line 1941). These two code paths produce `GroupCallParticipant` objects from different sources — the JSON path may include fields (e.g. `mutedByMe`) that the proto converter drops, creating inconsistent state depending on how the call info was fetched — `engine_service.dart:5448` ← `engine_service.dart:1941`
-
-- [ ] [MAJOR] `getSharedMedia` uses synchronous `_callRaw` (line 4519) and `searchChats` uses synchronous `_callRaw` (line 4465). Shared media scan and chat search both query SQLite over potentially large datasets on the UI thread — `engine_service.dart:4519` ← AyuGram `data/data_shared_media.h` (all shared media queries are async)
-
-- [ ] [MAJOR] `_callAsync` return type is non-nullable `Future<Uint8List>` (line 5269), but 10+ call-sites check `if (respBytes == null || respBytes.isEmpty)` (e.g. lines 460, 477, 598, 1984). The null branch is dead code — if `_callAsync` ever changes signature to `Future<Uint8List?>` these sites would crash instead of handling it; if it never becomes nullable the dead branch masks the intent. The real guard should be only `respBytes.isEmpty` — `engine_service.dart:460` ← `engine_service.dart:5269`
-
 # color_picker_box — Color picker dialog vs AyuGram ColorEditor
 
 - [ ] [MAJOR] No custom circular cursor on gradient picker square — AyuGram generates a 16px circle cursor (black ring with white outline) and sets it via `setCursor(generateCursor())` in the `Picker` constructor; the Dart `_GradientSquare` sets no `mouseCursor` at all — `color_picker_box.dart:785` ← `AyuGramDesktop/Telegram/SourceFiles/ui/widgets/color_editor.cpp:69-99`
