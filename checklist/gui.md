@@ -318,9 +318,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — Location label text differs: shows "Location: path" instead of "Download path: {path}"
-
-- [ ] [MAJOR] `_buildLocationLabel` shows "Location: " prefix. AyuGram uses `lng_export_option_location` = "Download path: {path}". — `chat_export.dart:1622` ← `export_view_settings.cpp:316-322` and `lang.strings` "lng_export_option_location"
 
 ## chat_export — Size limit label shows only "N MB" without context text
 
