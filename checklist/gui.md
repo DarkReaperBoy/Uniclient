@@ -313,9 +313,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 # chat_export — Audit Findings
 
-## chat_export — Incorrect default state: `_profileMusic`, `_privateChannels`, and others differ from AyuGram defaults
-
-- [ ] [MAJOR] Default export types mismatch: AyuGram's `DefaultTypes()` enables `PersonalInfo|Userpics|Contacts|Stories|ProfileMusic|PersonalChats|PrivateGroups`. Dart sets `_profileMusic = true` and `_privateChannels = false` matching, but `_botChats = false` whereas AyuGram also has BotChats disabled by default — that part matches. However `_sessions = false` and `_otherData = false` are correct as they are absent from `DefaultTypes()`. The mismatch is `_profileMusic = true` is correct, BUT `_privateChannels = false` and all others match too. **Actual mismatch**: AyuGram defaults DO NOT include `PersonalChats | BotChats` in `fullChats` (they are always full, see `DefaultFullChats()`). The Dart code omits the `MustBeFull`/`MustNotBeFull` constraint entirely — `PersonalChats` and `BotChats` are always exported in full in AyuGram (no "Only my messages" sub-option at all), but Dart passes `hasSubOption: false` for those without enforcing `fullChats` semantics in the export params. — `chat_export.dart:1249-1259` ← `export_settings.h:115-118` and `export_settings.cpp:30-36`
 
 ## chat_export — `forceSubPath` not sent to engine — export written to wrong directory
 
