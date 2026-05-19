@@ -316,9 +316,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — Section header "Chats" shows "Chat export settings" in AyuGram
-
-- [ ] [MAJOR] `_buildSectionHeader('Chats', ...)` renders "Chats". AyuGram uses `lng_export_header_chats` = "Chat export settings". The Dart value is shortened and differs from spec. — `chat_export.dart:1248` ← `export_view_settings.cpp:191` and `lang.strings` "lng_export_header_chats"
 
 ## chat_export — Section header "Media" should be "Media export settings"
 
