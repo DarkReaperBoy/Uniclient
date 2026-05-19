@@ -1142,7 +1142,9 @@ class _ScreenShareChooser extends StatefulWidget {
 
 class _ScreenShareChooserState extends State<_ScreenShareChooser> {
   List<ScreenShareSource> _sources = [];
+  final Map<int, String> _thumbnails = {};
   bool _loading = true;
+  bool _isWayland = false;
   int _selectedIndex = -1;
   bool _withAudio = false;
 
@@ -1152,11 +1154,20 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
     _loadSources();
   }
 
+  @override
+  void dispose() {
+    for (final path in _thumbnails.values) {
+      try { File(path).deleteSync(); } catch (_) {}
+    }
+    super.dispose();
+  }
+
   Future<void> _loadSources() async {
     final sources = <ScreenShareSource>[];
 
     final isWayland = Platform.environment['WAYLAND_DISPLAY']?.isNotEmpty == true ||
         Platform.environment['XDG_SESSION_TYPE'] == 'wayland';
+    _isWayland = isWayland;
 
     if (isWayland) {
       sources.add(const ScreenShareSource(
@@ -1265,7 +1276,42 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
         _loading = false;
         if (sources.isNotEmpty) _selectedIndex = 0;
       });
+      _captureThumbnails();
     }
+  }
+
+  Future<void> _captureThumbnails() async {
+    for (int i = 0; i < _sources.length && i < 12; i++) {
+      final path = await _captureThumb(_sources[i], i);
+      if (path != null && mounted) {
+        setState(() => _thumbnails[i] = path);
+      }
+    }
+  }
+
+  Future<String?> _captureThumb(ScreenShareSource source, int index) async {
+    final path = '/tmp/uniclient_ss_thumb_$index.png';
+    try {
+      if (source.isScreen) {
+        if (_isWayland) {
+          final r = await Process.run('grim', ['-s', '0.1', path])
+              .timeout(const Duration(seconds: 3));
+          return r.exitCode == 0 ? path : null;
+        } else {
+          final r = await Process.run(
+              'import', ['-window', 'root', '-resize', '160x100', path])
+              .timeout(const Duration(seconds: 3));
+          return r.exitCode == 0 ? path : null;
+        }
+      } else if (!_isWayland) {
+        final wid = source.id.replaceFirst('window:', '');
+        final r = await Process.run(
+            'import', ['-window', wid, '-resize', '160x100', path])
+            .timeout(const Duration(seconds: 3));
+        return r.exitCode == 0 ? path : null;
+      }
+    } catch (_) {}
+    return null;
   }
 
   @override
@@ -1328,25 +1374,54 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
                                       children: [
-                                        Icon(
-                                          source.isScreen
-                                              ? Icons.desktop_windows
-                                              : Icons.web_asset,
-                                          size: 40,
-                                          color: selected
-                                              ? accentColor
-                                              : subTextColor,
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          source.name,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: textColor,
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(4),
+                                            child: _thumbnails.containsKey(i)
+                                                ? ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(4),
+                                                    child: Image.file(
+                                                      File(_thumbnails[i]!),
+                                                      fit: BoxFit.cover,
+                                                      width: double.infinity,
+                                                      errorBuilder:
+                                                          (_, __, ___) => Icon(
+                                                        source.isScreen
+                                                            ? Icons
+                                                                .desktop_windows
+                                                            : Icons.web_asset,
+                                                        size: 40,
+                                                        color: selected
+                                                            ? accentColor
+                                                            : subTextColor,
+                                                      ),
+                                                    ),
+                                                  )
+                                                : Icon(
+                                                    source.isScreen
+                                                        ? Icons.desktop_windows
+                                                        : Icons.web_asset,
+                                                    size: 40,
+                                                    color: selected
+                                                        ? accentColor
+                                                        : subTextColor,
+                                                  ),
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          textAlign: TextAlign.center,
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                              bottom: 4),
+                                          child: Text(
+                                            source.name,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: textColor,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                          ),
                                         ),
                                       ],
                                     ),
