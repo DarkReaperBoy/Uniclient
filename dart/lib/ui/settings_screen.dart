@@ -2051,8 +2051,13 @@ class _ScalePreviewContent extends StatelessWidget {
   }
 }
 
+Route<void> devicesScreenRoute({int initialTab = 0}) {
+  return settingsPageRoute(_DevicesScreen(initialTab: initialTab));
+}
+
 class _DevicesScreen extends StatelessWidget {
-  const _DevicesScreen();
+  final int initialTab;
+  const _DevicesScreen({this.initialTab = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -2062,6 +2067,7 @@ class _DevicesScreen extends StatelessWidget {
     final accentColor = context.palette.windowBgActive;
 
     return DefaultTabController(
+      initialIndex: initialTab,
       length: 2,
       child: Scaffold(
         backgroundColor: bgColor,

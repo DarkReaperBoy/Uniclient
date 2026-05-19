@@ -17,10 +17,11 @@ import '../theme/telegram_palette.dart';
 import '../theme/theme.dart';
 import 'confirm_box.dart';
 import 'popup_menu.dart';
+import 'settings_screen.dart' show devicesScreenRoute;
 import 'settings_style.dart';
 import 'telegram_toast.dart';
 import 'call_panel.dart' show CallRatingDialog, showCallRatingDialog;
-import 'call_screen.dart' show MinimisedCallBar;
+import 'call_screen.dart' show MinimisedCallBar, showGroupCallPanel;
 
 export 'call_panel.dart' show CallRatingDialog, showCallRatingDialog;
 export 'call_screen.dart' show MinimisedCallBar;
@@ -166,16 +167,27 @@ class _CallsBoxState extends State<_CallsBox> {
           _callTypeKey(e) == _callTypeKey(prev)) {
         current.add(e);
       } else {
+        current.sort((a, b) {
+          final aId = int.tryParse(a.msgId) ?? 0;
+          final bId = int.tryParse(b.msgId) ?? 0;
+          return bId.compareTo(aId);
+        });
         groups.add(_CallGroup(current));
         current = [e];
       }
     }
+    current.sort((a, b) {
+      final aId = int.tryParse(a.msgId) ?? 0;
+      final bId = int.tryParse(b.msgId) ?? 0;
+      return bId.compareTo(aId);
+    });
     groups.add(_CallGroup(current));
     return groups;
   }
 
   static const _kGroupCallScanLimit = 20;
   bool _initialGroupCallLoadDone = false;
+  final List<GroupCallStateEvent> _pendingGroupCallEvents = [];
 
   Future<void> _loadActiveGroupCalls() async {
     final engine = context.read<EngineService>();
@@ -205,11 +217,18 @@ class _CallsBoxState extends State<_CallsBox> {
     if (mounted) {
       setState(() => _activeGroupCalls = entries);
       _initialGroupCallLoadDone = true;
+      for (final event in _pendingGroupCallEvents) {
+        _updateGroupCallEntry(event);
+      }
+      _pendingGroupCallEvents.clear();
     }
   }
 
   void _onGroupCallEvent(GroupCallStateEvent event) {
-    if (!_initialGroupCallLoadDone) return;
+    if (!_initialGroupCallLoadDone) {
+      _pendingGroupCallEvents.add(event);
+      return;
+    }
     _updateGroupCallEntry(event);
   }
 
@@ -289,6 +308,7 @@ class _CallsBoxState extends State<_CallsBox> {
                   _groupedCalls.clear();
                 });
               }
+              await _refreshCallHistory();
             } catch (_) {}
           },
         );
@@ -298,9 +318,7 @@ class _CallsBoxState extends State<_CallsBox> {
 
   void _openCallSettings() {
     Navigator.of(context).pop();
-    Navigator.of(context).push(
-      settingsPageRoute(const _CallSettingsScreen()),
-    );
+    Navigator.of(context).push(devicesScreenRoute(initialTab: 1));
   }
 
   @override
@@ -545,35 +563,29 @@ class _ActiveGroupCallsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (entries.isEmpty) return const SizedBox.shrink();
     final p = context.palette;
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 200),
-      alignment: Alignment.topCenter,
-      child: entries.isEmpty
-          ? const SizedBox.shrink()
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 16, top: 8, bottom: 4),
-                  child: Text(
-                    'Active Group Calls',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: p.windowBgActive,
-                    ),
-                  ),
-                ),
-                // §34.3: peerListSingleRow — rows have no extra top/bottom padding
-                for (final entry in entries)
-                  _GroupCallRow(entry: entry, isDark: isDark),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Divider(height: 1, color: p.boxDividerBg),
-                ),
-              ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 16, top: 8, bottom: 4),
+          child: Text(
+            'Active video chats',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: p.windowBgActive,
             ),
+          ),
+        ),
+        for (final entry in entries)
+          _GroupCallRow(entry: entry, isDark: isDark),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Divider(height: 1, color: p.boxDividerBg),
+        ),
+      ],
     );
   }
 }
@@ -707,11 +719,25 @@ class _GroupCallRowState extends State<_GroupCallRow> {
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(20),
                                 onTap: () async {
+                                  final permOk = await requestCallPermissions(context);
+                                  if (!permOk || !context.mounted) return;
                                   final engine = context.read<EngineService>();
                                   try {
                                     await engine.joinGroupCall(
                                         chat.accountId, chat.chatId);
-                                  } catch (_) {}
+                                    if (context.mounted) {
+                                      Navigator.of(context).pop();
+                                      showGroupCallPanel(
+                                        context,
+                                        widget.entry.callInfo,
+                                        chatTitle: chat.title,
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      showTelegramToast(context, 'Failed to join call: $e');
+                                    }
+                                  }
                                 },
                                 child: Center(
                                   child: Icon(
@@ -941,10 +967,12 @@ class _CreateCallButtonState extends State<_CreateCallButton>
 class _CreateCallBox extends StatefulWidget {
   final List<String> prioritize;
   final int discardedInviteMsgId;
+  final String groupCallChatId;
 
   const _CreateCallBox({
     this.prioritize = const [],
     this.discardedInviteMsgId = 0,
+    this.groupCallChatId = '',
   });
 
   @override
@@ -982,11 +1010,11 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
   }
 
   Future<void> _loadAlreadyInParticipants() async {
-    if (widget.prioritize.isEmpty) return;
+    if (widget.prioritize.isEmpty || widget.groupCallChatId.isEmpty) return;
     final engine = context.read<EngineService>();
     final accountId = context.read<AppState>().activeAccountId;
     try {
-      final gc = await engine.getGroupCall(accountId, '');
+      final gc = await engine.getGroupCall(accountId, widget.groupCallChatId);
       if (gc != null && mounted) {
         setState(() {
           _alreadyInIds = gc.participants.map((p) => p.userId).toSet();
@@ -1819,72 +1847,63 @@ class _ConfInviteRowState extends State<_ConfInviteRow> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              if (!alreadyIn) ...[
-                Positioned(
-                  right: 64,
-                  top: 0,
-                  child: SizedBox(
-                    width: 36,
-                    height: 52,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      onPressed: widget.onVideoTap,
-                      icon: Icon(
-                        Icons.videocam,
-                        size: 20,
-                        color: widget.selected && widget.isVideo
-                            ? widget.accentColor
-                            : inactiveIconColor,
+              Positioned(
+                right: 4,
+                top: 0,
+                bottom: 0,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!alreadyIn) ...[
+                      SizedBox(
+                        width: 36,
+                        height: 52,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          onPressed: widget.onVideoTap,
+                          icon: Icon(
+                            Icons.videocam,
+                            size: 20,
+                            color: widget.selected && widget.isVideo
+                                ? widget.accentColor
+                                : inactiveIconColor,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  right: 28,
-                  top: 0,
-                  child: SizedBox(
-                    width: 36,
-                    height: 52,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      onPressed: widget.onAudioTap,
-                      icon: Icon(
-                        Icons.call,
-                        size: 20,
-                        color: widget.selected && !widget.isVideo
-                            ? widget.accentColor
-                            : inactiveIconColor,
+                      SizedBox(
+                        width: 36,
+                        height: 52,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          onPressed: widget.onAudioTap,
+                          icon: Icon(
+                            Icons.call,
+                            size: 20,
+                            color: widget.selected && !widget.isVideo
+                                ? widget.accentColor
+                                : inactiveIconColor,
+                          ),
+                        ),
                       ),
+                    ],
+                    SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: alreadyIn
+                          ? Icon(Icons.check_circle,
+                              size: 22, color: inactiveIconColor)
+                          : widget.selected
+                              ? Icon(Icons.check_circle,
+                                  size: 22, color: widget.accentColor)
+                              : Icon(Icons.radio_button_unchecked,
+                                  size: 22,
+                                  color: widget.isDark
+                                      ? const Color(0xFF3E546A)
+                                      : const Color(0xFFD0D0D0)),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-              if (!alreadyIn)
-                Positioned(
-                  right: 4,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: widget.selected
-                        ? Icon(Icons.check_circle,
-                            size: 22, color: widget.accentColor)
-                        : Icon(Icons.radio_button_unchecked,
-                            size: 22,
-                            color: widget.isDark
-                                ? const Color(0xFF3E546A)
-                                : const Color(0xFFD0D0D0)),
-                  ),
-                ),
-              if (alreadyIn)
-                Positioned(
-                  right: 4,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: Icon(Icons.check_circle,
-                        size: 22, color: inactiveIconColor),
-                  ),
-                ),
+              ),
             ],
           ),
         ),
@@ -2053,15 +2072,15 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
   }
 
   void _startRedial(BuildContext context) async {
+    final group = widget.group;
     final permOk = await requestCallPermissions(
       context,
-      video: false,
+      video: group.isVideo,
     );
     if (!permOk || !context.mounted) return;
     final engine = context.read<EngineService>();
-    final group = widget.group;
     await engine.startCall(widget.accountId, group.peerId,
-        video: false);
+        video: group.isVideo);
   }
 
   @override
@@ -2281,20 +2300,20 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
   }
 
   Future<void> _enumerateDevices() async {
-    if (Platform.isLinux) {
-      final sinks = await _pactlList('sink');
-      final sources = await _pactlList('source');
-      final cameras = await _v4l2List();
-      if (mounted) {
-        setState(() {
-          _outputDevices = ['Default', ...sinks];
-          _inputDevices = ['Default', ...sources];
-          _cameraDevices = ['Default', ...cameras];
-        });
-      }
-    } else {
-      await _enumerateViaEngine();
-      if (_outputDevices.length <= 1 && _inputDevices.length <= 1) {
+    await _enumerateViaEngine();
+    if (_outputDevices.length <= 1 && _inputDevices.length <= 1) {
+      if (Platform.isLinux) {
+        final sinks = await _pactlList('sink');
+        final sources = await _pactlList('source');
+        final cameras = await _v4l2List();
+        if (mounted) {
+          setState(() {
+            if (sinks.isNotEmpty) _outputDevices = ['Default', ...sinks];
+            if (sources.isNotEmpty) _inputDevices = ['Default', ...sources];
+            if (cameras.isNotEmpty) _cameraDevices = ['Default', ...cameras];
+          });
+        }
+      } else {
         await _enumerateNative();
       }
     }
@@ -2530,7 +2549,11 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(60, 8, 22, 12),
-            child: _InputLevelMeter(isDark: isDark, accentColor: accentColor),
+            child: _InputLevelMeter(
+              isDark: isDark,
+              accentColor: accentColor,
+              selectedDevice: appState.callInputDevice,
+            ),
           ),
           Divider(height: 1, color: dividerColor, indent: 60),
           _CallSettingsSectionHeader(label: 'Call Devices', color: accentColor),
@@ -2582,7 +2605,6 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
                 'When disabled, incoming calls will not ring on this device.',
             color: subtextColor,
           ),
-          const SizedBox(height: 8),
           _CallSettingsActionRow(
             icon: Icons.settings,
             label: 'Open system sound preferences',
@@ -2634,11 +2656,14 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
             color: textColor,
           ),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final device in devices)
-              RadioListTile<String>(
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: devices.length,
+            itemBuilder: (context, index) {
+              final device = devices[index];
+              return RadioListTile<String>(
                 value: device,
                 groupValue: current,
                 activeColor: accentColor,
@@ -2652,8 +2677,9 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
                     Navigator.of(ctx).pop();
                   }
                 },
-              ),
-          ],
+              );
+            },
+          ),
         ),
         actions: [
           TextButton(
@@ -2903,8 +2929,13 @@ class _CallSettingsActionRowState extends State<_CallSettingsActionRow> {
 class _InputLevelMeter extends StatefulWidget {
   final bool isDark;
   final Color accentColor;
+  final String selectedDevice;
 
-  const _InputLevelMeter({required this.isDark, required this.accentColor});
+  const _InputLevelMeter({
+    required this.isDark,
+    required this.accentColor,
+    this.selectedDevice = 'Default',
+  });
 
   @override
   State<_InputLevelMeter> createState() => _InputLevelMeterState();
@@ -2937,8 +2968,14 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
 
   Future<void> _startCapture() async {
     final List<List<String>> candidates;
+    final dev = widget.selectedDevice;
+    final hasDevice = dev.isNotEmpty && dev != 'Default';
     if (Platform.isLinux) {
       candidates = [
+        if (hasDevice) ...[
+          ['parec', '--raw', '--format=s16le', '--rate=16000', '--channels=1', '--device=$dev'],
+          ['pw-record', '--target', dev, '--rate', '16000', '--channels', '1', '--format', 's16', '-'],
+        ],
         ['parec', '--raw', '--format=s16le', '--rate=16000', '--channels=1'],
         ['pw-record', '--rate', '16000', '--channels', '1', '--format', 's16', '-'],
       ];
