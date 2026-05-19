@@ -557,7 +557,20 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
         _numField('B', _blueCtrl, 255, _blueFocus, 5, labelFg, textFg,
             borderColor, _onRGBFieldChanged),
         const SizedBox(height: _kSliderSkip),
-        _hexField(labelFg, textFg, borderColor),
+        if (widget.showOpacity)
+          SizedBox(
+            height: _kFieldHeight,
+            child: OverflowBox(
+              maxWidth: _kMinFieldWidth + _kEditSkip + _kSliderWidth,
+              alignment: Alignment.centerRight,
+              child: SizedBox(
+                width: _kMinFieldWidth + _kEditSkip + _kSliderWidth,
+                child: _hexField(labelFg, textFg, borderColor),
+              ),
+            ),
+          )
+        else
+          _hexField(labelFg, textFg, borderColor),
       ],
     );
   }
