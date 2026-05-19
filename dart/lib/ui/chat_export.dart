@@ -2118,7 +2118,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                 if (_si > 0) const SizedBox(height: 10),
                 AnimatedOpacity(
                   opacity: visibleSteps[_si].opacity,
-                  duration: const Duration(milliseconds: 300),
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
                     child: SizedBox(
@@ -2131,7 +2132,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                               children: [
                                 Expanded(
                                   child: AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 300),
+                                    duration: const Duration(milliseconds: 200),
                                     child: Text(
                                       visibleSteps[_si].label,
                                       key: ValueKey(visibleSteps[_si].label),
@@ -2146,7 +2147,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                                 ),
                                 const SizedBox(width: 8),
                                 AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 300),
+                                  duration: const Duration(milliseconds: 200),
                                   child: Text(
                                     visibleSteps[_si].info,
                                     key: ValueKey('${_si}_${visibleSteps[_si].info}'),
@@ -2365,6 +2366,17 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Total files: ${_formatFileCount(_totalFiles)}',
+                      style: TextStyle(fontSize: 14, color: subtextColor),
+                    ),
+                  ),
+                ),
+              if (_totalSizeBytes > 0)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Total size: ${_formatSize(_totalSizeBytes)}',
                       style: TextStyle(fontSize: 14, color: subtextColor),
                     ),
                   ),
