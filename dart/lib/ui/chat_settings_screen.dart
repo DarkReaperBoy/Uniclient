@@ -2571,45 +2571,24 @@ class _ChatBackgroundSection extends StatefulWidget {
   State<_ChatBackgroundSection> createState() => _ChatBackgroundSectionState();
 }
 
-class _ChatBackgroundSectionState extends State<_ChatBackgroundSection>
-    with SingleTickerProviderStateMixin {
+class _ChatBackgroundSectionState extends State<_ChatBackgroundSection> {
   bool _loading = false;
-  late AnimationController _loadingController;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadingController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-  }
 
   @override
   void didUpdateWidget(_ChatBackgroundSection oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.wallpaper != widget.wallpaper && _loading) {
       setState(() => _loading = false);
-      _loadingController.stop();
-      _loadingController.reset();
     }
-  }
-
-  @override
-  void dispose() {
-    _loadingController.dispose();
-    super.dispose();
   }
 
   void _onPickGallery() {
     setState(() => _loading = true);
-    _loadingController.repeat();
     widget.onPickGallery();
   }
 
   void _onPickFile() {
     setState(() => _loading = true);
-    _loadingController.repeat();
     widget.onPickFile();
   }
 
