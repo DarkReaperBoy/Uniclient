@@ -314,10 +314,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 # chat_export — Audit Findings
 
 
-## chat_export — Processing view: stop-confirmation text deviates from AyuGram
-
-- [ ] [MAJOR] `_showStopConfirmation()` displays "Are you sure you want to stop exporting your data?" and button label "Stop". AyuGram uses `lng_export_sure_stop` = "Are you sure you want to stop exporting your data?\n\nIf you do, you'll need to start over." — the critical second sentence is missing in Dart. — `chat_export.dart:682-683` ← `export_view_panel_controller.cpp:358-361` and `lang.strings` "lng_export_sure_stop"
-
 ## chat_export — Progress view: "please wait" text deviates from AyuGram spec
 
 - [ ] [MAJOR] Processing phase shows "Please wait, export is in progress." AyuGram uses `lng_export_progress` = "You can close this window now. Please don't quit Telegram until the data export is completed." — the Dart text is entirely different in meaning (it says wait, AyuGram says you can close the window). — `chat_export.dart:2201-2205` ← `export_view_progress.cpp:264-268` and `lang.strings` "lng_export_progress"
