@@ -56,7 +56,7 @@ const Map<int, String> _repeatPeriods = {
   0: 'Never',
   86400: 'Daily',
   604800: 'Weekly',
-  1209600: 'Every 2 weeks',
+  1209600: 'Biweekly',
   2592000: 'Monthly',
   7862400: 'Every 3 months',
   15724800: 'Every 6 months',
@@ -1381,7 +1381,29 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     if (_isPremium) {
       _showRepeatMenu();
     } else {
-      showTelegramToast(context, 'Repeat schedules are available with Telegram Premium.');
+      const normal = TextStyle(
+        color: Color(0xFFFFFFFF),
+        fontSize: 13,
+        fontWeight: FontWeight.normal,
+        decoration: TextDecoration.none,
+        height: 1.3,
+      );
+      showRichTelegramToast(
+        context,
+        TextSpan(
+          children: [
+            const TextSpan(text: 'Subscribe to ', style: normal),
+            TextSpan(
+              text: 'Telegram Premium',
+              style: normal.copyWith(
+                fontWeight: FontWeight.w600,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+            const TextSpan(text: ' to schedule repeating messages.', style: normal),
+          ],
+        ),
+      );
     }
   }
 

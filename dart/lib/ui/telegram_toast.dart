@@ -31,6 +31,29 @@ void showTelegramToast(
   overlay.insert(entry);
 }
 
+void showRichTelegramToast(
+  BuildContext context,
+  TextSpan textSpan, {
+  Duration duration = const Duration(milliseconds: 3000),
+  ToastAttach attach = ToastAttach.none,
+}) {
+  final overlay = Overlay.of(context, rootOverlay: true);
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => _TelegramToast(
+      text: '',
+      textSpan: textSpan,
+      duration: duration,
+      multiline: false,
+      attach: attach,
+      onDone: () {
+        entry.remove();
+      },
+    ),
+  );
+  overlay.insert(entry);
+}
+
 const _kFadeInMs = 200;
 const _kFadeOutMs = 1000;
 const _kSlideMs = 160;
@@ -45,6 +68,7 @@ const _kPadding = EdgeInsets.fromLTRB(19, 13, 19, 12);
 
 class _TelegramToast extends StatefulWidget {
   final String text;
+  final TextSpan? textSpan;
   final Duration duration;
   final bool multiline;
   final ToastAttach attach;
@@ -52,6 +76,7 @@ class _TelegramToast extends StatefulWidget {
 
   const _TelegramToast({
     required this.text,
+    this.textSpan,
     required this.duration,
     required this.multiline,
     required this.attach,
@@ -145,17 +170,19 @@ class _TelegramToastState extends State<_TelegramToast>
         color: _kToastBg,
         borderRadius: BorderRadius.circular(_kRadius),
       ),
-      child: Text(
-        widget.text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: _kToastFg,
-          fontSize: 13,
-          fontWeight: FontWeight.normal,
-          decoration: TextDecoration.none,
-          height: 1.3,
-        ),
-      ),
+      child: widget.textSpan != null
+          ? Text.rich(widget.textSpan!, textAlign: TextAlign.center)
+          : Text(
+              widget.text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _kToastFg,
+                fontSize: 13,
+                fontWeight: FontWeight.normal,
+                decoration: TextDecoration.none,
+                height: 1.3,
+              ),
+            ),
     );
 
     Widget animated;
@@ -182,17 +209,16 @@ class _TelegramToastState extends State<_TelegramToast>
     }
 
     final align = _positionForAttach(widget.attach);
+    final content = align.center
+        ? Center(child: animated)
+        : Align(alignment: align.alignment, child: animated);
 
     return Positioned(
       left: align.left,
       right: align.right,
       top: align.top,
       bottom: align.bottom,
-      child: IgnorePointer(
-        child: align.center
-            ? Center(child: animated)
-            : Align(alignment: align.alignment, child: animated),
-      ),
+      child: widget.textSpan != null ? content : IgnorePointer(child: content),
     );
   }
 }
