@@ -315,10 +315,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — Takeout invalid error text wrong
-
-- [ ] [MAJOR] Dart shows "Sorry, your data export session has expired, please try again." AyuGram uses `lng_export_invalid` = "Sorry, you started a new data export, so this data export has been canceled." — completely different message and meaning. — `chat_export.dart:970-974` ← `export_view_panel_controller.cpp:225-228` and `lang.strings` "lng_export_invalid"
-
 ## chat_export — Delay error format deviates from AyuGram
 
 - [ ] [MAJOR] Dart shows "Please try again in about N hours, on Month Day, Year at HH:MM." AyuGram uses `lng_export_delay` = "For security reasons, you will be able to begin downloading your data in {hours}. We have notified all your devices about the export request to make sure it's authorized and give you time to react if it's not.\n\nPlease come back on {date} and repeat the request using the same device." The Dart message is a completely different and much shorter text. — `chat_export.dart:977-991` ← `export_view_panel_controller.cpp:229-249` and `lang.strings` "lng_export_delay"
