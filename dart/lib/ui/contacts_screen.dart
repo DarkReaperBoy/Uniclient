@@ -739,12 +739,11 @@ class _SortToggleState extends State<_SortToggle> with SingleTickerProviderState
                                 : Colors.transparent,
                       ),
                       alignment: Alignment.center,
-                      child: Icon(
-                        widget.mode == _SortMode.online
-                            ? Icons.sort_by_alpha
-                            : Icons.access_time,
-                        size: 22,
-                        color: iconColor,
+                      child: CustomPaint(
+                        size: const Size(22, 22),
+                        painter: widget.mode == _SortMode.online
+                            ? _ContactsSortAlphabetPainter(color: iconColor)
+                            : _ContactsSortOnlinePainter(color: iconColor),
                       ),
                     ),
                   ),
@@ -756,6 +755,79 @@ class _SortToggleState extends State<_SortToggle> with SingleTickerProviderState
       },
     );
   }
+}
+
+class _ContactsSortAlphabetPainter extends CustomPainter {
+  final Color color;
+  _ContactsSortAlphabetPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+    final y1 = size.height * 0.27;
+    final y2 = size.height * 0.50;
+    final y3 = size.height * 0.73;
+    final x0 = size.width * 0.05;
+    canvas.drawLine(Offset(x0, y1), Offset(x0 + size.width * 0.50, y1), paint);
+    canvas.drawLine(Offset(x0, y2), Offset(x0 + size.width * 0.38, y2), paint);
+    canvas.drawLine(Offset(x0, y3), Offset(x0 + size.width * 0.26, y3), paint);
+    final tp = TextPainter(
+      text: TextSpan(
+        text: 'A',
+        style: TextStyle(
+          fontSize: size.height * 0.52,
+          fontWeight: FontWeight.w700,
+          color: color,
+          height: 1.0,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(size.width * 0.68, size.height * 0.22));
+  }
+
+  @override
+  bool shouldRepaint(_ContactsSortAlphabetPainter old) => old.color != color;
+}
+
+class _ContactsSortOnlinePainter extends CustomPainter {
+  final Color color;
+  _ContactsSortOnlinePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+    final y1 = size.height * 0.27;
+    final y2 = size.height * 0.50;
+    final y3 = size.height * 0.73;
+    final x0 = size.width * 0.05;
+    canvas.drawLine(Offset(x0, y1), Offset(x0 + size.width * 0.50, y1), paint);
+    canvas.drawLine(Offset(x0, y2), Offset(x0 + size.width * 0.38, y2), paint);
+    canvas.drawLine(Offset(x0, y3), Offset(x0 + size.width * 0.26, y3), paint);
+    final cx = size.width * 0.78;
+    final cy = size.height * 0.50;
+    final r = size.width * 0.17;
+    final circlePaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+    canvas.drawCircle(Offset(cx, cy), r, circlePaint);
+    final handPaint = Paint()
+      ..color = color
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(cx, cy), Offset(cx, cy - r * 0.65), handPaint);
+    canvas.drawLine(Offset(cx, cy), Offset(cx + r * 0.55, cy), handPaint);
+  }
+
+  @override
+  bool shouldRepaint(_ContactsSortOnlinePainter old) => old.color != color;
 }
 
 class _ContactRow extends StatefulWidget {
@@ -1712,7 +1784,7 @@ class _EditContactBoxState extends State<_EditContactBox> {
             ),
             if (widget.contact.isContact) ...[
               Divider(height: 1, color: dividerColor),
-              if (!_hasBirthday)
+              if (!_hasBirthday && widget.contact.starsPerMessage == 0)
                 _SettingsButtonRow(
                   icon: Icons.cake_outlined,
                   label: 'Suggest Birthday',
@@ -1721,14 +1793,15 @@ class _EditContactBoxState extends State<_EditContactBox> {
                   hoverBg: settingsBtnBg,
                   onTap: _suggestBirthday,
                 ),
-              _SettingsButtonRow(
-                icon: Icons.card_giftcard,
-                label: 'Suggest photo',
-                iconColor: buttonColor,
-                textColor: textColor,
-                hoverBg: settingsBtnBg,
-                onTap: _suggestPhoto,
-              ),
+              if (widget.contact.starsPerMessage == 0)
+                _SettingsButtonRow(
+                  icon: Icons.card_giftcard,
+                  label: 'Suggest photo',
+                  iconColor: buttonColor,
+                  textColor: textColor,
+                  hoverBg: settingsBtnBg,
+                  onTap: _suggestPhoto,
+                ),
               _SettingsButtonRow(
                 icon: Icons.add_a_photo_outlined,
                 label: 'Set personal photo',

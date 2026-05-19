@@ -1758,6 +1758,7 @@ class ContactInfo {
   final bool isFake;
   final String lastSeenKind;
   final int lastSeenTs;
+  final int starsPerMessage;
 
   const ContactInfo({
     required this.userId,
@@ -1782,6 +1783,7 @@ class ContactInfo {
     this.isFake = false,
     this.lastSeenKind = '',
     this.lastSeenTs = 0,
+    this.starsPerMessage = 0,
   });
 
   bool get hasStories => storyCount > 0;
