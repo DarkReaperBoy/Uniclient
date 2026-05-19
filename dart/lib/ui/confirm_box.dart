@@ -1694,7 +1694,7 @@ class _ReportOptionPickerBoxState extends State<_ReportOptionPickerBox> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
-                  'Please describe the violation in a few words.',
+                  'Please enter any additional details relevant to your report.',
                   style: TextStyle(fontSize: 13, color: p.boxTitleAdditionalFg),
                 ),
               ),
@@ -1809,7 +1809,7 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox>
               ),
             ),
             Text(
-              'Please describe the violation in a few words.',
+              'Please enter any additional details relevant to your report.',
               style: TextStyle(fontSize: 14, color: textFg),
             ),
             const SizedBox(height: 16),
