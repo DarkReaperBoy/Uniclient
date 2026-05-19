@@ -388,7 +388,7 @@ Widget _buildLinkableText(
 
 // ─── Delete / Leave ConfirmBox — §36.2 destructive variant ───────────────────
 
-enum DeleteBoxMode { singleMessage, bulkMessages, clearHistory, leaveChat, deleteTopic }
+enum DeleteBoxMode { singleMessage, bulkMessages, clearHistory, leaveChat, deleteTopic, dateRange }
 
 class DeleteConfirmResult {
   final bool confirmed;
@@ -419,10 +419,15 @@ Future<DeleteConfirmResult> showDeleteConfirmBox(
   bool canRevoke = false,
   bool showModeratePanel = false,
   bool isSavedMessages = false,
+  bool isSavedMusic = false,
+  bool isScheduled = false,
+  bool isPaidPost = false,
   String? moderateFromId,
   String? moderateFromName,
   String? chatId,
   String? accountId,
+  DateTime? firstDayToDelete,
+  DateTime? lastDayToDelete,
 }) {
   return showTelegramBox<DeleteConfirmResult>(
     context: context,
@@ -434,10 +439,15 @@ Future<DeleteConfirmResult> showDeleteConfirmBox(
       canRevoke: canRevoke,
       showModeratePanel: showModeratePanel,
       isSavedMessages: isSavedMessages,
+      isSavedMusic: isSavedMusic,
+      isScheduled: isScheduled,
+      isPaidPost: isPaidPost,
       moderateFromId: moderateFromId,
       moderateFromName: moderateFromName,
       chatId: chatId,
       accountId: accountId,
+      firstDayToDelete: firstDayToDelete,
+      lastDayToDelete: lastDayToDelete,
     ),
   ).then((r) => r ?? const DeleteConfirmResult());
 }
@@ -450,10 +460,15 @@ class _DeleteContent extends StatefulWidget {
   final bool canRevoke;
   final bool showModeratePanel;
   final bool isSavedMessages;
+  final bool isSavedMusic;
+  final bool isScheduled;
+  final bool isPaidPost;
   final String? moderateFromId;
   final String? moderateFromName;
   final String? chatId;
   final String? accountId;
+  final DateTime? firstDayToDelete;
+  final DateTime? lastDayToDelete;
 
   const _DeleteContent({
     required this.mode,
@@ -463,10 +478,15 @@ class _DeleteContent extends StatefulWidget {
     required this.canRevoke,
     required this.showModeratePanel,
     required this.isSavedMessages,
+    this.isSavedMusic = false,
+    this.isScheduled = false,
+    this.isPaidPost = false,
     this.moderateFromId,
     this.moderateFromName,
     this.chatId,
     this.accountId,
+    this.firstDayToDelete,
+    this.lastDayToDelete,
   });
 
   @override
@@ -481,6 +501,7 @@ class _DeleteContentState extends State<_DeleteContent> {
   bool _reportSpam = false;
   bool _deleteAll = false;
   bool _initialized = false;
+  bool _confirmedPaidPost = false;
   int _totalFromSender = 0;
 
   @override
@@ -511,8 +532,17 @@ class _DeleteContentState extends State<_DeleteContent> {
     final name = widget.peerName;
     switch (widget.mode) {
       case DeleteBoxMode.singleMessage:
+        if (widget.isSavedMusic) {
+          return 'Are you sure you want to remove this track from your Saved Music?';
+        }
         return 'Are you sure you want to delete this message?';
       case DeleteBoxMode.bulkMessages:
+        if (widget.isSavedMusic) {
+          final n = widget.messageCount;
+          return n == 1
+              ? 'Are you sure you want to remove this track from your Saved Music?'
+              : 'Are you sure you want to remove $n tracks from your Saved Music?';
+        }
         final n = widget.messageCount;
         if (n == 1) return 'Are you sure you want to delete this message?';
         return 'Are you sure you want to delete $n messages?';
@@ -546,6 +576,19 @@ class _DeleteContentState extends State<_DeleteContent> {
         }
       case DeleteBoxMode.deleteTopic:
         return 'Are you sure you want to delete the topic "$name"?';
+      case DeleteBoxMode.dateRange:
+        final first = widget.firstDayToDelete;
+        final last = widget.lastDayToDelete;
+        if (first != null && last != null && first != last) {
+          final f = '${first.day}/${first.month}/${first.year}';
+          final l = '${last.day}/${last.month}/${last.year}';
+          return 'Are you sure you want to delete all messages from $f to $l?';
+        }
+        if (first != null) {
+          final f = '${first.day}/${first.month}/${first.year}';
+          return 'Are you sure you want to delete all messages from $f?';
+        }
+        return 'Are you sure you want to delete messages for the selected dates?';
     }
   }
 
@@ -560,9 +603,11 @@ class _DeleteContentState extends State<_DeleteContent> {
         return 'Delete';
       case DeleteBoxMode.clearHistory:
       case DeleteBoxMode.deleteTopic:
+      case DeleteBoxMode.dateRange:
         return 'Delete';
       case DeleteBoxMode.singleMessage:
       case DeleteBoxMode.bulkMessages:
+        if (widget.isSavedMusic) return 'Remove';
         final count = _deleteAll && _totalFromSender > 0
             ? _totalFromSender
             : (_deleteAll && widget.messageCount > 0 ? widget.messageCount : 0);
@@ -573,6 +618,7 @@ class _DeleteContentState extends State<_DeleteContent> {
 
   String? get _revokeLabel {
     if (!widget.canRevoke) return null;
+    if (widget.isScheduled || widget.isSavedMusic) return null;
     if (widget.mode == DeleteBoxMode.singleMessage ||
         widget.mode == DeleteBoxMode.bulkMessages) {
       if (widget.chatType == ChatType.dm) {
@@ -584,6 +630,14 @@ class _DeleteContentState extends State<_DeleteContent> {
   }
 
   void _confirm() {
+    if (widget.isPaidPost && !_confirmedPaidPost) {
+      _showPaidPostWarning();
+      return;
+    }
+    _doConfirm();
+  }
+
+  void _doConfirm() {
     if (_revokeRemember) {
       final appState = context.read<AppState>();
       appState.deleteOnlyForYouRemembered = !_revoke;
@@ -596,6 +650,20 @@ class _DeleteContentState extends State<_DeleteContent> {
       deleteAll: _deleteAll,
       rememberRevoke: _revokeRemember,
     ));
+  }
+
+  void _showPaidPostWarning() {
+    showConfirmBox(
+      context,
+      title: 'Delete Suggested Post',
+      text: 'This is a paid suggested post. The payment will be lost if you delete it. Are you sure you want to delete it anyway?',
+      confirmText: 'Delete Anyway',
+      isDestructive: true,
+      onConfirm: () {
+        _confirmedPaidPost = true;
+        _doConfirm();
+      },
+    );
   }
 
   bool get _showAutoDeleteLink =>
@@ -613,7 +681,8 @@ class _DeleteContentState extends State<_DeleteContent> {
 
     final blockEnter = widget.mode == DeleteBoxMode.clearHistory ||
         widget.mode == DeleteBoxMode.leaveChat ||
-        widget.mode == DeleteBoxMode.deleteTopic;
+        widget.mode == DeleteBoxMode.deleteTopic ||
+        widget.mode == DeleteBoxMode.dateRange;
 
     return TelegramBox(
       onConfirm: blockEnter ? null : _confirm,
@@ -902,16 +971,35 @@ Future<PermissionStatus> getPermissionStatus(PermissionType type) async {
   }
   try {
     if (type == PermissionType.microphone) {
-      final result = await Process.run('pactl', ['list', 'sources', 'short']);
-      if (result.exitCode != 0) return PermissionStatus.denied;
-      final output = result.stdout as String;
-      if (output.trim().isEmpty) return PermissionStatus.denied;
-      return PermissionStatus.granted;
+      final pactl = await Process.run('pactl', ['list', 'sources', 'short']);
+      if (pactl.exitCode == 0) {
+        final output = (pactl.stdout as String).trim();
+        if (output.isNotEmpty) {
+          final hasNonMonitor = output
+              .split('\n')
+              .any((l) => !l.contains('.monitor'));
+          if (hasNonMonitor) return PermissionStatus.granted;
+        }
+      }
+      final pw = await Process.run('pw-cli', ['list-objects']);
+      if (pw.exitCode == 0) {
+        final output = (pw.stdout as String);
+        if (output.contains('Audio/Source') || output.contains('alsa_input')) {
+          return PermissionStatus.granted;
+        }
+      }
+      return PermissionStatus.denied;
     } else {
-      final result = await Process.run('ls', ['/dev/video0']);
-      return result.exitCode == 0
-          ? PermissionStatus.granted
-          : PermissionStatus.denied;
+      final devices = await Process.run('bash', ['-c',
+        'ls /dev/video* 2>/dev/null || ls /sys/class/video4linux/ 2>/dev/null']);
+      if (devices.exitCode == 0 && (devices.stdout as String).trim().isNotEmpty) {
+        return PermissionStatus.granted;
+      }
+      final pw = await Process.run('pw-cli', ['list-objects']);
+      if (pw.exitCode == 0 && (pw.stdout as String).contains('Video/Source')) {
+        return PermissionStatus.granted;
+      }
+      return PermissionStatus.denied;
     }
   } catch (_) {
     return PermissionStatus.canRequest;
@@ -1067,29 +1155,100 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
   Future<void> _loadSources() async {
     final sources = <ScreenShareSource>[];
 
-    // Enumerate monitors via xrandr
-    try {
-      final xrandr = await Process.run('xrandr', ['--listmonitors']);
-      if (xrandr.exitCode == 0) {
-        final lines = (xrandr.stdout as String).split('\n');
-        for (int i = 1; i < lines.length; i++) {
-          final line = lines[i].trim();
-          if (line.isEmpty) continue;
-          final parts = line.split(RegExp(r'\s+'));
-          final name = parts.length > 1 ? parts.last : 'Screen $i';
-          sources.add(ScreenShareSource(
-            id: 'screen:${i - 1}',
-            name: name,
-            isScreen: true,
-          ));
-        }
-      }
-    } catch (_) {
+    final isWayland = Platform.environment['WAYLAND_DISPLAY']?.isNotEmpty == true ||
+        Platform.environment['XDG_SESSION_TYPE'] == 'wayland';
+
+    if (isWayland) {
       sources.add(const ScreenShareSource(
-        id: 'screen:0',
+        id: 'portal:screen',
         name: 'Entire Screen',
         isScreen: true,
       ));
+      try {
+        final kdotool = await Process.run('kdotool', ['search', '--name', '']);
+        if (kdotool.exitCode == 0) {
+          final ids = (kdotool.stdout as String)
+              .split('\n')
+              .where((l) => l.trim().isNotEmpty)
+              .toList();
+          for (final wid in ids) {
+            try {
+              final nameRes = await Process.run('kdotool', ['getwindowname', wid.trim()]);
+              if (nameRes.exitCode == 0) {
+                final name = (nameRes.stdout as String).trim();
+                if (name.isNotEmpty) {
+                  sources.add(ScreenShareSource(id: 'window:$wid', name: name));
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    } else {
+      try {
+        final xrandr = await Process.run('xrandr', ['--listmonitors']);
+        if (xrandr.exitCode == 0) {
+          final lines = (xrandr.stdout as String).split('\n');
+          for (int i = 1; i < lines.length; i++) {
+            final line = lines[i].trim();
+            if (line.isEmpty) continue;
+            final parts = line.split(RegExp(r'\s+'));
+            final name = parts.length > 1 ? parts.last : 'Screen $i';
+            sources.add(ScreenShareSource(
+              id: 'screen:${i - 1}',
+              name: name,
+              isScreen: true,
+            ));
+          }
+        }
+      } catch (_) {}
+
+      try {
+        final wmctrl = await Process.run('wmctrl', ['-l']);
+        if (wmctrl.exitCode == 0) {
+          final lines = (wmctrl.stdout as String).split('\n');
+          for (final line in lines) {
+            if (line.trim().isEmpty) continue;
+            final parts = line.split(RegExp(r'\s+'));
+            if (parts.length < 4) continue;
+            final windowId = parts[0];
+            final windowName = parts.sublist(3).join(' ').trim();
+            if (windowName.isEmpty || windowName == 'N/A') continue;
+            sources.add(ScreenShareSource(
+              id: 'window:$windowId',
+              name: windowName,
+            ));
+          }
+        }
+      } catch (_) {
+        try {
+          final xdotool = await Process.run(
+            'xdotool', ['search', '--onlyvisible', '--name', ''],
+          );
+          if (xdotool.exitCode == 0) {
+            final windowIds = (xdotool.stdout as String)
+                .split('\n')
+                .where((l) => l.trim().isNotEmpty)
+                .toList();
+            for (final wid in windowIds) {
+              try {
+                final nameResult = await Process.run(
+                  'xdotool', ['getwindowname', wid.trim()],
+                );
+                if (nameResult.exitCode == 0) {
+                  final name = (nameResult.stdout as String).trim();
+                  if (name.isNotEmpty) {
+                    sources.add(ScreenShareSource(
+                      id: 'window:$wid',
+                      name: name,
+                    ));
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+      }
     }
 
     if (sources.isEmpty) {
@@ -1098,55 +1257,6 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
         name: 'Entire Screen',
         isScreen: true,
       ));
-    }
-
-    // Enumerate application windows via wmctrl
-    try {
-      final wmctrl = await Process.run('wmctrl', ['-l']);
-      if (wmctrl.exitCode == 0) {
-        final lines = (wmctrl.stdout as String).split('\n');
-        for (final line in lines) {
-          if (line.trim().isEmpty) continue;
-          final parts = line.split(RegExp(r'\s+'));
-          if (parts.length < 4) continue;
-          final windowId = parts[0];
-          final windowName = parts.sublist(3).join(' ').trim();
-          if (windowName.isEmpty || windowName == 'N/A') continue;
-          sources.add(ScreenShareSource(
-            id: 'window:$windowId',
-            name: windowName,
-          ));
-        }
-      }
-    } catch (_) {
-      // wmctrl not available — try xdotool as fallback
-      try {
-        final xdotool = await Process.run(
-          'xdotool', ['search', '--onlyvisible', '--name', ''],
-        );
-        if (xdotool.exitCode == 0) {
-          final windowIds = (xdotool.stdout as String)
-              .split('\n')
-              .where((l) => l.trim().isNotEmpty)
-              .toList();
-          for (final wid in windowIds) {
-            try {
-              final nameResult = await Process.run(
-                'xdotool', ['getwindowname', wid.trim()],
-              );
-              if (nameResult.exitCode == 0) {
-                final name = (nameResult.stdout as String).trim();
-                if (name.isNotEmpty) {
-                  sources.add(ScreenShareSource(
-                    id: 'window:$wid',
-                    name: name,
-                  ));
-                }
-              }
-            } catch (_) {}
-          }
-        }
-      } catch (_) {}
     }
 
     if (mounted) {
@@ -1309,12 +1419,13 @@ enum ReportTarget { message, channel, group, bot, story, profilePhoto, user }
 
 Future<bool> showDynamicReportFlow(
   BuildContext context, {
-  required dynamic engine,
+  required EngineService engine,
   required String accountId,
   required String chatId,
   required List<int> msgIds,
 }) async {
   List<int> currentOption = [];
+  bool isSubLevel = false;
 
   while (true) {
     final result = await engine.reportMessage(
@@ -1333,15 +1444,43 @@ Future<bool> showDynamicReportFlow(
     }
 
     if (result.resultType == 'choose_option') {
-      final picked = await showTelegramBox<List<int>>(
+      final hasComment = result.commentOption.isNotEmpty;
+      final picked = await showTelegramBox<dynamic>(
         context: context,
         builder: (ctx) => _ReportOptionPickerBox(
           title: result.title.isNotEmpty ? result.title : 'Report',
           options: result.options,
+          hasComment: hasComment,
+          commentOptional: result.commentOptional,
+          commentOption: result.commentOption,
+          showBackButton: isSubLevel,
         ),
       );
       if (picked == null || !context.mounted) return false;
-      currentOption = picked;
+
+      if (picked is Map) {
+        final comment = picked['comment'] as String? ?? '';
+        final commentOpt = picked['option'] as List<int>? ?? [];
+        final finalResult = await engine.reportMessage(
+          accountId,
+          chatId,
+          msgIds,
+          option: commentOpt,
+          message: comment,
+        );
+        if (context.mounted) {
+          showTelegramToast(
+            context,
+            finalResult?.resultType == 'reported'
+                ? 'Report submitted'
+                : 'Report sent',
+          );
+        }
+        return true;
+      }
+
+      currentOption = picked as List<int>;
+      isSubLevel = true;
       continue;
     }
 
@@ -1373,10 +1512,50 @@ Future<bool> showDynamicReportFlow(
   }
 }
 
-class _ReportOptionPickerBox extends StatelessWidget {
+class _ReportOptionPickerBox extends StatefulWidget {
   final String title;
   final List<ReportOptionItem> options;
-  const _ReportOptionPickerBox({required this.title, required this.options});
+  final bool hasComment;
+  final bool commentOptional;
+  final List<int> commentOption;
+  final bool showBackButton;
+  const _ReportOptionPickerBox({
+    required this.title,
+    required this.options,
+    this.hasComment = false,
+    this.commentOptional = false,
+    this.commentOption = const [],
+    this.showBackButton = false,
+  });
+
+  @override
+  State<_ReportOptionPickerBox> createState() => _ReportOptionPickerBoxState();
+}
+
+class _ReportOptionPickerBoxState extends State<_ReportOptionPickerBox> {
+  final _commentController = TextEditingController();
+  final _commentFocus = FocusNode();
+  String? _commentError;
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    _commentFocus.dispose();
+    super.dispose();
+  }
+
+  void _submitComment() {
+    if (!widget.commentOptional && _commentController.text.trim().isEmpty) {
+      setState(() => _commentError = 'This field is required');
+      _commentFocus.requestFocus();
+      return;
+    }
+    Navigator.of(context).pop({
+      'type': 'comment',
+      'option': widget.commentOption,
+      'comment': _commentController.text,
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1385,37 +1564,86 @@ class _ReportOptionPickerBox extends StatelessWidget {
     final hoverBg = p.windowBgOver;
 
     return TelegramBox(
-      title: title,
+      title: widget.title,
       showClose: true,
       content: Padding(
         padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: options.map((opt) {
-            return InkWell(
-              onTap: () => Navigator.of(context).pop(opt.option),
-              hoverColor: hoverBg,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(24, 11, 24, 11),
-                child: Text(
-                  opt.text,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: textFg,
+          children: [
+            ...widget.options.map((opt) {
+              return InkWell(
+                onTap: () => Navigator.of(context).pop(opt.option),
+                hoverColor: hoverBg,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(24, 11, 24, 11),
+                  child: Text(
+                    opt.text,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: textFg,
+                    ),
+                  ),
+                ),
+              );
+            }),
+            if (widget.hasComment) ...[
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: TextField(
+                  controller: _commentController,
+                  focusNode: _commentFocus,
+                  maxLines: 3,
+                  maxLength: 512,
+                  onChanged: (_) {
+                    if (_commentError != null) setState(() => _commentError = null);
+                  },
+                  onSubmitted: (_) => _submitComment(),
+                  decoration: InputDecoration(
+                    hintText: widget.commentOptional
+                        ? 'Add Comment (Optional)'
+                        : 'Add Comment',
+                    errorText: _commentError,
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                   ),
                 ),
               ),
-            );
-          }).toList(),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  'Please describe the violation in a few words.',
+                  style: TextStyle(fontSize: 13, color: p.boxTitleAdditionalFg),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
       buttons: [
-        TelegramBoxButton(
-          text: 'CANCEL',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        if (widget.showBackButton)
+          TelegramBoxButton(
+            text: 'Back',
+            isLeft: true,
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        if (!widget.showBackButton)
+          TelegramBoxButton(
+            text: 'CANCEL',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        if (widget.hasComment)
+          TelegramBoxButton(
+            text: 'REPORT',
+            onPressed: _submitComment,
+          ),
       ],
       scrollableContent: true,
     );
@@ -1506,7 +1734,7 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox>
               ),
             ),
             Text(
-              'Please enter any additional details relevant to your report.',
+              'Please describe the violation in a few words.',
               style: TextStyle(fontSize: 14, color: textFg),
             ),
             const SizedBox(height: 16),
@@ -1548,35 +1776,124 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox>
   }
 }
 
-Future<bool> showReportReactionBox(BuildContext context) async {
-  final result = await showTelegramBox<bool>(
-    context: context,
-    builder: (ctx) {
-      final textFg = ctx.palette.boxTextFg;
+class ReportReactionResult {
+  final bool confirmed;
+  final bool ban;
+  const ReportReactionResult({this.confirmed = false, this.ban = false});
+}
 
-      return TelegramBox(
-        title: 'Report Reactions',
-        content: Padding(
-          padding: kBoxPadding,
-          child: Text(
-            'Are you sure you want to report reactions from this user?',
-            style: TextStyle(fontSize: 14, color: textFg),
+Future<bool> showReportReactionBox(
+  BuildContext context, {
+  required EngineService engine,
+  required String accountId,
+  required String chatId,
+  required String participantId,
+  required int messageId,
+  bool showBanCheckbox = false,
+}) async {
+  final result = await showTelegramBox<ReportReactionResult>(
+    context: context,
+    builder: (ctx) => _ReportReactionContent(
+      showBanCheckbox: showBanCheckbox,
+    ),
+  );
+  if (result == null || !result.confirmed) return false;
+
+  try {
+    if (result.ban) {
+      await engine.banMember(accountId, chatId, participantId);
+    }
+    await engine.reportMessage(
+      accountId,
+      chatId,
+      [messageId],
+    );
+    if (context.mounted) {
+      showTelegramToast(context, 'Report submitted. Thank you!');
+    }
+  } catch (_) {}
+  return true;
+}
+
+class _ReportReactionContent extends StatefulWidget {
+  final bool showBanCheckbox;
+  const _ReportReactionContent({required this.showBanCheckbox});
+
+  @override
+  State<_ReportReactionContent> createState() => _ReportReactionContentState();
+}
+
+class _ReportReactionContentState extends State<_ReportReactionContent> {
+  bool _banUser = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final textFg = p.boxTextFg;
+    final checkClr = p.windowBgActive;
+
+    return TelegramBox(
+      title: 'Report Reactions',
+      onConfirm: () => Navigator.of(context).pop(
+        ReportReactionResult(confirmed: true, ban: _banUser && widget.showBanCheckbox),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: kBoxPadding,
+            child: Text(
+              'Are you sure you want to report reactions from this user?',
+              style: TextStyle(fontSize: 14, color: textFg),
+            ),
+          ),
+          if (widget.showBanCheckbox) ...[
+            const SizedBox(height: kBoxLittleSkip),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: InkWell(
+                onTap: () => setState(() => _banUser = !_banUser),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: Checkbox(
+                        value: _banUser,
+                        onChanged: (v) => setState(() => _banUser = v ?? false),
+                        activeColor: checkClr,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Ban user and report',
+                        style: TextStyle(fontSize: 14, color: textFg),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'CANCEL',
+          onPressed: () => Navigator.of(context).pop(const ReportReactionResult()),
+        ),
+        TelegramBoxButton(
+          text: 'REPORT',
+          isDestructive: true,
+          onPressed: () => Navigator.of(context).pop(
+            ReportReactionResult(confirmed: true, ban: _banUser && widget.showBanCheckbox),
           ),
         ),
-        buttons: [
-          TelegramBoxButton(
-            text: 'CANCEL',
-            onPressed: () => Navigator.of(ctx).pop(false),
-          ),
-          TelegramBoxButton(
-            text: 'BAN USER',
-            isDestructive: true,
-            onPressed: () => Navigator.of(ctx).pop(true),
-          ),
-        ],
-        onConfirm: () => Navigator.of(ctx).pop(true),
-      );
-    },
-  );
-  return result ?? false;
+      ],
+    );
+  }
 }
