@@ -34,7 +34,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   bool _colorLoaded = false;
   List<CloudThemeInfo> _cloudThemes = [];
   bool _cloudThemesLoaded = false;
-  bool _showAllCloudThemes = false;
+  bool _showAllCloudThemes = true;
   int _activeCloudThemeId = 0;
   bool _tileBackground = true;
   String get _sendBy => context.read<AppState>().sendBy;
@@ -430,7 +430,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             isDark: isDark,
             accentColor: currentAccent,
             activeThemeId: _activeCloudThemeId,
-            onToggleShowAll: () => setState(() => _showAllCloudThemes = !_showAllCloudThemes),
+            onToggleShowAll: () { if (!_showAllCloudThemes) setState(() => _showAllCloudThemes = true); },
             onThemeSelected: (theme) {
               setState(() => _activeCloudThemeId = theme.id);
               final targetTheme = theme.isDark ? 'night' : 'day_blue';
@@ -1853,30 +1853,64 @@ class _AutoNightRow extends StatelessWidget {
 // ── §14.6.2: Font Family row ──
 
 List<String> _getAvailableFonts() {
-  final fonts = <String>['System Default'];
-  if (Platform.isLinux) {
-    fonts.addAll([
-      'Noto Sans', 'DejaVu Sans', 'Liberation Sans', 'Ubuntu', 'Cantarell',
-      'Droid Sans', 'Roboto', 'Inter', 'Open Sans', 'Fira Sans',
-      'Source Sans Pro', 'PT Sans', 'Lato', 'Noto Serif', 'DejaVu Serif',
-      'Liberation Serif', 'Noto Sans Mono', 'DejaVu Sans Mono',
-      'Liberation Mono', 'Fira Code', 'JetBrains Mono', 'Hack',
-    ]);
-  } else if (Platform.isMacOS) {
-    fonts.addAll([
-      'San Francisco', '.AppleSystemUIFont', 'Helvetica Neue', 'Helvetica',
-      'Arial', 'Avenir', 'Avenir Next', 'Georgia', 'Times New Roman',
-      'Courier New', 'SF Mono', 'Menlo', 'Monaco',
-    ]);
-  } else if (Platform.isWindows) {
-    fonts.addAll([
-      'Segoe UI', 'Arial', 'Calibri', 'Verdana', 'Tahoma', 'Trebuchet MS',
-      'Georgia', 'Times New Roman', 'Courier New', 'Consolas', 'Cascadia Code',
-    ]);
-  } else {
-    fonts.addAll(['Roboto', 'Noto Sans', 'Inter', 'Open Sans']);
+  return ['System Default', 'Roboto', 'Noto Sans', 'Inter', 'Open Sans'];
+}
+
+Future<List<String>> _scanSystemFonts() async {
+  final fonts = <String>{'System Default'};
+  try {
+    if (Platform.isLinux) {
+      final result = await Process.run('fc-list', ['--format', '%{family}\n']);
+      if (result.exitCode == 0) {
+        final output = (result.stdout as String).trim();
+        for (final line in output.split('\n')) {
+          for (final family in line.split(',')) {
+            final trimmed = family.trim();
+            if (trimmed.isNotEmpty) fonts.add(trimmed);
+          }
+        }
+      }
+    } else if (Platform.isMacOS) {
+      final result = await Process.run('system_profiler', ['SPFontsDataType', '-detailLevel', 'mini']);
+      if (result.exitCode == 0) {
+        final re = RegExp(r'^\s{4}(\S.+):$', multiLine: true);
+        for (final match in re.allMatches(result.stdout as String)) {
+          fonts.add(match.group(1)!.trim());
+        }
+      }
+    } else if (Platform.isWindows) {
+      final fontsDir = Directory('C:\\Windows\\Fonts');
+      if (fontsDir.existsSync()) {
+        final re = RegExp(r'^(.+)\.(ttf|otf|ttc)$', caseSensitive: false);
+        for (final entity in fontsDir.listSync()) {
+          final match = re.firstMatch(entity.uri.pathSegments.last);
+          if (match != null) fonts.add(match.group(1)!.replaceAll(RegExp(r'[-_]'), ' '));
+        }
+      }
+    }
+  } catch (_) {}
+
+  if (fonts.length <= 1) {
+    if (Platform.isLinux) {
+      fonts.addAll(['Noto Sans', 'DejaVu Sans', 'Liberation Sans', 'Ubuntu',
+        'Cantarell', 'Roboto', 'Inter', 'Open Sans', 'Fira Sans']);
+    } else if (Platform.isMacOS) {
+      fonts.addAll(['San Francisco', 'Helvetica Neue', 'Arial', 'Avenir',
+        'Georgia', 'Times New Roman', 'SF Mono', 'Menlo']);
+    } else if (Platform.isWindows) {
+      fonts.addAll(['Segoe UI', 'Arial', 'Calibri', 'Verdana', 'Tahoma',
+        'Consolas', 'Cascadia Code']);
+    } else {
+      fonts.addAll(['Roboto', 'Noto Sans', 'Inter', 'Open Sans']);
+    }
   }
-  return fonts;
+
+  final sorted = fonts.toList()..sort((a, b) {
+    if (a == 'System Default') return -1;
+    if (b == 'System Default') return 1;
+    return a.toLowerCase().compareTo(b.toLowerCase());
+  });
+  return sorted;
 }
 
 class _FontFamilyRow extends StatelessWidget {
@@ -1965,7 +1999,8 @@ class _ChooseFontBox extends StatefulWidget {
 
 class _ChooseFontBoxState extends State<_ChooseFontBox> {
   late String _selected;
-  late List<String> _allFonts;
+  List<String> _allFonts = [];
+  bool _fontsLoaded = false;
   String _searchQuery = '';
 
   @override
@@ -1976,6 +2011,17 @@ class _ChooseFontBoxState extends State<_ChooseFontBox> {
     if (!_allFonts.contains(widget.currentFont) && widget.currentFont.isNotEmpty) {
       _allFonts.insert(1, widget.currentFont);
     }
+    _scanSystemFonts().then((scanned) {
+      if (!mounted) return;
+      final list = scanned.toList();
+      if (!list.contains(widget.currentFont) && widget.currentFont.isNotEmpty) {
+        list.insert(1, widget.currentFont);
+      }
+      setState(() {
+        _allFonts = list;
+        _fontsLoaded = true;
+      });
+    });
   }
 
   List<String> get _filteredFonts {
