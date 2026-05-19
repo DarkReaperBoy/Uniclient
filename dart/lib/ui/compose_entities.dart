@@ -349,7 +349,7 @@ class RichTextEditingController extends TextEditingController {
     final emojiEnts = entities.where((e) => e.type == FormatType.customEmoji).toList()
       ..sort((a, b) => b.offset.compareTo(a.offset));
     for (final ce in emojiEnts) {
-      if (ce.offset < 0 || ce.offset >= src.length) continue;
+      if (ce.offset < 0 || ce.offset >= src.length || ce.offset + ce.length > src.length) continue;
       final alt = ce.altText ?? '';
       src = src.substring(0, ce.offset) + alt + src.substring(ce.offset + ce.length);
       final delta = alt.length - ce.length;
@@ -360,6 +360,12 @@ class RichTextEditingController extends TextEditingController {
         }
         if (e.offset > ce.offset) e.offset += delta;
       }
+    }
+
+    final urlRanges = <({int start, int end})>[];
+    final urlPattern = RegExp(r'(?:https?://|ftp://|www\.)\S+', caseSensitive: false);
+    for (final m in urlPattern.allMatches(src)) {
+      urlRanges.add((start: m.start, end: m.end));
     }
 
     final mdDelimiters = <({String delim, FormatType type, bool isBlock})>[
@@ -398,6 +404,15 @@ class RichTextEditingController extends TextEditingController {
         }
         if (closeIdx < 0 || closeIdx == contentStart) {
           searchFrom = contentStart;
+          continue;
+        }
+
+        final tagEnd = closeIdx + dLen;
+        final overlapsUrl = urlRanges.any((u) =>
+            u.start < tagEnd && u.end > openIdx &&
+            (u.end > tagEnd || u.start < openIdx));
+        if (overlapsUrl) {
+          searchFrom = tagEnd;
           continue;
         }
 
