@@ -2384,6 +2384,45 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
             style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
           ),
         ),
+        const SizedBox(height: 16),
+        Container(height: 1, color: dividerColor),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Text('Other', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () {
+            if (Platform.isLinux) {
+              Process.run('xdg-open', ['gnome-control-center://sound'])
+                  .catchError((_) {
+                return Process.run('xdg-open', ['x-settings://sound']);
+              }).catchError((_) {
+                return Process.run('pavucontrol', []);
+              });
+            } else if (Platform.isMacOS) {
+              Process.run('open',
+                  ['/System/Library/PreferencePanes/Sound.prefPane']);
+            } else if (Platform.isWindows) {
+              Process.run('control', ['mmsys.cpl', 'sounds']);
+            }
+          },
+          hoverColor: hoverBg,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+            child: Row(
+              children: [
+                Icon(Icons.open_in_new, size: 20, color: textColor),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Open system sound preferences', style: TextStyle(fontSize: 14, color: textColor)),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
       ],
     );
   }
