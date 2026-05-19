@@ -318,10 +318,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — Processing view: animated fade-out of old step rows not implemented
-
-- [ ] [MAJOR] AyuGram's `ProgressWidget::Row` has animated fade in/out of label instances when a step's ID changes (`toggleInstance` with opacity animation, `_old` vector of fading instances). Dart replaces step labels in-place using `AnimatedSwitcher` only for the label text, without fading out the progress bar of old step rows. The visual transition when steps complete is incorrect. — `chat_export.dart:2110-2162` ← `export_view_progress.cpp:73-182`
-
 ## chat_export — `_buildCompletedPlaceholder` copies _exportSteps but does not reflect actual completed step data from engine
 
 - [ ] [MAJOR] The completed view creates `completedSteps` by mapping existing `_exportSteps` and substituting `info: 'Done'` for empty info fields. However `_exportSteps` is populated by `_buildExportStepList()` at start time and may not reflect what the engine actually completed (e.g. if the engine added steps dynamically via `_onExportProgress`). Steps that were never updated will show placeholder "Done" labels with no real info. — `chat_export.dart:2266-2271` ← `export_view_progress.cpp:310-353`
