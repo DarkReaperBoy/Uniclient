@@ -310,7 +310,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 ## calls_screen — Calls Box, Create Call, Group Calls, Call Settings
 
-- [ ] [MAJOR] Call settings "Other" section is missing the "Open system sound preferences" button (`tr::lng_settings_call_open_system_prefs()`). AyuGram's `BuildOtherSection` adds this button which calls `Platform::OpenSystemSettings(SystemSettingsType::Audio)`. The active `_CallsSettingsTab` in `settings_screen.dart` (reached via `devicesScreenRoute`) does not include this button at all — it is only present in the now-unused `_CallSettingsScreen` dead code. The button must be added to `_CallsSettingsTab` in `settings_screen.dart`. — `settings_screen.dart:_CallsSettingsTabState.build` ← `settings_calls.cpp:411-428`
 
 # chat_export — Audit Findings
 
