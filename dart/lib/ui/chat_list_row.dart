@@ -862,6 +862,8 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
                         return CustomPaint(
                           painter: _SwipeRipplePainter(
                             rippleProgress: _rippleController.value,
+                            reachRatio: progress,
+                            swipeOffset: _swipeOffset,
                             color: actionBg,
                           ),
                           child: Center(
@@ -911,31 +913,55 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   }
 }
 
-/// Spec §2.7: Ripple effect painter for the 80px swipe action area.
-/// Draws an expanding circle that fades out, triggered on threshold crossing.
+/// Spec §2.7: Reach-ratio ellipse + threshold ripple for the 80px action area.
+/// AyuGram draws a continuously growing ellipse at (width - 30, 30) using
+/// ResolveQuickActionBgActive (windowSubTextFgOver), radius = swipeOffset * reachRatio.
+/// On threshold crossing, a separate standard ripple fires.
 class _SwipeRipplePainter extends CustomPainter {
   final double rippleProgress;
+  final double reachRatio;
+  final double swipeOffset;
   final Color color;
 
-  _SwipeRipplePainter({required this.rippleProgress, required this.color});
+  _SwipeRipplePainter({
+    required this.rippleProgress,
+    required this.reachRatio,
+    required this.swipeOffset,
+    required this.color,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (rippleProgress <= 0) return;
-    final center = Offset(size.width / 2, size.height / 2);
-    final maxRadius = size.width / 2;
-    final radius = maxRadius * Curves.easeOut.transform(rippleProgress);
-    final alpha = (1.0 - rippleProgress * 0.7).clamp(0.0, 1.0);
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()..color = color.withValues(alpha: alpha * 0.35),
-    );
+    const iconSize = 20.0;
+    const offset = iconSize + iconSize / 2;
+    final center = Offset(size.width - offset, offset);
+
+    if (reachRatio > 0) {
+      final r = swipeOffset * reachRatio * 0.3;
+      canvas.drawOval(
+        Rect.fromCenter(center: center, width: r * 2, height: r * 2),
+        Paint()..color = Colors.white.withValues(alpha: 0.15),
+      );
+    }
+
+    if (rippleProgress > 0) {
+      final maxRadius = size.width * 0.6;
+      final radius = maxRadius * Curves.easeOut.transform(rippleProgress);
+      final alpha = (1.0 - rippleProgress * 0.8).clamp(0.0, 1.0);
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()..color = Colors.white.withValues(alpha: alpha * 0.2),
+      );
+    }
   }
 
   @override
   bool shouldRepaint(_SwipeRipplePainter old) =>
-      rippleProgress != old.rippleProgress || color != old.color;
+      rippleProgress != old.rippleProgress ||
+      reachRatio != old.reachRatio ||
+      swipeOffset != old.swipeOffset ||
+      color != old.color;
 }
 
 /// AyuGram dialogs_layout.cpp:990-998: DrawQuickAction twoLines=false (default).

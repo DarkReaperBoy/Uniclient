@@ -1022,7 +1022,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		results, err := e.SearchMessages(req.Query, req.AccountId, int(req.Limit), req.ChatId)
+		results, err := e.SearchMessages(req.Query, req.AccountId, int(req.Limit), req.ChatId, req.TopicId)
 		if err != nil {
 			return nil, err
 		}

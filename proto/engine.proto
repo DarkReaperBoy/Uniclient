@@ -662,6 +662,7 @@ message EngineSearchMessagesRequest {
   string account_id = 2; // empty = all accounts
   int32  limit      = 3;
   string chat_id    = 4; // empty = all chats
+  string topic_id   = 5; // empty = all topics; filters messages by forum topic
 }
 
 message EngineSearchMessagesResponse {

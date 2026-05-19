@@ -21,7 +21,8 @@ type SearchResult struct {
 // SearchMessages performs a cross-account FTS5 search.
 // If accountID is non-empty, restricts to that account.
 // If chatID is non-empty, restricts to that chat.
-func (e *Engine) SearchMessages(query string, accountID string, limit int, chatID string) ([]SearchResult, error) {
+// If topicID is non-empty, restricts to that forum topic.
+func (e *Engine) SearchMessages(query string, accountID string, limit int, chatID string, topicID string) ([]SearchResult, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -31,31 +32,32 @@ func (e *Engine) SearchMessages(query string, accountID string, limit int, chatI
 
 	ftsQuery := query + "*"
 
-	var rows *sql.Rows
-	var err error
-
 	selectCols := `SELECT m.account_id, m.chat_id, m.msg_id, m.sender_name, m.content_text, m.timestamp,
 		        c.title
 		 FROM messages m
 		 JOIN messages_fts ON messages_fts.rowid = m.rowid
 		 LEFT JOIN chats c ON c.account_id = m.account_id AND c.chat_id = m.chat_id`
 
-	if accountID != "" && chatID != "" {
-		rows, err = e.db.Query(selectCols+
-			` WHERE messages_fts MATCH ? AND m.account_id = ? AND m.chat_id = ?
-			 ORDER BY m.timestamp DESC
-			 LIMIT ?`, ftsQuery, accountID, chatID, limit)
-	} else if accountID != "" {
-		rows, err = e.db.Query(selectCols+
-			` WHERE messages_fts MATCH ? AND m.account_id = ?
-			 ORDER BY m.timestamp DESC
-			 LIMIT ?`, ftsQuery, accountID, limit)
-	} else {
-		rows, err = e.db.Query(selectCols+
-			` WHERE messages_fts MATCH ?
-			 ORDER BY m.timestamp DESC
-			 LIMIT ?`, ftsQuery, limit)
+	where := ` WHERE messages_fts MATCH ?`
+	args := []interface{}{ftsQuery}
+
+	if accountID != "" {
+		where += ` AND m.account_id = ?`
+		args = append(args, accountID)
 	}
+	if chatID != "" {
+		where += ` AND m.chat_id = ?`
+		args = append(args, chatID)
+	}
+	if topicID != "" {
+		where += ` AND m.topic_id = ?`
+		args = append(args, topicID)
+	}
+
+	where += ` ORDER BY m.timestamp DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := e.db.Query(selectCols+where, args...)
 	if err != nil {
 		return nil, err
 	}

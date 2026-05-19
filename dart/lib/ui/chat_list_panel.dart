@@ -483,9 +483,10 @@ class _ChatListPanelState extends State<ChatListPanel>
     setState(() {
       _searchResults = _filterByTab(chatState.searchChats(query), chatState);
       final chatId = _searchChatIdForTab(_activeSearchTab, chatState);
+      final topicId = _searchTopicIdForTab(_activeSearchTab, chatState);
       final rawMsgs = _activeSearchTab == _SearchTab.publicPosts
           ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
-          : chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId);
+          : chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId, topicId: topicId);
       _messageSearchResults = rawMsgs;
     });
   }
@@ -493,6 +494,13 @@ class _ChatListPanelState extends State<ChatListPanel>
   String _searchChatIdForTab(_SearchTab tab, ChatState chatState) {
     if (tab == _SearchTab.thisPeer || tab == _SearchTab.thisTopic) {
       return chatState.activeChat?.chatId ?? '';
+    }
+    return '';
+  }
+
+  String _searchTopicIdForTab(_SearchTab tab, ChatState chatState) {
+    if (tab == _SearchTab.thisTopic) {
+      return chatState.activeTopicId ?? '';
     }
     return '';
   }

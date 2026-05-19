@@ -139,6 +139,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV36,
 	migrateV37,
 	migrateV38,
+	migrateV39,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -799,4 +800,15 @@ func migrateV38(tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+func migrateV39(tx *sql.Tx) error {
+	if columnExists(tx, "messages", "topic_id") {
+		return nil
+	}
+	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN topic_id TEXT`); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_msgs_topic ON messages(account_id, chat_id, topic_id) WHERE topic_id IS NOT NULL`)
+	return err
 }

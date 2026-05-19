@@ -407,12 +407,19 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		}
 	}
 
+	var topicID string
+	if msg.Extra != nil {
+		if tid, ok := msg.Extra["topic_id"].(string); ok {
+			topicID = tid
+		}
+	}
+
 	e.db.Exec(
 		`INSERT INTO messages
 		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 		  content_raw, content_rich, content_text, timestamp, edited_at,
-		  status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		  status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, topic_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, chat_id, msg_id) DO UPDATE SET
 		  local_id=excluded.local_id, sender_id=excluded.sender_id, sender_name=excluded.sender_name,
 		  sender_rank=excluded.sender_rank, sender_color_id=excluded.sender_color_id,
@@ -420,11 +427,11 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		  timestamp=excluded.timestamp, edited_at=excluded.edited_at, status=excluded.status,
 		  reply_to_id=excluded.reply_to_id, reply_preview=excluded.reply_preview, forward_from=excluded.forward_from,
 		  is_pinned=excluded.is_pinned, is_outgoing=excluded.is_outgoing, is_service=excluded.is_service,
-		  has_media=excluded.has_media, grouped_id=excluded.grouped_id, no_forwards=excluded.no_forwards`,
+		  has_media=excluded.has_media, grouped_id=excluded.grouped_id, no_forwards=excluded.no_forwards, topic_id=excluded.topic_id`,
 		accountID, chatID, msg.ID, nil, msg.SenderID, msg.SenderName, nullStr(msg.SenderRank), msg.SenderColorID,
 		rawBytes, richBytes, msg.Text, ts, editedAt,
 		status, nullStr(msg.ReplyToID), nullStr(msg.ReplyPreview),
-		nullStr(msg.ForwardFrom), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards))
+		nullStr(msg.ForwardFrom), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards), nullStr(topicID))
 
 	// Cache media references.
 	for i, att := range msg.Attachments {
