@@ -381,10 +381,6 @@ All methods are fully implemented and wired to entity tracking. No mock data, TO
 
 # confirm_box — Audit Findings
 
-## confirm_box — ReportDetailsBox submit does not distinguish optional vs mandatory
-
-- [ ] [MAJOR] AyuGram's `ReportDetailsBox` (the one called from the static photo-report flow) submits regardless of whether text is empty — the optional check belongs to the dynamic flow box. The Dart `_ReportDetailsBox` has a proper `optional` field and validates when `!optional && text.isEmpty`. This matches the dynamic report flow (`report_messages_box.cpp:171-177`). However, when `optional=true` (the default), the Dart box submits an empty string which is then returned to `showDynamicReportFlow` — which is correct behavior. Not a bug.
-
 ## confirm_box — _DeleteContent._confirmLabel wrong count for deleteAll with moderatePanel
 
 - [ ] [MAJOR] In `_confirmLabel` getter (line 566-569), when `_deleteAll` is true, the Dart code computes count as `_totalFromSender` when `> 0`, else falls back to `widget.messageCount`. In AyuGram `delete_messages_box.cpp:218-233`, the delete button text is updated reactively from a `MessagesSearch` that queries the server for total messages from that user. The Dart `_fetchModerateCount` calls `engine.countMessagesFrom()` synchronously (line 504) which uses a local JSON call, not a live server search. This means the count shown in the button may be stale (local cache count vs server-side search result). — `confirm_box.dart:504,566-569` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/delete_messages_box.cpp:206-234`
