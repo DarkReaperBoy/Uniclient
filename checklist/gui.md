@@ -424,50 +424,6 @@ All methods are fully implemented and wired to entity tracking. No mock data, TO
 
 # contacts_screen — contacts box, row, edit/share dialogs
 
-## create_group_wizard — Create Group/Channel Wizard
-
-- [ ] [CRITICAL] `CreateGroup` does not pass TTL at creation time: Go backend calls `MessagesCreateChat` without the `TtlPeriod` field, then the Dart code issues a separate `setHistoryTTL` after creation. AyuGram passes `f_ttl_period` flag and the TTL value atomically inside `MTPmessages_CreateChat`. This can leave the group without a TTL if the post-creation call fails, and is a behavioral deviation from spec. — `create_group_wizard.dart:713-718` ← `boxes/add_contact_box.cpp:743-748`
-
-- [ ] [CRITICAL] No Forum/Megagroup wizard type — the wizard exposes only `group` and `channel` wizard types. AyuGram has four types: `Type::Group`, `Type::Channel`, `Type::Megagroup`, and `Type::Forum`. Megagroup and Forum creation use different `MTPchannels_CreateChannel` flags (`f_megagroup`, `f_forum`). There is no UI or code path to create a public megagroup (supergroup) or a forum via this wizard. — `create_group_wizard.dart:27` ← `boxes/add_contact_box.cpp:832-836`
-
-- [ ] [CRITICAL] `CHANNELS_TOO_MUCH` on channel/group creation shows only a text error, not a `ChannelsLimitBox`. AyuGram responds to this error by opening `Box(ChannelsLimitBox, &controller->session())`. The Dart wizard just sets `_error` to a string and leaves the user with no action. — `create_group_wizard.dart:683,734` ← `boxes/add_contact_box.cpp:902-905`
-
-- [ ] [CRITICAL] `PEER_FLOOD` on member addition shows only generic text. AyuGram calls `PeerFloodErrorText()` which generates a localized message with a clickable "More Info" link pointing to `t.me/spambot`. Dart shows `'Too many requests. Please try again later.'` — no link, no spambot reference. — `create_group_wizard.dart:685,735` ← `boxes/add_contact_box.cpp:243-248`
-
-- [ ] [CRITICAL] `USERS_TOO_FEW` on group creation shows text only. AyuGram shows `Ui::MakeInformBox(tr::lng_cant_invite_privacy())` — an informational dialog explaining privacy settings prevented adding the user. Dart shows only an error string inline. — `create_group_wizard.dart:684,733` ← `boxes/add_contact_box.cpp:768-770`
-
-- [ ] [MAJOR] `CHANNELS_ADMIN_PUBLIC_TOO_MUCH` during username check in `SetupChannelBox` should force-switch to Private (set `_tooMuchUsernames = true`, then when user tries to switch back to Public, show the revoke dialog). The Dart `_checkUsernameApi` just shows a toast / sets `_isPublic = false` with no state-machine to block the user from switching back to public without revoking. — `create_group_wizard.dart:555-558` ← `boxes/add_contact_box.cpp:1465-1471`
-
-- [ ] [MAJOR] `SetupChannelBox` performs an initial username availability check against `"preston"` on `prepare()` to detect server-side restrictions before the user types anything (e.g. `CHANNEL_PUBLIC_GROUP_NA` or `CHANNELS_ADMIN_PUBLIC_TOO_MUCH`). The Dart setup channel step has no equivalent initial server-side probe — it only checks when the user types into the username field. — `create_group_wizard.dart:120-127` ← `boxes/add_contact_box.cpp:1038-1044`
-
-- [ ] [MAJOR] Member add error `USER_PRIVACY_RESTRICTED` is unhandled. AyuGram calls `ChatInviteForbidden(show, chat, forbidden)` which shows a specific dialog explaining the user's privacy settings blocked the invite. In the Dart wizard the entire error surface is a single `catch (e)` showing `e.toString()` — no fine-grained invite error handling. — `create_group_wizard.dart:793-799` ← `boxes/add_contact_box.cpp:250-253`
-
-- [ ] [MAJOR] `USERNAME_NOT_MODIFIED` is not treated as success in `_save()` of `_EditPeerTypeBoxState`. AyuGram's `parseError` maps `USERNAME_NOT_MODIFIED` → `UsernameResult::Ok` and closes the box. If the user saves without actually changing the username, the Dart code catches the exception and displays it as an error. — `create_group_wizard.dart:2739-2773` ← `boxes/add_contact_box.cpp:1418-1420`
-
-- [ ] [MAJOR] `USERNAMES_UNAVAILABLE` error is unhandled in `_save()`. AyuGram maps it to `UsernameResult::Occupied` (same as `USERNAME_OCCUPIED`) and shows the "link already taken" error. Dart's catch block will surface the raw exception string. — `create_group_wizard.dart:2739-2773` ← `boxes/add_contact_box.cpp:1426-1428`
-
-# custom_emoji_cache — Broken listener notification, wrong frame sizes, memory leak
-
-- [ ] [CRITICAL] `addListener()` consumers (`emoji_status_widget.dart:49`, `reactions_detail.dart:1317`, `message_bubble.dart:2278`, `message_bubble.dart:5995`) are NEVER notified on successful cache loads. `_notifyListeners(changedDocIds)` only fires `_globalListeners` when `changedDocIds` is null/empty — but every successful fetch passes a non-empty set, so the else-branch is dead in the happy path. Widgets using `addListener()` register in `_globalListeners` but only get callbacks on error (empty changedIds). Emoji status icons, custom emoji in messages, and reaction emoji will permanently show placeholders after data loads. — `custom_emoji_cache.dart:478-493` ← `data_custom_emoji.cpp:878` (AyuGram per-instance repaint callback always fires on the specific instance, never silently dropped)
-
-- [ ] [MAJOR] `isolated` frame size hardcoded to 43px; AyuGram computes `(st::largeEmojiSize + 2 * st::largeEmojiOutline) = (36 + 2) = 38px` at default scale — 13.2% deviation, isolated emoji (1–7 emoji-only messages) will render oversized. — `custom_emoji_cache.dart:46` ← `data_custom_emoji.cpp:87-89` + `chat.style:773-774`
-
-- [ ] [MAJOR] `setIcon` frame size hardcoded to 24px; AyuGram computes `int(ConvertScale(18 * 7 / 6., scale)) = 21px` at default scale — 14.3% deviation, sticker-set footer icons and emoji status icons will render wrong size. — `custom_emoji_cache.dart:47` ← `data_custom_emoji.cpp:91-92`
-
-- [ ] [MAJOR] `normal` frame size hardcoded to 20px; AyuGram applies `AdjustCustomEmojiSize(emojiSize) = round(emojiSize * 1.12)` making it ~22px — ~10% deviation, inline custom emoji in text will render slightly smaller than spec. — `custom_emoji_cache.dart:43` ← `text_custom_emoji.cpp:44-46` + `data_custom_emoji.cpp:1011-1014`
-
-- [ ] [MAJOR] `_evictFromMemory` does not clear `_thumbs` or `_paths` — all thumb and path bytes for unreferenced documents stay in memory forever. Only `_files` is removed. When ref count drops to zero (widget disposed), the animation file is freed but the thumbnail bytes leak. — `custom_emoji_cache.dart:197-205` ← `data_custom_emoji.cpp:864-869` (AyuGram erases the Instance from `_instances[sizeIndex]` map on destroy, fully freeing all cached data for that document+size)
-
-- [ ] [MAJOR] `_retryDelayMs = 5000ms` retry backoff is invented; AyuGram's `requestFinished()` retries immediately when `_pendingForRequest` is non-empty — with 5s delay, transient failures leave emoji invisible for 5 seconds before retry, degrading perceived performance. — `custom_emoji_cache.dart:105` ← `data_custom_emoji.cpp:871-875`
-
-# edit_forum_topic_box — 3 issues
-
-- [ ] [MAJOR] `_showPremiumToast` missing "View Premium" navigation button — in AyuGram, the `StickerToast` for `Section::TopicIcon` renders a `RoundButton` whose click handler calls `Settings::ShowPremium(window, u"forum_topic_icon"_q)`, letting the user navigate to the Premium subscription page directly from the toast; the Dart overlay at line 577 shows only hardcoded text with no actionable button, so users cannot subscribe to Premium from the premium-icon block — `edit_forum_topic_box.dart:577` ← `AyuGram/SourceFiles/history/view/history_view_sticker_toast.cpp:226-239` / `AyuGram/SourceFiles/boxes/peers/edit_forum_topic_box.cpp:235-239`
-
-- [ ] [MAJOR] `_buildSetTabIcon` calls `base64Decode` in the build method on every rebuild — `base64Decode(set.stickers.first.thumbB64)` at line 717 is executed for every emoji-set tab on every `setState` call (title changes, selection changes, etc.); base64 decoding is CPU-intensive and must be cached in `initState`/`_fetchInstalledEmojiSets` rather than computed during paint — `edit_forum_topic_box.dart:717` ← `AyuGram/SourceFiles/chat_helpers/emoji_list_widget.cpp` (EmojiListWidget lazily loads thumbnails once, not on every paint)
-
-- [ ] [MAJOR] `_buildEmojiSetGrid` builds all stickers eagerly with `Wrap` — AyuGram uses `EmojiListWidget` with `Mode::TopicIcon` which is a virtualised, lazy-rendering list; the Dart `Wrap` inside `SingleChildScrollView` at line 800 constructs every sticker widget (potentially 100–200+ items per set) unconditionally on every rebuild triggered by title edits, causing jank on every keystroke while an emoji-set tab is active — `edit_forum_topic_box.dart:800` ← `AyuGram/SourceFiles/boxes/peers/edit_forum_topic_box.cpp:290-299` (`EmojiListWidget` with lazy `customRecentList`)
-
 # edit_mark_box — Text field edit dialog with validation
 
 ## Issues Found
