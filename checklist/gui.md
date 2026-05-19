@@ -381,10 +381,6 @@ All methods are fully implemented and wired to entity tracking. No mock data, TO
 
 # confirm_box — Audit Findings
 
-## confirm_box — ReportDetailsBox uses wrong Lottie animation
-
-- [ ] [MAJOR] `_ReportDetailsBox` uses the animation `'assets/animations/blocked_peers_empty.json'` as the decorative icon in the report details box. AyuGram's `AddReportDetailsIconButton` also uses `"blocked_peers_empty"` as the lottie icon name (via `Settings::CreateLottieIcon`), so this matches. However, in AyuGram this icon is displayed before the text explaining the report (`tr::lng_report_details_about()`). The Dart box shows the lottie animation, then a description text, then a TextField — which matches the AyuGram order. No issue here on icon name, but the description text used is `'Please enter any additional details relevant to your report.'` while AyuGram uses `tr::lng_report_details_about()` which in English renders as "Please describe the violation in a few words." — a different string. — `confirm_box.dart:1499-1510` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/report_box_graphics.cpp:130-145`
-
 ## confirm_box — ReportDetailsBox submit does not distinguish optional vs mandatory
 
 - [ ] [MAJOR] AyuGram's `ReportDetailsBox` (the one called from the static photo-report flow) submits regardless of whether text is empty — the optional check belongs to the dynamic flow box. The Dart `_ReportDetailsBox` has a proper `optional` field and validates when `!optional && text.isEmpty`. This matches the dynamic report flow (`report_messages_box.cpp:171-177`). However, when `optional=true` (the default), the Dart box submits an empty string which is then returned to `showDynamicReportFlow` — which is correct behavior. Not a bug.
