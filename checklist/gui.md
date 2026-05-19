@@ -318,10 +318,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — "Skip file" label differs from spec
-
-- [ ] [MAJOR] Processing view shows link "Skip file". AyuGram uses `lng_export_skip_file` = "Skip this file". — `chat_export.dart:2183` ← `export_view_progress.cpp:259` and `lang.strings` "lng_export_skip_file"
-
 ## chat_export — `_ExportPanelController` lacks proper `hideOnDeactivate` — panel stays open when app deactivates during export
 
 - [ ] [MAJOR] AyuGram sets `_panel->setHideOnDeactivate(true)` during processing and `setHideOnDeactivate(false)` on error. Dart's `_FloatingExportPanel` uses `AppLifecycleState.inactive` check but only for `_hideOnDeactivate` (which is `true` only during processing), and calls `Navigator.of(context).pop()` — but the export panel is in an `OverlayEntry`, not a Navigator route, so `Navigator.pop()` is a no-op. The deactivate behavior is broken. — `chat_export.dart:625-629` ← `export_view_panel_controller.cpp:278`, `299`, `335`
