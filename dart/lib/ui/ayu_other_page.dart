@@ -9,7 +9,9 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import '../state/chat_state.dart';
 import 'ayu_section_builder.dart';
 
 class AyuOtherPage extends StatelessWidget {
@@ -462,11 +464,32 @@ class _DonateInfoBoxState extends State<_DonateInfoBox> {
     _usernameRecognizer = TapGestureRecognizer()
       ..onTap = () {
         final username = _DonateInfoBox._donateUsername;
-        launchUrl(
-          Uri.parse('https://t.me/$username'),
-          mode: LaunchMode.platformDefault,
-        );
+        _navigateToUsername(username);
       };
+  }
+
+  void _navigateToUsername(String username) {
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) {
+      launchUrl(Uri.parse('https://t.me/$username'),
+          mode: LaunchMode.externalApplication);
+      return;
+    }
+    final engine = context.read<EngineService>();
+    engine.resolveUsername(accountId, username).then((chatId) {
+      if (chatId != null && chatId.isNotEmpty && mounted) {
+        Navigator.of(context).pop();
+        context.read<ChatState>().openChatById(chatId);
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      } else {
+        launchUrl(Uri.parse('https://t.me/$username'),
+            mode: LaunchMode.externalApplication);
+      }
+    }).catchError((_) {
+      launchUrl(Uri.parse('https://t.me/$username'),
+          mode: LaunchMode.externalApplication);
+    });
   }
 
   @override

@@ -673,6 +673,8 @@ class _MessagePreviewStandalone extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
+    final appState = context.read<AppState>();
+    final userName = appState.activeAccount?.displayName ?? 'You';
     final radiusLarge = bubbleRadius.toDouble();
     final radiusSmall = showTail
         ? (radiusLarge * 6 / 16).clamp(0.0, 6.0)
@@ -728,13 +730,13 @@ class _MessagePreviewStandalone extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('AyuGram Releases',
+                      Text(userName,
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: nameColor)),
                       const SizedBox(height: 2),
-                      Text('Update wehn?',
+                      Text('Hey, check this out!',
                           style: TextStyle(
                               fontSize: 13, color: p.historyTextInFg)),
                       const SizedBox(height: 2),
@@ -802,12 +804,12 @@ class _MessagePreviewStandalone extends StatelessWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('AyuGram Releases',
+                                    Text(userName,
                                         style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
                                             color: nameColor)),
-                                    Text('Update wehn?',
+                                    Text('Hey, check this out!',
                                         style: TextStyle(
                                             fontSize: 12,
                                             color: p.historyTextOutFg
@@ -817,7 +819,7 @@ class _MessagePreviewStandalone extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                  'You need to go outside and touch some grass...',
+                                  'Sure, looks great to me!',
                                   style: TextStyle(
                                       fontSize: 13,
                                       color: p.historyTextOutFg)),

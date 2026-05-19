@@ -573,6 +573,20 @@ class _UniClientAppState extends State<UniClientApp>
     if (chat != null) chatState.openChat(chat);
   }
 
+  static CallPanelState _parseCallPanelState(String state) => switch (state) {
+    'connecting' => CallPanelState.connecting,
+    'exchangingKeys' || 'exchanging_keys' => CallPanelState.exchangingKeys,
+    'waiting' => CallPanelState.waiting,
+    'requesting' => CallPanelState.requesting,
+    'ringing' => CallPanelState.ringing,
+    'hangingUp' || 'hanging_up' => CallPanelState.hangingUp,
+    'active' => CallPanelState.active,
+    'ended' => CallPanelState.ended,
+    'failed' => CallPanelState.failed,
+    'busy' => CallPanelState.busy,
+    _ => CallPanelState.incoming,
+  };
+
   void _pollDebugCommand(ChatState chatState) {
     final file = File('/tmp/uniclient_debug_cmd.json');
     if (!file.existsSync()) return;
@@ -897,34 +911,55 @@ class _UniClientAppState extends State<UniClientApp>
 
         case 'showCallPanel':
           final state = cmd['state'] as String? ?? 'incoming';
-          final callState = switch (state) {
-            'connecting' => CallPanelState.connecting,
-            'exchangingKeys' || 'exchanging_keys' => CallPanelState.exchangingKeys,
-            'waiting' => CallPanelState.waiting,
-            'requesting' => CallPanelState.requesting,
-            'ringing' => CallPanelState.ringing,
-            'hangingUp' || 'hanging_up' => CallPanelState.hangingUp,
-            'active' => CallPanelState.active,
-            'ended' => CallPanelState.ended,
-            'failed' => CallPanelState.failed,
-            'busy' => CallPanelState.busy,
-            _ => CallPanelState.incoming,
-          };
+          final callState = _parseCallPanelState(state);
           final navCtx = _navigatorKey.currentContext;
           if (navCtx != null) {
             final fpRaw = cmd['fingerprintEmoji'];
             final fpEmoji = fpRaw is List
                 ? fpRaw.cast<String>().toList()
                 : <String>[];
+            final callId = cmd['callId'] as String? ?? '';
+            final callerIdStr = cmd['callerId'] as String? ?? 'test_user';
+            final callerNameStr = cmd['callerName'] as String? ?? 'Test Caller';
+            final avatarUrlStr = cmd['avatarUrl'] as String? ?? '';
+            final isVideoFlag = cmd['isVideo'] == true;
+            final sigQuality = (cmd['signalQuality'] as num?)?.toInt() ?? -1;
+
+            final infoController = StreamController<CallPanelInfo>.broadcast();
+            final engine = context.read<EngineService>();
+            StreamSubscription<CallStateEvent>? callSub;
+            callSub = engine.onCallState.listen((event) {
+              if (callId.isNotEmpty && event.call.id != callId) return;
+              final newState = _parseCallPanelState(event.call.state);
+              infoController.add(CallPanelInfo(
+                callerId: callerIdStr,
+                callerName: callerNameStr,
+                callerAvatarUrl: avatarUrlStr,
+                isVideo: isVideoFlag || event.call.isVideo,
+                state: newState,
+                signalQuality: sigQuality,
+                fingerprintEmoji: fpEmoji,
+                callId: event.call.id,
+              ));
+              if (newState == CallPanelState.ended ||
+                  newState == CallPanelState.failed ||
+                  newState == CallPanelState.busy) {
+                callSub?.cancel();
+                infoController.close();
+              }
+            });
+
             showCallPanel(navCtx, CallPanelInfo(
-              callerId: cmd['callerId'] as String? ?? 'test_user',
-              callerName: cmd['callerName'] as String? ?? 'Test Caller',
-              callerAvatarUrl: cmd['avatarUrl'] as String? ?? '',
-              isVideo: cmd['isVideo'] == true,
+              callerId: callerIdStr,
+              callerName: callerNameStr,
+              callerAvatarUrl: avatarUrlStr,
+              isVideo: isVideoFlag,
               state: callState,
-              signalQuality: (cmd['signalQuality'] as num?)?.toInt() ?? -1,
+              signalQuality: sigQuality,
               fingerprintEmoji: fpEmoji,
-            ), callId: cmd['callId'] as String?);
+              callId: callId,
+            ), callId: callId.isEmpty ? null : callId,
+               infoStream: infoController.stream);
           }
 
         case 'showCallTopBar':

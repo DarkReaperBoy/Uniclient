@@ -28,7 +28,13 @@ class AyuAppearancePage extends StatelessWidget {
     b.addSectionTitle('App Icon');
     b.addWidget(_AppIconPicker(
       selectedIcon: appState.appIcon,
-      onChanged: (v) => appState.setAppIcon(v),
+      onChanged: (v) {
+        appState.setAppIcon(v);
+        const MethodChannel('com.uniclient.app/tray')
+            .invokeMethod<void>('updateAppIcon', {
+          'icon': v.isEmpty ? 'default' : v,
+        }).catchError((_) {});
+      },
       isDark: isDark,
     ));
     if (Platform.isWindows || Platform.isMacOS) {
@@ -274,7 +280,16 @@ class _AvatarCornersSectionState extends State<_AvatarCornersSection> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('OK', style: TextStyle(color: accentColor)),
+            child: Text('Restart Later', style: TextStyle(color: accentColor)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              exit(0);
+            },
+            child: Text('Restart Now',
+                style: TextStyle(
+                    color: accentColor, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -935,7 +950,16 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('OK', style: TextStyle(color: accentColor)),
+            child: Text('Restart Later', style: TextStyle(color: accentColor)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              exit(0);
+            },
+            child: Text('Restart Now',
+                style: TextStyle(
+                    color: accentColor, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -1020,8 +1044,8 @@ class _AppIconPickerState extends State<_AppIconPicker> {
               children: [
                 Positioned.fill(
                   child: AnimatedOpacity(
-                    opacity: isSelected ? 1.0 : (wasPrev ? 0.0 : 0.0),
-                    duration: Duration(milliseconds: isSelected ? 200 : (wasPrev ? 200 : 0)),
+                    opacity: isSelected ? 1.0 : 0.0,
+                    duration: Duration(milliseconds: (isSelected || wasPrev) ? 200 : 0),
                     curve: Curves.easeOutCubic,
                     child: Container(
                       decoration: BoxDecoration(
