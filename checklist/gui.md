@@ -318,10 +318,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — Section header "Output format" should be "Location and format"
-
-- [ ] [MAJOR] `_buildSectionHeader('Output format', ...)` renders "Output format". AyuGram uses `lng_export_header_format` = "Location and format". — `chat_export.dart:1340` ← `export_view_settings.cpp:290` and `lang.strings` "lng_export_header_format"
-
 ## chat_export — Location label text differs: shows "Location: path" instead of "Download path: {path}"
 
 - [ ] [MAJOR] `_buildLocationLabel` shows "Location: " prefix. AyuGram uses `lng_export_option_location` = "Download path: {path}". — `chat_export.dart:1622` ← `export_view_settings.cpp:316-322` and `lang.strings` "lng_export_option_location"
