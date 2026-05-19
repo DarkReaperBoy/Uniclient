@@ -5,9 +5,11 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -16,6 +18,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
+import 'confirm_box.dart';
 import 'photo_crop_editor.dart';
 import 'telegram_toast.dart';
 
@@ -24,7 +27,7 @@ import 'telegram_toast.dart';
 /// Group flow:   InfoBox → MemberPicker → create → navigate.
 /// Channel flow: InfoBox → create → SetupChannelBox → MemberPicker → navigate.
 
-enum _WizardType { group, channel }
+enum _WizardType { group, channel, megagroup, forum }
 
 enum _WizardStep { info, setupChannel, memberPicker }
 
@@ -34,15 +37,20 @@ const EdgeInsets _boxPadding = EdgeInsets.fromLTRB(24, 14, 24, 8);
 const int _maxTitleLength = 128;
 const int _maxDescLength = 255;
 
-// §21.2.1: Userpic gradient pairs come from palette tokens
-// (historyPeer{1..8}UserpicBg / Bg2). Access via context.palette.
-
 Future<void> showCreateGroupWizard(BuildContext context) {
   return _showWizard(context, _WizardType.group);
 }
 
 Future<void> showCreateChannelWizard(BuildContext context) {
   return _showWizard(context, _WizardType.channel);
+}
+
+Future<void> showCreateMegagroupWizard(BuildContext context) {
+  return _showWizard(context, _WizardType.megagroup);
+}
+
+Future<void> showCreateForumWizard(BuildContext context) {
+  return _showWizard(context, _WizardType.forum);
 }
 
 Future<void> _showWizard(BuildContext context, _WizardType type) {
@@ -126,6 +134,8 @@ class _WizardDialogState extends State<_WizardDialog>
   String _inviteLink = '';
   bool _loadingInviteLink = false;
   bool _savingUsername = false;
+  bool _tooMuchUsernames = false;
+  bool _publicGroupNA = false;
 
   @override
   void initState() {
@@ -157,6 +167,98 @@ class _WizardDialogState extends State<_WizardDialog>
       if (!mounted || ttl <= 0) return;
       setState(() => _ttlSeconds = ttl);
     } catch (_) {}
+  }
+
+  void _showChannelsLimitDialog() {
+    showConfirmBox(
+      context,
+      title: 'Limit Reached',
+      text: 'You have created too many groups and channels. Please delete some before creating a new one.',
+      confirmText: 'OK',
+    );
+  }
+
+  void _showPeerFloodDialog() {
+    showTelegramBox(
+      context: context,
+      builder: (ctx) => TelegramBox(
+        title: 'Flood Warning',
+        content: Padding(
+          padding: kBoxPadding,
+          child: Text.rich(
+            TextSpan(
+              style: TextStyle(
+                fontSize: 14,
+                height: 22 / 14,
+                color: Theme.of(ctx).brightness == Brightness.dark
+                    ? const Color(0xFFF5F5F5)
+                    : const Color(0xFF000000),
+              ),
+              children: [
+                const TextSpan(
+                  text: 'Sorry, you can only send messages to mutual contacts at the moment. ',
+                ),
+                TextSpan(
+                  text: 'More info',
+                  style: TextStyle(
+                    color: Theme.of(ctx).brightness == Brightness.dark
+                        ? const Color(0xFF6AB3F3)
+                        : const Color(0xFF168ACD),
+                  ),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () {
+                      launchUrl(Uri.parse('https://t.me/spambot'));
+                    },
+                ),
+              ],
+            ),
+          ),
+        ),
+        buttons: [
+          TelegramBoxButton(
+            text: 'OK',
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUsersTooFewDialog() {
+    showConfirmBox(
+      context,
+      text: 'Sorry, this user\'s privacy settings prevent you from inviting them to groups.',
+      confirmText: 'OK',
+    );
+  }
+
+  void _showPrivacyRestrictedDialog() {
+    showConfirmBox(
+      context,
+      text: 'Sorry, this user\'s privacy settings prevent you from inviting them to this chat.',
+      confirmText: 'OK',
+    );
+  }
+
+  Future<void> _probeUsernameAvailability() async {
+    try {
+      await _engine.checkChannelUsername(_accountId, _createdChatId, 'preston');
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString();
+      if (msg.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')) {
+        setState(() {
+          _tooMuchUsernames = true;
+          _isPublic = false;
+        });
+        _showPublicLinksLimitBox();
+      } else if (msg.contains('CHANNEL_PUBLIC_GROUP_NA')) {
+        setState(() {
+          _publicGroupNA = true;
+          _isPublic = false;
+        });
+      }
+    }
   }
 
   @override
@@ -545,15 +647,19 @@ class _WizardDialogState extends State<_WizardDialog>
         _usernameChecking = false;
         if (msg.contains('CHANNEL_PUBLIC_GROUP_NA')) {
           _usernameStatus = 'This group can\'t have a public link';
+          _publicGroupNA = true;
           _isPublic = false;
         } else if (msg.contains('USERNAME_PURCHASE_AVAILABLE')) {
           _usernameStatus = 'This username is available for purchase on Fragment';
         } else if (msg.contains('USERNAME_INVALID') || msg.contains('UsernameInvalid')) {
           _usernameStatus = 'Sorry, this link is invalid';
-        } else if (msg.contains('USERNAME_OCCUPIED') || msg.contains('UsernameOccupied')) {
+        } else if (msg.contains('USERNAME_OCCUPIED') || msg.contains('UsernameOccupied') ||
+                   msg.contains('USERNAMES_UNAVAILABLE')) {
           _usernameStatus = 'Sorry, this link is already taken';
         } else if (msg.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')) {
           _usernameStatus = 'You have too many public channels';
+          _tooMuchUsernames = true;
+          _isPublic = false;
           _showPublicLinksLimitBox();
         } else {
           _usernameStatus = 'Sorry, this link is invalid';
@@ -582,6 +688,7 @@ class _WizardDialogState extends State<_WizardDialog>
     ).then((revoked) {
       if (revoked == true && mounted) {
         setState(() {
+          _tooMuchUsernames = false;
           _usernameStatus = null;
           _usernameValid = false;
           _usernameChecking = true;
@@ -652,13 +759,20 @@ class _WizardDialogState extends State<_WizardDialog>
         _error = null;
       });
       try {
-        final chatInfo = await _engine.createChannel(
-          _accountId,
-          name,
-          _descController.text.trim(),
-        );
-        if (!mounted) return;
-        _createdChatId = chatInfo.chatId;
+        final desc = _descController.text.trim();
+        Map<String, dynamic>? megagroupResult;
+        if (widget.type == _WizardType.megagroup || widget.type == _WizardType.forum) {
+          megagroupResult = await _engine.createMegagroup(
+            _accountId, name, desc,
+            forum: widget.type == _WizardType.forum,
+          );
+          if (!mounted) return;
+          _createdChatId = megagroupResult['chat_id'] as String? ?? '';
+        } else {
+          final chatInfo = await _engine.createChannel(_accountId, name, desc);
+          if (!mounted) return;
+          _createdChatId = chatInfo.chatId;
+        }
         if (_photoPath != null && _photoPath!.isNotEmpty) {
           try {
             await _engine.editChannelPhoto(_accountId, _createdChatId, _photoPath!);
@@ -668,6 +782,7 @@ class _WizardDialogState extends State<_WizardDialog>
         }
         if (!mounted) return;
         _loadInviteLink();
+        _probeUsernameAvailability();
         setState(() {
           _creating = false;
           _step = _WizardStep.setupChannel;
@@ -680,11 +795,17 @@ class _WizardDialogState extends State<_WizardDialog>
           setState(() { _creating = false; });
           return;
         }
-        if (msg.contains('CHANNELS_TOO_MUCH')) msg = 'You have created too many channels';
-        if (msg.contains('USERS_TOO_FEW')) msg = 'You need to add more members';
-        if (msg.contains('PEER_FLOOD')) msg = 'Too many requests. Please try again later.';
+        setState(() { _creating = false; });
+        if (msg.contains('CHANNELS_TOO_MUCH')) {
+          _showChannelsLimitDialog();
+          return;
+        }
+        if (msg.contains('PEER_FLOOD')) {
+          _showPeerFloodDialog();
+          return;
+        }
         if (msg.contains('USER_RESTRICTED')) msg = 'Your account is restricted from creating channels.';
-        setState(() { _creating = false; _error = msg; });
+        setState(() { _error = msg; });
       } catch (e) {
         if (!mounted) return;
         setState(() { _creating = false; _error = e.toString(); });
@@ -699,6 +820,7 @@ class _WizardDialogState extends State<_WizardDialog>
         _accountId,
         _nameController.text.trim(),
         _selectedMembers.toList(),
+        ttlSeconds: _ttlSeconds,
       );
       if (!mounted) return;
       final chatId = result['chat_id'] as String? ?? '';
@@ -708,13 +830,6 @@ class _WizardDialogState extends State<_WizardDialog>
             await _engine.editChannelPhoto(_accountId, chatId, _photoPath!);
           } catch (e) {
             debugPrint('Failed to upload group photo: $e');
-          }
-        }
-        if (_ttlSeconds > 0) {
-          try {
-            _engine.setHistoryTTL(_accountId, chatId, _ttlSeconds);
-          } catch (e) {
-            debugPrint('Failed to set history TTL: $e');
           }
         }
         if (!mounted) return;
@@ -730,11 +845,21 @@ class _WizardDialogState extends State<_WizardDialog>
         setState(() { _creating = false; _step = _WizardStep.info; });
         return;
       }
-      if (msg.contains('USERS_TOO_FEW')) msg = 'You need to add at least one member';
-      if (msg.contains('CHANNELS_TOO_MUCH')) msg = 'You have created too many groups';
-      if (msg.contains('PEER_FLOOD')) msg = 'Too many requests. Please try again later.';
+      setState(() { _creating = false; });
+      if (msg.contains('USERS_TOO_FEW')) {
+        _showUsersTooFewDialog();
+        return;
+      }
+      if (msg.contains('CHANNELS_TOO_MUCH')) {
+        _showChannelsLimitDialog();
+        return;
+      }
+      if (msg.contains('PEER_FLOOD')) {
+        _showPeerFloodDialog();
+        return;
+      }
       if (msg.contains('USER_RESTRICTED')) msg = 'Your account is restricted from creating groups.';
-      setState(() { _creating = false; _error = msg; });
+      setState(() { _error = msg; });
     } catch (e) {
       if (!mounted) return;
       setState(() { _creating = false; _error = e.toString(); });
@@ -791,9 +916,22 @@ class _WizardDialogState extends State<_WizardDialog>
         );
       } catch (e) {
         if (!mounted) return;
+        setState(() { _creating = false; });
+        final msg = e.toString();
+        if (msg.contains('USER_PRIVACY_RESTRICTED')) {
+          _showPrivacyRestrictedDialog();
+          return;
+        }
+        if (msg.contains('PEER_FLOOD')) {
+          _showPeerFloodDialog();
+          return;
+        }
+        if (msg.contains('USERS_TOO_FEW')) {
+          _showUsersTooFewDialog();
+          return;
+        }
         setState(() {
-          _creating = false;
-          _error = e.toString().replaceAll('Exception: ', '');
+          _error = msg.replaceAll('Exception: ', '');
         });
         return;
       }
@@ -870,9 +1008,14 @@ class _WizardDialogState extends State<_WizardDialog>
     String title;
     switch (_step) {
       case _WizardStep.info:
-        title = widget.type == _WizardType.group ? 'New Group' : 'New Channel';
+        title = switch (widget.type) {
+          _WizardType.group => 'New Group',
+          _WizardType.megagroup => 'New Group',
+          _WizardType.forum => 'New Forum',
+          _WizardType.channel => 'New Channel',
+        };
       case _WizardStep.setupChannel:
-        title = 'Channel Type';
+        title = widget.type == _WizardType.forum ? 'Forum Type' : 'Channel Type';
       case _WizardStep.memberPicker:
         title = widget.type == _WizardType.group ? 'Add Members' : 'Add Subscribers';
     }
@@ -1004,9 +1147,11 @@ class _WizardDialogState extends State<_WizardDialog>
                     maxLength: _maxTitleLength,
                     style: TextStyle(fontSize: 14, color: textColor),
                     decoration: InputDecoration(
-                      hintText: widget.type == _WizardType.group
-                          ? 'Group Name'
-                          : 'Channel Name',
+                      hintText: switch (widget.type) {
+                          _WizardType.group || _WizardType.megagroup => 'Group Name',
+                          _WizardType.forum => 'Forum Name',
+                          _WizardType.channel => 'Channel Name',
+                        },
                       hintStyle: TextStyle(color: subtextColor),
                       counterText: '',
                       filled: true,
@@ -1028,7 +1173,7 @@ class _WizardDialogState extends State<_WizardDialog>
             ),
           ],
         ),
-        if (widget.type == _WizardType.channel) ...[
+        if (widget.type != _WizardType.group) ...[
           const SizedBox(height: 13),
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 116),
@@ -1090,6 +1235,11 @@ class _WizardDialogState extends State<_WizardDialog>
           subtitle: 'Anyone can find the channel and join',
           selected: _isPublic,
           onTap: () {
+            if (_publicGroupNA) return;
+            if (_tooMuchUsernames) {
+              _showPublicLinksLimitBox();
+              return;
+            }
             if (!_isPublic) setState(() { _isPublic = true; _error = null; });
           },
           isDark: isDark,
@@ -1371,7 +1521,7 @@ class _WizardDialogState extends State<_WizardDialog>
 
     switch (_step) {
       case _WizardStep.info:
-        confirmLabel = widget.type == _WizardType.group ? 'Next' : 'Create';
+        confirmLabel = (widget.type == _WizardType.group) ? 'Next' : 'Create';
         confirmAction = _creating ? null : _submitInfo;
       case _WizardStep.setupChannel:
         confirmLabel = 'Save';
@@ -2739,6 +2889,18 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString();
+      if (msg.contains('USERNAME_NOT_MODIFIED')) {
+        setState(() => _saving = false);
+        Navigator.pop(context, true);
+        return;
+      }
+      if (msg.contains('USERNAMES_UNAVAILABLE') || msg.contains('USERNAME_OCCUPIED')) {
+        setState(() {
+          _saving = false;
+          _error = 'Sorry, this link is already taken.';
+        });
+        return;
+      }
       if (msg.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')) {
         int freeLimit = 10, premiumLimit = 20;
         try {
@@ -2763,12 +2925,15 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
           _save();
           return;
         }
+        setState(() {
+          _saving = false;
+          _error = 'Too many public groups/channels';
+        });
+        return;
       }
       setState(() {
         _saving = false;
-        _error = msg.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')
-            ? 'Too many public groups/channels'
-            : 'Failed to save: $msg';
+        _error = 'Failed to save: $msg';
       });
     }
   }

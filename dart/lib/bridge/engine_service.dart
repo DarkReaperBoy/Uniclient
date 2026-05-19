@@ -2785,13 +2785,25 @@ class EngineService {
     return resp.chat;
   }
 
-  Future<Map<String, dynamic>> createGroup(String accountId, String name, List<String> members) async {
+  Future<Map<String, dynamic>> createGroup(String accountId, String name, List<String> members, {int ttlSeconds = 0}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'name': name,
       'members': members,
+      if (ttlSeconds > 0) 'ttl_seconds': ttlSeconds,
     }));
     final respBytes = await _callAsync('__engine', 'CreateGroup', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createMegagroup(String accountId, String name, String description, {bool forum = false}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'name': name,
+      'description': description,
+      'forum': forum,
+    }));
+    final respBytes = await _callAsync('__engine', 'CreateMegagroup', Uint8List.fromList(payload));
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 

@@ -10072,6 +10072,11 @@ func (t *TelegramCore) GetProfile(userID string) (*User, error) {
 
 // CreateGroup creates a new basic group chat with the specified users.
 func (t *TelegramCore) CreateGroup(name string, members []string) (*Dialog, error) {
+	return t.CreateGroupWithTTL(name, members, 0)
+}
+
+// CreateGroupWithTTL creates a group chat with optional TTL (auto-delete period in seconds).
+func (t *TelegramCore) CreateGroupWithTTL(name string, members []string, ttlSeconds int) (*Dialog, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -10087,10 +10092,15 @@ func (t *TelegramCore) CreateGroup(name string, members []string) (*Dialog, erro
 		users = append(users, &tg.InputUser{UserID: id})
 	}
 
-	result, err := t.api.MessagesCreateChat(t.ctx, &tg.MessagesCreateChatRequest{
+	req := &tg.MessagesCreateChatRequest{
 		Title: name,
 		Users: users,
-	})
+	}
+	if ttlSeconds > 0 {
+		req.SetTTLPeriod(ttlSeconds)
+	}
+
+	result, err := t.api.MessagesCreateChat(t.ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("create group: %w", err)
 	}
@@ -10107,8 +10117,13 @@ func (t *TelegramCore) CreateChannel(name string, description string) (*Dialog, 
 	return t.RawCreateChannel(name, description, true, false)
 }
 
-// RawCreateChannel creates a channel or megagroup (supergroup).
+// RawCreateChannel creates a channel, megagroup (supergroup), or forum.
 func (t *TelegramCore) RawCreateChannel(name, description string, broadcast, megagroup bool) (*Dialog, error) {
+	return t.RawCreateChannelFull(name, description, broadcast, megagroup, false)
+}
+
+// RawCreateChannelFull creates a channel, megagroup, or forum with all flags.
+func (t *TelegramCore) RawCreateChannelFull(name, description string, broadcast, megagroup, forum bool) (*Dialog, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -10120,6 +10135,7 @@ func (t *TelegramCore) RawCreateChannel(name, description string, broadcast, meg
 		About:     description,
 		Broadcast: broadcast,
 		Megagroup: megagroup,
+		Forum:     forum,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create channel: %w", err)

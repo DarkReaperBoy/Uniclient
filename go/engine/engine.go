@@ -768,12 +768,25 @@ func (e *Engine) CreateChannel(accountID, name, description string) (*ChatInfo, 
 }
 
 func (e *Engine) CreateGroup(accountID, name string, members []string) (*ChatInfo, error) {
+	return e.CreateGroupWithTTL(accountID, name, members, 0)
+}
+
+func (e *Engine) CreateGroupWithTTL(accountID, name string, members []string, ttlSeconds int) (*ChatInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account %q not found or not connected", accountID)
 	}
 
-	dialog, err := acc.Core.CreateGroup(name, members)
+	type ttlCreator interface {
+		CreateGroupWithTTL(name string, members []string, ttlSeconds int) (*cores.Dialog, error)
+	}
+	var dialog *cores.Dialog
+	var err error
+	if tc, ok := acc.Core.(ttlCreator); ok && ttlSeconds > 0 {
+		dialog, err = tc.CreateGroupWithTTL(name, members, ttlSeconds)
+	} else {
+		dialog, err = acc.Core.CreateGroup(name, members)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -791,6 +804,51 @@ func (e *Engine) CreateGroup(accountID, name string, members []string) (*ChatInf
 		AccountID:   accountID,
 		ChatID:      dialog.ID,
 		Type:        ChatTypeGroupVal,
+		Title:       dialog.Title,
+		MemberCount: dialog.MemberCount,
+	}, nil
+}
+
+func (e *Engine) CreateMegagroup(accountID, name, description string, forum bool) (*ChatInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+
+	type fullCreator interface {
+		RawCreateChannelFull(name, description string, broadcast, megagroup, forum bool) (*cores.Dialog, error)
+	}
+	type rawCreator interface {
+		RawCreateChannel(name, description string, broadcast, megagroup bool) (*cores.Dialog, error)
+	}
+
+	var dialog *cores.Dialog
+	var err error
+	if fc, ok := acc.Core.(fullCreator); ok {
+		dialog, err = fc.RawCreateChannelFull(name, description, false, true, forum)
+	} else if rc, ok := acc.Core.(rawCreator); ok {
+		dialog, err = rc.RawCreateChannel(name, description, false, true)
+	} else {
+		dialog, err = acc.Core.CreateChannel(name, description)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if err := e.UpsertChat(accountID, *dialog); err != nil {
+		return nil, fmt.Errorf("failed to cache new megagroup: %w", err)
+	}
+
+	go func() {
+		ctx := context.Background()
+		e.syncAccount(ctx, accountID)
+	}()
+
+	chatType := ChatTypeChanVal
+	return &ChatInfo{
+		AccountID:   accountID,
+		ChatID:      dialog.ID,
+		Type:        chatType,
 		Title:       dialog.Title,
 		MemberCount: dialog.MemberCount,
 	}, nil
