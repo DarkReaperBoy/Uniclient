@@ -318,10 +318,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — `_ExportPanelController.showAndActivate` does not re-bring panel to front visually
-
-- [ ] [MAJOR] `showAndActivate()` calls `_entry!.markNeedsBuild()` which only triggers a rebuild of the overlay entry, but does NOT reorder it to be on top of other overlay entries. AyuGram's `activatePanel()` calls `_panel->showAndActivate()` which brings the window to the foreground. In Dart the overlay entry retains its insertion order — if other overlays were inserted after it, the export panel remains behind them. — `chat_export.dart:187-192` ← `export_view_panel_controller.cpp:163-167`
-
 ## chat_export — Processing view: animated fade-out of old step rows not implemented
 
 - [ ] [MAJOR] AyuGram's `ProgressWidget::Row` has animated fade in/out of label instances when a step's ID changes (`toggleInstance` with opacity animation, `_old` vector of fading instances). Dart replaces step labels in-place using `AnimatedSwitcher` only for the label text, without fading out the progress bar of old step rows. The visual transition when steps complete is incorrect. — `chat_export.dart:2110-2162` ← `export_view_progress.cpp:73-182`
