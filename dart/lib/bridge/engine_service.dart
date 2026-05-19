@@ -1587,6 +1587,20 @@ class EngineService {
     }
   }
 
+  Future<bool> reorderStickerSets(String accountId, List<int> order) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'order': order,
+    }));
+    try {
+      await _callAsync('__engine', 'ReorderStickerSets', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'reorderStickerSets failed', e);
+      return false;
+    }
+  }
+
   Future<bool> archiveStickerSet(String accountId, int setId, int accessHash) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

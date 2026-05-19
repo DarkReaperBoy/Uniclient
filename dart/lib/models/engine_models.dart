@@ -2993,6 +2993,7 @@ class CloudThemeInfo {
   final String title;
   final String slug;
   final bool isCreator;
+  final int documentId;
   final int accentColor;
   final int bgColor;
   final int sentColor;
@@ -3004,6 +3005,7 @@ class CloudThemeInfo {
     required this.title,
     required this.slug,
     this.isCreator = false,
+    this.documentId = 0,
     this.accentColor = 0,
     this.bgColor = 0,
     this.sentColor = 0,
@@ -3016,6 +3018,7 @@ class CloudThemeInfo {
     title: json['title'] as String? ?? '',
     slug: json['slug'] as String? ?? '',
     isCreator: json['is_creator'] as bool? ?? false,
+    documentId: (json['document_id'] as num?)?.toInt() ?? 0,
     accentColor: (json['accent_color'] as num?)?.toInt() ?? 0,
     bgColor: (json['bg_color'] as num?)?.toInt() ?? 0,
     sentColor: (json['sent_color'] as num?)?.toInt() ?? 0,

@@ -2785,6 +2785,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "ReorderStickerSets":
+		var params struct {
+			AccountID string  `json:"account_id"`
+			Order     []int64 `json:"order"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.ReorderStickerSets(params.AccountID, params.Order); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	case "SaveGif":
 		var req pb.EngineSaveGifRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

@@ -1419,6 +1419,25 @@ func (e *Engine) UninstallStickerSet(accountID string, setID, accessHash int64) 
 	return uninstaller.UninstallStickerSet(setID, accessHash)
 }
 
+type StickerSetReorderer interface {
+	ReorderStickerSets(order []int64) error
+}
+
+func (e *Engine) ReorderStickerSets(accountID string, order []int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	reorderer, ok := acc.Core.(StickerSetReorderer)
+	if !ok {
+		return fmt.Errorf("platform does not support sticker set reorder")
+	}
+	return reorderer.ReorderStickerSets(order)
+}
+
 type GifSaver interface {
 	SaveGif(fileID int64, extra string, unsave bool) error
 }

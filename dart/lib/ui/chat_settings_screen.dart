@@ -92,6 +92,20 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     });
   }
 
+  Future<void> _enableSensitiveContent(AppState appState) async {
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    final settings = await engine.getContentSettings(account.id);
+    if (!mounted) return;
+    if (!settings.sensitiveCanChange) {
+      showTelegramToast(context, 'This option is not available for your account.');
+      return;
+    }
+    setState(() => _sensitiveEnabled = true);
+    engine.setContentSettings(account.id, true);
+  }
+
   void _loadCloudThemes() {
     final appState = context.read<AppState>();
     final account = appState.activeAccount;
@@ -437,6 +451,12 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 _cloudThemes.any((t) => t.id == _activeCloudThemeId && t.isCreator)
                 ? () => _openThemeEditor(context)
                 : null,
+            onThemeDeleted: () {
+              setState(() {
+                _activeCloudThemeId = 0;
+              });
+              _loadCloudThemes();
+            },
           ),
           const SizedBox(height: 8),
           Container(height: 1, color: dividerColor),
@@ -577,34 +597,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
               enabled: _sensitiveEnabled,
               onChanged: (v) {
                 if (v && !_sensitiveEnabled) {
-                  showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('Age Verification Required'),
-                      content: const Text(
-                        'This content may not be appropriate for all audiences. '
-                        'To display sensitive media in chats, confirm that you are over 18 years of age.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(false),
-                          child: const Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(true),
-                          child: const Text('I am over 18'),
-                        ),
-                      ],
-                    ),
-                  ).then((confirmed) {
-                    if (confirmed == true && mounted) {
-                      setState(() => _sensitiveEnabled = true);
-                      final account = appState.activeAccount;
-                      if (account != null) {
-                        context.read<EngineService>().setContentSettings(account.id, true);
-                      }
-                    }
-                  });
+                  _enableSensitiveContent(appState);
                 } else {
                   setState(() => _sensitiveEnabled = v);
                   final account = appState.activeAccount;
@@ -922,7 +915,7 @@ class _AccentColorPalette extends StatelessWidget {
     required this.onColorSelected,
   });
 
-  static const _circleSize = 22.0;
+  static const _circleSize = 24.0;
   static const _ringWidth = 2.0;
   static const _ringSkip = 2.0;
 
@@ -1859,13 +1852,32 @@ class _AutoNightRow extends StatelessWidget {
 
 // ── §14.6.2: Font Family row ──
 
-const _availableFonts = [
-  'Inter',
-  'Roboto',
-  'Open Sans',
-  'Noto Sans',
-  'System Default',
-];
+List<String> _getAvailableFonts() {
+  final fonts = <String>['System Default'];
+  if (Platform.isLinux) {
+    fonts.addAll([
+      'Noto Sans', 'DejaVu Sans', 'Liberation Sans', 'Ubuntu', 'Cantarell',
+      'Droid Sans', 'Roboto', 'Inter', 'Open Sans', 'Fira Sans',
+      'Source Sans Pro', 'PT Sans', 'Lato', 'Noto Serif', 'DejaVu Serif',
+      'Liberation Serif', 'Noto Sans Mono', 'DejaVu Sans Mono',
+      'Liberation Mono', 'Fira Code', 'JetBrains Mono', 'Hack',
+    ]);
+  } else if (Platform.isMacOS) {
+    fonts.addAll([
+      'San Francisco', '.AppleSystemUIFont', 'Helvetica Neue', 'Helvetica',
+      'Arial', 'Avenir', 'Avenir Next', 'Georgia', 'Times New Roman',
+      'Courier New', 'SF Mono', 'Menlo', 'Monaco',
+    ]);
+  } else if (Platform.isWindows) {
+    fonts.addAll([
+      'Segoe UI', 'Arial', 'Calibri', 'Verdana', 'Tahoma', 'Trebuchet MS',
+      'Georgia', 'Times New Roman', 'Courier New', 'Consolas', 'Cascadia Code',
+    ]);
+  } else {
+    fonts.addAll(['Roboto', 'Noto Sans', 'Inter', 'Open Sans']);
+  }
+  return fonts;
+}
 
 class _FontFamilyRow extends StatelessWidget {
   final bool isDark;
@@ -1953,11 +1965,23 @@ class _ChooseFontBox extends StatefulWidget {
 
 class _ChooseFontBoxState extends State<_ChooseFontBox> {
   late String _selected;
+  late List<String> _allFonts;
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _selected = widget.currentFont;
+    _allFonts = _getAvailableFonts();
+    if (!_allFonts.contains(widget.currentFont) && widget.currentFont.isNotEmpty) {
+      _allFonts.insert(1, widget.currentFont);
+    }
+  }
+
+  List<String> get _filteredFonts {
+    if (_searchQuery.isEmpty) return _allFonts;
+    final q = _searchQuery.toLowerCase();
+    return _allFonts.where((f) => f.toLowerCase().contains(q)).toList();
   }
 
   @override
@@ -1967,12 +1991,13 @@ class _ChooseFontBoxState extends State<_ChooseFontBox> {
     final subtextColor = widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor = context.palette.windowBgActive;
     final previewBg = widget.isDark ? const Color(0xFF17212B) : const Color(0xFFF5F5F5);
+    final fonts = _filteredFonts;
 
     return Dialog(
       backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 364),
+        constraints: const BoxConstraints(maxWidth: 364, maxHeight: 520),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -1987,7 +2012,26 @@ class _ChooseFontBoxState extends State<_ChooseFontBox> {
                   color: textColor,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+              TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search fonts...',
+                  hintStyle: TextStyle(color: subtextColor, fontSize: 14),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: subtextColor.withValues(alpha: 0.3)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: accentColor),
+                  ),
+                ),
+                style: TextStyle(fontSize: 14, color: textColor),
+                onChanged: (v) => setState(() => _searchQuery = v),
+              ),
+              const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
@@ -2004,44 +2048,51 @@ class _ChooseFontBoxState extends State<_ChooseFontBox> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              ..._availableFonts.map((font) {
-                final isSelected = font == _selected;
-                return InkWell(
-                  onTap: () => setState(() => _selected = font),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: Radio<String>(
-                            value: font,
-                            groupValue: _selected,
-                            onChanged: (v) {
-                              if (v != null) setState(() => _selected = v);
-                            },
-                            activeColor: accentColor,
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                          ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: fonts.length,
+                  itemBuilder: (ctx, i) {
+                    final font = fonts[i];
+                    final isSelected = font == _selected;
+                    return InkWell(
+                      onTap: () => setState(() => _selected = font),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: Radio<String>(
+                                value: font,
+                                groupValue: _selected,
+                                onChanged: (v) {
+                                  if (v != null) setState(() => _selected = v);
+                                },
+                                activeColor: accentColor,
+                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              font,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: textColor,
+                                fontFamily: font == 'System Default' ? null : font,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          font,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: textColor,
-                            fontFamily: font == 'System Default' ? null : font,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
+                      ),
+                    );
+                  },
+                ),
+              ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -2077,6 +2128,7 @@ class _CloudThemeSection extends StatelessWidget {
   final VoidCallback onToggleShowAll;
   final ValueChanged<CloudThemeInfo> onThemeSelected;
   final VoidCallback? onEditTheme;
+  final VoidCallback? onThemeDeleted;
 
   const _CloudThemeSection({
     required this.themes,
@@ -2088,6 +2140,7 @@ class _CloudThemeSection extends StatelessWidget {
     required this.onToggleShowAll,
     required this.onThemeSelected,
     this.onEditTheme,
+    this.onThemeDeleted,
   });
 
   @override
@@ -2098,7 +2151,7 @@ class _CloudThemeSection extends StatelessWidget {
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
-    final visibleThemes = showAll ? themes : themes.take(8).toList();
+    final visibleThemes = themes;
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 200),
@@ -2121,14 +2174,6 @@ class _CloudThemeSection extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                if (themes.length > 4)
-                  GestureDetector(
-                    onTap: onToggleShowAll,
-                    child: Text(
-                      showAll ? 'Show Less' : 'Show All',
-                      style: TextStyle(fontSize: 14, color: accentColor),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -2182,6 +2227,7 @@ class _CloudThemeSection extends StatelessWidget {
             subtextColor: subtextColor,
             isActive: visible[i].id == activeThemeId,
             onTap: () => onThemeSelected(visible[i]),
+            onDeleted: onThemeDeleted,
           ),
         ),
       );
@@ -2207,6 +2253,7 @@ class _CloudThemeSection extends StatelessWidget {
                 subtextColor: subtextColor,
                 isActive: t.id == activeThemeId,
                 onTap: () => onThemeSelected(t),
+                onDeleted: onThemeDeleted,
               ),
             )).toList(),
           );
@@ -2224,6 +2271,7 @@ class _CloudThemeCard extends StatefulWidget {
   final Color subtextColor;
   final bool isActive;
   final VoidCallback onTap;
+  final VoidCallback? onDeleted;
 
   const _CloudThemeCard({
     required this.theme,
@@ -2233,6 +2281,7 @@ class _CloudThemeCard extends StatefulWidget {
     required this.subtextColor,
     required this.isActive,
     required this.onTap,
+    this.onDeleted,
   });
 
   @override
@@ -2249,7 +2298,7 @@ class _CloudThemeCardState extends State<_CloudThemeCard> {
 
   void _showContextMenu(Offset position) {
     final t = widget.theme;
-    final isOwnerAndActive = t.isCreator && widget.isActive;
+    final isOwnerAndActive = t.isCreator && widget.isActive && t.documentId != 0;
     showTelegramMenu<String>(
       context: context,
       position: position,
@@ -2312,8 +2361,13 @@ class _CloudThemeCardState extends State<_CloudThemeCard> {
                 final account = appState.activeAccount;
                 if (account != null) {
                   final engine = context.read<EngineService>();
+                  if (widget.isActive) {
+                    final defaultTheme = widget.isDark ? 'night' : 'day_blue';
+                    appState.applyTestingTheme(defaultTheme);
+                  }
                   await engine.deleteCloudTheme(account.id, widget.theme.id);
                 }
+                widget.onDeleted?.call();
                 if (mounted) showTelegramToast(context, 'Theme deleted');
               } catch (e) {
                 if (mounted) showTelegramToast(context, 'Failed to delete theme');
@@ -2566,16 +2620,12 @@ class _ChatBackgroundSectionState extends State<_ChatBackgroundSection>
                           color: Colors.black26,
                         ),
                         child: Center(
-                          child: AnimatedBuilder(
-                            animation: _loadingController,
-                            builder: (context, child) => SizedBox(
-                              width: 32,
-                              height: 32,
-                              child: CircularProgressIndicator(
-                                value: _loadingController.value,
-                                strokeWidth: 3,
-                                color: accentColor,
-                              ),
+                          child: SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 3,
+                              color: accentColor,
                             ),
                           ),
                         ),
@@ -3291,7 +3341,7 @@ class _CloudThemePreviewPainter extends CustomPainter {
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         const Rect.fromLTWH(6, 8, 40, 14),
-        const Radius.circular(2),
+        const Radius.circular(10),
       ),
       recvPaint,
     );
@@ -3299,7 +3349,7 @@ class _CloudThemePreviewPainter extends CustomPainter {
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(size.width - 46, 28, 40, 14),
-        const Radius.circular(2),
+        const Radius.circular(10),
       ),
       sentPaint,
     );
@@ -3307,7 +3357,7 @@ class _CloudThemePreviewPainter extends CustomPainter {
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         const Rect.fromLTWH(6, 48, 32, 14),
-        const Radius.circular(2),
+        const Radius.circular(10),
       ),
       recvPaint,
     );
@@ -3615,6 +3665,12 @@ class _StickerPackManagerState extends State<_StickerPackManager> {
       final item = _packs!.removeAt(oldIndex);
       _packs!.insert(newIndex, item);
     });
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account != null && _packs != null) {
+      final order = _packs!.map((p) => p.setId).toList();
+      context.read<EngineService>().reorderStickerSets(account.id, order);
+    }
   }
 
   Future<void> _search(String query) async {
@@ -4121,6 +4177,70 @@ class _MessageCheckbox extends StatelessWidget {
   }
 }
 
+const _reactionNames = <String, String>{
+  '❤️': 'Heart',
+  '👍': 'Thumbs Up',
+  '👎': 'Thumbs Down',
+  '🔥': 'Fire',
+  '🎉': 'Party Popper',
+  '😢': 'Crying Face',
+  '💩': 'Pile of Poo',
+  '👏': 'Clapping Hands',
+  '😂': 'Laughing',
+  '🤔': 'Thinking',
+  '🤯': 'Mind Blown',
+  '😱': 'Screaming',
+  '🥰': 'Smiling with Hearts',
+  '😡': 'Pouting Face',
+  '😭': 'Sobbing',
+  '🤩': 'Star-Struck',
+  '🤮': 'Vomiting',
+  '💯': 'Hundred',
+  '🤣': 'ROFL',
+  '⚡': 'Lightning',
+  '🍌': 'Banana',
+  '🏆': 'Trophy',
+  '💔': 'Broken Heart',
+  '🤨': 'Raised Eyebrow',
+  '😐': 'Neutral Face',
+  '🍓': 'Strawberry',
+  '🍾': 'Champagne',
+  '💋': 'Kiss Mark',
+  '🖕': 'Middle Finger',
+  '😈': 'Smiling Devil',
+  '😴': 'Sleeping',
+  '🤓': 'Nerd Face',
+  '👻': 'Ghost',
+  '👨‍💻': 'Technologist',
+  '👀': 'Eyes',
+  '🎃': 'Jack-O-Lantern',
+  '🙈': 'See-No-Evil',
+  '😇': 'Angel',
+  '😨': 'Fearful',
+  '🤝': 'Handshake',
+  '✍️': 'Writing Hand',
+  '🤗': 'Hugging Face',
+  '🫡': 'Saluting Face',
+  '🎅': 'Santa Claus',
+  '🎄': 'Christmas Tree',
+  '☃️': 'Snowman',
+  '💅': 'Nail Polish',
+  '🤪': 'Zany Face',
+  '🗿': 'Moai',
+  '🆒': 'Cool',
+  '💘': 'Heart with Arrow',
+  '🙉': 'Hear-No-Evil',
+  '🦄': 'Unicorn',
+  '😘': 'Kissing Face',
+  '💊': 'Pill',
+  '🙊': 'Speak-No-Evil',
+  '😎': 'Cool Face',
+  '👾': 'Alien Monster',
+  '🤷‍♂️': 'Man Shrugging',
+  '🤷': 'Person Shrugging',
+  '🤷‍♀️': 'Woman Shrugging',
+};
+
 class _ReactionChooserButton extends StatefulWidget {
   final String currentReaction;
   final bool isDark;
@@ -4258,7 +4378,10 @@ class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
                           Text(emoji, style: const TextStyle(fontSize: 28)),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: Text(emoji, style: TextStyle(fontSize: 15, color: textColor)),
+                            child: Text(
+                              _reactionNames[emoji] ?? emoji,
+                              style: TextStyle(fontSize: 15, color: textColor),
+                            ),
                           ),
                           if (isSelected)
                             Icon(Icons.check_circle, color: accentColor, size: 22),

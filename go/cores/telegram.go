@@ -20328,6 +20328,9 @@ func (t *TelegramCore) GetCloudThemes() ([]CloudThemeInfo, error) {
 			Slug:      th.Slug,
 			IsCreator: th.Creator,
 		}
+		if doc, ok := th.GetDocument(); ok {
+			info.DocumentId = doc.GetID()
+		}
 		if len(th.Settings) > 0 {
 			s := th.Settings[0]
 			info.AccentColor = s.AccentColor
@@ -20407,6 +20410,9 @@ func (t *TelegramCore) CreateCloudThemeWithData(title, slug string, themeData []
 		Slug:      theme.Slug,
 		IsCreator: theme.Creator,
 	}
+	if doc, ok := theme.GetDocument(); ok {
+		info.DocumentId = doc.GetID()
+	}
 	if len(theme.Settings) > 0 {
 		s := theme.Settings[0]
 		info.AccentColor = s.AccentColor
@@ -20473,6 +20479,9 @@ func (t *TelegramCore) UpdateCloudThemeWithData(themeID int64, title, slug strin
 		Title:     theme.Title,
 		Slug:      theme.Slug,
 		IsCreator: theme.Creator,
+	}
+	if doc, ok := theme.GetDocument(); ok {
+		info.DocumentId = doc.GetID()
 	}
 	if len(theme.Settings) > 0 {
 		s := theme.Settings[0]
@@ -21859,6 +21868,7 @@ type CloudThemeInfo struct {
 	Title       string `json:"title"`
 	Slug        string `json:"slug"`
 	IsCreator   bool   `json:"is_creator"`
+	DocumentId  int64  `json:"document_id"`
 	AccentColor int    `json:"accent_color"`
 	BgColor     int    `json:"bg_color"`
 	SentColor   int    `json:"sent_color"`
@@ -23213,6 +23223,16 @@ func (t *TelegramCore) MessagesReorderStickerSets(request *tg.MessagesReorderSti
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return false, ErrAuth }
 	return t.api.MessagesReorderStickerSets(t.ctx, request)
+}
+
+// ReorderStickerSets reorders installed sticker packs by ID list.
+func (t *TelegramCore) ReorderStickerSets(order []int64) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.MessagesReorderStickerSets(t.ctx, &tg.MessagesReorderStickerSetsRequest{
+		Order: order,
+	})
+	return err
 }
 
 // MessagesReport reports messages for moderation.
