@@ -74,38 +74,49 @@ class RichTextEditingController extends TextEditingController {
         _prevText.codeUnitAt(commonPrefix) == newText.codeUnitAt(commonPrefix)) {
       commonPrefix++;
     }
+    var commonSuffix = 0;
+    final maxSuffix = minLen - commonPrefix;
+    while (commonSuffix < maxSuffix &&
+        _prevText.codeUnitAt(oldLen - 1 - commonSuffix) ==
+            newText.codeUnitAt(newLen - 1 - commonSuffix)) {
+      commonSuffix++;
+    }
+
     final changePos = commonPrefix;
-    final delta = newLen - oldLen;
+    final removedLen = oldLen - commonPrefix - commonSuffix;
+    final addedLen = newLen - commonPrefix - commonSuffix;
 
     for (var i = entities.length - 1; i >= 0; i--) {
       final e = entities[i];
       final eEnd = e.offset + e.length;
+      final delEnd = changePos + removedLen;
 
-      if (delta > 0) {
-        if (changePos <= e.offset) {
-          e.offset += delta;
-        } else if (changePos < eEnd) {
-          e.length += delta;
-        }
-      } else {
-        final delStart = changePos;
-        final delEnd = changePos - delta;
-
+      if (removedLen > 0) {
         if (delEnd <= e.offset) {
-          e.offset += delta;
-        } else if (delStart >= eEnd) {
-          // no change
-        } else if (delStart <= e.offset && delEnd >= eEnd) {
-          entities.removeAt(i);
-          continue;
-        } else if (delStart <= e.offset) {
+          e.offset -= removedLen;
+        } else if (changePos >= eEnd) {
+          // entity fully before deletion
+        } else if (changePos <= e.offset && delEnd >= eEnd) {
+          e.offset = changePos;
+          e.length = 0;
+        } else if (changePos <= e.offset) {
           final removed = delEnd - e.offset;
-          e.offset = delStart;
+          e.offset = changePos;
           e.length -= removed;
         } else if (delEnd >= eEnd) {
-          e.length = delStart - e.offset;
+          e.length = changePos - e.offset;
         } else {
-          e.length += delta;
+          e.length -= removedLen;
+        }
+      }
+
+      if (addedLen > 0) {
+        if (e.length == 0 && e.offset == changePos) {
+          e.length = addedLen;
+        } else if (changePos <= e.offset) {
+          e.offset += addedLen;
+        } else if (changePos < e.offset + e.length) {
+          e.length += addedLen;
         }
       }
 
