@@ -318,17 +318,7 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — `_ExportSuggestBox` button dismisses without starting export when `onStart` is null
-
-- [ ] [CRITICAL] `_ExportSuggestBox.onStart` can be null. The "OK" button calls `onStart?.call()` — if the caller didn't pass `onStart`, clicking OK dismisses the dialog but does nothing, silently failing to trigger the export. This is a stub behavior. AyuGram's `SuggestBox` always calls `Core::App().exportManager().start(...)` on OK. — `chat_export.dart:3067-3072` ← `export_view_panel_controller.cpp:57-61`
-
 # chat_list_panel — Audit Findings
-
-- [ ] [CRITICAL] `_forwardHoverTimer` declared and doc-commented as "Auto-select timer: opens the hovered chat after 2s hover (kFreezeTimeout)" but is never started anywhere in the file. The `DragTarget.onMove` callback (line 905) only cancels and resets the timer, never calls `Timer(const Duration(seconds: 2), ...)`. The auto-open-chat-after-2s hover feature during forward-drag is completely absent. — `chat_list_panel.dart:177` ← `dialogs/dialogs_inner_widget.cpp:3952` (`_freezeTimer.callOnce(kFreezeTimeout)` where `kFreezeTimeout = 2000ms`)
-
-- [ ] [CRITICAL] `SearchResult.timestamp` is returned by the Go engine as Unix seconds (`m.Timestamp.Unix()`) but `_SearchMessageRow` passes it to `DateTime.fromMillisecondsSinceEpoch(result.timestamp)` which expects milliseconds. All search result dates display as near-epoch (year 1970 / early 1970s). Additionally `chatState.jumpToMessage(result.timestamp, ...)` passes the seconds value to a function that expects milliseconds, jumping to the wrong message position. Fix: multiply by 1000 at both sites. — `chat_list_panel.dart:4400` and `chat_list_panel.dart:791` ← `go/engine/search.go:240` (`Timestamp: m.Timestamp.Unix()`)
-
-- [ ] [MAJOR] `_SearchTab.thisTopic` case (line 515) filters chat results by `chatId` only — identical to `thisPeer` — and the `topicId` variable read at line 518 is never passed to any search call. The message search at line 484–488 calls `chatState.searchMessages(query, accountId: ...)` without a `topicId` argument for the `thisTopic` tab, so "This Topic" search returns the same results as "This Peer" rather than scoping to the active forum topic. — `chat_list_panel.dart:515-524` and `chat_list_panel.dart:484-488` ← `dialogs/dialogs_inner_widget.cpp:2128` (topic-scoped search using `topicId`)
 
 ## chat_list_row — Swipe direction inverted, badge icon colors wrong, ripple wrong
 
