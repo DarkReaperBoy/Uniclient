@@ -515,17 +515,6 @@ The Dart version works but lacks the flexibility and maintainability of the AyuG
 
 None of these features are fully wired. The widget compiles and renders fallbacks, but collectible gradient colors and userpic emoji status are completely non-functional.
 
-# filter_column — Sidebar filter column
-
-- [ ] [CRITICAL] Badge color on active tab ignores active state: when `unreadAllMuted=true` and `isActive=true`, Dart renders badge with `sideBarBadgeBgMuted`; AyuGram renders `sideBarBadgeBg` (non-muted) on active tabs regardless of muted state — `filter_column.dart:949-951` ← `lib_ui/ui/widgets/side_bar_button.cpp:162-164`
-
-- [ ] [CRITICAL] No scroll-to-active when active folder changes programmatically: `_scrollToActiveTab()` is only called from `_onFolderTap()` (user tap). If the active folder changes from another screen, account switch, or any external source, the sidebar doesn't scroll to reveal the active tab — `filter_column.dart:340-341` ← `window/window_filters_menu.cpp:110-130`
-
-- [ ] [CRITICAL] Locked folder does not reset active filter: AyuGram resets `activeChatsFilter` to `FilterId(0)` when the currently active filter becomes locked (exceeds premium limit after refresh). Dart has no such reset, leaving the user stuck in an inaccessible folder — `filter_column.dart:636` ← `window/window_filters_menu.cpp:235-238`
-
-- [ ] [MAJOR] Hamburger unread indicator uses wrong approach: AyuGram switches the menu button's icon to a composite icon asset (`windowFiltersMainMenuUnread` / `windowFiltersMainMenuUnreadMuted`) that has the dot drawn into the icon artwork. Dart overlays an external 8×8 `Container` dot via `Stack`. Visual result differs from spec — `filter_column.dart:596-601` ← `window/window_filters_menu.cpp:161-178` and `window/window.style:276-283`
-
-- [ ] [MAJOR] Lock icon renders differently from C++ reference: AyuGram prepends filler characters to the label text and draws the lock icon to the left of the first text line at the text baseline (`side_bar_button.cpp:105-125`). Dart wraps label in a `Row(lock icon, text)`, placing the lock icon to the left of the text block rather than at the baseline of line 1 — `filter_column.dart:904-924` ← `lib_ui/ui/widgets/side_bar_button.cpp:105-125`
 
 ## folders_settings_screen — Edit filter box missing static-title toggle; tag-color picker blocks non-premium users incorrectly; Share button is a stub; filter icons use generic Material icons instead of proper SVG filter icons
 
