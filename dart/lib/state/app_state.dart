@@ -14,6 +14,7 @@ import '../models/engine_models.dart';
 import '../theme/theme_file.dart';
 import '../theme/telegram_palette.dart';
 import '../theme/wallpaper.dart';
+import '../ui/emoji_panel.dart' show resetEmojiPrefsForAccountSwitch;
 import '../ui/media_viewer.dart';
 import '../utils/debug.dart';
 
@@ -2843,6 +2844,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setActiveAccountId(String accountId) {
     if (_activeAccountId == accountId) return;
     _activeAccountId = accountId;
+    resetEmojiPrefsForAccountSwitch();
     if (!_useGlobalGhostMode) _syncGhostToEngine();
     _autoMigrateGhostToGlobal();
     notifyListeners();

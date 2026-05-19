@@ -584,8 +584,8 @@ class _TabContent extends StatelessWidget {
         return LayoutBuilder(
           builder: (context, constraints) {
             final panelW = constraints.maxWidth;
-            Widget prevWidget = _buildTabWidget(prevTab, placeholderColor);
-            Widget activeWidget = _buildTabWidget(activeTab, placeholderColor);
+            Widget prevWidget = RepaintBoundary(child: _buildTabWidget(prevTab, placeholderColor));
+            Widget activeWidget = RepaintBoundary(child: _buildTabWidget(activeTab, placeholderColor));
 
             return ClipRect(
               child: Stack(
@@ -831,8 +831,8 @@ List<String> getRecentEmojisList() => List.unmodifiable(_recentEmojis);
 void addRecentEmoji(String emoji) {
   _recentEmojis.remove(emoji);
   _recentEmojis.insert(0, emoji);
-  if (_recentEmojis.length > 50) {
-    _recentEmojis = _recentEmojis.sublist(0, 50);
+  if (_recentEmojis.length > 54) {
+    _recentEmojis = _recentEmojis.sublist(0, 54);
   }
   _saveEmojiPrefs();
 }
@@ -867,6 +867,12 @@ class _EmojiTabState extends State<_EmojiTab> {
       if (_recentEmojis.isNotEmpty && mounted) setState(() {});
       _fetchCustomPacks();
     });
+  }
+
+  @override
+  void deactivate() {
+    _loadedPacks = false;
+    super.deactivate();
   }
 
   @override
@@ -907,8 +913,8 @@ class _EmojiTabState extends State<_EmojiTab> {
       _recentEmojis.remove(emoji);
     }
     _recentEmojis.insert(0, emoji);
-    if (_recentEmojis.length > 50) {
-      _recentEmojis = _recentEmojis.sublist(0, 50);
+    if (_recentEmojis.length > 54) {
+      _recentEmojis = _recentEmojis.sublist(0, 54);
     }
     _saveEmojiPrefs();
     widget.onEmojiSelected?.call(emoji);
@@ -1512,14 +1518,25 @@ class _EmojiCell extends StatefulWidget {
 
 class _EmojiCellState extends State<_EmojiCell> {
   bool _hovered = false;
+  Timer? _skinToneTimer;
 
   String get _shownEmoji => _displayEmoji(widget.emoji);
 
+  @override
+  void dispose() {
+    _skinToneTimer?.cancel();
+    super.dispose();
+  }
+
   void _handleLongPress() {
     if (!_supportsSkinTone(widget.emoji)) return;
-    final box = context.findRenderObject() as RenderBox;
-    final pos = box.localToGlobal(Offset.zero);
-    widget.onSkinToneLongPress?.call(widget.emoji, pos, box.size);
+    _skinToneTimer?.cancel();
+    _skinToneTimer = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      final box = context.findRenderObject() as RenderBox;
+      final pos = box.localToGlobal(Offset.zero);
+      widget.onSkinToneLongPress?.call(widget.emoji, pos, box.size);
+    });
   }
 
   @override
@@ -1641,6 +1658,12 @@ class _StickerTabState extends State<_StickerTab> {
   }
 
   @override
+  void deactivate() {
+    _loaded = false;
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     _searchDebounce?.cancel();
     _gridScrollController.removeListener(_onGridScroll);
@@ -1667,11 +1690,10 @@ class _StickerTabState extends State<_StickerTab> {
         final packs = results[0] as List<StickerPackSummary>;
         final recent = results[1] as List<StickerInfoItem>;
         final featured = results[2] as List<StickerPackSummary>;
-        final cappedRecent = recent.length > 20 ? recent.sublist(0, 20) : recent;
-        _rebuildSectionKeys(cappedRecent, packs);
+        _rebuildSectionKeys(recent, packs);
         setState(() {
           _packs = packs;
-          _recentStickers = cappedRecent;
+          _recentStickers = recent;
           _featuredPacks = featured;
           _loaded = true;
           _activePackIndex = 0;
@@ -1963,6 +1985,18 @@ class _StickerTabState extends State<_StickerTab> {
   }
 
   Future<void> _uninstallPack(StickerPackSummary pack) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove sticker set'),
+        content: Text('Remove "${pack.title}" from your sticker sets?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Remove')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     final appState = context.read<AppState>();
     final engine = context.read<EngineService>();
     final activeAccount = appState.activeAccount;
@@ -2821,6 +2855,12 @@ class _GifTabState extends State<_GifTab> {
   }
 
   @override
+  void deactivate() {
+    _loaded = false;
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     _searchDebounce?.cancel();
     _scrollController.dispose();
@@ -2994,6 +3034,8 @@ class _GifTabState extends State<_GifTab> {
   }
 
   void _onSearchResultContextMenu(InlineBotResult result, Offset globalPos) async {
+    final fileId = int.tryParse(result.id);
+    if (fileId == null || fileId == 0) return;
     widget.onContextMenuToggle?.call(true);
     final menuResult = await showMenu<String>(
       context: context,
@@ -3010,7 +3052,6 @@ class _GifTabState extends State<_GifTab> {
       final engine = context.read<EngineService>();
       final activeAccount = appState.activeAccount;
       if (activeAccount == null) return;
-      final fileId = int.tryParse(result.id) ?? 0;
       await engine.saveGif(activeAccount.id, fileId);
     }
   }
@@ -3416,7 +3457,7 @@ class _GifCellState extends State<_GifCell> {
     final dir = Directory.systemTemp;
     final path = '${dir.path}/uniclient_gif_$docId.mp4';
     await File(path).writeAsBytes(data);
-    _gifFileCache[docId] = path;
+    _gifFileCacheSet(docId, path);
     if (!mounted) return;
     _filePath = path;
     _requestPlayer();
@@ -3491,7 +3532,23 @@ class _GifCellState extends State<_GifCell> {
   }
 }
 
+const int _kGifFileCacheMax = 200;
 final Map<int, String> _gifFileCache = {};
+
+void _gifFileCacheSet(int docId, String path) {
+  _gifFileCache[docId] = path;
+  if (_gifFileCache.length > _kGifFileCacheMax) {
+    final keysToRemove = _gifFileCache.keys
+        .take(_gifFileCache.length - _kGifFileCacheMax)
+        .toList();
+    for (final k in keysToRemove) {
+      final old = _gifFileCache.remove(k);
+      if (old != null) {
+        try { File(old).deleteSync(); } catch (_) {}
+      }
+    }
+  }
+}
 
 class _GifSearchCell extends StatefulWidget {
   final InlineBotResult result;
