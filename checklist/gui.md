@@ -246,11 +246,7 @@ All method signatures match both the FFI implementation (`bridge_ffi.dart`) and 
 
 # ayu_appearance_page — Audit findings
 
-- [ ] [CRITICAL] App icon change not applied to running app: selecting an icon only calls `appState.setAppIcon(v)` (state save) but never calls the equivalent of `applyIcon()` — no window icon refresh, no tray icon update, no notification badge refresh — `ayu_appearance_page.dart:988` ← `AyuGram/ayu/ui/components/icon_picker.cpp:42-52,178` (`applyIcon()` calls `Window::OverrideApplicationIcon`, `refreshApplicationIcon`, `tray().updateIconCounters`, `notifyUnreadBadgeChanged`)
-
 - [ ] [CRITICAL] `exit(0)` used instead of graceful restart: both the avatar-corners restart dialog (dart:281) and the font-change restart dialog (dart:906) call `exit(0)` which hard-kills the process with no state flushing — `ayu_appearance_page.dart:281,906` ← `AyuGram/ayu/ui/settings/settings_ayu_utils.cpp:36-43` (`ShowRestartPrompt` uses `Core::Restart()` for graceful restart with confirmation)
-
-- [ ] [MAJOR] Icon picker deselection has no fade-out animation: `_prevSelected` is tracked (dart:987) but `wasPrev` (dart:983) is never used in the `AnimatedOpacity` opacity expression — old selection snaps instantly to opacity 0 while new one fades in; C++ crossfades both simultaneously — `ayu_appearance_page.dart:983,994-998` ← `AyuGram/ayu/ui/components/icon_picker.cpp:119-129` (`opacity = 1.0f - _animation.value(1.0f)` for old, `_animation.value(1.0f)` for new)
 
 # ayu_chats_page — Audit Findings
 
@@ -261,8 +257,6 @@ All method signatures match both the FFI implementation (`bridge_ffi.dart`) and 
 # ayugram_settings_screen — Category icon mismatches
 
 # ayu_other_page — 4 issues
-
-- [ ] [MAJOR] DonateInfoBox username tap uses `launchUrl(Uri.parse('https://t.me/...'), mode: LaunchMode.externalApplication)` (opens external browser/Telegram app); AyuGram creates an in-app deep link via `controller->session().createInternalLinkFull(usernameTrimmed)` so clicking opens the user's profile/chat within the client — `ayu_other_page.dart:443-445` ← `donate_info_box.cpp:211`
 
 # ayu_section_builder — Settings Section Builder Audit
 
@@ -316,8 +310,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 **Conclusion:** Widget is a faithful, fully-functional port of AyuGram's ToggleView with no missing features for the default style and no implementation bugs.
 
 # call_panel — Call Panel UI
-
-- [ ] [CRITICAL] `showCallPanel` dialog state is frozen at creation — `call_panel.dart:2173` calls `showDialog` capturing a static `CallPanelInfo` object. There is no mechanism to push state updates into the dialog after it is shown (no `StatefulBuilder`, no stream, no `Provider` rebuild scope). Accepting an incoming call (`onAccept` at line 2201) fires `engine.acceptCall` but the panel stays on the `incoming` UI with Decline/Answer buttons forever — it never transitions to `connecting`/`active`, never shows the controls row, never updates mute/camera state, never shows video streams. AyuGram's panel is a live reactive widget updated via `replaceCall()` and observable streams. ← `AyuGramDesktop/Telegram/SourceFiles/calls/calls_panel.cpp:1126-1150` (`requestControlsHidden`/`updateControlsShown` react to live state changes)
 
 # call_screen — GroupCallPanel / MinimisedCallBar audit
 
