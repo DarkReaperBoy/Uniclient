@@ -320,41 +320,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 # chat_list_panel — Audit Findings
 
-
-# chat_settings_screen — Audit Findings
-
-## chat_settings_screen — Critical & Major Issues
-
-- [ ] [MAJOR] Accent color circle size is 22px (`_circleSize = 22.0`) but AyuGram spec is 24px (`st::settingsAccentColorSize: 24px`). This is a >8% deviation from the style spec, causing the entire accent palette row to render smaller than intended — `chat_settings_screen.dart:925` ← `AyuGram/settings/settings.style:313`
-
-- [ ] [MAJOR] Sensitive content age-verification flow is wrong: Dart shows a plain `AlertDialog` with hardcoded "I am over 18" text (`chat_settings_screen.dart:584–606`). AyuGram's real flow calls `session->appConfig().ageVerifyNeeded()` and, if true, redirects to `ShowAgeVerificationRequired()` which opens a bot WebApp for proper country/age-based verification rather than a static dialog. The Dart implementation always uses the same dialog regardless of appConfig state — `chat_settings_screen.dart:579–607` ← `AyuGram/settings/sections/settings_privacy_security.cpp:294–303`
-
-- [ ] [MAJOR] Cloud theme "Edit" button is shown only when `t.isCreator && isActive` (`chat_settings_screen.dart:436–439`). AyuGram additionally requires `cloud.documentId` is non-zero — a theme created without a document (draft theme) should not have an edit button in the list. The missing `documentId` check means the Edit option appears for themes that cannot actually be opened in the editor — `chat_settings_screen.dart:436–438` ← `AyuGram/window/themes/window_themes_cloud_list.cpp:630–635`
-
-- [ ] [MAJOR] Cloud theme deletion does not reset the active theme before deleting: AyuGram's `remove` closure first checks whether the deleted theme is currently applied and if so calls `ResetToSomeDefault()` + `KeepApplied()` before removing (`window_themes_cloud_list.cpp:640–653`). The Dart implementation calls `engine.deleteCloudTheme()` directly with no reset logic, leaving the UI in a broken state if the user deletes the currently-active theme — `chat_settings_screen.dart:2314–2316` ← `AyuGram/window/themes/window_themes_cloud_list.cpp:638–660`
-
-- [ ] [MAJOR] The "Show All" toggle for cloud themes in Dart hides after 4 themes (`if (themes.length > 4)`), shows a scrollable row when collapsed (`chat_settings_screen.dart:2101`, `2124`), and uses a two-way toggle between collapsed/expanded. AyuGram's `CloudList` instead shows ALL themes in a wrapping grid by default and only exposes a one-way "Show All" link-button that appears when `list->allShown()` is false — i.e., the list is always displayed, "Show All" expands more results, but there is no "collapse" action. Dart's behavior (hiding all but 4 and toggling) deviates significantly from the C++ UX — `chat_settings_screen.dart:2101–2131` ← `AyuGram/settings/sections/settings_chat.cpp:2757–2763`
-
-- [ ] [MAJOR] The background thumbnail widget is 76×76px in Dart (`chat_settings_screen.dart:2532`). AyuGram's `st::settingsBackgroundThumb` is also 76px but the C++ `BackgroundRow::resizeGetHeight()` returns `st::settingsBackgroundThumb` as the total widget HEIGHT (it also paints a separate loading radial on the same 76×76 rect). The Dart thumbnail has correct dimensions BUT uses a static `CircularProgressIndicator` progress animation (`_loadingController.value`) instead of AyuGram's radial animation that reflects actual download progress (`radialProgress()` from the session). The loading state is cosmetically stuck showing animated indeterminate progress rather than real download progress — `chat_settings_screen.dart:2562–2582` ← `AyuGram/settings/sections/settings_chat.cpp:495–542`
-
-- [ ] [MAJOR] The `_ChooseFontBox` offers a hardcoded list of 5 font families (`Inter`, `Roboto`, `Open Sans`, `Noto Sans`, `System Default`). AyuGram's `ChooseFontBox` (`ui/boxes/choose_font_box.cpp`) scans system fonts and lists all installed fonts. The Dart implementation ignores the system font catalogue — users cannot select fonts that are installed on their system but not in the hardcoded list — `chat_settings_screen.dart:1862–1868` ← `AyuGram/settings/sections/settings_chat.cpp:2873–2900`
-
-- [ ] [MAJOR] Sticker pack reorder via drag-and-drop (`_reorder` at `chat_settings_screen.dart:3612`) only reorders items in the local `_packs` list in memory but never persists the new order to the backend. AyuGram calls `session->data().stickers().reorder()` and then saves the new order via the API (`messages.reorderStickerSets`). The Dart reorder function has no engine call — `chat_settings_screen.dart:3612–3618` — no corresponding backend call exists anywhere in that method.
-
-- [ ] [MAJOR] The `_ThemePreviewPainter` chat bubble radius is `const Radius.circular(2)` which matches `st::settingsThemeBubbleRadius: 2px`. However, the `_CloudThemePreviewPainter` also uses `const Radius.circular(2)` for its bubble previews (`chat_settings_screen.dart:3292`, `3301`, `3307`). These cloud theme cards render differently from the built-in theme previews in AyuGram which uses `chatThemeBubbleRadius: 10px` for cloud theme bubbles vs `settingsThemeBubbleRadius: 2px` for built-in theme cards. The Dart code uses the wrong radius (2px instead of 10px) for cloud theme bubble previews — `chat_settings_screen.dart:3292` ← `AyuGram/settings/settings.style:281,293`
-
-- [ ] [MAJOR] The reaction chooser (`_ReactionChooserButton`) displays reaction emoji strings as both the emoji icon AND the label text on each row (line 4261: `Text(emoji, ...)` in the label column), making every row show `❤️  ❤️`. AyuGram's `ReactionsSettingsBox` uses the proper localised reaction name (e.g. "Heart", "Thumbs Up") as the label, not the emoji code again. This produces broken display for all quick-reaction choices — `chat_settings_screen.dart:4259–4262`.
-
-# chat_switch_overlay — Chat Switch Overlay Audit
-
-- [ ] [CRITICAL] Topic cell userpic layout is reversed: Dart shows forum avatar (56 px) as the main element with topic-color badge (24 px) at bottom-right. AyuGram shows `TopicIconButton` (the actual topic icon, 56 px) as the primary element and the **forum peer's** userpic as the small (24 px) overlay positioned at the bottom-right — `chat_switch_overlay.dart:508-533` ← `AyuGram/window/window_chat_switch_process.cpp:99-140`
-
-- [ ] [CRITICAL] Topic color is computed from `topicId % 6` using a local color table. AyuGram derives the color from `ForumTopic::colorId()` which is the server-assigned `int32 _colorId` field (user-set per topic). The hash approach gives wrong colors for any topic whose assigned colorId doesn't match its raw ID modulo 6 — `chat_switch_overlay.dart:39-42` ← `AyuGram/data/data_forum_topic.cpp:829-830`
-
-- [ ] [CRITICAL] After pressing Q to remove the selected chat, `_selected` is set to `-1` and never restored. AyuGram immediately calls `setSelected(std::min(selected - 1, _shownCount - 1))` so a new item is highlighted and the next Ctrl-release confirms it. In Dart the overlay stays visible with no selection, and releasing Ctrl triggers `onCancel()` instead of switching — `chat_switch_overlay.dart:222` ← `AyuGram/window/window_chat_switch_process.cpp:387-393`
-
-- [ ] [MAJOR] `_shownPerRow` and `_shownRows` are updated through `addPostFrameCallback` (deferred to the next frame). The `_shownCount` getter reads them immediately, so during keyboard navigation that happens in the same frame as a resize, `_shownCount` returns stale values causing wrong modular wrap-around. AyuGram recomputes everything synchronously inside `layout()` which runs directly from the size-change signal — `chat_switch_overlay.dart:210,289-298` ← `AyuGram/window/window_chat_switch_process.cpp:420-490`
-
 # chat_view — Audit chunk 48
 
 ## chat_view — Missing bars, voice listen state, group call defects
