@@ -10,7 +10,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import 'confirm_box.dart';
 import 'popup_menu.dart';
-import 'telegram_toast.dart';
+
 
 const int kScheduledUntilOnlineTimestamp = 0x7FFFFFFE;
 
@@ -427,6 +427,11 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            CustomPaint(
+              size: const Size(8, 10),
+              painter: _TriangleArrowPainter(color: subtextFg),
+            ),
+            const SizedBox(width: 4),
             Text(
               '${_monthNames[_month - 1]} $_year',
               style: TextStyle(
@@ -434,11 +439,6 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
                 fontWeight: FontWeight.w600,
                 color: textFg,
               ),
-            ),
-            const SizedBox(width: 4),
-            CustomPaint(
-              size: const Size(8, 10),
-              painter: _TriangleArrowPainter(color: textFg),
             ),
           ],
         ),
@@ -1211,7 +1211,7 @@ class _ChooseDateTimeDialog extends StatefulWidget {
 }
 
 class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late DateTime _selectedDate;
   late TextEditingController _hourController;
   late TextEditingController _minuteController;
@@ -1221,6 +1221,8 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   int _repeatPeriod = 0;
   bool _timeError = false;
   late AnimationController _errorBorderController;
+  late AnimationController _premiumToastController;
+  Timer? _premiumToastTimer;
 
   @override
   void initState() {
@@ -1241,6 +1243,11 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
       duration: const Duration(milliseconds: 400),
       vsync: this,
     );
+    _premiumToastController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      reverseDuration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
   }
 
   @override
@@ -1252,6 +1259,8 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     _dateFocus.removeListener(_onDateFocusChanged);
     _dateFocus.dispose();
     _errorBorderController.dispose();
+    _premiumToastTimer?.cancel();
+    _premiumToastController.dispose();
     super.dispose();
   }
 
@@ -1381,30 +1390,20 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     if (_isPremium) {
       _showRepeatMenu();
     } else {
-      const normal = TextStyle(
-        color: Color(0xFFFFFFFF),
-        fontSize: 13,
-        fontWeight: FontWeight.normal,
-        decoration: TextDecoration.none,
-        height: 1.3,
-      );
-      showRichTelegramToast(
-        context,
-        TextSpan(
-          children: [
-            const TextSpan(text: 'Subscribe to ', style: normal),
-            TextSpan(
-              text: 'Telegram Premium',
-              style: normal.copyWith(
-                fontWeight: FontWeight.w600,
-                decoration: TextDecoration.underline,
-              ),
-            ),
-            const TextSpan(text: ' to schedule repeating messages.', style: normal),
-          ],
-        ),
-      );
+      _showPremiumToast();
     }
+  }
+
+  void _showPremiumToast() {
+    _premiumToastTimer?.cancel();
+    _premiumToastController.forward(from: 0).then((_) {
+      if (!mounted) return;
+      _premiumToastTimer = Timer(const Duration(milliseconds: 3000), () {
+        if (mounted) {
+          _premiumToastController.reverse();
+        }
+      });
+    });
   }
 
   @override
@@ -1424,7 +1423,15 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     final separatorFg =
         isDark ? const Color(0xFF8B95A5) : const Color(0xFF999999);
 
-    return TelegramBox(
+    const toastNormal = TextStyle(
+      color: Color(0xFFFFFFFF),
+      fontSize: 13,
+      fontWeight: FontWeight.normal,
+      decoration: TextDecoration.none,
+      height: 1.3,
+    );
+
+    final dialogBody = TelegramBox(
       wide: true,
       title: widget.titleOverride ?? (widget.isSelfChat ? 'Remind me on...' : 'Send this message on...'),
       titleTrailing: widget.isScheduledToUser
@@ -1592,6 +1599,57 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
             final isCtrlHeld = HardwareKeyboard.instance.isControlPressed;
             _submit(silent: isCtrlHeld);
           },
+        ),
+      ],
+    );
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        dialogBody,
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: AnimatedBuilder(
+            animation: _premiumToastController,
+            builder: (_, __) {
+              final value = _premiumToastController.value;
+              if (value == 0) return const SizedBox.shrink();
+              return Opacity(
+                opacity: value,
+                child: Center(
+                  child: Transform.translate(
+                    offset: Offset(0, 8 + 16 * (1 - value)),
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 480),
+                      padding: const EdgeInsets.fromLTRB(19, 13, 19, 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xE52C3033),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            const TextSpan(text: 'Subscribe to ', style: toastNormal),
+                            TextSpan(
+                              text: 'Telegram Premium',
+                              style: toastNormal.copyWith(
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                            const TextSpan(text: ' to schedule repeating messages.', style: toastNormal),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ],
     );
