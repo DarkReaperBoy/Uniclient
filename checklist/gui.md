@@ -381,10 +381,6 @@ All methods are fully implemented and wired to entity tracking. No mock data, TO
 
 # confirm_box — Audit Findings
 
-## confirm_box — showReportReactionBox missing ban-kick API call
-
-- [ ] [CRITICAL] When AyuGram's `ReportReactionBox` confirm is pressed, it (a) kicks the participant from the group via `chatParticipants().kick()` if ban checkbox is checked, and (b) calls `MTPmessages_ReportReaction` on the session API. The Dart `showReportReactionBox` does neither — it simply returns `true` to the caller with no engine call. No ban, no report API call. — `confirm_box.dart:1566-1572` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_actions.cpp:1315-1338`
-
 ## confirm_box — showDynamicReportFlow receives `dynamic engine` (untyped)
 
 - [ ] [CRITICAL] `showDynamicReportFlow` accepts `engine` as `dynamic` type (`required dynamic engine`) instead of the typed `EngineService`. This bypasses all type-checking and any method resolution errors will be runtime crashes. The AyuGram equivalent passes a properly typed `Api::CreateReportMessagesOrStoriesCallback` closure. — `confirm_box.dart:1311-1315` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/report_messages_box.cpp:75-78`
