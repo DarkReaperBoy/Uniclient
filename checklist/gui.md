@@ -308,46 +308,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 # call_panel — Call Panel UI
 
-# call_screen — GroupCallPanel / MinimisedCallBar audit
-
-## Issues
-
-- [ ] [CRITICAL] "Start Recording" menu item calls `engine.toggleScreenSharing(accountId, callId, false)` instead of a recording API — it literally disables screen sharing instead of starting recording — `call_screen.dart:1229` ← `calls/group/calls_group_panel.cpp:1325` (should call `StartCallRecording`)
-
-- [ ] [CRITICAL] Active-state gradient colors for MinimisedCallBar are wrong: Dart uses `[0xFF52CE5B, 0xFF00B151]` for "active" (both personal and group call). AyuGram uses `groupCallLive1=#0dcc39` / `groupCallLive2=#0bb6bd` (teal second stop, not pure green). Dart omits the teal entirely — `call_screen.dart:1741,1751` ← `calls_top_bar.cpp:118` + `colors.palette:582-583`
-
-- [ ] [CRITICAL] MinimisedCallBar muted-state gradient is wrong: Dart uses `[0xFF5B6BBE, 0xFF7B68EE]` (custom blue/purple). AyuGram uses `groupCallMuted1=#0992ef` / `groupCallMuted2=#16ccfb` (bright blue/cyan). Deviation >25% — `call_screen.dart:1753` ← `colors.palette:584-585`
-
-- [ ] [CRITICAL] MinimisedCallBar force-muted gradient is wrong: Dart uses `[0xFF9B59B6, 0xFF7B68EE, 0xFF8E44AD]` (generic purple). AyuGram uses `groupCallForceMutedBar1=#c65493 / #7a6af1 / #5f95e8` (pink→purple→blue). All three stops differ by >25% — `call_screen.dart:1757` ← `calls_top_bar.cpp:110-115` + `colors.palette:586-588`
-
-- [ ] [CRITICAL] Video button and screen-share button never show active (highlighted) state — `cameraEnabled` is toggled in a closure but never passed to `GroupCallPanel` props, and `_GroupCallControlButton.isActive` is always false for both buttons. There is no `setSbState` call for camera/screen state, so the UI never reflects the actual state — `call_screen.dart:1162-1182` vs expected `call_screen.dart:1004-1044`
-
-- [ ] [CRITICAL] `_CallBarHangupButton` always calls `engine.leaveGroupCall(accountId, '')` with empty string callId — it has no callId available in its context (it's a standalone StatelessWidget with no callId parameter). The hangup from the minimised bar will always send empty callId to the engine — `call_screen.dart:2289, 2298, 2308`
-
-- [ ] [MAJOR] `_BigMuteButton` blob animation only runs when `state == unmuted`, but stops when muted/forceMuted. AyuGram shows a static circle (no blobs) only when muted, which is correct, but the blob should be animated even at rest level 0 when transitioning — the Dart ticker is abruptly stopped instead of fading out over ~250ms — `call_screen.dart:789-796` ← `calls_top_bar.cpp:57` (`kHideBlobsDuration = 500ms`)
-
-- [ ] [MAJOR] `_SpeakerBlobAvatar` blob scale constants: `_minorScale=0.414` and `_majorScale=0.138` are arbitrarily chosen. AyuGram `groupCallRowBlobMinRadius=27px` / `groupCallRowBlobMaxRadius=29px` define absolute pixel radii, not scale factors relative to the avatar radius. The Dart code derives blob size from the avatar radius via these fractional scales, producing incorrect blob sizes compared to spec. At 29px max AyuGram radius vs Dart's `29.0 * 0.414 ≈ 12px` minor and `29.0 * 0.138 ≈ 4px` major — `call_screen.dart:442-443` ← `calls.style:1144-1145`
-
-- [ ] [MAJOR] `_BlobPainter.shouldRepaint` does not include `majorBlob`/`minorBlob` object changes — only checks `level`, `radius`, `color`. Since `_BlobState` is mutated in-place, the repaint condition misses state changes between frames when level hasn't changed, potentially freezing blob animation — `call_screen.dart:672-674`
-
-- [ ] [MAJOR] `GroupCallPanel._buildBottomControls()` uses `padding: const EdgeInsets.fromLTRB(24, 16, 24, 113)` — the 113px bottom padding is a hardcoded guess. AyuGram uses `groupCallButtonBottomSkip: 113px` for narrow and `groupCallButtonBottomSkipWide: 108px` for wide mode, but the Dart code applies 113px in both narrow and wide layout without switching — `call_screen.dart:292` ← `calls.style:1020-1021`
-
-- [ ] [MAJOR] `_LinearBlobsBar` always runs its animation ticker (`.repeat()` in `initState`) unconditionally, regardless of audio level. AyuGram's `LinearBlobs` stops animating when level drops to 0 for `kHideBlobsDuration=500ms` and freezes the paint. The Dart widget continues spinning its ticker even when `level=0.0`, wasting CPU every frame while the call bar is visible — `call_screen.dart:1930-1935` ← `calls_top_bar.cpp:471-528`
-
-- [ ] [MAJOR] `_LinearBlobsPainter.shouldRepaint` compares `old.blobRadii != blobRadii` by reference — this is always `true` (different list objects), so every animation tick forces a full repaint even when nothing visually changed. Should compare by value or use identity check properly — `call_screen.dart:2007-2008`
-
-- [ ] [MAJOR] `showGroupCallPanel` uses `GroupCallPanel.defaultHeight = 520px` for non-RTMP calls, correctly matching `groupCallHeight: 520px`. But RTMP calls use `defaultWidthRtmp=720px` and the same 520px height, whereas AyuGram uses `groupCallHeightRtmp: 580px` for RTMP — the panel is 60px shorter than spec for RTMP streams — `call_screen.dart:59-60,1100-1102` ← `calls.style:547,549`
-
-- [ ] [MAJOR] `GroupCallPanel._formatDuration` always pads hours with leading zeros (formats `1:05:03`). AyuGram's `FormatDurationText` does NOT pad hours — it outputs `1:05:03` which is the same, but also the Dart `GroupCallPanel._formatDuration` does NOT handle hours at all (only `mm:ss`), while `MinimisedCallBar._formatDuration` does handle hours. The group call title duration will overflow to `00:00` clamped display after 99 minutes instead of switching to `h:mm:ss` format — `call_screen.dart:101-104` ← `format_values.cpp:137-140`
-
-- [ ] [MAJOR] `_SignalBarsPainter` uses hardcoded bar heights `[3, 6, 9, 12]` and bar width `3.0` with skip `1.0`. AyuGram `callBarSignalBars` specifies `width: 3px; skip: 1px; min: 3px; max: 12px` — the heights array matches min/max but uses linear steps `[3,6,9,12]` rather than AyuGram's formula: `min + (max - min) * (i / (kSignalBarCount - 1))` which gives `[3, 6, 9, 12]` for count=4 (same result), so heights are correct. However, `inactiveOpacity: 0.5` matches `0.5` alpha used in Dart. The size `19x12` is computed as `width + (width+skip)*(count-1) = 3+4*3=15` wide, not 19 — the `19` width is wrong, should be `3+(3+1)*3=15px` — `call_screen.dart:2140` ← `calls_signal_bars.cpp:23-25`
-
-- [ ] [MAJOR] `_GroupCallControlButton` uses circle size `48×48` for screen/video buttons. AyuGram `callButton` style defines `width: 68px; height: 79px` for control buttons with a 44px ripple area. The Dart circle is substantially smaller than spec (48 vs 44px bgSize which is the inner circle, but container is 68×79 total) — the hit area and visual size are both wrong — `call_screen.dart:1025-1029` ← `calls.style:89-98` (`callButton: 68×79`)
-
-- [ ] [MAJOR] `_GroupCallActionButton` (hang-up button) is `56×56`. AyuGram uses `callHangup` which extends `callAnswer` with `bgSize: 44px` inside a `68×79` container — `call_screen.dart:1062-1069` ← `calls.style:130-138`
-
-- [ ] [MAJOR] Raise-hand logic: when `forceMuted && !raisedHand`, tapping the mute button sets `raisedHand = true` and calls `engine.raiseHand(..., true)`. But there is no path to lower the hand — once raised, tapping the mute button again hits `else if (!forceMuted)` which is still false. The hand is permanently stuck raised until the admin unmutes. AyuGram lowers the hand if already raised on the same tap — `call_screen.dart:1149-1159` ← `calls_group_panel.cpp:591-596`
-
 ## calls_screen — Calls Box, Create Call, Group Calls, Call Settings
 
 - [ ] [CRITICAL] Active group call detection uses a polling scan of up to 200 chats on open, rather than subscribing to `PeerUpdate::Flag::GroupCall` data layer events. AyuGram's `ListController::prepare()` registers a `session().changes().peerUpdates(Flag::GroupCall)` reactive subscription so the list auto-updates whenever any peer's group-call status changes, without rescanning. The Dart code's `_onGroupCallEvent` stream fires only after `_initialGroupCallLoadDone` is set, meaning there is a window where events are silently dropped while the initial scan is in progress. — `calls_screen.dart:180-209`, `calls_screen.dart:211-213` ← `calls_box_controller.cpp:193-214`
