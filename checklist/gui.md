@@ -315,10 +315,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — Delay error format deviates from AyuGram
-
-- [ ] [MAJOR] Dart shows "Please try again in about N hours, on Month Day, Year at HH:MM." AyuGram uses `lng_export_delay` = "For security reasons, you will be able to begin downloading your data in {hours}. We have notified all your devices about the export request to make sure it's authorized and give you time to react if it's not.\n\nPlease come back on {date} and repeat the request using the same device." The Dart message is a completely different and much shorter text. — `chat_export.dart:977-991` ← `export_view_panel_controller.cpp:229-249` and `lang.strings` "lng_export_delay"
-
 ## chat_export — Size slider has 100 positions (0-99) but `_sizeLimitMB` reads 8MB at index 7, not index 7 (0-based) as documented by AyuGram
 
 - [ ] [MAJOR] AyuGram uses `kSizeValueCount = 100` positions (indices 0..99) and `SizeLimitByIndex(index)` does `index += 1` making it 1-based. Dart uses `_sizeSliderPos = 7` (0-based, so `i = 8` after `+1`) → `_sizeLimitMB = 8` MB, which matches `AyuGram sizeLimit = 8 * 1024 * 1024`. However Dart sends `size_limit_mb` (megabytes integer) while the engine expects bytes (`sizeLimit` in AyuGram is bytes). If the Go bridge interprets `size_limit_mb` as MB it's fine, but the field name differs from AyuGram's internal `sizeLimit` bytes representation — the engine must convert. This is an integration risk not visible in the UI alone. — `chat_export.dart:414-424` and `793` ← `export_view_settings.h:28` and `export_view_settings.cpp:89-113`
