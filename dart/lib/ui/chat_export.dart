@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -174,6 +175,7 @@ void showExportPanelWithOverlay(OverlayState overlay, ExportTarget target) {
 
 class _ExportPanelController {
   static OverlayEntry? _entry;
+  static final ValueNotifier<bool> _visible = ValueNotifier(true);
 
   static void show(BuildContext context, ExportTarget target) {
     final overlay = Overlay.maybeOf(context) ?? Navigator.maybeOf(context)?.overlay;
@@ -187,6 +189,7 @@ class _ExportPanelController {
 
   static void _showInOverlay(OverlayState overlay, ExportTarget target) {
     close();
+    _visible.value = true;
     late OverlayEntry entry;
     entry = OverlayEntry(
       builder: (_) => _FloatingExportPanel(
@@ -200,20 +203,22 @@ class _ExportPanelController {
 
   static void showAndActivate(BuildContext context, ExportTarget target) {
     if (_entry != null) {
-      final overlay = Overlay.maybeOf(context) ?? Navigator.maybeOf(context)?.overlay;
-      if (overlay == null) return;
-      _entry!.remove();
-      overlay.insert(_entry!);
+      _visible.value = true;
       _entry!.markNeedsBuild();
       return;
     }
     show(context, target);
   }
 
+  static void setHidden(bool hidden) {
+    _visible.value = !hidden;
+  }
+
   static void close() {
     if (_entry == null) return;
     try { _entry!.remove(); } catch (_) {}
     _entry = null;
+    _visible.value = true;
   }
 }
 
@@ -263,22 +268,31 @@ class _FloatingExportPanelState extends State<_FloatingExportPanel>
       (size.width - _exportPanelWidth) / 2,
       (size.height - panelH) / 2,
     );
-    return FadeTransition(
-      opacity: _fadeAnim,
-      child: Stack(
-        children: [
-          Positioned(
-            left: _position!.dx,
-            top: _position!.dy,
-            child: _ExportPanelDialog(
-              target: widget.target,
-              onClose: _handleClose,
-              onTitleDrag: (delta) {
-                setState(() => _position = _position! + delta);
-              },
+    return ValueListenableBuilder<bool>(
+      valueListenable: _ExportPanelController._visible,
+      builder: (context, visible, child) {
+        return Offstage(
+          offstage: !visible,
+          child: child,
+        );
+      },
+      child: FadeTransition(
+        opacity: _fadeAnim,
+        child: Stack(
+          children: [
+            Positioned(
+              left: _position!.dx,
+              top: _position!.dy,
+              child: _ExportPanelDialog(
+                target: widget.target,
+                onClose: _handleClose,
+                onTitleDrag: (delta) {
+                  setState(() => _position = _position! + delta);
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -646,8 +660,10 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_hideOnDeactivate && state == AppLifecycleState.inactive) {
-      _closePanel();
+    if (state == AppLifecycleState.inactive && _hideOnDeactivate) {
+      _ExportPanelController.setHidden(true);
+    } else if (state == AppLifecycleState.resumed) {
+      _ExportPanelController.setHidden(false);
     }
   }
 
@@ -855,13 +871,24 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         _exportSteps.add(_ExportStepInfo(label: 'Step ${_exportSteps.length + 1}'));
       }
       if (stepIdx < _exportSteps.length) {
+        final isFirstReport = !_exportSteps[stepIdx].wasReported;
         _exportSteps[stepIdx].label = stepLabel;
         if (progress >= 0) {
           _exportSteps[stepIdx].progress = progress.clamp(0.0, 1.0);
         }
         _exportSteps[stepIdx].info = event.info;
-        _exportSteps[stepIdx].opacity = 1.0;
         _exportSteps[stepIdx].wasReported = true;
+        if (isFirstReport) {
+          _exportSteps[stepIdx].opacity = 0.0;
+          final idx = stepIdx;
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            if (mounted && idx < _exportSteps.length) {
+              setState(() => _exportSteps[idx].opacity = 1.0);
+            }
+          });
+        } else {
+          _exportSteps[stepIdx].opacity = 1.0;
+        }
         if (stepIdx > _currentStepIndex) {
           for (int i = _currentStepIndex; i < stepIdx; i++) {
             _exportSteps[i].progress = 1.0;
@@ -874,12 +901,23 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     } else {
       final existing = _exportSteps.indexWhere((s) => s.label == stepLabel);
       if (existing >= 0) {
+        final isFirstReport = !_exportSteps[existing].wasReported;
         if (progress >= 0) {
           _exportSteps[existing].progress = progress.clamp(0.0, 1.0);
         }
         _exportSteps[existing].info = event.info;
-        _exportSteps[existing].opacity = 1.0;
         _exportSteps[existing].wasReported = true;
+        if (isFirstReport) {
+          _exportSteps[existing].opacity = 0.0;
+          final idx = existing;
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            if (mounted && idx < _exportSteps.length) {
+              setState(() => _exportSteps[idx].opacity = 1.0);
+            }
+          });
+        } else {
+          _exportSteps[existing].opacity = 1.0;
+        }
         if (existing > _currentStepIndex) {
           for (int i = _currentStepIndex; i < existing; i++) {
             _exportSteps[i].progress = 1.0;
