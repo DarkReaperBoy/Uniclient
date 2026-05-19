@@ -482,10 +482,21 @@ class _ChatListPanelState extends State<ChatListPanel>
     final appState = context.read<AppState>();
     setState(() {
       _searchResults = _filterByTab(chatState.searchChats(query), chatState);
-      _messageSearchResults = _activeSearchTab == _SearchTab.publicPosts
+      final rawMsgs = _activeSearchTab == _SearchTab.publicPosts
           ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
           : chatState.searchMessages(query, accountId: appState.activeAccountId);
+      _messageSearchResults = _filterMessagesByTab(rawMsgs, chatState, _activeSearchTab);
     });
+  }
+
+  List<SearchResult> _filterMessagesByTab(
+      List<SearchResult> results, ChatState chatState, _SearchTab tab) {
+    if (tab == _SearchTab.thisPeer || tab == _SearchTab.thisTopic) {
+      final active = chatState.activeChat;
+      if (active == null) return [];
+      return results.where((r) => r.chatId == active.chatId).toList();
+    }
+    return results;
   }
 
   /// Filter search results based on the active search tab.
@@ -535,9 +546,10 @@ class _ChatListPanelState extends State<ChatListPanel>
       final appState = context.read<AppState>();
       setState(() {
         _searchResults = _filterByTab(chatState.searchChats(query), chatState);
-        _messageSearchResults = _activeSearchTab == _SearchTab.publicPosts
+        final rawMsgs = _activeSearchTab == _SearchTab.publicPosts
             ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
             : chatState.searchMessages(query, accountId: appState.activeAccountId);
+        _messageSearchResults = _filterMessagesByTab(rawMsgs, chatState, _activeSearchTab);
       });
     }
   }
@@ -553,9 +565,10 @@ class _ChatListPanelState extends State<ChatListPanel>
       final appState = context.read<AppState>();
       setState(() {
         _searchResults = _filterByTab(chatState.searchChats(query), chatState);
-        _messageSearchResults = tab == _SearchTab.publicPosts
+        final rawMsgs = tab == _SearchTab.publicPosts
             ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
             : chatState.searchMessages(query, accountId: appState.activeAccountId);
+        _messageSearchResults = _filterMessagesByTab(rawMsgs, chatState, tab);
       });
     }
   }
@@ -788,7 +801,7 @@ class _ChatListPanelState extends State<ChatListPanel>
                                   if (chat != null) {
                                     chatState.openChat(chat);
                                     if (result.timestamp > 0) {
-                                      chatState.jumpToMessage(result.timestamp, highlightMsgId: result.msgId);
+                                      chatState.jumpToMessage(result.timestamp * 1000, highlightMsgId: result.msgId);
                                     }
                                   }
                                 },
@@ -905,6 +918,14 @@ class _ChatListPanelState extends State<ChatListPanel>
                                   _forwardHoverTimer?.cancel();
                                   setState(() =>
                                       _forwardHoveredChatId = chat.chatId);
+                                  _forwardHoverTimer = Timer(
+                                    const Duration(seconds: 2),
+                                    () {
+                                      if (_forwardHoveredChatId == chat.chatId) {
+                                        chatState.openChat(chat);
+                                      }
+                                    },
+                                  );
                                 }
                               },
                               onLeave: (_) {
@@ -4396,7 +4417,7 @@ class _SearchMessageRow extends StatelessWidget {
     final palette = context.palette;
     final hoverBg = palette.dialogsBgOver;
     final dt = result.timestamp > 0
-        ? DateTime.fromMillisecondsSinceEpoch(result.timestamp)
+        ? DateTime.fromMillisecondsSinceEpoch(result.timestamp * 1000)
         : null;
     final timeStr = dt != null
         ? '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}'

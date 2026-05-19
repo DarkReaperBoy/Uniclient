@@ -280,21 +280,19 @@ class ChatListRow extends StatelessWidget {
                             const SizedBox(width: 8),
                             Icon(Icons.push_pin, size: 14, color: mutedColor),
                           ],
-                          // Spec §2: Mention badge — 18x18 icon (wide), 13x13 in 19x19 circle (narrow).
                           if (chat.unreadMentionCount > 0) ...[
                             const SizedBox(width: 5),
                             _ThreeStateBadgeIcon(
                               icon: Icons.alternate_email,
-                              color: badgeBg,
+                              color: isNarrow ? badgeBg : palette.dialogsMentionIconFg,
                               isNarrow: isNarrow,
                             ),
                           ],
-                          // Spec §2: Reaction badge — 18x18 icon (wide), 13x13 in 19x19 circle (narrow).
                           if (chat.unreadReactionCount > 0) ...[
                             const SizedBox(width: 5),
                             _ThreeStateBadgeIcon(
                               icon: Icons.favorite,
-                              color: badgeBg,
+                              color: isNarrow ? badgeBg : palette.dialogsReactionIconFg,
                               isNarrow: isNarrow,
                             ),
                           ],
@@ -302,7 +300,7 @@ class ChatListRow extends StatelessWidget {
                             const SizedBox(width: 5),
                             _ThreeStateBadgeIcon(
                               icon: Icons.poll,
-                              color: badgeBg,
+                              color: isNarrow ? badgeBg : palette.dialogsPollIconFg,
                               isNarrow: isNarrow,
                             ),
                           ],
@@ -742,13 +740,12 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
       }
       _manhattanPassed = true;
     }
-    debugPrint('[SWIPE] dragUpdate dx=${details.delta.dx} offset=$_swipeOffset');
     final prevOffset = _swipeOffset;
     setState(() {
-      // Spec §2.7: Apply slowdown factor 0.2 past threshold (rubberband feel).
+      final rawDx = -details.delta.dx;
       final dx = _swipeOffset >= SwipeableChatRow.kThresholdWidth
-          ? details.delta.dx * SwipeableChatRow.kSwipeSlow
-          : details.delta.dx;
+          ? rawDx * SwipeableChatRow.kSwipeSlow
+          : rawDx;
       _swipeOffset = (_swipeOffset + dx).clamp(0.0, _maxSwipeOffset);
     });
     const double kStartAnimateThreshold = 0.32;
@@ -843,7 +840,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
             // on threshold crossing.
             if (progress > 0.1)
               Positioned(
-                left: 0,
+                right: 0,
                 top: 0,
                 bottom: 0,
                 width: _swipeOffset,
@@ -865,6 +862,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
                         return CustomPaint(
                           painter: _SwipeRipplePainter(
                             rippleProgress: _rippleController.value,
+                            color: actionBg,
                           ),
                           child: Center(
                             child: SizedBox(
@@ -903,7 +901,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
                 ),
               ),
             Transform.translate(
-              offset: Offset(_swipeOffset, 0),
+              offset: Offset(-_swipeOffset, 0),
               child: widget.child,
             ),
           ],
@@ -917,27 +915,27 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
 /// Draws an expanding circle that fades out, triggered on threshold crossing.
 class _SwipeRipplePainter extends CustomPainter {
   final double rippleProgress;
+  final Color color;
 
-  _SwipeRipplePainter({required this.rippleProgress});
+  _SwipeRipplePainter({required this.rippleProgress, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
     if (rippleProgress <= 0) return;
     final center = Offset(size.width / 2, size.height / 2);
     final maxRadius = size.width / 2;
-    // Expand from 0 to full 80px diameter, fade out as it expands.
     final radius = maxRadius * Curves.easeOut.transform(rippleProgress);
-    final alpha = 0.20 * (1.0 - rippleProgress * 0.7);
+    final alpha = (1.0 - rippleProgress * 0.7).clamp(0.0, 1.0);
     canvas.drawCircle(
       center,
       radius,
-      Paint()..color = Color.fromRGBO(255, 255, 255, alpha),
+      Paint()..color = color.withValues(alpha: alpha * 0.35),
     );
   }
 
   @override
   bool shouldRepaint(_SwipeRipplePainter old) =>
-      rippleProgress != old.rippleProgress;
+      rippleProgress != old.rippleProgress || color != old.color;
 }
 
 /// AyuGram dialogs_layout.cpp:990-998: DrawQuickAction twoLines=false (default).
@@ -2374,7 +2372,7 @@ class _TopicJumpBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.fromLTRB(5, 3, 5, 3),
+              padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
               color: bg,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -2408,7 +2406,7 @@ class _TopicJumpBubble extends StatelessWidget {
               ),
             ),
             Container(
-              padding: const EdgeInsets.fromLTRB(4, 3, 5, 3),
+              padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
               color: bgDimmed,
               child: Icon(Icons.keyboard_arrow_right, size: 14, color: fg),
             ),
