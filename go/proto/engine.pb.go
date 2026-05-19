@@ -7672,25 +7672,25 @@ func (x *EngineCreateGroupResponse) GetChat() *EngineChatInfo {
 }
 
 type EngineContactInfo struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	UserId           string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Username         string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
-	DisplayName      string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Phone            string                 `protobuf:"bytes,4,opt,name=phone,proto3" json:"phone,omitempty"`
-	AvatarB64        string                 `protobuf:"bytes,5,opt,name=avatar_b64,json=avatarB64,proto3" json:"avatar_b64,omitempty"`
-	IsBot            bool                   `protobuf:"varint,6,opt,name=is_bot,json=isBot,proto3" json:"is_bot,omitempty"`
-	IsOnline         bool                   `protobuf:"varint,7,opt,name=is_online,json=isOnline,proto3" json:"is_online,omitempty"`
-	StoryCount       int32                  `protobuf:"varint,8,opt,name=story_count,json=storyCount,proto3" json:"story_count,omitempty"`
-	HasUnreadStory   bool                   `protobuf:"varint,9,opt,name=has_unread_story,json=hasUnreadStory,proto3" json:"has_unread_story,omitempty"`
-	IsVerified       bool                   `protobuf:"varint,10,opt,name=is_verified,json=isVerified,proto3" json:"is_verified,omitempty"`
-	IsPremium        bool                   `protobuf:"varint,11,opt,name=is_premium,json=isPremium,proto3" json:"is_premium,omitempty"`
-	IsScam           bool                   `protobuf:"varint,12,opt,name=is_scam,json=isScam,proto3" json:"is_scam,omitempty"`
-	IsFake           bool                   `protobuf:"varint,13,opt,name=is_fake,json=isFake,proto3" json:"is_fake,omitempty"`
-	LastSeenKind     string                 `protobuf:"bytes,14,opt,name=last_seen_kind,json=lastSeenKind,proto3" json:"last_seen_kind,omitempty"`
-	LastSeenTs       int64                  `protobuf:"varint,15,opt,name=last_seen_ts,json=lastSeenTs,proto3" json:"last_seen_ts,omitempty"`
-	IsMutualContact  bool                   `protobuf:"varint,16,opt,name=is_mutual_contact,json=isMutualContact,proto3" json:"is_mutual_contact,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Username        string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	DisplayName     string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Phone           string                 `protobuf:"bytes,4,opt,name=phone,proto3" json:"phone,omitempty"`
+	AvatarB64       string                 `protobuf:"bytes,5,opt,name=avatar_b64,json=avatarB64,proto3" json:"avatar_b64,omitempty"`
+	IsBot           bool                   `protobuf:"varint,6,opt,name=is_bot,json=isBot,proto3" json:"is_bot,omitempty"`
+	IsOnline        bool                   `protobuf:"varint,7,opt,name=is_online,json=isOnline,proto3" json:"is_online,omitempty"`
+	StoryCount      int32                  `protobuf:"varint,8,opt,name=story_count,json=storyCount,proto3" json:"story_count,omitempty"`
+	HasUnreadStory  bool                   `protobuf:"varint,9,opt,name=has_unread_story,json=hasUnreadStory,proto3" json:"has_unread_story,omitempty"`
+	IsVerified      bool                   `protobuf:"varint,10,opt,name=is_verified,json=isVerified,proto3" json:"is_verified,omitempty"`
+	IsPremium       bool                   `protobuf:"varint,11,opt,name=is_premium,json=isPremium,proto3" json:"is_premium,omitempty"`
+	IsScam          bool                   `protobuf:"varint,12,opt,name=is_scam,json=isScam,proto3" json:"is_scam,omitempty"`
+	IsFake          bool                   `protobuf:"varint,13,opt,name=is_fake,json=isFake,proto3" json:"is_fake,omitempty"`
+	LastSeenKind    string                 `protobuf:"bytes,14,opt,name=last_seen_kind,json=lastSeenKind,proto3" json:"last_seen_kind,omitempty"`
+	LastSeenTs      int64                  `protobuf:"varint,15,opt,name=last_seen_ts,json=lastSeenTs,proto3" json:"last_seen_ts,omitempty"`
+	IsMutualContact bool                   `protobuf:"varint,16,opt,name=is_mutual_contact,json=isMutualContact,proto3" json:"is_mutual_contact,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *EngineContactInfo) Reset() {
@@ -10764,6 +10764,74 @@ func (x *ReportOption) GetOption() []byte {
 	return nil
 }
 
+type EngineReportReactionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	MsgId         int32                  `protobuf:"varint,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	ParticipantId string                 `protobuf:"bytes,4,opt,name=participant_id,json=participantId,proto3" json:"participant_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineReportReactionRequest) Reset() {
+	*x = EngineReportReactionRequest{}
+	mi := &file_proto_engine_proto_msgTypes[153]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineReportReactionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineReportReactionRequest) ProtoMessage() {}
+
+func (x *EngineReportReactionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[153]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineReportReactionRequest.ProtoReflect.Descriptor instead.
+func (*EngineReportReactionRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{153}
+}
+
+func (x *EngineReportReactionRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineReportReactionRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineReportReactionRequest) GetMsgId() int32 {
+	if x != nil {
+		return x.MsgId
+	}
+	return 0
+}
+
+func (x *EngineReportReactionRequest) GetParticipantId() string {
+	if x != nil {
+		return x.ParticipantId
+	}
+	return ""
+}
+
 type EngineVotePollRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
@@ -10776,7 +10844,7 @@ type EngineVotePollRequest struct {
 
 func (x *EngineVotePollRequest) Reset() {
 	*x = EngineVotePollRequest{}
-	mi := &file_proto_engine_proto_msgTypes[153]
+	mi := &file_proto_engine_proto_msgTypes[154]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10788,7 +10856,7 @@ func (x *EngineVotePollRequest) String() string {
 func (*EngineVotePollRequest) ProtoMessage() {}
 
 func (x *EngineVotePollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[153]
+	mi := &file_proto_engine_proto_msgTypes[154]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10801,7 +10869,7 @@ func (x *EngineVotePollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineVotePollRequest.ProtoReflect.Descriptor instead.
 func (*EngineVotePollRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{153}
+	return file_proto_engine_proto_rawDescGZIP(), []int{154}
 }
 
 func (x *EngineVotePollRequest) GetAccountId() string {
@@ -10843,7 +10911,7 @@ type EngineRetractPollVoteRequest struct {
 
 func (x *EngineRetractPollVoteRequest) Reset() {
 	*x = EngineRetractPollVoteRequest{}
-	mi := &file_proto_engine_proto_msgTypes[154]
+	mi := &file_proto_engine_proto_msgTypes[155]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10855,7 +10923,7 @@ func (x *EngineRetractPollVoteRequest) String() string {
 func (*EngineRetractPollVoteRequest) ProtoMessage() {}
 
 func (x *EngineRetractPollVoteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[154]
+	mi := &file_proto_engine_proto_msgTypes[155]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10868,7 +10936,7 @@ func (x *EngineRetractPollVoteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineRetractPollVoteRequest.ProtoReflect.Descriptor instead.
 func (*EngineRetractPollVoteRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{154}
+	return file_proto_engine_proto_rawDescGZIP(), []int{155}
 }
 
 func (x *EngineRetractPollVoteRequest) GetAccountId() string {
@@ -10903,7 +10971,7 @@ type EngineStopPollRequest struct {
 
 func (x *EngineStopPollRequest) Reset() {
 	*x = EngineStopPollRequest{}
-	mi := &file_proto_engine_proto_msgTypes[155]
+	mi := &file_proto_engine_proto_msgTypes[156]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10915,7 +10983,7 @@ func (x *EngineStopPollRequest) String() string {
 func (*EngineStopPollRequest) ProtoMessage() {}
 
 func (x *EngineStopPollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[155]
+	mi := &file_proto_engine_proto_msgTypes[156]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10928,7 +10996,7 @@ func (x *EngineStopPollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineStopPollRequest.ProtoReflect.Descriptor instead.
 func (*EngineStopPollRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{155}
+	return file_proto_engine_proto_rawDescGZIP(), []int{156}
 }
 
 func (x *EngineStopPollRequest) GetAccountId() string {
@@ -10961,7 +11029,7 @@ type EngineGetInstalledEmojiSetsRequest struct {
 
 func (x *EngineGetInstalledEmojiSetsRequest) Reset() {
 	*x = EngineGetInstalledEmojiSetsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[156]
+	mi := &file_proto_engine_proto_msgTypes[157]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10973,7 +11041,7 @@ func (x *EngineGetInstalledEmojiSetsRequest) String() string {
 func (*EngineGetInstalledEmojiSetsRequest) ProtoMessage() {}
 
 func (x *EngineGetInstalledEmojiSetsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[156]
+	mi := &file_proto_engine_proto_msgTypes[157]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10986,7 +11054,7 @@ func (x *EngineGetInstalledEmojiSetsRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use EngineGetInstalledEmojiSetsRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetInstalledEmojiSetsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{156}
+	return file_proto_engine_proto_rawDescGZIP(), []int{157}
 }
 
 func (x *EngineGetInstalledEmojiSetsRequest) GetAccountId() string {
@@ -11012,7 +11080,7 @@ type EngineEmojiSetSummary struct {
 
 func (x *EngineEmojiSetSummary) Reset() {
 	*x = EngineEmojiSetSummary{}
-	mi := &file_proto_engine_proto_msgTypes[157]
+	mi := &file_proto_engine_proto_msgTypes[158]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11024,7 +11092,7 @@ func (x *EngineEmojiSetSummary) String() string {
 func (*EngineEmojiSetSummary) ProtoMessage() {}
 
 func (x *EngineEmojiSetSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[157]
+	mi := &file_proto_engine_proto_msgTypes[158]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11037,7 +11105,7 @@ func (x *EngineEmojiSetSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineEmojiSetSummary.ProtoReflect.Descriptor instead.
 func (*EngineEmojiSetSummary) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{157}
+	return file_proto_engine_proto_rawDescGZIP(), []int{158}
 }
 
 func (x *EngineEmojiSetSummary) GetSetId() int64 {
@@ -11105,7 +11173,7 @@ type EngineGetInstalledEmojiSetsResponse struct {
 
 func (x *EngineGetInstalledEmojiSetsResponse) Reset() {
 	*x = EngineGetInstalledEmojiSetsResponse{}
-	mi := &file_proto_engine_proto_msgTypes[158]
+	mi := &file_proto_engine_proto_msgTypes[159]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11117,7 +11185,7 @@ func (x *EngineGetInstalledEmojiSetsResponse) String() string {
 func (*EngineGetInstalledEmojiSetsResponse) ProtoMessage() {}
 
 func (x *EngineGetInstalledEmojiSetsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[158]
+	mi := &file_proto_engine_proto_msgTypes[159]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11130,7 +11198,7 @@ func (x *EngineGetInstalledEmojiSetsResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use EngineGetInstalledEmojiSetsResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetInstalledEmojiSetsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{158}
+	return file_proto_engine_proto_rawDescGZIP(), []int{159}
 }
 
 func (x *EngineGetInstalledEmojiSetsResponse) GetSets() []*EngineEmojiSetSummary {
@@ -11149,7 +11217,7 @@ type EngineGetInstalledStickerPacksRequest struct {
 
 func (x *EngineGetInstalledStickerPacksRequest) Reset() {
 	*x = EngineGetInstalledStickerPacksRequest{}
-	mi := &file_proto_engine_proto_msgTypes[159]
+	mi := &file_proto_engine_proto_msgTypes[160]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11161,7 +11229,7 @@ func (x *EngineGetInstalledStickerPacksRequest) String() string {
 func (*EngineGetInstalledStickerPacksRequest) ProtoMessage() {}
 
 func (x *EngineGetInstalledStickerPacksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[159]
+	mi := &file_proto_engine_proto_msgTypes[160]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11174,7 +11242,7 @@ func (x *EngineGetInstalledStickerPacksRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use EngineGetInstalledStickerPacksRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetInstalledStickerPacksRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{159}
+	return file_proto_engine_proto_rawDescGZIP(), []int{160}
 }
 
 func (x *EngineGetInstalledStickerPacksRequest) GetAccountId() string {
@@ -11202,7 +11270,7 @@ type EngineStickerPackSummary struct {
 
 func (x *EngineStickerPackSummary) Reset() {
 	*x = EngineStickerPackSummary{}
-	mi := &file_proto_engine_proto_msgTypes[160]
+	mi := &file_proto_engine_proto_msgTypes[161]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11214,7 +11282,7 @@ func (x *EngineStickerPackSummary) String() string {
 func (*EngineStickerPackSummary) ProtoMessage() {}
 
 func (x *EngineStickerPackSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[160]
+	mi := &file_proto_engine_proto_msgTypes[161]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11227,7 +11295,7 @@ func (x *EngineStickerPackSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineStickerPackSummary.ProtoReflect.Descriptor instead.
 func (*EngineStickerPackSummary) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{160}
+	return file_proto_engine_proto_rawDescGZIP(), []int{161}
 }
 
 func (x *EngineStickerPackSummary) GetSetId() int64 {
@@ -11309,7 +11377,7 @@ type EngineGetInstalledStickerPacksResponse struct {
 
 func (x *EngineGetInstalledStickerPacksResponse) Reset() {
 	*x = EngineGetInstalledStickerPacksResponse{}
-	mi := &file_proto_engine_proto_msgTypes[161]
+	mi := &file_proto_engine_proto_msgTypes[162]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11321,7 +11389,7 @@ func (x *EngineGetInstalledStickerPacksResponse) String() string {
 func (*EngineGetInstalledStickerPacksResponse) ProtoMessage() {}
 
 func (x *EngineGetInstalledStickerPacksResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[161]
+	mi := &file_proto_engine_proto_msgTypes[162]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11334,7 +11402,7 @@ func (x *EngineGetInstalledStickerPacksResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use EngineGetInstalledStickerPacksResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetInstalledStickerPacksResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{161}
+	return file_proto_engine_proto_rawDescGZIP(), []int{162}
 }
 
 func (x *EngineGetInstalledStickerPacksResponse) GetPacks() []*EngineStickerPackSummary {
@@ -11353,7 +11421,7 @@ type EngineGetRecentStickersRequest struct {
 
 func (x *EngineGetRecentStickersRequest) Reset() {
 	*x = EngineGetRecentStickersRequest{}
-	mi := &file_proto_engine_proto_msgTypes[162]
+	mi := &file_proto_engine_proto_msgTypes[163]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11365,7 +11433,7 @@ func (x *EngineGetRecentStickersRequest) String() string {
 func (*EngineGetRecentStickersRequest) ProtoMessage() {}
 
 func (x *EngineGetRecentStickersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[162]
+	mi := &file_proto_engine_proto_msgTypes[163]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11378,7 +11446,7 @@ func (x *EngineGetRecentStickersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetRecentStickersRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetRecentStickersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{162}
+	return file_proto_engine_proto_rawDescGZIP(), []int{163}
 }
 
 func (x *EngineGetRecentStickersRequest) GetAccountId() string {
@@ -11397,7 +11465,7 @@ type EngineGetRecentStickersResponse struct {
 
 func (x *EngineGetRecentStickersResponse) Reset() {
 	*x = EngineGetRecentStickersResponse{}
-	mi := &file_proto_engine_proto_msgTypes[163]
+	mi := &file_proto_engine_proto_msgTypes[164]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11409,7 +11477,7 @@ func (x *EngineGetRecentStickersResponse) String() string {
 func (*EngineGetRecentStickersResponse) ProtoMessage() {}
 
 func (x *EngineGetRecentStickersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[163]
+	mi := &file_proto_engine_proto_msgTypes[164]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11422,7 +11490,7 @@ func (x *EngineGetRecentStickersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetRecentStickersResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetRecentStickersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{163}
+	return file_proto_engine_proto_rawDescGZIP(), []int{164}
 }
 
 func (x *EngineGetRecentStickersResponse) GetStickers() []*EngineStickerInfo {
@@ -11441,7 +11509,7 @@ type EngineGetFeaturedStickerPacksRequest struct {
 
 func (x *EngineGetFeaturedStickerPacksRequest) Reset() {
 	*x = EngineGetFeaturedStickerPacksRequest{}
-	mi := &file_proto_engine_proto_msgTypes[164]
+	mi := &file_proto_engine_proto_msgTypes[165]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11453,7 +11521,7 @@ func (x *EngineGetFeaturedStickerPacksRequest) String() string {
 func (*EngineGetFeaturedStickerPacksRequest) ProtoMessage() {}
 
 func (x *EngineGetFeaturedStickerPacksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[164]
+	mi := &file_proto_engine_proto_msgTypes[165]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11466,7 +11534,7 @@ func (x *EngineGetFeaturedStickerPacksRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use EngineGetFeaturedStickerPacksRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetFeaturedStickerPacksRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{164}
+	return file_proto_engine_proto_rawDescGZIP(), []int{165}
 }
 
 func (x *EngineGetFeaturedStickerPacksRequest) GetAccountId() string {
@@ -11485,7 +11553,7 @@ type EngineGetFeaturedStickerPacksResponse struct {
 
 func (x *EngineGetFeaturedStickerPacksResponse) Reset() {
 	*x = EngineGetFeaturedStickerPacksResponse{}
-	mi := &file_proto_engine_proto_msgTypes[165]
+	mi := &file_proto_engine_proto_msgTypes[166]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11497,7 +11565,7 @@ func (x *EngineGetFeaturedStickerPacksResponse) String() string {
 func (*EngineGetFeaturedStickerPacksResponse) ProtoMessage() {}
 
 func (x *EngineGetFeaturedStickerPacksResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[165]
+	mi := &file_proto_engine_proto_msgTypes[166]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11510,7 +11578,7 @@ func (x *EngineGetFeaturedStickerPacksResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use EngineGetFeaturedStickerPacksResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetFeaturedStickerPacksResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{165}
+	return file_proto_engine_proto_rawDescGZIP(), []int{166}
 }
 
 func (x *EngineGetFeaturedStickerPacksResponse) GetPacks() []*EngineStickerPackSummary {
@@ -11530,7 +11598,7 @@ type EngineSearchStickerSetsRequest struct {
 
 func (x *EngineSearchStickerSetsRequest) Reset() {
 	*x = EngineSearchStickerSetsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[166]
+	mi := &file_proto_engine_proto_msgTypes[167]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11542,7 +11610,7 @@ func (x *EngineSearchStickerSetsRequest) String() string {
 func (*EngineSearchStickerSetsRequest) ProtoMessage() {}
 
 func (x *EngineSearchStickerSetsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[166]
+	mi := &file_proto_engine_proto_msgTypes[167]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11555,7 +11623,7 @@ func (x *EngineSearchStickerSetsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSearchStickerSetsRequest.ProtoReflect.Descriptor instead.
 func (*EngineSearchStickerSetsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{166}
+	return file_proto_engine_proto_rawDescGZIP(), []int{167}
 }
 
 func (x *EngineSearchStickerSetsRequest) GetAccountId() string {
@@ -11581,7 +11649,7 @@ type EngineSearchStickerSetsResponse struct {
 
 func (x *EngineSearchStickerSetsResponse) Reset() {
 	*x = EngineSearchStickerSetsResponse{}
-	mi := &file_proto_engine_proto_msgTypes[167]
+	mi := &file_proto_engine_proto_msgTypes[168]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11593,7 +11661,7 @@ func (x *EngineSearchStickerSetsResponse) String() string {
 func (*EngineSearchStickerSetsResponse) ProtoMessage() {}
 
 func (x *EngineSearchStickerSetsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[167]
+	mi := &file_proto_engine_proto_msgTypes[168]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11606,7 +11674,7 @@ func (x *EngineSearchStickerSetsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSearchStickerSetsResponse.ProtoReflect.Descriptor instead.
 func (*EngineSearchStickerSetsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{167}
+	return file_proto_engine_proto_rawDescGZIP(), []int{168}
 }
 
 func (x *EngineSearchStickerSetsResponse) GetPacks() []*EngineStickerPackSummary {
@@ -11627,7 +11695,7 @@ type EngineInstallStickerSetRequest struct {
 
 func (x *EngineInstallStickerSetRequest) Reset() {
 	*x = EngineInstallStickerSetRequest{}
-	mi := &file_proto_engine_proto_msgTypes[168]
+	mi := &file_proto_engine_proto_msgTypes[169]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11639,7 +11707,7 @@ func (x *EngineInstallStickerSetRequest) String() string {
 func (*EngineInstallStickerSetRequest) ProtoMessage() {}
 
 func (x *EngineInstallStickerSetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[168]
+	mi := &file_proto_engine_proto_msgTypes[169]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11652,7 +11720,7 @@ func (x *EngineInstallStickerSetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineInstallStickerSetRequest.ProtoReflect.Descriptor instead.
 func (*EngineInstallStickerSetRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{168}
+	return file_proto_engine_proto_rawDescGZIP(), []int{169}
 }
 
 func (x *EngineInstallStickerSetRequest) GetAccountId() string {
@@ -11684,7 +11752,7 @@ type EngineInstallStickerSetResponse struct {
 
 func (x *EngineInstallStickerSetResponse) Reset() {
 	*x = EngineInstallStickerSetResponse{}
-	mi := &file_proto_engine_proto_msgTypes[169]
+	mi := &file_proto_engine_proto_msgTypes[170]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11696,7 +11764,7 @@ func (x *EngineInstallStickerSetResponse) String() string {
 func (*EngineInstallStickerSetResponse) ProtoMessage() {}
 
 func (x *EngineInstallStickerSetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[169]
+	mi := &file_proto_engine_proto_msgTypes[170]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11709,7 +11777,7 @@ func (x *EngineInstallStickerSetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineInstallStickerSetResponse.ProtoReflect.Descriptor instead.
 func (*EngineInstallStickerSetResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{169}
+	return file_proto_engine_proto_rawDescGZIP(), []int{170}
 }
 
 type EngineGetStickerSuggestionsRequest struct {
@@ -11722,7 +11790,7 @@ type EngineGetStickerSuggestionsRequest struct {
 
 func (x *EngineGetStickerSuggestionsRequest) Reset() {
 	*x = EngineGetStickerSuggestionsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[170]
+	mi := &file_proto_engine_proto_msgTypes[171]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11734,7 +11802,7 @@ func (x *EngineGetStickerSuggestionsRequest) String() string {
 func (*EngineGetStickerSuggestionsRequest) ProtoMessage() {}
 
 func (x *EngineGetStickerSuggestionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[170]
+	mi := &file_proto_engine_proto_msgTypes[171]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11747,7 +11815,7 @@ func (x *EngineGetStickerSuggestionsRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use EngineGetStickerSuggestionsRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetStickerSuggestionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{170}
+	return file_proto_engine_proto_rawDescGZIP(), []int{171}
 }
 
 func (x *EngineGetStickerSuggestionsRequest) GetAccountId() string {
@@ -11773,7 +11841,7 @@ type EngineGetStickerSuggestionsResponse struct {
 
 func (x *EngineGetStickerSuggestionsResponse) Reset() {
 	*x = EngineGetStickerSuggestionsResponse{}
-	mi := &file_proto_engine_proto_msgTypes[171]
+	mi := &file_proto_engine_proto_msgTypes[172]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11785,7 +11853,7 @@ func (x *EngineGetStickerSuggestionsResponse) String() string {
 func (*EngineGetStickerSuggestionsResponse) ProtoMessage() {}
 
 func (x *EngineGetStickerSuggestionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[171]
+	mi := &file_proto_engine_proto_msgTypes[172]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11798,7 +11866,7 @@ func (x *EngineGetStickerSuggestionsResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use EngineGetStickerSuggestionsResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetStickerSuggestionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{171}
+	return file_proto_engine_proto_rawDescGZIP(), []int{172}
 }
 
 func (x *EngineGetStickerSuggestionsResponse) GetStickers() []*EngineStickerInfo {
@@ -11820,7 +11888,7 @@ type EngineSendCallRatingRequest struct {
 
 func (x *EngineSendCallRatingRequest) Reset() {
 	*x = EngineSendCallRatingRequest{}
-	mi := &file_proto_engine_proto_msgTypes[172]
+	mi := &file_proto_engine_proto_msgTypes[173]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11832,7 +11900,7 @@ func (x *EngineSendCallRatingRequest) String() string {
 func (*EngineSendCallRatingRequest) ProtoMessage() {}
 
 func (x *EngineSendCallRatingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[172]
+	mi := &file_proto_engine_proto_msgTypes[173]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11845,7 +11913,7 @@ func (x *EngineSendCallRatingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSendCallRatingRequest.ProtoReflect.Descriptor instead.
 func (*EngineSendCallRatingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{172}
+	return file_proto_engine_proto_rawDescGZIP(), []int{173}
 }
 
 func (x *EngineSendCallRatingRequest) GetAccountId() string {
@@ -11886,7 +11954,7 @@ type EngineFetchPeerStoriesRequest struct {
 
 func (x *EngineFetchPeerStoriesRequest) Reset() {
 	*x = EngineFetchPeerStoriesRequest{}
-	mi := &file_proto_engine_proto_msgTypes[173]
+	mi := &file_proto_engine_proto_msgTypes[174]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11898,7 +11966,7 @@ func (x *EngineFetchPeerStoriesRequest) String() string {
 func (*EngineFetchPeerStoriesRequest) ProtoMessage() {}
 
 func (x *EngineFetchPeerStoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[173]
+	mi := &file_proto_engine_proto_msgTypes[174]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11911,7 +11979,7 @@ func (x *EngineFetchPeerStoriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineFetchPeerStoriesRequest.ProtoReflect.Descriptor instead.
 func (*EngineFetchPeerStoriesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{173}
+	return file_proto_engine_proto_rawDescGZIP(), []int{174}
 }
 
 func (x *EngineFetchPeerStoriesRequest) GetAccountId() string {
@@ -11937,7 +12005,7 @@ type EngineFetchPeerStoriesResponse struct {
 
 func (x *EngineFetchPeerStoriesResponse) Reset() {
 	*x = EngineFetchPeerStoriesResponse{}
-	mi := &file_proto_engine_proto_msgTypes[174]
+	mi := &file_proto_engine_proto_msgTypes[175]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11949,7 +12017,7 @@ func (x *EngineFetchPeerStoriesResponse) String() string {
 func (*EngineFetchPeerStoriesResponse) ProtoMessage() {}
 
 func (x *EngineFetchPeerStoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[174]
+	mi := &file_proto_engine_proto_msgTypes[175]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11962,7 +12030,7 @@ func (x *EngineFetchPeerStoriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineFetchPeerStoriesResponse.ProtoReflect.Descriptor instead.
 func (*EngineFetchPeerStoriesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{174}
+	return file_proto_engine_proto_rawDescGZIP(), []int{175}
 }
 
 func (x *EngineFetchPeerStoriesResponse) GetStoriesJson() string {
@@ -11981,7 +12049,7 @@ type EngineGetStoryAlbumsRequest struct {
 
 func (x *EngineGetStoryAlbumsRequest) Reset() {
 	*x = EngineGetStoryAlbumsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[175]
+	mi := &file_proto_engine_proto_msgTypes[176]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11993,7 +12061,7 @@ func (x *EngineGetStoryAlbumsRequest) String() string {
 func (*EngineGetStoryAlbumsRequest) ProtoMessage() {}
 
 func (x *EngineGetStoryAlbumsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[175]
+	mi := &file_proto_engine_proto_msgTypes[176]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12006,7 +12074,7 @@ func (x *EngineGetStoryAlbumsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetStoryAlbumsRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetStoryAlbumsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{175}
+	return file_proto_engine_proto_rawDescGZIP(), []int{176}
 }
 
 func (x *EngineGetStoryAlbumsRequest) GetAccountId() string {
@@ -12027,7 +12095,7 @@ type EngineStoryAlbum struct {
 
 func (x *EngineStoryAlbum) Reset() {
 	*x = EngineStoryAlbum{}
-	mi := &file_proto_engine_proto_msgTypes[176]
+	mi := &file_proto_engine_proto_msgTypes[177]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12039,7 +12107,7 @@ func (x *EngineStoryAlbum) String() string {
 func (*EngineStoryAlbum) ProtoMessage() {}
 
 func (x *EngineStoryAlbum) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[176]
+	mi := &file_proto_engine_proto_msgTypes[177]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12052,7 +12120,7 @@ func (x *EngineStoryAlbum) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineStoryAlbum.ProtoReflect.Descriptor instead.
 func (*EngineStoryAlbum) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{176}
+	return file_proto_engine_proto_rawDescGZIP(), []int{177}
 }
 
 func (x *EngineStoryAlbum) GetId() int64 {
@@ -12085,7 +12153,7 @@ type EngineGetStoryAlbumsResponse struct {
 
 func (x *EngineGetStoryAlbumsResponse) Reset() {
 	*x = EngineGetStoryAlbumsResponse{}
-	mi := &file_proto_engine_proto_msgTypes[177]
+	mi := &file_proto_engine_proto_msgTypes[178]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12097,7 +12165,7 @@ func (x *EngineGetStoryAlbumsResponse) String() string {
 func (*EngineGetStoryAlbumsResponse) ProtoMessage() {}
 
 func (x *EngineGetStoryAlbumsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[177]
+	mi := &file_proto_engine_proto_msgTypes[178]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12110,7 +12178,7 @@ func (x *EngineGetStoryAlbumsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetStoryAlbumsResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetStoryAlbumsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{177}
+	return file_proto_engine_proto_rawDescGZIP(), []int{178}
 }
 
 func (x *EngineGetStoryAlbumsResponse) GetAlbums() []*EngineStoryAlbum {
@@ -12132,7 +12200,7 @@ type EngineGetAlbumStoriesRequest struct {
 
 func (x *EngineGetAlbumStoriesRequest) Reset() {
 	*x = EngineGetAlbumStoriesRequest{}
-	mi := &file_proto_engine_proto_msgTypes[178]
+	mi := &file_proto_engine_proto_msgTypes[179]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12144,7 +12212,7 @@ func (x *EngineGetAlbumStoriesRequest) String() string {
 func (*EngineGetAlbumStoriesRequest) ProtoMessage() {}
 
 func (x *EngineGetAlbumStoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[178]
+	mi := &file_proto_engine_proto_msgTypes[179]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12157,7 +12225,7 @@ func (x *EngineGetAlbumStoriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetAlbumStoriesRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetAlbumStoriesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{178}
+	return file_proto_engine_proto_rawDescGZIP(), []int{179}
 }
 
 func (x *EngineGetAlbumStoriesRequest) GetAccountId() string {
@@ -12198,7 +12266,7 @@ type EngineGetAlbumStoriesResponse struct {
 
 func (x *EngineGetAlbumStoriesResponse) Reset() {
 	*x = EngineGetAlbumStoriesResponse{}
-	mi := &file_proto_engine_proto_msgTypes[179]
+	mi := &file_proto_engine_proto_msgTypes[180]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12210,7 +12278,7 @@ func (x *EngineGetAlbumStoriesResponse) String() string {
 func (*EngineGetAlbumStoriesResponse) ProtoMessage() {}
 
 func (x *EngineGetAlbumStoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[179]
+	mi := &file_proto_engine_proto_msgTypes[180]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12223,7 +12291,7 @@ func (x *EngineGetAlbumStoriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetAlbumStoriesResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetAlbumStoriesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{179}
+	return file_proto_engine_proto_rawDescGZIP(), []int{180}
 }
 
 func (x *EngineGetAlbumStoriesResponse) GetStoriesJson() string {
@@ -12250,7 +12318,7 @@ type EngineCreateStoryAlbumRequest struct {
 
 func (x *EngineCreateStoryAlbumRequest) Reset() {
 	*x = EngineCreateStoryAlbumRequest{}
-	mi := &file_proto_engine_proto_msgTypes[180]
+	mi := &file_proto_engine_proto_msgTypes[181]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12262,7 +12330,7 @@ func (x *EngineCreateStoryAlbumRequest) String() string {
 func (*EngineCreateStoryAlbumRequest) ProtoMessage() {}
 
 func (x *EngineCreateStoryAlbumRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[180]
+	mi := &file_proto_engine_proto_msgTypes[181]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12275,7 +12343,7 @@ func (x *EngineCreateStoryAlbumRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineCreateStoryAlbumRequest.ProtoReflect.Descriptor instead.
 func (*EngineCreateStoryAlbumRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{180}
+	return file_proto_engine_proto_rawDescGZIP(), []int{181}
 }
 
 func (x *EngineCreateStoryAlbumRequest) GetAccountId() string {
@@ -12302,7 +12370,7 @@ type EngineCreateStoryAlbumResponse struct {
 
 func (x *EngineCreateStoryAlbumResponse) Reset() {
 	*x = EngineCreateStoryAlbumResponse{}
-	mi := &file_proto_engine_proto_msgTypes[181]
+	mi := &file_proto_engine_proto_msgTypes[182]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12314,7 +12382,7 @@ func (x *EngineCreateStoryAlbumResponse) String() string {
 func (*EngineCreateStoryAlbumResponse) ProtoMessage() {}
 
 func (x *EngineCreateStoryAlbumResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[181]
+	mi := &file_proto_engine_proto_msgTypes[182]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12327,7 +12395,7 @@ func (x *EngineCreateStoryAlbumResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineCreateStoryAlbumResponse.ProtoReflect.Descriptor instead.
 func (*EngineCreateStoryAlbumResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{181}
+	return file_proto_engine_proto_rawDescGZIP(), []int{182}
 }
 
 func (x *EngineCreateStoryAlbumResponse) GetAlbumId() int64 {
@@ -12354,7 +12422,7 @@ type EngineReorderStoryAlbumsRequest struct {
 
 func (x *EngineReorderStoryAlbumsRequest) Reset() {
 	*x = EngineReorderStoryAlbumsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[182]
+	mi := &file_proto_engine_proto_msgTypes[183]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12366,7 +12434,7 @@ func (x *EngineReorderStoryAlbumsRequest) String() string {
 func (*EngineReorderStoryAlbumsRequest) ProtoMessage() {}
 
 func (x *EngineReorderStoryAlbumsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[182]
+	mi := &file_proto_engine_proto_msgTypes[183]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12379,7 +12447,7 @@ func (x *EngineReorderStoryAlbumsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineReorderStoryAlbumsRequest.ProtoReflect.Descriptor instead.
 func (*EngineReorderStoryAlbumsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{182}
+	return file_proto_engine_proto_rawDescGZIP(), []int{183}
 }
 
 func (x *EngineReorderStoryAlbumsRequest) GetAccountId() string {
@@ -12406,7 +12474,7 @@ type EngineGetCustomEmojiThumbsRequest struct {
 
 func (x *EngineGetCustomEmojiThumbsRequest) Reset() {
 	*x = EngineGetCustomEmojiThumbsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[183]
+	mi := &file_proto_engine_proto_msgTypes[184]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12418,7 +12486,7 @@ func (x *EngineGetCustomEmojiThumbsRequest) String() string {
 func (*EngineGetCustomEmojiThumbsRequest) ProtoMessage() {}
 
 func (x *EngineGetCustomEmojiThumbsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[183]
+	mi := &file_proto_engine_proto_msgTypes[184]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12431,7 +12499,7 @@ func (x *EngineGetCustomEmojiThumbsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use EngineGetCustomEmojiThumbsRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetCustomEmojiThumbsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{183}
+	return file_proto_engine_proto_rawDescGZIP(), []int{184}
 }
 
 func (x *EngineGetCustomEmojiThumbsRequest) GetAccountId() string {
@@ -12459,7 +12527,7 @@ type EngineCustomEmojiThumb struct {
 
 func (x *EngineCustomEmojiThumb) Reset() {
 	*x = EngineCustomEmojiThumb{}
-	mi := &file_proto_engine_proto_msgTypes[184]
+	mi := &file_proto_engine_proto_msgTypes[185]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12471,7 +12539,7 @@ func (x *EngineCustomEmojiThumb) String() string {
 func (*EngineCustomEmojiThumb) ProtoMessage() {}
 
 func (x *EngineCustomEmojiThumb) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[184]
+	mi := &file_proto_engine_proto_msgTypes[185]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12484,7 +12552,7 @@ func (x *EngineCustomEmojiThumb) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineCustomEmojiThumb.ProtoReflect.Descriptor instead.
 func (*EngineCustomEmojiThumb) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{184}
+	return file_proto_engine_proto_rawDescGZIP(), []int{185}
 }
 
 func (x *EngineCustomEmojiThumb) GetDocumentId() int64 {
@@ -12517,7 +12585,7 @@ type EngineGetCustomEmojiThumbsResponse struct {
 
 func (x *EngineGetCustomEmojiThumbsResponse) Reset() {
 	*x = EngineGetCustomEmojiThumbsResponse{}
-	mi := &file_proto_engine_proto_msgTypes[185]
+	mi := &file_proto_engine_proto_msgTypes[186]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12529,7 +12597,7 @@ func (x *EngineGetCustomEmojiThumbsResponse) String() string {
 func (*EngineGetCustomEmojiThumbsResponse) ProtoMessage() {}
 
 func (x *EngineGetCustomEmojiThumbsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[185]
+	mi := &file_proto_engine_proto_msgTypes[186]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12542,7 +12610,7 @@ func (x *EngineGetCustomEmojiThumbsResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use EngineGetCustomEmojiThumbsResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetCustomEmojiThumbsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{185}
+	return file_proto_engine_proto_rawDescGZIP(), []int{186}
 }
 
 func (x *EngineGetCustomEmojiThumbsResponse) GetThumbs() []*EngineCustomEmojiThumb {
@@ -12565,7 +12633,7 @@ type EngineGetSavedSublistsRequest struct {
 
 func (x *EngineGetSavedSublistsRequest) Reset() {
 	*x = EngineGetSavedSublistsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[186]
+	mi := &file_proto_engine_proto_msgTypes[187]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12577,7 +12645,7 @@ func (x *EngineGetSavedSublistsRequest) String() string {
 func (*EngineGetSavedSublistsRequest) ProtoMessage() {}
 
 func (x *EngineGetSavedSublistsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[186]
+	mi := &file_proto_engine_proto_msgTypes[187]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12590,7 +12658,7 @@ func (x *EngineGetSavedSublistsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetSavedSublistsRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetSavedSublistsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{186}
+	return file_proto_engine_proto_rawDescGZIP(), []int{187}
 }
 
 func (x *EngineGetSavedSublistsRequest) GetAccountId() string {
@@ -12646,7 +12714,7 @@ type EngineSavedSublist struct {
 
 func (x *EngineSavedSublist) Reset() {
 	*x = EngineSavedSublist{}
-	mi := &file_proto_engine_proto_msgTypes[187]
+	mi := &file_proto_engine_proto_msgTypes[188]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12658,7 +12726,7 @@ func (x *EngineSavedSublist) String() string {
 func (*EngineSavedSublist) ProtoMessage() {}
 
 func (x *EngineSavedSublist) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[187]
+	mi := &file_proto_engine_proto_msgTypes[188]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12671,7 +12739,7 @@ func (x *EngineSavedSublist) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSavedSublist.ProtoReflect.Descriptor instead.
 func (*EngineSavedSublist) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{187}
+	return file_proto_engine_proto_rawDescGZIP(), []int{188}
 }
 
 func (x *EngineSavedSublist) GetPeerId() string {
@@ -12754,7 +12822,7 @@ type EngineGetSavedSublistsResponse struct {
 
 func (x *EngineGetSavedSublistsResponse) Reset() {
 	*x = EngineGetSavedSublistsResponse{}
-	mi := &file_proto_engine_proto_msgTypes[188]
+	mi := &file_proto_engine_proto_msgTypes[189]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12766,7 +12834,7 @@ func (x *EngineGetSavedSublistsResponse) String() string {
 func (*EngineGetSavedSublistsResponse) ProtoMessage() {}
 
 func (x *EngineGetSavedSublistsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[188]
+	mi := &file_proto_engine_proto_msgTypes[189]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12779,7 +12847,7 @@ func (x *EngineGetSavedSublistsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetSavedSublistsResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetSavedSublistsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{188}
+	return file_proto_engine_proto_rawDescGZIP(), []int{189}
 }
 
 func (x *EngineGetSavedSublistsResponse) GetSublists() []*EngineSavedSublist {
@@ -12806,7 +12874,7 @@ type EngineGetSavedReactionTagsRequest struct {
 
 func (x *EngineGetSavedReactionTagsRequest) Reset() {
 	*x = EngineGetSavedReactionTagsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[189]
+	mi := &file_proto_engine_proto_msgTypes[190]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12818,7 +12886,7 @@ func (x *EngineGetSavedReactionTagsRequest) String() string {
 func (*EngineGetSavedReactionTagsRequest) ProtoMessage() {}
 
 func (x *EngineGetSavedReactionTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[189]
+	mi := &file_proto_engine_proto_msgTypes[190]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12831,7 +12899,7 @@ func (x *EngineGetSavedReactionTagsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use EngineGetSavedReactionTagsRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetSavedReactionTagsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{189}
+	return file_proto_engine_proto_rawDescGZIP(), []int{190}
 }
 
 func (x *EngineGetSavedReactionTagsRequest) GetAccountId() string {
@@ -12860,7 +12928,7 @@ type EngineSavedReactionTag struct {
 
 func (x *EngineSavedReactionTag) Reset() {
 	*x = EngineSavedReactionTag{}
-	mi := &file_proto_engine_proto_msgTypes[190]
+	mi := &file_proto_engine_proto_msgTypes[191]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12872,7 +12940,7 @@ func (x *EngineSavedReactionTag) String() string {
 func (*EngineSavedReactionTag) ProtoMessage() {}
 
 func (x *EngineSavedReactionTag) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[190]
+	mi := &file_proto_engine_proto_msgTypes[191]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12885,7 +12953,7 @@ func (x *EngineSavedReactionTag) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSavedReactionTag.ProtoReflect.Descriptor instead.
 func (*EngineSavedReactionTag) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{190}
+	return file_proto_engine_proto_rawDescGZIP(), []int{191}
 }
 
 func (x *EngineSavedReactionTag) GetEmoji() string {
@@ -12925,7 +12993,7 @@ type EngineGetSavedReactionTagsResponse struct {
 
 func (x *EngineGetSavedReactionTagsResponse) Reset() {
 	*x = EngineGetSavedReactionTagsResponse{}
-	mi := &file_proto_engine_proto_msgTypes[191]
+	mi := &file_proto_engine_proto_msgTypes[192]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12937,7 +13005,7 @@ func (x *EngineGetSavedReactionTagsResponse) String() string {
 func (*EngineGetSavedReactionTagsResponse) ProtoMessage() {}
 
 func (x *EngineGetSavedReactionTagsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[191]
+	mi := &file_proto_engine_proto_msgTypes[192]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12950,7 +13018,7 @@ func (x *EngineGetSavedReactionTagsResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use EngineGetSavedReactionTagsResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetSavedReactionTagsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{191}
+	return file_proto_engine_proto_rawDescGZIP(), []int{192}
 }
 
 func (x *EngineGetSavedReactionTagsResponse) GetTags() []*EngineSavedReactionTag {
@@ -12972,7 +13040,7 @@ type EngineRenameSavedReactionTagRequest struct {
 
 func (x *EngineRenameSavedReactionTagRequest) Reset() {
 	*x = EngineRenameSavedReactionTagRequest{}
-	mi := &file_proto_engine_proto_msgTypes[192]
+	mi := &file_proto_engine_proto_msgTypes[193]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12984,7 +13052,7 @@ func (x *EngineRenameSavedReactionTagRequest) String() string {
 func (*EngineRenameSavedReactionTagRequest) ProtoMessage() {}
 
 func (x *EngineRenameSavedReactionTagRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[192]
+	mi := &file_proto_engine_proto_msgTypes[193]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12997,7 +13065,7 @@ func (x *EngineRenameSavedReactionTagRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use EngineRenameSavedReactionTagRequest.ProtoReflect.Descriptor instead.
 func (*EngineRenameSavedReactionTagRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{192}
+	return file_proto_engine_proto_rawDescGZIP(), []int{193}
 }
 
 func (x *EngineRenameSavedReactionTagRequest) GetAccountId() string {
@@ -13038,7 +13106,7 @@ type EngineClearCallHistoryRequest struct {
 
 func (x *EngineClearCallHistoryRequest) Reset() {
 	*x = EngineClearCallHistoryRequest{}
-	mi := &file_proto_engine_proto_msgTypes[193]
+	mi := &file_proto_engine_proto_msgTypes[194]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13050,7 +13118,7 @@ func (x *EngineClearCallHistoryRequest) String() string {
 func (*EngineClearCallHistoryRequest) ProtoMessage() {}
 
 func (x *EngineClearCallHistoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[193]
+	mi := &file_proto_engine_proto_msgTypes[194]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13063,7 +13131,7 @@ func (x *EngineClearCallHistoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineClearCallHistoryRequest.ProtoReflect.Descriptor instead.
 func (*EngineClearCallHistoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{193}
+	return file_proto_engine_proto_rawDescGZIP(), []int{194}
 }
 
 func (x *EngineClearCallHistoryRequest) GetAccountId() string {
@@ -13090,7 +13158,7 @@ type EngineGetCustomEmojiFilesRequest struct {
 
 func (x *EngineGetCustomEmojiFilesRequest) Reset() {
 	*x = EngineGetCustomEmojiFilesRequest{}
-	mi := &file_proto_engine_proto_msgTypes[194]
+	mi := &file_proto_engine_proto_msgTypes[195]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13102,7 +13170,7 @@ func (x *EngineGetCustomEmojiFilesRequest) String() string {
 func (*EngineGetCustomEmojiFilesRequest) ProtoMessage() {}
 
 func (x *EngineGetCustomEmojiFilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[194]
+	mi := &file_proto_engine_proto_msgTypes[195]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13115,7 +13183,7 @@ func (x *EngineGetCustomEmojiFilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetCustomEmojiFilesRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetCustomEmojiFilesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{194}
+	return file_proto_engine_proto_rawDescGZIP(), []int{195}
 }
 
 func (x *EngineGetCustomEmojiFilesRequest) GetAccountId() string {
@@ -13143,7 +13211,7 @@ type EngineCustomEmojiFile struct {
 
 func (x *EngineCustomEmojiFile) Reset() {
 	*x = EngineCustomEmojiFile{}
-	mi := &file_proto_engine_proto_msgTypes[195]
+	mi := &file_proto_engine_proto_msgTypes[196]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13155,7 +13223,7 @@ func (x *EngineCustomEmojiFile) String() string {
 func (*EngineCustomEmojiFile) ProtoMessage() {}
 
 func (x *EngineCustomEmojiFile) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[195]
+	mi := &file_proto_engine_proto_msgTypes[196]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13168,7 +13236,7 @@ func (x *EngineCustomEmojiFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineCustomEmojiFile.ProtoReflect.Descriptor instead.
 func (*EngineCustomEmojiFile) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{195}
+	return file_proto_engine_proto_rawDescGZIP(), []int{196}
 }
 
 func (x *EngineCustomEmojiFile) GetDocumentId() int64 {
@@ -13201,7 +13269,7 @@ type EngineGetCustomEmojiFilesResponse struct {
 
 func (x *EngineGetCustomEmojiFilesResponse) Reset() {
 	*x = EngineGetCustomEmojiFilesResponse{}
-	mi := &file_proto_engine_proto_msgTypes[196]
+	mi := &file_proto_engine_proto_msgTypes[197]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13213,7 +13281,7 @@ func (x *EngineGetCustomEmojiFilesResponse) String() string {
 func (*EngineGetCustomEmojiFilesResponse) ProtoMessage() {}
 
 func (x *EngineGetCustomEmojiFilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[196]
+	mi := &file_proto_engine_proto_msgTypes[197]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13226,7 +13294,7 @@ func (x *EngineGetCustomEmojiFilesResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use EngineGetCustomEmojiFilesResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetCustomEmojiFilesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{196}
+	return file_proto_engine_proto_rawDescGZIP(), []int{197}
 }
 
 func (x *EngineGetCustomEmojiFilesResponse) GetFiles() []*EngineCustomEmojiFile {
@@ -13246,7 +13314,7 @@ type EngineGetStickerFilesRequest struct {
 
 func (x *EngineGetStickerFilesRequest) Reset() {
 	*x = EngineGetStickerFilesRequest{}
-	mi := &file_proto_engine_proto_msgTypes[197]
+	mi := &file_proto_engine_proto_msgTypes[198]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13258,7 +13326,7 @@ func (x *EngineGetStickerFilesRequest) String() string {
 func (*EngineGetStickerFilesRequest) ProtoMessage() {}
 
 func (x *EngineGetStickerFilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[197]
+	mi := &file_proto_engine_proto_msgTypes[198]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13271,7 +13339,7 @@ func (x *EngineGetStickerFilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetStickerFilesRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetStickerFilesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{197}
+	return file_proto_engine_proto_rawDescGZIP(), []int{198}
 }
 
 func (x *EngineGetStickerFilesRequest) GetAccountId() string {
@@ -13299,7 +13367,7 @@ type EngineStickerFile struct {
 
 func (x *EngineStickerFile) Reset() {
 	*x = EngineStickerFile{}
-	mi := &file_proto_engine_proto_msgTypes[198]
+	mi := &file_proto_engine_proto_msgTypes[199]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13311,7 +13379,7 @@ func (x *EngineStickerFile) String() string {
 func (*EngineStickerFile) ProtoMessage() {}
 
 func (x *EngineStickerFile) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[198]
+	mi := &file_proto_engine_proto_msgTypes[199]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13324,7 +13392,7 @@ func (x *EngineStickerFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineStickerFile.ProtoReflect.Descriptor instead.
 func (*EngineStickerFile) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{198}
+	return file_proto_engine_proto_rawDescGZIP(), []int{199}
 }
 
 func (x *EngineStickerFile) GetDocumentId() int64 {
@@ -13357,7 +13425,7 @@ type EngineGetStickerFilesResponse struct {
 
 func (x *EngineGetStickerFilesResponse) Reset() {
 	*x = EngineGetStickerFilesResponse{}
-	mi := &file_proto_engine_proto_msgTypes[199]
+	mi := &file_proto_engine_proto_msgTypes[200]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13369,7 +13437,7 @@ func (x *EngineGetStickerFilesResponse) String() string {
 func (*EngineGetStickerFilesResponse) ProtoMessage() {}
 
 func (x *EngineGetStickerFilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[199]
+	mi := &file_proto_engine_proto_msgTypes[200]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13382,7 +13450,7 @@ func (x *EngineGetStickerFilesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetStickerFilesResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetStickerFilesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{199}
+	return file_proto_engine_proto_rawDescGZIP(), []int{200}
 }
 
 func (x *EngineGetStickerFilesResponse) GetFiles() []*EngineStickerFile {
@@ -13402,7 +13470,7 @@ type EngineGetGifFilesRequest struct {
 
 func (x *EngineGetGifFilesRequest) Reset() {
 	*x = EngineGetGifFilesRequest{}
-	mi := &file_proto_engine_proto_msgTypes[200]
+	mi := &file_proto_engine_proto_msgTypes[201]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13414,7 +13482,7 @@ func (x *EngineGetGifFilesRequest) String() string {
 func (*EngineGetGifFilesRequest) ProtoMessage() {}
 
 func (x *EngineGetGifFilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[200]
+	mi := &file_proto_engine_proto_msgTypes[201]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13427,7 +13495,7 @@ func (x *EngineGetGifFilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetGifFilesRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetGifFilesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{200}
+	return file_proto_engine_proto_rawDescGZIP(), []int{201}
 }
 
 func (x *EngineGetGifFilesRequest) GetAccountId() string {
@@ -13454,7 +13522,7 @@ type EngineGifFile struct {
 
 func (x *EngineGifFile) Reset() {
 	*x = EngineGifFile{}
-	mi := &file_proto_engine_proto_msgTypes[201]
+	mi := &file_proto_engine_proto_msgTypes[202]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13466,7 +13534,7 @@ func (x *EngineGifFile) String() string {
 func (*EngineGifFile) ProtoMessage() {}
 
 func (x *EngineGifFile) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[201]
+	mi := &file_proto_engine_proto_msgTypes[202]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13479,7 +13547,7 @@ func (x *EngineGifFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGifFile.ProtoReflect.Descriptor instead.
 func (*EngineGifFile) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{201}
+	return file_proto_engine_proto_rawDescGZIP(), []int{202}
 }
 
 func (x *EngineGifFile) GetDocumentId() int64 {
@@ -13505,7 +13573,7 @@ type EngineGetGifFilesResponse struct {
 
 func (x *EngineGetGifFilesResponse) Reset() {
 	*x = EngineGetGifFilesResponse{}
-	mi := &file_proto_engine_proto_msgTypes[202]
+	mi := &file_proto_engine_proto_msgTypes[203]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13517,7 +13585,7 @@ func (x *EngineGetGifFilesResponse) String() string {
 func (*EngineGetGifFilesResponse) ProtoMessage() {}
 
 func (x *EngineGetGifFilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[202]
+	mi := &file_proto_engine_proto_msgTypes[203]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13530,7 +13598,7 @@ func (x *EngineGetGifFilesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetGifFilesResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetGifFilesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{202}
+	return file_proto_engine_proto_rawDescGZIP(), []int{203}
 }
 
 func (x *EngineGetGifFilesResponse) GetFiles() []*EngineGifFile {
@@ -13550,7 +13618,7 @@ type EngineGetCustomEmojiSetInfoRequest struct {
 
 func (x *EngineGetCustomEmojiSetInfoRequest) Reset() {
 	*x = EngineGetCustomEmojiSetInfoRequest{}
-	mi := &file_proto_engine_proto_msgTypes[203]
+	mi := &file_proto_engine_proto_msgTypes[204]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13562,7 +13630,7 @@ func (x *EngineGetCustomEmojiSetInfoRequest) String() string {
 func (*EngineGetCustomEmojiSetInfoRequest) ProtoMessage() {}
 
 func (x *EngineGetCustomEmojiSetInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[203]
+	mi := &file_proto_engine_proto_msgTypes[204]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13575,7 +13643,7 @@ func (x *EngineGetCustomEmojiSetInfoRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use EngineGetCustomEmojiSetInfoRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetCustomEmojiSetInfoRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{203}
+	return file_proto_engine_proto_rawDescGZIP(), []int{204}
 }
 
 func (x *EngineGetCustomEmojiSetInfoRequest) GetAccountId() string {
@@ -13606,7 +13674,7 @@ type EngineGetCustomEmojiSetInfoResponse struct {
 
 func (x *EngineGetCustomEmojiSetInfoResponse) Reset() {
 	*x = EngineGetCustomEmojiSetInfoResponse{}
-	mi := &file_proto_engine_proto_msgTypes[204]
+	mi := &file_proto_engine_proto_msgTypes[205]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13618,7 +13686,7 @@ func (x *EngineGetCustomEmojiSetInfoResponse) String() string {
 func (*EngineGetCustomEmojiSetInfoResponse) ProtoMessage() {}
 
 func (x *EngineGetCustomEmojiSetInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[204]
+	mi := &file_proto_engine_proto_msgTypes[205]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13631,7 +13699,7 @@ func (x *EngineGetCustomEmojiSetInfoResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use EngineGetCustomEmojiSetInfoResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetCustomEmojiSetInfoResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{204}
+	return file_proto_engine_proto_rawDescGZIP(), []int{205}
 }
 
 func (x *EngineGetCustomEmojiSetInfoResponse) GetSetId() int64 {
@@ -13688,7 +13756,7 @@ type EngineSetUserNoForwardsFlagsRequest struct {
 
 func (x *EngineSetUserNoForwardsFlagsRequest) Reset() {
 	*x = EngineSetUserNoForwardsFlagsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[205]
+	mi := &file_proto_engine_proto_msgTypes[206]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13700,7 +13768,7 @@ func (x *EngineSetUserNoForwardsFlagsRequest) String() string {
 func (*EngineSetUserNoForwardsFlagsRequest) ProtoMessage() {}
 
 func (x *EngineSetUserNoForwardsFlagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[205]
+	mi := &file_proto_engine_proto_msgTypes[206]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13713,7 +13781,7 @@ func (x *EngineSetUserNoForwardsFlagsRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use EngineSetUserNoForwardsFlagsRequest.ProtoReflect.Descriptor instead.
 func (*EngineSetUserNoForwardsFlagsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{205}
+	return file_proto_engine_proto_rawDescGZIP(), []int{206}
 }
 
 func (x *EngineSetUserNoForwardsFlagsRequest) GetAccountId() string {
@@ -13754,7 +13822,7 @@ type EngineReorderPinnedDialogsRequest struct {
 
 func (x *EngineReorderPinnedDialogsRequest) Reset() {
 	*x = EngineReorderPinnedDialogsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[206]
+	mi := &file_proto_engine_proto_msgTypes[207]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13766,7 +13834,7 @@ func (x *EngineReorderPinnedDialogsRequest) String() string {
 func (*EngineReorderPinnedDialogsRequest) ProtoMessage() {}
 
 func (x *EngineReorderPinnedDialogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[206]
+	mi := &file_proto_engine_proto_msgTypes[207]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13779,7 +13847,7 @@ func (x *EngineReorderPinnedDialogsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use EngineReorderPinnedDialogsRequest.ProtoReflect.Descriptor instead.
 func (*EngineReorderPinnedDialogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{206}
+	return file_proto_engine_proto_rawDescGZIP(), []int{207}
 }
 
 func (x *EngineReorderPinnedDialogsRequest) GetAccountId() string {
@@ -13806,7 +13874,7 @@ type EngineReorderDialogFiltersRequest struct {
 
 func (x *EngineReorderDialogFiltersRequest) Reset() {
 	*x = EngineReorderDialogFiltersRequest{}
-	mi := &file_proto_engine_proto_msgTypes[207]
+	mi := &file_proto_engine_proto_msgTypes[208]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13818,7 +13886,7 @@ func (x *EngineReorderDialogFiltersRequest) String() string {
 func (*EngineReorderDialogFiltersRequest) ProtoMessage() {}
 
 func (x *EngineReorderDialogFiltersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[207]
+	mi := &file_proto_engine_proto_msgTypes[208]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13831,7 +13899,7 @@ func (x *EngineReorderDialogFiltersRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use EngineReorderDialogFiltersRequest.ProtoReflect.Descriptor instead.
 func (*EngineReorderDialogFiltersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{207}
+	return file_proto_engine_proto_rawDescGZIP(), []int{208}
 }
 
 func (x *EngineReorderDialogFiltersRequest) GetAccountId() string {
@@ -13861,7 +13929,7 @@ type EngineGetForumTopicsWithOffsetRequest struct {
 
 func (x *EngineGetForumTopicsWithOffsetRequest) Reset() {
 	*x = EngineGetForumTopicsWithOffsetRequest{}
-	mi := &file_proto_engine_proto_msgTypes[208]
+	mi := &file_proto_engine_proto_msgTypes[209]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13873,7 +13941,7 @@ func (x *EngineGetForumTopicsWithOffsetRequest) String() string {
 func (*EngineGetForumTopicsWithOffsetRequest) ProtoMessage() {}
 
 func (x *EngineGetForumTopicsWithOffsetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[208]
+	mi := &file_proto_engine_proto_msgTypes[209]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13886,7 +13954,7 @@ func (x *EngineGetForumTopicsWithOffsetRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use EngineGetForumTopicsWithOffsetRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetForumTopicsWithOffsetRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{208}
+	return file_proto_engine_proto_rawDescGZIP(), []int{209}
 }
 
 func (x *EngineGetForumTopicsWithOffsetRequest) GetAccountId() string {
@@ -13937,7 +14005,7 @@ type EngineReportMusicListenRequest struct {
 
 func (x *EngineReportMusicListenRequest) Reset() {
 	*x = EngineReportMusicListenRequest{}
-	mi := &file_proto_engine_proto_msgTypes[209]
+	mi := &file_proto_engine_proto_msgTypes[210]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13949,7 +14017,7 @@ func (x *EngineReportMusicListenRequest) String() string {
 func (*EngineReportMusicListenRequest) ProtoMessage() {}
 
 func (x *EngineReportMusicListenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[209]
+	mi := &file_proto_engine_proto_msgTypes[210]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13962,7 +14030,7 @@ func (x *EngineReportMusicListenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineReportMusicListenRequest.ProtoReflect.Descriptor instead.
 func (*EngineReportMusicListenRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{209}
+	return file_proto_engine_proto_rawDescGZIP(), []int{210}
 }
 
 func (x *EngineReportMusicListenRequest) GetAccountId() string {
@@ -14010,7 +14078,7 @@ type EngineGetPeerBarSettingsRequest struct {
 
 func (x *EngineGetPeerBarSettingsRequest) Reset() {
 	*x = EngineGetPeerBarSettingsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[210]
+	mi := &file_proto_engine_proto_msgTypes[211]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14022,7 +14090,7 @@ func (x *EngineGetPeerBarSettingsRequest) String() string {
 func (*EngineGetPeerBarSettingsRequest) ProtoMessage() {}
 
 func (x *EngineGetPeerBarSettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[210]
+	mi := &file_proto_engine_proto_msgTypes[211]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14035,7 +14103,7 @@ func (x *EngineGetPeerBarSettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetPeerBarSettingsRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetPeerBarSettingsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{210}
+	return file_proto_engine_proto_rawDescGZIP(), []int{211}
 }
 
 func (x *EngineGetPeerBarSettingsRequest) GetAccountId() string {
@@ -14062,7 +14130,7 @@ type EngineSharePhoneWithPeerRequest struct {
 
 func (x *EngineSharePhoneWithPeerRequest) Reset() {
 	*x = EngineSharePhoneWithPeerRequest{}
-	mi := &file_proto_engine_proto_msgTypes[211]
+	mi := &file_proto_engine_proto_msgTypes[212]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14074,7 +14142,7 @@ func (x *EngineSharePhoneWithPeerRequest) String() string {
 func (*EngineSharePhoneWithPeerRequest) ProtoMessage() {}
 
 func (x *EngineSharePhoneWithPeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[211]
+	mi := &file_proto_engine_proto_msgTypes[212]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14087,7 +14155,7 @@ func (x *EngineSharePhoneWithPeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSharePhoneWithPeerRequest.ProtoReflect.Descriptor instead.
 func (*EngineSharePhoneWithPeerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{211}
+	return file_proto_engine_proto_rawDescGZIP(), []int{212}
 }
 
 func (x *EngineSharePhoneWithPeerRequest) GetAccountId() string {
@@ -14114,7 +14182,7 @@ type EngineHidePeerSettingsBarRequest struct {
 
 func (x *EngineHidePeerSettingsBarRequest) Reset() {
 	*x = EngineHidePeerSettingsBarRequest{}
-	mi := &file_proto_engine_proto_msgTypes[212]
+	mi := &file_proto_engine_proto_msgTypes[213]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14126,7 +14194,7 @@ func (x *EngineHidePeerSettingsBarRequest) String() string {
 func (*EngineHidePeerSettingsBarRequest) ProtoMessage() {}
 
 func (x *EngineHidePeerSettingsBarRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[212]
+	mi := &file_proto_engine_proto_msgTypes[213]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14139,7 +14207,7 @@ func (x *EngineHidePeerSettingsBarRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineHidePeerSettingsBarRequest.ProtoReflect.Descriptor instead.
 func (*EngineHidePeerSettingsBarRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{212}
+	return file_proto_engine_proto_rawDescGZIP(), []int{213}
 }
 
 func (x *EngineHidePeerSettingsBarRequest) GetAccountId() string {
@@ -14890,7 +14958,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\amembers\x18\x03 \x03(\tR\amembers\"J\n" +
 	"\x19EngineCreateGroupResponse\x12-\n" +
-	"\x04chat\x18\x01 \x01(\v2\x19.uniclient.EngineChatInfoR\x04chat\"\xd9\x03\n" +
+	"\x04chat\x18\x01 \x01(\v2\x19.uniclient.EngineChatInfoR\x04chat\"\x85\x04\n" +
 	"\x11EngineContactInfo\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12!\n" +
@@ -14912,7 +14980,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\ais_fake\x18\r \x01(\bR\x06isFake\x12$\n" +
 	"\x0elast_seen_kind\x18\x0e \x01(\tR\flastSeenKind\x12 \n" +
 	"\flast_seen_ts\x18\x0f \x01(\x03R\n" +
-	"lastSeenTs\"9\n" +
+	"lastSeenTs\x12*\n" +
+	"\x11is_mutual_contact\x18\x10 \x01(\bR\x0fisMutualContact\"9\n" +
 	"\x18EngineGetContactsRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"U\n" +
@@ -15153,7 +15222,13 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x0ecomment_option\x18\x05 \x01(\fR\rcommentOption\":\n" +
 	"\fReportOption\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x12\x16\n" +
-	"\x06option\x18\x02 \x01(\fR\x06option\"\x89\x01\n" +
+	"\x06option\x18\x02 \x01(\fR\x06option\"\x93\x01\n" +
+	"\x1bEngineReportReactionRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
+	"\x06msg_id\x18\x03 \x01(\x05R\x05msgId\x12%\n" +
+	"\x0eparticipant_id\x18\x04 \x01(\tR\rparticipantId\"\x89\x01\n" +
 	"\x15EngineVotePollRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -15437,7 +15512,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 213)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 214)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                            // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                            // 1: uniclient.AccountInfo
@@ -15592,66 +15667,67 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineReportMessageRequest)(nil),             // 150: uniclient.EngineReportMessageRequest
 	(*EngineReportMessageResponse)(nil),            // 151: uniclient.EngineReportMessageResponse
 	(*ReportOption)(nil),                           // 152: uniclient.ReportOption
-	(*EngineVotePollRequest)(nil),                  // 153: uniclient.EngineVotePollRequest
-	(*EngineRetractPollVoteRequest)(nil),           // 154: uniclient.EngineRetractPollVoteRequest
-	(*EngineStopPollRequest)(nil),                  // 155: uniclient.EngineStopPollRequest
-	(*EngineGetInstalledEmojiSetsRequest)(nil),     // 156: uniclient.EngineGetInstalledEmojiSetsRequest
-	(*EngineEmojiSetSummary)(nil),                  // 157: uniclient.EngineEmojiSetSummary
-	(*EngineGetInstalledEmojiSetsResponse)(nil),    // 158: uniclient.EngineGetInstalledEmojiSetsResponse
-	(*EngineGetInstalledStickerPacksRequest)(nil),  // 159: uniclient.EngineGetInstalledStickerPacksRequest
-	(*EngineStickerPackSummary)(nil),               // 160: uniclient.EngineStickerPackSummary
-	(*EngineGetInstalledStickerPacksResponse)(nil), // 161: uniclient.EngineGetInstalledStickerPacksResponse
-	(*EngineGetRecentStickersRequest)(nil),         // 162: uniclient.EngineGetRecentStickersRequest
-	(*EngineGetRecentStickersResponse)(nil),        // 163: uniclient.EngineGetRecentStickersResponse
-	(*EngineGetFeaturedStickerPacksRequest)(nil),   // 164: uniclient.EngineGetFeaturedStickerPacksRequest
-	(*EngineGetFeaturedStickerPacksResponse)(nil),  // 165: uniclient.EngineGetFeaturedStickerPacksResponse
-	(*EngineSearchStickerSetsRequest)(nil),         // 166: uniclient.EngineSearchStickerSetsRequest
-	(*EngineSearchStickerSetsResponse)(nil),        // 167: uniclient.EngineSearchStickerSetsResponse
-	(*EngineInstallStickerSetRequest)(nil),         // 168: uniclient.EngineInstallStickerSetRequest
-	(*EngineInstallStickerSetResponse)(nil),        // 169: uniclient.EngineInstallStickerSetResponse
-	(*EngineGetStickerSuggestionsRequest)(nil),     // 170: uniclient.EngineGetStickerSuggestionsRequest
-	(*EngineGetStickerSuggestionsResponse)(nil),    // 171: uniclient.EngineGetStickerSuggestionsResponse
-	(*EngineSendCallRatingRequest)(nil),            // 172: uniclient.EngineSendCallRatingRequest
-	(*EngineFetchPeerStoriesRequest)(nil),          // 173: uniclient.EngineFetchPeerStoriesRequest
-	(*EngineFetchPeerStoriesResponse)(nil),         // 174: uniclient.EngineFetchPeerStoriesResponse
-	(*EngineGetStoryAlbumsRequest)(nil),            // 175: uniclient.EngineGetStoryAlbumsRequest
-	(*EngineStoryAlbum)(nil),                       // 176: uniclient.EngineStoryAlbum
-	(*EngineGetStoryAlbumsResponse)(nil),           // 177: uniclient.EngineGetStoryAlbumsResponse
-	(*EngineGetAlbumStoriesRequest)(nil),           // 178: uniclient.EngineGetAlbumStoriesRequest
-	(*EngineGetAlbumStoriesResponse)(nil),          // 179: uniclient.EngineGetAlbumStoriesResponse
-	(*EngineCreateStoryAlbumRequest)(nil),          // 180: uniclient.EngineCreateStoryAlbumRequest
-	(*EngineCreateStoryAlbumResponse)(nil),         // 181: uniclient.EngineCreateStoryAlbumResponse
-	(*EngineReorderStoryAlbumsRequest)(nil),        // 182: uniclient.EngineReorderStoryAlbumsRequest
-	(*EngineGetCustomEmojiThumbsRequest)(nil),      // 183: uniclient.EngineGetCustomEmojiThumbsRequest
-	(*EngineCustomEmojiThumb)(nil),                 // 184: uniclient.EngineCustomEmojiThumb
-	(*EngineGetCustomEmojiThumbsResponse)(nil),     // 185: uniclient.EngineGetCustomEmojiThumbsResponse
-	(*EngineGetSavedSublistsRequest)(nil),          // 186: uniclient.EngineGetSavedSublistsRequest
-	(*EngineSavedSublist)(nil),                     // 187: uniclient.EngineSavedSublist
-	(*EngineGetSavedSublistsResponse)(nil),         // 188: uniclient.EngineGetSavedSublistsResponse
-	(*EngineGetSavedReactionTagsRequest)(nil),      // 189: uniclient.EngineGetSavedReactionTagsRequest
-	(*EngineSavedReactionTag)(nil),                 // 190: uniclient.EngineSavedReactionTag
-	(*EngineGetSavedReactionTagsResponse)(nil),     // 191: uniclient.EngineGetSavedReactionTagsResponse
-	(*EngineRenameSavedReactionTagRequest)(nil),    // 192: uniclient.EngineRenameSavedReactionTagRequest
-	(*EngineClearCallHistoryRequest)(nil),          // 193: uniclient.EngineClearCallHistoryRequest
-	(*EngineGetCustomEmojiFilesRequest)(nil),       // 194: uniclient.EngineGetCustomEmojiFilesRequest
-	(*EngineCustomEmojiFile)(nil),                  // 195: uniclient.EngineCustomEmojiFile
-	(*EngineGetCustomEmojiFilesResponse)(nil),      // 196: uniclient.EngineGetCustomEmojiFilesResponse
-	(*EngineGetStickerFilesRequest)(nil),           // 197: uniclient.EngineGetStickerFilesRequest
-	(*EngineStickerFile)(nil),                      // 198: uniclient.EngineStickerFile
-	(*EngineGetStickerFilesResponse)(nil),          // 199: uniclient.EngineGetStickerFilesResponse
-	(*EngineGetGifFilesRequest)(nil),               // 200: uniclient.EngineGetGifFilesRequest
-	(*EngineGifFile)(nil),                          // 201: uniclient.EngineGifFile
-	(*EngineGetGifFilesResponse)(nil),              // 202: uniclient.EngineGetGifFilesResponse
-	(*EngineGetCustomEmojiSetInfoRequest)(nil),     // 203: uniclient.EngineGetCustomEmojiSetInfoRequest
-	(*EngineGetCustomEmojiSetInfoResponse)(nil),    // 204: uniclient.EngineGetCustomEmojiSetInfoResponse
-	(*EngineSetUserNoForwardsFlagsRequest)(nil),    // 205: uniclient.EngineSetUserNoForwardsFlagsRequest
-	(*EngineReorderPinnedDialogsRequest)(nil),      // 206: uniclient.EngineReorderPinnedDialogsRequest
-	(*EngineReorderDialogFiltersRequest)(nil),      // 207: uniclient.EngineReorderDialogFiltersRequest
-	(*EngineGetForumTopicsWithOffsetRequest)(nil),  // 208: uniclient.EngineGetForumTopicsWithOffsetRequest
-	(*EngineReportMusicListenRequest)(nil),         // 209: uniclient.EngineReportMusicListenRequest
-	(*EngineGetPeerBarSettingsRequest)(nil),        // 210: uniclient.EngineGetPeerBarSettingsRequest
-	(*EngineSharePhoneWithPeerRequest)(nil),        // 211: uniclient.EngineSharePhoneWithPeerRequest
-	(*EngineHidePeerSettingsBarRequest)(nil),       // 212: uniclient.EngineHidePeerSettingsBarRequest
+	(*EngineReportReactionRequest)(nil),            // 153: uniclient.EngineReportReactionRequest
+	(*EngineVotePollRequest)(nil),                  // 154: uniclient.EngineVotePollRequest
+	(*EngineRetractPollVoteRequest)(nil),           // 155: uniclient.EngineRetractPollVoteRequest
+	(*EngineStopPollRequest)(nil),                  // 156: uniclient.EngineStopPollRequest
+	(*EngineGetInstalledEmojiSetsRequest)(nil),     // 157: uniclient.EngineGetInstalledEmojiSetsRequest
+	(*EngineEmojiSetSummary)(nil),                  // 158: uniclient.EngineEmojiSetSummary
+	(*EngineGetInstalledEmojiSetsResponse)(nil),    // 159: uniclient.EngineGetInstalledEmojiSetsResponse
+	(*EngineGetInstalledStickerPacksRequest)(nil),  // 160: uniclient.EngineGetInstalledStickerPacksRequest
+	(*EngineStickerPackSummary)(nil),               // 161: uniclient.EngineStickerPackSummary
+	(*EngineGetInstalledStickerPacksResponse)(nil), // 162: uniclient.EngineGetInstalledStickerPacksResponse
+	(*EngineGetRecentStickersRequest)(nil),         // 163: uniclient.EngineGetRecentStickersRequest
+	(*EngineGetRecentStickersResponse)(nil),        // 164: uniclient.EngineGetRecentStickersResponse
+	(*EngineGetFeaturedStickerPacksRequest)(nil),   // 165: uniclient.EngineGetFeaturedStickerPacksRequest
+	(*EngineGetFeaturedStickerPacksResponse)(nil),  // 166: uniclient.EngineGetFeaturedStickerPacksResponse
+	(*EngineSearchStickerSetsRequest)(nil),         // 167: uniclient.EngineSearchStickerSetsRequest
+	(*EngineSearchStickerSetsResponse)(nil),        // 168: uniclient.EngineSearchStickerSetsResponse
+	(*EngineInstallStickerSetRequest)(nil),         // 169: uniclient.EngineInstallStickerSetRequest
+	(*EngineInstallStickerSetResponse)(nil),        // 170: uniclient.EngineInstallStickerSetResponse
+	(*EngineGetStickerSuggestionsRequest)(nil),     // 171: uniclient.EngineGetStickerSuggestionsRequest
+	(*EngineGetStickerSuggestionsResponse)(nil),    // 172: uniclient.EngineGetStickerSuggestionsResponse
+	(*EngineSendCallRatingRequest)(nil),            // 173: uniclient.EngineSendCallRatingRequest
+	(*EngineFetchPeerStoriesRequest)(nil),          // 174: uniclient.EngineFetchPeerStoriesRequest
+	(*EngineFetchPeerStoriesResponse)(nil),         // 175: uniclient.EngineFetchPeerStoriesResponse
+	(*EngineGetStoryAlbumsRequest)(nil),            // 176: uniclient.EngineGetStoryAlbumsRequest
+	(*EngineStoryAlbum)(nil),                       // 177: uniclient.EngineStoryAlbum
+	(*EngineGetStoryAlbumsResponse)(nil),           // 178: uniclient.EngineGetStoryAlbumsResponse
+	(*EngineGetAlbumStoriesRequest)(nil),           // 179: uniclient.EngineGetAlbumStoriesRequest
+	(*EngineGetAlbumStoriesResponse)(nil),          // 180: uniclient.EngineGetAlbumStoriesResponse
+	(*EngineCreateStoryAlbumRequest)(nil),          // 181: uniclient.EngineCreateStoryAlbumRequest
+	(*EngineCreateStoryAlbumResponse)(nil),         // 182: uniclient.EngineCreateStoryAlbumResponse
+	(*EngineReorderStoryAlbumsRequest)(nil),        // 183: uniclient.EngineReorderStoryAlbumsRequest
+	(*EngineGetCustomEmojiThumbsRequest)(nil),      // 184: uniclient.EngineGetCustomEmojiThumbsRequest
+	(*EngineCustomEmojiThumb)(nil),                 // 185: uniclient.EngineCustomEmojiThumb
+	(*EngineGetCustomEmojiThumbsResponse)(nil),     // 186: uniclient.EngineGetCustomEmojiThumbsResponse
+	(*EngineGetSavedSublistsRequest)(nil),          // 187: uniclient.EngineGetSavedSublistsRequest
+	(*EngineSavedSublist)(nil),                     // 188: uniclient.EngineSavedSublist
+	(*EngineGetSavedSublistsResponse)(nil),         // 189: uniclient.EngineGetSavedSublistsResponse
+	(*EngineGetSavedReactionTagsRequest)(nil),      // 190: uniclient.EngineGetSavedReactionTagsRequest
+	(*EngineSavedReactionTag)(nil),                 // 191: uniclient.EngineSavedReactionTag
+	(*EngineGetSavedReactionTagsResponse)(nil),     // 192: uniclient.EngineGetSavedReactionTagsResponse
+	(*EngineRenameSavedReactionTagRequest)(nil),    // 193: uniclient.EngineRenameSavedReactionTagRequest
+	(*EngineClearCallHistoryRequest)(nil),          // 194: uniclient.EngineClearCallHistoryRequest
+	(*EngineGetCustomEmojiFilesRequest)(nil),       // 195: uniclient.EngineGetCustomEmojiFilesRequest
+	(*EngineCustomEmojiFile)(nil),                  // 196: uniclient.EngineCustomEmojiFile
+	(*EngineGetCustomEmojiFilesResponse)(nil),      // 197: uniclient.EngineGetCustomEmojiFilesResponse
+	(*EngineGetStickerFilesRequest)(nil),           // 198: uniclient.EngineGetStickerFilesRequest
+	(*EngineStickerFile)(nil),                      // 199: uniclient.EngineStickerFile
+	(*EngineGetStickerFilesResponse)(nil),          // 200: uniclient.EngineGetStickerFilesResponse
+	(*EngineGetGifFilesRequest)(nil),               // 201: uniclient.EngineGetGifFilesRequest
+	(*EngineGifFile)(nil),                          // 202: uniclient.EngineGifFile
+	(*EngineGetGifFilesResponse)(nil),              // 203: uniclient.EngineGetGifFilesResponse
+	(*EngineGetCustomEmojiSetInfoRequest)(nil),     // 204: uniclient.EngineGetCustomEmojiSetInfoRequest
+	(*EngineGetCustomEmojiSetInfoResponse)(nil),    // 205: uniclient.EngineGetCustomEmojiSetInfoResponse
+	(*EngineSetUserNoForwardsFlagsRequest)(nil),    // 206: uniclient.EngineSetUserNoForwardsFlagsRequest
+	(*EngineReorderPinnedDialogsRequest)(nil),      // 207: uniclient.EngineReorderPinnedDialogsRequest
+	(*EngineReorderDialogFiltersRequest)(nil),      // 208: uniclient.EngineReorderDialogFiltersRequest
+	(*EngineGetForumTopicsWithOffsetRequest)(nil),  // 209: uniclient.EngineGetForumTopicsWithOffsetRequest
+	(*EngineReportMusicListenRequest)(nil),         // 210: uniclient.EngineReportMusicListenRequest
+	(*EngineGetPeerBarSettingsRequest)(nil),        // 211: uniclient.EngineGetPeerBarSettingsRequest
+	(*EngineSharePhoneWithPeerRequest)(nil),        // 212: uniclient.EngineSharePhoneWithPeerRequest
+	(*EngineHidePeerSettingsBarRequest)(nil),       // 213: uniclient.EngineHidePeerSettingsBarRequest
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -15680,20 +15756,20 @@ var file_proto_engine_proto_depIdxs = []int32{
 	145, // 23: uniclient.EngineGetSavedGifsResponse.gifs:type_name -> uniclient.EngineGifInfo
 	152, // 24: uniclient.EngineReportMessageResponse.options:type_name -> uniclient.ReportOption
 	122, // 25: uniclient.EngineEmojiSetSummary.stickers:type_name -> uniclient.EngineStickerInfo
-	157, // 26: uniclient.EngineGetInstalledEmojiSetsResponse.sets:type_name -> uniclient.EngineEmojiSetSummary
+	158, // 26: uniclient.EngineGetInstalledEmojiSetsResponse.sets:type_name -> uniclient.EngineEmojiSetSummary
 	122, // 27: uniclient.EngineStickerPackSummary.stickers:type_name -> uniclient.EngineStickerInfo
-	160, // 28: uniclient.EngineGetInstalledStickerPacksResponse.packs:type_name -> uniclient.EngineStickerPackSummary
+	161, // 28: uniclient.EngineGetInstalledStickerPacksResponse.packs:type_name -> uniclient.EngineStickerPackSummary
 	122, // 29: uniclient.EngineGetRecentStickersResponse.stickers:type_name -> uniclient.EngineStickerInfo
-	160, // 30: uniclient.EngineGetFeaturedStickerPacksResponse.packs:type_name -> uniclient.EngineStickerPackSummary
-	160, // 31: uniclient.EngineSearchStickerSetsResponse.packs:type_name -> uniclient.EngineStickerPackSummary
+	161, // 30: uniclient.EngineGetFeaturedStickerPacksResponse.packs:type_name -> uniclient.EngineStickerPackSummary
+	161, // 31: uniclient.EngineSearchStickerSetsResponse.packs:type_name -> uniclient.EngineStickerPackSummary
 	122, // 32: uniclient.EngineGetStickerSuggestionsResponse.stickers:type_name -> uniclient.EngineStickerInfo
-	176, // 33: uniclient.EngineGetStoryAlbumsResponse.albums:type_name -> uniclient.EngineStoryAlbum
-	184, // 34: uniclient.EngineGetCustomEmojiThumbsResponse.thumbs:type_name -> uniclient.EngineCustomEmojiThumb
-	187, // 35: uniclient.EngineGetSavedSublistsResponse.sublists:type_name -> uniclient.EngineSavedSublist
-	190, // 36: uniclient.EngineGetSavedReactionTagsResponse.tags:type_name -> uniclient.EngineSavedReactionTag
-	195, // 37: uniclient.EngineGetCustomEmojiFilesResponse.files:type_name -> uniclient.EngineCustomEmojiFile
-	198, // 38: uniclient.EngineGetStickerFilesResponse.files:type_name -> uniclient.EngineStickerFile
-	201, // 39: uniclient.EngineGetGifFilesResponse.files:type_name -> uniclient.EngineGifFile
+	177, // 33: uniclient.EngineGetStoryAlbumsResponse.albums:type_name -> uniclient.EngineStoryAlbum
+	185, // 34: uniclient.EngineGetCustomEmojiThumbsResponse.thumbs:type_name -> uniclient.EngineCustomEmojiThumb
+	188, // 35: uniclient.EngineGetSavedSublistsResponse.sublists:type_name -> uniclient.EngineSavedSublist
+	191, // 36: uniclient.EngineGetSavedReactionTagsResponse.tags:type_name -> uniclient.EngineSavedReactionTag
+	196, // 37: uniclient.EngineGetCustomEmojiFilesResponse.files:type_name -> uniclient.EngineCustomEmojiFile
+	199, // 38: uniclient.EngineGetStickerFilesResponse.files:type_name -> uniclient.EngineStickerFile
+	202, // 39: uniclient.EngineGetGifFilesResponse.files:type_name -> uniclient.EngineGifFile
 	40,  // [40:40] is the sub-list for method output_type
 	40,  // [40:40] is the sub-list for method input_type
 	40,  // [40:40] is the sub-list for extension type_name
@@ -15712,7 +15788,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   213,
+			NumMessages:   214,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

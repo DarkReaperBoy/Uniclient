@@ -1878,11 +1878,7 @@ Future<bool> showReportReactionBox(
     if (result.ban) {
       await engine.banMember(accountId, chatId, participantId);
     }
-    await engine.reportMessage(
-      accountId,
-      chatId,
-      [messageId],
-    );
+    await engine.reportReaction(accountId, chatId, messageId, participantId);
     if (context.mounted) {
       showTelegramToast(context, 'Report submitted. Thank you!');
     }

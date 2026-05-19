@@ -1816,6 +1816,23 @@ class EngineService {
     }
   }
 
+  // ── Report reaction ──
+
+  Future<bool> reportReaction(String accountId, String chatId, int messageId, String participantId) async {
+    final req = epb.EngineReportReactionRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = messageId
+      ..participantId = participantId;
+    try {
+      await _callAsync('__engine', 'ReportReaction', req.writeToBuffer());
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'reportReaction failed', e);
+      return false;
+    }
+  }
+
   // ── Sticker/GIF actions ──
 
   Future<bool> faveSticker(String accountId, int fileId, {String extra = '', bool unfave = false}) async {

@@ -14719,6 +14719,23 @@ func (t *TelegramCore) ReportMessage(chatID string, msgIDs []int, option []byte,
 	return &ReportResult{Type: "reported"}, nil
 }
 
+func (t *TelegramCore) ReportReaction(chatID string, msgID int, participantID string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	chatPeer, err := t.resolvePeer(chatID)
+	if err != nil { return err }
+	chatInput, err := t.toInputPeer(chatPeer)
+	if err != nil { return err }
+	reactPeer, err := t.resolvePeer(participantID)
+	if err != nil { return err }
+	reactInput, err := t.toInputPeer(reactPeer)
+	if err != nil { return err }
+	_, err = t.api.MessagesReportReaction(t.ctx, &tg.MessagesReportReactionRequest{
+		Peer: chatInput, ID: msgID, ReactionPeer: reactInput,
+	})
+	return err
+}
+
 // GetWebPagePreview returns the title of a URL preview for link embedding.
 func (t *TelegramCore) GetWebPagePreview(url string) (string, error) {
 	r, err := t.GetWebPagePreviewFull(url)

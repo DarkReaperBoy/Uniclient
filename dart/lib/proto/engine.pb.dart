@@ -14496,6 +14496,98 @@ class ReportOption extends $pb.GeneratedMessage {
   void clearOption() => clearField(2);
 }
 
+class EngineReportReactionRequest extends $pb.GeneratedMessage {
+  factory EngineReportReactionRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.int? msgId,
+    $core.String? participantId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    if (msgId != null) {
+      $result.msgId = msgId;
+    }
+    if (participantId != null) {
+      $result.participantId = participantId;
+    }
+    return $result;
+  }
+  EngineReportReactionRequest._() : super();
+  factory EngineReportReactionRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineReportReactionRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineReportReactionRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..a<$core.int>(3, _omitFieldNames ? '' : 'msgId', $pb.PbFieldType.O3)
+    ..aOS(4, _omitFieldNames ? '' : 'participantId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineReportReactionRequest clone() => EngineReportReactionRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineReportReactionRequest copyWith(void Function(EngineReportReactionRequest) updates) => super.copyWith((message) => updates(message as EngineReportReactionRequest)) as EngineReportReactionRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineReportReactionRequest create() => EngineReportReactionRequest._();
+  EngineReportReactionRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineReportReactionRequest> createRepeated() => $pb.PbList<EngineReportReactionRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineReportReactionRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineReportReactionRequest>(create);
+  static EngineReportReactionRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get msgId => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set msgId($core.int v) { $_setSignedInt32(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasMsgId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearMsgId() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get participantId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set participantId($core.String v) { $_setString(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasParticipantId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearParticipantId() => clearField(4);
+}
+
 class EngineVotePollRequest extends $pb.GeneratedMessage {
   factory EngineVotePollRequest({
     $core.String? accountId,

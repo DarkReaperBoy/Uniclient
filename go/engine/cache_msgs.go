@@ -2036,6 +2036,25 @@ func (e *Engine) ReportMessage(accountID, chatID string, msgIDs []int, option []
 	return reporter.ReportMessage(chatID, msgIDs, option, message)
 }
 
+type ReactionReporter interface {
+	ReportReaction(chatID string, msgID int, participantID string) error
+}
+
+func (e *Engine) ReportReaction(accountID, chatID string, msgID int, participantID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	reporter, ok := acc.Core.(ReactionReporter)
+	if !ok {
+		return fmt.Errorf("platform does not support reaction reporting")
+	}
+	return reporter.ReportReaction(chatID, msgID, participantID)
+}
+
 type StoryFetcher interface {
 	FetchPeerStoriesData(peerID string) (string, error)
 }

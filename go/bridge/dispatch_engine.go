@@ -2914,6 +2914,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "ReportReaction":
+		var req pb.EngineReportReactionRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ReportReaction(req.AccountId, req.ChatId, int(req.MsgId), req.ParticipantId)
+
 	case "GetAttachMenuBots":
 		var req pb.EngineGetAttachMenuBotsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
