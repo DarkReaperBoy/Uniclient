@@ -314,8 +314,10 @@ class _ExportStepInfo {
   double progress;
   String info;
   double opacity;
+  bool hidden;
+  bool wasReported;
 
-  _ExportStepInfo({required this.label, this.progress = 0.0, this.info = '', this.opacity = 1.0});
+  _ExportStepInfo({required this.label, this.progress = 0.0, this.info = '', this.opacity = 1.0, this.hidden = false, this.wasReported = false});
 }
 
 class _ExportPanelDialogState extends State<_ExportPanelDialog>
@@ -383,6 +385,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   List<_ExportStepInfo> _exportSteps = [];
   Timer? _skipFileTimer;
   Timer? _saveSettingsTimer;
+  Timer? _fadeOutTimer;
   bool _showSkipFile = false;
   int _currentStepIndex = 0;
   int _totalFiles = 0;
@@ -630,6 +633,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     _errorSub?.cancel();
     _completeSub?.cancel();
     _skipFileTimer?.cancel();
+    _fadeOutTimer?.cancel();
     if (_saveSettingsTimer?.isActive ?? false) {
       _saveSettingsTimer!.cancel();
       _saveExportSettings();
@@ -764,6 +768,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     _totalFiles = 0;
     _totalSizeBytes = 0;
     _exportPath = '';
+    _fadeOutTimer?.cancel();
     setState(() => _phase = ExportPhase.processing);
     context.read<ChatState>().startExportBar(onTap: _bringPanelToFront);
     _resetSkipFileTimer();
@@ -856,11 +861,13 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         }
         _exportSteps[stepIdx].info = event.info;
         _exportSteps[stepIdx].opacity = 1.0;
+        _exportSteps[stepIdx].wasReported = true;
         if (stepIdx > _currentStepIndex) {
           for (int i = _currentStepIndex; i < stepIdx; i++) {
             _exportSteps[i].progress = 1.0;
-            _exportSteps[i].opacity = 0.5;
+            _exportSteps[i].opacity = 0.0;
           }
+          _scheduleFadeOutRemoval();
         }
         _currentStepIndex = stepIdx;
       }
@@ -872,11 +879,13 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         }
         _exportSteps[existing].info = event.info;
         _exportSteps[existing].opacity = 1.0;
+        _exportSteps[existing].wasReported = true;
         if (existing > _currentStepIndex) {
           for (int i = _currentStepIndex; i < existing; i++) {
             _exportSteps[i].progress = 1.0;
-            _exportSteps[i].opacity = 0.5;
+            _exportSteps[i].opacity = 0.0;
           }
+          _scheduleFadeOutRemoval();
         }
         _currentStepIndex = existing;
       }
@@ -892,6 +901,18 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
 
     _syncExportBar();
     setState(() {});
+  }
+
+  void _scheduleFadeOutRemoval() {
+    _fadeOutTimer?.cancel();
+    _fadeOutTimer = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      setState(() {
+        for (final s in _exportSteps) {
+          if (s.opacity == 0.0) s.hidden = true;
+        }
+      });
+    });
   }
 
   void _onExportError(ExportErrorEvent event) {
@@ -2129,7 +2150,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final linkColor =
         context.palette.windowBgActive;
 
-    final visibleSteps = _exportSteps;
+    final visibleSteps = _exportSteps.where((s) => !s.hidden).toList();
 
     return Column(
       children: [
@@ -2315,11 +2336,14 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final inactiveFg =
         context.palette.mediaPlayerInactiveFg;
 
-    final completedSteps = _exportSteps.map((s) => _ExportStepInfo(
+    final completedSteps = _exportSteps
+        .where((s) => s.wasReported)
+        .map((s) => _ExportStepInfo(
       label: s.label,
       info: s.info.isNotEmpty ? s.info : 'Done',
       progress: 1.0,
       opacity: 1.0,
+      wasReported: true,
     )).toList();
 
     return Column(
