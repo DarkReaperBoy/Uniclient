@@ -315,10 +315,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — Completed view: "Show My Data" button label wrong
-
-- [ ] [MAJOR] Completed state shows button label "Show My Data". AyuGram uses `lng_export_done` = "Show my data" (lowercase "my", lowercase "data"). Minor case difference but also: AyuGram uses `File::ShowInFolder(path)` (opens containing folder), while Dart calls `_openExportFolder()` which opens the folder directly via `xdg-open`/`open`/`explorer` — this is equivalent, not a critical issue. — `chat_export.dart:2369` ← `export_view_panel_controller.cpp:327-330` and `lang.strings` "lng_export_done"
-
 ## chat_export — Takeout invalid error text wrong
 
 - [ ] [MAJOR] Dart shows "Sorry, your data export session has expired, please try again." AyuGram uses `lng_export_invalid` = "Sorry, you started a new data export, so this data export has been canceled." — completely different message and meaning. — `chat_export.dart:970-974` ← `export_view_panel_controller.cpp:225-228` and `lang.strings` "lng_export_invalid"
