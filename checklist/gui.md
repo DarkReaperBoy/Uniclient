@@ -339,23 +339,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 ## Findings
 
-- [ ] [MAJOR] Missing bounds validation for custom emoji substring extraction — `compose_entities.dart:354` ← AyuGram doesn't have this issue because emoji handling is in the input field wrapper
-  - **Issue**: Line 352 checks `ce.offset >= src.length` but doesn't validate `ce.offset + ce.length <= src.length`. If an emoji entity extends beyond text bounds (possible after text deletion), `src.substring(ce.offset + ce.length)` will throw RangeError.
-  - **Impact**: Crash when getTextWithAppliedMarkdown() is called after certain text edit sequences.
-  - **Fix**: Add check: `if (ce.offset < 0 || ce.offset >= src.length || ce.offset + ce.length > src.length) continue;`
-
-- [ ] [MAJOR] No protection against applying markdown formatting inside URL entities — `compose_entities.dart:377-409` ← AyuGram explicitly checks for links (input_field.cpp:3784-3832)
-  - **Issue**: The markdown delimiter detection loop doesn't check if markdown delimiters are inside existing URL entities. A URL like `http://test.com/__test__/test` would have markdown applied inside it, converting `__test__` to italic formatting within the URL.
-  - **Impact**: Markdown formatting applied inside URLs can break link functionality or create conflicting entity types.
-  - **Reference**: AyuGram's getTextWithAppliedMarkdown() calls `TextUtilities::ParseEntities(originalText, 0).entities` and explicitly skips markdown tags that intersect with detected links (lines 3824-3832).
-  - **Fix**: Before line 377, parse existing text for URL entities and exclude markdown matches that overlap with detected URLs.
-
-- [ ] [MINOR] Text change detection finds only common prefix, not suffix — `compose_entities.dart:71-76`
-  - **Issue**: `_onTextChanged()` uses common prefix matching to find the change position. For edits at the text end or middle, this finds the first difference but doesn't use common suffix matching for efficiency.
-  - **Example**: Old: `"hello world test"`, New: `"hello there test"` — finds change at position 6 and scans the entire remainder even though suffix `"test"` is identical.
-  - **Impact**: Slightly inefficient for large text edits, but correctness is preserved because delta tracking accounts for all changes.
-  - **AyuGram equivalent**: Doesn't have an equivalent issue because it tracks input through QTextEdit's document model rather than raw text comparison.
-  - **Note**: This is acceptable for real-time character-by-character editing (typical use case).
 
 ---
 
@@ -377,7 +360,7 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 | Entity structure | Flat list with offset/length + type | QVector<TextWithTags::Tag> with string IDs |
 | Text change tracking | Common prefix + delta calculation | QTextEdit document model (more robust) |
 | Markdown parsing | Manual delimiter search + offset map | Tag-based system with markdown tag tracking |
-| URL protection | ❌ Missing | ✅ ParseEntities + overlap checks |
+| URL protection | ✅ Regex + overlap check (matches AyuGram logic) | ✅ ParseEntities + overlap checks |
 | Custom emoji | Placeholder char replacement | QTextEdit-integrated with native support |
 | Performance | O(n) for text change, O(n²) for markdown parse | O(n) optimized with tag cache |
 
@@ -385,10 +368,7 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 ## Recommendations
 
-1. **[CRITICAL FIX]** Add bounds check for emoji length (line 352)
-2. **[IMPORTANT FIX]** Implement URL entity detection before markdown parsing (consider calling engine's URL parser if available, or regex-based detection)
-3. **[OPTIONAL]** Implement common-suffix matching in `_onTextChanged()` for better efficiency with large pastes
-4. **[TESTING]** Add test cases for:
+1. **[TESTING]** Add test cases for:
    - Markdown inside URLs: `"Check **http://example.com/__path**"` should preserve URL integrity
    - Emoji at text end: Create emoji, then delete characters after it
    - Entity overlap: Multiple entities covering same range with mixed types
