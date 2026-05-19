@@ -486,22 +486,6 @@ The Dart version works but lacks the flexibility and maintainability of the AyuG
 ## Summary
 `ayu_filter.dart` maps to `ayu/features/filters/filters_controller.cpp`, `filters_utils.cpp`, and `filters_cache_controller.cpp`. Core logic is largely correct; the critical gaps are: missing import confirmation dialog, wrong service-message type mapping for 25, and O(n) cache scan.
 
----
-
-- [ ] [CRITICAL] `importFromJson` applies changes immediately with no confirmation dialog — C++ `FilterUtils::importFromJson` at `filters_utils.cpp:417-432` shows `Ui::MakeConfirmBox` with `ChangeSummaryText(changes)` and requires user approval before calling `applyChanges`; Dart `importFromJson` at `ayu_filter.dart:306` applies all filter/exclusion mutations directly with no user consent — `filters_utils.cpp:417` ← `ayu_filter.dart:306`
-
-- [ ] [CRITICAL] `importFromJson` missing `HasChanges` guard — C++ checks `if (!HasChanges(changes))` at `filters_utils.cpp:411` and toasts `ayu_FiltersToastFailNoChanges` when nothing would change; Dart has no such guard and silently processes empty imports — `filters_utils.cpp:411` ← `ayu_filter.dart:306`
-
-- [ ] [CRITICAL] Service type 25 mapped to boost text — `_serviceMessageType` at `ayu_filter.dart:190` returns 25 for messages containing "boosted"/"boost"; C++ `typeOfMessage` at `filters_utils.cpp:624` returns 25 (TYPE_GIFT_PREMIUM_CHANNEL) only when `gift->channel && gift->type == Premium`; boost service messages have no distinct type in C++ and fall through to 10 (TYPE_DATE) — `filters_utils.cpp:624` ← `ayu_filter.dart:190`
-
-- [ ] [MAJOR] `_serviceMessageType` uses fragile text-string heuristics for all service types — Dart lines 185–192 match localized text strings ("Voice call", "Suggested", "wallpaper", etc.); C++ `typeOfMessage` at `filters_utils.cpp:534-637` uses structured media fields (`media->call()`, `media->photo()`, `media->paper()`, `item->isUserpicSuggestion()`, `media->gift()`, etc.) — any service message whose text doesn't match the Dart patterns will be misclassified as TYPE_DATE (10) instead of the correct type — `filters_utils.cpp:605` ← `ayu_filter.dart:185`
-
-- [ ] [MAJOR] `_hasFilteredMessages` scans entire `_messageCache` linearly — `ayu_filter.dart:476-479` iterates all entries (up to `_maxCacheSize` = 10,000) and does string-prefix matching for every chat open; C++ `hasFilteredMessages` at `filters_cache_controller.cpp:161` checks `dialogsWithHiddenBlockedMessages` in O(1) then does `filteredMessages.find(peer->id.value)` to scope iteration to only that dialog's entries — `filters_cache_controller.cpp:161` ← `ayu_filter.dart:476`
-
-- [ ] [MAJOR] `publishFilters` shows no success or failure toast — C++ `FilterUtils::publishFilters` at `filters_utils.cpp:382-391` calls `Ui::Toast::Show(tr::lng_stickers_copied)` on success and `Ui::Toast::Show(tr::ayu_FiltersToastFailPublish)` on failure; Dart `publishFilters` at `ayu_filter.dart:397-399` silently returns `null` on failure and at line 395-396 only copies to clipboard with no UI feedback — `filters_utils.cpp:382` ← `ayu_filter.dart:395`
-
-- [ ] [MAJOR] `importFromLink` shows no failure toast — C++ `FilterUtils::gotFailure` at `filters_utils.cpp:696-699` calls `Ui::Toast::Show(tr::ayu_FiltersToastFailFetch)` on network error, and `filters_utils.cpp:318-320` shows `ayu_FiltersToastFailImport` for invalid JSON; Dart `importFromLink` at `ayu_filter.dart:359-361` returns an error string with no in-file toast, putting all feedback responsibility on callers — `filters_utils.cpp:696` ← `ayu_filter.dart:359`
-
 # emoji_status_widget — Critical wiring issues with collectible & userpic formats
 
 ## Issues Found
