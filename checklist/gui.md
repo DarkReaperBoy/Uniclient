@@ -326,39 +326,7 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 - [ ] [MAJOR] Non-premium repeat click shows a custom `TelegramBox` dialog instead of a toast notification — C++ calls `Settings::ShowPremiumPromoToast(...)` which displays a dismissable toast with a clickable "Premium" link; Dart pops up a full box with a hardcoded text block — `choose_datetime_box.dart:1173` ← `history_view_schedule_box.cpp:129-143`
 
-- [ ] [MAJOR] Title text wrong for self-chat: Dart shows `'Set a reminder'` but AyuGram's `lng_remind_title = "Remind me on..."` — `choose_datetime_box.dart:1215` ← `history_view_schedule_box.cpp:118-120` + `lang.strings:4644`
-
-- [ ] [MAJOR] Title text wrong for scheduling: Dart shows `'Schedule message'` but AyuGram's `lng_schedule_title = "Send this message on..."` — `choose_datetime_box.dart:1215` ← `history_view_schedule_box.cpp:118-120` + `lang.strings:4643`
-
-- [ ] [MAJOR] "Send when online" button uses wrong widget type: Dart places an `IconButton(Icons.more_vert)` inside `titleTrailing`; C++ calls `box->addTopButton(infoTopBarMenu)` which places a three-dot icon button flush against the right edge of the box title bar (a proper top-button slot), not in a trailing row widget — `choose_datetime_box.dart:1216-1239` ← `history_view_schedule_box.cpp:189-195` + `box_layer_widget.cpp:264-267`
-
-- [ ] [MAJOR] Time input field missing scroll-wheel increment/decrement: C++ `TimePart` widget supports mouse-wheel to increment/decrement hour (step 1) and minute (step 10); Dart `_TimeInputField` has no `Listener(onPointerSignal:...)` on the hour/minute text fields — `choose_datetime_box.dart:1685-1735` ← `time_part_input.cpp:74-87` (wheelEvent, `_wheelStep`)
-
-- [ ] [MAJOR] Time input field missing Left-arrow key navigation from minute back to hour: C++ `TimePart` fires `_jumpToPrevious` on Left-arrow at cursor position 0, causing `TimeInput` to move cursor to end of hour field and focus it; Dart has no such KeyEvent handler in `_TimeInputField` — `choose_datetime_box.dart:1714-1733` ← `time_input.cpp:110-113` + `time_part_input.cpp:61-64`
-
-- [ ] [MAJOR] Time input field missing Backspace-erase backward navigation: C++ `TimePart` fires `_erasePrevious` on Backspace when the field is empty and cursor is at position 0, causing the previous field (hour) to erase its last character and gain focus; Dart minute field has no such handler — `choose_datetime_box.dart:1714-1733` ← `time_input.cpp:107-109` + `time_part_input.cpp:56-59`
-
-- [ ] [MAJOR] Time error shown as horizontal shake animation rather than animated red border: C++ `TimeInput::showError()` transitions the bottom border color from `borderFgActive` to `borderFgError` via `_a_error` animation (no movement); Dart translates the entire time widget with a TweenSequence shake — `choose_datetime_box.dart:1024-1037` ← `time_input.cpp:320-342`
-
-- [ ] [MAJOR] Calendar highlighted day (selected/current) uses wrong color: C++ paints the highlighted circle with `st::dialogsBgActive` (`#419fd9`) for the normal case, and `st::windowBgOver` for grayed-out; Dart uses `context.palette.windowBgActive` (`#40a7e3`) for the selected circle — this is the accent color not the dialogs active bg, diverging for custom themes — `choose_datetime_box.dart:891-892` ← `calendar_box.cpp:871`
-
-- [ ] [MAJOR] Calendar missing range-selection mode: C++ `CalendarBox` supports `allowsSelection`, `toggleSelectionMode`, `startSelection`, `updateSelection` for multi-day range picking (with Shift+click / two-press selection), a "Select days" left button, and a floating date label overlay; Dart has no selection mode at all — `choose_datetime_box.dart:84-463` ← `calendar_box.cpp:459-521`, `1294-1376`
-
-- [ ] [MAJOR] Calendar missing dynamic image support per day: C++ `CalendarBox` accepts a `dynamicImageForDate` callback that overlays a circular avatar image on individual calendar cells with fade-in animation; Dart has no `_dynamicImageForDate` equivalent — `choose_datetime_box.dart:84-463` ← `calendar_box.cpp:720-869`
-
 - [ ] [MAJOR] Calendar title shows wrong arrow indicator: C++ `CalendarBox::Title::paintEvent` draws a small right-pointing triangle before the month/year text (not a dropdown arrow icon); Dart renders `Icons.arrow_drop_down` — `choose_datetime_box.dart:299` ← `calendar_box.cpp:1147-1159`
-
-- [ ] [MAJOR] MonthYearPicker "Jump to date" title not from spec: C++ uses `FillMonthYearPicker` (no explicit dialog title; it is a naked `GenericBox`); Dart shows `title: 'Jump to date'` — `choose_datetime_box.dart:642` ← `calendar_box.cpp:43-188`
-
-- [ ] [MAJOR] MonthYearPicker drum picker height wrong: C++ uses `st::settingsWorkingHoursPicker = 200px` (5 × 40px items); Dart hard-codes `_drumHeight = _itemHeight * 5 = 200` but the C++ month drum adjusts its item count based on min/max year boundaries per selected year — Dart's month drum shows all 12 months unconditionally instead of only the valid months for the selected year at edges — `choose_datetime_box.dart:654-678` ← `calendar_box.cpp:85-153`
-
-- [ ] [MAJOR] Repeat period map uses hardcoded English strings instead of localized keys: C++ uses `tr::lng_schedule_repeat_never`, `tr::lng_schedule_repeat_daily` etc. (localization-aware); Dart has `const Map<int, String>` with literal English — `choose_datetime_box.dart:53-62` ← `choose_date_time.cpp:254-268`
-
-- [ ] [MAJOR] Default schedule time offset wrong: C++ `DefaultScheduleTime()` defaults to `now + 600` seconds (10 minutes); Dart uses `DateTime.now().add(const Duration(minutes: 10))` which is the same numeric value but always set in the Dart layer — however, C++ passes `time` as an arg and the caller provides `DefaultScheduleTime()`. Dart ignores any passed `initialDate` for min-time enforcement since it re-computes from `DateTime.now()` on every validation call — not a bug per se, but the default initial display time in the Dart widget is `+10 min` while C++ defaults to `+10 min` (`600s`). This matches. No issue here.
-
-- [ ] [MAJOR] Time input field max date uses `+365 days` instead of `addYears(1)`: C++ uses `QDateTime::currentDateTime().addYears(1)` (next calendar year, accounts for leap years); Dart uses `today.add(const Duration(days: 365))` — off by one day in leap years — `choose_datetime_box.dart:1113` ← `choose_date_time.cpp:114-115`
-
-- [ ] [MAJOR] Calendar missing scroll-based month navigation (scroll area): C++ `CalendarBox` wraps `Inner` in a `ScrollArea` and scrolls between months by dragging/scrolling — the month changes as the user scrolls past month boundaries; Dart only supports wheel-scroll on the header area to jump months — `choose_datetime_box.dart:238-244` ← `calendar_box.cpp:1234-1429`
 
 # engine_service — Bridge/engine service layer audit
 
