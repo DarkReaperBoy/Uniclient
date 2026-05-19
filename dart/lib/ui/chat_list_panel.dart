@@ -482,21 +482,19 @@ class _ChatListPanelState extends State<ChatListPanel>
     final appState = context.read<AppState>();
     setState(() {
       _searchResults = _filterByTab(chatState.searchChats(query), chatState);
+      final chatId = _searchChatIdForTab(_activeSearchTab, chatState);
       final rawMsgs = _activeSearchTab == _SearchTab.publicPosts
           ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
-          : chatState.searchMessages(query, accountId: appState.activeAccountId);
-      _messageSearchResults = _filterMessagesByTab(rawMsgs, chatState, _activeSearchTab);
+          : chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId);
+      _messageSearchResults = rawMsgs;
     });
   }
 
-  List<SearchResult> _filterMessagesByTab(
-      List<SearchResult> results, ChatState chatState, _SearchTab tab) {
+  String _searchChatIdForTab(_SearchTab tab, ChatState chatState) {
     if (tab == _SearchTab.thisPeer || tab == _SearchTab.thisTopic) {
-      final active = chatState.activeChat;
-      if (active == null) return [];
-      return results.where((r) => r.chatId == active.chatId).toList();
+      return chatState.activeChat?.chatId ?? '';
     }
-    return results;
+    return '';
   }
 
   /// Filter search results based on the active search tab.
@@ -546,10 +544,11 @@ class _ChatListPanelState extends State<ChatListPanel>
       final appState = context.read<AppState>();
       setState(() {
         _searchResults = _filterByTab(chatState.searchChats(query), chatState);
+        final chatId = _searchChatIdForTab(_activeSearchTab, chatState);
         final rawMsgs = _activeSearchTab == _SearchTab.publicPosts
             ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
-            : chatState.searchMessages(query, accountId: appState.activeAccountId);
-        _messageSearchResults = _filterMessagesByTab(rawMsgs, chatState, _activeSearchTab);
+            : chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId);
+        _messageSearchResults = rawMsgs;
       });
     }
   }
@@ -565,10 +564,11 @@ class _ChatListPanelState extends State<ChatListPanel>
       final appState = context.read<AppState>();
       setState(() {
         _searchResults = _filterByTab(chatState.searchChats(query), chatState);
+        final chatId = _searchChatIdForTab(tab, chatState);
         final rawMsgs = tab == _SearchTab.publicPosts
             ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
-            : chatState.searchMessages(query, accountId: appState.activeAccountId);
-        _messageSearchResults = _filterMessagesByTab(rawMsgs, chatState, tab);
+            : chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId);
+        _messageSearchResults = rawMsgs;
       });
     }
   }

@@ -20,7 +20,8 @@ type SearchResult struct {
 
 // SearchMessages performs a cross-account FTS5 search.
 // If accountID is non-empty, restricts to that account.
-func (e *Engine) SearchMessages(query string, accountID string, limit int) ([]SearchResult, error) {
+// If chatID is non-empty, restricts to that chat.
+func (e *Engine) SearchMessages(query string, accountID string, limit int, chatID string) ([]SearchResult, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -28,31 +29,30 @@ func (e *Engine) SearchMessages(query string, accountID string, limit int) ([]Se
 		return nil, nil
 	}
 
-	// FTS5 query syntax: wrap in quotes for exact phrase, or use as-is for OR matching.
-	// Append * for prefix matching.
 	ftsQuery := query + "*"
 
 	var rows *sql.Rows
 	var err error
 
-	if accountID != "" {
-		rows, err = e.db.Query(
-			`SELECT m.account_id, m.chat_id, m.msg_id, m.sender_name, m.content_text, m.timestamp,
-			        c.title
-			 FROM messages m
-			 JOIN messages_fts ON messages_fts.rowid = m.rowid
-			 LEFT JOIN chats c ON c.account_id = m.account_id AND c.chat_id = m.chat_id
-			 WHERE messages_fts MATCH ? AND m.account_id = ?
+	selectCols := `SELECT m.account_id, m.chat_id, m.msg_id, m.sender_name, m.content_text, m.timestamp,
+		        c.title
+		 FROM messages m
+		 JOIN messages_fts ON messages_fts.rowid = m.rowid
+		 LEFT JOIN chats c ON c.account_id = m.account_id AND c.chat_id = m.chat_id`
+
+	if accountID != "" && chatID != "" {
+		rows, err = e.db.Query(selectCols+
+			` WHERE messages_fts MATCH ? AND m.account_id = ? AND m.chat_id = ?
+			 ORDER BY m.timestamp DESC
+			 LIMIT ?`, ftsQuery, accountID, chatID, limit)
+	} else if accountID != "" {
+		rows, err = e.db.Query(selectCols+
+			` WHERE messages_fts MATCH ? AND m.account_id = ?
 			 ORDER BY m.timestamp DESC
 			 LIMIT ?`, ftsQuery, accountID, limit)
 	} else {
-		rows, err = e.db.Query(
-			`SELECT m.account_id, m.chat_id, m.msg_id, m.sender_name, m.content_text, m.timestamp,
-			        c.title
-			 FROM messages m
-			 JOIN messages_fts ON messages_fts.rowid = m.rowid
-			 LEFT JOIN chats c ON c.account_id = m.account_id AND c.chat_id = m.chat_id
-			 WHERE messages_fts MATCH ?
+		rows, err = e.db.Query(selectCols+
+			` WHERE messages_fts MATCH ?
 			 ORDER BY m.timestamp DESC
 			 LIMIT ?`, ftsQuery, limit)
 	}

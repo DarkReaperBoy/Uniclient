@@ -1382,13 +1382,15 @@ const EngineSearchMessagesRequest$json = {
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
     {'1': 'account_id', '3': 2, '4': 1, '5': 9, '10': 'accountId'},
     {'1': 'limit', '3': 3, '4': 1, '5': 5, '10': 'limit'},
+    {'1': 'chat_id', '3': 4, '4': 1, '5': 9, '10': 'chatId'},
   ],
 };
 
 /// Descriptor for `EngineSearchMessagesRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List engineSearchMessagesRequestDescriptor = $convert.base64Decode(
     'ChtFbmdpbmVTZWFyY2hNZXNzYWdlc1JlcXVlc3QSFAoFcXVlcnkYASABKAlSBXF1ZXJ5Eh0KCm'
-    'FjY291bnRfaWQYAiABKAlSCWFjY291bnRJZBIUCgVsaW1pdBgDIAEoBVIFbGltaXQ=');
+    'FjY291bnRfaWQYAiABKAlSCWFjY291bnRJZBIUCgVsaW1pdBgDIAEoBVIFbGltaXQSFwoHY2hhdF'
+    '9pZBgEIAEoCVIGY2hhdElk');
 
 @$core.Deprecated('Use engineSearchMessagesResponseDescriptor instead')
 const EngineSearchMessagesResponse$json = {

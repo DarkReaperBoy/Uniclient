@@ -4546,11 +4546,12 @@ class EngineService {
 
   // ── Search ──
 
-  List<SearchResult> searchMessages(String query, {String accountId = '', int limit = 50}) {
+  List<SearchResult> searchMessages(String query, {String accountId = '', String chatId = '', int limit = 50}) {
     final req = epb.EngineSearchMessagesRequest()
       ..query = query
       ..accountId = accountId
-      ..limit = limit;
+      ..limit = limit
+      ..chatId = chatId;
     final respBytes = _callRaw('__engine', 'SearchMessages', req.writeToBuffer());
     final resp = epb.EngineSearchMessagesResponse.fromBuffer(respBytes);
     return resp.results.map(_searchResultFromProto).toList();

@@ -5710,6 +5710,7 @@ type EngineSearchMessagesRequest struct {
 	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
 	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"` // empty = all accounts
 	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	ChatId        string                 `protobuf:"bytes,4,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"` // empty = all chats
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5763,6 +5764,13 @@ func (x *EngineSearchMessagesRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *EngineSearchMessagesRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
 }
 
 type EngineSearchMessagesResponse struct {
@@ -14170,12 +14178,13 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x04text\x18\x05 \x01(\tR\x04text\x12\x1c\n" +
 	"\ttimestamp\x18\x06 \x01(\x03R\ttimestamp\x12\x1d\n" +
 	"\n" +
-	"chat_title\x18\a \x01(\tR\tchatTitle\"h\n" +
+	"chat_title\x18\a \x01(\tR\tchatTitle\"\x81\x01\n" +
 	"\x1bEngineSearchMessagesRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x02 \x01(\tR\taccountId\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\"W\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x17\n" +
+	"\achat_id\x18\x04 \x01(\tR\x06chatId\"W\n" +
 	"\x1cEngineSearchMessagesResponse\x127\n" +
 	"\aresults\x18\x01 \x03(\v2\x1d.uniclient.EngineSearchResultR\aresults\"F\n" +
 	"\x18EngineSearchChatsRequest\x12\x14\n" +

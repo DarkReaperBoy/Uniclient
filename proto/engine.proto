@@ -661,6 +661,7 @@ message EngineSearchMessagesRequest {
   string query      = 1;
   string account_id = 2; // empty = all accounts
   int32  limit      = 3;
+  string chat_id    = 4; // empty = all chats
 }
 
 message EngineSearchMessagesResponse {

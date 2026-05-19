@@ -1985,8 +1985,8 @@ class ChatState extends ChangeNotifier {
 
   // ── Search ──
 
-  List<SearchResult> searchMessages(String query, {String accountId = ''}) {
-    return _engine.searchMessages(query, accountId: accountId);
+  List<SearchResult> searchMessages(String query, {String accountId = '', String chatId = ''}) {
+    return _engine.searchMessages(query, accountId: accountId, chatId: chatId);
   }
 
   List<ChatInfo> searchChats(String query) {

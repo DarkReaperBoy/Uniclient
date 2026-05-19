@@ -7804,6 +7804,7 @@ class EngineSearchMessagesRequest extends $pb.GeneratedMessage {
     $core.String? query,
     $core.String? accountId,
     $core.int? limit,
+    $core.String? chatId,
   }) {
     final $result = create();
     if (query != null) {
@@ -7815,6 +7816,9 @@ class EngineSearchMessagesRequest extends $pb.GeneratedMessage {
     if (limit != null) {
       $result.limit = limit;
     }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
     return $result;
   }
   EngineSearchMessagesRequest._() : super();
@@ -7825,6 +7829,7 @@ class EngineSearchMessagesRequest extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'query')
     ..aOS(2, _omitFieldNames ? '' : 'accountId')
     ..a<$core.int>(3, _omitFieldNames ? '' : 'limit', $pb.PbFieldType.O3)
+    ..aOS(4, _omitFieldNames ? '' : 'chatId')
     ..hasRequiredFields = false
   ;
 
@@ -7875,6 +7880,15 @@ class EngineSearchMessagesRequest extends $pb.GeneratedMessage {
   $core.bool hasLimit() => $_has(2);
   @$pb.TagNumber(3)
   void clearLimit() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get chatId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set chatId($core.String v) { $_setString(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasChatId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearChatId() => clearField(4);
 }
 
 class EngineSearchMessagesResponse extends $pb.GeneratedMessage {
