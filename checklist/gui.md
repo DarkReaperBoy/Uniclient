@@ -327,17 +327,7 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 # color_picker_box — Color picker dialog vs AyuGram ColorEditor
 
-- [ ] [MAJOR] No custom circular cursor on gradient picker square — AyuGram generates a 16px circle cursor (black ring with white outline) and sets it via `setCursor(generateCursor())` in the `Picker` constructor; the Dart `_GradientSquare` sets no `mouseCursor` at all — `color_picker_box.dart:785` ← `AyuGramDesktop/Telegram/SourceFiles/ui/widgets/color_editor.cpp:69-99`
-
-- [ ] [MAJOR] Shared `_wheelAccum` across all numeric fields — `_wheelAccum` is a single instance variable (int) that all seven numeric fields share via the `Listener.onPointerSignal`; AyuGram gives each `Field` its own `_wheelDelta` member so scrolling one field cannot bleed into another — `color_picker_box.dart:78,585` ← `AyuGramDesktop/Telegram/SourceFiles/ui/widgets/color_editor.cpp:646,732`
-
-- [ ] [MAJOR] 2 px gap inserted between new/current color swatches — `const SizedBox(height: 2)` separates the two color samples; AyuGram places `_currentRect = _newRect.translated(0, st::colorSampleSize.height())` with zero separation — `color_picker_box.dart:537` ← `AyuGramDesktop/Telegram/SourceFiles/ui/widgets/color_editor.cpp:1061`
-
 - [ ] [MAJOR] Hex (result) field spans full inner box width instead of being aligned to the field column — Dart places the `_hexField` in the outer `Column` as an `Expanded` row, making it fill the entire `innerWidth` (~354 px); AyuGram sizes it to `fieldWidth + resultDelta = 60 + 29 = 89 px` and aligns it with the left edge of the opacity slider — `color_picker_box.dart:457-461,641-681` ← `AyuGramDesktop/Telegram/SourceFiles/ui/widgets/color_editor.cpp:1083-1093`
-
-- [ ] [MAJOR] Slider arrow color sourced from `windowActiveTextFg` instead of `sliderBgActive` — both the hue slider and opacity slider receive `arrowColor: accentFg` where `accentFg = p.windowActiveTextFg`; AyuGram uses `sliderBgActive` for all four directional arrow icons — `color_picker_box.dart:418,437` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/boxes.style:515-518`
-
-- [ ] [MAJOR] `lightnessMin`/`lightnessMax` clamped in HSV brightness space instead of HSL lightness — Dart applies limits to `_brightness` (the V component of HSV) via `_clampedBrightness`; AyuGram's `setLightnessLimits` operates on HSL lightness (0-255) via `QColor::fromHsl`, producing different output for any saturated colour — `color_picker_box.dart:205-210` ← `AyuGramDesktop/Telegram/SourceFiles/ui/widgets/color_editor.cpp:568-607,885-896`
 
 # compose_entities — Text Composition & Entity Management
 
