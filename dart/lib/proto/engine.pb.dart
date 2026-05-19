@@ -10915,6 +10915,10 @@ class EngineGroupCallParticipant extends $pb.GeneratedMessage {
     $core.bool? isSpeaking,
     $core.bool? hasVideo,
     $core.String? avatarPath,
+    $core.bool? canSelfUnmute,
+    $fixnum.Int64? raisedHandRating,
+    $core.int? volume,
+    $core.double? audioLevel,
   }) {
     final $result = create();
     if (userId != null) {
@@ -10935,6 +10939,18 @@ class EngineGroupCallParticipant extends $pb.GeneratedMessage {
     if (avatarPath != null) {
       $result.avatarPath = avatarPath;
     }
+    if (canSelfUnmute != null) {
+      $result.canSelfUnmute = canSelfUnmute;
+    }
+    if (raisedHandRating != null) {
+      $result.raisedHandRating = raisedHandRating;
+    }
+    if (volume != null) {
+      $result.volume = volume;
+    }
+    if (audioLevel != null) {
+      $result.audioLevel = audioLevel;
+    }
     return $result;
   }
   EngineGroupCallParticipant._() : super();
@@ -10948,6 +10964,10 @@ class EngineGroupCallParticipant extends $pb.GeneratedMessage {
     ..aOB(4, _omitFieldNames ? '' : 'isSpeaking')
     ..aOB(5, _omitFieldNames ? '' : 'hasVideo')
     ..aOS(6, _omitFieldNames ? '' : 'avatarPath')
+    ..aOB(7, _omitFieldNames ? '' : 'canSelfUnmute')
+    ..aInt64(8, _omitFieldNames ? '' : 'raisedHandRating')
+    ..a<$core.int>(9, _omitFieldNames ? '' : 'volume', $pb.PbFieldType.O3)
+    ..a<$core.double>(10, _omitFieldNames ? '' : 'audioLevel', $pb.PbFieldType.OD)
     ..hasRequiredFields = false
   ;
 
@@ -11025,6 +11045,42 @@ class EngineGroupCallParticipant extends $pb.GeneratedMessage {
   $core.bool hasAvatarPath() => $_has(5);
   @$pb.TagNumber(6)
   void clearAvatarPath() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get canSelfUnmute => $_getBF(6);
+  @$pb.TagNumber(7)
+  set canSelfUnmute($core.bool v) { $_setBool(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasCanSelfUnmute() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearCanSelfUnmute() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $fixnum.Int64 get raisedHandRating => $_getI64(7);
+  @$pb.TagNumber(8)
+  set raisedHandRating($fixnum.Int64 v) { $_setInt64(7, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasRaisedHandRating() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearRaisedHandRating() => clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.int get volume => $_getIZ(8);
+  @$pb.TagNumber(9)
+  set volume($core.int v) { $_setSignedInt32(8, v); }
+  @$pb.TagNumber(9)
+  $core.bool hasVolume() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearVolume() => clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.double get audioLevel => $_getN(9);
+  @$pb.TagNumber(10)
+  set audioLevel($core.double v) { $_setDouble(9, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasAudioLevel() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearAudioLevel() => clearField(10);
 }
 
 class EngineGroupCallInfo extends $pb.GeneratedMessage {

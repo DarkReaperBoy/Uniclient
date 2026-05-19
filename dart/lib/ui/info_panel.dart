@@ -3054,10 +3054,10 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
     }
   }
 
-  void _loadItems() {
+  Future<void> _loadItems() async {
     final engine = context.read<EngineService>();
     try {
-      final items = engine.getSharedMedia(
+      final items = await engine.getSharedMedia(
         widget.chat.accountId, widget.chat.chatId,
         mediaType: _typeToFilter[widget.mediaType] ?? widget.mediaType,
         limit: _pageSize,
@@ -3074,12 +3074,12 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
     }
   }
 
-  void _loadMore() {
+  Future<void> _loadMore() async {
     if (_loadingMore || !_hasMore || _items.isEmpty) return;
     _loadingMore = true;
     final engine = context.read<EngineService>();
     try {
-      final moreItems = engine.getSharedMedia(
+      final moreItems = await engine.getSharedMedia(
         widget.chat.accountId, widget.chat.chatId,
         mediaType: _typeToFilter[widget.mediaType] ?? widget.mediaType,
         limit: _pageSize,
@@ -5084,7 +5084,7 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     'poll': 'poll',
   };
 
-  void _loadGridItems(String type) {
+  Future<void> _loadGridItems(String type) async {
     final engine = context.read<EngineService>();
     try {
       var filterType = _typeToFilter[type] ?? type;
@@ -5092,7 +5092,7 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
         filterType = 'gifts_$_activeSubTab';
       }
       final query = _searchActive ? _searchController.text.trim() : '';
-      final items = engine.getSharedMedia(
+      final items = await engine.getSharedMedia(
         widget.accountId, widget.chatId,
         mediaType: filterType, limit: 50,
         query: query,

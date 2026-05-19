@@ -297,7 +297,7 @@ class _SelectChatDialogState extends State<_SelectChatDialog> {
     super.dispose();
   }
 
-  void _onSearchChanged() {
+  Future<void> _onSearchChanged() async {
     final query = _searchController.text.trim();
     if (query.isEmpty) {
       setState(() {
@@ -312,7 +312,8 @@ class _SelectChatDialogState extends State<_SelectChatDialog> {
       _loading = true;
     });
 
-    final engineResults = widget.chatState.searchChats(query);
+    final engineResults = await widget.chatState.searchChats(query);
+    if (!mounted) return;
     final lower = query.toLowerCase();
     final localResults = widget.chatState.chats
         .where((c) =>

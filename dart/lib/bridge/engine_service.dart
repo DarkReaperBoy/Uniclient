@@ -457,7 +457,7 @@ class EngineService {
       ..accountId = accountId
       ..chatId = chatId;
     final respBytes = await _callAsync('__engine', 'GetLinkedChatId', req.writeToBuffer());
-    if (respBytes == null || respBytes.isEmpty) return '';
+    if (respBytes.isEmpty) return '';
     return utf8.decode(respBytes);
   }
 
@@ -474,7 +474,7 @@ class EngineService {
       req.note = note;
     }
     final respBytes = await _callAsync('__engine', 'AddContact', req.writeToBuffer());
-    if (respBytes == null || respBytes.isEmpty) return '';
+    if (respBytes.isEmpty) return '';
     return utf8.decode(respBytes);
   }
 
@@ -487,7 +487,7 @@ class EngineService {
       'note': note,
     }));
     final respBytes = await _callAsync('__engine', 'AddContactByUser', Uint8List.fromList(payload));
-    if (respBytes == null || respBytes.isEmpty) return '';
+    if (respBytes.isEmpty) return '';
     return utf8.decode(respBytes);
   }
 
@@ -497,7 +497,7 @@ class EngineService {
       'user_id': userId,
     }));
     final respBytes = await _callAsync('__engine', 'GetContactFullInfo', Uint8List.fromList(payload));
-    if (respBytes == null || respBytes.isEmpty) return {};
+    if (respBytes.isEmpty) return {};
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
@@ -1964,6 +1964,10 @@ class EngineService {
         isSpeaking: p.isSpeaking,
         hasVideo: p.hasVideo,
         avatarPath: p.avatarPath,
+        canSelfUnmute: p.canSelfUnmute,
+        raisedHandRating: p.raisedHandRating.toInt(),
+        volume: p.volume,
+        audioLevel: p.audioLevel,
       )).toList(),
       active: gc.active,
     );
@@ -2472,13 +2476,13 @@ class EngineService {
 
   // ── Messages ──
 
-  List<CachedMessage> getMessages(String accountId, String chatId, {int beforeMs = 0, int limit = 50}) {
+  Future<List<CachedMessage>> getMessages(String accountId, String chatId, {int beforeMs = 0, int limit = 50}) async {
     final req = epb.EngineGetMessagesRequest()
       ..accountId = accountId
       ..chatId = chatId
       ..beforeMs = Int64(beforeMs)
       ..limit = limit;
-    final respBytes = _callRaw('__engine', 'GetMessages', req.writeToBuffer());
+    final respBytes = await _callAsync('__engine', 'GetMessages', req.writeToBuffer());
     final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
     return resp.messages.map(_cachedMsgFromProto).toList();
   }
@@ -4547,23 +4551,23 @@ class EngineService {
 
   // ── Search ──
 
-  List<SearchResult> searchMessages(String query, {String accountId = '', String chatId = '', String topicId = '', int limit = 50}) {
+  Future<List<SearchResult>> searchMessages(String query, {String accountId = '', String chatId = '', String topicId = '', int limit = 50}) async {
     final req = epb.EngineSearchMessagesRequest()
       ..query = query
       ..accountId = accountId
       ..limit = limit
       ..chatId = chatId
       ..topicId = topicId;
-    final respBytes = _callRaw('__engine', 'SearchMessages', req.writeToBuffer());
+    final respBytes = await _callAsync('__engine', 'SearchMessages', req.writeToBuffer());
     final resp = epb.EngineSearchMessagesResponse.fromBuffer(respBytes);
     return resp.results.map(_searchResultFromProto).toList();
   }
 
-  List<ChatInfo> searchChats(String query, {int limit = 20}) {
+  Future<List<ChatInfo>> searchChats(String query, {int limit = 20}) async {
     final req = epb.EngineSearchChatsRequest()
       ..query = query
       ..limit = limit;
-    final respBytes = _callRaw('__engine', 'SearchChats', req.writeToBuffer());
+    final respBytes = await _callAsync('__engine', 'SearchChats', req.writeToBuffer());
     final resp = epb.EngineSearchChatsResponse.fromBuffer(respBytes);
     return resp.chats.map(_chatInfoFromProto).toList();
   }
@@ -4613,7 +4617,7 @@ class EngineService {
 
   /// Get shared media items for a chat, optionally filtered by type.
   /// [mediaType]: "image", "video", "audio", "file", or "" for all.
-  List<SharedMediaItem> getSharedMedia(String accountId, String chatId, {String mediaType = '', int limit = 50, int offset = 0, String query = ''}) {
+  Future<List<SharedMediaItem>> getSharedMedia(String accountId, String chatId, {String mediaType = '', int limit = 50, int offset = 0, String query = ''}) async {
     final req = epb.EngineGetSharedMediaRequest()
       ..accountId = accountId
       ..chatId = chatId
@@ -4621,7 +4625,7 @@ class EngineService {
       ..limit = limit
       ..offset = offset
       ..query = query;
-    final respBytes = _callRaw('__engine', 'GetSharedMedia', req.writeToBuffer());
+    final respBytes = await _callAsync('__engine', 'GetSharedMedia', req.writeToBuffer());
     final resp = epb.EngineGetSharedMediaResponse.fromBuffer(respBytes);
     return resp.items.map(_sharedMediaItemFromProto).toList();
   }
@@ -5565,6 +5569,9 @@ class EngineService {
           _exportCompleteController.add(ExportCompleteEvent.fromJson(data,
             accountId: event['account_id'] as String? ?? ''));
         }
+
+      default:
+        Debug.log('EVENT', 'unhandled event type: $type');
     }
   }
 
@@ -5675,6 +5682,7 @@ class EngineService {
       replyToId: p.replyToId,
       replyPreview: _safeStr(p.replyPreview),
       forwardFrom: _safeStr(p.forwardFrom),
+      forwardFromId: _strFromExtra(extra, 'forward_from_id') ?? p.forwardFrom,
       isPinned: p.isPinned,
       isOutgoing: p.isOutgoing,
       isService: p.isService,

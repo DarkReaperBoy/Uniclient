@@ -1542,12 +1542,12 @@ class ChatState extends ChangeNotifier {
   String? get pendingHighlightMsgId => _pendingHighlightMsgId;
   void clearPendingHighlight() { _pendingHighlightMsgId = null; }
 
-  void jumpToMessage(int timestampMs, {String? highlightMsgId}) {
+  Future<void> jumpToMessage(int timestampMs, {String? highlightMsgId}) async {
     final chat = _activeChat;
     if (chat == null) return;
     SpoilerRevealManager.instance.hideAll();
 
-    final around = _engine.getMessages(
+    final around = await _engine.getMessages(
       chat.accountId, chat.chatId,
       beforeMs: timestampMs + 1,
     );
@@ -1985,17 +1985,17 @@ class ChatState extends ChangeNotifier {
 
   // ── Search ──
 
-  List<SearchResult> searchMessages(String query, {String accountId = '', String chatId = '', String topicId = ''}) {
+  Future<List<SearchResult>> searchMessages(String query, {String accountId = '', String chatId = '', String topicId = ''}) {
     return _engine.searchMessages(query, accountId: accountId, chatId: chatId, topicId: topicId);
   }
 
-  List<ChatInfo> searchChats(String query) {
+  Future<List<ChatInfo>> searchChats(String query) {
     return _engine.searchChats(query);
   }
 
   // ── Internal ──
 
-  void _loadMessages() {
+  Future<void> _loadMessages() async {
     if (_disposed) return;
     final chat = _activeChat;
     if (chat == null) return;
@@ -2006,8 +2006,9 @@ class ChatState extends ChangeNotifier {
     // Spec §49.1: first load 30 messages, subsequent loads 50.
     final limit = _isFirstLoad ? 30 : 50;
     final beforeMs = _messages.isNotEmpty ? _messages.last.timestamp : 0;
-    final newMsgs = _engine.getMessages(chat.accountId, chat.chatId, beforeMs: beforeMs, limit: limit);
+    final newMsgs = await _engine.getMessages(chat.accountId, chat.chatId, beforeMs: beforeMs, limit: limit);
 
+    if (_disposed) return;
     if (newMsgs.length < limit) _hasMoreMessages = false;
     _messages.addAll(newMsgs);
     _isFirstLoad = false;
@@ -2185,7 +2186,7 @@ class ChatState extends ChangeNotifier {
   /// Used after send and as a periodic fallback for event delivery issues.
   void refreshMessages() => _refreshMessages();
 
-  void _refreshMessages() {
+  Future<void> _refreshMessages() async {
     if (_disposed) return;
     if (_isScheduledView) return;
     if (_isEditHistoryView) return;
@@ -2196,8 +2197,8 @@ class ChatState extends ChangeNotifier {
     // Don't overwrite jumped-to messages while the user is reading them.
     if (_jumpedUntil != null && DateTime.now().isBefore(_jumpedUntil!)) return;
 
-    final fresh = _engine.getMessages(chat.accountId, chat.chatId, beforeMs: 0);
-    if (fresh.isEmpty) return;
+    final fresh = await _engine.getMessages(chat.accountId, chat.chatId, beforeMs: 0);
+    if (_disposed || fresh.isEmpty) return;
 
     // Merge: replace the newest portion of messages with fresh data.
     // Keep any older paginated messages that aren't in the fresh batch.

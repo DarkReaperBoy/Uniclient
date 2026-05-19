@@ -470,7 +470,7 @@ class _ChatListPanelState extends State<ChatListPanel>
     _searchFocus.requestFocus();
   }
 
-  void _onSearchChanged(String query) {
+  Future<void> _onSearchChanged(String query) async {
     if (query.isEmpty) {
       setState(() {
         _searchResults = null;
@@ -480,13 +480,19 @@ class _ChatListPanelState extends State<ChatListPanel>
     }
     final chatState = context.read<ChatState>();
     final appState = context.read<AppState>();
+    final chatId = _searchChatIdForTab(_activeSearchTab, chatState);
+    final topicId = _searchTopicIdForTab(_activeSearchTab, chatState);
+    final chatResults = await chatState.searchChats(query);
+    if (!mounted) return;
+    final List<SearchResult> rawMsgs;
+    if (_activeSearchTab == _SearchTab.publicPosts) {
+      rawMsgs = chatState.searchGlobalPostMessages(appState.activeAccountId, query);
+    } else {
+      rawMsgs = await chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId, topicId: topicId);
+    }
+    if (!mounted) return;
     setState(() {
-      _searchResults = _filterByTab(chatState.searchChats(query), chatState);
-      final chatId = _searchChatIdForTab(_activeSearchTab, chatState);
-      final topicId = _searchTopicIdForTab(_activeSearchTab, chatState);
-      final rawMsgs = _activeSearchTab == _SearchTab.publicPosts
-          ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
-          : chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId, topicId: topicId);
+      _searchResults = _filterByTab(chatResults, chatState);
       _messageSearchResults = rawMsgs;
     });
   }
@@ -542,7 +548,7 @@ class _ChatListPanelState extends State<ChatListPanel>
     }
   }
 
-  void _onSubFilterChanged(_MyMsgSubFilter filter) {
+  Future<void> _onSubFilterChanged(_MyMsgSubFilter filter) async {
     setState(() {
       _myMsgSubFilter = filter;
     });
@@ -550,18 +556,24 @@ class _ChatListPanelState extends State<ChatListPanel>
     if (query.isNotEmpty) {
       final chatState = context.read<ChatState>();
       final appState = context.read<AppState>();
+      final chatId = _searchChatIdForTab(_activeSearchTab, chatState);
+      final chatResults = await chatState.searchChats(query);
+      if (!mounted) return;
+      final List<SearchResult> rawMsgs;
+      if (_activeSearchTab == _SearchTab.publicPosts) {
+        rawMsgs = chatState.searchGlobalPostMessages(appState.activeAccountId, query);
+      } else {
+        rawMsgs = await chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId);
+      }
+      if (!mounted) return;
       setState(() {
-        _searchResults = _filterByTab(chatState.searchChats(query), chatState);
-        final chatId = _searchChatIdForTab(_activeSearchTab, chatState);
-        final rawMsgs = _activeSearchTab == _SearchTab.publicPosts
-            ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
-            : chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId);
+        _searchResults = _filterByTab(chatResults, chatState);
         _messageSearchResults = rawMsgs;
       });
     }
   }
 
-  void _onSearchTabChanged(_SearchTab tab) {
+  Future<void> _onSearchTabChanged(_SearchTab tab) async {
     setState(() {
       _activeSearchTab = tab;
       _myMsgSubFilter = _MyMsgSubFilter.all;
@@ -570,12 +582,18 @@ class _ChatListPanelState extends State<ChatListPanel>
     if (query.isNotEmpty) {
       final chatState = context.read<ChatState>();
       final appState = context.read<AppState>();
+      final chatId = _searchChatIdForTab(tab, chatState);
+      final chatResults = await chatState.searchChats(query);
+      if (!mounted) return;
+      final List<SearchResult> rawMsgs;
+      if (tab == _SearchTab.publicPosts) {
+        rawMsgs = chatState.searchGlobalPostMessages(appState.activeAccountId, query);
+      } else {
+        rawMsgs = await chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId);
+      }
+      if (!mounted) return;
       setState(() {
-        _searchResults = _filterByTab(chatState.searchChats(query), chatState);
-        final chatId = _searchChatIdForTab(tab, chatState);
-        final rawMsgs = tab == _SearchTab.publicPosts
-            ? chatState.searchGlobalPostMessages(appState.activeAccountId, query)
-            : chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId);
+        _searchResults = _filterByTab(chatResults, chatState);
         _messageSearchResults = rawMsgs;
       });
     }
@@ -597,7 +615,7 @@ class _ChatListPanelState extends State<ChatListPanel>
     return chats.any((c) => c.type == ChatType.dm && !c.isArchived);
   }
 
-  void _resetToAllMessages() {
+  Future<void> _resetToAllMessages() async {
     setState(() {
       _activeSearchTab = _SearchTab.myMessages;
       _myMsgSubFilter = _MyMsgSubFilter.all;
@@ -605,8 +623,10 @@ class _ChatListPanelState extends State<ChatListPanel>
     final query = _searchController.text;
     if (query.isNotEmpty) {
       final chatState = context.read<ChatState>();
+      final chatResults = await chatState.searchChats(query);
+      if (!mounted) return;
       setState(() {
-        _searchResults = _filterByTab(chatState.searchChats(query), chatState);
+        _searchResults = _filterByTab(chatResults, chatState);
       });
     }
   }
