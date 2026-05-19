@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -64,12 +65,24 @@ const Map<int, String> _repeatPeriods = {
 
 // ─── CalendarBox — spec §36.6.1 ─────────────────────────────────────────────
 
+class CalendarDateRange {
+  final DateTime start;
+  final DateTime end;
+  const CalendarDateRange({required this.start, required this.end});
+}
+
+typedef CalendarImageSetter = void Function(DateTime date, Uint8List imageBytes);
+typedef DynamicImageForDate = void Function(DateTime date, CalendarImageSetter setter);
+
 Future<DateTime?> showCalendarBox(
   BuildContext context, {
   DateTime? initialDate,
   DateTime? minDate,
   DateTime? maxDate,
   DateTime? selectedDate,
+  bool allowsSelection = false,
+  ValueChanged<CalendarDateRange>? onRangeSelected,
+  DynamicImageForDate? dynamicImageForDate,
 }) {
   return showTelegramBox<DateTime>(
     context: context,
@@ -78,6 +91,9 @@ Future<DateTime?> showCalendarBox(
       minDate: minDate ?? DateTime(2013),
       maxDate: maxDate ?? DateTime(2036, 12, 31),
       selectedDate: selectedDate,
+      allowsSelection: allowsSelection,
+      onRangeSelected: onRangeSelected,
+      dynamicImageForDate: dynamicImageForDate,
     ),
   );
 }
@@ -87,24 +103,41 @@ class _CalendarBoxWidget extends StatefulWidget {
   final DateTime minDate;
   final DateTime maxDate;
   final DateTime? selectedDate;
+  final bool allowsSelection;
+  final ValueChanged<CalendarDateRange>? onRangeSelected;
+  final DynamicImageForDate? dynamicImageForDate;
 
   const _CalendarBoxWidget({
     this.initialDate,
     required this.minDate,
     required this.maxDate,
     this.selectedDate,
+    this.allowsSelection = false,
+    this.onRangeSelected,
+    this.dynamicImageForDate,
   });
 
   @override
   State<_CalendarBoxWidget> createState() => _CalendarBoxWidgetState();
 }
 
-class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
+class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
+    with TickerProviderStateMixin {
   late int _year;
   late int _month;
   late int _focusDay;
   DateTime? _selected;
   Timer? _jumpTimer;
+
+  bool _selectionMode = false;
+  DateTime? _selectionStart;
+  DateTime? _selectionEnd;
+  int _selectionAnchorIndex = -1;
+
+  final Map<DateTime, _DynamicImageState> _dynamicImages = {};
+
+  double _dragAccum = 0;
+  static const double _dragMonthThreshold = 60;
 
   @override
   void initState() {
@@ -114,12 +147,39 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
     _year = base.year;
     _month = base.month;
     _focusDay = base.day;
+    _loadDynamicImages();
   }
 
   @override
   void dispose() {
     _jumpTimer?.cancel();
+    for (final s in _dynamicImages.values) {
+      s.fadeController?.dispose();
+    }
     super.dispose();
+  }
+
+  void _loadDynamicImages() {
+    if (widget.dynamicImageForDate == null) return;
+    final daysInMonth = DateTime(_year, _month + 1, 0).day;
+    for (var d = 1; d <= daysInMonth; d++) {
+      final date = DateTime(_year, _month, d);
+      final key = DateTime(date.year, date.month, date.day);
+      if (_dynamicImages.containsKey(key)) continue;
+      _dynamicImages[key] = _DynamicImageState();
+      widget.dynamicImageForDate!(date, (rDate, bytes) {
+        if (!mounted) return;
+        final rKey = DateTime(rDate.year, rDate.month, rDate.day);
+        final state = _dynamicImages[rKey];
+        if (state == null) return;
+        state.imageBytes = bytes;
+        state.fadeController = AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 200),
+        )..forward();
+        setState(() {});
+      });
+    }
   }
 
   bool _canGoPrev() {
@@ -142,6 +202,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
       }
       _clampFocusDay();
     });
+    _loadDynamicImages();
   }
 
   void _nextMonth() {
@@ -154,6 +215,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
       }
       _clampFocusDay();
     });
+    _loadDynamicImages();
   }
 
   void _goToDate(DateTime date) {
@@ -162,6 +224,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
       _month = date.month;
       _focusDay = date.day;
     });
+    _loadDynamicImages();
   }
 
   void _jumpToMin() {
@@ -205,7 +268,82 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
   void _selectDay(int day) {
     final date = DateTime(_year, _month, day);
     if (_isDayDisabled(date)) return;
+    if (_selectionMode) {
+      _startSelection(date, day);
+      return;
+    }
     Navigator.of(context).pop(date);
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) {
+        _selectionStart = null;
+        _selectionEnd = null;
+        _selectionAnchorIndex = -1;
+      }
+    });
+  }
+
+  void _startSelection(DateTime date, int dayIndex) {
+    setState(() {
+      _selectionStart = date;
+      _selectionEnd = date;
+      _selectionAnchorIndex = dayIndex;
+    });
+    _notifyRangeSelection();
+  }
+
+  void _updateSelection(DateTime date, int dayIndex) {
+    if (_selectionStart == null) return;
+    final anchor = _selectionStart!;
+    DateTime min, max;
+    if (date.isBefore(anchor)) {
+      min = date;
+      max = anchor;
+    } else {
+      min = anchor;
+      max = date;
+    }
+    final minOnly = DateTime(widget.minDate.year, widget.minDate.month, widget.minDate.day);
+    final maxOnly = DateTime(widget.maxDate.year, widget.maxDate.month, widget.maxDate.day);
+    if (min.isBefore(minOnly)) min = minOnly;
+    if (max.isAfter(maxOnly)) max = maxOnly;
+    setState(() {
+      _selectionStart = min;
+      _selectionEnd = max;
+    });
+    _notifyRangeSelection();
+  }
+
+  void _notifyRangeSelection() {
+    if (_selectionStart != null && _selectionEnd != null && widget.onRangeSelected != null) {
+      widget.onRangeSelected!(CalendarDateRange(start: _selectionStart!, end: _selectionEnd!));
+    }
+  }
+
+  bool _isInSelectionRange(DateTime date) {
+    if (_selectionStart == null || _selectionEnd == null) return false;
+    final d = DateTime(date.year, date.month, date.day);
+    final s = DateTime(_selectionStart!.year, _selectionStart!.month, _selectionStart!.day);
+    final e = DateTime(_selectionEnd!.year, _selectionEnd!.month, _selectionEnd!.day);
+    return !d.isBefore(s) && !d.isAfter(e);
+  }
+
+  void _onHorizontalDrag(DragUpdateDetails details) {
+    _dragAccum += details.delta.dx;
+    if (_dragAccum > _dragMonthThreshold) {
+      _dragAccum = 0;
+      _prevMonth();
+    } else if (_dragAccum < -_dragMonthThreshold) {
+      _dragAccum = 0;
+      _nextMonth();
+    }
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    _dragAccum = 0;
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
@@ -260,6 +398,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
           _month = result.month;
           _clampFocusDay();
         });
+        _loadDynamicImages();
       }
     });
   }
@@ -339,52 +478,61 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
       content: Focus(
         autofocus: true,
         onKeyEvent: _handleKey,
-        child: Listener(
-          onPointerSignal: (event) {
-            if (event is PointerScrollEvent) _onMonthScroll(event);
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: _calPadH),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  height: _daysRowH,
-                  child: Row(
-                    children: weekDays.map((d) {
-                      return SizedBox(
-                        width: _cellW,
-                        height: _daysRowH,
-                        child: Center(
-                          child: Text(
-                            d,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: subtextFg,
-                              fontWeight: FontWeight.w500,
+        child: GestureDetector(
+          onHorizontalDragUpdate: _onHorizontalDrag,
+          onHorizontalDragEnd: _onHorizontalDragEnd,
+          child: Listener(
+            onPointerSignal: (event) {
+              if (event is PointerScrollEvent) _onMonthScroll(event);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: _calPadH),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: _daysRowH,
+                    child: Row(
+                      children: weekDays.map((d) {
+                        return SizedBox(
+                          width: _cellW,
+                          height: _daysRowH,
+                          child: Center(
+                            child: Text(
+                              d,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: subtextFg,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
+                        );
+                      }).toList(),
+                    ),
                   ),
-                ),
-                _buildDayGrid(
-                  offset,
-                  daysInMonth,
-                  textFg,
-                  subtextFg,
-                  accentFg,
-                  hoverBg,
-                  disabledFg,
-                ),
-                const SizedBox(height: 8),
-              ],
+                  _buildDayGrid(
+                    offset,
+                    daysInMonth,
+                    textFg,
+                    subtextFg,
+                    accentFg,
+                    hoverBg,
+                    disabledFg,
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
           ),
         ),
       ),
       buttons: [
+        if (widget.allowsSelection)
+          TelegramBoxButton(
+            text: _selectionMode ? 'Single date' : 'Select days',
+            onPressed: _toggleSelectionMode,
+          ),
         TelegramBoxButton(
           text: 'Close',
           onPressed: () => Navigator.of(context).pop(),
@@ -444,12 +592,18 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
               _selected!.month == _month &&
               _selected!.day == thisDay;
           final isFocused = _focusDay == thisDay;
+          final isInRange = _isInSelectionRange(date);
+          final dateKey = DateTime(date.year, date.month, date.day);
+          final dynImage = _dynamicImages[dateKey];
 
           cells.add(_DayCell(
             day: thisDay,
             isSelected: isSelected,
             isFocused: isFocused,
             isDisabled: isDisabled,
+            isInRange: isInRange,
+            dynamicImageBytes: dynImage?.imageBytes,
+            dynamicImageOpacity: dynImage?.fadeController?.value ?? (dynImage?.imageBytes != null ? 1.0 : 0.0),
             textColor: textFg,
             accentColor: accentFg,
             hoverColor: hoverBg,
@@ -503,9 +657,20 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
   bool _yearColumnFocused = false;
 
   static const double _itemHeight = 40.0;
-  static const int _monthCount = 12;
   static const double _drumHeight = _itemHeight * 5;
   static const double _centerY = (_drumHeight - _itemHeight) / 2;
+
+  int get _minMonth {
+    if (_selectedYear == widget.minDate.year) return widget.minDate.month;
+    return 1;
+  }
+
+  int get _maxMonth {
+    if (_selectedYear == widget.maxDate.year) return widget.maxDate.month;
+    return 12;
+  }
+
+  int get _validMonthCount => _maxMonth - _minMonth + 1;
 
   List<int> get _years {
     final result = <int>[];
@@ -515,7 +680,7 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
     return result;
   }
 
-  double get _monthMaxOffset => (_monthCount - 1) * _itemHeight;
+  double get _monthMaxOffset => (_validMonthCount - 1) * _itemHeight;
   double get _yearMaxOffset => (_years.length - 1) * _itemHeight;
   int get _yearIndex => _years.indexOf(_selectedYear).clamp(0, _years.length - 1);
 
@@ -524,7 +689,7 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
     super.initState();
     _selectedMonth = widget.currentMonth;
     _selectedYear = widget.currentYear;
-    _monthOffset = (_selectedMonth - 1) * _itemHeight;
+    _monthOffset = (_selectedMonth - _minMonth) * _itemHeight;
 
     final years = _years;
     final yearIdx = years.indexOf(_selectedYear);
@@ -539,7 +704,7 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
               (_monthSnapTo - _monthSnapFrom) *
                   Curves.easeOutCubic.transform(_monthSnapCtrl.value);
           _selectedMonth =
-              (_monthOffset / _itemHeight).round().clamp(0, _monthCount - 1) + 1;
+              (_monthOffset / _itemHeight).round().clamp(0, _validMonthCount - 1) + _minMonth;
         });
       });
 
@@ -554,7 +719,13 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
                   Curves.easeOutCubic.transform(_yearSnapCtrl.value);
           final idx =
               (_yearOffset / _itemHeight).round().clamp(0, years.length - 1);
+          final prevYear = _selectedYear;
           _selectedYear = years[idx];
+          if (_selectedYear != prevYear) {
+            _selectedMonth = _clampMonth(_selectedMonth, _selectedYear);
+            final clampedIdx = (_selectedMonth - _minMonth).clamp(0, _validMonthCount - 1);
+            _monthOffset = clampedIdx * _itemHeight;
+          }
         });
       });
   }
@@ -592,7 +763,7 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
 
   void _goToMonthIndex(int index) {
     _monthSnapFrom = _monthOffset;
-    _monthSnapTo = index.clamp(0, _monthCount - 1) * _itemHeight;
+    _monthSnapTo = index.clamp(0, _validMonthCount - 1) * _itemHeight;
     _monthSnapCtrl.forward(from: 0);
   }
 
@@ -656,16 +827,11 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
                   child: _DrumColumn(
                     offset: _monthOffset,
                     maxOffset: _monthMaxOffset,
-                    itemCount: _monthCount,
-                    selectedIndex: _selectedMonth - 1,
-                    labelBuilder: (i) => _monthNames[i],
+                    itemCount: _validMonthCount,
+                    selectedIndex: _selectedMonth - _minMonth,
+                    labelBuilder: (i) => _monthNames[i + _minMonth - 1],
                     textFg: textFg,
                     dimFg: dimFg,
-                    isDisabled: (i) =>
-                        (_selectedYear == widget.minDate.year &&
-                            i + 1 < widget.minDate.month) ||
-                        (_selectedYear == widget.maxDate.year &&
-                            i + 1 > widget.maxDate.month),
                     onScroll: (delta) {
                       _monthSnapCtrl.stop();
                       setState(() {
@@ -673,8 +839,8 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
                             (_monthOffset + delta).clamp(0.0, _monthMaxOffset);
                         _selectedMonth = (_monthOffset / _itemHeight)
                                 .round()
-                                .clamp(0, _monthCount - 1) +
-                            1;
+                                .clamp(0, _validMonthCount - 1) +
+                            _minMonth;
                       });
                     },
                     onScrollEnd: _snapMonth,
@@ -856,11 +1022,19 @@ class _NavArrow extends StatelessWidget {
   }
 }
 
+class _DynamicImageState {
+  Uint8List? imageBytes;
+  AnimationController? fadeController;
+}
+
 class _DayCell extends StatefulWidget {
   final int day;
   final bool isSelected;
   final bool isFocused;
   final bool isDisabled;
+  final bool isInRange;
+  final Uint8List? dynamicImageBytes;
+  final double dynamicImageOpacity;
   final Color textColor;
   final Color accentColor;
   final Color hoverColor;
@@ -872,6 +1046,9 @@ class _DayCell extends StatefulWidget {
     required this.isSelected,
     required this.isFocused,
     required this.isDisabled,
+    this.isInRange = false,
+    this.dynamicImageBytes,
+    this.dynamicImageOpacity = 0.0,
     required this.textColor,
     required this.accentColor,
     required this.hoverColor,
@@ -891,7 +1068,7 @@ class _DayCellState extends State<_DayCell> {
     BoxDecoration? decoration;
     Color fg;
 
-    if (widget.isSelected) {
+    if (widget.isSelected || widget.isInRange) {
       decoration =
           BoxDecoration(shape: BoxShape.circle, color: widget.accentColor);
       fg = Colors.white;
@@ -919,14 +1096,50 @@ class _DayCellState extends State<_DayCell> {
                 customBorder: const CircleBorder(),
                 splashColor: widget.accentColor.withValues(alpha: 0.2),
                 highlightColor: widget.accentColor.withValues(alpha: 0.1),
-                child: Container(
+                child: SizedBox(
                   width: _cellInner,
                   height: _cellInner,
-                  decoration: decoration,
-                  alignment: Alignment.center,
-                  child: Text(
-                    '${widget.day}',
-                    style: TextStyle(fontSize: 13, color: fg),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (decoration != null)
+                        Container(
+                          width: _cellInner,
+                          height: _cellInner,
+                          decoration: decoration,
+                        ),
+                      if (widget.dynamicImageBytes != null && widget.dynamicImageOpacity > 0)
+                        Opacity(
+                          opacity: widget.dynamicImageOpacity * (widget.isDisabled ? 0.4 : 1.0),
+                          child: ClipOval(
+                            child: Stack(
+                              children: [
+                                Image.memory(
+                                  widget.dynamicImageBytes!,
+                                  width: _cellInner,
+                                  height: _cellInner,
+                                  fit: BoxFit.cover,
+                                  gaplessPlayback: true,
+                                ),
+                                Container(
+                                  width: _cellInner,
+                                  height: _cellInner,
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      Text(
+                        '${widget.day}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: widget.dynamicImageBytes != null && widget.dynamicImageOpacity > 0.5
+                              ? Colors.white
+                              : fg,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1193,28 +1406,36 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
       wide: true,
       title: widget.titleOverride ?? (widget.isSelfChat ? 'Remind me on...' : 'Send this message on...'),
       titleTrailing: widget.isScheduledToUser
-          ? IconButton(
-              icon: Icon(Icons.more_vert,
-                  color: separatorFg, size: 20),
-              onPressed: () {
-                final box = context.findRenderObject() as RenderBox;
-                final pos = box.localToGlobal(
-                  Offset(box.size.width, 0),
-                );
-                showTelegramMenu<String>(
-                  context: context,
-                  position: pos,
-                  items: [
-                    TelegramMenuItem(
-                      value: 'when_online',
-                      label: 'Send when online',
-                      icon: const Icon(Icons.person_outline, size: 20),
-                    ),
-                  ],
-                ).then((v) {
-                  if (v == 'when_online') _sendWhenOnline();
-                });
-              },
+          ? SizedBox(
+              width: 34,
+              height: 34,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () {
+                    final box = context.findRenderObject() as RenderBox;
+                    final pos = box.localToGlobal(
+                      Offset(box.size.width, 0),
+                    );
+                    showTelegramMenu<String>(
+                      context: context,
+                      position: pos,
+                      items: [
+                        TelegramMenuItem(
+                          value: 'when_online',
+                          label: 'Send when online',
+                          icon: const Icon(Icons.person_outline, size: 20),
+                        ),
+                      ],
+                    ).then((v) {
+                      if (v == 'when_online') _sendWhenOnline();
+                    });
+                  },
+                  child: Icon(Icons.more_vert,
+                      color: separatorFg, size: 20),
+                ),
+              ),
             )
           : null,
       onConfirm: () => _submit(),
