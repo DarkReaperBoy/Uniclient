@@ -12,6 +12,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../utils/spell_service.dart';
 import 'chat_export.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
@@ -2207,8 +2208,10 @@ class _ManageDictionariesBox extends StatefulWidget {
 }
 
 class _ManageDictionariesBoxState extends State<_ManageDictionariesBox> {
-  List<_DictEntry> _dicts = [];
+  List<_DictEntry> _installed = [];
+  List<_DictAvailable> _available = [];
   bool _scanning = true;
+  String? _downloading;
 
   @override
   void initState() {
@@ -2219,47 +2222,79 @@ class _ManageDictionariesBoxState extends State<_ManageDictionariesBox> {
   Future<void> _scanDictionaries() async {
     final appState = context.read<AppState>();
     final enabled = appState.enabledDictionaries;
-    final entries = <_DictEntry>[];
-    if (Platform.isLinux) {
-      for (final dir in const ['/usr/share/hunspell', '/usr/share/myspell/dicts']) {
-        try {
-          final d = Directory(dir);
-          if (!d.existsSync()) continue;
-          for (final f in d.listSync()) {
-            if (f.path.endsWith('.dic')) {
-              final name = f.path.split('/').last.replaceAll('.dic', '');
-              final affPath = f.path.replaceAll('.dic', '.aff');
-              final hasAff = File(affPath).existsSync();
-              if (!entries.any((e) => e.code == name)) {
-                entries.add(_DictEntry(
-                  code: name,
-                  label: _langLabel(name),
-                  hasAff: hasAff,
-                  path: f.path,
-                  enabled: enabled.isEmpty || enabled.contains(name),
-                ));
-              }
-            }
-          }
-        } catch (_) {}
-      }
-      entries.sort((a, b) => a.label.compareTo(b.label));
+    final installed = <_DictEntry>[];
+    final installedCodes = <String>{};
+
+    final systemDirs = <String>[
+      if (Platform.isLinux) ...['/usr/share/hunspell', '/usr/share/myspell/dicts'],
+    ];
+    final allDirs = [...systemDirs, UniSpellCheckService.dictsDir];
+
+    for (final dirPath in allDirs) {
+      try {
+        final d = Directory(dirPath);
+        if (!d.existsSync()) continue;
+        for (final f in d.listSync()) {
+          if (!f.path.endsWith('.dic')) continue;
+          final code = f.path.split('/').last.replaceAll('.dic', '');
+          if (installedCodes.contains(code)) continue;
+          installedCodes.add(code);
+          final affPath = f.path.replaceAll('.dic', '.aff');
+          final isLocal = f.path.startsWith(UniSpellCheckService.dictsDir);
+          installed.add(_DictEntry(
+            code: code,
+            label: _langLabel(code),
+            hasAff: File(affPath).existsSync(),
+            path: f.path,
+            enabled: enabled.isEmpty || enabled.contains(code),
+            isLocal: isLocal,
+          ));
+        }
+      } catch (_) {}
     }
-    if (mounted) setState(() { _dicts = entries; _scanning = false; });
+    installed.sort((a, b) => a.label.compareTo(b.label));
+
+    final available = <_DictAvailable>[];
+    for (final entry in UniSpellCheckService.downloadManifest.entries) {
+      if (!installedCodes.contains(entry.key)) {
+        available.add(_DictAvailable(code: entry.key, label: entry.value.label));
+      }
+    }
+    available.sort((a, b) => a.label.compareTo(b.label));
+
+    if (mounted) setState(() { _installed = installed; _available = available; _scanning = false; });
+  }
+
+  Future<void> _downloadDict(String code) async {
+    setState(() => _downloading = code);
+    final ok = await UniSpellCheckService.downloadDictionary(code);
+    if (!mounted) return;
+    if (ok) {
+      final appState = context.read<AppState>();
+      if (appState.enabledDictionaries.isNotEmpty && !appState.enabledDictionaries.contains(code)) {
+        appState.toggleDictionary(code);
+      }
+      await UniSpellCheckService.instance.loadDictionaries(appState.enabledDictionaries);
+      await _scanDictionaries();
+    }
+    if (mounted) setState(() => _downloading = null);
+  }
+
+  Future<void> _deleteDict(String code) async {
+    await UniSpellCheckService.deleteDictionary(code);
+    if (!mounted) return;
+    final appState = context.read<AppState>();
+    await UniSpellCheckService.instance.loadDictionaries(appState.enabledDictionaries);
+    await _scanDictionaries();
   }
 
   static String _langLabel(String code) {
+    final manifest = UniSpellCheckService.downloadManifest[code];
+    if (manifest != null) return manifest.label;
     const labels = {
-      'en_US': 'English (US)', 'en_GB': 'English (UK)', 'en_AU': 'English (AU)',
-      'de_DE': 'German', 'de_AT': 'German (Austria)', 'de_CH': 'German (Swiss)',
-      'fr_FR': 'French', 'es_ES': 'Spanish', 'it_IT': 'Italian',
-      'pt_BR': 'Portuguese (Brazil)', 'pt_PT': 'Portuguese',
-      'ru_RU': 'Russian', 'uk_UA': 'Ukrainian', 'pl_PL': 'Polish',
-      'nl_NL': 'Dutch', 'cs_CZ': 'Czech', 'sv_SE': 'Swedish',
-      'da_DK': 'Danish', 'nb_NO': 'Norwegian', 'fi_FI': 'Finnish',
-      'hu_HU': 'Hungarian', 'ro_RO': 'Romanian', 'tr_TR': 'Turkish',
-      'ar': 'Arabic', 'he_IL': 'Hebrew', 'fa_IR': 'Persian',
-      'ja_JP': 'Japanese', 'ko_KR': 'Korean', 'zh_CN': 'Chinese (Simplified)',
+      'en_AU': 'English (AU)', 'de_AT': 'German (Austria)', 'de_CH': 'German (Swiss)',
+      'fi_FI': 'Finnish', 'fa_IR': 'Persian', 'ja_JP': 'Japanese',
+      'ko_KR': 'Korean', 'zh_CN': 'Chinese (Simplified)',
     };
     return labels[code] ?? code.replaceAll('_', ' ');
   }
@@ -2277,7 +2312,7 @@ class _ManageDictionariesBoxState extends State<_ManageDictionariesBox> {
       backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 380, maxHeight: 480),
+        constraints: const BoxConstraints(maxWidth: 380, maxHeight: 520),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2294,51 +2329,92 @@ class _ManageDictionariesBoxState extends State<_ManageDictionariesBox> {
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
               )
-            else if (_dicts.isEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 12, 22, 8),
-                child: Text(
-                  Platform.isLinux
-                      ? 'No hunspell dictionaries found.\n'
-                        'Install them via your package manager, e.g.:\n'
-                        'sudo apt install hunspell-en-us'
-                      : 'Spellchecker dictionaries are managed by the operating system.',
-                  style: TextStyle(fontSize: 14, color: subtextColor),
-                ),
-              )
             else ...[
-              Divider(height: 1, color: dividerColor),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  itemCount: _dicts.length,
-                  itemBuilder: (_, i) {
-                    final d = _dicts[i];
-                    return InkWell(
-                      onTap: () {
-                        setState(() => d.enabled = !d.enabled);
-                        context.read<AppState>().toggleDictionary(d.code);
-                      },
-                      child: Padding(
+              if (_installed.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+                  child: Text('Installed', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accentColor)),
+                ),
+                Divider(height: 1, color: dividerColor),
+                Flexible(
+                  flex: 2,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: _installed.length,
+                    itemBuilder: (_, i) {
+                      final d = _installed[i];
+                      return InkWell(
+                        onTap: () {
+                          setState(() => d.enabled = !d.enabled);
+                          final appState = context.read<AppState>();
+                          appState.toggleDictionary(d.code);
+                          UniSpellCheckService.instance.loadDictionaries(appState.enabledDictionaries);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 22, height: 22,
+                                child: Checkbox(
+                                  value: d.enabled,
+                                  onChanged: (v) {
+                                    setState(() => d.enabled = v ?? true);
+                                    final appState = context.read<AppState>();
+                                    appState.toggleDictionary(d.code);
+                                    UniSpellCheckService.instance.loadDictionaries(appState.enabledDictionaries);
+                                  },
+                                  activeColor: accentColor,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(d.label, style: TextStyle(fontSize: 14, color: textColor)),
+                                    Text(d.code, style: TextStyle(fontSize: 12, color: subtextColor)),
+                                  ],
+                                ),
+                              ),
+                              if (d.isLocal)
+                                IconButton(
+                                  icon: Icon(Icons.delete_outline, size: 18, color: subtextColor),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                  onPressed: () => _deleteDict(d.code),
+                                  tooltip: 'Remove dictionary',
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+              if (_available.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+                  child: Text('Available for download', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accentColor)),
+                ),
+                Divider(height: 1, color: dividerColor),
+                Flexible(
+                  flex: 3,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: _available.length,
+                    itemBuilder: (_, i) {
+                      final d = _available[i];
+                      final isDownloading = _downloading == d.code;
+                      return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
                         child: Row(
                           children: [
-                            SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: Checkbox(
-                                value: d.enabled,
-                                onChanged: (v) {
-                                  setState(() => d.enabled = v ?? true);
-                                  context.read<AppState>().toggleDictionary(d.code);
-                                },
-                                activeColor: accentColor,
-                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2348,15 +2424,31 @@ class _ManageDictionariesBoxState extends State<_ManageDictionariesBox> {
                                 ],
                               ),
                             ),
-                            if (!d.hasAff)
-                              Icon(Icons.warning_amber, size: 16, color: subtextColor),
+                            if (isDownloading)
+                              const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            else
+                              IconButton(
+                                icon: Icon(Icons.download, size: 18, color: accentColor),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                onPressed: () => _downloadDict(d.code),
+                                tooltip: 'Download dictionary',
+                              ),
                           ],
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
+              ],
+              if (_installed.isEmpty && _available.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 12, 22, 8),
+                  child: Text(
+                    'No dictionaries available.',
+                    style: TextStyle(fontSize: 14, color: subtextColor),
+                  ),
+                ),
             ],
             Divider(height: 1, color: dividerColor),
             Padding(
@@ -2383,8 +2475,15 @@ class _DictEntry {
   final String label;
   final bool hasAff;
   final String path;
+  final bool isLocal;
   bool enabled;
-  _DictEntry({required this.code, required this.label, required this.hasAff, required this.path, this.enabled = true});
+  _DictEntry({required this.code, required this.label, required this.hasAff, required this.path, this.enabled = true, this.isLocal = false});
+}
+
+class _DictAvailable {
+  final String code;
+  final String label;
+  _DictAvailable({required this.code, required this.label});
 }
 
 class PowerSavingBox extends StatefulWidget {

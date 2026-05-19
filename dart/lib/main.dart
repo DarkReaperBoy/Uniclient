@@ -38,6 +38,7 @@ import 'ui/shell.dart';
 import 'theme/wallpaper.dart';
 import 'ui/titlebar.dart';
 import 'utils/debug.dart';
+import 'utils/spell_service.dart';
 import 'utils/system_tray.dart';
 import 'utils/system_unlock.dart';
 import 'utils/web_notifier.dart';
@@ -86,6 +87,10 @@ void main() {
     Debug.error('ASYNC', error.toString(), error, stack);
     return true;
   };
+
+  if (!kIsWeb && Platform.environment['UNICLIENT_NO_HW_VIDEO'] == '1') {
+    AppState.noHwAccelVideo = true;
+  }
 
   final engineService = EngineService();
 
@@ -309,6 +314,10 @@ class _UniClientAppState extends State<UniClientApp>
       cacheDir: cacheDir,
       downloadDir: downloadDir,
     );
+
+    if (appState.spellcheckerEnabled) {
+      UniSpellCheckService.instance.loadDictionaries(appState.enabledDictionaries);
+    }
 
     // §51.7: Apply -ghost CLI flag — force ghost mode on at startup (non-persistent).
     if (_cliGhostFlag && !appState.ghostModeEnabled) {

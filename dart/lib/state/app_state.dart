@@ -135,6 +135,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   EngineService get engine => _engine;
 
+  static bool noHwAccelVideo = false;
+
   /// Spec §3.2: max accounts 100 (AyuGram), 200 for premium.
   static const kMaxAccounts = 100;
   static const kPremiumMaxAccounts = 200;
@@ -1948,6 +1950,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setHardwareAccelVideo(bool v) {
     if (_hardwareAccelVideo == v) return;
     _hardwareAccelVideo = v;
+    noHwAccelVideo = !v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -3347,6 +3350,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       filterEngine.loadFromJson(data);
       _loadWallpaper(data);
       _loadCustomThemeFromCache();
+      noHwAccelVideo = !_hardwareAccelVideo;
     } catch (_) {}
   }
 

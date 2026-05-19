@@ -1902,6 +1902,9 @@ class _IvVideoBlockState extends State<_IvVideoBlock> {
       return;
     }
     final player = Player();
+    if (AppState.noHwAccelVideo) {
+      (player.platform as NativePlayer).setProperty('hwdec', 'no');
+    }
     final controller = VideoController(player);
     setState(() {
       _player = player;
@@ -2207,6 +2210,9 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
     setState(() => _loading = true);
     try {
       final player = Player();
+      if (AppState.noHwAccelVideo) {
+        (player.platform as NativePlayer).setProperty('hwdec', 'no');
+      }
       final controller = VideoController(player);
       setState(() {
         _player = player;

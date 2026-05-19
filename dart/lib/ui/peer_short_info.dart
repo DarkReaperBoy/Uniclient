@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'popup_menu.dart';
 import 'telegram_toast.dart';
@@ -252,6 +253,9 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   void _initVideoIfAvailable() {
     if (_profile?.videoAvatarPath.isNotEmpty == true) {
       final player = Player();
+      if (AppState.noHwAccelVideo) {
+        (player.platform as NativePlayer).setProperty('hwdec', 'no');
+      }
       _videoPlayer = player;
       _videoController = VideoController(player);
       player.setPlaylistMode(PlaylistMode.loop);

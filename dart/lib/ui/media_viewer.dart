@@ -552,6 +552,9 @@ class _MediaViewerState extends State<MediaViewer>
         msg.mediaLocalPath.isNotEmpty) {
       _disposePlayer();
       final player = Player();
+      if (AppState.noHwAccelVideo) {
+        (player.platform as NativePlayer).setProperty('hwdec', 'no');
+      }
       _player = player;
       _videoController = VideoController(player);
 
@@ -2282,6 +2285,9 @@ class _MediaViewerState extends State<MediaViewer>
     });
     _disposePlayer();
     final player = Player();
+    if (AppState.noHwAccelVideo) {
+      (player.platform as NativePlayer).setProperty('hwdec', 'no');
+    }
     _player = player;
     _videoController = VideoController(player);
     _playerSubs = [
@@ -6291,6 +6297,9 @@ class _StoriesViewerState extends State<StoriesViewer>
 
     if (_current.isVideo && _current.hasMedia) {
       final player = Player();
+      if (AppState.noHwAccelVideo) {
+        (player.platform as NativePlayer).setProperty('hwdec', 'no');
+      }
       final controller = VideoController(player);
       _videoPlayer = player;
       _videoController = controller;

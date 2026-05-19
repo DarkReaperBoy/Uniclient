@@ -24,6 +24,7 @@ import 'admin_tools.dart' show showEditAdminBox, showEditRestrictedBox, showAdmi
 import 'gesture_utils.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../utils/spell_service.dart';
 import '../state/audio_service.dart';
 import '../state/ayu_forward.dart';
 import '../state/chat_state.dart';
@@ -14172,7 +14173,7 @@ class _ComposeAreaState extends State<_ComposeArea>
         textInputAction: TextInputAction.newline,
         style: theme.textTheme.bodyMedium,
         spellCheckConfiguration: spellEnabled
-            ? const SpellCheckConfiguration()
+            ? SpellCheckConfiguration(spellCheckService: UniSpellCheckService.instance)
             : const SpellCheckConfiguration.disabled(),
         contextMenuBuilder: richCtrlEarly != null
             ? (ctx, editableTextState) => _ComposeContextMenu(
