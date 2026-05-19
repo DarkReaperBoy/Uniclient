@@ -948,6 +948,13 @@ message EngineGroupCallParticipant {
   int64  raised_hand_rating = 8;
   int32  volume             = 9;
   double audio_level        = 10;
+  bool   muted_by_me        = 11;
+  bool   sounding           = 12;
+  bool   additional_sounding = 13;
+  bool   additional_speaking = 14;
+  int32  ssrc               = 15;
+  int64  last_active        = 16;
+  int64  date               = 17;
 }
 
 message EngineGroupCallInfo {
@@ -1544,6 +1551,43 @@ message EngineCustomEmojiFile {
 
 message EngineGetCustomEmojiFilesResponse {
   repeated EngineCustomEmojiFile files = 1;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Sticker Files — download sticker file data by document IDs (§45.4)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetStickerFilesRequest {
+  string account_id        = 1;
+  repeated int64 document_ids = 2;
+}
+
+message EngineStickerFile {
+  int64  document_id = 1;
+  string mime_type   = 2;
+  bytes  file_data   = 3;
+}
+
+message EngineGetStickerFilesResponse {
+  repeated EngineStickerFile files = 1;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GIF Files — download GIF file data by document IDs (§45.5)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetGifFilesRequest {
+  string account_id        = 1;
+  repeated int64 document_ids = 2;
+}
+
+message EngineGifFile {
+  int64 document_id = 1;
+  bytes file_data   = 2;
+}
+
+message EngineGetGifFilesResponse {
+  repeated EngineGifFile files = 1;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -501,15 +501,22 @@ type CallSession struct {
 
 // CallParticipant represents a user in a call with their audio/video state.
 type CallParticipant struct {
-	UserID           string  `json:"user_id"`
-	DisplayName      string  `json:"display_name"`
-	IsMuted          bool    `json:"is_muted"`
-	IsSpeaking       bool    `json:"is_speaking"`
-	HasVideo         bool    `json:"has_video"`
-	CanSelfUnmute    bool    `json:"can_self_unmute"`
-	RaisedHandRating int64   `json:"raised_hand_rating,omitempty"`
-	Volume           int     `json:"volume,omitempty"`
-	AudioLevel       float64 `json:"audio_level,omitempty"`
+	UserID             string  `json:"user_id"`
+	DisplayName        string  `json:"display_name"`
+	IsMuted            bool    `json:"is_muted"`
+	IsSpeaking         bool    `json:"is_speaking"`
+	HasVideo           bool    `json:"has_video"`
+	CanSelfUnmute      bool    `json:"can_self_unmute"`
+	RaisedHandRating   int64   `json:"raised_hand_rating,omitempty"`
+	Volume             int     `json:"volume,omitempty"`
+	AudioLevel         float64 `json:"audio_level,omitempty"`
+	MutedByMe          bool    `json:"muted_by_me,omitempty"`
+	Sounding           bool    `json:"sounding,omitempty"`
+	AdditionalSounding bool    `json:"additional_sounding,omitempty"`
+	AdditionalSpeaking bool    `json:"additional_speaking,omitempty"`
+	SSRC               int32   `json:"ssrc,omitempty"`
+	LastActive         int64   `json:"last_active,omitempty"`
+	Date               int64   `json:"date,omitempty"`
 }
 
 // Folder represents a named collection of chats for organizing the dialog list.

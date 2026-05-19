@@ -2369,16 +2369,23 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			}
 			for _, p := range info.Participants {
 				gc.Participants = append(gc.Participants, &pb.EngineGroupCallParticipant{
-					UserId:           p.UserID,
-					DisplayName:      p.DisplayName,
-					IsMuted:          p.IsMuted,
-					IsSpeaking:       p.IsSpeaking,
-					HasVideo:         p.HasVideo,
-					AvatarPath:       p.AvatarPath,
-					CanSelfUnmute:    p.CanSelfUnmute,
-					RaisedHandRating: p.RaisedHandRating,
-					Volume:           int32(p.Volume),
-					AudioLevel:       p.AudioLevel,
+					UserId:             p.UserID,
+					DisplayName:        p.DisplayName,
+					IsMuted:            p.IsMuted,
+					IsSpeaking:         p.IsSpeaking,
+					HasVideo:           p.HasVideo,
+					AvatarPath:         p.AvatarPath,
+					CanSelfUnmute:      p.CanSelfUnmute,
+					RaisedHandRating:   p.RaisedHandRating,
+					Volume:             int32(p.Volume),
+					AudioLevel:         p.AudioLevel,
+					MutedByMe:          p.MutedByMe,
+					Sounding:           p.Sounding,
+					AdditionalSounding: p.AdditionalSounding,
+					AdditionalSpeaking: p.AdditionalSpeaking,
+					Ssrc:               p.SSRC,
+					LastActive:         p.LastActive,
+					Date:               p.Date,
 				})
 			}
 			resp.GroupCall = gc
@@ -2567,7 +2574,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		return proto.Marshal(resp)
 
 	case "GetGifFiles":
-		var req pb.EngineGetCustomEmojiFilesRequest
+		var req pb.EngineGetGifFilesRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
@@ -2575,11 +2582,10 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		resp := &pb.EngineGetCustomEmojiFilesResponse{}
+		resp := &pb.EngineGetGifFilesResponse{}
 		for _, f := range files {
-			resp.Files = append(resp.Files, &pb.EngineCustomEmojiFile{
+			resp.Files = append(resp.Files, &pb.EngineGifFile{
 				DocumentId: f.DocumentID,
-				MimeType:   f.MimeType,
 				FileData:   f.FileData,
 			})
 		}
@@ -2639,7 +2645,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		return []byte{}, nil
 
 	case "GetStickerFiles":
-		var req pb.EngineGetCustomEmojiFilesRequest
+		var req pb.EngineGetStickerFilesRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
@@ -2647,9 +2653,9 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		resp := &pb.EngineGetCustomEmojiFilesResponse{}
+		resp := &pb.EngineGetStickerFilesResponse{}
 		for _, f := range files {
-			resp.Files = append(resp.Files, &pb.EngineCustomEmojiFile{
+			resp.Files = append(resp.Files, &pb.EngineStickerFile{
 				DocumentId: f.DocumentID,
 				MimeType:   f.MimeType,
 				FileData:   f.FileData,

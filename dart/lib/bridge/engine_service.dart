@@ -1837,13 +1837,13 @@ class EngineService {
   }
 
   Future<Map<int, CustomEmojiFileData>> getStickerFiles(String accountId, List<int> documentIds) async {
-    final req = epb.EngineGetCustomEmojiFilesRequest()
+    final req = epb.EngineGetStickerFilesRequest()
       ..accountId = accountId
       ..documentIds.addAll(documentIds.map((id) => Int64(id)));
     try {
       final respBytes = await _callAsync('__engine', 'GetStickerFiles', req.writeToBuffer());
       if (respBytes.isEmpty) return {};
-      final resp = epb.EngineGetCustomEmojiFilesResponse.fromBuffer(respBytes);
+      final resp = epb.EngineGetStickerFilesResponse.fromBuffer(respBytes);
       return {
         for (final f in resp.files) f.documentId.toInt(): CustomEmojiFileData(
           mimeType: f.mimeType,
@@ -1857,13 +1857,13 @@ class EngineService {
   }
 
   Future<Map<int, Uint8List>> getGifFiles(String accountId, List<int> documentIds) async {
-    final req = epb.EngineGetCustomEmojiFilesRequest()
+    final req = epb.EngineGetGifFilesRequest()
       ..accountId = accountId
       ..documentIds.addAll(documentIds.map((id) => Int64(id)));
     try {
       final respBytes = await _callAsync('__engine', 'GetGifFiles', req.writeToBuffer());
       if (respBytes.isEmpty) return {};
-      final resp = epb.EngineGetCustomEmojiFilesResponse.fromBuffer(respBytes);
+      final resp = epb.EngineGetGifFilesResponse.fromBuffer(respBytes);
       return {
         for (final f in resp.files) f.documentId.toInt(): Uint8List.fromList(f.fileData),
       };
@@ -2006,6 +2006,13 @@ class EngineService {
         raisedHandRating: p.raisedHandRating.toInt(),
         volume: p.volume,
         audioLevel: p.audioLevel,
+        mutedByMe: p.mutedByMe,
+        sounding: p.sounding,
+        additionalSounding: p.additionalSounding,
+        additionalSpeaking: p.additionalSpeaking,
+        ssrc: p.ssrc,
+        lastActive: p.lastActive.toInt(),
+        date: p.date.toInt(),
       )).toList(),
       active: gc.active,
     );

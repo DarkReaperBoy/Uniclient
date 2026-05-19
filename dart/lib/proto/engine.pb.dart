@@ -10919,6 +10919,13 @@ class EngineGroupCallParticipant extends $pb.GeneratedMessage {
     $fixnum.Int64? raisedHandRating,
     $core.int? volume,
     $core.double? audioLevel,
+    $core.bool? mutedByMe,
+    $core.bool? sounding,
+    $core.bool? additionalSounding,
+    $core.bool? additionalSpeaking,
+    $core.int? ssrc,
+    $fixnum.Int64? lastActive,
+    $fixnum.Int64? date,
   }) {
     final $result = create();
     if (userId != null) {
@@ -10951,6 +10958,27 @@ class EngineGroupCallParticipant extends $pb.GeneratedMessage {
     if (audioLevel != null) {
       $result.audioLevel = audioLevel;
     }
+    if (mutedByMe != null) {
+      $result.mutedByMe = mutedByMe;
+    }
+    if (sounding != null) {
+      $result.sounding = sounding;
+    }
+    if (additionalSounding != null) {
+      $result.additionalSounding = additionalSounding;
+    }
+    if (additionalSpeaking != null) {
+      $result.additionalSpeaking = additionalSpeaking;
+    }
+    if (ssrc != null) {
+      $result.ssrc = ssrc;
+    }
+    if (lastActive != null) {
+      $result.lastActive = lastActive;
+    }
+    if (date != null) {
+      $result.date = date;
+    }
     return $result;
   }
   EngineGroupCallParticipant._() : super();
@@ -10968,6 +10996,13 @@ class EngineGroupCallParticipant extends $pb.GeneratedMessage {
     ..aInt64(8, _omitFieldNames ? '' : 'raisedHandRating')
     ..a<$core.int>(9, _omitFieldNames ? '' : 'volume', $pb.PbFieldType.O3)
     ..a<$core.double>(10, _omitFieldNames ? '' : 'audioLevel', $pb.PbFieldType.OD)
+    ..aOB(11, _omitFieldNames ? '' : 'mutedByMe')
+    ..aOB(12, _omitFieldNames ? '' : 'sounding')
+    ..aOB(13, _omitFieldNames ? '' : 'additionalSounding')
+    ..aOB(14, _omitFieldNames ? '' : 'additionalSpeaking')
+    ..a<$core.int>(15, _omitFieldNames ? '' : 'ssrc', $pb.PbFieldType.O3)
+    ..aInt64(16, _omitFieldNames ? '' : 'lastActive')
+    ..aInt64(17, _omitFieldNames ? '' : 'date')
     ..hasRequiredFields = false
   ;
 
@@ -11081,6 +11116,69 @@ class EngineGroupCallParticipant extends $pb.GeneratedMessage {
   $core.bool hasAudioLevel() => $_has(9);
   @$pb.TagNumber(10)
   void clearAudioLevel() => clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.bool get mutedByMe => $_getBF(10);
+  @$pb.TagNumber(11)
+  set mutedByMe($core.bool v) { $_setBool(10, v); }
+  @$pb.TagNumber(11)
+  $core.bool hasMutedByMe() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearMutedByMe() => clearField(11);
+
+  @$pb.TagNumber(12)
+  $core.bool get sounding => $_getBF(11);
+  @$pb.TagNumber(12)
+  set sounding($core.bool v) { $_setBool(11, v); }
+  @$pb.TagNumber(12)
+  $core.bool hasSounding() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearSounding() => clearField(12);
+
+  @$pb.TagNumber(13)
+  $core.bool get additionalSounding => $_getBF(12);
+  @$pb.TagNumber(13)
+  set additionalSounding($core.bool v) { $_setBool(12, v); }
+  @$pb.TagNumber(13)
+  $core.bool hasAdditionalSounding() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearAdditionalSounding() => clearField(13);
+
+  @$pb.TagNumber(14)
+  $core.bool get additionalSpeaking => $_getBF(13);
+  @$pb.TagNumber(14)
+  set additionalSpeaking($core.bool v) { $_setBool(13, v); }
+  @$pb.TagNumber(14)
+  $core.bool hasAdditionalSpeaking() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearAdditionalSpeaking() => clearField(14);
+
+  @$pb.TagNumber(15)
+  $core.int get ssrc => $_getIZ(14);
+  @$pb.TagNumber(15)
+  set ssrc($core.int v) { $_setSignedInt32(14, v); }
+  @$pb.TagNumber(15)
+  $core.bool hasSsrc() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearSsrc() => clearField(15);
+
+  @$pb.TagNumber(16)
+  $fixnum.Int64 get lastActive => $_getI64(15);
+  @$pb.TagNumber(16)
+  set lastActive($fixnum.Int64 v) { $_setInt64(15, v); }
+  @$pb.TagNumber(16)
+  $core.bool hasLastActive() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearLastActive() => clearField(16);
+
+  @$pb.TagNumber(17)
+  $fixnum.Int64 get date => $_getI64(16);
+  @$pb.TagNumber(17)
+  set date($fixnum.Int64 v) { $_setInt64(16, v); }
+  @$pb.TagNumber(17)
+  $core.bool hasDate() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearDate() => clearField(17);
 }
 
 class EngineGroupCallInfo extends $pb.GeneratedMessage {
@@ -17420,6 +17518,266 @@ class EngineGetCustomEmojiFilesResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $core.List<EngineCustomEmojiFile> get files => $_getList(0);
+}
+
+// ── Sticker Files ──
+
+class EngineGetStickerFilesRequest extends $pb.GeneratedMessage {
+  factory EngineGetStickerFilesRequest({
+    $core.String? accountId,
+    $core.Iterable<$fixnum.Int64>? documentIds,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (documentIds != null) {
+      $result.documentIds.addAll(documentIds);
+    }
+    return $result;
+  }
+  EngineGetStickerFilesRequest._() : super();
+  factory EngineGetStickerFilesRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetStickerFilesRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetStickerFilesRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..p<$fixnum.Int64>(2, _omitFieldNames ? '' : 'documentIds', $pb.PbFieldType.K6)
+    ..hasRequiredFields = false
+  ;
+
+  EngineGetStickerFilesRequest clone() => EngineGetStickerFilesRequest()..mergeFromMessage(this);
+  EngineGetStickerFilesRequest copyWith(void Function(EngineGetStickerFilesRequest) updates) => super.copyWith((message) => updates(message as EngineGetStickerFilesRequest)) as EngineGetStickerFilesRequest;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetStickerFilesRequest create() => EngineGetStickerFilesRequest._();
+  EngineGetStickerFilesRequest createEmptyInstance() => create();
+  $pb.BuilderInfo get info_ => _i;
+  static EngineGetStickerFilesRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetStickerFilesRequest>(create);
+  static EngineGetStickerFilesRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+
+  @$pb.TagNumber(2)
+  $core.List<$fixnum.Int64> get documentIds => $_getList(1);
+}
+
+class EngineStickerFile extends $pb.GeneratedMessage {
+  factory EngineStickerFile({
+    $fixnum.Int64? documentId,
+    $core.String? mimeType,
+    $core.List<$core.int>? fileData,
+  }) {
+    final $result = create();
+    if (documentId != null) {
+      $result.documentId = documentId;
+    }
+    if (mimeType != null) {
+      $result.mimeType = mimeType;
+    }
+    if (fileData != null) {
+      $result.fileData = fileData;
+    }
+    return $result;
+  }
+  EngineStickerFile._() : super();
+  factory EngineStickerFile.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineStickerFile.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineStickerFile', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'documentId')
+    ..aOS(2, _omitFieldNames ? '' : 'mimeType')
+    ..a<$core.List<$core.int>>(3, _omitFieldNames ? '' : 'fileData', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false
+  ;
+
+  EngineStickerFile clone() => EngineStickerFile()..mergeFromMessage(this);
+  EngineStickerFile copyWith(void Function(EngineStickerFile) updates) => super.copyWith((message) => updates(message as EngineStickerFile)) as EngineStickerFile;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineStickerFile create() => EngineStickerFile._();
+  EngineStickerFile createEmptyInstance() => create();
+  $pb.BuilderInfo get info_ => _i;
+  static EngineStickerFile getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineStickerFile>(create);
+  static EngineStickerFile? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get documentId => $_getI64(0);
+  @$pb.TagNumber(1)
+  set documentId($fixnum.Int64 v) { $_setInt64(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get mimeType => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set mimeType($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.List<$core.int> get fileData => $_getN(2);
+  @$pb.TagNumber(3)
+  set fileData($core.List<$core.int> v) { $_setBytes(2, v); }
+}
+
+class EngineGetStickerFilesResponse extends $pb.GeneratedMessage {
+  factory EngineGetStickerFilesResponse({
+    $core.Iterable<EngineStickerFile>? files,
+  }) {
+    final $result = create();
+    if (files != null) {
+      $result.files.addAll(files);
+    }
+    return $result;
+  }
+  EngineGetStickerFilesResponse._() : super();
+  factory EngineGetStickerFilesResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetStickerFilesResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetStickerFilesResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineStickerFile>(1, _omitFieldNames ? '' : 'files', $pb.PbFieldType.PM, subBuilder: EngineStickerFile.create)
+    ..hasRequiredFields = false
+  ;
+
+  EngineGetStickerFilesResponse clone() => EngineGetStickerFilesResponse()..mergeFromMessage(this);
+  EngineGetStickerFilesResponse copyWith(void Function(EngineGetStickerFilesResponse) updates) => super.copyWith((message) => updates(message as EngineGetStickerFilesResponse)) as EngineGetStickerFilesResponse;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetStickerFilesResponse create() => EngineGetStickerFilesResponse._();
+  EngineGetStickerFilesResponse createEmptyInstance() => create();
+  $pb.BuilderInfo get info_ => _i;
+  static EngineGetStickerFilesResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetStickerFilesResponse>(create);
+  static EngineGetStickerFilesResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineStickerFile> get files => $_getList(0);
+}
+
+// ── GIF Files ──
+
+class EngineGetGifFilesRequest extends $pb.GeneratedMessage {
+  factory EngineGetGifFilesRequest({
+    $core.String? accountId,
+    $core.Iterable<$fixnum.Int64>? documentIds,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (documentIds != null) {
+      $result.documentIds.addAll(documentIds);
+    }
+    return $result;
+  }
+  EngineGetGifFilesRequest._() : super();
+  factory EngineGetGifFilesRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetGifFilesRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetGifFilesRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..p<$fixnum.Int64>(2, _omitFieldNames ? '' : 'documentIds', $pb.PbFieldType.K6)
+    ..hasRequiredFields = false
+  ;
+
+  EngineGetGifFilesRequest clone() => EngineGetGifFilesRequest()..mergeFromMessage(this);
+  EngineGetGifFilesRequest copyWith(void Function(EngineGetGifFilesRequest) updates) => super.copyWith((message) => updates(message as EngineGetGifFilesRequest)) as EngineGetGifFilesRequest;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetGifFilesRequest create() => EngineGetGifFilesRequest._();
+  EngineGetGifFilesRequest createEmptyInstance() => create();
+  $pb.BuilderInfo get info_ => _i;
+  static EngineGetGifFilesRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetGifFilesRequest>(create);
+  static EngineGetGifFilesRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+
+  @$pb.TagNumber(2)
+  $core.List<$fixnum.Int64> get documentIds => $_getList(1);
+}
+
+class EngineGifFile extends $pb.GeneratedMessage {
+  factory EngineGifFile({
+    $fixnum.Int64? documentId,
+    $core.List<$core.int>? fileData,
+  }) {
+    final $result = create();
+    if (documentId != null) {
+      $result.documentId = documentId;
+    }
+    if (fileData != null) {
+      $result.fileData = fileData;
+    }
+    return $result;
+  }
+  EngineGifFile._() : super();
+  factory EngineGifFile.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGifFile.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGifFile', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'documentId')
+    ..a<$core.List<$core.int>>(2, _omitFieldNames ? '' : 'fileData', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false
+  ;
+
+  EngineGifFile clone() => EngineGifFile()..mergeFromMessage(this);
+  EngineGifFile copyWith(void Function(EngineGifFile) updates) => super.copyWith((message) => updates(message as EngineGifFile)) as EngineGifFile;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGifFile create() => EngineGifFile._();
+  EngineGifFile createEmptyInstance() => create();
+  $pb.BuilderInfo get info_ => _i;
+  static EngineGifFile getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGifFile>(create);
+  static EngineGifFile? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get documentId => $_getI64(0);
+  @$pb.TagNumber(1)
+  set documentId($fixnum.Int64 v) { $_setInt64(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get fileData => $_getN(1);
+  @$pb.TagNumber(2)
+  set fileData($core.List<$core.int> v) { $_setBytes(1, v); }
+}
+
+class EngineGetGifFilesResponse extends $pb.GeneratedMessage {
+  factory EngineGetGifFilesResponse({
+    $core.Iterable<EngineGifFile>? files,
+  }) {
+    final $result = create();
+    if (files != null) {
+      $result.files.addAll(files);
+    }
+    return $result;
+  }
+  EngineGetGifFilesResponse._() : super();
+  factory EngineGetGifFilesResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetGifFilesResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetGifFilesResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineGifFile>(1, _omitFieldNames ? '' : 'files', $pb.PbFieldType.PM, subBuilder: EngineGifFile.create)
+    ..hasRequiredFields = false
+  ;
+
+  EngineGetGifFilesResponse clone() => EngineGetGifFilesResponse()..mergeFromMessage(this);
+  EngineGetGifFilesResponse copyWith(void Function(EngineGetGifFilesResponse) updates) => super.copyWith((message) => updates(message as EngineGetGifFilesResponse)) as EngineGetGifFilesResponse;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetGifFilesResponse create() => EngineGetGifFilesResponse._();
+  EngineGetGifFilesResponse createEmptyInstance() => create();
+  $pb.BuilderInfo get info_ => _i;
+  static EngineGetGifFilesResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetGifFilesResponse>(create);
+  static EngineGetGifFilesResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineGifFile> get files => $_getList(0);
 }
 
 class EngineGetCustomEmojiSetInfoRequest extends $pb.GeneratedMessage {
