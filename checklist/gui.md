@@ -242,14 +242,6 @@ All method signatures match both the FFI implementation (`bridge_ffi.dart`) and 
 
 **No critical, major, or minor issues detected.**
 
-# advanced_settings_screen — Audit
-
-## advanced_settings_screen — Backend wiring and behavioral issues
-
-- [ ] [CRITICAL] Hardware acceleration for video toggle (`setHardwareAccelVideo`) only saves to prefs (`app_state.dart:1939-1944`). AyuGram calls `Core::App().settings().setHardwareAcceleratedVideo(enabled)` → `Core::App().saveSettingsDelayed()`, which persists to a settings file that the media pipeline reads at startup. The Dart setting is never applied to any video decoder. — `advanced_settings_screen.dart:824-831` / `app_state.dart:1939-1944` ← `settings_advanced.cpp:846-864`
-
-- [ ] [CRITICAL] "Manage Dictionaries" dialog in Dart scans `/usr/share/hunspell` for `.dic` files and lists them as read-only information. AyuGram's `Ui::ManageDictionariesBox` (called at `settings_advanced.cpp:937`) allows downloading and enabling/disabling dictionaries for the actual spellchecker. The Dart dialog provides no ability to download or activate dictionaries; it only lists already-installed system files. — `advanced_settings_screen.dart:2121-2279` ← `settings_advanced.cpp:932-942`
-
 # auth_screen — Auth screen behavioral and wiring issues
 
 - [ ] [CRITICAL] Language picker stores `_selectedLanguageCode` preference but never downloads or applies Telegram language packs from the API — picker appears fully functional but is not engine-wired; AyuGram fetches packs via `lang_cloud_manager` on selection — `auth_screen.dart:2150-2170,2236` ← `AyuGram/Telegram/SourceFiles/lang/lang_cloud_manager.cpp`
@@ -384,8 +376,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 **Conclusion:** Widget is a faithful, fully-functional port of AyuGram's ToggleView with no missing features for the default style and no implementation bugs.
 
 # call_panel — Call Panel UI
-
-- [ ] [CRITICAL] `showScreenShareChooser` is not imported — called at `call_panel.dart:342` but only defined in `call_screen.dart:2363`; `call_panel.dart` has no `import 'call_screen.dart'` (imports at lines 1–18). This is an unresolved identifier that breaks screen sharing — `_onScreenShareTap` will throw a compile/runtime error. ← `AyuGramDesktop/Telegram/SourceFiles/calls/calls_panel.cpp:394` (screen share toggle is fully wired)
 
 - [ ] [CRITICAL] Signal quality scale mismatch — `call_panel.dart:1926-1927` computes `(quality * _barCount / 100).ceil()` treating `quality` as a 0–100 percentage. The engine bridge returns 0–4 directly (matching AyuGram `Call::kSignalBarCount = 4`; confirmed by `engine_models.dart:2526` defaulting `signalQuality = 4`). At full signal (quality=4): `(4×4/100)⌈⌉ = 1` — shows only 1 of 4 bars. Correct mapping is `quality.clamp(0, _barCount)`. ← `AyuGramDesktop/Telegram/SourceFiles/calls/calls_signal_bars.cpp:38-39` (`i < _count` where `_count` is 0–4 directly)
 
