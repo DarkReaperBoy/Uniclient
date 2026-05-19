@@ -324,9 +324,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 ## choose_datetime_box — schedule/calendar/time-picker dialog suite
 
-- [ ] [MAJOR] Non-premium repeat click shows a custom `TelegramBox` dialog instead of a toast notification — C++ calls `Settings::ShowPremiumPromoToast(...)` which displays a dismissable toast with a clickable "Premium" link; Dart pops up a full box with a hardcoded text block — `choose_datetime_box.dart:1173` ← `history_view_schedule_box.cpp:129-143`
-
-- [ ] [MAJOR] Calendar title shows wrong arrow indicator: C++ `CalendarBox::Title::paintEvent` draws a small right-pointing triangle before the month/year text (not a dropdown arrow icon); Dart renders `Icons.arrow_drop_down` — `choose_datetime_box.dart:299` ← `calendar_box.cpp:1147-1159`
 
 # engine_service — Bridge/engine service layer audit
 
