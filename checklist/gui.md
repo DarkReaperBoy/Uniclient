@@ -320,17 +320,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 # chat_list_panel — Audit Findings
 
-## chat_list_row — Swipe direction inverted, badge icon colors wrong, ripple wrong
-
-- [ ] [CRITICAL] Swipe direction is inverted: Dart slides row RIGHT (positive `_swipeOffset`) revealing action on the LEFT, but AyuGram swipes LEFT (`data.translation < 0`) revealing action on the RIGHT edge of the row. The `clamp(0.0, _maxSwipeOffset)` at line 752 prevents left-swipe entirely. Dart never activates for left-drag. — `chat_list_row.dart:749-753` ← `dialogs/ui/dialogs_layout.cpp:447-453` + `dialogs/dialogs_widget.cpp:804`
-
-- [ ] [CRITICAL] Mention/reaction/poll badge icons use `badgeBg` (unread badge background) as the icon color in wide mode. AyuGram uses distinct theme colors: mention → `dialogsMentionIconFg` (#40a7e3), reaction → `dialogsReactionIconFg` (#e05356), poll → `dialogsPollIconFg` (#997be1). The palette already declares these three fields but they are not used. — `chat_list_row.dart:288,297,305` ← `dialogs/dialogs.style:580-608` + `lib_ui/ui/colors.palette:690-692`
-
-- [ ] [MAJOR] Swipe action ripple on threshold-crossing is wrong. AyuGram draws an ellipse that expands based on `swipeTranslation * reachRatio` using `ResolveQuickActionBgActive` color, positioned near the top-right of the action area (`geometry.width() - offset, offset`). Dart draws a white semi-transparent (`rgba(255,255,255,0.20)`) circle centered in the 80px SizedBox on the LEFT side of the row. Wrong color, wrong position, wrong growth logic. — `chat_list_row.dart:916-941` ← `dialogs/ui/dialogs_layout.cpp:979-986`
-
-- [ ] [MAJOR] Forum jump bubble padding is 5px left/right (area1) and 4/5px (area2), but AyuGram spec uses `forumDialogJumpPadding: margins(8px, 3px, 8px, 3px)` — 8px left/right for both areas. Dart is 3px short on each horizontal side. — `chat_list_row.dart:2377,2411` ← `dialogs/dialogs.style:142`
-
-- [ ] [MAJOR] `debugPrint('[SWIPE] dragUpdate ...')` at line 745 is left in production code, printing on every drag-update frame — performance and log-noise issue. — `chat_list_row.dart:745`
 
 # chat_settings_screen — Audit Findings
 
