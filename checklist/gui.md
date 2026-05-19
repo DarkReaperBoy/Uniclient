@@ -324,21 +324,7 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 ## chat_view — Missing bars, voice listen state, group call defects
 
-- [ ] [CRITICAL] `_stopAndSendRecording()` immediately sends the recording with zero preview: no "listen before send" (ListenWrap) state — after the user locks recording and taps Stop, AyuGram presents a waveform preview with play/pause, trim handles, and a delete button before any message is sent; Dart skips this entirely and fires `engine.sendVoice` / `engine.sendVideoNote` inline — `chat_view.dart:13266` ← `AyuGram/Telegram/SourceFiles/history/view/controls/history_view_voice_record_bar.cpp:669`
-
-- [ ] [CRITICAL] `TranslateBar` is completely absent — AyuGram constructs a `TranslateBar` in `ChatWidget`'s initialiser (line 279) and `setupTranslateBar()` (line 1977) that automatically surfaces above the compose area when the chat's language differs from the user's locale; no equivalent widget or logic exists anywhere in chat_view.dart — `chat_view.dart` (no implementation) ← `AyuGram/Telegram/SourceFiles/history/view/history_view_chat_section.cpp:279`
-
 - [ ] [CRITICAL] `_ContactStatusBar` handles only three states (isBlocked → Unblock, isBot → label, non-contact → Add/Block); AyuGram's `ContactStatus` has nine states, five of which are completely unimplemented: `UnarchiveOrBlock`, `UnarchiveOrReport`, `SharePhoneNumber`, `RequestChatInfo`, and `SetBotPhoto` — `chat_view.dart:9345` ← `AyuGram/Telegram/SourceFiles/history/view/history_view_contact_status.cpp:348`
-
-- [ ] [MAJOR] `_GroupCallBar` builds the userpic row with `participants.take(3)` — no sort — so the first three participants in the data list appear, regardless of who is currently speaking; AyuGram sorts by `speaking DESC, max(lastActive, date) DESC` so the most-active speakers always appear leftmost — `chat_view.dart:10527` ← `AyuGram/Telegram/SourceFiles/history/view/history_view_group_call_bar.cpp:122`
-
-- [ ] [MAJOR] `_GroupCallUserpic` renders a static green border ring for speaking participants; AyuGram's `GroupCallUserpics` drives per-userpic `BlobsAnimation` with an animated `_speakingAnimation` that pulses outward blobs in sync with audio level — `chat_view.dart:10550` ← `AyuGram/Telegram/SourceFiles/ui/chat/group_call_userpics.h:48`
-
-- [ ] [MAJOR] `_GroupCallBar` height hardcoded at 52 px; AyuGram uses `st::historyReplyHeight = 49px` for all reply-style bars including the group call bar — `chat_view.dart:10530` ← `AyuGram/Telegram/SourceFiles/chat_helpers/chat_helpers.style:1067`
-
-- [ ] [MAJOR] `TopicReopenBar` is absent — for forum topics where `isClosed == true` but the user has `canToggleClosed == true` (i.e. admin), AyuGram shows a prominently animated reopen bar via `_topicReopenBar` above the message list; Dart shows only the compose area with no indication the topic is closed and no reopen affordance — `chat_view.dart:5310` ← `AyuGram/Telegram/SourceFiles/history/view/history_view_chat_section.cpp:634`
-
-- [ ] [MAJOR] Admin join-requests bar (`RequestsBar`) is absent — AyuGram creates a `_requestsBar` (type `Ui::RequestsBar`) in `HistoryWidget` that surfaces a "N new member requests" banner above the compose area for admins with pending approval requests; Dart has no equivalent — `chat_view.dart` (no implementation) ← `AyuGram/Telegram/SourceFiles/history/history_widget.h:774`
 
 ## choose_datetime_box — schedule/calendar/time-picker dialog suite
 
