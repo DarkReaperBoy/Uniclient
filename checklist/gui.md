@@ -317,9 +317,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — Section header "Media" should be "Media export settings"
-
-- [ ] [MAJOR] `_buildSectionHeader('Media', ...)` renders "Media". AyuGram uses `lng_export_header_media` = "Media export settings". — `chat_export.dart:1539` ← `export_view_settings.cpp:229` and `lang.strings` "lng_export_header_media"
 
 ## chat_export — Section header "Output format" should be "Location and format"
 

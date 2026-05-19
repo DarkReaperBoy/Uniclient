@@ -1010,8 +1010,8 @@ class _UniClientAppState extends State<UniClientApp>
           ));
 
         case 'showExportPanel':
-          final navCtx = _navigatorKey.currentContext;
-          if (navCtx != null) {
+          final overlay = _navigatorKey.currentState?.overlay;
+          if (overlay != null) {
             final modeStr = cmd['mode'] as String? ?? 'full';
             final mode = switch (modeStr) {
               'perChat' => ExportMode.perChat,
@@ -1019,7 +1019,7 @@ class _UniClientAppState extends State<UniClientApp>
               _ => ExportMode.full,
             };
             final appState = context.read<AppState>();
-            showExportPanel(navCtx, ExportTarget(mode: mode, accountId: appState.activeAccountId));
+            showExportPanelWithOverlay(overlay, ExportTarget(mode: mode, accountId: appState.activeAccountId));
           }
 
         case 'showPeerShortInfo':

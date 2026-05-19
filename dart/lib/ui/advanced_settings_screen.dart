@@ -1235,12 +1235,12 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         onTap: () {
           final accountId = appState.activeAccountId;
           final nav = Navigator.of(context);
+          final overlay = nav.overlay;
           nav.popUntil((route) => route.isFirst);
           Future.delayed(const Duration(milliseconds: 300), () {
-            final ctx = nav.context;
-            if (!ctx.mounted) return;
-            showExportPanel(
-              ctx,
+            if (overlay == null) return;
+            showExportPanelWithOverlay(
+              overlay,
               ExportTarget(mode: ExportMode.full, accountId: accountId),
             );
           });

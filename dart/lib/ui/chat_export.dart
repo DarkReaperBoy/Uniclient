@@ -168,10 +168,24 @@ void showExportPanel(BuildContext context, ExportTarget target) {
   _ExportPanelController.show(context, target);
 }
 
+void showExportPanelWithOverlay(OverlayState overlay, ExportTarget target) {
+  _ExportPanelController.showWithOverlay(overlay, target);
+}
+
 class _ExportPanelController {
   static OverlayEntry? _entry;
 
   static void show(BuildContext context, ExportTarget target) {
+    final overlay = Overlay.maybeOf(context) ?? Navigator.maybeOf(context)?.overlay;
+    if (overlay == null) return;
+    _showInOverlay(overlay, target);
+  }
+
+  static void showWithOverlay(OverlayState overlay, ExportTarget target) {
+    _showInOverlay(overlay, target);
+  }
+
+  static void _showInOverlay(OverlayState overlay, ExportTarget target) {
     close();
     late OverlayEntry entry;
     entry = OverlayEntry(
@@ -181,13 +195,15 @@ class _ExportPanelController {
       ),
     );
     _entry = entry;
-    Overlay.of(context).insert(entry);
+    overlay.insert(entry);
   }
 
   static void showAndActivate(BuildContext context, ExportTarget target) {
     if (_entry != null) {
+      final overlay = Overlay.maybeOf(context) ?? Navigator.maybeOf(context)?.overlay;
+      if (overlay == null) return;
       _entry!.remove();
-      Overlay.of(context).insert(_entry!);
+      overlay.insert(_entry!);
       _entry!.markNeedsBuild();
       return;
     }
@@ -195,7 +211,8 @@ class _ExportPanelController {
   }
 
   static void close() {
-    _entry?.remove();
+    if (_entry == null) return;
+    try { _entry!.remove(); } catch (_) {}
     _entry = null;
   }
 }
