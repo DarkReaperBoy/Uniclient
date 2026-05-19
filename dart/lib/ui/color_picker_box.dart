@@ -463,12 +463,6 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: _kSliderSkip),
-                    _hexField(
-                      p.boxTitleAdditionalFg,
-                      isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000),
-                      isDark ? const Color(0xFF3A4655) : const Color(0xFFD9D9D9),
-                    ),
                   ],
                 ),
               ),
@@ -562,6 +556,8 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
             _onRGBFieldChanged),
         _numField('B', _blueCtrl, 255, _blueFocus, 5, labelFg, textFg,
             borderColor, _onRGBFieldChanged),
+        const SizedBox(height: _kSliderSkip),
+        _hexField(labelFg, textFg, borderColor),
       ],
     );
   }
@@ -648,8 +644,6 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     return SizedBox(
       height: _kFieldHeight,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
             width: 14,
@@ -660,8 +654,7 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                     color: labelFg)),
           ),
           const SizedBox(width: 4),
-          SizedBox(
-            width: 75,
+          Expanded(
             child: TextField(
               controller: _hexCtrl,
               focusNode: _hexFocus,
