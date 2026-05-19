@@ -633,8 +633,6 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   void _closePanel() {
     if (widget.onClose != null) {
       widget.onClose!();
-    } else {
-      Navigator.of(context).pop();
     }
   }
 
