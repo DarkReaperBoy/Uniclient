@@ -314,10 +314,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 # chat_export — Audit Findings
 
 
-## chat_export — `forceSubPath` not sent to engine — export written to wrong directory
-
-- [ ] [CRITICAL] AyuGram's `ResolveSettings()` sets `forceSubPath = true` when using the default download path; `export_output_abstract.cpp` uses this flag to create a timestamped subdirectory automatically. The Dart `_startExport()` never sends a `force_sub_path` field in `exportParams`. When the user leaves the default location (`Downloads/TelegramExport`), the backend will not create a per-export timestamped subdirectory, colliding with prior exports. — `chat_export.dart:775-800` ← `export_view_panel_controller.cpp:126-131` and `export_output_abstract.cpp:26-31`
-
 ## chat_export — `_ExportSuggestBox` text and title are wrong (hardcoded, mismatched)
 
 - [ ] [MAJOR] `_ExportSuggestBox` shows title "Export Your Data" and text "You can export your data from Telegram, including chats, messages, and media. The export will be processed by Telegram servers and may take some time." AyuGram's `SuggestBox` uses `lng_export_suggest_title` = "Data export ready" and `lng_export_suggest_text` = "You can now download the data you requested. Start exporting data?" Cancel button says "Cancel" in Dart vs `lng_export_suggest_cancel` = "Not now" in AyuGram. — `chat_export.dart:3037-3088` ← `export_view_panel_controller.cpp:53-64`
