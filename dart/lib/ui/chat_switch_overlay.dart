@@ -27,20 +27,6 @@ const _maxRows = 3;
 
 const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
-const _telegramTopicColors = [
-  Color(0xFF6FB9F0), // blue
-  Color(0xFFFFD67E), // yellow
-  Color(0xFFCB86DB), // violet
-  Color(0xFF8EEE98), // green
-  Color(0xFFFF93B2), // rose
-  Color(0xFFFB6F5F), // red
-];
-
-Color _telegramTopicColor(int topicId) {
-  if (topicId <= 0) return _telegramTopicColors[0];
-  return _telegramTopicColors[topicId.abs() % _telegramTopicColors.length];
-}
-
 class ChatSwitchOverlay extends StatefulWidget {
   final List<ChatInfo> chats;
   final int initialIndex;
@@ -219,7 +205,8 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
         widget.onCancel();
         return;
       }
-      _selected = -1;
+      _selected = (_selected > 0 ? _selected - 1 : 0)
+          .clamp(0, _shownCount.clamp(1, _list.length) - 1);
     });
   }
 
@@ -286,23 +273,11 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
         final visible = (perRow * rows).clamp(1, count);
         final innerW = perRow * _cellWidth;
 
-        if (_shownPerRow != perRow || _shownRows != rows) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && (_shownPerRow != perRow || _shownRows != rows)) {
-              setState(() {
-                _shownPerRow = perRow;
-                _shownRows = rows;
-              });
-            }
-          });
-        }
+        _shownPerRow = perRow;
+        _shownRows = rows;
 
         if (_selected >= visible) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && _selected >= visible) {
-              setState(() => _selected = visible - 1);
-            }
-          });
+          _selected = visible - 1;
         }
 
         return GestureDetector(
@@ -472,7 +447,6 @@ class _ChatSwitchCell extends StatelessWidget {
     if (chat.type == ChatType.topic) {
       final topicId = int.tryParse(chat.chatId) ?? 0;
       final isGeneral = topicId == 1;
-      final topicColor = _telegramTopicColor(topicId);
       final chatState = context.read<ChatState>();
       final engine = context.read<EngineService>();
       final topics = chat.parentId.isNotEmpty
@@ -482,25 +456,62 @@ class _ChatSwitchCell extends StatelessWidget {
         (t) => t!.id == chat.chatId,
         orElse: () => null,
       );
+      final topicColorId = forumTopic?.colorId ?? 0x6FB9F0;
 
-      Widget badgeChild;
+      Widget primaryIcon;
       if (forumTopic != null && forumTopic.hasCustomIcon) {
-        badgeChild = CustomEmojiTopicIcon(
+        primaryIcon = CustomEmojiTopicIcon(
           documentId: forumTopic.iconEmojiId,
           accountId: chat.accountId,
           engine: engine,
-          size: 16,
+          size: _userpicSize,
         );
       } else if (isGeneral) {
-        badgeChild = const Icon(Icons.tag, size: 13, color: Colors.white);
+        primaryIcon = GeneralForumTopicIcon(size: _userpicSize);
       } else {
-        badgeChild = Text(
-          chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '#',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            height: 1.0,
+        primaryIcon = ForumTopicIcon(
+          colorId: topicColorId,
+          title: chat.title,
+          size: _userpicSize,
+        );
+      }
+
+      final parentChat = chat.parentId.isNotEmpty
+          ? chatState.chats.cast<ChatInfo?>().firstWhere(
+              (c) => c!.chatId == chat.parentId && c.accountId == chat.accountId,
+              orElse: () => null,
+            )
+          : null;
+
+      Widget parentBadge;
+      if (parentChat != null && parentChat.avatarPath.isNotEmpty) {
+        if (!parentChat.avatarPath.startsWith('/')) {
+          parentBadge = ClipOval(
+            child: Image.memory(base64Decode(parentChat.avatarPath),
+                width: 20, height: 20, fit: BoxFit.cover),
+          );
+        } else {
+          parentBadge = ClipOval(
+            child: Image.file(File(parentChat.avatarPath),
+                width: 20, height: 20, fit: BoxFit.cover),
+          );
+        }
+      } else {
+        final pTitle = parentChat?.title ?? '';
+        final numId = parentChat != null
+            ? (int.tryParse(parentChat.chatId) ?? parentChat.chatId.hashCode.abs())
+            : 0;
+        final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
+        parentBadge = Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          alignment: Alignment.center,
+          child: Text(
+            pTitle.isNotEmpty ? pTitle[0].toUpperCase() : '#',
+            style: const TextStyle(
+              color: Colors.white, fontSize: 9, fontWeight: FontWeight.w500,
+            ),
           ),
         );
       }
@@ -510,7 +521,11 @@ class _ChatSwitchCell extends StatelessWidget {
         height: _userpicSize,
         child: Stack(
           children: [
-            _buildBaseUserpic(palette, _userpicSize),
+            SizedBox(
+              width: _userpicSize,
+              height: _userpicSize,
+              child: primaryIcon,
+            ),
             Positioned(
               right: 0,
               bottom: 0,
@@ -518,14 +533,11 @@ class _ChatSwitchCell extends StatelessWidget {
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
-                  color: (forumTopic != null && forumTopic.hasCustomIcon)
-                      ? null
-                      : topicColor,
                   shape: BoxShape.circle,
                   border: Border.all(color: palette.boxBg, width: 2),
                 ),
                 alignment: Alignment.center,
-                child: badgeChild,
+                child: parentBadge,
               ),
             ),
           ],
