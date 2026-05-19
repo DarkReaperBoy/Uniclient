@@ -32,18 +32,18 @@ List<_DecodedThumbResult> _decodeThumbBatchIsolate(List<List<dynamic>> entries) 
 }
 
 enum EmojiSizeTag {
-  normal,   // 20px frame (inline in text)
+  normal,   // 22px frame (inline in text — AdjustCustomEmojiSize: round(20*1.12))
   large,    // 27px frame
-  isolated, // 43px frame (1-7 emoji messages)
-  setIcon,  // 24px frame (sticker set icons)
+  isolated, // 38px frame (1-7 emoji messages — largeEmojiSize + 2*largeEmojiOutline)
+  setIcon,  // 21px frame (sticker set icons — ConvertScale(18*7/6))
 }
 
 class EmojiSizeConstants {
   static const Map<EmojiSizeTag, double> frameSizes = {
-    EmojiSizeTag.normal: 20.0,
+    EmojiSizeTag.normal: 22.0,
     EmojiSizeTag.large: 27.0,
-    EmojiSizeTag.isolated: 43.0,
-    EmojiSizeTag.setIcon: 24.0,
+    EmojiSizeTag.isolated: 38.0,
+    EmojiSizeTag.setIcon: 21.0,
   };
 
   static const int kPerRow = 16;
@@ -102,7 +102,7 @@ class CustomEmojiCache {
   final List<_PendingRequest> _fileBatchQueue = [];
   final Map<int, int> _failedRetryTime = {};
   final Map<int, int> _fileFailedRetryTime = {};
-  static const int _retryDelayMs = 5000;
+  static const int _retryDelayMs = 0;
 
   Future<void> initDiskCache(String cacheDir) async {
     if (kIsWeb) return;
@@ -196,6 +196,8 @@ class CustomEmojiCache {
 
   void _evictFromMemory(int documentId) {
     _files.remove(documentId);
+    _thumbs.remove(documentId);
+    _paths.remove(documentId);
     _fileFailed.remove(documentId);
     _fileFailedRetryTime.remove(documentId);
     _failed.remove(documentId);
@@ -485,10 +487,9 @@ class CustomEmojiCache {
           }
         }
       }
-    } else {
-      for (final cb in Set<VoidCallback>.from(_globalListeners)) {
-        cb();
-      }
+    }
+    for (final cb in Set<VoidCallback>.from(_globalListeners)) {
+      cb();
     }
   }
 }
