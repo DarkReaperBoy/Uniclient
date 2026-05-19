@@ -18461,6 +18461,41 @@ func (t *TelegramCore) GetPeerSettingsCheck(chatID string) error {
 	return err
 }
 
+// GetPeerBarSettings returns action bar flags for a peer as a JSON string.
+func (t *TelegramCore) GetPeerBarSettings(chatID string) (string, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return "", err }
+	defer unlock()
+	result, err := t.api.MessagesGetPeerSettings(t.ctx, inputPeer)
+	if err != nil { return "", err }
+	t.cacheEntities(result.Users, result.Chats)
+	s := result.Settings
+	m := map[string]interface{}{
+		"report_spam":    s.ReportSpam,
+		"add_contact":    s.AddContact,
+		"block_contact":  s.BlockContact,
+		"share_contact":  s.ShareContact,
+		"autoarchived":   s.Autoarchived,
+		"invite_members": s.InviteMembers,
+	}
+	if title, ok := s.GetRequestChatTitle(); ok {
+		m["request_chat"] = true
+		m["request_chat_title"] = title
+	}
+	if date, ok := s.GetRequestChatDate(); ok {
+		m["request_chat_date"] = date
+	}
+	if s.RequestChatBroadcast {
+		m["request_chat_broadcast"] = true
+	}
+	if dist, ok := s.GetGeoDistance(); ok {
+		m["geo_distance"] = dist
+	}
+	data, err := json.Marshal(m)
+	if err != nil { return "", err }
+	return string(data), nil
+}
+
 // GetParticipantInfo returns detailed info about a specific participant in a chat.
 func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
@@ -21688,6 +21723,26 @@ func (t *TelegramCore) ContactsAcceptContact(id tg.InputUserClass) (tg.UpdatesCl
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return nil, ErrAuth }
 	return t.api.ContactsAcceptContact(t.ctx, id)
+}
+
+// HidePeerSettingsBar hides the action bar (contact status bar) for a peer.
+func (t *TelegramCore) HidePeerSettingsBar(chatID string) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return err }
+	defer unlock()
+	_, err = t.api.MessagesHidePeerSettingsBar(t.ctx, inputPeer)
+	return err
+}
+
+// SharePhoneWithPeer shares the current user's phone number with a peer by accepting their contact request.
+func (t *TelegramCore) SharePhoneWithPeer(chatID string) error {
+	uid, err := tgUserID(chatID)
+	if err != nil { return err }
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	hash := t.getCachedUserHash(uid)
+	_, err = t.api.ContactsAcceptContact(t.ctx, &tg.InputUser{UserID: uid, AccessHash: hash})
+	return err
 }
 
 // ContactsBlockFromReplies blocks a user and deletes their reply messages.

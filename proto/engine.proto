@@ -1608,3 +1608,18 @@ message EngineReportMusicListenRequest {
   bytes  file_ref     = 4;
   int32  duration_sec = 5;
 }
+
+message EngineGetPeerBarSettingsRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineSharePhoneWithPeerRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineHidePeerSettingsBarRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}

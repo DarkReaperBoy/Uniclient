@@ -13632,6 +13632,162 @@ func (x *EngineReportMusicListenRequest) GetDurationSec() int32 {
 	return 0
 }
 
+type EngineGetPeerBarSettingsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetPeerBarSettingsRequest) Reset() {
+	*x = EngineGetPeerBarSettingsRequest{}
+	mi := &file_proto_engine_proto_msgTypes[204]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetPeerBarSettingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetPeerBarSettingsRequest) ProtoMessage() {}
+
+func (x *EngineGetPeerBarSettingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[204]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetPeerBarSettingsRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetPeerBarSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{204}
+}
+
+func (x *EngineGetPeerBarSettingsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineGetPeerBarSettingsRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+type EngineSharePhoneWithPeerRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineSharePhoneWithPeerRequest) Reset() {
+	*x = EngineSharePhoneWithPeerRequest{}
+	mi := &file_proto_engine_proto_msgTypes[205]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineSharePhoneWithPeerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineSharePhoneWithPeerRequest) ProtoMessage() {}
+
+func (x *EngineSharePhoneWithPeerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[205]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineSharePhoneWithPeerRequest.ProtoReflect.Descriptor instead.
+func (*EngineSharePhoneWithPeerRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{205}
+}
+
+func (x *EngineSharePhoneWithPeerRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineSharePhoneWithPeerRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+type EngineHidePeerSettingsBarRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineHidePeerSettingsBarRequest) Reset() {
+	*x = EngineHidePeerSettingsBarRequest{}
+	mi := &file_proto_engine_proto_msgTypes[206]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineHidePeerSettingsBarRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineHidePeerSettingsBarRequest) ProtoMessage() {}
+
+func (x *EngineHidePeerSettingsBarRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[206]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineHidePeerSettingsBarRequest.ProtoReflect.Descriptor instead.
+func (*EngineHidePeerSettingsBarRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{206}
+}
+
+func (x *EngineHidePeerSettingsBarRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineHidePeerSettingsBarRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -14858,7 +15014,19 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\vaccess_hash\x18\x03 \x01(\x03R\n" +
 	"accessHash\x12\x19\n" +
 	"\bfile_ref\x18\x04 \x01(\fR\afileRef\x12!\n" +
-	"\fduration_sec\x18\x05 \x01(\x05R\vdurationSecB\x11Z\x0funiclient/protob\x06proto3"
+	"\fduration_sec\x18\x05 \x01(\x05R\vdurationSec\"Y\n" +
+	"\x1fEngineGetPeerBarSettingsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\"Y\n" +
+	"\x1fEngineSharePhoneWithPeerRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\"Z\n" +
+	" EngineHidePeerSettingsBarRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatIdB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -14872,7 +15040,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 204)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 207)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                            // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                            // 1: uniclient.AccountInfo
@@ -15078,6 +15246,9 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineReorderDialogFiltersRequest)(nil),      // 201: uniclient.EngineReorderDialogFiltersRequest
 	(*EngineGetForumTopicsWithOffsetRequest)(nil),  // 202: uniclient.EngineGetForumTopicsWithOffsetRequest
 	(*EngineReportMusicListenRequest)(nil),         // 203: uniclient.EngineReportMusicListenRequest
+	(*EngineGetPeerBarSettingsRequest)(nil),        // 204: uniclient.EngineGetPeerBarSettingsRequest
+	(*EngineSharePhoneWithPeerRequest)(nil),        // 205: uniclient.EngineSharePhoneWithPeerRequest
+	(*EngineHidePeerSettingsBarRequest)(nil),       // 206: uniclient.EngineHidePeerSettingsBarRequest
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -15136,7 +15307,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   204,
+			NumMessages:   207,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

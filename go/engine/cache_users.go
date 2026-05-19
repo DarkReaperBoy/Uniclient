@@ -931,6 +931,45 @@ func (e *Engine) ReportSpam(accountID, chatID string) error {
 	return nil
 }
 
+// GetPeerBarSettings returns the action bar flags for a peer as a JSON string.
+func (e *Engine) GetPeerBarSettings(accountID, chatID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "{}", nil
+	}
+	tc, ok := acc.Core.(*cores.TelegramCore)
+	if !ok {
+		return "{}", nil
+	}
+	return tc.GetPeerBarSettings(chatID)
+}
+
+// SharePhoneWithPeer shares the current user's phone number with a peer.
+func (e *Engine) SharePhoneWithPeer(accountID, chatID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	tc, ok := acc.Core.(*cores.TelegramCore)
+	if !ok {
+		return fmt.Errorf("share phone not supported for this platform")
+	}
+	return tc.SharePhoneWithPeer(chatID)
+}
+
+// HidePeerSettingsBar hides the action bar for a peer.
+func (e *Engine) HidePeerSettingsBar(accountID, chatID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	tc, ok := acc.Core.(*cores.TelegramCore)
+	if !ok {
+		return nil
+	}
+	return tc.HidePeerSettingsBar(chatID)
+}
+
 // GetLinkedChatId returns the linked discussion group ID for a channel.
 func (e *Engine) GetLinkedChatId(accountID, chatID string) (string, error) {
 	acc, ok := e.getAccount(accountID)

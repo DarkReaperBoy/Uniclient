@@ -18027,5 +18027,185 @@ class EngineReportMusicListenRequest extends $pb.GeneratedMessage {
   void clearDurationSec() => clearField(5);
 }
 
+class EngineGetPeerBarSettingsRequest extends $pb.GeneratedMessage {
+  factory EngineGetPeerBarSettingsRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    return $result;
+  }
+  EngineGetPeerBarSettingsRequest._() : super();
+  factory EngineGetPeerBarSettingsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetPeerBarSettingsRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetPeerBarSettingsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineGetPeerBarSettingsRequest clone() => EngineGetPeerBarSettingsRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineGetPeerBarSettingsRequest copyWith(void Function(EngineGetPeerBarSettingsRequest) updates) => super.copyWith((message) => updates(message as EngineGetPeerBarSettingsRequest)) as EngineGetPeerBarSettingsRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetPeerBarSettingsRequest create() => EngineGetPeerBarSettingsRequest._();
+  EngineGetPeerBarSettingsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetPeerBarSettingsRequest> createRepeated() => $pb.PbList<EngineGetPeerBarSettingsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetPeerBarSettingsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetPeerBarSettingsRequest>(create);
+  static EngineGetPeerBarSettingsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+}
+
+class EngineSharePhoneWithPeerRequest extends $pb.GeneratedMessage {
+  factory EngineSharePhoneWithPeerRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    return $result;
+  }
+  EngineSharePhoneWithPeerRequest._() : super();
+  factory EngineSharePhoneWithPeerRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineSharePhoneWithPeerRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineSharePhoneWithPeerRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use [GeneratedMessageGenericExtensions.deepCopy] instead.')
+  EngineSharePhoneWithPeerRequest clone() => EngineSharePhoneWithPeerRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use [GeneratedMessageGenericExtensions.rebuild] instead.')
+  EngineSharePhoneWithPeerRequest copyWith(void Function(EngineSharePhoneWithPeerRequest) updates) => super.copyWith((message) => updates(message as EngineSharePhoneWithPeerRequest)) as EngineSharePhoneWithPeerRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineSharePhoneWithPeerRequest create() => EngineSharePhoneWithPeerRequest._();
+  EngineSharePhoneWithPeerRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineSharePhoneWithPeerRequest> createRepeated() => $pb.PbList<EngineSharePhoneWithPeerRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineSharePhoneWithPeerRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineSharePhoneWithPeerRequest>(create);
+  static EngineSharePhoneWithPeerRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+}
+
+class EngineHidePeerSettingsBarRequest extends $pb.GeneratedMessage {
+  factory EngineHidePeerSettingsBarRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    return $result;
+  }
+  EngineHidePeerSettingsBarRequest._() : super();
+  factory EngineHidePeerSettingsBarRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineHidePeerSettingsBarRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineHidePeerSettingsBarRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use [GeneratedMessageGenericExtensions.deepCopy] instead.')
+  EngineHidePeerSettingsBarRequest clone() => EngineHidePeerSettingsBarRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use [GeneratedMessageGenericExtensions.rebuild] instead.')
+  EngineHidePeerSettingsBarRequest copyWith(void Function(EngineHidePeerSettingsBarRequest) updates) => super.copyWith((message) => updates(message as EngineHidePeerSettingsBarRequest)) as EngineHidePeerSettingsBarRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineHidePeerSettingsBarRequest create() => EngineHidePeerSettingsBarRequest._();
+  EngineHidePeerSettingsBarRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineHidePeerSettingsBarRequest> createRepeated() => $pb.PbList<EngineHidePeerSettingsBarRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineHidePeerSettingsBarRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineHidePeerSettingsBarRequest>(create);
+  static EngineHidePeerSettingsBarRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

@@ -20151,6 +20151,15 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 			Result_1: coreSliceToProto_PeerColorEntry(r1),
 		}
 		return proto.Marshal(resp)
+	case "GetPeerBarSettings":
+		var req pbcores.TelegramGetPeerBarSettingsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
+		r1, err := c.GetPeerBarSettings(req.ChatId)
+		if err != nil { return nil, err }
+		resp := &pbcores.TelegramGetPeerBarSettingsResponse{
+			Result_1: r1,
+		}
+		return proto.Marshal(resp)
 	case "GetPeerSettingsCheck":
 		var req pbcores.TelegramGetPeerSettingsCheckRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }

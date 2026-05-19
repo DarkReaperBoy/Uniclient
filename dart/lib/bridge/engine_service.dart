@@ -452,6 +452,35 @@ class EngineService {
     await _callAsync('__engine', 'ReportSpam', req.writeToBuffer());
   }
 
+  Future<Map<String, dynamic>> getPeerBarSettings(String accountId, String chatId) async {
+    final req = epb.EngineGetPeerBarSettingsRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetPeerBarSettings', req.writeToBuffer());
+      if (respBytes.isEmpty) return const {};
+      final jsonStr = utf8.decode(respBytes);
+      final map = jsonDecode(jsonStr);
+      return map is Map<String, dynamic> ? map : const {};
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  Future<void> sharePhoneWithPeer(String accountId, String chatId) async {
+    final req = epb.EngineSharePhoneWithPeerRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    await _callAsync('__engine', 'SharePhoneWithPeer', req.writeToBuffer());
+  }
+
+  Future<void> hidePeerSettingsBar(String accountId, String chatId) async {
+    final req = epb.EngineHidePeerSettingsBarRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    await _callAsync('__engine', 'HidePeerSettingsBar', req.writeToBuffer());
+  }
+
   Future<String> getLinkedChatId(String accountId, String chatId) async {
     final req = epb.EngineGetLinkedChatIdRequest()
       ..accountId = accountId

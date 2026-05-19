@@ -41,6 +41,7 @@ class ChatState extends ChangeNotifier {
   int _scheduledCount = 0;
   bool _isScheduledView = false;
   String _linkedChatId = '';
+  Map<String, dynamic> _peerBarSettings = const {};
 
   // ── Edit history view (§52.4) ──
   bool _isEditHistoryView = false;
@@ -455,6 +456,7 @@ class ChatState extends ChangeNotifier {
   int get scheduledCount => _scheduledCount;
   bool get isScheduledView => _isScheduledView;
   String get linkedChatId => _linkedChatId;
+  Map<String, dynamic> get peerBarSettings => _peerBarSettings;
 
   void toggleScheduledView() {
     _isScheduledView = !_isScheduledView;
@@ -1014,6 +1016,7 @@ class ChatState extends ChangeNotifier {
     _deletedMsgSearch = '';
     _linkedChatId = '';
     _botStartToken = '';
+    _peerBarSettings = const {};
     _loadScheduledCount(chat.accountId, chat.chatId);
     _senderAvatars.clear();
     if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic) {
@@ -1028,6 +1031,7 @@ class ChatState extends ChangeNotifier {
         _loadConnectedBot(chat.accountId, chat.chatId);
       }
     }
+    _loadPeerBarSettings(chat.accountId, chat.chatId);
     _startPolling();
     notifyListeners();
   }
@@ -1868,6 +1872,18 @@ class ChatState extends ChangeNotifier {
     loadChats();
   }
 
+  Future<void> sharePhoneWithPeer(String accountId, String chatId) async {
+    await _engine.sharePhoneWithPeer(accountId, chatId);
+    _peerBarSettings = const {};
+    notifyListeners();
+  }
+
+  Future<void> hidePeerSettingsBar(String accountId, String chatId) async {
+    await _engine.hidePeerSettingsBar(accountId, chatId);
+    _peerBarSettings = const {};
+    notifyListeners();
+  }
+
   Future<void> addContact(String accountId, String phone, String firstName, String lastName) async {
     await _engine.addContact(accountId, phone, firstName, lastName);
     loadChats();
@@ -2098,6 +2114,18 @@ class ChatState extends ChangeNotifier {
       }
     } catch (_) {
       _linkedChatId = '';
+    }
+  }
+
+  Future<void> _loadPeerBarSettings(String accountId, String chatId) async {
+    try {
+      final settings = await _engine.getPeerBarSettings(accountId, chatId);
+      if (_activeChat?.chatId == chatId) {
+        _peerBarSettings = settings;
+        notifyListeners();
+      }
+    } catch (_) {
+      _peerBarSettings = const {};
     }
   }
 

@@ -1,0 +1,11 @@
+syntax = "proto3";
+package uniclient.telegram;
+option go_package = "uniclient/proto/cores";
+
+message TelegramGetPeerBarSettingsRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetPeerBarSettingsResponse {
+  string result_1 = 1;
+}

@@ -1002,6 +1002,10 @@ class _ChatViewState extends State<ChatView>
     if (chat.isArchived && (chat.type == ChatType.group || chat.type == ChatType.channel)) {
       return true;
     }
+    final chatState = context.read<ChatState>();
+    final bs = chatState.peerBarSettings;
+    if (bs['share_contact'] == true) return true;
+    if (bs['request_chat'] == true) return true;
     return false;
   }
 
@@ -4918,6 +4922,7 @@ class _ChatViewState extends State<ChatView>
             _ContactStatusBar(
               chat: chat,
               chatState: chatState,
+              barSettings: chatState.peerBarSettings,
             ),
           // Admin join-requests bar — shown when there are pending member requests.
           if (chat.isAdmin && chat.pendingRequestsCount > 0 &&
@@ -9426,8 +9431,9 @@ class _BotKeyboardButtonState extends State<_BotKeyboardButton> {
 class _ContactStatusBar extends StatelessWidget {
   final ChatInfo chat;
   final ChatState chatState;
+  final Map<String, dynamic> barSettings;
 
-  const _ContactStatusBar({required this.chat, required this.chatState});
+  const _ContactStatusBar({required this.chat, required this.chatState, this.barSettings = const {}});
 
   @override
   Widget build(BuildContext context) {
@@ -9450,6 +9456,68 @@ class _ContactStatusBar extends StatelessWidget {
           height: 49,
           textTop: 16,
           onTap: () => chatState.unblockUser(chat.accountId, chat.chatId),
+        ),
+      );
+    }
+
+    if (barSettings['share_contact'] == true && chat.isContact) {
+      return Container(
+        color: bgColor,
+        height: 49,
+        child: _ContactStatusButton(
+          label: 'Share My Phone Number',
+          color: windowActiveTextFg,
+          hoverColor: hoverColor,
+          rippleColor: rippleColor,
+          height: 49,
+          textTop: 16,
+          onTap: () {
+            chatState.sharePhoneWithPeer(chat.accountId, chat.chatId);
+            chatState.hidePeerSettingsBar(chat.accountId, chat.chatId);
+          },
+        ),
+      );
+    }
+
+    if (barSettings['request_chat'] == true) {
+      final chatTitle = barSettings['request_chat_title'] as String? ?? '';
+      final isBroadcast = barSettings['request_chat_broadcast'] == true;
+      return Container(
+        color: bgColor,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8),
+            Text(
+              isBroadcast
+                  ? 'This user invited you to the channel "$chatTitle"'
+                  : 'This user invited you to the group "$chatTitle"',
+              style: TextStyle(fontSize: 13, color: palette.windowSubTextFg),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: _ContactStatusButton(
+                    label: 'View Group',
+                    color: windowActiveTextFg,
+                    hoverColor: hoverColor,
+                    rippleColor: rippleColor,
+                    height: 36,
+                    textTop: 10,
+                    onTap: () {
+                      chatState.hidePeerSettingsBar(chat.accountId, chat.chatId);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       );
     }

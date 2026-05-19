@@ -395,6 +395,31 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ReportSpam(req.AccountId, req.ChatId)
 
+	case "GetPeerBarSettings":
+		var req pb.EngineGetPeerBarSettingsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		result, err := e.GetPeerBarSettings(req.AccountId, req.ChatId)
+		if err != nil {
+			return nil, err
+		}
+		return []byte(result), nil
+
+	case "SharePhoneWithPeer":
+		var req pb.EngineSharePhoneWithPeerRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.SharePhoneWithPeer(req.AccountId, req.ChatId)
+
+	case "HidePeerSettingsBar":
+		var req pb.EngineHidePeerSettingsBarRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.HidePeerSettingsBar(req.AccountId, req.ChatId)
+
 	case "GetLinkedChatId":
 		var req pb.EngineGetLinkedChatIdRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
