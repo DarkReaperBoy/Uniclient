@@ -318,10 +318,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — `_ExportPanelController` lacks proper `hideOnDeactivate` — panel stays open when app deactivates during export
-
-- [ ] [MAJOR] AyuGram sets `_panel->setHideOnDeactivate(true)` during processing and `setHideOnDeactivate(false)` on error. Dart's `_FloatingExportPanel` uses `AppLifecycleState.inactive` check but only for `_hideOnDeactivate` (which is `true` only during processing), and calls `Navigator.of(context).pop()` — but the export panel is in an `OverlayEntry`, not a Navigator route, so `Navigator.pop()` is a no-op. The deactivate behavior is broken. — `chat_export.dart:625-629` ← `export_view_panel_controller.cpp:278`, `299`, `335`
-
 ## chat_export — `_ExportPanelController.showAndActivate` does not re-bring panel to front visually
 
 - [ ] [MAJOR] `showAndActivate()` calls `_entry!.markNeedsBuild()` which only triggers a rebuild of the overlay entry, but does NOT reorder it to be on top of other overlay entries. AyuGram's `activatePanel()` calls `_panel->showAndActivate()` which brings the window to the foreground. In Dart the overlay entry retains its insertion order — if other overlays were inserted after it, the export panel remains behind them. — `chat_export.dart:187-192` ← `export_view_panel_controller.cpp:163-167`
