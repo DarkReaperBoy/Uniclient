@@ -381,10 +381,6 @@ All methods are fully implemented and wired to entity tracking. No mock data, TO
 
 # confirm_box — Audit Findings
 
-## confirm_box — showReportReactionBox missing ban-user checkbox
-
-- [ ] [CRITICAL] `showReportReactionBox` in Dart shows a box with title "Report Reactions" and a "BAN USER" confirm button, but the AyuGram `ReportReactionBox` includes an optional **checkbox** "Ban user and report" (`tr::lng_report_and_ban_button`) that is conditionally shown based on a `ban` parameter. The Dart implementation hardcodes the ban action into the confirm button label without offering the checkbox — meaning the user cannot choose to only report without banning. Furthermore, the Dart implementation does NOT call the engine at all — it only returns a `bool` to the caller but performs no API call. The AyuGram version calls `MTPmessages_ReportReaction` directly (the engine call). The Dart box is purely a UI stub with no backend wiring. — `confirm_box.dart:1551-1582` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_actions.cpp:1295-1343`
-
 ## confirm_box — showReportReactionBox missing ban-kick API call
 
 - [ ] [CRITICAL] When AyuGram's `ReportReactionBox` confirm is pressed, it (a) kicks the participant from the group via `chatParticipants().kick()` if ban checkbox is checked, and (b) calls `MTPmessages_ReportReaction` on the session API. The Dart `showReportReactionBox` does neither — it simply returns `true` to the caller with no engine call. No ban, no report API call. — `confirm_box.dart:1566-1572` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_actions.cpp:1315-1338`
