@@ -424,26 +424,6 @@ All methods are fully implemented and wired to entity tracking. No mock data, TO
 
 # contacts_screen — contacts box, row, edit/share dialogs
 
-## Findings
-
-- [ ] [CRITICAL] `_suggestBirthday()` shows a toast with the selected date string but never calls any engine method. The Go core has `UsersSuggestBirthday` (`telegram.go:24400`) but it is not wired through `bridge.go` and not exposed in `engine_service.dart`. The AyuGram implementation opens `internal:edit_birthday:suggest:<userId>` URL which routes to the full birthday edit flow. The Dart stub silently drops the birthday suggestion on the floor. — `contacts_screen.dart:1397-1408` ← `AyuGram/boxes/peers/edit_contact_box.cpp:582-589`
-
-- [ ] [CRITICAL] Online-sort is never updated while the dialog is open: `_throttledRefresh()` is defined but never called — there is no subscription to `EngineService.onUserStatus` events. The AyuGram `ContactsBoxController::setSortMode(Online)` subscribes to `session().changes().peerUpdates(OnlineStatus)` and fires `_sortByOnlineTimer` on every online-status change to re-sort the list. Without this, the contact order freezes at open time and never reflects users coming online/offline. — `contacts_screen.dart:292-296` (dead code — never invoked) ← `AyuGram/boxes/peer_list_controllers.cpp:791-803`
-
-- [ ] [CRITICAL] Middle-click on a contact row calls `widget.onTap()` (opens chat in same window) instead of opening the chat in a new window. AyuGram `rowMiddleClicked` fires `_wheelClicks` event which is handled with `window->showInNewWindow(p)`. — `contacts_screen.dart:1059` ← `AyuGram/boxes/peer_list_controllers.cpp:137-153, 183-185`
-
-- [ ] [MAJOR] Mutual-contact indicator is entirely absent. AyuGram shows a dedicated `ayuContactsMutualIcon` right-action badge on each row where `isMutualContact()` is true (the user's contact who also has the current user in their contacts). No equivalent field, model field, or rendering exists in the Dart codebase. — `contacts_screen.dart:687-1141` (no mutual indicator anywhere) ← `AyuGram/boxes/peer_list_controllers.cpp:65-114`
-
-- [ ] [MAJOR] Share-contact box uses a dynamic `_columnsForWidth()` formula `(screenWidth / 90).floor().clamp(3, 10)` instead of AyuGram's fixed 4-column layout. AyuGram `ShareBox::Inner` initialises `_columnCount = 4` as a constant and never changes it. The Dart value will produce different grids at narrow widths (3 columns at 270px, etc.) diverging from the reference. — `contacts_screen.dart:1942-1944` ← `AyuGram/boxes/share_box.cpp:180`
-
-- [ ] [MAJOR] The `_ContactsBox` sort toggle icon uses Material `Icons.sort_by_alpha` / `Icons.access_time`, deviating from AyuGram's custom `contacts_alphabet` / `contacts_online` SVG icons. AyuGram also dynamically overrides the icon via `setIconOverride` after each toggle (alphabet icon shown when currently sorted by online, online icon shown when sorted alphabetically). The Dart toggles the correct direction but uses wrong icons. — `contacts_screen.dart:671-676` ← `AyuGram/boxes/peer_list_controllers.cpp:172-180`, `AyuGram/boxes/boxes.style:162-173`
-
-- [ ] [MAJOR] The sort-button hover highlight feature is missing. AyuGram calls `window->checkHighlightControl(u"contacts/sort"_q, state->toggleSort, { .rippleShape = true })` via `setShowFinishedCallback` so the sort button gets a ripple highlight the first time the contacts box opens. No equivalent exists in the Dart `_SortToggle`. — `contacts_screen.dart:637-684` ← `AyuGram/boxes/peer_list_controllers.cpp:186-193`
-
-- [ ] [MAJOR] `_suggestPhoto` in `_EditContactBox` uses `suggestContactPhoto` (engine method exists, line 504 of engine_service.dart) and correctly calls the engine. However the suggest-photo button should be hidden when `_user->starsPerMessageChecked()` is true (user requires stars-per-message). There is no `starsPerMessage` field in `ContactInfo` and no hide-guard on the button. This causes the button to appear for premium-pay-per-message bots where it is disabled in AyuGram. — `contacts_screen.dart:1622-1629` ← `AyuGram/boxes/peers/edit_contact_box.cpp:619-620`
-
-- [ ] [MAJOR] `_ContactsBox` does not subscribe to any engine events (contact added/deleted/updated) to refresh the list. After `deleteContact`, `addContact`, or `blockUser` calls, the contact list only refreshes via `_loadContacts()` triggered by `onContactChanged` callbacks — but these are only wired from the row-level callbacks, not from background engine events (e.g. contact deleted on another device). AyuGram's `ContactsBoxController::prepare()` calls `rebuildRows()` and subscribes to session change events for live refresh. — `contacts_screen.dart:70-86` ← `AyuGram/boxes/peer_list_controllers.cpp:723-758`
-
 ## create_group_wizard — Create Group/Channel Wizard
 
 - [ ] [CRITICAL] `CreateGroup` does not pass TTL at creation time: Go backend calls `MessagesCreateChat` without the `TtlPeriod` field, then the Dart code issues a separate `setHistoryTTL` after creation. AyuGram passes `f_ttl_period` flag and the TTL value atomically inside `MTPmessages_CreateChat`. This can leave the group without a TTL if the post-creation call fails, and is a behavioral deviation from spec. — `create_group_wizard.dart:713-718` ← `boxes/add_contact_box.cpp:743-748`
