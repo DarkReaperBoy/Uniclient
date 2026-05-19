@@ -998,10 +998,17 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
+    final hoursText = hoursRemaining <= 0
+        ? 'less than an hour'
+        : '$hoursRemaining hour${hoursRemaining == 1 ? '' : 's'}';
+    final hour = availableAt.hour;
+    final minute = availableAt.minute.toString().padLeft(2, '0');
+    final ampm = hour >= 12 ? 'PM' : 'AM';
+    final hour12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
     final date =
-        '${months[availableAt.month - 1]} ${availableAt.day}, ${availableAt.year}';
+        '${months[availableAt.month - 1]} ${availableAt.day}, ${availableAt.year} at $hour12:$minute $ampm';
     await _showExportInformBox(
-      'For security reasons, you will be able to begin downloading your data in $hoursRemaining hours. '
+      'For security reasons, you will be able to begin downloading your data in $hoursText. '
       'We have notified all your devices about the export request to make sure it\'s authorized '
       'and give you time to react if it\'s not.\n\n'
       'Please come back on $date and repeat the request using the same device.',
