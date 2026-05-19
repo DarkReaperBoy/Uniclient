@@ -318,10 +318,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-## chat_export — Completed view missing total file count display
-
-- [ ] [MAJOR] AyuGram's completed state shows `lng_export_total_amount` = "Total files: {amount}" (in the done state via `showDone()`). Dart's completed view does not display total file count anywhere despite `_totalFiles` and `_totalSizeBytes` being tracked. — `chat_export.dart:2257-2375` ← `lang.strings` "lng_export_total_amount"
-
 ## chat_export — `_ExportSuggestBox` button dismisses without starting export when `onStart` is null
 
 - [ ] [CRITICAL] `_ExportSuggestBox.onStart` can be null. The "OK" button calls `onStart?.call()` — if the caller didn't pass `onStart`, clicking OK dismisses the dialog but does nothing, silently failing to trigger the export. This is a stub behavior. AyuGram's `SuggestBox` always calls `Core::App().exportManager().start(...)` on OK. — `chat_export.dart:3067-3072` ← `export_view_panel_controller.cpp:57-61`
