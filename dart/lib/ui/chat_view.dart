@@ -298,6 +298,10 @@ class _ChatViewState extends State<ChatView>
   /// Spec §4.4: when the user taps the close button on the pinned bar,
   /// the bar is hidden locally for the current chat until the chat changes.
   bool _pinnedBarDismissed = false;
+  bool _showTranslateBar = false;
+  String _translateTargetLang = '';
+  bool _isTranslating = false;
+  final Map<String, String> _translations = {};
   final Set<String> _selectedMsgIds = {};
   bool get _selectionMode => _selectedMsgIds.isNotEmpty;
   /// Spec §4.7: selection bar slide animation (200ms easeOutCirc).
@@ -644,7 +648,10 @@ class _ChatViewState extends State<ChatView>
     if (chat == null) return false;
     final btnCtx = _moreVertKey.currentContext;
     if (btnCtx == null) return false;
-    _ChatTopBar._showTopBarMenu(btnCtx, chat, onToggleInfo: widget.onToggleInfo);
+    _ChatTopBar._showTopBarMenu(btnCtx, chat, onToggleInfo: widget.onToggleInfo, onToggleTranslate: () {
+      _checkTranslateBar();
+      setState(() => _showTranslateBar = !_showTranslateBar);
+    });
     return true;
   }
 
@@ -986,10 +993,42 @@ class _ChatViewState extends State<ChatView>
   }
 
   bool _shouldShowContactStatusBar(ChatInfo chat) {
-    if (chat.type != ChatType.dm) return false;
     if (chat.title == 'Saved Messages') return false;
-    // Show for: non-contacts, blocked users, or bots.
-    return !chat.isContact || chat.isBlocked || chat.isBot;
+    if (chat.isBlocked) return true;
+    if (chat.type == ChatType.dm) {
+      return !chat.isContact || chat.isBot || chat.joinRequest;
+    }
+    if (chat.isArchived && (chat.type == ChatType.group || chat.type == ChatType.channel)) {
+      return true;
+    }
+    return false;
+  }
+
+  void _toggleTranslation() {
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    setState(() => _isTranslating = !_isTranslating);
+    if (_isTranslating) {
+      final engine = context.read<EngineService>();
+      final msgs = chatState.messages;
+      for (final m in msgs) {
+        if (m.contentText.isNotEmpty && !_translations.containsKey(m.msgId)) {
+          engine.translateText(chat.accountId, chat.chatId, m.msgId, _translateTargetLang).then((translated) {
+            if (mounted && translated != null) {
+              setState(() => _translations[m.msgId] = translated);
+            }
+          });
+        }
+      }
+    } else {
+      setState(() => _translations.clear());
+    }
+  }
+
+  void _checkTranslateBar() {
+    final locale = View.of(context).platformDispatcher.locale;
+    _translateTargetLang = locale.languageCode;
   }
 
   void _scrollToBottom() {
@@ -4779,6 +4818,10 @@ class _ChatViewState extends State<ChatView>
                             );
                           },
                           activeSublist: chatState.activeSublist,
+                          onToggleTranslate: () {
+                            _checkTranslateBar();
+                            setState(() => _showTranslateBar = !_showTranslateBar);
+                          },
                         ),
                       ),
                       // Selection bar slides in from below
@@ -4874,6 +4917,28 @@ class _ChatViewState extends State<ChatView>
             _ContactStatusBar(
               chat: chat,
               chatState: chatState,
+            ),
+          // Topic reopen bar — for closed topics where admin can reopen.
+          if (chat.type == ChatType.topic && (() {
+            final t = chatState.forumTopics.cast<ForumTopic?>().firstWhere(
+                (t) => t!.id == chat.chatId, orElse: () => null);
+            return t != null && t.isClosed && t.canToggleClosed;
+          })())
+            _TopicReopenBar(
+              onReopen: () {
+                final topicId = int.tryParse(chat.chatId) ?? 0;
+                if (topicId <= 0 || chat.parentId.isEmpty) return;
+                final engine = context.read<EngineService>();
+                engine.toggleForumTopicClosed(chat.accountId, chat.parentId, topicId, false);
+              },
+            ),
+          // Translate bar — shown when chat language differs from locale.
+          if (_showTranslateBar)
+            _TranslateBar(
+              targetLang: _translateTargetLang,
+              isTranslating: _isTranslating,
+              onTranslate: _toggleTranslation,
+              onDismiss: () => setState(() => _showTranslateBar = false),
             ),
           // Message list with scroll-to-bottom FAB.
           Expanded(
@@ -5957,6 +6022,8 @@ class _ChatTopBar extends StatelessWidget {
   /// §31.4: Active saved sublist (when browsing Saved Messages sublists).
   final SavedSublistInfo? activeSublist;
 
+  final VoidCallback? onToggleTranslate;
+
   const _ChatTopBar({
     required this.chat,
     this.typingUser,
@@ -5995,6 +6062,7 @@ class _ChatTopBar extends StatelessWidget {
     this.onDeletedSearch,
     this.onJoinGroupCall,
     this.activeSublist,
+    this.onToggleTranslate,
   });
 
   /// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
@@ -6070,7 +6138,7 @@ class _ChatTopBar extends StatelessWidget {
   /// Show the chat-level action menu anchored to the more_vert button.
   /// Spec §4.3: New Window, Archive, Pin, View Profile, Mute, Mark Read/Unread,
   /// Clear History, Delete Chat, Leave Channel.
-  static void _showTopBarMenu(BuildContext btnCtx, ChatInfo chat, {VoidCallback? onToggleInfo}) {
+  static void _showTopBarMenu(BuildContext btnCtx, ChatInfo chat, {VoidCallback? onToggleInfo, VoidCallback? onToggleTranslate}) {
     final chatState = btnCtx.read<ChatState>();
     final button = btnCtx.findRenderObject() as RenderBox;
     final buttonPos = button.localToGlobal(Offset(0, button.size.height));
@@ -6107,6 +6175,8 @@ class _ChatTopBar extends StatelessWidget {
         if (isGroupy)
           const TelegramMenuItem(value: 'recent_actions', label: 'Recent Actions'),
         const TelegramMenuItem(value: 'change_theme', label: 'Change Chat Theme'),
+        if (onToggleTranslate != null)
+          const TelegramMenuItem(value: 'translate', label: 'Translate'),
         const TelegramMenuItem(
           value: 'export_chat',
           icon: Icon(Icons.file_upload_outlined, size: 20),
@@ -6164,6 +6234,8 @@ class _ChatTopBar extends StatelessWidget {
           );
         case 'change_theme':
           chatState.toggleThemeChooser();
+        case 'translate':
+          onToggleTranslate?.call();
         case 'export_chat':
           Future.delayed(const Duration(milliseconds: 150), () {
             if (!btnCtx.mounted) return;
@@ -6814,7 +6886,7 @@ class _ChatTopBar extends StatelessWidget {
                   icon: Icons.more_vert,
                   width: 44,
                   iconPosition: const Offset(16, 17),
-                  onPressed: () => _showTopBarMenu(btnCtx, chat, onToggleInfo: onToggleInfo),
+                  onPressed: () => _showTopBarMenu(btnCtx, chat, onToggleInfo: onToggleInfo, onToggleTranslate: onToggleTranslate),
                 ),
               ),
             ),
@@ -9359,7 +9431,6 @@ class _ContactStatusBar extends StatelessWidget {
     final rippleColor = palette.historyComposeButtonBgRipple;
 
     if (chat.isBlocked) {
-      // Blocked: single "Unblock" button, 49px height, attentionButtonFg red.
       return Container(
         color: bgColor,
         height: 49,
@@ -9375,8 +9446,96 @@ class _ContactStatusBar extends StatelessWidget {
       );
     }
 
+    if (chat.joinRequest) {
+      return Container(
+        color: bgColor,
+        height: 49,
+        alignment: Alignment.center,
+        child: Text(
+          'You sent a request to join this chat',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: palette.windowSubTextFg,
+          ),
+        ),
+      );
+    }
+
+    if (chat.isArchived && chat.type != ChatType.dm) {
+      return Container(
+        color: bgColor,
+        height: 49,
+        child: Row(
+          children: [
+            Expanded(
+              child: _ContactStatusButton(
+                label: 'Unarchive',
+                color: windowActiveTextFg,
+                hoverColor: hoverColor,
+                rippleColor: rippleColor,
+                height: 49,
+                textTop: 16,
+                onTap: () => chatState.archiveChat(chat.accountId, chat.chatId, false),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _ContactStatusButton(
+                label: 'Report Spam',
+                color: attentionButtonFg,
+                hoverColor: hoverColor,
+                rippleColor: rippleColor,
+                height: 49,
+                textTop: 16,
+                onTap: () {
+                  final engine = context.read<EngineService>();
+                  engine.reportSpam(chat.accountId, chat.chatId);
+                  showTelegramToast(context, 'Reported as spam.');
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (chat.isArchived && !chat.isContact && chat.type == ChatType.dm) {
+      return Container(
+        color: bgColor,
+        height: 49,
+        child: Row(
+          children: [
+            Expanded(
+              child: _ContactStatusButton(
+                label: 'Unarchive',
+                color: windowActiveTextFg,
+                hoverColor: hoverColor,
+                rippleColor: rippleColor,
+                height: 49,
+                textTop: 16,
+                onTap: () => chatState.archiveChat(chat.accountId, chat.chatId, false),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _ContactStatusButton(
+                label: 'Block',
+                color: attentionButtonFg,
+                hoverColor: hoverColor,
+                rippleColor: rippleColor,
+                height: 49,
+                textTop: 16,
+                onTap: () => chatState.blockUser(chat.accountId, chat.chatId),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (chat.isBot) {
-      // Bot: status label centered, minWidth 240, no buttons.
       return Container(
         color: bgColor,
         height: 49,
@@ -9396,7 +9555,6 @@ class _ContactStatusBar extends StatelessWidget {
       );
     }
 
-    // Non-contact: "Add Contact" (blue) + "Block" (red), side by side.
     return Container(
       color: bgColor,
       height: 49,
@@ -9413,7 +9571,7 @@ class _ContactStatusBar extends StatelessWidget {
               onTap: () => _showAddContactDialog(context),
             ),
           ),
-          const SizedBox(width: 16), // Spec: historyContactStatusMinSkip 16px.
+          const SizedBox(width: 16),
           Expanded(
             child: _ContactStatusButton(
               label: 'Block',
@@ -9757,6 +9915,87 @@ class _ChatIntroWidgetState extends State<_ChatIntroWidget> {
 
 /// §47: Write restriction bar — replaces compose when user cannot send messages.
 /// Types: 1=Rights (admin-restricted), 2=PremiumRequired, 3=Frozen, 4=Hidden.
+/// Voice listen preview bar — shown after locked recording is stopped, before sending.
+class _VoiceListenBar extends StatefulWidget {
+  final Duration duration;
+  final bool isVideoRound;
+  final VoidCallback onSend;
+  final VoidCallback onDelete;
+
+  const _VoiceListenBar({
+    required this.duration,
+    required this.isVideoRound,
+    required this.onSend,
+    required this.onDelete,
+  });
+
+  @override
+  State<_VoiceListenBar> createState() => _VoiceListenBarState();
+}
+
+class _VoiceListenBarState extends State<_VoiceListenBar> {
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = context.palette;
+    final bgColor = palette.historyComposeAreaBg;
+    final accentColor = palette.windowBgActive;
+    final attentionColor = palette.attentionButtonFg;
+    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF333333);
+
+    final minutes = widget.duration.inMinutes;
+    final seconds = widget.duration.inSeconds % 60;
+    final durationStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+    return Container(
+      color: bgColor,
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(Icons.delete_outline, size: 22, color: attentionColor),
+            onPressed: widget.onDelete,
+            tooltip: 'Discard',
+          ),
+          const SizedBox(width: 4),
+          Icon(
+            widget.isVideoRound ? Icons.videocam_outlined : Icons.mic,
+            size: 20,
+            color: accentColor,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Container(
+              height: 20,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(3),
+                color: accentColor.withValues(alpha: 0.12),
+              ),
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                durationStr,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: textColor,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: Icon(Icons.send, size: 22, color: accentColor),
+            onPressed: widget.onSend,
+            tooltip: 'Send',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _WriteRestrictionBar extends StatelessWidget {
   final int restrictionType;
   final String restrictionText;
@@ -10524,11 +10763,17 @@ class _GroupCallBar extends StatelessWidget {
     final joinBg = context.palette.windowBgActive;
 
     final participants = groupCall.participants;
-    // Show up to 3 overlapping userpics.
-    final visibleParticipants = participants.take(3).toList();
+    final sorted = List<GroupCallParticipant>.of(participants)
+      ..sort((a, b) {
+        if (a.isSpeaking != b.isSpeaking) return b.isSpeaking ? 1 : -1;
+        final aActive = a.lastActive > a.date ? a.lastActive : a.date;
+        final bActive = b.lastActive > b.date ? b.lastActive : b.date;
+        return bActive.compareTo(aActive);
+      });
+    final visibleParticipants = sorted.take(3).toList();
 
     return Container(
-      height: 52,
+      height: 49,
       decoration: BoxDecoration(
         color: barBg,
         border: Border(bottom: BorderSide(color: shadowColor, width: 1)),
@@ -10537,7 +10782,6 @@ class _GroupCallBar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 13),
         child: Row(
           children: [
-            // Overlapping participant userpics.
             if (visibleParticipants.isNotEmpty) ...[
               SizedBox(
                 width: 28.0 + (visibleParticipants.length - 1) * 20.0,
@@ -10621,8 +10865,9 @@ class _GroupCallBar extends StatelessWidget {
   }
 }
 
-/// Circular userpic for a group call participant with optional green speaking ring.
-class _GroupCallUserpic extends StatelessWidget {
+/// Circular userpic for a group call participant with animated pulsing blob
+/// border when the participant is speaking (matches AyuGram BlobsAnimation).
+class _GroupCallUserpic extends StatefulWidget {
   final GroupCallParticipant participant;
   final bool isSpeaking;
   final Color accentGreen;
@@ -10636,23 +10881,54 @@ class _GroupCallUserpic extends StatelessWidget {
   });
 
   @override
+  State<_GroupCallUserpic> createState() => _GroupCallUserpicState();
+}
+
+class _GroupCallUserpicState extends State<_GroupCallUserpic>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _speakingController;
+
+  @override
+  void initState() {
+    super.initState();
+    _speakingController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    if (widget.isSpeaking) _speakingController.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(_GroupCallUserpic old) {
+    super.didUpdateWidget(old);
+    if (widget.isSpeaking && !old.isSpeaking) {
+      _speakingController.repeat(reverse: true);
+    } else if (!widget.isSpeaking && old.isSpeaking) {
+      _speakingController.stop();
+      _speakingController.value = 0.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _speakingController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     const double size = 28;
     const double borderWidth = 2;
-    final hue = (participant.userId.hashCode % 360).abs().toDouble();
+    final hue = (widget.participant.userId.hashCode % 360).abs().toDouble();
     final avatarBg = HSLColor.fromAHSL(1, hue, 0.5, 0.45).toColor();
-    final initials = participant.displayName.isNotEmpty
-        ? participant.displayName[0].toUpperCase()
+    final initials = widget.participant.displayName.isNotEmpty
+        ? widget.participant.displayName[0].toUpperCase()
         : '?';
 
-    final borderColor = isSpeaking
-        ? accentGreen
-        : (isDark ? const Color(0xFF17212B) : Colors.white);
-
     Widget avatarContent;
-    if (participant.avatarPath.isNotEmpty) {
+    if (widget.participant.avatarPath.isNotEmpty) {
       try {
-        final bytes = base64Decode(participant.avatarPath);
+        final bytes = base64Decode(widget.participant.avatarPath);
         avatarContent = ClipOval(
           child: Image.memory(bytes, width: size - borderWidth * 2,
               height: size - borderWidth * 2, fit: BoxFit.cover),
@@ -10670,15 +10946,184 @@ class _GroupCallUserpic extends StatelessWidget {
       );
     }
 
+    if (!widget.isSpeaking) {
+      final borderColor = widget.isDark ? const Color(0xFF17212B) : Colors.white;
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: avatarBg,
+          border: Border.all(color: borderColor, width: borderWidth),
+        ),
+        child: Center(child: avatarContent),
+      );
+    }
+
+    return AnimatedBuilder(
+      animation: _speakingController,
+      builder: (context, child) {
+        final pulse = 1.0 + _speakingController.value * 0.15;
+        return SizedBox(
+          width: size,
+          height: size,
+          child: CustomPaint(
+            painter: _SpeakingBlobPainter(
+              color: widget.accentGreen,
+              scale: pulse,
+            ),
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: avatarBg,
+                border: Border.all(color: widget.accentGreen, width: borderWidth),
+              ),
+              child: Center(child: child),
+            ),
+          ),
+        );
+      },
+      child: avatarContent,
+    );
+  }
+}
+
+class _SpeakingBlobPainter extends CustomPainter {
+  final Color color;
+  final double scale;
+
+  _SpeakingBlobPainter({required this.color, required this.scale});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width / 2) * scale;
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()..color = color.withValues(alpha: 0.3 * (2.0 - scale)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SpeakingBlobPainter old) =>
+      old.scale != scale || old.color != color;
+}
+
+/// Topic reopen bar — shown above compose for closed topics where the user is admin.
+class _TopicReopenBar extends StatelessWidget {
+  final VoidCallback onReopen;
+
+  const _TopicReopenBar({required this.onReopen});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = context.palette;
+    final bgColor = isDark ? const Color(0xFF1B2734) : const Color(0xFFF5F5F5);
+    final textColor = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF888888);
+    final accentColor = palette.windowBgActive;
+
     return Container(
-      width: size,
-      height: size,
+      height: 49,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: avatarBg,
-        border: Border.all(color: borderColor, width: borderWidth),
+        color: bgColor,
+        border: Border(
+          bottom: BorderSide(color: palette.shadowFg, width: 1),
+        ),
       ),
-      child: Center(child: avatarContent),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline, size: 18, color: textColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'This topic is closed.',
+              style: TextStyle(fontSize: 14, color: textColor),
+            ),
+          ),
+          TextButton(
+            onPressed: onReopen,
+            child: Text(
+              'Reopen',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: accentColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Translate bar — surfaces above compose when user requests translation.
+class _TranslateBar extends StatelessWidget {
+  final String targetLang;
+  final bool isTranslating;
+  final VoidCallback onTranslate;
+  final VoidCallback onDismiss;
+
+  const _TranslateBar({
+    required this.targetLang,
+    required this.isTranslating,
+    required this.onTranslate,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = context.palette;
+    final bgColor = isDark ? const Color(0xFF1B2734) : const Color(0xFFF5F5F5);
+    final textColor = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF888888);
+    final accentColor = palette.windowBgActive;
+
+    return Container(
+      height: 49,
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border(
+          bottom: BorderSide(color: palette.shadowFg, width: 1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Icon(Icons.translate, size: 18, color: accentColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: GestureDetector(
+              onTap: onTranslate,
+              child: Text(
+                isTranslating
+                    ? 'Show Original'
+                    : 'Translate to ${targetLang.toUpperCase()}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: accentColor,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              iconSize: 18,
+              icon: Icon(Icons.close, color: textColor),
+              onPressed: onDismiss,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -13101,6 +13546,10 @@ class _ComposeAreaState extends State<_ComposeArea>
   bool _isRecordingLocked = false;
   AudioRecorder? _audioRecorder;
   String? _recordingFilePath;
+  bool _isListenPreview = false;
+  String? _previewFilePath;
+  Duration _previewDuration = Duration.zero;
+  bool _previewIsVideoRound = false;
   double _lockDragStartY = 0;
   double _lockDragStartX = 0;
   int _trackingPointerId = -1;
@@ -13265,6 +13714,7 @@ class _ComposeAreaState extends State<_ComposeArea>
   }
 
   void _stopAndSendRecording() {
+    final wasLocked = _isRecordingLocked;
     _recordingTimer?.cancel();
     _recordingTimer = null;
     _lockShowController.reverse();
@@ -13289,6 +13739,23 @@ class _ComposeAreaState extends State<_ComposeArea>
       recorder?.stop().then((_) => recorder.dispose()).catchError((_) {});
       return;
     }
+    if (wasLocked) {
+      recorder?.stop().then((stoppedPath) {
+        recorder.dispose();
+        final sendPath = stoppedPath ?? filePath;
+        if (!mounted) return;
+        if (!File(sendPath).existsSync()) return;
+        setState(() {
+          _isListenPreview = true;
+          _previewFilePath = sendPath;
+          _previewDuration = duration;
+          _previewIsVideoRound = wasVideoRound;
+        });
+      }).catchError((_) {
+        recorder.dispose();
+      });
+      return;
+    }
     final chatState = context.read<ChatState>();
     final chat = chatState.activeChat;
     if (chat == null) {
@@ -13308,6 +13775,37 @@ class _ComposeAreaState extends State<_ComposeArea>
     }).catchError((_) {
       recorder.dispose();
     });
+  }
+
+  void _sendPreviewRecording() {
+    if (!_isListenPreview || _previewFilePath == null) return;
+    final path = _previewFilePath!;
+    final duration = _previewDuration;
+    final isVideo = _previewIsVideoRound;
+    setState(() {
+      _isListenPreview = false;
+      _previewFilePath = null;
+      _previewDuration = Duration.zero;
+    });
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    if (isVideo) {
+      engine.sendVideoNote(chat.accountId, chat.chatId, path, duration: duration.inSeconds);
+    } else {
+      engine.sendVoice(chat.accountId, chat.chatId, path, duration: duration.inSeconds);
+    }
+  }
+
+  void _discardPreviewRecording() {
+    final path = _previewFilePath;
+    setState(() {
+      _isListenPreview = false;
+      _previewFilePath = null;
+      _previewDuration = Duration.zero;
+    });
+    if (path != null) File(path).delete().catchError((_) {});
   }
 
   void _cancelRecording() {
@@ -14311,6 +14809,23 @@ class _ComposeAreaState extends State<_ComposeArea>
                   ),
           ),
         ],
+      );
+    }
+
+    if (_isListenPreview) {
+      return Container(
+        decoration: BoxDecoration(
+          color: composeBg,
+          border: Border(
+            top: BorderSide(color: pal.shadowFg, width: 1),
+          ),
+        ),
+        child: _VoiceListenBar(
+          duration: _previewDuration,
+          isVideoRound: _previewIsVideoRound,
+          onSend: _sendPreviewRecording,
+          onDelete: _discardPreviewRecording,
+        ),
       );
     }
 
