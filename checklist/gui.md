@@ -381,9 +381,6 @@ All methods are fully implemented and wired to entity tracking. No mock data, TO
 
 # confirm_box — Audit Findings
 
-## confirm_box — _DeleteContent._confirmLabel wrong count for deleteAll with moderatePanel
-
-- [ ] [MAJOR] In `_confirmLabel` getter (line 566-569), when `_deleteAll` is true, the Dart code computes count as `_totalFromSender` when `> 0`, else falls back to `widget.messageCount`. In AyuGram `delete_messages_box.cpp:218-233`, the delete button text is updated reactively from a `MessagesSearch` that queries the server for total messages from that user. The Dart `_fetchModerateCount` calls `engine.countMessagesFrom()` synchronously (line 504) which uses a local JSON call, not a live server search. This means the count shown in the button may be stale (local cache count vs server-side search result). — `confirm_box.dart:504,566-569` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/delete_messages_box.cpp:206-234`
 
 ## confirm_box — _DeleteContent missing hasSavedMusicMessages and hasScheduledMessages checks
 
