@@ -864,7 +864,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
                             rippleProgress: _rippleController.value,
                             reachRatio: progress,
                             swipeOffset: _swipeOffset,
-                            color: actionBg,
+                            color: context.palette.windowSubTextFgOver,
                           ),
                           child: Center(
                             child: SizedBox(
@@ -937,10 +937,10 @@ class _SwipeRipplePainter extends CustomPainter {
     final center = Offset(size.width - offset, offset);
 
     if (reachRatio > 0) {
-      final r = swipeOffset * reachRatio * 0.3;
+      final r = swipeOffset * reachRatio;
       canvas.drawOval(
         Rect.fromCenter(center: center, width: r * 2, height: r * 2),
-        Paint()..color = Colors.white.withValues(alpha: 0.15),
+        Paint()..color = color.withValues(alpha: 0.15),
       );
     }
 
@@ -951,7 +951,7 @@ class _SwipeRipplePainter extends CustomPainter {
       canvas.drawCircle(
         center,
         radius,
-        Paint()..color = Colors.white.withValues(alpha: alpha * 0.2),
+        Paint()..color = color.withValues(alpha: alpha * 0.2),
       );
     }
   }
