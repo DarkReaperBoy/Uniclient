@@ -2149,6 +2149,35 @@ class EngineService {
     }
   }
 
+  Future<void> startCallRecording(String accountId, String callId, String filePath) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'file_path': filePath,
+    }));
+    try {
+      await _callAsync(accountId, 'StartCallRecording', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'startCallRecording failed', e);
+    }
+  }
+
+  Future<int> stopCallRecording(String accountId, String callId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+    }));
+    try {
+      final respBytes = await _callAsync(accountId, 'StopCallRecording', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 0;
+      final result = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (result['frame_count'] as num?)?.toInt() ?? 0;
+    } catch (e) {
+      Debug.error('ENGINE', 'stopCallRecording failed', e);
+      return 0;
+    }
+  }
+
   Future<String?> startCall(String accountId, String chatId, {bool video = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
