@@ -382,10 +382,6 @@ All methods are fully implemented and wired to entity tracking. No mock data, TO
 # confirm_box — Audit Findings
 
 
-## confirm_box — _DeleteContent missing hasSavedMusicMessages and hasScheduledMessages checks
-
-- [x] [MAJOR] AyuGram's `DeleteMessagesBox::prepare()` has two additional text variants: `hasSavedMusicMessages()` changes the body to `tr::lng_selected_remove_saved_music` and suppresses the revoke checkbox for scheduled messages (`hasScheduledMessages()` → skip revoke). Neither check exists in the Dart `_DeleteContent`. The revoke checkbox will incorrectly appear for saved-music messages and scheduled messages when it shouldn't. — `confirm_box.dart:510-550,574-584` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/delete_messages_box.cpp:236-295`
-
 ## confirm_box — _DeleteContent missing paidPostType / paid-post delete confirmation
 
 - [x] [MAJOR] AyuGram's `deleteAndClear()` checks `paidPostType()` and shows a nested confirmation box (with warning text about Stars/TON) before actually deleting paid suggested posts. The Dart `_confirm()` (line 586-598) has no such check — it always calls `Navigator.pop` immediately. Deleting a paid suggested post will skip the secondary safety confirmation. — `confirm_box.dart:586-598` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/delete_messages_box.cpp:550-578`
