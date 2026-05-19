@@ -381,10 +381,6 @@ All methods are fully implemented and wired to entity tracking. No mock data, TO
 
 # confirm_box — Audit Findings
 
-## confirm_box — SingleChoiceBox closes on item selection (wrong behavior)
-
-- [ ] [MAJOR] `_SingleChoiceContent._select()` closes the box immediately when a radio item is tapped, but AyuGram's `SingleChoiceBox` only closes via `group->setChangedCallback` which fires immediately on radio change — so the behavior is actually equivalent. However, the Dart version also adds an "OK" button (`Navigator.of(context).pop(_selected)`) that does nothing different from just tapping. The C++ version has no separate confirm action: it closes immediately in the callback with no OK button. The OK button in the Dart version is redundant but not wrong — it is a MAJOR behavioral deviation because AyuGram's `SingleChoiceBox` provides only one `addButton(tr::lng_box_ok(), [=] { box->closeBox(); })` which just closes without emitting the selection again. The Dart OK button pops with `_selected` which is correct. Not a blocker, but behaviorally different flow. — `confirm_box.dart:799,817-820` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:22,48-54`
-
 ## confirm_box — showReportReactionBox missing ban-user checkbox
 
 - [ ] [CRITICAL] `showReportReactionBox` in Dart shows a box with title "Report Reactions" and a "BAN USER" confirm button, but the AyuGram `ReportReactionBox` includes an optional **checkbox** "Ban user and report" (`tr::lng_report_and_ban_button`) that is conditionally shown based on a `ban` parameter. The Dart implementation hardcodes the ban action into the confirm button label without offering the checkbox — meaning the user cannot choose to only report without banning. Furthermore, the Dart implementation does NOT call the engine at all — it only returns a `bool` to the caller but performs no API call. The AyuGram version calls `MTPmessages_ReportReaction` directly (the engine call). The Dart box is purely a UI stub with no backend wiring. — `confirm_box.dart:1551-1582` ← `AyuGramDesktop/Telegram/SourceFiles/info/profile/info_profile_actions.cpp:1295-1343`
