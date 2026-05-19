@@ -314,10 +314,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 # chat_export — Audit Findings
 
 
-## chat_export — `_ExportSuggestBox` text and title are wrong (hardcoded, mismatched)
-
-- [ ] [MAJOR] `_ExportSuggestBox` shows title "Export Your Data" and text "You can export your data from Telegram, including chats, messages, and media. The export will be processed by Telegram servers and may take some time." AyuGram's `SuggestBox` uses `lng_export_suggest_title` = "Data export ready" and `lng_export_suggest_text` = "You can now download the data you requested. Start exporting data?" Cancel button says "Cancel" in Dart vs `lng_export_suggest_cancel` = "Not now" in AyuGram. — `chat_export.dart:3037-3088` ← `export_view_panel_controller.cpp:53-64`
-
 ## chat_export — Processing view: stop-confirmation text deviates from AyuGram
 
 - [ ] [MAJOR] `_showStopConfirmation()` displays "Are you sure you want to stop exporting your data?" and button label "Stop". AyuGram uses `lng_export_sure_stop` = "Are you sure you want to stop exporting your data?\n\nIf you do, you'll need to start over." — the critical second sentence is missing in Dart. — `chat_export.dart:682-683` ← `export_view_panel_controller.cpp:358-361` and `lang.strings` "lng_export_sure_stop"
