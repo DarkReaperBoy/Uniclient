@@ -302,11 +302,11 @@ class _FloatingExportPanelState extends State<_FloatingExportPanel>
   }
 }
 
-void showExportSuggestBox(BuildContext context, {required VoidCallback onStart}) {
+void showExportSuggestBox(BuildContext context, {String? accountId}) {
   showDialog(
     context: context,
     barrierDismissible: false,
-    builder: (ctx) => _ExportSuggestBox(onStart: onStart),
+    builder: (ctx) => _ExportSuggestBox(accountId: accountId),
   );
 }
 
@@ -3144,9 +3144,9 @@ class _ChooseFormatBoxState extends State<_ChooseFormatBox> {
 }
 
 class _ExportSuggestBox extends StatelessWidget {
-  final VoidCallback onStart;
+  final String? accountId;
 
-  const _ExportSuggestBox({required this.onStart});
+  const _ExportSuggestBox({this.accountId});
 
   @override
   Widget build(BuildContext context) {
@@ -3207,8 +3207,18 @@ class _ExportSuggestBox extends StatelessWidget {
                   const SizedBox(width: 8),
                   TextButton(
                     onPressed: () {
+                      final overlay = Overlay.maybeOf(context) ??
+                          Navigator.maybeOf(context)?.overlay;
                       Navigator.of(context).pop();
-                      onStart();
+                      if (overlay != null) {
+                        showExportPanelWithOverlay(
+                          overlay,
+                          ExportTarget(
+                            mode: ExportMode.full,
+                            accountId: accountId,
+                          ),
+                        );
+                      }
                     },
                     child: Text(
                       'OK',
