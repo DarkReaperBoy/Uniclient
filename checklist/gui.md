@@ -246,11 +246,8 @@ All method signatures match both the FFI implementation (`bridge_ffi.dart`) and 
 
 # ayu_appearance_page — Audit findings
 
-- [ ] [CRITICAL] `exit(0)` used instead of graceful restart: both the avatar-corners restart dialog (dart:281) and the font-change restart dialog (dart:906) call `exit(0)` which hard-kills the process with no state flushing — `ayu_appearance_page.dart:281,906` ← `AyuGram/ayu/ui/settings/settings_ayu_utils.cpp:36-43` (`ShowRestartPrompt` uses `Core::Restart()` for graceful restart with confirmation)
 
 # ayu_chats_page — Audit Findings
-
-- [ ] [CRITICAL] `_MessagePreviewStandalone` is a static Flutter mockup with hardcoded fake bubbles — AyuGram's `MessagePreview` renders real `HistoryItem` objects through the full Telegram rendering pipeline (`view->draw(p, context)`), subscribes to all relevant settings changes via `rpl::merge(...)` and calls `refresh()` automatically. The Dart version approximates appearance but cannot reflect how messages actually render (font metrics, actual theme colors, real bubble geometry from `Ui::SetBubbleRadiusOverride`). The preview is non-authoritative. — `ayu_chats_page.dart:643` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/components/message_preview.cpp:52-140`
 
 # ayu_filters_page — Audit findings
 
