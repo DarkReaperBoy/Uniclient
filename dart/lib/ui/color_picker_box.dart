@@ -75,7 +75,7 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
   late final List<TextEditingController> _fieldCtrls;
 
   bool _updatingFields = false;
-  int _wheelAccum = 0;
+  final List<int> _wheelAccum = List.filled(7, 0);
 
   FocusNode _makeNumericFocus(TextEditingController ctrl, int max, int idx) {
     return FocusNode(
@@ -203,10 +203,20 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
   }
 
   double get _clampedBrightness {
-    var b = _brightness;
-    if (widget.lightnessMin != null && b < widget.lightnessMin!) b = widget.lightnessMin!;
-    if (widget.lightnessMax != null && b > widget.lightnessMax!) b = widget.lightnessMax!;
-    return b;
+    if (widget.lightnessMin == null && widget.lightnessMax == null) {
+      return _brightness;
+    }
+    final hsvColor = HSVColor.fromAHSV(1, _hue, _saturation, _brightness);
+    final hsl = HSLColor.fromColor(hsvColor.toColor());
+    var lightness = hsl.lightness;
+    if (widget.lightnessMin != null && lightness < widget.lightnessMin!) {
+      lightness = widget.lightnessMin!;
+    }
+    if (widget.lightnessMax != null && lightness > widget.lightnessMax!) {
+      lightness = widget.lightnessMax!;
+    }
+    final clamped = hsl.withLightness(lightness).toColor();
+    return HSVColor.fromColor(clamped).value;
   }
 
   Color get _currentColor =>
@@ -415,7 +425,7 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                                   _VerticalHueSlider(
                                     pickerSize: pickerSize,
                                     value: 1.0 - _hue / 360,
-                                    arrowColor: accentFg,
+                                    arrowColor: p.sliderBgActive,
                                     onChanged: (v) {
                                       setState(() {
                                         _hue = (1.0 - v) * 360;
@@ -434,7 +444,7 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                                 saturation: _saturation,
                                 brightness: _brightness,
                                 value: _opacity,
-                                arrowColor: accentFg,
+                                arrowColor: p.sliderBgActive,
                                 onChanged: (v) {
                                   setState(() {
                                     _opacity = v;
@@ -534,7 +544,6 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildSwatch(_currentColor, isCurrent: true),
-              const SizedBox(height: 2),
               _buildSwatch(widget.initialColor, isCurrent: false),
             ],
           ),
@@ -579,14 +588,12 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
           } else {
             deltaX = -deltaX;
           }
-          // Scale Flutter logical-pixel delta (~40px/notch) to Qt angleDelta
-          // units (~120/notch) so kStep=5 yields ~24 steps/notch like AyuGram.
           final raw = (deltaX.abs() > deltaY.abs()) ? deltaX : deltaY;
-          _wheelAccum += raw * 3;
+          _wheelAccum[idx] += raw * 3;
           const kStep = 5;
-          final steps = _wheelAccum ~/ kStep;
+          final steps = _wheelAccum[idx] ~/ kStep;
           if (steps != 0) {
-            _wheelAccum -= steps * kStep;
+            _wheelAccum[idx] -= steps * kStep;
             _changeFieldValue(ctrl, max, steps);
           }
         }
@@ -641,6 +648,8 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     return SizedBox(
       height: _kFieldHeight,
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
             width: 14,
@@ -651,7 +660,8 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                     color: labelFg)),
           ),
           const SizedBox(width: 4),
-          Expanded(
+          SizedBox(
+            width: 75,
             child: TextField(
               controller: _hexCtrl,
               focusNode: _hexFocus,
@@ -760,7 +770,7 @@ class _MaxValueFormatter extends TextInputFormatter {
 
 // ─── 2D HSB gradient square ─────────────────────────────────────────────────
 
-class _GradientSquare extends StatelessWidget {
+class _GradientSquare extends StatefulWidget {
   final double pickerSize;
   final double hue;
   final double saturation;
@@ -775,29 +785,48 @@ class _GradientSquare extends StatelessWidget {
     required this.onChanged,
   });
 
+  @override
+  State<_GradientSquare> createState() => _GradientSquareState();
+}
+
+class _GradientSquareState extends State<_GradientSquare> {
+  Offset? _pointerPos;
+
   void _handle(Offset local) {
-    final s = (local.dx / pickerSize).clamp(0.0, 1.0);
-    final b = 1.0 - (local.dy / pickerSize).clamp(0.0, 1.0);
-    onChanged(s, b);
+    final s = (local.dx / widget.pickerSize).clamp(0.0, 1.0);
+    final b = 1.0 - (local.dy / widget.pickerSize).clamp(0.0, 1.0);
+    widget.onChanged(s, b);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: (e) => _handle(e.localPosition),
-      onPointerMove: (e) => _handle(e.localPosition),
-      child: SizedBox(
-        width: pickerSize,
-        height: pickerSize,
-        child: CustomPaint(
-          painter: _HSBGradientPainter(hue: hue),
-          foregroundPainter: _CrosshairPainter(
-            x: saturation * pickerSize,
-            y: (1 - brightness) * pickerSize,
-            hue: hue,
-            saturation: saturation,
-            brightness: brightness,
+    return MouseRegion(
+      cursor: SystemMouseCursors.none,
+      onHover: (e) => setState(() => _pointerPos = e.localPosition),
+      onExit: (_) => setState(() => _pointerPos = null),
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (e) {
+          setState(() => _pointerPos = e.localPosition);
+          _handle(e.localPosition);
+        },
+        onPointerMove: (e) {
+          setState(() => _pointerPos = e.localPosition);
+          _handle(e.localPosition);
+        },
+        child: SizedBox(
+          width: widget.pickerSize,
+          height: widget.pickerSize,
+          child: CustomPaint(
+            painter: _HSBGradientPainter(hue: widget.hue),
+            foregroundPainter: _CrosshairAndCursorPainter(
+              crossX: widget.saturation * widget.pickerSize,
+              crossY: (1 - widget.brightness) * widget.pickerSize,
+              hue: widget.hue,
+              saturation: widget.saturation,
+              brightness: widget.brightness,
+              cursorPos: _pointerPos,
+            ),
           ),
         ),
       ),
@@ -831,20 +860,22 @@ class _HSBGradientPainter extends CustomPainter {
   bool shouldRepaint(_HSBGradientPainter old) => old.hue != hue;
 }
 
-class _CrosshairPainter extends CustomPainter {
-  final double x, y;
+class _CrosshairAndCursorPainter extends CustomPainter {
+  final double crossX, crossY;
   final double hue, saturation, brightness;
-  _CrosshairPainter({
-    required this.x,
-    required this.y,
+  final Offset? cursorPos;
+  _CrosshairAndCursorPainter({
+    required this.crossX,
+    required this.crossY,
     required this.hue,
     required this.saturation,
     required this.brightness,
+    required this.cursorPos,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final pos = Offset(x, y);
+    final pos = Offset(crossX, crossY);
     final c = HSVColor.fromAHSV(1, hue, saturation, brightness).toColor();
     final lum =
         0.2989 * c.red / 255 + 0.5870 * c.green / 255 + 0.1140 * c.blue / 255;
@@ -858,15 +889,35 @@ class _CrosshairPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = _kCrosshairStroke
           ..color = fg);
+
+    if (cursorPos != null) {
+      const diameter = 16.0;
+      const lineW = 1.0;
+      canvas.drawCircle(
+          cursorPos!,
+          diameter / 2,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3 * lineW
+            ..color = const Color(0xFFFFFFFF));
+      canvas.drawCircle(
+          cursorPos!,
+          diameter / 2,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = lineW
+            ..color = const Color(0xFF000000));
+    }
   }
 
   @override
-  bool shouldRepaint(_CrosshairPainter old) =>
-      old.x != x ||
-      old.y != y ||
+  bool shouldRepaint(_CrosshairAndCursorPainter old) =>
+      old.crossX != crossX ||
+      old.crossY != crossY ||
       old.hue != hue ||
       old.saturation != saturation ||
-      old.brightness != brightness;
+      old.brightness != brightness ||
+      old.cursorPos != cursorPos;
 }
 
 class _CheckerboardPainter extends CustomPainter {
