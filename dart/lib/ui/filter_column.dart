@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -127,6 +128,9 @@ class FilterColumn extends StatefulWidget {
 
 class _FilterColumnState extends State<FilterColumn> {
   final ScrollController _scrollController = ScrollController();
+
+  String? _prevActiveFolderId;
+  bool _prevActiveFolderTracked = false;
 
   // Raw-pointer drag state (mirrors horizontal tab approach).
   int? _dragIndex; // folder index being dragged (null = not tracking)
@@ -568,6 +572,30 @@ class _FilterColumnState extends State<FilterColumn> {
         ? chatState.folderLimitPremium
         : chatState.folderLimitFree;
 
+    if (activeFolderId != null) {
+      final activeIdx = folders.indexWhere((f) => f.id == activeFolderId);
+      if (activeIdx >= 0 && activeIdx >= premiumFrom) {
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (mounted) chatState.setActiveFolder(null);
+        });
+      }
+    }
+
+    if (!_prevActiveFolderTracked) {
+      _prevActiveFolderId = activeFolderId;
+      _prevActiveFolderTracked = true;
+    } else if (_prevActiveFolderId != activeFolderId) {
+      _prevActiveFolderId = activeFolderId;
+      final newIdx = activeFolderId == null
+          ? -1
+          : folders.indexWhere((f) => f.id == activeFolderId);
+      if (newIdx >= 0) {
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _scrollToActiveTab(newIdx);
+        });
+      }
+    }
+
     bool _isOtherAccountsAllMuted(AppState appState, ChatState chatState) {
       for (final acc in appState.accounts) {
         if (acc.id != appState.activeAccountId) {
@@ -850,31 +878,21 @@ class _SideBarButtonState extends State<_SideBarButton>
 
   Widget _buildCenteredIcon(BuildContext context, Color iconColor) {
     final palette = PaletteProvider.of(context);
+    final showDot = widget.unreadCount > 0 && widget.useDotBadge;
+    final dotColor = showDot
+        ? (widget.unreadAllMuted
+            ? palette.sideBarBadgeBgMuted
+            : palette.sideBarBadgeBg)
+        : null;
     return SizedBox(
       height: widget.minHeight,
       child: Center(
-        child: widget.unreadCount > 0 && widget.useDotBadge
-            ? Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Icon(widget.icon, size: _iconSize, color: iconColor),
-                  Positioned(
-                    right: -4,
-                    top: -2,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: widget.unreadAllMuted
-                            ? palette.sideBarBadgeBgMuted
-                            : palette.sideBarBadgeBg,
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            : Icon(widget.icon, size: _iconSize, color: iconColor),
+        child: CustomPaint(
+          foregroundPainter: dotColor != null
+              ? _MenuDotPainter(dotColor: dotColor, iconSize: _iconSize)
+              : null,
+          child: Icon(widget.icon, size: _iconSize, color: iconColor),
+        ),
       ),
     );
   }
@@ -902,25 +920,27 @@ class _SideBarButtonState extends State<_SideBarButton>
         LayoutId(
           id: _SideBarSlot.label,
           child: widget.locked
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.lock, size: _lockIconSize, color: textColor),
-                    const SizedBox(width: 2),
-                    Flexible(
-                      child: Text(
-                        widget.label,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: textColor,
+              ? Text.rich(
+                  TextSpan(
+                    children: [
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 2),
+                          child: Icon(Icons.lock, size: _lockIconSize, color: textColor),
                         ),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
                       ),
-                    ),
-                  ],
+                      TextSpan(text: widget.label),
+                    ],
+                  ),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                 )
               : Text(
                   widget.label,
@@ -946,7 +966,7 @@ class _SideBarButtonState extends State<_SideBarButton>
   Widget _buildBadge(BuildContext context, [int? count]) {
     final palette = PaletteProvider.of(context);
     final effectiveCount = count ?? widget.unreadCount;
-    final badgeColor = widget.unreadAllMuted
+    final badgeColor = (widget.unreadAllMuted && !widget.isActive)
         ? palette.sideBarBadgeBgMuted
         : palette.sideBarBadgeBg;
     final text = effectiveCount > 999 ? '99+' : '$effectiveCount';
@@ -1050,4 +1070,27 @@ class _SideBarButtonLayout extends MultiChildLayoutDelegate {
         || hasBadge != oldDelegate.hasBadge
         || hasLockIcon != oldDelegate.hasLockIcon;
   }
+}
+
+class _MenuDotPainter extends CustomPainter {
+  final Color dotColor;
+  final double iconSize;
+
+  _MenuDotPainter({required this.dotColor, required this.iconSize});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = dotColor
+      ..isAntiAlias = true;
+    canvas.drawCircle(
+      Offset(size.width - 1, 3),
+      3,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MenuDotPainter oldDelegate) =>
+      dotColor != oldDelegate.dotColor;
 }
