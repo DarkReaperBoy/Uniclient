@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import 'confirm_box.dart';
 import 'popup_menu.dart';
+import 'telegram_toast.dart';
 
 const int kScheduledUntilOnlineTimestamp = 0x7FFFFFFE;
 
@@ -270,7 +271,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
     final subtextFg =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentFg =
-        context.palette.windowBgActive;
+        context.palette.dialogsBgActive;
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final disabledFg = subtextFg.withValues(alpha: 0.4);
 
@@ -296,7 +297,10 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.arrow_drop_down, size: 20, color: textFg),
+            CustomPaint(
+              size: const Size(8, 10),
+              painter: _TriangleArrowPainter(color: textFg),
+            ),
           ],
         ),
       ),
@@ -639,7 +643,7 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
     final years = _years;
 
     return TelegramBox(
-      title: 'Jump to date',
+      title: null,
       scrollableContent: false,
       onKeyEvent: _handleKey,
       content: SizedBox(
@@ -1003,8 +1007,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   late FocusNode _dateFocus;
   int _repeatPeriod = 0;
   bool _timeError = false;
-  late AnimationController _shakeController;
-  late Animation<double> _shakeAnimation;
+  late AnimationController _errorBorderController;
 
   @override
   void initState() {
@@ -1021,19 +1024,10 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     _dateFocus = FocusNode();
     _dateFocus.addListener(_onDateFocusChanged);
 
-    _shakeController = AnimationController(
-      duration: const Duration(milliseconds: 150),
+    _errorBorderController = AnimationController(
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     );
-    _shakeAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0, end: -6), weight: 1),
-      TweenSequenceItem(tween: Tween(begin: -6, end: 6), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 6, end: -4), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: -4, end: 0), weight: 1),
-    ]).animate(CurvedAnimation(
-      parent: _shakeController,
-      curve: Curves.easeInOut,
-    ));
   }
 
   @override
@@ -1044,7 +1038,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     _minuteFocus.dispose();
     _dateFocus.removeListener(_onDateFocusChanged);
     _dateFocus.dispose();
-    _shakeController.dispose();
+    _errorBorderController.dispose();
     super.dispose();
   }
 
@@ -1084,8 +1078,12 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
 
   void _showTimeError() {
     setState(() => _timeError = true);
-    _shakeController.forward(from: 0).then((_) {
-      if (mounted) setState(() => _timeError = false);
+    _errorBorderController.forward(from: 0).then((_) {
+      if (mounted) {
+        _errorBorderController.reverse().then((_) {
+          if (mounted) setState(() => _timeError = false);
+        });
+      }
     });
   }
 
@@ -1110,7 +1108,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   Future<void> _openCalendar() async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final maxDate = today.add(const Duration(days: 365));
+    final maxDate = DateTime(today.year + 1, today.month, today.day);
     final picked = await showCalendarBox(
       context,
       initialDate: _selectedDate.isBefore(today) ? today : _selectedDate,
@@ -1127,7 +1125,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   void _scrollDate(int delta) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final maxDate = today.add(const Duration(days: 365));
+    final maxDate = DateTime(today.year + 1, today.month, today.day);
     final newDate = _selectedDate.add(Duration(days: delta));
     if (!newDate.isBefore(today) && !newDate.isAfter(maxDate)) {
       setState(() => _selectedDate = newDate);
@@ -1170,26 +1168,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     if (_isPremium) {
       _showRepeatMenu();
     } else {
-      showTelegramBox<void>(
-        context: context,
-        builder: (ctx) => TelegramBox(
-          title: 'Telegram Premium',
-          content: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            child: Text(
-              'Repeat schedules are available with Telegram Premium. '
-              'Subscribe to unlock this and many other features.',
-              style: TextStyle(fontSize: 14),
-            ),
-          ),
-          buttons: [
-            TelegramBoxButton(
-              text: 'Close',
-              onPressed: () => Navigator.of(ctx).pop(),
-            ),
-          ],
-        ),
-      );
+      showTelegramToast(context, 'Repeat schedules are available with Telegram Premium.');
     }
   }
 
@@ -1212,7 +1191,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
 
     return TelegramBox(
       wide: true,
-      title: widget.titleOverride ?? (widget.isSelfChat ? 'Set a reminder' : 'Schedule message'),
+      title: widget.titleOverride ?? (widget.isSelfChat ? 'Remind me on...' : 'Send this message on...'),
       titleTrailing: widget.isScheduledToUser
           ? IconButton(
               icon: Icon(Icons.more_vert,
@@ -1310,29 +1289,25 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
                           _scheduleAtSkip,
                       top: _scheduleDateTop,
                       child: AnimatedBuilder(
-                        animation: _shakeAnimation,
+                        animation: _errorBorderController,
                         builder: (context, child) {
-                          return Transform.translate(
-                            offset: Offset(_shakeAnimation.value, 0),
-                            child: child,
+                          final borderColor = _timeError
+                              ? Color.lerp(fieldBorderActive, errorBorder, _errorBorderController.value)!
+                              : fieldBorder;
+                          return _TimeInputField(
+                            hourController: _hourController,
+                            minuteController: _minuteController,
+                            hourFocus: _hourFocus,
+                            minuteFocus: _minuteFocus,
+                            width: _scheduleTimeWidth,
+                            fieldBg: fieldBg,
+                            fieldBorder: borderColor,
+                            fieldBorderActive: borderColor,
+                            textColor: titleFg,
+                            separatorColor: separatorFg,
+                            onSubmit: () => _submit(),
                           );
                         },
-                        child: _TimeInputField(
-                          hourController: _hourController,
-                          minuteController: _minuteController,
-                          hourFocus: _hourFocus,
-                          minuteFocus: _minuteFocus,
-                          width: _scheduleTimeWidth,
-                          fieldBg: fieldBg,
-                          fieldBorder:
-                              _timeError ? errorBorder : fieldBorder,
-                          fieldBorderActive: _timeError
-                              ? errorBorder
-                              : fieldBorderActive,
-                          textColor: titleFg,
-                          separatorColor: separatorFg,
-                          onSubmit: () => _submit(),
-                        ),
                       ),
                     ),
                   ],
@@ -1669,6 +1644,46 @@ class _TimeInputField extends StatelessWidget {
     required this.onSubmit,
   });
 
+  void _scrollHour(double dy) {
+    final cur = int.tryParse(hourController.text) ?? 0;
+    final next = dy > 0 ? (cur - 1).clamp(0, 23) : (cur + 1).clamp(0, 23);
+    hourController.text = next.toString().padLeft(2, '0');
+    hourController.selection = TextSelection.collapsed(offset: hourController.text.length);
+  }
+
+  void _scrollMinute(double dy) {
+    final cur = int.tryParse(minuteController.text) ?? 0;
+    final step = 10;
+    final next = dy > 0 ? (cur - step).clamp(0, 59) : (cur + step).clamp(0, 59);
+    minuteController.text = next.toString().padLeft(2, '0');
+    minuteController.selection = TextSelection.collapsed(offset: minuteController.text.length);
+  }
+
+  KeyEventResult _handleMinuteKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      final sel = minuteController.selection;
+      if (sel.baseOffset == 0 && sel.extentOffset == 0) {
+        hourFocus.requestFocus();
+        hourController.selection = TextSelection.collapsed(offset: hourController.text.length);
+        return KeyEventResult.handled;
+      }
+    } else if (event.logicalKey == LogicalKeyboardKey.backspace) {
+      if (minuteController.text.isEmpty) {
+        final hText = hourController.text;
+        if (hText.isNotEmpty) {
+          hourController.text = hText.substring(0, hText.length - 1);
+          hourController.selection = TextSelection.collapsed(offset: hourController.text.length);
+        }
+        hourFocus.requestFocus();
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1684,24 +1699,29 @@ class _TimeInputField extends StatelessWidget {
         children: [
           SizedBox(
             width: 24,
-            child: TextField(
-              controller: hourController,
-              focusNode: hourFocus,
-              textAlign: TextAlign.center,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(2),
-              ],
-              style: TextStyle(fontSize: 14, color: textColor),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 4),
-              ),
-              onChanged: (v) {
-                if (v.length == 2) minuteFocus.requestFocus();
+            child: Listener(
+              onPointerSignal: (event) {
+                if (event is PointerScrollEvent) _scrollHour(event.scrollDelta.dy);
               },
+              child: TextField(
+                controller: hourController,
+                focusNode: hourFocus,
+                textAlign: TextAlign.center,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(2),
+                ],
+                style: TextStyle(fontSize: 14, color: textColor),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 4),
+                ),
+                onChanged: (v) {
+                  if (v.length == 2) minuteFocus.requestFocus();
+                },
+              ),
             ),
           ),
           Padding(
@@ -1713,26 +1733,53 @@ class _TimeInputField extends StatelessWidget {
           ),
           SizedBox(
             width: 24,
-            child: TextField(
-              controller: minuteController,
-              focusNode: minuteFocus,
-              textAlign: TextAlign.center,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(2),
-              ],
-              style: TextStyle(fontSize: 14, color: textColor),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 4),
+            child: Listener(
+              onPointerSignal: (event) {
+                if (event is PointerScrollEvent) _scrollMinute(event.scrollDelta.dy);
+              },
+              child: Focus(
+                onKeyEvent: _handleMinuteKey,
+                child: TextField(
+                  controller: minuteController,
+                  focusNode: minuteFocus,
+                  textAlign: TextAlign.center,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(2),
+                  ],
+                  style: TextStyle(fontSize: 14, color: textColor),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 4),
+                  ),
+                  onSubmitted: (_) => onSubmit(),
+                ),
               ),
-              onSubmitted: (_) => onSubmit(),
             ),
           ),
         ],
       ),
     );
   }
+}
+
+class _TriangleArrowPainter extends CustomPainter {
+  final Color color;
+  _TriangleArrowPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, size.height / 2)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_TriangleArrowPainter old) => old.color != color;
 }
