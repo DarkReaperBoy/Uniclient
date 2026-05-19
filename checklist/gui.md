@@ -481,24 +481,6 @@ The Dart version works but lacks the flexibility and maintainability of the AyuG
 
 # emoji_panel — Emoji/Sticker/GIF tabbed panel audit
 
-- [ ] [CRITICAL] `resetEmojiPrefsForAccountSwitch()` is defined but never called anywhere in the Dart codebase — module-level globals `_recentEmojis`, `_skinTonePrefs`, `_emojiPrefsConfigDir` persist across account switches, polluting the new account's emoji history with the previous account's data — `emoji_panel.dart:39` ← function exists but has zero callers
-
-- [ ] [CRITICAL] `_onSearchResultContextMenu` saves GIF via `int.tryParse(result.id) ?? 0` — inline bot result IDs from Giphy/gif search are not numeric strings, so this resolves to 0 and calls `engine.saveGif(account, 0)`, saving nothing or the wrong document — `emoji_panel.dart:3013` ← `gifs_list_widget.cpp:AddGifAction` uses the document pointer directly, not a string-parsed int
-
-- [ ] [MAJOR] Recent emoji limit is 50 instead of 54 — both `_recentEmojis.sublist(0, 50)` cap points use 50 — `emoji_panel.dart:834,911` ← `AyuGramDesktop/Telegram/SourceFiles/core/core_settings.h:74` (`constexpr auto kRecentEmojiLimit = 54`)
-
-- [ ] [MAJOR] Skin tone color picker fires immediately on `onLongPress` — AyuGram delays 500ms before showing the picker (`kColorPickerDelay = crl::time(500)`, `_showPickerTimer.callOnce(kColorPickerDelay)`) to prevent accidental triggers — `emoji_panel.dart:1537` ← `AyuGramDesktop/Telegram/SourceFiles/chat_helpers/emoji_list_widget.cpp:72,2303`
-
-- [ ] [MAJOR] Sticker pack removal (X button in section header) calls `_uninstallPack()` immediately with no confirmation dialog — AyuGram always shows `MakeConfirmRemoveSetBox` before uninstalling — `emoji_panel.dart:2190` ← `AyuGramDesktop/Telegram/SourceFiles/chat_helpers/stickers_list_widget.cpp:3296-3307`
-
-- [ ] [MAJOR] Recent stickers display is hardcapped at 20 (`cappedRecent = recent.length > 20 ? recent.sublist(0, 20) : recent`) — Telegram API returns up to 200 recent stickers; AyuGram shows all of them (with optional "Unlimited recent stickers" flag) — `emoji_panel.dart:1670` ← `AyuGramDesktop/Telegram/SourceFiles/chat_helpers/stickers_list_widget.cpp:93-103`
-
-- [ ] [MAJOR] Sticker/emoji panel data never refreshes after external changes — `_loaded` guard prevents re-fetch; no engine event subscriptions anywhere in `_StickerTabState` or `_EmojiTabState` — if user installs a pack from another screen, the panel stays stale until app restart — `emoji_panel.dart:1655` (initState with no event listeners)
-
-- [ ] [MAJOR] `_gifFileCache` is a module-level `Map<int, String>` that grows forever — every GIF loaded writes a temp file to `/tmp/uniclient_gif_*.mp4` and caches the path; there is no eviction, size limit, or cleanup on dispose — accumulated temp files persist for the process lifetime — `emoji_panel.dart:3494`
-
-- [ ] [MAJOR] Tab slide `AnimatedBuilder` reconstructs both full tab widget trees (`_EmojiTab`, `_StickerTab`, `_GifTab`) on every animation frame with no `RepaintBoundary` wrapping — the entire panel repaints every 16ms for 200ms on each tab switch — `emoji_panel.dart:574-621`
-
 # ayu_filter — Regex filter engine
 
 ## Summary
