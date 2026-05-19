@@ -7672,24 +7672,25 @@ func (x *EngineCreateGroupResponse) GetChat() *EngineChatInfo {
 }
 
 type EngineContactInfo struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Username       string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
-	DisplayName    string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Phone          string                 `protobuf:"bytes,4,opt,name=phone,proto3" json:"phone,omitempty"`
-	AvatarB64      string                 `protobuf:"bytes,5,opt,name=avatar_b64,json=avatarB64,proto3" json:"avatar_b64,omitempty"`
-	IsBot          bool                   `protobuf:"varint,6,opt,name=is_bot,json=isBot,proto3" json:"is_bot,omitempty"`
-	IsOnline       bool                   `protobuf:"varint,7,opt,name=is_online,json=isOnline,proto3" json:"is_online,omitempty"`
-	StoryCount     int32                  `protobuf:"varint,8,opt,name=story_count,json=storyCount,proto3" json:"story_count,omitempty"`
-	HasUnreadStory bool                   `protobuf:"varint,9,opt,name=has_unread_story,json=hasUnreadStory,proto3" json:"has_unread_story,omitempty"`
-	IsVerified     bool                   `protobuf:"varint,10,opt,name=is_verified,json=isVerified,proto3" json:"is_verified,omitempty"`
-	IsPremium      bool                   `protobuf:"varint,11,opt,name=is_premium,json=isPremium,proto3" json:"is_premium,omitempty"`
-	IsScam         bool                   `protobuf:"varint,12,opt,name=is_scam,json=isScam,proto3" json:"is_scam,omitempty"`
-	IsFake         bool                   `protobuf:"varint,13,opt,name=is_fake,json=isFake,proto3" json:"is_fake,omitempty"`
-	LastSeenKind   string                 `protobuf:"bytes,14,opt,name=last_seen_kind,json=lastSeenKind,proto3" json:"last_seen_kind,omitempty"`
-	LastSeenTs     int64                  `protobuf:"varint,15,opt,name=last_seen_ts,json=lastSeenTs,proto3" json:"last_seen_ts,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	UserId           string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Username         string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	DisplayName      string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Phone            string                 `protobuf:"bytes,4,opt,name=phone,proto3" json:"phone,omitempty"`
+	AvatarB64        string                 `protobuf:"bytes,5,opt,name=avatar_b64,json=avatarB64,proto3" json:"avatar_b64,omitempty"`
+	IsBot            bool                   `protobuf:"varint,6,opt,name=is_bot,json=isBot,proto3" json:"is_bot,omitempty"`
+	IsOnline         bool                   `protobuf:"varint,7,opt,name=is_online,json=isOnline,proto3" json:"is_online,omitempty"`
+	StoryCount       int32                  `protobuf:"varint,8,opt,name=story_count,json=storyCount,proto3" json:"story_count,omitempty"`
+	HasUnreadStory   bool                   `protobuf:"varint,9,opt,name=has_unread_story,json=hasUnreadStory,proto3" json:"has_unread_story,omitempty"`
+	IsVerified       bool                   `protobuf:"varint,10,opt,name=is_verified,json=isVerified,proto3" json:"is_verified,omitempty"`
+	IsPremium        bool                   `protobuf:"varint,11,opt,name=is_premium,json=isPremium,proto3" json:"is_premium,omitempty"`
+	IsScam           bool                   `protobuf:"varint,12,opt,name=is_scam,json=isScam,proto3" json:"is_scam,omitempty"`
+	IsFake           bool                   `protobuf:"varint,13,opt,name=is_fake,json=isFake,proto3" json:"is_fake,omitempty"`
+	LastSeenKind     string                 `protobuf:"bytes,14,opt,name=last_seen_kind,json=lastSeenKind,proto3" json:"last_seen_kind,omitempty"`
+	LastSeenTs       int64                  `protobuf:"varint,15,opt,name=last_seen_ts,json=lastSeenTs,proto3" json:"last_seen_ts,omitempty"`
+	IsMutualContact  bool                   `protobuf:"varint,16,opt,name=is_mutual_contact,json=isMutualContact,proto3" json:"is_mutual_contact,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *EngineContactInfo) Reset() {
@@ -7825,6 +7826,13 @@ func (x *EngineContactInfo) GetLastSeenTs() int64 {
 		return x.LastSeenTs
 	}
 	return 0
+}
+
+func (x *EngineContactInfo) GetIsMutualContact() bool {
+	if x != nil {
+		return x.IsMutualContact
+	}
+	return false
 }
 
 type EngineGetContactsRequest struct {

@@ -493,6 +493,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SuggestContactPhoto(params.AccountID, params.UserID, photoData)
 
+	case "SuggestBirthday":
+		var params struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+			Day       int    `json:"day"`
+			Month     int    `json:"month"`
+			Year      int    `json:"year"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SuggestBirthday(params.AccountID, params.UserID, params.Day, params.Month, params.Year)
+
 	case "SetPersonalContactPhoto":
 		var params struct {
 			AccountID string `json:"account_id"`
@@ -2312,21 +2325,22 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		resp := &pb.EngineGetContactsResponse{}
 		for _, c := range contacts {
 			resp.Contacts = append(resp.Contacts, &pb.EngineContactInfo{
-				UserId:         c.UserID,
-				Username:       sanitizeUTF8(c.Username),
-				DisplayName:    sanitizeUTF8(c.DisplayName),
-				Phone:          c.Phone,
-				AvatarB64:      c.AvatarB64,
-				IsBot:          c.IsBot,
-				IsOnline:       c.IsOnline,
-				StoryCount:     c.StoryCount,
-				HasUnreadStory: c.HasUnreadStory,
-				IsVerified:     c.IsVerified,
-				IsPremium:      c.IsPremium,
-				IsScam:         c.IsScam,
-				IsFake:         c.IsFake,
-				LastSeenKind:   c.LastSeenKind,
-				LastSeenTs:     c.LastSeenTs,
+				UserId:          c.UserID,
+				Username:        sanitizeUTF8(c.Username),
+				DisplayName:     sanitizeUTF8(c.DisplayName),
+				Phone:           c.Phone,
+				AvatarB64:       c.AvatarB64,
+				IsBot:           c.IsBot,
+				IsOnline:        c.IsOnline,
+				IsMutualContact: c.IsMutualContact,
+				StoryCount:      c.StoryCount,
+				HasUnreadStory:  c.HasUnreadStory,
+				IsVerified:      c.IsVerified,
+				IsPremium:       c.IsPremium,
+				IsScam:          c.IsScam,
+				IsFake:          c.IsFake,
+				LastSeenKind:    c.LastSeenKind,
+				LastSeenTs:      c.LastSeenTs,
 			})
 		}
 		return proto.Marshal(resp)

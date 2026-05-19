@@ -1744,6 +1744,7 @@ class ContactInfo {
   final bool isBot;
   final bool isOnline;
   final bool isContact;
+  final bool isMutualContact;
   final bool hasPersonalPhoto;
   final int birthdayDay;
   final int birthdayMonth;
@@ -1767,6 +1768,7 @@ class ContactInfo {
     this.isBot = false,
     this.isOnline = false,
     this.isContact = false,
+    this.isMutualContact = false,
     this.hasPersonalPhoto = false,
     this.birthdayDay = 0,
     this.birthdayMonth = 0,

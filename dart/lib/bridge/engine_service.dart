@@ -539,6 +539,17 @@ class EngineService {
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
+  Future<void> suggestBirthday(String accountId, String userId, int day, int month, int year) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'user_id': userId,
+      'day': day,
+      'month': month,
+      'year': year,
+    }));
+    await _callAsync('__engine', 'SuggestBirthday', Uint8List.fromList(payload));
+  }
+
   Future<void> suggestContactPhoto(String accountId, String userId, String photoPath) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -5967,6 +5978,7 @@ class EngineService {
     isBot: p.isBot,
     isOnline: p.isOnline,
     isContact: true,
+    isMutualContact: p.isMutualContact,
     storyCount: p.storyCount,
     hasUnreadStory: p.hasUnreadStory,
     isVerified: p.isVerified,

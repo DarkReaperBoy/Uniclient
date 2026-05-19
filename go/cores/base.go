@@ -162,6 +162,7 @@ type User struct {
 	PersonalChannelName    string `json:"personal_channel_name,omitempty"`
 	VoiceMessagesForbidden bool   `json:"voice_messages_forbidden,omitempty"`
 	ContactRequirePremium  bool   `json:"contact_require_premium,omitempty"`
+	IsMutualContact        bool   `json:"is_mutual_contact,omitempty"`
 	HasPersonalPhoto       bool   `json:"has_personal_photo,omitempty"`
 	PersonalPhotoId        string `json:"personal_photo_id,omitempty"`
 	FallbackPhotoId        string `json:"fallback_photo_id,omitempty"`

@@ -10470,6 +10470,7 @@ class EngineContactInfo extends $pb.GeneratedMessage {
     $core.bool? isFake,
     $core.String? lastSeenKind,
     $fixnum.Int64? lastSeenTs,
+    $core.bool? isMutualContact,
   }) {
     final $result = create();
     if (userId != null) {
@@ -10517,6 +10518,9 @@ class EngineContactInfo extends $pb.GeneratedMessage {
     if (lastSeenTs != null) {
       $result.lastSeenTs = lastSeenTs;
     }
+    if (isMutualContact != null) {
+      $result.isMutualContact = isMutualContact;
+    }
     return $result;
   }
   EngineContactInfo._() : super();
@@ -10539,6 +10543,7 @@ class EngineContactInfo extends $pb.GeneratedMessage {
     ..aOB(13, _omitFieldNames ? '' : 'isFake')
     ..aOS(14, _omitFieldNames ? '' : 'lastSeenKind')
     ..aInt64(15, _omitFieldNames ? '' : 'lastSeenTs')
+    ..aOB(16, _omitFieldNames ? '' : 'isMutualContact')
     ..hasRequiredFields = false
   ;
 
@@ -10697,6 +10702,15 @@ class EngineContactInfo extends $pb.GeneratedMessage {
   $core.bool hasLastSeenTs() => $_has(14);
   @$pb.TagNumber(15)
   void clearLastSeenTs() => clearField(15);
+
+  @$pb.TagNumber(16)
+  $core.bool get isMutualContact => $_getBF(15);
+  @$pb.TagNumber(16)
+  set isMutualContact($core.bool v) { $_setBool(15, v); }
+  @$pb.TagNumber(16)
+  $core.bool hasIsMutualContact() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearIsMutualContact() => clearField(16);
 }
 
 class EngineGetContactsRequest extends $pb.GeneratedMessage {

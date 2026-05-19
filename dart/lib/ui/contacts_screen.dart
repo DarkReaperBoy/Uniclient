@@ -66,6 +66,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
   static const _sortByOnlineThrottle = Duration(milliseconds: 3000);
   Timer? _sortThrottleTimer;
   List<ContactInfo>? _sortedCache;
+  StreamSubscription<UserStatusEvent>? _userStatusSub;
 
   @override
   void initState() {
@@ -73,10 +74,13 @@ class _ContactsBoxState extends State<_ContactsBox> {
     _searchFocusNode = FocusNode();
     _loadContacts();
     _searchController.addListener(_onSearchChanged);
+    final engine = context.read<EngineService>();
+    _userStatusSub = engine.onUserStatus.listen(_onUserStatusChanged);
   }
 
   @override
   void dispose() {
+    _userStatusSub?.cancel();
     _globalSearchTimer?.cancel();
     _sortThrottleTimer?.cancel();
     _searchController.removeListener(_onSearchChanged);
@@ -297,6 +301,38 @@ class _ContactsBoxState extends State<_ContactsBox> {
     });
   }
 
+  void _onUserStatusChanged(UserStatusEvent event) {
+    if (!mounted) return;
+    final contacts = _contacts;
+    if (contacts == null) return;
+    final idx = contacts.indexWhere((c) => c.userId == event.userId);
+    if (idx >= 0) {
+      final c = contacts[idx];
+      contacts[idx] = ContactInfo(
+        userId: c.userId,
+        username: c.username,
+        displayName: c.displayName,
+        phone: c.phone,
+        avatarB64: c.avatarB64,
+        isBot: c.isBot,
+        isOnline: event.isOnline,
+        isContact: c.isContact,
+        isMutualContact: c.isMutualContact,
+        hasPersonalPhoto: c.hasPersonalPhoto,
+        storyCount: c.storyCount,
+        hasUnreadStory: c.hasUnreadStory,
+        isVerified: c.isVerified,
+        isPremium: c.isPremium,
+        isScam: c.isScam,
+        isFake: c.isFake,
+        lastSeenKind: event.lastSeenKind.isNotEmpty ? event.lastSeenKind : c.lastSeenKind,
+        lastSeenTs: event.lastSeenMs > 0 ? event.lastSeenMs ~/ 1000 : c.lastSeenTs,
+      );
+      _sortedCache = null;
+    }
+    _throttledRefresh();
+  }
+
   List<ContactInfo> get _filteredContacts {
     if (_sortedCache != null) return _sortedCache!;
     final local = _localFiltered(_searchQuery);
@@ -483,6 +519,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
                                         bgColor: bgColor,
                                         isDark: isDark,
                                         onTap: () => _openChat(contact),
+                                        onMiddleClick: () => _openChatInBackground(contact),
                                         onStoryTap: contact.hasStories
                                             ? () => _openStory(contact)
                                             : null,
@@ -571,6 +608,16 @@ class _ContactsBoxState extends State<_ContactsBox> {
   }
 
   void _openChat(ContactInfo contact) {
+    _navigateToChat(contact);
+    Navigator.of(context).pop();
+  }
+
+  void _openChatInBackground(ContactInfo contact) {
+    _navigateToChat(contact);
+    if (mounted) showTelegramToast(context, 'Opened chat with ${contact.label}');
+  }
+
+  void _navigateToChat(ContactInfo contact) {
     final chatState = context.read<ChatState>();
     final chats = chatState.chats;
     ChatInfo? dm;
@@ -591,7 +638,6 @@ class _ContactsBoxState extends State<_ContactsBox> {
       );
       chatState.openChat(syntheticDm);
     }
-    Navigator.of(context).pop();
   }
 
   void _openStory(ContactInfo contact) async {
@@ -634,8 +680,24 @@ class _SortToggle extends StatefulWidget {
   State<_SortToggle> createState() => _SortToggleState();
 }
 
-class _SortToggleState extends State<_SortToggle> {
+class _SortToggleState extends State<_SortToggle> with SingleTickerProviderStateMixin {
   bool _hovered = false;
+  late final AnimationController _highlightAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _highlightAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _highlightAnim.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -646,40 +708,52 @@ class _SortToggleState extends State<_SortToggle> {
         ? const Color(0xFF202B36)
         : const Color(0xFFF1F1F1);
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onToggle,
-        child: SizedBox(
-          width: 48,
-          height: 54,
-          child: Stack(
-            children: [
-              Positioned(
-                left: 1,
-                top: 6,
-                child: Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _hovered ? hoverColor : Colors.transparent,
+    return AnimatedBuilder(
+      animation: _highlightAnim,
+      builder: (context, child) {
+        final highlightOpacity = _highlightAnim.status == AnimationStatus.completed
+            ? 0.0
+            : (1.0 - _highlightAnim.value) * 0.3;
+        return MouseRegion(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: GestureDetector(
+            onTap: widget.onToggle,
+            child: SizedBox(
+              width: 48,
+              height: 54,
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: 1,
+                    top: 6,
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _hovered
+                            ? hoverColor
+                            : highlightOpacity > 0
+                                ? hoverColor.withOpacity(highlightOpacity)
+                                : Colors.transparent,
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        widget.mode == _SortMode.online
+                            ? Icons.sort_by_alpha
+                            : Icons.access_time,
+                        size: 22,
+                        color: iconColor,
+                      ),
+                    ),
                   ),
-                  alignment: Alignment.center,
-                  child: Icon(
-                    widget.mode == _SortMode.online
-                        ? Icons.sort_by_alpha
-                        : Icons.access_time,
-                    size: 22,
-                    color: iconColor,
-                  ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -692,6 +766,7 @@ class _ContactRow extends StatefulWidget {
   final Color bgColor;
   final bool isDark;
   final VoidCallback onTap;
+  final VoidCallback? onMiddleClick;
   final VoidCallback? onStoryTap;
   final VoidCallback? onContactChanged;
 
@@ -703,6 +778,7 @@ class _ContactRow extends StatefulWidget {
     required this.bgColor,
     required this.isDark,
     required this.onTap,
+    this.onMiddleClick,
     this.onStoryTap,
     this.onContactChanged,
   });
@@ -1019,6 +1095,19 @@ class _ContactRowState extends State<_ContactRow> {
         ),
       ));
     }
+    if (contact.isMutualContact) {
+      nameBadges.add(WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Icon(
+            Icons.swap_horiz,
+            size: 16,
+            color: widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999),
+          ),
+        ),
+      ));
+    }
     if (contact.isScam) {
       nameBadges.add(WidgetSpan(
         alignment: PlaceholderAlignment.middle,
@@ -1056,7 +1145,7 @@ class _ContactRowState extends State<_ContactRow> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
-        onTertiaryTapDown: (_) => widget.onTap(),
+        onTertiaryTapDown: (_) => (widget.onMiddleClick ?? widget.onTap)(),
         onSecondaryTapDown: (details) => _showContextMenu(context, details.globalPosition),
         behavior: HitTestBehavior.opaque,
         child: Material(
@@ -1404,7 +1493,20 @@ class _EditContactBoxState extends State<_EditContactBox> {
       helpText: 'Suggest Birthday',
     );
     if (picked == null || !mounted) return;
-    showTelegramToast(context, 'Birthday suggestion: ${picked.day}/${picked.month}/${picked.year}');
+    final account = widget.appState.activeAccount;
+    if (account == null) return;
+    try {
+      await widget.engine.suggestBirthday(
+        account.id,
+        widget.contact.userId,
+        picked.day,
+        picked.month,
+        picked.year,
+      );
+      if (mounted) showTelegramToast(context, 'Birthday suggestion sent');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed: ${e.toString().replaceFirst("Exception: ", "")}');
+    }
   }
 
   Future<void> _setPersonalPhoto() async {
@@ -1940,7 +2042,7 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
   }
 
   int _columnsForWidth(double screenWidth) {
-    return (screenWidth / 90).floor().clamp(3, 10);
+    return 4;
   }
 
   static Color avatarColor(String id, TelegramPalette palette) {

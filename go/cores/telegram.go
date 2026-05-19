@@ -11666,18 +11666,19 @@ func extractEmojiStatusID(es tg.EmojiStatusClass) string {
 
 func (t *TelegramCore) convertUser(user *tg.User) *User {
 	u := &User{
-		ID:          strconv.FormatInt(user.ID, 10),
-		Username:    user.Username,
-		DisplayName: strings.TrimSpace(user.FirstName + " " + user.LastName),
-		Phone:       user.Phone,
-		IsBot:       user.Bot,
-		IsContact:   user.Contact,
-		IsVerified:  user.Verified,
-		IsPremium:   user.Premium,
-		IsScam:      user.Scam,
-		IsFake:      user.Fake,
-		EmojiStatusID: extractEmojiStatusID(user.EmojiStatus),
-		Platform:    tgPlatform,
+		ID:              strconv.FormatInt(user.ID, 10),
+		Username:        user.Username,
+		DisplayName:     strings.TrimSpace(user.FirstName + " " + user.LastName),
+		Phone:           user.Phone,
+		IsBot:           user.Bot,
+		IsContact:       user.Contact,
+		IsMutualContact: user.MutualContact,
+		IsVerified:      user.Verified,
+		IsPremium:       user.Premium,
+		IsScam:          user.Scam,
+		IsFake:          user.Fake,
+		EmojiStatusID:   extractEmojiStatusID(user.EmojiStatus),
+		Platform:        tgPlatform,
 	}
 
 	// Classify presence into (isOnline, kind, lastSeen) and propagate via the
@@ -24737,6 +24738,25 @@ func (t *TelegramCore) UsersSuggestBirthday(request *tg.UsersSuggestBirthdayRequ
 	return t.api.UsersSuggestBirthday(t.ctx, request)
 }
 
+// SuggestBirthday is a simplified wrapper for the engine interface.
+func (t *TelegramCore) SuggestBirthday(userID string, day, month, year int) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	uid, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+	inputUser := &tg.InputUser{UserID: uid, AccessHash: t.getCachedUserHash(uid)}
+	bday := tg.Birthday{Day: day, Month: month}
+	if year > 0 {
+		bday.SetYear(year)
+	}
+	_, err = t.api.UsersSuggestBirthday(t.ctx, &tg.UsersSuggestBirthdayRequest{
+		ID:       inputUser,
+		Birthday: bday,
+	})
+	return err
+}
 
 // --- Test helper methods (for ntgcalls harness and other test automation) ---
 

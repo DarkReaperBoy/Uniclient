@@ -1683,6 +1683,20 @@ func (e *Engine) SuggestContactPhoto(accountID, userID string, photoData []byte)
 	return fmt.Errorf("platform does not support suggesting contact photos")
 }
 
+func (e *Engine) SuggestBirthday(accountID, userID string, day, month, year int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type suggestor interface {
+		SuggestBirthday(userID string, day, month, year int) error
+	}
+	if s, ok := acc.Core.(suggestor); ok {
+		return s.SuggestBirthday(userID, day, month, year)
+	}
+	return fmt.Errorf("platform does not support suggesting birthdays")
+}
+
 func (e *Engine) SetPersonalContactPhoto(accountID, userID string, photoData []byte) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
