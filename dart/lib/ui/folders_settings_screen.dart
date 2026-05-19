@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
@@ -23,37 +24,37 @@ const _kFilterIconOrder = <String>[
   'Trade', 'Work', 'Unmuted', 'Channels', 'Custom', 'Setup',
 ];
 
-const _kFilterIcons = <String, IconData>{
-  'Cat': Icons.pets,
-  'Book': Icons.menu_book,
-  'Money': Icons.attach_money,
-  'Game': Icons.sports_esports,
-  'Light': Icons.lightbulb_outline,
-  'Like': Icons.thumb_up_outlined,
-  'Note': Icons.note_outlined,
-  'Palette': Icons.palette_outlined,
-  'Travel': Icons.luggage_outlined,
-  'Sport': Icons.sports_soccer_outlined,
-  'Favorite': Icons.star_outline,
-  'Study': Icons.school_outlined,
-  'Airplane': Icons.flight,
-  'Private': Icons.person_outline,
-  'Groups': Icons.group_outlined,
-  'All': Icons.chat_outlined,
-  'Unread': Icons.mark_email_unread_outlined,
-  'Bots': Icons.smart_toy_outlined,
-  'Crown': Icons.workspace_premium_outlined,
-  'Flower': Icons.local_florist_outlined,
-  'Home': Icons.home_outlined,
-  'Love': Icons.favorite_outline,
-  'Mask': Icons.masks_outlined,
-  'Party': Icons.celebration_outlined,
-  'Trade': Icons.trending_up,
-  'Work': Icons.work_outline,
-  'Unmuted': Icons.volume_up_outlined,
-  'Channels': Icons.campaign_outlined,
-  'Custom': Icons.edit_outlined,
-  'Setup': Icons.settings_outlined,
+const _kFilterIconEmoji = <String, String>{
+  'Cat': '\u{1F431}',
+  'Book': '\u{1F4D5}',
+  'Money': '\u{1F4B0}',
+  'Game': '\u{1F3AE}',
+  'Light': '\u{1F4A1}',
+  'Like': '\u{1F44C}',
+  'Note': '\u{1F3B5}',
+  'Palette': '\u{1F3A8}',
+  'Travel': '\u{2708}\u{FE0F}',
+  'Sport': '\u{26BD}',
+  'Favorite': '\u{2B50}',
+  'Study': '\u{1F393}',
+  'Airplane': '\u{1F6EB}',
+  'Private': '\u{1F464}',
+  'Groups': '\u{1F465}',
+  'All': '\u{1F4AC}',
+  'Unread': '\u{2705}',
+  'Bots': '\u{1F916}',
+  'Crown': '\u{1F451}',
+  'Flower': '\u{1F339}',
+  'Home': '\u{1F3E0}',
+  'Love': '\u{2764}\u{FE0F}',
+  'Mask': '\u{1F3AD}',
+  'Party': '\u{1F378}',
+  'Trade': '\u{1F4C8}',
+  'Work': '\u{1F4BC}',
+  'Unmuted': '\u{1F514}',
+  'Channels': '\u{1F4E2}',
+  'Custom': '\u{1F4C1}',
+  'Setup': '\u{1F4CB}',
 };
 
 void showEditFolderBox(BuildContext context, FolderInfo folder) {
@@ -74,6 +75,7 @@ void showEditFolderBox(BuildContext context, FolderInfo folder) {
       final account = appState.activeAccount;
       if (account == null) return;
       final chatState = context.read<ChatState>();
+      final engine = context.read<EngineService>();
       chatState.editFolder(
         account.id, folder.id, result.name, result.chatIds,
         contacts: result.contacts,
@@ -85,7 +87,12 @@ void showEditFolderBox(BuildContext context, FolderInfo folder) {
         excludeRead: result.excludeRead,
         excludeArchived: result.excludeArchived,
         excludeChatIds: result.excludeChatIds,
-      );
+      ).then((_) {
+        if (context.mounted) {
+          final order = chatState.folders.map((f) => int.tryParse(f.id) ?? 0).toList();
+          engine.reorderDialogFilters(account.id, order);
+        }
+      });
     }
   });
 }
@@ -149,6 +156,16 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
     for (final folderId in _pendingRemovals) {
       try {
         await chatState.deleteFolder(account.id, folderId);
+      } catch (_) {}
+    }
+    final remainingOrder = _folders
+        .where((f) => !_pendingRemovals.contains(f.id))
+        .map((f) => int.tryParse(f.id) ?? 0)
+        .toList();
+    if (remainingOrder.isNotEmpty) {
+      try {
+        final engine = context.read<EngineService>();
+        engine.reorderDialogFilters(account.id, remainingOrder);
       } catch (_) {}
     }
   }
@@ -261,6 +278,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
         final account = appState.activeAccount;
         if (account == null) return;
         final chatState = context.read<ChatState>();
+        final engine = context.read<EngineService>();
         if (existingFolder != null) {
           chatState.editFolder(
             account.id, existingFolder.id, result.name, result.chatIds,
@@ -276,6 +294,8 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
           ).then((_) {
             if (mounted) {
               setState(() => _folders = List.of(chatState.folders));
+              final order = chatState.folders.map((f) => int.tryParse(f.id) ?? 0).toList();
+              engine.reorderDialogFilters(account.id, order);
             }
           });
         } else {
@@ -293,6 +313,8 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
                   setState(() {
                     _folders = List.of(chatState.folders);
                   });
+                  final order = chatState.folders.map((f) => int.tryParse(f.id) ?? 0).toList();
+                  engine.reorderDialogFilters(account.id, order);
                 }
               });
             }
@@ -420,31 +442,34 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
                 : const SizedBox.shrink(),
           ),
 
-          // §18.11 Show Folder Tags toggle
-          _TagsToggle(
-            value: context.read<ChatState>().showFolderTags,
-            isPremium: context.read<AppState>().activeAccount?.isPremium ?? false,
-            isDark: isDark,
-            textColor: textColor,
-            subtextColor: subtextColor,
-            hoverColor: hoverColor,
-            onChanged: (v) {
-              context.read<ChatState>().showFolderTags = v;
-              setState(() {});
-            },
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 4, 22, 12),
-            child: Text(
-              'Show folder names next to unread counters in the chat list.',
-              style: TextStyle(fontSize: 13, color: subtextColor),
+          // §18.11 Show Folder Tags toggle — hidden when premiumPossible is false
+          if ((context.read<AppState>().activeAccount?.platform ?? '') == 'telegram') ...[
+            _TagsToggle(
+              value: context.read<ChatState>().showFolderTags,
+              isPremium: context.read<AppState>().activeAccount?.isPremium ?? false,
+              isDark: isDark,
+              textColor: textColor,
+              subtextColor: subtextColor,
+              hoverColor: hoverColor,
+              onChanged: (v) {
+                context.read<ChatState>().showFolderTags = v;
+                setState(() {});
+              },
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 4, 22, 12),
+              child: Text(
+                'Show folder names next to unread counters in the chat list.',
+                style: TextStyle(fontSize: 13, color: subtextColor),
+              ),
+            ),
+          ],
 
-          // §18.12 Tab View Section — visible only when window ≥ 452px
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth < 452) return const SizedBox.shrink();
+          // §18.12 Tab View Section — visible only when window is wide enough for side filters
+          Builder(
+            builder: (context) {
+              final windowWidth = MediaQuery.of(context).size.width;
+              if (windowWidth < 712) return const SizedBox.shrink();
               final chatState = context.read<ChatState>();
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1246,6 +1271,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   bool _excludeRead = false;
   bool _excludeArchived = false;
   bool _userTyped = false;
+  bool _staticTitle = false;
   String? _selectedIconName;
   int _colorIndex = -1;
   List<ChatlistInviteLink> _inviteLinks = [];
@@ -1897,6 +1923,26 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                                   ),
                                 ),
                               ),
+                            if (_nameController.text.isNotEmpty)
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 4, right: 2),
+                                  child: GestureDetector(
+                                    onTap: () => setState(() => _staticTitle = !_staticTitle),
+                                    child: MouseRegion(
+                                      cursor: SystemMouseCursors.click,
+                                      child: Text(
+                                        _staticTitle ? 'Enable Animations' : 'Disable Animations',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: widget.accentColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -1976,14 +2022,28 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 16),
-                      _TagColorSection(
-                        isDark: widget.isDark,
-                        accentColor: widget.accentColor,
-                        selectedIndex: _colorIndex,
-                        folderName: _nameController.text.trim(),
-                        onSelect: (idx) => setState(() => _colorIndex = idx),
-                      ),
+                      Builder(builder: (context) {
+                        final appState = context.read<AppState>();
+                        final isPremium = appState.activeAccount?.isPremium ?? false;
+                        final chatState = context.read<ChatState>();
+                        final tagsEnabled = chatState.showFolderTags;
+                        final premiumPossible = appState.activeAccount?.platform == 'telegram';
+                        final showSection = premiumPossible && (tagsEnabled || !isPremium);
+                        if (!showSection) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: _TagColorSection(
+                            isDark: widget.isDark,
+                            accentColor: widget.accentColor,
+                            selectedIndex: _colorIndex,
+                            folderName: _nameController.text.trim(),
+                            isPremium: isPremium,
+                            onSelect: (idx) => setState(() => _colorIndex = idx),
+                            onPremiumRequired: () =>
+                                _showPremiumPurchaseDialog(context, widget.isDark),
+                          ),
+                        );
+                      }),
                       if (widget.isEditMode) ...[
                         const SizedBox(height: 16),
                         _ShareableLinkSection(
@@ -2051,7 +2111,9 @@ class _TagColorSection extends StatelessWidget {
   final Color accentColor;
   final int selectedIndex;
   final String folderName;
+  final bool isPremium;
   final ValueChanged<int> onSelect;
+  final VoidCallback onPremiumRequired;
 
   static const _tagColors = [
     Color(0xFFe17076), // 0 red
@@ -2068,7 +2130,9 @@ class _TagColorSection extends StatelessWidget {
     required this.accentColor,
     required this.selectedIndex,
     required this.folderName,
+    required this.isPremium,
     required this.onSelect,
+    required this.onPremiumRequired,
   });
 
   @override
@@ -2123,7 +2187,13 @@ class _TagColorSection extends StatelessWidget {
                     isNoTag: isNoTag,
                     isSelected: isSelected,
                     isDark: isDark,
-                    onTap: () => onSelect(isSelected ? -1 : i),
+                    onTap: () {
+                      if (!isNoTag && !isPremium) {
+                        onPremiumRequired();
+                        return;
+                      }
+                      onSelect(isSelected ? -1 : i);
+                    },
                   );
                 }),
               );
@@ -2710,8 +2780,7 @@ class _ShowLinkBoxState extends State<_ShowLinkBox> {
                           icon: Icons.share,
                           accentColor: widget.accentColor,
                           onTap: () {
-                            Clipboard.setData(ClipboardData(text: widget.link.url));
-                            showTelegramToast(context, 'Link copied to share');
+                            Share.share(widget.link.url);
                           },
                         ),
                       ],
@@ -3061,7 +3130,7 @@ class _FilterIconToggleState extends State<_FilterIconToggle> {
     final hoverColor = widget.isDark
         ? const Color(0xFF4E647A)
         : const Color(0xFFAAAAAA);
-    final iconData = _kFilterIcons[widget.iconName] ?? Icons.folder_outlined;
+    final emoji = _kFilterIconEmoji[widget.iconName] ?? '\u{1F4C1}';
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -3074,10 +3143,9 @@ class _FilterIconToggleState extends State<_FilterIconToggle> {
           width: 36,
           height: 36,
           child: Center(
-            child: Icon(
-              iconData,
-              size: 22,
-              color: _hovering ? hoverColor : mutedColor,
+            child: Opacity(
+              opacity: _hovering ? 0.8 : 0.5,
+              child: Text(emoji, style: const TextStyle(fontSize: 20)),
             ),
           ),
         ),
@@ -3374,22 +3442,13 @@ class _IconCellState extends State<_IconCell> {
 
   @override
   Widget build(BuildContext context) {
-    // dialogsUnreadBgMuted
-    final normalColor = widget.isDark
-        ? const Color(0xFF3E546A)
-        : const Color(0xFFBBBBBB);
-    // dialogsUnreadBgMutedOver
-    final hoverIconColor = widget.isDark
-        ? const Color(0xFF425C72)
-        : const Color(0xFFB1B1B1);
-    final activeColor = widget.isDark
-        ? const Color(0xFF6AB3F3)
-        : context.palette.windowBgActive;
-    // dialogsBgOver
     final hoverBg = widget.isDark
         ? const Color(0xFF202B36)
         : const Color(0xFFF1F1F1);
-    final iconData = _kFilterIcons[widget.iconName] ?? Icons.folder_outlined;
+    final activeBg = widget.isDark
+        ? const Color(0xFF2B5278)
+        : const Color(0xFFE3F0FA);
+    final emoji = _kFilterIconEmoji[widget.iconName] ?? '\u{1F4C1}';
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -3401,17 +3460,21 @@ class _IconCellState extends State<_IconCell> {
           width: 44,
           height: 42,
           decoration: BoxDecoration(
-            color: _hovering ? hoverBg : null,
+            color: widget.isSelected
+                ? activeBg
+                : _hovering
+                    ? hoverBg
+                    : null,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(
-            iconData,
-            size: 22,
-            color: widget.isSelected
-                ? activeColor
-                : _hovering
-                    ? hoverIconColor
-                    : normalColor,
+          child: Center(
+            child: Text(
+              emoji,
+              style: TextStyle(
+                fontSize: 22,
+                color: widget.isSelected ? null : (_hovering ? null : null),
+              ),
+            ),
           ),
         ),
       ),
@@ -4416,21 +4479,22 @@ class _ChatlistFolderRemovalDialogState
       return;
     }
 
-    final allChats = chatState.chatsForAccount(accountId);
-    final folderChatIds = widget.folder.chatIds.toSet();
-    final chats = folderChatIds.isEmpty
-        ? <ChatInfo>[]
-        : allChats.where((c) => folderChatIds.contains(c.chatId)).toList();
-
     List<String> suggestedIds = [];
     try {
       suggestedIds =
           await engine.getLeaveChatlistSuggestions(accountId, folderId);
     } catch (_) {}
 
+    final allChats = chatState.chatsForAccount(accountId);
+    final suggestedSet = suggestedIds.toSet();
+    final folderChatIds = widget.folder.chatIds.toSet();
+    final displayChats = suggestedSet.isNotEmpty
+        ? allChats.where((c) => suggestedSet.contains(c.chatId) || folderChatIds.contains(c.chatId)).toList()
+        : allChats.where((c) => folderChatIds.contains(c.chatId)).toList();
+
     if (!mounted) return;
     setState(() {
-      _alwaysChats = chats;
+      _alwaysChats = displayChats;
       _selectedPeerIds = Set<String>.from(suggestedIds);
       _loading = false;
     });
