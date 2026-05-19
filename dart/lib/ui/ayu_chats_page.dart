@@ -97,6 +97,19 @@ class AyuChatsPage extends StatelessWidget {
 
     // Messages / Marks (§54.11) — matches AyuGram BuildMarks()
     b.addSubsectionTitle('Messages');
+    b.addWidget(Builder(builder: (ctx) {
+      final subtextColor = isDark
+          ? const Color(0xFF6D7F8F)
+          : const Color(0xFF999999);
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
+        child: Text(
+          'Visual approximation only — actual rendering may differ',
+          style: TextStyle(fontSize: 11, color: subtextColor, fontStyle: FontStyle.italic),
+        ),
+      );
+    }));
+    b.addWidget(const SizedBox(height: 4));
     b.addWidget(_MessagePreviewStandalone(
       bubbleRadius: appState.bubbleRadius,
       showTail: !appState.removeTail,

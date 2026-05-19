@@ -3673,6 +3673,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  void flushSettingsSync() {
+    _saveDebounceTimer?.cancel();
+    _flushWindowPrefsSync();
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);

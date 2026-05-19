@@ -285,6 +285,7 @@ class _AvatarCornersSectionState extends State<_AvatarCornersSection> {
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
+              context.read<AppState>().flushSettingsSync();
               exit(0);
             },
             child: Text('Restart Now',
@@ -955,6 +956,7 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
+              context.read<AppState>().flushSettingsSync();
               exit(0);
             },
             child: Text('Restart Now',
