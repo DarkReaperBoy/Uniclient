@@ -318,11 +318,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 
 
-
-## chat_export — Size limit label shows only "N MB" without context text
-
-- [ ] [MAJOR] Media section shows only `'$_sizeLimitMB MB'` as a label. AyuGram uses `lng_export_option_size_limit` = "Size limit: {size}", positioning it above-right the slider. The Dart label lacks the "Size limit:" prefix. — `chat_export.dart:1561` ← `export_view_settings.cpp:853-858` and `lang.strings` "lng_export_option_size_limit"
-
 ## chat_export — "Skip file" label differs from spec
 
 - [ ] [MAJOR] Processing view shows link "Skip file". AyuGram uses `lng_export_skip_file` = "Skip this file". — `chat_export.dart:2183` ← `export_view_progress.cpp:259` and `lang.strings` "lng_export_skip_file"
