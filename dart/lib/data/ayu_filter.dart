@@ -178,19 +178,46 @@ String _extractSingleText(CachedMessage msg, {Set<String>? extractedUrls}) {
 }
 
 int _serviceMessageType(CachedMessage msg) {
-  if (msg.mediaType == 1) return 11; // service + photo → TYPE_ACTION_PHOTO
-  if (msg.mediaType == 2) return 8; // service + video/gif → TYPE_GIF
+  final tag = _extractServiceAction(msg.contentRaw);
+  if (tag.isNotEmpty) {
+    switch (tag) {
+      case 'phone_call': return 16;
+      case 'set_photo': return 11;
+      case 'suggest_photo': return 21;
+      case 'wallpaper': return 22;
+      case 'gift_premium': return 18;
+      case 'gift_stars': return 30;
+      case 'giveaway_results': return 28;
+      case 'boost': return 10; // boost has no distinct filter type, falls through to DATE
+      case 'group_call': return 16;
+    }
+  }
+
+  if (msg.mediaType == 1) return 11;
+  if (msg.mediaType == 2) return 8;
 
   final text = msg.contentText;
   if (text.startsWith('Voice call') || text.startsWith('Video call')) return 16;
-  if (text.startsWith('Suggested') && text.contains('photo')) return 21;
   if (text.contains('wallpaper')) return 22;
   if (text.contains('gifted') && text.contains('star')) return 30;
   if (text.contains('giveaway') && text.contains('winner')) return 28;
-  if (text.contains('boosted') || text.contains('boost')) return 25;
   if (text.contains('gifted') && text.contains('Premium')) return 18;
 
-  return 10; // TYPE_DATE (generic service)
+  return 10;
+}
+
+String _extractServiceAction(String raw) {
+  if (raw.isEmpty) return '';
+  try {
+    final m = jsonDecode(raw);
+    if (m is Map<String, dynamic>) {
+      final extra = m['extra'] as Map<String, dynamic>?;
+      if (extra != null) {
+        return extra['service_action'] as String? ?? '';
+      }
+    }
+  } catch (_) {}
+  return '';
 }
 
 String extractMatchBlob(CachedMessage msg, {List<CachedMessage>? groupMessages}) {
@@ -237,6 +264,7 @@ class AyuFilterEngine extends ChangeNotifier {
   final Map<String, List<_CompiledPattern>> _dialogPatterns = {};
   final Map<String, Set<String>> _exclusionsByDialog = {};
   final Map<String, bool> _messageCache = {};
+  final Map<String, int> _chatFilteredCount = {};
   final Map<String, bool> _filteredMessagesShown = {};
 
   List<RegexFilter> _filters = [];
@@ -302,7 +330,7 @@ class AyuFilterEngine extends ChangeNotifier {
     'peers': peers,
   };
 
-  ({int added, int updated, int removedFilters, int removedExclusions})
+  ({int added, int updated, int removedFilters, int removedExclusions, bool noChanges})
       importFromJson(Map<String, dynamic> data) {
     final version = data['version'] as int? ?? 0;
     if (version > _backupVersion) {
@@ -320,6 +348,20 @@ class AyuFilterEngine extends ChangeNotifier {
     final removeExcl = (data['removeExclusions'] as List<dynamic>?)
         ?.map((e) => RegexFilterExclusion.fromJson(e as Map<String, dynamic>))
         .toList() ?? [];
+
+    int wouldAdd = 0, wouldUpdate = 0;
+    for (final f in filters) {
+      if (_filters.any((ef) => ef.id == f.id)) {
+        wouldUpdate++;
+      } else {
+        wouldAdd++;
+      }
+    }
+    final newExcl = exclusions.where((e) => !_exclusions.contains(e)).length;
+    if (wouldAdd == 0 && wouldUpdate == 0 && newExcl == 0 &&
+        removeIds.isEmpty && removeExcl.isEmpty) {
+      return (added: 0, updated: 0, removedFilters: 0, removedExclusions: 0, noChanges: true);
+    }
 
     int added = 0, updated = 0;
     for (final f in filters) {
@@ -341,7 +383,7 @@ class AyuFilterEngine extends ChangeNotifier {
       deleteExclusion(e.dialogId, e.filterId);
     }
     return (added: added, updated: updated, removedFilters: removeIds.length,
-        removedExclusions: removeExcl.length);
+        removedExclusions: removeExcl.length, noChanges: false);
   }
 
   Future<String?> importFromLink(String url) async {
@@ -353,15 +395,18 @@ class AyuFilterEngine extends ChangeNotifier {
       final body = await response.transform(utf8.decoder).join();
       client.close();
       final parsed = jsonDecode(body);
-      if (parsed is! Map<String, dynamic>) return 'Invalid JSON format';
-      importFromJson(parsed);
+      if (parsed is! Map<String, dynamic>) return 'Failed to import filters';
+      final result = importFromJson(parsed);
+      if (result.noChanges) return 'No changes to import';
       return null;
+    } on FormatException {
+      return 'Failed to import filters';
     } catch (e) {
-      return 'Failed to fetch: $e';
+      return 'Failed to fetch filters';
     }
   }
 
-  Future<String?> publishFilters({Map<String, String> peers = const {}}) async {
+  Future<({String? url, String? error})> publishFilters({Map<String, String> peers = const {}}) async {
     final data = exportFilters(peers: peers);
     final jsonText = const JsonEncoder.withIndent('  ').convert(data);
     try {
@@ -390,12 +435,12 @@ class AyuFilterEngine extends ChangeNotifier {
           response.headers['location']!.isNotEmpty) {
         pasteUrl = response.headers['location']!.first;
       }
-      if (!pasteUrl.startsWith('http')) return null;
+      if (!pasteUrl.startsWith('http')) return (url: null, error: 'Failed to publish filters');
       if (!pasteUrl.endsWith('.txt')) pasteUrl = '$pasteUrl.txt';
       await Clipboard.setData(ClipboardData(text: pasteUrl));
-      return pasteUrl;
+      return (url: pasteUrl, error: null);
     } catch (_) {
-      return null;
+      return (url: null, error: 'Failed to publish filters');
     }
   }
 
@@ -448,6 +493,7 @@ class AyuFilterEngine extends ChangeNotifier {
     _dialogPatterns.clear();
     _exclusionsByDialog.clear();
     _messageCache.clear();
+    _chatFilteredCount.clear();
 
     for (final f in _filters) {
       if (!f.enabled) continue;
@@ -473,10 +519,7 @@ class AyuFilterEngine extends ChangeNotifier {
   }
 
   bool _hasFilteredMessages(String chatId) {
-    for (final entry in _messageCache.entries) {
-      if (entry.key.startsWith('$chatId:') && entry.value) return true;
-    }
-    return false;
+    return (_chatFilteredCount[chatId] ?? 0) > 0;
   }
 
   void toggleFilteredMessagesShown(String chatId) {
@@ -485,10 +528,10 @@ class AyuFilterEngine extends ChangeNotifier {
   }
 
   void invalidateMessage(String chatId, String msgId, {String? groupedId, List<String>? groupMemberIds}) {
-    _messageCache.remove('$chatId:$msgId');
+    _removeCacheEntry('$chatId:$msgId');
     if (groupedId != null && groupedId.isNotEmpty && groupMemberIds != null) {
       for (final memberId in groupMemberIds) {
-        _messageCache.remove('$chatId:$memberId');
+        _removeCacheEntry('$chatId:$memberId');
       }
     }
   }
@@ -548,10 +591,27 @@ class AyuFilterEngine extends ChangeNotifier {
       final evictCount = _maxCacheSize ~/ 10;
       final keys = _messageCache.keys.take(evictCount).toList();
       for (final k in keys) {
-        _messageCache.remove(k);
+        _removeCacheEntry(k);
       }
     }
     _messageCache[key] = value;
+    if (value) {
+      final chatId = key.substring(0, key.indexOf(':'));
+      _chatFilteredCount[chatId] = (_chatFilteredCount[chatId] ?? 0) + 1;
+    }
+  }
+
+  void _removeCacheEntry(String key) {
+    final old = _messageCache.remove(key);
+    if (old == true) {
+      final chatId = key.substring(0, key.indexOf(':'));
+      final count = (_chatFilteredCount[chatId] ?? 1) - 1;
+      if (count <= 0) {
+        _chatFilteredCount.remove(chatId);
+      } else {
+        _chatFilteredCount[chatId] = count;
+      }
+    }
   }
 
   bool _isEnabledForChat(ChatType? chatType, AppState appState) {

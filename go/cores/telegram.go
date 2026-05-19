@@ -11473,6 +11473,7 @@ func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
 		IsOutgoing: svc.Out,
 		IsService: true,
 		Platform:  tgPlatform,
+		Extra:     make(map[string]interface{}),
 	}
 
 	if from := svc.FromID; from != nil {
@@ -11483,7 +11484,35 @@ func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
 	}
 
 	m.Text = t.serviceActionText(m.SenderName, svc.Action)
+	m.Extra["service_action"] = serviceActionTag(svc.Action)
 	return m
+}
+
+func serviceActionTag(action tg.MessageActionClass) string {
+	switch action.(type) {
+	case *tg.MessageActionPhoneCall:
+		return "phone_call"
+	case *tg.MessageActionChatEditPhoto:
+		return "set_photo"
+	case *tg.MessageActionChatDeletePhoto:
+		return "set_photo"
+	case *tg.MessageActionSuggestBirthday:
+		return "suggest_photo"
+	case *tg.MessageActionSetChatWallPaper:
+		return "wallpaper"
+	case *tg.MessageActionGiftCode:
+		return "gift_premium"
+	case *tg.MessageActionGiftStars, *tg.MessageActionPrizeStars, *tg.MessageActionStarGift, *tg.MessageActionStarGiftUnique, *tg.MessageActionGiftTon:
+		return "gift_stars"
+	case *tg.MessageActionGiveawayResults:
+		return "giveaway_results"
+	case *tg.MessageActionBoostApply:
+		return "boost"
+	case *tg.MessageActionGroupCall, *tg.MessageActionInviteToGroupCall, *tg.MessageActionGroupCallScheduled:
+		return "group_call"
+	default:
+		return ""
+	}
 }
 
 // serviceActionText generates human-readable text from a MessageActionClass.
