@@ -327,7 +327,6 @@ Comprehensive comparison against AyuGram Desktop ToggleView (lib_ui/ui/widgets/c
 
 # color_picker_box — Color picker dialog vs AyuGram ColorEditor
 
-- [ ] [MAJOR] Hex (result) field spans full inner box width instead of being aligned to the field column — Dart places the `_hexField` in the outer `Column` as an `Expanded` row, making it fill the entire `innerWidth` (~354 px); AyuGram sizes it to `fieldWidth + resultDelta = 60 + 29 = 89 px` and aligns it with the left edge of the opacity slider — `color_picker_box.dart:457-461,641-681` ← `AyuGramDesktop/Telegram/SourceFiles/ui/widgets/color_editor.cpp:1083-1093`
 
 # compose_entities — Text Composition & Entity Management
 
