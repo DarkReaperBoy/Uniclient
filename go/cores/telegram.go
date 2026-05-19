@@ -18491,6 +18491,16 @@ func (t *TelegramCore) GetPeerBarSettings(chatID string) (string, error) {
 	if dist, ok := s.GetGeoDistance(); ok {
 		m["geo_distance"] = dist
 	}
+	if p, ok := inputPeer.(*tg.InputPeerUser); ok {
+		for _, u := range result.Users {
+			if user, ok := u.(*tg.User); ok && user.ID == p.UserID && user.BotCanEdit {
+				if _, hasPhoto := user.Photo.(*tg.UserProfilePhoto); !hasPhoto {
+					m["set_bot_photo"] = true
+				}
+				break
+			}
+		}
+	}
 	data, err := json.Marshal(m)
 	if err != nil { return "", err }
 	return string(data), nil
