@@ -381,10 +381,6 @@ All methods are fully implemented and wired to entity tracking. No mock data, TO
 
 # confirm_box — Audit Findings
 
-## confirm_box — showDynamicReportFlow receives `dynamic engine` (untyped)
-
-- [ ] [CRITICAL] `showDynamicReportFlow` accepts `engine` as `dynamic` type (`required dynamic engine`) instead of the typed `EngineService`. This bypasses all type-checking and any method resolution errors will be runtime crashes. The AyuGram equivalent passes a properly typed `Api::CreateReportMessagesOrStoriesCallback` closure. — `confirm_box.dart:1311-1315` ← `AyuGramDesktop/Telegram/SourceFiles/boxes/report_messages_box.cpp:75-78`
-
 ## confirm_box — ReportDetailsBox uses wrong Lottie animation
 
 - [ ] [MAJOR] `_ReportDetailsBox` uses the animation `'assets/animations/blocked_peers_empty.json'` as the decorative icon in the report details box. AyuGram's `AddReportDetailsIconButton` also uses `"blocked_peers_empty"` as the lottie icon name (via `Settings::CreateLottieIcon`), so this matches. However, in AyuGram this icon is displayed before the text explaining the report (`tr::lng_report_details_about()`). The Dart box shows the lottie animation, then a description text, then a TextField — which matches the AyuGram order. No issue here on icon name, but the description text used is `'Please enter any additional details relevant to your report.'` while AyuGram uses `tr::lng_report_details_about()` which in English renders as "Please describe the violation in a few words." — a different string. — `confirm_box.dart:1499-1510` ← `AyuGramDesktop/Telegram/SourceFiles/ui/boxes/report_box_graphics.cpp:130-145`
