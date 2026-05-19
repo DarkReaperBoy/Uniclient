@@ -243,6 +243,7 @@ class ChatInfo {
   final bool isHiddenAuthor;
   final String draftReplyToMsgId;
   final bool isClosed;
+  final int pendingRequestsCount;
 
   const ChatInfo({
     required this.accountId,
@@ -301,6 +302,7 @@ class ChatInfo {
     this.isHiddenAuthor = false,
     this.draftReplyToMsgId = '',
     this.isClosed = false,
+    this.pendingRequestsCount = 0,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -360,6 +362,7 @@ class ChatInfo {
     isHiddenAuthor: j['is_hidden_author'] as bool? ?? false,
     draftReplyToMsgId: j['draft_reply_to_msg_id'] as String? ?? '',
     isClosed: j['is_closed'] as bool? ?? false,
+    pendingRequestsCount: j['pending_requests_count'] as int? ?? 0,
   );
 
   /// Time as DateTime for display.

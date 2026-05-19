@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart' as lottie;
+import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
@@ -4917,6 +4918,13 @@ class _ChatViewState extends State<ChatView>
             _ContactStatusBar(
               chat: chat,
               chatState: chatState,
+            ),
+          // Admin join-requests bar — shown when there are pending member requests.
+          if (chat.isAdmin && chat.pendingRequestsCount > 0 &&
+              (chat.type == ChatType.group || chat.type == ChatType.channel))
+            _RequestsBar(
+              count: chat.pendingRequestsCount,
+              onTap: () => widget.onToggleInfo?.call(),
             ),
           // Topic reopen bar — for closed topics where admin can reopen.
           if (chat.type == ChatType.topic && (() {
@@ -9917,12 +9925,14 @@ class _ChatIntroWidgetState extends State<_ChatIntroWidget> {
 /// Types: 1=Rights (admin-restricted), 2=PremiumRequired, 3=Frozen, 4=Hidden.
 /// Voice listen preview bar — shown after locked recording is stopped, before sending.
 class _VoiceListenBar extends StatefulWidget {
+  final String filePath;
   final Duration duration;
   final bool isVideoRound;
   final VoidCallback onSend;
   final VoidCallback onDelete;
 
   const _VoiceListenBar({
+    required this.filePath,
     required this.duration,
     required this.isVideoRound,
     required this.onSend,
@@ -9934,17 +9944,101 @@ class _VoiceListenBar extends StatefulWidget {
 }
 
 class _VoiceListenBarState extends State<_VoiceListenBar> {
+  Player? _player;
+  bool _playing = false;
+  Duration _position = Duration.zero;
+  Duration _totalDuration = Duration.zero;
+  final List<StreamSubscription> _subs = [];
+  late final List<double> _waveformBars;
+
+  @override
+  void initState() {
+    super.initState();
+    _totalDuration = widget.duration;
+    _waveformBars = _generateWaveform(widget.filePath);
+    _initPlayer();
+  }
+
+  List<double> _generateWaveform(String path) {
+    final hash = path.hashCode;
+    const count = 48;
+    final bars = List<double>.generate(count, (i) {
+      final seed = (hash * 31 + i * 17) & 0x7FFFFFFF;
+      return 0.15 + (seed % 1000) / 1000.0 * 0.85;
+    });
+    return bars;
+  }
+
+  Future<void> _initPlayer() async {
+    final player = Player();
+    _player = player;
+    _subs.add(player.stream.playing.listen((v) {
+      if (_player != player || !mounted) return;
+      setState(() => _playing = v);
+    }));
+    _subs.add(player.stream.position.listen((v) {
+      if (_player != player || !mounted) return;
+      setState(() => _position = v);
+    }));
+    _subs.add(player.stream.duration.listen((v) {
+      if (_player != player || !mounted) return;
+      if (v > Duration.zero) setState(() => _totalDuration = v);
+    }));
+    _subs.add(player.stream.completed.listen((v) {
+      if (_player != player || !v || !mounted) return;
+      setState(() {
+        _playing = false;
+        _position = Duration.zero;
+      });
+    }));
+    try {
+      await player.open(Media(widget.filePath), play: false);
+    } catch (_) {}
+  }
+
+  void _togglePlayback() {
+    final player = _player;
+    if (player == null) return;
+    if (_playing) {
+      player.pause();
+    } else {
+      player.play();
+    }
+  }
+
+  void _seekTo(double fraction) {
+    final player = _player;
+    if (player == null || _totalDuration.inMilliseconds == 0) return;
+    final target = Duration(
+      milliseconds: (fraction.clamp(0.0, 1.0) * _totalDuration.inMilliseconds).round(),
+    );
+    player.seek(target);
+  }
+
+  @override
+  void dispose() {
+    for (final s in _subs) s.cancel();
+    _player?.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final palette = context.palette;
     final bgColor = palette.historyComposeAreaBg;
     final accentColor = palette.windowBgActive;
     final attentionColor = palette.attentionButtonFg;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF333333);
+    final inactiveAlpha = isDark ? 0.3 : 0.25;
 
-    final minutes = widget.duration.inMinutes;
-    final seconds = widget.duration.inSeconds % 60;
+    final progress = _totalDuration.inMilliseconds > 0
+        ? (_position.inMilliseconds / _totalDuration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+
+    final displayDur = _playing ? _position : _totalDuration;
+    final minutes = displayDur.inMinutes;
+    final seconds = displayDur.inSeconds % 60;
     final durationStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
 
     return Container(
@@ -9953,47 +10047,141 @@ class _VoiceListenBarState extends State<_VoiceListenBar> {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
-          IconButton(
-            icon: Icon(Icons.delete_outline, size: 22, color: attentionColor),
-            onPressed: widget.onDelete,
-            tooltip: 'Discard',
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: widget.onDelete,
+                child: Icon(Icons.delete_outline, size: 22, color: attentionColor),
+              ),
+            ),
           ),
           const SizedBox(width: 4),
-          Icon(
-            widget.isVideoRound ? Icons.videocam_outlined : Icons.mic,
-            size: 20,
-            color: accentColor,
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _togglePlayback,
+                child: Icon(
+                  _playing ? Icons.pause : Icons.play_arrow,
+                  size: 24,
+                  color: accentColor,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            durationStr,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              color: textColor,
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Container(
-              height: 20,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(3),
-                color: accentColor.withValues(alpha: 0.12),
-              ),
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                durationStr,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: textColor,
+            child: GestureDetector(
+              onTapDown: (d) {
+                final box = context.findRenderObject() as RenderBox?;
+                if (box == null) return;
+                final local = box.globalToLocal(d.globalPosition);
+                final barAreaStart = 0.0;
+                final barAreaWidth = box.size.width;
+                if (barAreaWidth > 0) {
+                  _seekTo((local.dx - barAreaStart) / barAreaWidth);
+                }
+              },
+              child: SizedBox(
+                height: 28,
+                child: CustomPaint(
+                  painter: _WaveformPainter(
+                    bars: _waveformBars,
+                    progress: progress,
+                    activeColor: accentColor,
+                    inactiveColor: accentColor.withValues(alpha: inactiveAlpha),
+                    barWidth: 2.0,
+                    barGap: 2.0,
+                    borderRadius: 1.0,
+                  ),
+                  size: Size.infinite,
                 ),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          IconButton(
-            icon: Icon(Icons.send, size: 22, color: accentColor),
-            onPressed: widget.onSend,
-            tooltip: 'Send',
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: widget.onSend,
+                child: Icon(Icons.send, size: 22, color: accentColor),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+class _WaveformPainter extends CustomPainter {
+  final List<double> bars;
+  final double progress;
+  final Color activeColor;
+  final Color inactiveColor;
+  final double barWidth;
+  final double barGap;
+  final double borderRadius;
+
+  _WaveformPainter({
+    required this.bars,
+    required this.progress,
+    required this.activeColor,
+    required this.inactiveColor,
+    this.barWidth = 2.0,
+    this.barGap = 2.0,
+    this.borderRadius = 1.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (bars.isEmpty) return;
+    final totalBarWidth = barWidth + barGap;
+    final visibleBars = (size.width / totalBarWidth).floor().clamp(1, bars.length);
+    final step = bars.length / visibleBars;
+    final maxH = size.height * 0.9;
+    final minH = 2.0;
+    final activePaint = Paint()..color = activeColor;
+    final inactivePaint = Paint()..color = inactiveColor;
+    final activeBarCount = (progress * visibleBars).floor();
+
+    for (var i = 0; i < visibleBars; i++) {
+      final sampleIdx = (i * step).floor().clamp(0, bars.length - 1);
+      final h = minH + bars[sampleIdx] * (maxH - minH);
+      final x = i * totalBarWidth;
+      final y = (size.height - h) / 2;
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, y, barWidth, h),
+        Radius.circular(borderRadius),
+      );
+      canvas.drawRRect(rect, i < activeBarCount ? activePaint : inactivePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WaveformPainter old) =>
+      progress != old.progress || activeColor != old.activeColor || inactiveColor != old.inactiveColor;
 }
 
 class _WriteRestrictionBar extends StatelessWidget {
@@ -11057,6 +11245,51 @@ class _TopicReopenBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RequestsBar extends StatelessWidget {
+  final int count;
+  final VoidCallback? onTap;
+
+  const _RequestsBar({required this.count, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = context.palette;
+    final bgColor = isDark ? const Color(0xFF1B2734) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
+    final accentColor = palette.windowBgActive;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 49,
+        decoration: BoxDecoration(
+          color: bgColor,
+          border: Border(bottom: BorderSide(color: palette.shadowFg, width: 1)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Icon(Icons.person_add_outlined, size: 20, color: accentColor),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                count == 1
+                    ? '1 new member request'
+                    : '$count new member requests',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: textColor),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 22, color: palette.windowSubTextFg),
+          ],
+        ),
       ),
     );
   }
@@ -14821,6 +15054,7 @@ class _ComposeAreaState extends State<_ComposeArea>
           ),
         ),
         child: _VoiceListenBar(
+          filePath: _previewFilePath!,
           duration: _previewDuration,
           isVideoRound: _previewIsVideoRound,
           onSend: _sendPreviewRecording,
