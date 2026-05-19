@@ -18553,6 +18553,22 @@ func (t *TelegramCore) UploadProfilePhoto(pngData []byte) error {
 	return err
 }
 
+// SetBotPhoto uploads and sets a photo for a bot.
+func (t *TelegramCore) SetBotPhoto(chatID string, pngData []byte) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	id, err := strconv.ParseInt(chatID, 10, 64)
+	if err != nil { return fmt.Errorf("parse bot user ID: %w", err) }
+	hash := t.getCachedUserHash(id)
+	u := uploader.NewUploader(t.api)
+	upload, err := u.Upload(t.ctx, uploader.NewUpload("bot_photo.png", io.NopCloser(bytes.NewReader(pngData)), int64(len(pngData))))
+	if err != nil { return fmt.Errorf("upload: %w", err) }
+	req := &tg.PhotosUploadProfilePhotoRequest{File: upload}
+	req.SetBot(&tg.InputUser{UserID: id, AccessHash: hash})
+	_, err = t.api.PhotosUploadProfilePhoto(t.ctx, req)
+	return err
+}
+
 // SetEmojiProfilePhoto sets a custom emoji as the user's profile photo.
 func (t *TelegramCore) SetEmojiProfilePhoto(documentID int64) error {
 	t.mu.RLock(); defer t.mu.RUnlock()

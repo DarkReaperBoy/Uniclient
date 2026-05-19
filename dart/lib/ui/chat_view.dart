@@ -1006,6 +1006,7 @@ class _ChatViewState extends State<ChatView>
     final bs = chatState.peerBarSettings;
     if (bs['share_contact'] == true) return true;
     if (bs['request_chat'] == true) return true;
+    if (bs['set_bot_photo'] == true) return true;
     return false;
   }
 
@@ -9607,6 +9608,32 @@ class _ContactStatusBar extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      );
+    }
+
+    if (barSettings['set_bot_photo'] == true && chat.isBot) {
+      return Container(
+        color: bgColor,
+        height: 49,
+        child: _ContactStatusButton(
+          label: 'Set Bot Photo',
+          color: windowActiveTextFg,
+          hoverColor: hoverColor,
+          rippleColor: rippleColor,
+          height: 49,
+          textTop: 16,
+          onTap: () async {
+            final result = await FilePicker.platform.pickFiles(
+              type: FileType.image,
+              allowMultiple: false,
+            );
+            if (result == null || result.files.isEmpty) return;
+            final path = result.files.first.path;
+            if (path == null) return;
+            await chatState.setBotPhoto(chat.accountId, chat.chatId, path);
+            chatState.hidePeerSettingsBar(chat.accountId, chat.chatId);
+          },
         ),
       );
     }

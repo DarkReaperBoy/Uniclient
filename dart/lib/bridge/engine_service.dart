@@ -481,6 +481,15 @@ class EngineService {
     await _callAsync('__engine', 'HidePeerSettingsBar', req.writeToBuffer());
   }
 
+  Future<void> setBotPhoto(String accountId, String chatId, String filePath) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'file_path': filePath,
+    }));
+    await _callAsync('__engine', 'SetBotPhoto', Uint8List.fromList(payload));
+  }
+
   Future<String> getLinkedChatId(String accountId, String chatId) async {
     final req = epb.EngineGetLinkedChatIdRequest()
       ..accountId = accountId

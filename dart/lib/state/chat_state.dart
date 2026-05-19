@@ -1884,6 +1884,12 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setBotPhoto(String accountId, String chatId, String filePath) async {
+    await _engine.setBotPhoto(accountId, chatId, filePath);
+    _peerBarSettings = const {};
+    notifyListeners();
+  }
+
   Future<void> addContact(String accountId, String phone, String firstName, String lastName) async {
     await _engine.addContact(accountId, phone, firstName, lastName);
     loadChats();

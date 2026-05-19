@@ -3579,6 +3579,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]bool{"ok": true})
 
+	case "SetBotPhoto":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			FilePath  string `json:"file_path"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetBotPhoto(params.AccountID, params.ChatID, params.FilePath)
+
 	case "UploadProfilePhoto":
 		var params struct {
 			AccountID string `json:"account_id"`

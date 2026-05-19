@@ -957,6 +957,23 @@ func (e *Engine) SharePhoneWithPeer(accountID, chatID string) error {
 	return tc.SharePhoneWithPeer(chatID)
 }
 
+// SetBotPhoto uploads a photo for a bot via the peer bar "Set Bot Photo" action.
+func (e *Engine) SetBotPhoto(accountID, chatID, filePath string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	tc, ok := acc.Core.(*cores.TelegramCore)
+	if !ok {
+		return fmt.Errorf("set bot photo not supported for this platform")
+	}
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("read photo: %w", err)
+	}
+	return tc.SetBotPhoto(chatID, data)
+}
+
 // HidePeerSettingsBar hides the action bar for a peer.
 func (e *Engine) HidePeerSettingsBar(accountID, chatID string) error {
 	acc, ok := e.getAccount(accountID)
