@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/gestures.dart';
@@ -391,24 +392,22 @@ class _SupportDescription extends StatelessWidget {
         isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     final linkColor =
         isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
-    return InkWell(
-      onTap: onSupportTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
-        child: RichText(
-          text: TextSpan(
-            style: TextStyle(fontSize: 12, color: subtextColor),
-            children: [
-              const TextSpan(
-                  text: 'You can support AyuGram development through donations. '
-                      'For questions, '),
-              TextSpan(
-                text: 'contact support',
-                style: TextStyle(color: linkColor),
-              ),
-              const TextSpan(text: '.'),
-            ],
-          ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+      child: RichText(
+        text: TextSpan(
+          style: TextStyle(fontSize: 12, color: subtextColor),
+          children: [
+            const TextSpan(
+                text: 'You can support AyuGram development through donations. '
+                    'For questions, '),
+            TextSpan(
+              text: 'contact support',
+              style: TextStyle(color: linkColor),
+              recognizer: TapGestureRecognizer()..onTap = onSupportTap,
+            ),
+            const TextSpan(text: '.'),
+          ],
         ),
       ),
     );
@@ -418,14 +417,32 @@ class _SupportDescription extends StatelessWidget {
 class _DonateInfoBox extends StatefulWidget {
   final bool isDark;
 
-  static const _donateAmountUsd =
-      String.fromEnvironment('DONATE_AMOUNT_USD', defaultValue: '5.00');
-  static const _donateAmountTon =
-      String.fromEnvironment('DONATE_AMOUNT_TON', defaultValue: '3.50');
-  static const _donateAmountRub =
-      String.fromEnvironment('DONATE_AMOUNT_RUB', defaultValue: '386');
-  static const _donateUsername =
-      String.fromEnvironment('DONATE_USERNAME', defaultValue: 'RadianceTG');
+  static String _donateAmountUsd = '5.00';
+  static String _donateAmountTon = '3.50';
+  static String _donateAmountRub = '386';
+  static String _donateUsername = 'RadianceTG';
+  static bool _rcFetched = false;
+
+  static Future<void> _fetchRcConfig() async {
+    if (_rcFetched) return;
+    _rcFetched = true;
+    try {
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 10);
+      final request = await client.getUrl(
+          Uri.parse('https://update.ayugram.one/rc/current/desktop2'));
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final body = await response.transform(utf8.decoder).join();
+        final data = jsonDecode(body) as Map<String, dynamic>;
+        if (data.containsKey('donate_usd')) _donateAmountUsd = data['donate_usd'].toString();
+        if (data.containsKey('donate_ton')) _donateAmountTon = data['donate_ton'].toString();
+        if (data.containsKey('donate_rub')) _donateAmountRub = data['donate_rub'].toString();
+        if (data.containsKey('donate_username')) _donateUsername = data['donate_username'].toString();
+      }
+      client.close();
+    } catch (_) {}
+  }
 
   const _DonateInfoBox({required this.isDark});
 
@@ -439,10 +456,17 @@ class _DonateInfoBoxState extends State<_DonateInfoBox> {
   @override
   void initState() {
     super.initState();
+    _DonateInfoBox._fetchRcConfig().then((_) {
+      if (mounted) setState(() {});
+    });
     _usernameRecognizer = TapGestureRecognizer()
-      ..onTap = () => launchUrl(
-          Uri.parse('https://t.me/${_DonateInfoBox._donateUsername}'),
-          mode: LaunchMode.externalApplication);
+      ..onTap = () {
+        final username = _DonateInfoBox._donateUsername;
+        launchUrl(
+          Uri.parse('https://t.me/$username'),
+          mode: LaunchMode.platformDefault,
+        );
+      };
   }
 
   @override
@@ -662,10 +686,41 @@ class _DonateQrBox extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            SelectableText(
-              address,
-              style: TextStyle(fontSize: 13, color: subtextColor),
-              textAlign: TextAlign.center,
+            GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: address));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Address copied')),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF1B2836)
+                      : const Color(0xFFF0F0F0),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        address,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: subtextColor,
+                          fontFamily: 'monospace',
+                        ),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(Icons.copy, size: 14, color: subtextColor),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             SizedBox(

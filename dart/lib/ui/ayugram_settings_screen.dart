@@ -133,19 +133,19 @@ class AyuGramSettingsScreen extends StatelessWidget {
           ),
 
           _FlatCategoryButton(
-            icon: Icons.favorite_border,
+            icon: Icons.emoji_emotions_outlined,
             label: 'AyuGram',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const GhostSettingsPage()),
           ),
           _FlatCategoryButton(
-            icon: Icons.filter_list,
+            icon: Icons.label_outlined,
             label: 'Filters',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const AyuFiltersPage()),
           ),
           _FlatCategoryButton(
-            icon: Icons.grid_view,
+            icon: Icons.photo_library_outlined,
             label: 'General',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const AyuGeneralPage()),
@@ -164,7 +164,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
             onTap: () => _pushPage(context, appState, const AyuChatsPage()),
           ),
           _FlatCategoryButton(
-            icon: Icons.star,
+            icon: Icons.star_border,
             label: 'Other',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const AyuOtherPage()),

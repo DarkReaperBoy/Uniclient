@@ -56,9 +56,10 @@ class AyuChatsPage extends StatelessWidget {
         ),
       ],
     );
+    b.addSectionDivider();
     b.addSlider(
       label: 'Recent Stickers Count',
-      steps: 200,
+      steps: 201,
       current: appState.recentStickersCount,
       indexToValue: (i) => i,
       formatLabel: (v) => '$v',
@@ -87,8 +88,10 @@ class AyuChatsPage extends StatelessWidget {
       value: appState.showMessageShot,
       onChanged: (v) => appState.setShowMessageShot(v),
     );
-    b.addDescription(
+    b.addSkip();
+    b.addDividerText(
         'Generate and share styled screenshots of messages.');
+    b.addSkip();
 
     b.addSectionDivider();
 
@@ -173,10 +176,6 @@ class AyuChatsPage extends StatelessWidget {
 
     // Context Menu Elements (§54.7)
     b.addSubsectionTitle('Context Menu Elements');
-    b.addDescription(
-      'Extended menu items will be displayed if you hold CTRL or SHIFT '
-      'while right-clicking on the message.',
-    );
     for (final item in _contextMenuItems(appState)) {
       b.addChooseButton(
         label: item.label,
@@ -185,6 +184,12 @@ class AyuChatsPage extends StatelessWidget {
         onChanged: item.onChanged,
       );
     }
+    b.addSkip();
+    b.addDividerText(
+      'Extended menu items will be displayed if you hold CTRL or SHIFT '
+      'while right-clicking on the message.',
+    );
+    b.addSkip();
 
     b.addSectionDivider();
 
@@ -307,16 +312,16 @@ class _WideMultiplierSliderState extends State<_WideMultiplierSlider> {
   @override
   void initState() {
     super.initState();
-    _localValue = widget.value;
-    _committedValue = widget.value;
+    _localValue = widget.value.clamp(1.0, 4.0);
+    _committedValue = _localValue;
   }
 
   @override
   void didUpdateWidget(_WideMultiplierSlider old) {
     super.didUpdateWidget(old);
     if ((old.value - widget.value).abs() > 0.001) {
-      _localValue = widget.value;
-      _committedValue = widget.value;
+      _localValue = widget.value.clamp(1.0, 4.0);
+      _committedValue = _localValue;
     }
   }
 
@@ -360,9 +365,9 @@ class _WideMultiplierSliderState extends State<_WideMultiplierSlider> {
             ),
             child: Slider(
               value: _localValue,
-              min: 0.5,
+              min: 1.0,
               max: 4.0,
-              divisions: 70,
+              divisions: 60,
               onChanged: (v) => setState(() => _localValue = v),
               onChangeEnd: (v) {
                 final snapped = (v * 20).round() / 20.0;
@@ -383,13 +388,15 @@ class _WideMultiplierSliderState extends State<_WideMultiplierSlider> {
               },
             ),
           ),
+          const SizedBox(height: 7),
           Padding(
-            padding: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 22),
             child: Text(
               'Change message width for better display on wide monitors.',
-              style: TextStyle(fontSize: 12, color: subtitleColor),
+              style: TextStyle(fontSize: 13, color: subtitleColor),
             ),
           ),
+          const SizedBox(height: 7),
         ],
       ),
     );
@@ -471,22 +478,22 @@ class _BubbleRadiusSliderState extends State<_BubbleRadiusSlider> {
               min: 0,
               max: 16,
               divisions: 16,
-              onChanged: (v) => setState(() => _localValue = v.round()),
+              onChanged: (v) {
+                final newVal = v.round();
+                setState(() => _localValue = newVal);
+                widget.onChanged(newVal);
+              },
               onChangeEnd: (v) {
                 final newVal = v.round();
-                if (newVal == _committedValue) return;
+                if (newVal == _committedValue) {
+                  return;
+                }
+                _committedValue = newVal;
                 showConfirmBox(
                   context,
                   title: 'Restart Required',
-                  text: 'Bubble radius will be applied after restarting.',
-                  confirmText: 'Apply',
-                  cancelText: 'Cancel',
-                  onConfirm: () {
-                    _committedValue = newVal;
-                    widget.onChanged(newVal);
-                  },
-                  onCancel: () =>
-                      setState(() => _localValue = _committedValue),
+                  text: 'Some settings will be applied after restarting.',
+                  confirmText: 'OK',
                 );
               },
             ),

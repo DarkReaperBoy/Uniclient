@@ -134,7 +134,7 @@ class _AuthScreenState extends State<AuthScreen>
 
   static const _kCoverHeight = 208.0;
 
-  static bool _hasCover(String s) => s == 'qr' || s == 'input';
+  static bool _hasCover(String s) => false;
 
   void _submit(AuthState authState) {
     final data = authState.currentAuth;
@@ -746,8 +746,18 @@ class _AuthScreenState extends State<AuthScreen>
     if (raw.contains('EMAIL_HASH_EXPIRED')) return 'Email confirmation expired.';
     if (raw.contains('EMAIL_NOT_ALLOWED')) return 'This email address is not allowed.';
     if (raw.contains('EMAIL_INVALID')) return 'Please enter a valid email address.';
-    if (raw.contains('PASSWORD_RECOVERY_NA')) return 'Recovery not available.';
-    if (raw.contains('PASSWORD_RECOVERY_EXPIRED')) return 'Recovery code expired.';
+    if (raw.contains('PASSWORD_RECOVERY_NA')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _showResetButton = true);
+      });
+      return 'Recovery not available.';
+    }
+    if (raw.contains('PASSWORD_RECOVERY_EXPIRED')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _isRecoveryMode = false);
+      });
+      return 'Recovery code expired. Please enter your password.';
+    }
     return raw;
   }
 
@@ -1083,6 +1093,7 @@ class _AuthScreenState extends State<AuthScreen>
             timeoutSecs: data.timeoutSecs,
             onDidntGetCode: () => _showDidntGetCodeDialog(authState),
             onResendCode: () => authState.submitInput('__resend_code'),
+            codeByTelegram: data.codeByTelegram,
           )
         else
           AnimatedBuilder(
@@ -1465,6 +1476,7 @@ class _OtpCodeInput extends StatefulWidget {
   final int timeoutSecs;
   final VoidCallback? onDidntGetCode;
   final VoidCallback? onResendCode;
+  final bool codeByTelegram;
 
   const _OtpCodeInput({
     required this.digitCount,
@@ -1473,6 +1485,7 @@ class _OtpCodeInput extends StatefulWidget {
     this.timeoutSecs = 0,
     this.onDidntGetCode,
     this.onResendCode,
+    this.codeByTelegram = false,
   });
 
   @override
@@ -1954,16 +1967,17 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
                   : const SizedBox.shrink(),
         ],
         const SizedBox(height: 12),
-        TextButton(
-          onPressed: widget.onDidntGetCode,
-          child: Text(
-            "Didn't get the code?",
-            style: TextStyle(
-              fontSize: 13,
-              color: theme.colorScheme.primary,
+        if (widget.codeByTelegram)
+          TextButton(
+            onPressed: widget.onDidntGetCode,
+            child: Text(
+              "Didn't get the code?",
+              style: TextStyle(
+                fontSize: 13,
+                color: theme.colorScheme.primary,
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -2234,6 +2248,9 @@ class _LanguagePickerDialogState extends State<_LanguagePickerDialog> {
                     dense: true,
                     onChanged: (val) {
                       context.read<AppState>().addRecentLanguage(val!);
+                      try {
+                        context.read<EngineService>().updateConfig(language: val);
+                      } catch (_) {}
                       setState(() => _selected = val);
                       Navigator.of(ctx).pop();
                     },

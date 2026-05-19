@@ -1036,7 +1036,8 @@ class _ShadowBanRowState extends State<_ShadowBanRow> {
     final chatState = context.read<ChatState>();
     final idStr = widget.id.toString();
     for (final chat in chatState.chats) {
-      if (chat.chatId == idStr || chat.chatId.endsWith(idStr)) {
+      final chatIdAbs = chat.chatId.replaceFirst(RegExp(r'^-100'), '').replaceFirst('-', '');
+      if (chat.chatId == idStr || chatIdAbs == idStr) {
         if (mounted) {
           setState(() {
             _resolvedName = chat.title;
@@ -1268,10 +1269,8 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
         action: SnackBarAction(
           label: 'Restrict',
           onPressed: () {
-            engine.addExclusion(RegexFilterExclusion(
-              dialogId: dialogId,
-              filterId: filterId,
-            ));
+            final updated = filter.copyWith(dialogId: dialogId);
+            engine.updateFilter(updated);
             appState.saveFilterEngine();
           },
         ),
@@ -1707,9 +1706,6 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
       if (f.dialogId != null && f.dialogId!.isNotEmpty) {
         dialogIds.add(f.dialogId!);
       }
-    }
-    for (final e in engine.exclusions) {
-      dialogIds.add(e.dialogId);
     }
     final peers = <String, String>{};
     if (dialogIds.isNotEmpty) {

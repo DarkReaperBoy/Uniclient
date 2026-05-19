@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../utils/debug.dart';
 import 'confirm_box.dart';
 import 'telegram_tooltip.dart';
 
@@ -63,6 +64,7 @@ class CallPanelInfo {
   final List<String> fingerprintEmoji;
   final String callId;
   final DateTime? callStartTime;
+  final bool needRating;
 
   const CallPanelInfo({
     required this.callerId,
@@ -80,6 +82,7 @@ class CallPanelInfo {
     this.fingerprintEmoji = const [],
     this.callId = '',
     this.callStartTime,
+    this.needRating = false,
   });
 }
 
@@ -304,8 +307,9 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   void _onMouseMove() {
     if (widget.info.state != CallPanelState.active) return;
     _showControls();
-    if (widget.info.isFullscreen) {
-      _scheduleControlsHide(_kHideControlsFullscreen);
+    if (widget.info.isVideo || widget.info.isFullscreen) {
+      _scheduleControlsHide(
+          widget.info.isFullscreen ? _kHideControlsFullscreen : const Duration(seconds: 2));
     }
   }
 
@@ -435,11 +439,17 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
       final result = await engine.createConferenceCall(accountId);
       if (result == null || !mounted) return;
 
+      try {
+        await engine.joinGroupCall(accountId, result.callId);
+      } catch (e) {
+        Debug.error('CALL', 'Failed to join conference, aborting upgrade', e);
+        return;
+      }
+
       if (widget.info.callId.isNotEmpty) {
         await engine.endCall(accountId, widget.info.callId);
       }
 
-      await engine.joinGroupCall(accountId, result.callId);
       await engine.inviteToConferenceCall(accountId, result.callId, selectedIds.toList());
 
       if (mounted) {
@@ -1923,8 +1933,7 @@ class _SignalBarsPainter extends CustomPainter {
   static const _skip = 2.0;
   static const _radius = Radius.circular(1.0);
 
-  int get _activeBars =>
-      quality <= 0 ? 0 : (quality * _barCount / 100).ceil().clamp(0, _barCount);
+  int get _activeBars => quality.clamp(0, _barCount);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2169,6 +2178,7 @@ void showCallPanel(
   String? callId,
   Widget? remoteVideoWidget,
   Widget? selfVideoWidget,
+  Stream<CallPanelInfo>? infoStream,
 }) {
   showDialog(
     context: context,
@@ -2176,52 +2186,103 @@ void showCallPanel(
     barrierColor: Colors.black54,
     builder: (ctx) {
       final effectiveCallId = callId ?? info.callId;
-      void closeAndRate() {
-        Navigator.of(ctx).pop();
-        if (effectiveCallId.isNotEmpty) {
-          showCallRatingDialog(context, callId: effectiveCallId);
-        }
-      }
-      return Center(
-        child: SizedBox(
-          width: CallPanel.defaultWidth,
-          height: CallPanel.defaultHeight,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: CallPanel(
-              info: info,
-              onClose: closeAndRate,
-              onDecline: () {
-                if (effectiveCallId.isNotEmpty) {
-                  final engine = ctx.read<EngineService>();
-                  final accountId = ctx.read<AppState>().activeAccountId;
-                  engine.declineCall(accountId, effectiveCallId);
-                }
-                Navigator.of(ctx).pop();
-              },
-              onAccept: () {
-                if (effectiveCallId.isNotEmpty) {
-                  final engine = ctx.read<EngineService>();
-                  final accountId = ctx.read<AppState>().activeAccountId;
-                  engine.acceptCall(accountId, effectiveCallId);
-                }
-              },
-              onHangup: () {
-                if (effectiveCallId.isNotEmpty) {
-                  final engine = ctx.read<EngineService>();
-                  final accountId = ctx.read<AppState>().activeAccountId;
-                  engine.endCall(accountId, effectiveCallId);
-                }
-                closeAndRate();
-              },
-              remoteVideoWidget: remoteVideoWidget,
-              selfVideoWidget: selfVideoWidget,
-            ),
-          ),
-        ),
+      return _LiveCallPanelDialog(
+        initialInfo: info,
+        infoStream: infoStream,
+        effectiveCallId: effectiveCallId,
+        remoteVideoWidget: remoteVideoWidget,
+        selfVideoWidget: selfVideoWidget,
       );
     },
   );
+}
+
+class _LiveCallPanelDialog extends StatefulWidget {
+  final CallPanelInfo initialInfo;
+  final Stream<CallPanelInfo>? infoStream;
+  final String effectiveCallId;
+  final Widget? remoteVideoWidget;
+  final Widget? selfVideoWidget;
+
+  const _LiveCallPanelDialog({
+    required this.initialInfo,
+    this.infoStream,
+    required this.effectiveCallId,
+    this.remoteVideoWidget,
+    this.selfVideoWidget,
+  });
+
+  @override
+  State<_LiveCallPanelDialog> createState() => _LiveCallPanelDialogState();
+}
+
+class _LiveCallPanelDialogState extends State<_LiveCallPanelDialog> {
+  late CallPanelInfo _currentInfo;
+  StreamSubscription<CallPanelInfo>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentInfo = widget.initialInfo;
+    _sub = widget.infoStream?.listen((info) {
+      if (mounted) setState(() => _currentInfo = info);
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  void _closeAndRate() {
+    Navigator.of(context).pop();
+    if (widget.effectiveCallId.isNotEmpty && _currentInfo.needRating) {
+      showCallRatingDialog(context, callId: widget.effectiveCallId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox(
+        width: CallPanel.defaultWidth,
+        height: CallPanel.defaultHeight,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: CallPanel(
+            info: _currentInfo,
+            onClose: _closeAndRate,
+            onDecline: () {
+              if (widget.effectiveCallId.isNotEmpty) {
+                final engine = context.read<EngineService>();
+                final accountId = context.read<AppState>().activeAccountId;
+                engine.declineCall(accountId, widget.effectiveCallId);
+              }
+              Navigator.of(context).pop();
+            },
+            onAccept: () {
+              if (widget.effectiveCallId.isNotEmpty) {
+                final engine = context.read<EngineService>();
+                final accountId = context.read<AppState>().activeAccountId;
+                engine.acceptCall(accountId, widget.effectiveCallId);
+              }
+            },
+            onHangup: () {
+              if (widget.effectiveCallId.isNotEmpty) {
+                final engine = context.read<EngineService>();
+                final accountId = context.read<AppState>().activeAccountId;
+                engine.endCall(accountId, widget.effectiveCallId);
+              }
+              _closeAndRate();
+            },
+            remoteVideoWidget: widget.remoteVideoWidget,
+            selfVideoWidget: widget.selfVideoWidget,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 void showCallRatingDialog(BuildContext context, {required String callId}) {

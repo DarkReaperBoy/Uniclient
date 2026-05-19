@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
@@ -273,16 +274,7 @@ class _AvatarCornersSectionState extends State<_AvatarCornersSection> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Later', style: TextStyle(color: accentColor)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              exit(0);
-            },
-            child: Text('Restart Now',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600, color: accentColor)),
+            child: Text('OK', style: TextStyle(color: accentColor)),
           ),
         ],
       ),
@@ -633,6 +625,8 @@ class _FontSelectorBox extends StatefulWidget {
 class _FontSelectorBoxState extends State<_FontSelectorBox> {
   late final TextEditingController _controller;
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
+  final _listFocusNode = FocusNode();
   String _searchQuery = '';
   List<String> _systemFonts = [];
   bool _loadingFonts = true;
@@ -644,6 +638,41 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
     _selectedFont = widget.currentFont;
     _controller = TextEditingController(text: widget.currentFont);
     _loadSystemFonts();
+  }
+
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
+    final fonts = _filteredFonts;
+    if (fonts.isEmpty) return KeyEventResult.ignored;
+    final idx = fonts.indexOf(_selectedFont);
+    int newIdx = idx;
+    const pageSize = 10;
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      newIdx = (idx + 1).clamp(0, fonts.length - 1);
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      newIdx = (idx - 1).clamp(0, fonts.length - 1);
+    } else if (event.logicalKey == LogicalKeyboardKey.pageDown) {
+      newIdx = (idx + pageSize).clamp(0, fonts.length - 1);
+    } else if (event.logicalKey == LogicalKeyboardKey.pageUp) {
+      newIdx = (idx - pageSize).clamp(0, fonts.length - 1);
+    } else {
+      return KeyEventResult.ignored;
+    }
+
+    if (newIdx != idx) {
+      setState(() {
+        _selectedFont = fonts[newIdx];
+        _controller.text = _selectedFont;
+      });
+      final offset = newIdx * 40.0;
+      _scrollController.animateTo(
+        offset,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+      );
+    }
+    return KeyEventResult.handled;
   }
 
   Future<void> _loadSystemFonts() async {
@@ -744,6 +773,8 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
   void dispose() {
     _controller.dispose();
     _searchController.dispose();
+    _scrollController.dispose();
+    _listFocusNode.dispose();
     super.dispose();
   }
 
@@ -814,9 +845,13 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
                   child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
                 )
               else
-                ConstrainedBox(
+                Focus(
+                  focusNode: _listFocusNode,
+                  onKeyEvent: _onKeyEvent,
+                  child: ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 300),
                   child: ListView.builder(
+                    controller: _scrollController,
                     shrinkWrap: true,
                     itemCount: fonts.length,
                     itemBuilder: (ctx, i) {
@@ -854,6 +889,7 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
                       );
                     },
                   ),
+                ),
                 ),
               const SizedBox(height: 8),
               Row(
@@ -899,15 +935,7 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Later', style: TextStyle(color: accentColor)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              exit(0);
-            },
-            child: Text('Restart Now',
-                style: TextStyle(fontWeight: FontWeight.w600, color: accentColor)),
+            child: Text('OK', style: TextStyle(color: accentColor)),
           ),
         ],
       ),
@@ -992,8 +1020,8 @@ class _AppIconPickerState extends State<_AppIconPicker> {
               children: [
                 Positioned.fill(
                   child: AnimatedOpacity(
-                    opacity: isSelected ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 200),
+                    opacity: isSelected ? 1.0 : (wasPrev ? 0.0 : 0.0),
+                    duration: Duration(milliseconds: isSelected ? 200 : (wasPrev ? 200 : 0)),
                     curve: Curves.easeOutCubic,
                     child: Container(
                       decoration: BoxDecoration(

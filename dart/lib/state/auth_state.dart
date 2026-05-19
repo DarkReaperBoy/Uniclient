@@ -109,15 +109,33 @@ class AuthState extends ChangeNotifier {
             Debug.log('AUTH', 'SRP_ID_INVALID storm detected — aborting');
           } else {
             _lastSrpIdInvalidTime = now;
-            _currentAuth = AuthStateData(
-              accountId: auth.accountId,
-              platform: auth.platform,
-              state: '2fa',
-              label: auth.label.isNotEmpty ? auth.label : 'Two-Factor Password',
-              hint: auth.hint,
-              hasRecovery: auth.hasRecovery,
-              sentTo: auth.sentTo,
-            );
+            try {
+              final freshAuth = await _engine.startAuth(auth.accountId);
+              if (freshAuth != null && freshAuth.state == '2fa') {
+                _currentAuth = freshAuth;
+                Debug.log('AUTH', 'SRP_ID_INVALID — re-fetched fresh SRP params');
+              } else {
+                _currentAuth = AuthStateData(
+                  accountId: auth.accountId,
+                  platform: auth.platform,
+                  state: '2fa',
+                  label: auth.label.isNotEmpty ? auth.label : 'Two-Factor Password',
+                  hint: auth.hint,
+                  hasRecovery: auth.hasRecovery,
+                  sentTo: auth.sentTo,
+                );
+              }
+            } catch (_) {
+              _currentAuth = AuthStateData(
+                accountId: auth.accountId,
+                platform: auth.platform,
+                state: '2fa',
+                label: auth.label.isNotEmpty ? auth.label : 'Two-Factor Password',
+                hint: auth.hint,
+                hasRecovery: auth.hasRecovery,
+                sentTo: auth.sentTo,
+              );
+            }
             _error = 'Password verification failed. Please try again.';
             Debug.log('AUTH', 'SRP_ID_INVALID — restored 2FA state for re-entry');
           }

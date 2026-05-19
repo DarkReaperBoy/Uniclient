@@ -271,7 +271,7 @@ class _AyuSettingToggle extends StatelessWidget {
     return InkWell(
       onTap: () => onChanged(!value),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+        padding: const EdgeInsets.only(left: 22, right: 22, top: 10, bottom: 8),
         child: Row(
           children: [
             if (icon != null) ...[
@@ -753,7 +753,7 @@ class _NestedCheckbox extends StatelessWidget {
     final borderColor = isDark
         ? const Color(0xFF5A6A78)
         : const Color(0xFFCBCBCB);
-    return GestureDetector(
+    return InkWell(
       onTap: () {
         if (HardwareKeyboard.instance.isShiftPressed && onLockToggle != null) {
           if (isLocked || canLock) {
@@ -767,7 +767,7 @@ class _NestedCheckbox extends StatelessWidget {
         opacity: isLocked ? 0.4 : 1.0,
         child: Padding(
           padding:
-              const EdgeInsets.only(left: 44, right: 22, top: 6, bottom: 6),
+              const EdgeInsets.only(left: 57, right: 22, top: 8, bottom: 8),
           child: Row(
             children: [
               _TgCheckbox(
