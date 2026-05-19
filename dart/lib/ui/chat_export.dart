@@ -204,7 +204,11 @@ class _ExportPanelController {
   static void showAndActivate(BuildContext context, ExportTarget target) {
     if (_entry != null) {
       _visible.value = true;
-      _entry!.markNeedsBuild();
+      final overlay = Overlay.maybeOf(context) ?? Navigator.maybeOf(context)?.overlay;
+      if (overlay != null) {
+        _entry!.remove();
+        overlay.insert(_entry!);
+      }
       return;
     }
     show(context, target);
@@ -397,6 +401,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   bool _showBottomShadow = true;
 
   List<_ExportStepInfo> _exportSteps = [];
+  List<_ExportStepInfo> _completedStepData = [];
   Timer? _skipFileTimer;
   Timer? _saveSettingsTimer;
   Timer? _fadeOutTimer;
@@ -979,6 +984,16 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     _exportPath = event.exportPath;
     _totalFiles = event.totalFiles;
     _totalSizeBytes = event.totalSizeBytes;
+    _completedStepData = _exportSteps
+        .where((s) => s.wasReported)
+        .map((s) => _ExportStepInfo(
+              label: s.label,
+              info: s.info.isNotEmpty ? s.info : 'Done',
+              progress: 1.0,
+              opacity: 1.0,
+              wasReported: true,
+            ))
+        .toList();
     setState(() => _phase = ExportPhase.completed);
     context.read<ChatState>().stopExportBar();
   }
@@ -2207,18 +2222,18 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                     padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
                     child: SizedBox(
                       height: 30,
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Expanded(
-                                  child: AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 200),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Column(
+                          key: ValueKey(visibleSteps[_si].label),
+                          children: [
+                            Expanded(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Expanded(
                                     child: Text(
                                       visibleSteps[_si].label,
-                                      key: ValueKey(visibleSteps[_si].label),
                                       style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
@@ -2227,46 +2242,46 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 200),
-                                  child: Text(
-                                    visibleSteps[_si].info,
-                                    key: ValueKey('${_si}_${visibleSteps[_si].info}'),
-                                    style: TextStyle(
-                                        fontSize: 14, color: subtextColor),
+                                  const SizedBox(width: 8),
+                                  AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 200),
+                                    child: Text(
+                                      visibleSteps[_si].info,
+                                      key: ValueKey('${_si}_${visibleSteps[_si].info}'),
+                                      style: TextStyle(
+                                          fontSize: 14, color: subtextColor),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                          SizedBox(
-                            height: 3,
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                return Stack(
-                                  children: [
-                                    Container(
-                                      width: constraints.maxWidth,
-                                      height: 3,
-                                      color: inactiveFg,
-                                    ),
-                                    AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 200),
-                                      curve: Curves.easeInOut,
-                                      width: constraints.maxWidth *
-                                          visibleSteps[_si].progress,
-                                      height: 3,
-                                      color: activeFg,
-                                    ),
-                                  ],
-                                );
-                              },
+                            SizedBox(
+                              height: 3,
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return Stack(
+                                    children: [
+                                      Container(
+                                        width: constraints.maxWidth,
+                                        height: 3,
+                                        color: inactiveFg,
+                                      ),
+                                      AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 200),
+                                        curve: Curves.easeInOut,
+                                        width: constraints.maxWidth *
+                                            visibleSteps[_si].progress,
+                                        height: 3,
+                                        color: activeFg,
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -2374,15 +2389,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final inactiveFg =
         context.palette.mediaPlayerInactiveFg;
 
-    final completedSteps = _exportSteps
-        .where((s) => s.wasReported)
-        .map((s) => _ExportStepInfo(
-      label: s.label,
-      info: s.info.isNotEmpty ? s.info : 'Done',
-      progress: 1.0,
-      opacity: 1.0,
-      wasReported: true,
-    )).toList();
+    final completedSteps = _completedStepData;
 
     return Column(
       children: [
