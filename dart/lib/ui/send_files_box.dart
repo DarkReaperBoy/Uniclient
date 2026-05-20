@@ -489,7 +489,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   void _detectMentionQuery() {
     final members = _engineMembers.isNotEmpty ? _engineMembers : widget.members;
     if (members.isEmpty) {
-      _refreshMembersFromEngine();
+      _refreshMembersFromEngine().then((_) {
+        if (mounted) _detectMentionQuery();
+      });
       if (_showMentionPanel) setState(() => _showMentionPanel = false);
       return;
     }
@@ -708,9 +710,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   bool _canAddCaptionForMode(bool compress) {
     if (_files.isEmpty) return false;
-    if (!compress) {
-      return !_files.every((f) => f.isSticker);
-    }
+    if (!compress) return true;
     return !_files.every((f) => f.isSticker);
   }
 
@@ -1294,12 +1294,16 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   bool _canBeSentInSlowmode(List<_PreparedFile> existingFiles, _PreparedFile newFile) {
     if (!widget.isSlowMode) return true;
     final combined = [...existingFiles, newFile];
-    if (combined.length > _maxAlbumCount) return false;
     if (combined.length < 2) return true;
-    final allMusic = combined.every((f) => f.type == _FileType.music);
-    final allMedia = combined.every((f) => f.isMediaType);
-    final allFile = combined.every((f) => f.type == _FileType.file || f.type == _FileType.music);
-    return allMusic || allMedia || allFile;
+    if (combined.length > _maxAlbumCount) return false;
+    final hasPhotos = combined.any((f) => f.type == _FileType.photo);
+    final hasVideos = combined.any((f) => f.type == _FileType.video);
+    final hasFiles = combined.any((f) => f.type == _FileType.file);
+    final hasMusic = combined.any((f) => f.type == _FileType.music);
+    if (hasFiles) return !hasMusic && !hasVideos;
+    if (hasVideos) return !hasMusic && !hasFiles;
+    if (hasMusic) return !hasVideos && !hasFiles && !hasPhotos;
+    return true;
   }
 
   Future<void> _addMoreFiles() async {
@@ -1488,11 +1492,35 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   void _showTopMenu(Offset position) {
+    final detailItems = _buildDetailMenuItems();
     showTelegramMenu<String>(
       context: context,
       position: position,
-      items: _buildDetailMenuItems(),
-    ).then(_handleDetailMenuValue);
+      items: [
+        if (!widget.isSelfChat)
+          const TelegramMenuItem(value: 'silent', icon: Icon(Icons.volume_off_outlined), label: 'Send without Sound'),
+        TelegramMenuItem(value: 'schedule', icon: const Icon(Icons.schedule_outlined), label: widget.isSelfChat ? 'Set Reminder' : 'Schedule Message'),
+        if (widget.chatType == ChatType.dm && !widget.isSelfChat)
+          const TelegramMenuItem(value: 'when_online', icon: Icon(Icons.person_outline), label: 'Send When Online'),
+        if (detailItems.isNotEmpty)
+          const TelegramMenuItem.separator(),
+        ...detailItems,
+      ],
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'silent':
+          _send(silent: true);
+        case 'schedule':
+          _pickScheduleDate();
+        case 'when_online':
+          _send(scheduledDate: DateTime.fromMillisecondsSinceEpoch(
+            ScheduledMessages.kScheduledUntilOnlineTimestamp * 1000,
+          ));
+        default:
+          _handleDetailMenuValue(value);
+      }
+    });
   }
 
   Future<void> _sendAsSticker() async {
@@ -1617,14 +1645,18 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   void _saveSendWaySettings() {
     final appState = context.read<AppState>();
-    if (_wayRemember) {
-      appState.rememberedSendAsDocuments = _sendAsDocuments;
-      appState.rememberedGroupFiles = _groupFiles;
+    if (!_wayRemember) return;
+    final oldWay = (
+      asDocuments: appState.rememberedSendAsDocuments,
+      groupFiles: appState.rememberedGroupFiles,
+    );
+    appState.rememberedSendAsDocuments = _sendAsDocuments;
+    if (!_hasGroupOption || widget.isSlowMode) {
+      if (oldWay.groupFiles != null) {
+        appState.rememberedGroupFiles = oldWay.groupFiles;
+      }
     } else {
-      final oldAsDoc = appState.rememberedSendAsDocuments;
-      final oldGroup = appState.rememberedGroupFiles;
-      if (oldAsDoc != null) appState.rememberedSendAsDocuments = oldAsDoc;
-      if (oldGroup != null) appState.rememberedGroupFiles = oldGroup;
+      appState.rememberedGroupFiles = _groupFiles;
     }
   }
 
@@ -1660,7 +1692,21 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       return f.spoiler;
     }).toList();
     final groups = _divideByGroups();
-    final captionGroupIdx = groups.isNotEmpty ? groups.length - 1 : -1;
+    int captionGroupIdx = -1;
+    if (groups.isNotEmpty && parsed.text.isNotEmpty) {
+      for (int gi = groups.length - 1; gi >= 0; gi--) {
+        final g = groups[gi];
+        if (g.fileIndices.isEmpty) continue;
+        final captionFileIdx = g.albumType == 'media'
+            ? g.fileIndices.first
+            : g.fileIndices.last;
+        final f = _files[captionFileIdx];
+        if (!f.isSticker || !_sendAsDocuments) {
+          captionGroupIdx = gi;
+          break;
+        }
+      }
+    }
     Navigator.of(context).pop(SendFilesResult(
       paths: _resultPaths,
       caption: parsed.text,
@@ -1768,7 +1814,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   static const int _kMaxStarsPerPost = 10000;
 
   void _showEditPriceDialog() {
-    final ctrl = TextEditingController(text: '$_starsPerMessage');
+    final ctrl = TextEditingController(
+      text: _starsPerMessage > 0 ? '$_starsPerMessage' : '',
+    );
+    final limit = _kMaxStarsPerPost;
     showTelegramBox<int>(
       context: context,
       builder: (ctx) => TelegramBox(
@@ -1779,16 +1828,31 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text(
+                'Enter cost in Stars',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: ctx.palette.boxTitleAdditionalFg,
+                ),
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(Icons.star_rounded, size: 20, color: ctx.palette.premiumButtonFg),
+                  CustomPaint(
+                    size: const Size(20, 20),
+                    painter: _StarIconPainter(ctx.palette.premiumButtonFg),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: ctrl,
                       autofocus: true,
                       keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        _MaxValueInputFormatter(limit),
+                      ],
                       style: TextStyle(fontSize: 14, color: ctx.palette.boxTextFg),
                       decoration: InputDecoration(
                         hintText: 'Stars per message',
@@ -1798,15 +1862,15 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                       ),
                       onSubmitted: (v) {
                         final n = int.tryParse(v);
-                        if (n != null && n > 0 && n <= _kMaxStarsPerPost) Navigator.pop(ctx, n);
+                        if (n != null && n >= 0 && n <= limit) Navigator.pop(ctx, n);
                       },
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
-                'Users will pay this amount in Stars to view your content. Maximum $_kMaxStarsPerPost Stars.',
+                'Users will pay this amount in Telegram Stars to unlock and view your content. You can set 0 to make it free.',
                 style: TextStyle(fontSize: 12, color: ctx.palette.boxTitleAdditionalFg),
               ),
             ],
@@ -1819,10 +1883,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
             text: 'Save',
             onPressed: () {
               final n = int.tryParse(ctrl.text);
-              if (n != null && n > 0 && n <= _kMaxStarsPerPost) {
+              if (n == null) {
+                Navigator.pop(ctx, 0);
+              } else if (n >= 0 && n <= limit) {
                 Navigator.pop(ctx, n);
-              } else if (n != null && n > _kMaxStarsPerPost) {
-                showTelegramToast(ctx, 'Maximum $_kMaxStarsPerPost Stars allowed');
               }
             },
           ),
@@ -1833,6 +1897,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       setState(() => _starsPerMessage = price);
     });
   }
+
 
   Future<bool> _checkSendWayAllowed({required bool asDocuments, required bool grouped}) async {
     try {
@@ -2165,7 +2230,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                             ),
                         ],
                       ),
-                    if (context.read<AppState>().photoEditorHintCount < 3 && showMediaPreview && mediaFiles.any((f) => f.type == _FileType.photo))
+                    if (context.read<AppState>().photoEditorHintCount >= 3 && showMediaPreview && mediaFiles.any((f) => f.type == _FileType.photo && !f.isSticker))
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
@@ -3777,21 +3842,24 @@ class _FileListPreviewState extends State<_FileListPreview> {
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      LongPressDraggable<int>(
-                        data: i,
-                        axis: Axis.vertical,
-                        feedback: Material(
-                          elevation: 4,
-                          borderRadius: BorderRadius.circular(4),
-                          child: SizedBox(
-                            width: _previewWidth,
-                            child: Opacity(opacity: 0.85, child: cardOnly),
+                      if (_isFileBlock(file))
+                        LongPressDraggable<int>(
+                          data: i,
+                          axis: Axis.vertical,
+                          feedback: Material(
+                            elevation: 4,
+                            borderRadius: BorderRadius.circular(4),
+                            child: SizedBox(
+                              width: _previewWidth,
+                              child: Opacity(opacity: 0.85, child: cardOnly),
+                            ),
                           ),
-                        ),
-                        childWhenDragging: Opacity(
-                          opacity: 0.3, child: cardOnly),
-                        child: cardOnly,
-                      ),
+                          childWhenDragging: Opacity(
+                            opacity: 0.3, child: cardOnly),
+                          child: cardOnly,
+                        )
+                      else
+                        cardOnly,
                       if (hasEdit || hasRemove)
                         Positioned(
                           top: _fileButtonSkipTop,
@@ -4616,4 +4684,57 @@ class _HashtagAutocompletePanel extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MaxValueInputFormatter extends TextInputFormatter {
+  final int maxValue;
+  const _MaxValueInputFormatter(this.maxValue);
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) return newValue;
+    final n = int.tryParse(newValue.text);
+    if (n == null) return oldValue;
+    if (n > maxValue) return oldValue;
+    return newValue;
+  }
+}
+
+class _StarIconPainter extends CustomPainter {
+  final Color color;
+  _StarIconPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final path = Path();
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final outerR = size.width / 2;
+    final innerR = outerR * 0.4;
+    for (int i = 0; i < 5; i++) {
+      final outerAngle = (i * 72 - 90) * math.pi / 180;
+      final innerAngle = ((i * 72) + 36 - 90) * math.pi / 180;
+      final ox = cx + outerR * math.cos(outerAngle);
+      final oy = cy + outerR * math.sin(outerAngle);
+      final ix = cx + innerR * math.cos(innerAngle);
+      final iy = cy + innerR * math.sin(innerAngle);
+      if (i == 0) {
+        path.moveTo(ox, oy);
+      } else {
+        path.lineTo(ox, oy);
+      }
+      path.lineTo(ix, iy);
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_StarIconPainter old) => old.color != color;
 }
