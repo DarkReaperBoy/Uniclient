@@ -5659,6 +5659,16 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(exceptions)
 
+	case "ClearAllNotifyExceptions":
+		var params struct {
+			AccountID string `json:"account_id"`
+			PeerType  string `json:"peer_type"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ClearAllNotifyExceptions(params.AccountID, params.PeerType)
+
 	case "GetMutedChatsByType":
 		var params struct {
 			AccountID string `json:"account_id"`

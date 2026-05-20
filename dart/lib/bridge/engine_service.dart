@@ -6494,6 +6494,18 @@ class EngineService {
       Debug.error('ENGINE', 'saveLocalNotifyConfig failed', e);
     }
   }
+
+  Future<void> clearAllNotifyExceptions(String accountId, {required String peerType}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'peer_type': peerType,
+    }));
+    try {
+      await _callAsync('__engine', 'ClearAllNotifyExceptions', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'clearAllNotifyExceptions failed', e);
+    }
+  }
 }
 
 class EngineException implements Exception {

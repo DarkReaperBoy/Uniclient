@@ -87,7 +87,7 @@ class _NotificationsSettingsScreenState
           appState.setNotifPinnedMessages(config['pinned_messages'] == true);
         }
         if (config.containsKey('global_volume')) {
-          appState.notifVolume = (config['global_volume'] as num?)?.toInt() ?? 100;
+          appState.setNotifVolumeFromEngine((config['global_volume'] as num?)?.toInt() ?? 100);
         }
       }
     } catch (_) {}
@@ -365,7 +365,7 @@ class _NotificationsSettingsScreenState
             ? _VolumeSliderSection(
                 volume: appState.notifVolume,
                 onChanged: (v) {
-                  appState.notifVolume = v;
+                  appState.setNotifVolumeFromEngine(v);
                   _playVolumePreview(v);
                   context.read<EngineService>().saveLocalNotifyConfig(
                     appState.activeAccountId,
@@ -529,12 +529,14 @@ class _NotificationsSettingsScreenState
         iconColor: iconColor,
         label: 'Contact joined Telegram',
         value: context.read<AppState>().notifContactJoinedTelegram,
-        onChanged: (v) {
-          context.read<AppState>().setNotifContactJoinedTelegram(v);
-          final engine = context.read<EngineService>();
-          final accountId = context.read<AppState>().activeAccountId;
-          engine.setContactSignUpNotification(accountId, silent: !v);
-        },
+        onChanged: _serverStatesLoaded
+            ? (v) {
+                context.read<AppState>().setNotifContactJoinedTelegram(v);
+                final engine = context.read<EngineService>();
+                final accountId = context.read<AppState>().activeAccountId;
+                engine.setContactSignUpNotification(accountId, silent: !v);
+              }
+            : null,
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -544,15 +546,17 @@ class _NotificationsSettingsScreenState
         iconColor: iconColor,
         label: 'Pinned messages',
         value: context.read<AppState>().notifPinnedMessages,
-        onChanged: (v) {
-          final appState = context.read<AppState>();
-          appState.setNotifPinnedMessages(v);
-          final engine = context.read<EngineService>();
-          engine.saveLocalNotifyConfig(appState.activeAccountId, {
-            'type': 'pinned_messages',
-            'enabled': v,
-          });
-        },
+        onChanged: _serverStatesLoaded
+            ? (v) {
+                final appState = context.read<AppState>();
+                appState.setNotifPinnedMessages(v);
+                final engine = context.read<EngineService>();
+                engine.saveLocalNotifyConfig(appState.activeAccountId, {
+                  'type': 'pinned_messages',
+                  'enabled': v,
+                });
+              }
+            : null,
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -586,12 +590,14 @@ class _NotificationsSettingsScreenState
         iconColor: iconColor,
         label: 'Accept calls on this device',
         value: context.read<AppState>().notifAcceptCallsOnDevice,
-        onChanged: (v) {
-          context.read<AppState>().setNotifAcceptCallsOnDevice(v);
-          final engine = context.read<EngineService>();
-          final accountId = context.read<AppState>().activeAccountId;
-          engine.setCallsDisabledHere(accountId, disabled: !v);
-        },
+        onChanged: _serverStatesLoaded
+            ? (v) {
+                context.read<AppState>().setNotifAcceptCallsOnDevice(v);
+                final engine = context.read<EngineService>();
+                final accountId = context.read<AppState>().activeAccountId;
+                engine.setCallsDisabledHere(accountId, disabled: !v);
+              }
+            : null,
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -1734,6 +1740,11 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       _ => '',
     };
     if (peerType.isNotEmpty) {
+      if (soundEnabled) {
+        engine.muteDefaultNotifyForDuration(accountId, peerType: peerType, seconds: 0);
+      } else {
+        engine.muteDefaultNotifyForDuration(accountId, peerType: peerType, seconds: 2147483647);
+      }
       engine.updateDefaultNotifySettings(accountId, peerType: peerType, enabled: _enabled, soundEnabled: soundEnabled);
     }
   }
@@ -1750,7 +1761,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     };
     if (peerType.isNotEmpty) {
       engine.saveLocalNotifyConfig(accountId, {
-        'type': 'per_type_volume',
+        'type': 'per_type_volume_$peerType',
         'peer_type': peerType,
         'volume': volume,
       });
@@ -1931,7 +1942,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
                 engine.muteChat(exc.accountId, exc.chatId, newMuted);
               },
               onTap: (pos) {
-                _showExceptionContextMenu(context, pos, exc);
+                _showExceptionMuteMenu(context, pos, exc);
               },
               onSecondaryTap: (pos) {
                 _showExceptionContextMenu(context, pos, exc);
@@ -1968,12 +1979,19 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     final activeId = appState.activeAccountId;
     final selfId = appState.activeAccount?.id ?? '';
     final allChats = chatState.chatsForAccount(activeId);
+    final typeFilter = switch (widget.type) {
+      _NotifType.privateChats => (ChatInfo c) => c.type == ChatType.dm,
+      _NotifType.groups => (ChatInfo c) => c.type == ChatType.group,
+      _NotifType.channels => (ChatInfo c) => c.type == ChatType.channel,
+      _ => (ChatInfo c) => true,
+    };
     final availableChats = allChats.where((c) {
       if (existingIds.contains(c.chatId)) return false;
       if (c.chatId == selfId) return false;
       final titleLower = c.title.toLowerCase();
       if (titleLower == 'replies' || titleLower == 'telegram') return false;
       if (c.title == 'Verification Codes') return false;
+      if (!typeFilter(c)) return false;
       return true;
     }).toList();
     var searchQuery = '';
@@ -2144,8 +2162,17 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     ).then((confirmed) {
       if (confirmed == true) {
         final engine = context.read<EngineService>();
-        for (final exc in _exceptions) {
-          engine.resetPeerNotifySettings(exc.accountId, exc.chatId);
+        final peerType = switch (widget.type) {
+          _NotifType.privateChats => 'private',
+          _NotifType.groups => 'group',
+          _NotifType.channels => 'channel',
+          _ => '',
+        };
+        if (peerType.isNotEmpty) {
+          engine.clearAllNotifyExceptions(
+            _exceptions.first.accountId,
+            peerType: peerType,
+          );
         }
         setState(() => _exceptions.clear());
       }
@@ -2192,6 +2219,64 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     if (_recentMuteDurations.length > 2) {
       _recentMuteDurations.removeRange(2, _recentMuteDurations.length);
     }
+  }
+
+  void _showExceptionMuteMenu(
+      BuildContext context, Offset position, _NotifException exc) {
+    final greenColor = const Color(0xFF4CAF50);
+    final items = <TelegramMenuItem<String>>[
+      if (_recentMuteDurations.isNotEmpty) ...[
+        for (final dur in _recentMuteDurations)
+          TelegramMenuItem<String>(
+            value: 'mute_for_$dur',
+            icon: const Icon(Icons.access_time, size: 20),
+            label: 'Mute for ${_compactDuration(dur)}',
+          ),
+        const TelegramMenuItem<String>.separator(),
+      ],
+      const TelegramMenuItem<String>(
+        value: 'mute_for',
+        icon: Icon(Icons.timer_outlined, size: 20),
+        label: 'Mute for…',
+      ),
+      const TelegramMenuItem<String>.separator(),
+      if (exc.isMuted)
+        TelegramMenuItem<String>(
+          value: 'unmute',
+          icon: const Icon(Icons.notifications, size: 20),
+          label: 'Unmute',
+          labelColor: greenColor,
+          iconColor: greenColor,
+        )
+      else
+        const TelegramMenuItem<String>(
+          value: 'mute',
+          icon: Icon(Icons.notifications_off, size: 20),
+          label: 'Mute forever',
+          isAttention: true,
+        ),
+    ];
+
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: items,
+    ).then((value) {
+      if (value == null) return;
+      if (value.startsWith('mute_for_')) {
+        final seconds = int.tryParse(value.substring(9));
+        if (seconds != null) {
+          _addRecentDuration(seconds);
+          _muteExceptionForDuration(exc, seconds);
+        }
+      } else if (value == 'mute_for') {
+        _showExceptionMuteDurationPicker(context, exc);
+      } else if (value == 'unmute') {
+        _setExceptionMuted(exc, false);
+      } else if (value == 'mute') {
+        _setExceptionMuted(exc, true);
+      }
+    });
   }
 
   void _showExceptionContextMenu(
@@ -2835,7 +2920,7 @@ class _NotifIconToggleRow extends StatelessWidget {
   final Color iconColor;
   final String label;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
   final Color textColor;
   final Color accentColor;
   final Color hoverBg;
@@ -2846,7 +2931,7 @@ class _NotifIconToggleRow extends StatelessWidget {
     required this.iconColor,
     required this.label,
     required this.value,
-    required this.onChanged,
+    this.onChanged,
     required this.textColor,
     required this.accentColor,
     required this.hoverBg,
@@ -2862,7 +2947,7 @@ class _NotifIconToggleRow extends StatelessWidget {
         }
       },
       child: InkWell(
-        onTap: () => onChanged(!value),
+        onTap: onChanged != null ? () => onChanged!(!value) : null,
         hoverColor: hoverBg,
         splashColor: hoverBg.withValues(alpha: 0.5),
         child: Padding(
@@ -2876,7 +2961,7 @@ class _NotifIconToggleRow extends StatelessWidget {
                   label,
                   style: TextStyle(
                       fontSize: SettingsStyle.buttonFontSize,
-                      color: textColor),
+                      color: onChanged != null ? textColor : textColor.withValues(alpha: 0.5)),
                 ),
               ),
               Switch(
@@ -3118,9 +3203,7 @@ class _ReactionsSubPage extends StatefulWidget {
 }
 
 class _ReactionsSubPageState extends State<_ReactionsSubPage> {
-  bool _reactionsEnabled = true;
   _ReactionsFrom _reactionsFrom = _ReactionsFrom.everyone;
-  bool _pollVotesEnabled = true;
   _ReactionsFrom _pollVotesFrom = _ReactionsFrom.everyone;
   bool _showSenderName = true;
   bool _loaded = false;
@@ -3139,19 +3222,23 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
       if (mounted) setState(() => _loaded = true);
       return;
     }
-    final settings = await engine.getReactionsNotifySettings(accountId);
-    if (mounted) {
-      setState(() {
-        _loaded = true;
-        if (settings.isEmpty) return;
-        _reactionsEnabled = settings['reactions_enabled'] as bool? ?? true;
-        _reactionsFrom = _parseReactionsFrom(settings['reactions_from'] as String?);
-        if (!_reactionsEnabled) _reactionsFrom = _ReactionsFrom.none;
-        _pollVotesEnabled = settings['poll_votes_enabled'] as bool? ?? true;
-        _pollVotesFrom = _parseReactionsFrom(settings['poll_votes_from'] as String?);
-        if (!_pollVotesEnabled) _pollVotesFrom = _ReactionsFrom.none;
-        _showSenderName = settings['show_sender_name'] as bool? ?? true;
-      });
+    try {
+      final settings = await engine.getReactionsNotifySettings(accountId);
+      if (mounted) {
+        setState(() {
+          _loaded = true;
+          if (settings.isEmpty) return;
+          final reactionsEnabled = settings['reactions_enabled'] as bool? ?? true;
+          _reactionsFrom = _parseReactionsFrom(settings['reactions_from'] as String?);
+          if (!reactionsEnabled) _reactionsFrom = _ReactionsFrom.none;
+          final pollVotesEnabled = settings['poll_votes_enabled'] as bool? ?? true;
+          _pollVotesFrom = _parseReactionsFrom(settings['poll_votes_from'] as String?);
+          if (!pollVotesEnabled) _pollVotesFrom = _ReactionsFrom.none;
+          _showSenderName = settings['show_sender_name'] as bool? ?? true;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loaded = true);
     }
   }
 
@@ -3255,7 +3342,9 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
                 ),
                 TextButton(
                   onPressed: () {
-                    onChanged(selected);
+                    if (selected != current) {
+                      onChanged(selected);
+                    }
                     Navigator.of(ctx).pop();
                   },
                   child: Text('OK', style: TextStyle(color: accentColor)),
@@ -3330,12 +3419,7 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
             value: _reactionsFrom != _ReactionsFrom.none,
             onToggle: (v) {
               setState(() {
-                if (v) {
-                  _reactionsFrom = _ReactionsFrom.everyone;
-                } else {
-                  _reactionsFrom = _ReactionsFrom.none;
-                }
-                _reactionsEnabled = v;
+                _reactionsFrom = v ? _ReactionsFrom.everyone : _ReactionsFrom.none;
               });
               _persistSettings();
             },
@@ -3345,10 +3429,7 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
                       title: 'Notify about reactions from',
                       current: _reactionsFrom,
                       onChanged: (v) {
-                        setState(() {
-                          _reactionsFrom = v;
-                          _reactionsEnabled = v != _ReactionsFrom.none;
-                        });
+                        setState(() => _reactionsFrom = v);
                         _persistSettings();
                       },
                     )
@@ -3370,12 +3451,7 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
             value: _pollVotesFrom != _ReactionsFrom.none,
             onToggle: (v) {
               setState(() {
-                if (v) {
-                  _pollVotesFrom = _ReactionsFrom.everyone;
-                } else {
-                  _pollVotesFrom = _ReactionsFrom.none;
-                }
-                _pollVotesEnabled = v;
+                _pollVotesFrom = v ? _ReactionsFrom.everyone : _ReactionsFrom.none;
               });
               _persistSettings();
             },
@@ -3385,10 +3461,7 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
                       title: 'Notify about votes from',
                       current: _pollVotesFrom,
                       onChanged: (v) {
-                        setState(() {
-                          _pollVotesFrom = v;
-                          _pollVotesEnabled = v != _ReactionsFrom.none;
-                        });
+                        setState(() => _pollVotesFrom = v);
                         _persistSettings();
                       },
                     )
@@ -3453,6 +3526,14 @@ class _NotificationPreview extends StatelessWidget {
     required this.isDark,
   });
 
+  static const double _notifyWidth = 320;
+  static const double _notifyMinHeight = 80;
+  static const double _photoSize = 62;
+  static const double _photoPos = 9;
+  static const double _textLeft = 83;
+  static const double _textTop = 7;
+  static const double _borderWidth = 1;
+
   @override
   Widget build(BuildContext context) {
     final wallpaperBg =
@@ -3465,6 +3546,8 @@ class _NotificationPreview extends StatelessWidget {
         isDark ? const Color(0xFFAAAAAA) : const Color(0xFF555555);
     final serviceBg =
         isDark ? const Color(0x7F000000) : const Color(0x54000000);
+    final borderColor =
+        isDark ? const Color(0xFF2E3A47) : const Color(0xFFD5D5D5);
 
     final displayTitle = showName ? 'Dino Rex' : 'UniClient';
     final displayText =
@@ -3486,24 +3569,27 @@ class _NotificationPreview extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: Container(
+                width: _notifyWidth,
+                constraints: const BoxConstraints(minHeight: _notifyMinHeight),
                 decoration: BoxDecoration(
                   color: bubbleBg,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: borderColor, width: _borderWidth),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
-                padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
+                padding: EdgeInsets.fromLTRB(_photoPos, _textTop, 12, _textTop),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      width: 36,
-                      height: 36,
+                      width: _photoSize,
+                      height: _photoSize,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: showName
@@ -3514,41 +3600,44 @@ class _NotificationPreview extends StatelessWidget {
                         child: showName
                             ? const Text(
                                 '\u{1F996}',
-                                style: TextStyle(fontSize: 18),
+                                style: TextStyle(fontSize: 24),
                               )
                             : Icon(
                                 Icons.chat_bubble,
-                                size: 18,
+                                size: 24,
                                 color: Colors.white.withValues(alpha: 0.9),
                               ),
                       ),
                     ),
-                    const SizedBox(width: 14),
+                    SizedBox(width: _textLeft - _photoPos - _photoSize),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            displayTitle,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: titleColor,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              displayTitle,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: titleColor,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            displayText,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: textColor,
+                            const SizedBox(height: 2),
+                            Text(
+                              displayText,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: textColor,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ],

@@ -2364,6 +2364,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   set notifAllowSound(bool v) { if (_notifAllowSound != v) { _notifAllowSound = v; _saveWindowPrefs(); notifyListeners(); } }
   int get notifVolume => _notifVolume;
   set notifVolume(int v) { if (_notifVolume != v) { _notifVolume = v; _saveWindowPrefs(); notifyListeners(); } }
+  void setNotifVolumeFromEngine(int v) { if (_notifVolume != v) { _notifVolume = v; notifyListeners(); } }
   bool get notifPreviewName => _notifPreviewName;
   set notifPreviewName(bool v) { if (_notifPreviewName != v) { _notifPreviewName = v; _saveWindowPrefs(); notifyListeners(); } }
   bool get notifPreviewText => _notifPreviewText;

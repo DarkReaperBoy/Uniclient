@@ -153,7 +153,7 @@ func (e *Engine) GetLocalNotifyConfig(accountID string) (map[string]interface{},
 			if vol, ok := entry["volume"].(float64); ok {
 				result["global_volume"] = int(vol)
 			}
-		case "per_type_volume":
+		case "per_type_volume", "per_type_volume_private", "per_type_volume_group", "per_type_volume_channel":
 			if vol, ok := entry["volume"].(float64); ok {
 				peerType, _ := entry["peer_type"].(string)
 				if peerType != "" {
@@ -292,6 +292,32 @@ func (e *Engine) DeleteRingtone(accountID string, documentID int64) error {
 		return fmt.Errorf("core does not support ringtone deletion")
 	}
 	return d.DeleteRingtone(documentID)
+}
+
+func (e *Engine) ClearAllNotifyExceptions(accountID, peerType string) error {
+	exceptions, err := e.GetNotificationExceptions(accountID, peerType)
+	if err != nil {
+		return err
+	}
+	for _, exc := range exceptions {
+		peerID, _ := exc["peer_id"]
+		var chatID string
+		switch v := peerID.(type) {
+		case string:
+			chatID = v
+		case float64:
+			chatID = fmt.Sprintf("%d", int64(v))
+		case int64:
+			chatID = fmt.Sprintf("%d", v)
+		}
+		if chatID == "" {
+			continue
+		}
+		if resetErr := e.ResetPeerNotifySettings(accountID, chatID); resetErr != nil {
+			err = resetErr
+		}
+	}
+	return err
 }
 
 func (e *Engine) GetNotificationExceptions(accountID, peerType string) ([]map[string]interface{}, error) {
