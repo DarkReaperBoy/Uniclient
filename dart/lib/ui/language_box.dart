@@ -237,7 +237,8 @@ class _LanguageBoxState extends State<LanguageBox> {
       }
       return langs.first.toUpperCase();
     }
-    return '${langs.length} ${langs.length == 1 ? 'language' : 'languages'}';
+    final count = langs.length;
+    return '$count ${count == 1 ? 'language' : 'languages'}';
   }
 
   void _openSkipLanguagesEditor(AppState appState) {
