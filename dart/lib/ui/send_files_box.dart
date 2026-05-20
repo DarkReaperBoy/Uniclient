@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../models/engine_models.dart' show ChatType, MemberInfo, ScheduledMessages;
+import '../models/engine_models.dart' show BotCommandInfo, ChatType, MemberInfo, ScheduledMessages;
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
@@ -380,6 +380,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   List<String> _acFilteredHashtags = [];
   String _acHashtagQuery = '';
   bool _showHashtagPanel = false;
+  List<BotCommandInfo> _acFilteredCommands = [];
+  String _acCommandQuery = '';
+  bool _showCommandPanel = false;
+  List<BotCommandInfo> _botCommands = [];
+  bool _botCommandsFetched = false;
   int _starsPostLimit = 10000;
 
   @override
@@ -462,6 +467,21 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
   }
 
+  Future<void> _fetchBotCommands() async {
+    if (_botCommandsFetched) return;
+    _botCommandsFetched = true;
+    try {
+      final appState = context.read<AppState>();
+      final chatState = context.read<ChatState>();
+      final accountId = appState.activeAccountId;
+      final chatId = chatState.activeChat?.chatId;
+      if (accountId == null || chatId == null) return;
+      final commands = await appState.engine.getChatBotCommands(accountId, chatId);
+      if (!mounted) return;
+      _botCommands = commands;
+    } catch (_) {}
+  }
+
   Future<void> _fetchPremiumStatus() async {
     try {
       final appState = context.read<AppState>();
@@ -508,6 +528,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
     _detectMentionQuery();
     _detectHashtagQuery();
+    _detectCommandQuery();
   }
 
   void _detectMentionQuery() {
@@ -603,6 +624,54 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     );
     setState(() => _showHashtagPanel = false);
     RecentHashtags.addTag(hashtag);
+  }
+
+  void _detectCommandQuery() {
+    final sel = _captionController.selection;
+    if (!sel.isValid || !sel.isCollapsed) {
+      if (_showCommandPanel) setState(() => _showCommandPanel = false);
+      return;
+    }
+    final text = _captionController.text;
+    final cursor = sel.baseOffset;
+    final before = text.substring(0, cursor);
+    final match = RegExp(r'^/(\w*)$').firstMatch(before);
+    if (match == null) {
+      if (_showCommandPanel) setState(() => _showCommandPanel = false);
+      return;
+    }
+    if (_botCommands.isEmpty) {
+      _fetchBotCommands().then((_) {
+        if (mounted) _detectCommandQuery();
+      });
+      return;
+    }
+    final query = match.group(1)!.toLowerCase();
+    _acCommandQuery = query;
+    final filtered = _botCommands.where((c) {
+      return c.command.toLowerCase().startsWith(query);
+    }).take(5).toList();
+    setState(() {
+      _acFilteredCommands = filtered;
+      _showCommandPanel = filtered.isNotEmpty;
+    });
+  }
+
+  void _insertCommand(BotCommandInfo cmd) {
+    final text = _captionController.text;
+    final cursor = _captionController.selection.baseOffset;
+    final before = text.substring(0, cursor);
+    final match = RegExp(r'^/(\w*)$').firstMatch(before);
+    if (match == null) return;
+    final insertText = '/${cmd.command} ';
+    final after = text.substring(cursor);
+    final newText = '$insertText$after';
+    if (newText.length > _captionMaxLength) return;
+    _captionController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: insertText.length),
+    );
+    setState(() => _showCommandPanel = false);
   }
 
   void _updateScrollShadows() {
@@ -724,11 +793,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   bool get _canMoveCaption {
     if (_captionController.text.isEmpty) return false;
-    final compress = !_sendAsDocuments;
-    if (!_canAddCaptionForMode(compress)) return false;
+    if (_sendAsDocuments) return false;
+    if (!_canAddCaptionForMode(true)) return false;
     if (_files.length > _maxAlbumCount) return false;
-    final sendingAlbum = _groupFiles && compress;
-    if (!sendingAlbum || !compress) return _files.length == 1;
+    if (!_groupFiles) return _files.length == 1;
     return _files.every((f) => f.isMediaType);
   }
 
@@ -2372,6 +2440,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                 hashtags: _acFilteredHashtags,
                 isDark: isDark,
                 onSelect: _insertHashtag,
+              ),
+            if (_showCommandPanel && _acFilteredCommands.isNotEmpty)
+              _CommandAutocompletePanel(
+                commands: _acFilteredCommands,
+                isDark: isDark,
+                onSelect: _insertCommand,
               ),
             if (_canAddCaption) ...[
             _CaptionFormattingToolbar(
@@ -4702,6 +4776,78 @@ class _HashtagAutocompletePanel extends StatelessWidget {
               child: Text(
                 '#$tag',
                 style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CommandAutocompletePanel extends StatelessWidget {
+  final List<BotCommandInfo> commands;
+  final bool isDark;
+  final void Function(BotCommandInfo) onSelect;
+
+  const _CommandAutocompletePanel({
+    required this.commands,
+    required this.isDark,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 160),
+      color: bg,
+      child: ListView.builder(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: commands.length,
+        itemBuilder: (ctx, i) {
+          final cmd = commands[i];
+          return InkWell(
+            onTap: () => onSelect(cmd),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '/${cmd.command}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        if (cmd.description.isNotEmpty)
+                          Text(
+                            cmd.description,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white54 : Colors.black45,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (cmd.botName.isNotEmpty)
+                    Text(
+                      cmd.botName,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.white38 : Colors.black26,
+                      ),
+                    ),
+                ],
               ),
             ),
           );
