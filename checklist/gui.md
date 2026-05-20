@@ -566,11 +566,6 @@ All CRITICAL and MAJOR checks passed:
 
 
 
-
-## language_box — "N languages" label missing singular form
-
-- [ ] [MAJOR] AyuGram uses `tr::lng_languages_count` which has plural forms: "{count} language" (one) / "{count} languages" (other). Dart hardcodes `'${langs.length} languages'` with no singular handling — `language_box.dart:217` ← `AyuGram/Resources/langs/lang.strings:650-651`
-
 # media_viewer — Audit Findings
 
 ## media_viewer — Placeholders, Backend Wiring, Visual & Behavioral Issues
