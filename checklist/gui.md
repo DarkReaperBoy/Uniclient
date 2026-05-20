@@ -602,10 +602,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — `checkWithWay` / permission check completely missing
-
-- [ ] [CRITICAL] AyuGram validates that the current send way is permissible for the peer before allowing "Group files" and "Send as documents" toggles — using `checkWithWay(sendWay)` which calls `_check(file, compress, silent)` (the `SendFilesCheck` callback from `DefaultCheckForPeer`). If the check fails, the checkbox is reverted. The Dart file applies the toggle unconditionally with `setState(() => _sendAsDocuments = v)` / `setState(() => _groupFiles = v)`, never checking peer restrictions. — `send_files_box.dart:1929,1939` ← `AyuGram/boxes/send_files_box.cpp:1749-1775`
-
 ## send_files_box — Reply header is a plain static widget, not animated ReplyPillHeader
 
 - [ ] [MAJOR] AyuGram uses a dedicated `SendFiles::ReplyPillHeader` widget (with hide animation, close button, dynamic height, and spoiler preview) sourced from the live history item. The Dart implementation renders a static `Container` with hardcoded `Icon(Icons.reply)` and plain text — no close button, no animation, no resolve of the actual message data. — `send_files_box.dart:1639-1681` ← `AyuGram/boxes/send_files_box_reply_header.h:31-75`
