@@ -258,6 +258,7 @@ class EmojiTabbedPanel extends StatefulWidget {
   final void Function(String stickerId, {StickerSendMode mode})? onStickerSend;
   final void Function(String gifFileId, {StickerSendMode mode})? onGifSend;
   final void Function(int queryId, String resultId)? onInlineResultSend;
+  final bool emojiOnly;
 
   const EmojiTabbedPanel({
     super.key,
@@ -268,6 +269,7 @@ class EmojiTabbedPanel extends StatefulWidget {
     this.onStickerSend,
     this.onGifSend,
     this.onInlineResultSend,
+    this.emojiOnly = false,
   });
 
   @override
@@ -434,21 +436,22 @@ class _EmojiTabbedPanelState extends State<EmojiTabbedPanel>
                       borderRadius: BorderRadius.circular(_kPanelRadius),
                       child: Column(
                         children: [
-                          _TabBar(
-                            activeTab: _activeTab,
-                            onTabChanged: _switchTab,
-                          ),
+                          if (!widget.emojiOnly)
+                            _TabBar(
+                              activeTab: _activeTab,
+                              onTabChanged: _switchTab,
+                            ),
                           Expanded(
                             child: _TabContent(
-                              activeTab: _activeTab,
-                              prevTab: _prevTab,
+                              activeTab: widget.emojiOnly ? 0 : _activeTab,
+                              prevTab: widget.emojiOnly ? 0 : _prevTab,
                               slideController: _tabSlideController,
                               onEmojiSelected: widget.onEmojiSelected,
                               onCustomEmojiSelected: widget.onCustomEmojiSelected,
                               onContextMenuToggle: _onContextMenuToggle,
-                              onStickerSend: widget.onStickerSend,
-                              onGifSend: widget.onGifSend,
-                              onInlineResultSend: widget.onInlineResultSend,
+                              onStickerSend: widget.emojiOnly ? null : widget.onStickerSend,
+                              onGifSend: widget.emojiOnly ? null : widget.onGifSend,
+                              onInlineResultSend: widget.emojiOnly ? null : widget.onInlineResultSend,
                             ),
                           ),
                         ],
