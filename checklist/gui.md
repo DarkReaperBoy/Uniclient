@@ -516,10 +516,6 @@ The Dart version works but lacks the flexibility and maintainability of the AyuG
 None of these features are fully wired. The widget compiles and renders fallbacks, but collectible gradient colors and userpic emoji status are completely non-functional.
 
 
-## folders_settings_screen — static-title toggle added but not wired to backend
-
-- [ ] [CRITICAL] `_EditFilterBox` has no "Disable Animations / Enable Animations" toggle button for static-title (emoji-only titles). AyuGram shows a `Ui::LinkButton` inside the name field that toggles `staticTitle` and controls whether custom-emoji in the folder name loop or freeze. The Dart box stores no `staticTitle` field and never passes it to `editFolder`/`createFolder`, so folders with animated custom-emoji titles cannot be made static — `folders_settings_screen.dart:1233–1755` ← `AyuGram/boxes/filters/edit_filter_box.cpp:455–488,820–846`
-
 # forum_topic_icon — No issues found
 
 Audited against:
@@ -550,10 +546,6 @@ All CRITICAL and MAJOR checks passed:
 **Custom emoji backend** — `engine.getCustomEmojiFiles` and `engine.getCustomEmojiThumbs` are both wired (`forum_topic_icon.dart:428,438`). TGS/Lottie, WebP, and WebM all have active render paths with proper fallback chain.
 
 **Lifecycle** — Ref-counting (`_refRetain`/`_refRelease`) and 5-second deferred cache eviction are correctly implemented. `dispose()` cancels the timer, disposes animation/player/temp-file, and releases the ref.
-
-# ghost_settings_page — Account picker label stale after account switch
-
-- [ ] [CRITICAL] Account picker button shows the *active* account's name instead of the *selected* account's name after switching ghost profile — `ghost_settings_page.dart:85` passes `activeAccount: appState.activeAccount` to `_GhostEssentialsHeader`; `_AccountPickerButton._currentLabel` (line 591) returns `accountLabel(activeAccount!)` which is always the main app active account (e.g. account A), even after the user taps the picker and selects account B. The settings rendered below correctly switch to B's ghost settings (via `_selectedUserId`, line 94), but the picker label still reads A's name — misleading the user into thinking they are editing A's config. Fix: pass the account whose `selfUserId == _selectedUserId` (looked up from `appState.accounts`) instead of `appState.activeAccount`. ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_ayu.cpp:295` (`state->pickerButton->setText(PickerLabel(userId))` — the picker button text is explicitly updated to the newly-selected user's name inside `selectGhostProfile` every time the selection changes)
 
 ## hamburger_drawer — missing Go bridge handlers, wrong cover color, wrong My Profile target
 
