@@ -566,10 +566,6 @@ All CRITICAL and MAJOR checks passed:
 
 
 
-## language_box — Menu toggle button size wrong (34px vs 40px)
-
-- [ ] [MAJOR] AyuGram computes the menu toggle area as `size = st::topBarSearch.width = 40px` (square 40×40). Dart uses `SizedBox(width: 34, height: 34)` — 6px smaller — `language_box.dart:669-671` ← `AyuGram/SourceFiles/boxes/language_box.cpp:437` / `AyuGram/SourceFiles/info/info.style:1032-1033`
-
 ## language_box — Share toast text differs from AyuGram
 
 - [ ] [MAJOR] AyuGram shows `tr::lng_username_copied` = "Link copied to clipboard" after copying the language link. Dart shows "Language link copied to clipboard." — a different hardcoded string — `language_box.dart:740-741` ← `AyuGram/SourceFiles/boxes/language_box.cpp:517`
