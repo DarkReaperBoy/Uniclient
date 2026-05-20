@@ -511,6 +511,95 @@ func (e *Engine) MarkChatRead(accountID, chatID, upToMsgID string) error {
 	return nil
 }
 
+// MarkAllChatsRead marks every chat with unread messages as read for the account.
+// Also clears unread story flags and triggers server-side story read sync.
+func (e *Engine) MarkAllChatsRead(accountID string) error {
+	rows, err := e.db.Query(
+		"SELECT chat_id, last_msg_id FROM chats WHERE account_id = ? AND (unread_count > 0 OR unread_mark = 1)",
+		accountID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	type chatMsg struct {
+		chatID    string
+		lastMsgID string
+	}
+	var chats []chatMsg
+	for rows.Next() {
+		var cm chatMsg
+		if err := rows.Scan(&cm.chatID, &cm.lastMsgID); err != nil {
+			continue
+		}
+		chats = append(chats, cm)
+	}
+
+	for _, cm := range chats {
+		e.MarkChatRead(accountID, cm.chatID, cm.lastMsgID)
+	}
+
+	// Clear unread story flags locally and trigger server-side story read sync.
+	e.db.Exec(
+		"UPDATE chats SET has_unread_story = 0 WHERE account_id = ? AND has_unread_story = 1",
+		accountID)
+	type storyReader interface {
+		MarkAllStoriesRead() error
+	}
+	if acc, ok := e.getAccount(accountID); ok && acc.Core != nil {
+		if sr, ok := acc.Core.(storyReader); ok {
+			sr.MarkAllStoriesRead()
+		}
+	}
+	return nil
+}
+
+// OpenSavedMessages ensures the "Saved Messages" chat exists in the local
+// cache and emits a chat update so the Dart side can navigate to it.
+func (e *Engine) OpenSavedMessages(accountID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	type selfIDer interface{ SelfUserID() string }
+	s, ok := acc.Core.(selfIDer)
+	if !ok {
+		return "", fmt.Errorf("platform does not support self-user ID")
+	}
+	selfID := s.SelfUserID()
+	if selfID == "" {
+		return "", fmt.Errorf("self user ID not available")
+	}
+
+	var exists int
+	e.db.QueryRow("SELECT COUNT(*) FROM chats WHERE account_id = ? AND chat_id = ?",
+		accountID, selfID).Scan(&exists)
+	if exists == 0 {
+		e.db.Exec(
+			`INSERT OR IGNORE INTO chats (account_id, chat_id, type, title, unread_count, is_pinned, is_archived, last_msg_time)
+			 VALUES (?, ?, 1, 'Saved Messages', 0, 0, 0, ?)`,
+			accountID, selfID, time.Now().UnixMilli())
+	}
+	e.emitChatUpdate(accountID, selfID)
+	return selfID, nil
+}
+
+// RemoveBotFromMenu removes a bot from the side/attach menu.
+func (e *Engine) RemoveBotFromMenu(accountID string, botID int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type menuRemover interface {
+		RemoveBotFromMenu(botID int64) error
+	}
+	r, ok := acc.Core.(menuRemover)
+	if !ok {
+		return fmt.Errorf("platform does not support removing bots from menu")
+	}
+	return r.RemoveBotFromMenu(botID)
+}
+
 func (e *Engine) MarkChatUnread(accountID, chatID string) error {
 	e.db.Exec(
 		"UPDATE chats SET unread_mark = 1 WHERE account_id = ? AND chat_id = ?",

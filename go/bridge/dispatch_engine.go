@@ -5721,6 +5721,42 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(result)
 
+	case "MarkAllChatsRead":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.MarkAllChatsRead(params.AccountID)
+
+	case "OpenSavedMessages":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		selfID, err := e.OpenSavedMessages(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"chat_id": selfID})
+
+	case "RemoveBotFromMenu":
+		var params struct {
+			AccountID string `json:"account_id"`
+			BotID     string `json:"bot_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		botID, err := strconv.ParseInt(params.BotID, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid bot_id: %w", err)
+		}
+		return nil, e.RemoveBotFromMenu(params.AccountID, botID)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

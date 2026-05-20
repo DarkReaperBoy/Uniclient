@@ -23708,6 +23708,25 @@ func (t *TelegramCore) MessagesToggleBotInAttachMenu(request *tg.MessagesToggleB
 	return t.api.MessagesToggleBotInAttachMenu(t.ctx, request)
 }
 
+// MarkAllStoriesRead triggers the server to sync all read story states.
+func (t *TelegramCore) MarkAllStoriesRead() error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.StoriesGetAllReadPeerStories(t.ctx)
+	return err
+}
+
+// RemoveBotFromMenu removes a bot from the side/attach menu.
+func (t *TelegramCore) RemoveBotFromMenu(botID int64) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.MessagesToggleBotInAttachMenu(t.ctx, &tg.MessagesToggleBotInAttachMenuRequest{
+		Bot:     &tg.InputUser{UserID: botID, AccessHash: t.getCachedUserHash(botID)},
+		Enabled: false,
+	})
+	return err
+}
+
 // MessagesToggleDialogFilterTags toggles filter tags in dialog folders.
 func (t *TelegramCore) MessagesToggleDialogFilterTags(enabled bool) (bool, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

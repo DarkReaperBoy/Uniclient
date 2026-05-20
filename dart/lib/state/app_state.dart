@@ -308,6 +308,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _showSavedMessagesInDrawer = true;
 
   bool _archiveInMainMenu = false;
+  bool _archiveCollapsed = false;
 
   // §50.2: Streamer Mode — global, non-persistent (OFF on every cold launch).
   bool _streamerModeEnabled = false;
@@ -573,6 +574,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setArchiveInMainMenu(bool v) {
     if (_archiveInMainMenu == v) return;
     _archiveInMainMenu = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  bool get archiveCollapsed => _archiveCollapsed;
+  void setArchiveCollapsed(bool v) {
+    if (_archiveCollapsed == v) return;
+    _archiveCollapsed = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -3231,6 +3240,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _ivZoom = (data['ivZoom'] as num?)?.toDouble() ?? 1.0;
       _showNightModeToggleInDrawer = data['showNightModeToggleInDrawer'] as bool? ?? true;
       _archiveInMainMenu = data['archiveInMainMenu'] as bool? ?? false;
+      _archiveCollapsed = data['archiveCollapsed'] as bool? ?? false;
       // §54.8: Per-item drawer visibility.
       _showMyProfileInDrawer = data['showMyProfileInDrawer'] as bool? ?? true;
       _showBotsInDrawer = data['showBotsInDrawer'] as bool? ?? true;
@@ -3499,6 +3509,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'ivZoom': _ivZoom,
         'showNightModeToggleInDrawer': _showNightModeToggleInDrawer,
         'archiveInMainMenu': _archiveInMainMenu,
+        'archiveCollapsed': _archiveCollapsed,
         'showMyProfileInDrawer': _showMyProfileInDrawer,
         'showBotsInDrawer': _showBotsInDrawer,
         'showNewGroupInDrawer': _showNewGroupInDrawer,

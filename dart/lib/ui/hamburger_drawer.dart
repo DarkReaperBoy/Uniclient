@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -164,10 +165,16 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         final member = MemberInfo(userId: selfUserId, displayName: selfName);
                         if (InfoPanel.pushUserProfileRequest != null) {
                           InfoPanel.pushUserProfileRequest!(member);
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            InfoPanel.pushSharedMediaRequest?.call('stories');
+                          });
                         } else {
                           UniClientShell.toggleInfoRequest?.call();
                           WidgetsBinding.instance.addPostFrameCallback((_) {
                             InfoPanel.pushUserProfileRequest?.call(member);
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              InfoPanel.pushSharedMediaRequest?.call('stories');
+                            });
                           });
                         }
                       },
@@ -405,7 +412,6 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       label: 'Mark All Read (Silent)',
                       onTap: () async {
                         final engine = context.read<EngineService>();
-                        final chatState = context.read<ChatState>();
                         final accountId = appState.activeAccount?.id ?? '';
                         final origVal = appState.sendReadMessages;
                         appState.setSendReadMessages(false);
@@ -476,8 +482,20 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           icon: Icons.archive,
                           label: 'Archived Chats',
                           onTap: () {
-                            Navigator.of(context).pop();
-                            appState.requestShowArchive();
+                            final ctrlHeld = HardwareKeyboard.instance.logicalKeysPressed
+                                .any((k) =>
+                                    k == LogicalKeyboardKey.controlLeft ||
+                                    k == LogicalKeyboardKey.controlRight);
+                            if (ctrlHeld) {
+                              Process.start(
+                                Platform.resolvedExecutable,
+                                ['--archive'],
+                                mode: ProcessStartMode.detached,
+                              );
+                            } else {
+                              Navigator.of(context).pop();
+                              appState.requestShowArchive();
+                            }
                           },
                         ),
                       ),
@@ -519,7 +537,18 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
   void _showArchiveContextMenu(
       BuildContext context, Offset position, AppState appState) {
     final chatState = context.read<ChatState>();
+    final collapsed = appState.archiveCollapsed;
     final items = <TelegramMenuItem<String>>[
+      const TelegramMenuItem(
+        value: 'new_window',
+        icon: Icon(Icons.open_in_new),
+        label: 'Open in New Window',
+      ),
+      TelegramMenuItem(
+        value: 'expand_collapse',
+        icon: Icon(collapsed ? Icons.expand_more : Icons.expand_less),
+        label: collapsed ? 'Expand' : 'Collapse',
+      ),
       const TelegramMenuItem(
         value: 'to_list',
         icon: Icon(Icons.list_alt),
@@ -550,6 +579,14 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
     ).then((value) {
       if (value == null) return;
       switch (value) {
+        case 'new_window':
+          Process.start(
+            Platform.resolvedExecutable,
+            ['--archive'],
+            mode: ProcessStartMode.detached,
+          );
+        case 'expand_collapse':
+          appState.setArchiveCollapsed(!collapsed);
         case 'to_list':
           appState.setArchiveInMainMenu(false);
           showTelegramToast(context, 'Archive moved to chat list');
@@ -743,9 +780,13 @@ class _ProfileCover extends StatelessWidget {
       ConnState.disconnected => Colors.grey,
     };
 
-    // mainMenuCoverBg = windowBgActive: solid accent fill (spec §3).
-    // Day: #40a7e3, Night: #5288c1.
-    final coverBg = context.palette.windowBgActive;
+    // mainMenuCoverBg = dialogsBgActive per AyuGram colors.palette:497.
+    // Day Blue: #419fd9, Night: #5288c1.
+    final coverBg = context.palette.mainMenuCoverBg;
+
+    final now = DateTime.now();
+    final isSnowSeason = isDark &&
+        ((now.month == 12 && now.day >= 24) || (now.month == 1 && now.day <= 1));
 
     return Container(
       height: 134,
@@ -754,6 +795,10 @@ class _ProfileCover extends StatelessWidget {
       ),
       child: Stack(
         children: [
+          if (isSnowSeason)
+            const Positioned.fill(
+              child: _SnowflakeOverlay(),
+            ),
           // Avatar: 48x48px at left 24, top 20 (spec §3).
           Positioned(
             left: 24,
@@ -1038,6 +1083,85 @@ class _ProfileCover extends StatelessWidget {
   };
 }
 
+class _SnowflakeOverlay extends StatefulWidget {
+  const _SnowflakeOverlay();
+
+  @override
+  State<_SnowflakeOverlay> createState() => _SnowflakeOverlayState();
+}
+
+class _SnowflakeOverlayState extends State<_SnowflakeOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final List<_Snowflake> _flakes;
+  static const _count = 30;
+
+  @override
+  void initState() {
+    super.initState();
+    final rng = math.Random();
+    _flakes = List.generate(_count, (_) => _Snowflake(rng));
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _SnowflakePainter(_flakes, _controller.value),
+        );
+      },
+    );
+  }
+}
+
+class _Snowflake {
+  final double x;
+  final double speed;
+  final double radius;
+  final double offset;
+  final double drift;
+
+  _Snowflake(math.Random rng)
+      : x = rng.nextDouble(),
+        speed = 0.3 + rng.nextDouble() * 0.7,
+        radius = 1.0 + rng.nextDouble() * 2.5,
+        offset = rng.nextDouble(),
+        drift = (rng.nextDouble() - 0.5) * 0.08;
+}
+
+class _SnowflakePainter extends CustomPainter {
+  final List<_Snowflake> flakes;
+  final double t;
+
+  _SnowflakePainter(this.flakes, this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0x50E6E6E6);
+    for (final f in flakes) {
+      final y = ((f.offset + t * f.speed) % 1.2) * size.height;
+      final x = (f.x + math.sin(t * math.pi * 2 + f.offset * 10) * f.drift) *
+          size.width;
+      canvas.drawCircle(Offset(x, y), f.radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SnowflakePainter old) => true;
+}
+
 /// Custom painter for the 6×6px toggle chevron (spec §3).
 /// Draws a V-shaped chevron with 3px strokes.
 class _ChevronPainter extends CustomPainter {
@@ -1189,15 +1313,8 @@ class _AccountList extends StatelessWidget {
         // Auto-hides once account count reaches kPremiumMaxAccounts (spec §3.2).
         if (canAddAccount) GestureDetector(
           onSecondaryTapUp: (details) {
-            final keys = HardwareKeyboard.instance.logicalKeysPressed;
-            final altHeld = keys.contains(LogicalKeyboardKey.altLeft) ||
-                keys.contains(LogicalKeyboardKey.altRight);
-            final shiftHeld = keys.contains(LogicalKeyboardKey.shiftLeft) ||
-                keys.contains(LogicalKeyboardKey.shiftRight);
-            if (altHeld && shiftHeld) {
-              _showAddAccountContextMenu(
-                  context, details.globalPosition, isDark);
-            }
+            _showAddAccountContextMenu(
+                context, details.globalPosition, isDark);
           },
           child: InkWell(
             onTap: () {
