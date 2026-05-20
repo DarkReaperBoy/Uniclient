@@ -373,6 +373,7 @@ class _MenuPositionDelegate extends SingleChildLayoutDelegate {
   final double margin;
   final ValueChanged<Alignment>? onOriginResolved;
   final double? maxHeight;
+  final bool isRtl;
 
   _MenuPositionDelegate({
     required this.position,
@@ -380,6 +381,7 @@ class _MenuPositionDelegate extends SingleChildLayoutDelegate {
     required this.margin,
     this.onOriginResolved,
     this.maxHeight,
+    this.isRtl = false,
   });
 
   @override
@@ -396,7 +398,7 @@ class _MenuPositionDelegate extends SingleChildLayoutDelegate {
 
   @override
   Offset getPositionForChild(Size size, Size childSize) {
-    double x = position.dx;
+    double x = isRtl ? position.dx - childSize.width : position.dx;
     double y = position.dy;
 
     bool flippedX = false;
@@ -427,7 +429,8 @@ class _MenuPositionDelegate extends SingleChildLayoutDelegate {
   bool shouldRelayout(_MenuPositionDelegate oldDelegate) =>
       position != oldDelegate.position ||
       screenSize != oldDelegate.screenSize ||
-      maxHeight != oldDelegate.maxHeight;
+      maxHeight != oldDelegate.maxHeight ||
+      isRtl != oldDelegate.isRtl;
 }
 
 class _AnimatedSubmenuReveal extends StatefulWidget {
@@ -573,14 +576,18 @@ class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
     _submenuOverlay = OverlayEntry(
       builder: (ctx) {
         final screenSize = MediaQuery.of(ctx).size;
+        final rtl = Directionality.of(ctx) == TextDirection.rtl;
         return CustomSingleChildLayout(
           delegate: _MenuPositionDelegate(
-            position: Offset(itemPos.dx + itemSize.width, itemPos.dy - pad),
+            position: rtl
+                ? Offset(itemPos.dx, itemPos.dy - pad)
+                : Offset(itemPos.dx + itemSize.width, itemPos.dy - pad),
             screenSize: screenSize,
             margin: 8.0,
+            isRtl: rtl,
           ),
           child: _AnimatedSubmenuReveal(
-            origin: Alignment.topLeft,
+            origin: rtl ? Alignment.topRight : Alignment.topLeft,
             child: IntrinsicWidth(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(
