@@ -552,12 +552,6 @@ All CRITICAL and MAJOR checks passed:
 
 ## info_panel — Backend wiring / Stub behavior
 
-- [ ] [CRITICAL] `_RingtonePickerDialog` — selecting any ringtone just calls `Navigator.pop(context)` with no value; the selected tone ID is never passed to any engine call. `getSavedRingtones` is fetched but the sound is never applied. The entire ringtone picker is a non-functional stub that dismisses without setting anything. — `info_panel.dart:1458,1466` ← `api/api_ringtones.cpp:118`
-
-- [ ] [CRITICAL] `avatarBytes` always passed as `null` in `_ChatInfoPage` cover delegate. Line 2650: `avatarBytes: widget.chat.avatarPath.isEmpty ? null : null` — both branches are `null`. The chat avatar bytes path through the avatar viewer is permanently dead; avatar-only chats (no local file, bytes available) show an initials fallback instead of the real avatar. — `info_panel.dart:2650`
-
-- [ ] [CRITICAL] `_MediaListView` used inside the expanded inline grid of `_SharedMediaSection` renders a `Column` with unbounded `for` loops over all items (line 6043–6053). It is NOT lazy — every item is built immediately. For chats with 100+ files/audio/links/voice messages this freezes the UI. The `_SharedMediaSubPage` (full-screen view) correctly uses `SliverList.builder`, but the compact in-panel view does not. — `info_panel.dart:6043`
-
 - [ ] [MAJOR] `_MediaGrid` (expanded inline panel view, lines 5854–5878) uses `ListView.builder(shrinkWrap: true, physics: NeverScrollableScrollPhysics())` inside a `Column`. This causes the framework to compute all children without virtualization (shrinkWrap forces full measurement), making grids with many photos/videos fully non-lazy. This is the same widget embedded in `_SharedMediaSection._toggleGrid`. — `info_panel.dart:5854`
 
 - [ ] [MAJOR] `_GifMasonryGrid` (expanded inline panel view, lines 5970–5999) same issue: `ListView.builder(shrinkWrap: true, physics: NeverScrollableScrollPhysics())`. Full materialization with no virtual scrolling. — `info_panel.dart:5970`
