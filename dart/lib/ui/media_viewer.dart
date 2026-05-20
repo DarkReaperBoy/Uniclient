@@ -404,6 +404,10 @@ class _MediaViewerState extends State<MediaViewer>
   int _chapterToastDirection = 0;
   late final TapGestureRecognizer _downloadsLinkRecognizer;
 
+  List<_OcrBlock> _ocrBlocks = [];
+  bool _showOcrOverlay = false;
+  Size? _ocrImageSize;
+
   _MediaViewerMode _mode = _MediaViewerMode.fullscreen;
   double _windowedWidth = _kDefaultWidth;
   double _windowedHeight = _kDefaultHeight;
@@ -470,7 +474,15 @@ class _MediaViewerState extends State<MediaViewer>
       vsync: this,
     );
     _downloadsLinkRecognizer = TapGestureRecognizer()
-      ..onTap = () => Process.run('xdg-open', [_saveToastPath]);
+      ..onTap = () {
+        if (Platform.isMacOS) {
+          Process.run('open', [_saveToastPath]);
+        } else if (Platform.isWindows) {
+          Process.run('explorer', [_saveToastPath]);
+        } else {
+          Process.run('xdg-open', [_saveToastPath]);
+        }
+      };
     _loadViewerPrefs();
     _initVideoIfNeeded();
     _scheduleAutoHide();
@@ -525,7 +537,7 @@ class _MediaViewerState extends State<MediaViewer>
   bool get _isGif => _currentMessage.mediaType == 7;
   bool get _isDocument => _currentMessage.mediaType == 8 || _currentMessage.mediaType == 3;
   bool get _hasStrip => widget.mediaMessages.length > 1;
-  double get _stripOffset => _hasStrip ? _kThumbStripHeight + 4 : 0;
+  double get _stripOffset => _hasStrip ? _kThumbStripHeight + 28 : 0;
 
   bool get _isVideoNote => _currentMessage.mediaType == 5;
   bool get _isPhoto => !_isVideo && !_isGif && !_isDocument;
@@ -740,8 +752,7 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   static double _scaleForLevel(int level) {
-    if (level >= 0) return (level + 1).toDouble();
-    return 1.0 / (-level + 1);
+    return math.pow(2, level).toDouble();
   }
 
   static int _nearestLevel(double scale) {
@@ -796,6 +807,9 @@ class _MediaViewerState extends State<MediaViewer>
     _rotationAnimCtrl.reset();
     _flipH = false;
     _flipV = false;
+    _showOcrOverlay = false;
+    _ocrBlocks = [];
+    _ocrImageSize = null;
   }
 
   void _rotate() {
@@ -1528,13 +1542,27 @@ class _MediaViewerState extends State<MediaViewer>
                 child: _buildVideoControls(),
               ),
 
+            if (_showOcrOverlay && _ocrImageSize != null)
+              Positioned(
+                top: titleBarOffset,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _OcrOverlay(
+                  blocks: _ocrBlocks,
+                  imageSize: _ocrImageSize!,
+                  onClose: _closeOcrOverlay,
+                  onCopyAll: _copyAllOcrText,
+                ),
+              ),
+
             _buildSaveToast(),
             Positioned(
               top: 12,
               left: 0,
               right: 0,
               child: Center(
-                child: _SpeedBoostOverlay(active: _spaceBoostActive),
+                child: _SpeedBoostOverlay(active: _spaceBoostActive, speed: _playbackSpeed),
               ),
             ),
             _buildChapterToast(),
@@ -2675,18 +2703,16 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   void _onSenderTap(CachedMessage msg) {
+    if (msg.senderId.isEmpty) return;
     final chatState = context.read<ChatState>();
     Navigator.of(context).pop();
-    if (msg.senderId.isNotEmpty) {
-      chatState.openChatById(msg.senderId);
-      UniClientShell.toggleInfoRequest?.call();
-    }
+    chatState.openChatById(msg.senderId);
   }
 
   void _onDateTap(CachedMessage msg) {
     final chatState = context.read<ChatState>();
     Navigator.of(context).pop();
-    chatState.jumpToMessage(msg.timestamp);
+    chatState.jumpToMessage(msg.timestamp, highlightMsgId: msg.msgId);
   }
 
   void _saveMediaToDownloads(CachedMessage msg) async {
@@ -2755,7 +2781,7 @@ class _MediaViewerState extends State<MediaViewer>
                           children: [
                             const TextSpan(text: 'Media saved to '),
                             TextSpan(
-                              text: 'Downloads',
+                              text: _saveToastPath.isNotEmpty ? _saveToastPath.split('/').last : 'Downloads',
                               style: const TextStyle(decoration: TextDecoration.underline),
                               recognizer: _downloadsLinkRecognizer,
                             ),
@@ -2822,7 +2848,7 @@ class _MediaViewerState extends State<MediaViewer>
   void _showInChat(CachedMessage msg) {
     final chatState = context.read<ChatState>();
     Navigator.of(context).pop();
-    chatState.jumpToMessage(msg.timestamp);
+    chatState.jumpToMessage(msg.timestamp, highlightMsgId: msg.msgId);
   }
 
   void _forwardMedia(CachedMessage msg) {
@@ -2830,106 +2856,37 @@ class _MediaViewerState extends State<MediaViewer>
     final chats = chatState.chats;
     if (chats.isEmpty) return;
 
-    showDialog(
+    showGeneralDialog(
       context: context,
-      builder: (ctx) {
-        String searchQuery = '';
-        final selectedChatIds = <String>{};
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            final filtered = searchQuery.isEmpty
-                ? chats
-                : chats.where((c) => c.title.toLowerCase().contains(searchQuery.toLowerCase())).toList();
-            return AlertDialog(
-              backgroundColor: const Color(0xFF1E2C3A),
-              titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              contentPadding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Forward to...', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  if (selectedChatIds.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Wrap(
-                        spacing: 4,
-                        runSpacing: 4,
-                        children: selectedChatIds.map((id) {
-                          final chat = chats.firstWhere((c) => c.chatId == id);
-                          return Chip(
-                            label: Text(chat.title, style: const TextStyle(color: Colors.white, fontSize: 12)),
-                            backgroundColor: const Color(0xFF3390EC),
-                            deleteIconColor: Colors.white70,
-                            onDeleted: () => setDialogState(() => selectedChatIds.remove(id)),
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  TextField(
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    decoration: const InputDecoration(
-                      hintText: 'Search chats...',
-                      hintStyle: TextStyle(color: Colors.white38),
-                      prefixIcon: Icon(Icons.search, color: Colors.white38, size: 20),
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    onChanged: (v) => setDialogState(() => searchQuery = v),
-                  ),
-                ],
-              ),
-              content: SizedBox(
-                width: 320,
-                height: 380,
-                child: ListView.builder(
-                  itemCount: filtered.length,
-                  itemBuilder: (_, i) {
-                    final chat = filtered[i];
-                    final selected = selectedChatIds.contains(chat.chatId);
-                    return ListTile(
-                      dense: true,
-                      leading: selected
-                          ? const Icon(Icons.check_circle, color: Color(0xFF3390EC), size: 20)
-                          : const Icon(Icons.circle_outlined, color: Colors.white38, size: 20),
-                      title: Text(chat.title, style: const TextStyle(color: Colors.white)),
-                      onTap: () {
-                        setDialogState(() {
-                          if (selected) {
-                            selectedChatIds.remove(chat.chatId);
-                          } else {
-                            selectedChatIds.add(chat.chatId);
-                          }
-                        });
-                      },
-                    );
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: selectedChatIds.isEmpty ? null : () {
-                    Navigator.of(ctx).pop();
-                    for (final chatId in selectedChatIds) {
-                      chatState.forwardMessages([msg.msgId], chatId);
-                    }
-                    final count = selectedChatIds.length;
-                    showTelegramToast(context, 'Forwarded to $count chat${count > 1 ? 's' : ''}');
-                  },
-                  child: Text('Send${selectedChatIds.isNotEmpty ? ' (${selectedChatIds.length})' : ''}'),
-                ),
-              ],
-            );
-          },
+      barrierDismissible: true,
+      barrierLabel: 'Forward',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 200),
+      transitionBuilder: (ctx, anim, _, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+          child: child,
         );
       },
+      pageBuilder: (ctx, _, __) => _MediaForwardBox(
+        chats: chats,
+        onSend: (chatIds, {bool dropAuthor = false, bool dropCaptions = false}) {
+          Navigator.of(ctx).pop();
+          for (final chatId in chatIds) {
+            chatState.forwardMessages([msg.msgId], chatId,
+              dropAuthor: dropAuthor,
+              dropCaptions: dropCaptions,
+            );
+          }
+          final count = chatIds.length;
+          showTelegramToast(context, 'Forwarded to $count chat${count > 1 ? 's' : ''}');
+        },
+        hasSender: msg.forwardFrom.isNotEmpty || msg.senderName.isNotEmpty,
+        hasCaption: msg.contentText.isNotEmpty,
+        messageLink: msg.chatId.isNotEmpty && msg.msgId.isNotEmpty
+            ? 'https://t.me/c/${msg.chatId}/${msg.msgId}'
+            : null,
+      ),
     );
   }
 
@@ -2969,6 +2926,41 @@ class _MediaViewerState extends State<MediaViewer>
     );
   }
 
+  Future<bool> _copyBytesToClipboard(Uint8List bytes, String mimeType, String filePath) async {
+    if (Platform.isLinux) {
+      try {
+        final proc = await Process.start('wl-copy', ['--type', mimeType]);
+        proc.stdin.add(bytes);
+        await proc.stdin.close();
+        if (await proc.exitCode == 0) return true;
+      } catch (_) {}
+      try {
+        final result = await Process.run('xclip',
+            ['-selection', 'clipboard', '-t', mimeType, '-i', filePath]);
+        if (result.exitCode == 0) return true;
+      } catch (_) {}
+    } else if (Platform.isMacOS) {
+      try {
+        final tmpPath = filePath.endsWith('.png') ? filePath : '/tmp/uniclient_clip.png';
+        if (tmpPath != filePath) await File(tmpPath).writeAsBytes(bytes);
+        final result = await Process.run('osascript',
+            ['-e', 'set the clipboard to (read (POSIX file "$tmpPath") as «class PNGf»)']);
+        if (result.exitCode == 0) return true;
+      } catch (_) {}
+    } else if (Platform.isWindows) {
+      try {
+        final tmpPath = filePath.endsWith('.png') ? filePath : '${Directory.systemTemp.path}\\uniclient_clip.png';
+        if (tmpPath != filePath) await File(tmpPath).writeAsBytes(bytes);
+        final result = await Process.run('powershell', ['-command',
+            'Add-Type -Assembly System.Windows.Forms; '
+            '[System.Windows.Forms.Clipboard]::SetImage('
+            '[System.Drawing.Image]::FromFile("$tmpPath"))']);
+        if (result.exitCode == 0) return true;
+      } catch (_) {}
+    }
+    return false;
+  }
+
   void _copyImageToClipboard(CachedMessage msg) async {
     if (msg.mediaLocalPath.isEmpty) return;
     final file = File(msg.mediaLocalPath);
@@ -2976,22 +2968,7 @@ class _MediaViewerState extends State<MediaViewer>
     final ext = msg.mediaLocalPath.split('.').last.toLowerCase();
     final mimeType = ext == 'png' ? 'image/png' : 'image/jpeg';
     final bytes = await file.readAsBytes();
-    bool ok = false;
-    // Try wl-copy (Wayland) first
-    try {
-      final proc = await Process.start('wl-copy', ['--type', mimeType]);
-      proc.stdin.add(bytes);
-      await proc.stdin.close();
-      ok = (await proc.exitCode) == 0;
-    } catch (_) {}
-    // Fall back to xclip (X11)
-    if (!ok) {
-      try {
-        final result = await Process.run('xclip',
-            ['-selection', 'clipboard', '-t', mimeType, '-i', msg.mediaLocalPath]);
-        ok = result.exitCode == 0;
-      } catch (_) {}
-    }
+    final ok = await _copyBytesToClipboard(bytes, mimeType, msg.mediaLocalPath);
     if (!mounted) return;
     showTelegramToast(context, ok ? 'Image copied to clipboard' : 'Failed to copy image');
   }
@@ -3004,25 +2981,10 @@ class _MediaViewerState extends State<MediaViewer>
         if (mounted) showTelegramToast(context, 'Failed to capture frame');
         return;
       }
-      bool ok = false;
-      // Try wl-copy (Wayland) first
-      try {
-        final proc = await Process.start('wl-copy', ['--type', 'image/png']);
-        proc.stdin.add(screenshot);
-        await proc.stdin.close();
-        ok = (await proc.exitCode) == 0;
-      } catch (_) {}
-      // Fall back to xclip
-      if (!ok) {
-        try {
-          final tmpFile = File('/tmp/uniclient_frame.png');
-          await tmpFile.writeAsBytes(screenshot);
-          final result = await Process.run('xclip',
-              ['-selection', 'clipboard', '-t', 'image/png', '-i', tmpFile.path]);
-          ok = result.exitCode == 0;
-          tmpFile.deleteSync();
-        } catch (_) {}
-      }
+      final tmpFile = File('${Directory.systemTemp.path}/uniclient_frame.png');
+      await tmpFile.writeAsBytes(screenshot);
+      final ok = await _copyBytesToClipboard(screenshot, 'image/png', tmpFile.path);
+      try { tmpFile.deleteSync(); } catch (_) {}
       if (!mounted) return;
       showTelegramToast(context, ok ? 'Frame copied to clipboard' : 'Failed to copy frame');
     } catch (e) {
@@ -3033,94 +2995,27 @@ class _MediaViewerState extends State<MediaViewer>
   void _showInFolder(CachedMessage msg) {
     if (msg.mediaLocalPath.isEmpty) return;
     final dir = File(msg.mediaLocalPath).parent.path;
-    Process.run('xdg-open', [dir]);
+    if (Platform.isMacOS) {
+      Process.run('open', ['-R', msg.mediaLocalPath]);
+    } else if (Platform.isWindows) {
+      Process.run('explorer', ['/select,', msg.mediaLocalPath]);
+    } else {
+      Process.run('xdg-open', [dir]);
+    }
+    if (_mode != _MediaViewerMode.windowed) {
+      Navigator.of(context).pop();
+    }
   }
 
   void _shareAtTime(CachedMessage msg) {
     if (!_isVideo || _player == null || _duration == Duration.zero) return;
-    final timeRef = _formatTime(_position);
-    final fileName = msg.mediaFileName.isNotEmpty ? msg.mediaFileName : 'Video';
-    final shareText = '$fileName at $timeRef';
-
+    final seconds = _position.inSeconds;
     final chatState = context.read<ChatState>();
-    final chats = chatState.chats;
-    if (chats.isEmpty) {
-      Clipboard.setData(ClipboardData(text: shareText));
-      if (mounted) showTelegramToast(context, 'Time reference copied');
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        String searchQuery = '';
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            final filtered = searchQuery.isEmpty
-                ? chats
-                : chats.where((c) => c.title.toLowerCase().contains(searchQuery.toLowerCase())).toList();
-            return AlertDialog(
-              backgroundColor: const Color(0xFF1E2C3A),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Share time reference', style: TextStyle(color: Colors.white, fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Text(shareText, style: const TextStyle(color: Colors.white54, fontSize: 13)),
-                  const SizedBox(height: 8),
-                  TextField(
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    decoration: const InputDecoration(
-                      hintText: 'Search chats...',
-                      hintStyle: TextStyle(color: Colors.white38),
-                      prefixIcon: Icon(Icons.search, color: Colors.white38, size: 20),
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    onChanged: (v) => setDialogState(() => searchQuery = v),
-                  ),
-                ],
-              ),
-              content: SizedBox(
-                width: 300,
-                height: 350,
-                child: ListView.builder(
-                  itemCount: filtered.length,
-                  itemBuilder: (_, i) {
-                    final chat = filtered[i];
-                    return ListTile(
-                      dense: true,
-                      title: Text(chat.title, style: const TextStyle(color: Colors.white)),
-                      onTap: () {
-                        Navigator.of(ctx).pop();
-                        chatState.openChatById(chat.chatId);
-                        chatState.sendMessage(shareText);
-                        showTelegramToast(context, 'Sent to ${chat.title}');
-                      },
-                    );
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: shareText));
-                    Navigator.of(ctx).pop();
-                    showTelegramToast(context, 'Time reference copied');
-                  },
-                  child: const Text('Copy to Clipboard'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+    final chatId = msg.chatId;
+    final msgId = msg.msgId;
+    final shareUrl = 'https://t.me/c/$chatId/$msgId?t=$seconds';
+    Clipboard.setData(ClipboardData(text: shareUrl));
+    if (mounted) showTelegramToast(context, 'Link copied to clipboard');
   }
 
   void _showAllMedia(CachedMessage msg) {
@@ -3406,15 +3301,63 @@ class _MediaViewerState extends State<MediaViewer>
       return;
     }
     if (mounted) showTelegramToast(context, 'Recognizing text…');
-    final ocr = await Process.run('tesseract', [msg.mediaLocalPath, 'stdout']);
+    final imgFile = File(msg.mediaLocalPath);
+    final bytes = await imgFile.readAsBytes();
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    final imgSize = Size(frame.image.width.toDouble(), frame.image.height.toDouble());
+    frame.image.dispose();
+    codec.dispose();
+
+    final ocr = await Process.run('tesseract', [msg.mediaLocalPath, 'stdout', '--tsv']);
     if (!mounted) return;
-    final text = (ocr.stdout as String).trim();
-    if (text.isEmpty) {
+    final tsvOutput = (ocr.stdout as String).trim();
+    if (tsvOutput.isEmpty) {
       showTelegramToast(context, 'No text found in image');
       return;
     }
-    Clipboard.setData(ClipboardData(text: text));
-    showTelegramToast(context, 'Text copied to clipboard');
+    final lines = tsvOutput.split('\n');
+    final blocks = <_OcrBlock>[];
+    for (int i = 1; i < lines.length; i++) {
+      final cols = lines[i].split('\t');
+      if (cols.length < 12) continue;
+      final text = cols[11].trim();
+      if (text.isEmpty) continue;
+      final conf = int.tryParse(cols[10]) ?? 0;
+      if (conf < 30) continue;
+      final left = int.tryParse(cols[6]) ?? 0;
+      final top = int.tryParse(cols[7]) ?? 0;
+      final width = int.tryParse(cols[8]) ?? 0;
+      final height = int.tryParse(cols[9]) ?? 0;
+      if (width <= 0 || height <= 0) continue;
+      blocks.add(_OcrBlock(
+        text: text,
+        rect: Rect.fromLTWH(left.toDouble(), top.toDouble(), width.toDouble(), height.toDouble()),
+      ));
+    }
+    if (blocks.isEmpty) {
+      showTelegramToast(context, 'No text found in image');
+      return;
+    }
+    setState(() {
+      _ocrBlocks = blocks;
+      _ocrImageSize = imgSize;
+      _showOcrOverlay = true;
+    });
+  }
+
+  void _closeOcrOverlay() {
+    setState(() {
+      _showOcrOverlay = false;
+      _ocrBlocks = [];
+      _ocrImageSize = null;
+    });
+  }
+
+  void _copyAllOcrText() {
+    final allText = _ocrBlocks.map((b) => b.text).join(' ');
+    Clipboard.setData(ClipboardData(text: allText));
+    if (mounted) showTelegramToast(context, 'Text copied to clipboard');
   }
 
   Widget _buildToolbar(CachedMessage msg) {
@@ -3538,6 +3481,14 @@ List<InlineSpan> _buildCaptionSpans(String text, List<_CaptionEntity> entities, 
         spans.add(TextSpan(
           text: seg,
           style: const TextStyle(color: _kMediaviewCaptionLinkFg),
+          recognizer: TapGestureRecognizer()..onTap = () {
+            final username = e.type == 'text_mention' && e.url.isNotEmpty
+                ? e.url
+                : seg.startsWith('@') ? seg.substring(1) : seg;
+            if (username.isNotEmpty) {
+              url_launcher.launchUrl(Uri.parse('https://t.me/$username'));
+            }
+          },
         ));
       case 'spoiler':
         spans.add(TextSpan(text: seg, style: const TextStyle(backgroundColor: Color(0xFFAAAAAA), color: Color(0xFFAAAAAA))));
@@ -3774,16 +3725,19 @@ class _GalleryThumbsStrip extends StatelessWidget {
           1,
         );
 
-        return SizedBox(
-          height: _kThumbStripHeight,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: _kThumbStripPaddingH),
-              child: _ThumbRow(
-                messages: messages,
-                currentIndex: currentIndex,
-                maxSideThumbs: maxSideThumbs,
-                onTap: onTap,
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: SizedBox(
+            height: _kThumbStripHeight,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: _kThumbStripPaddingH),
+                child: _ThumbRow(
+                  messages: messages,
+                  currentIndex: currentIndex,
+                  maxSideThumbs: maxSideThumbs,
+                  onTap: onTap,
+                ),
               ),
             ),
           ),
@@ -4016,7 +3970,8 @@ class _ThumbItemState extends State<_ThumbItem> {
 
 class _SpeedBoostOverlay extends StatefulWidget {
   final bool active;
-  const _SpeedBoostOverlay({required this.active});
+  final double speed;
+  const _SpeedBoostOverlay({required this.active, this.speed = 2.0});
 
   @override
   State<_SpeedBoostOverlay> createState() => _SpeedBoostOverlayState();
@@ -4089,7 +4044,7 @@ class _SpeedBoostOverlayState extends State<_SpeedBoostOverlay>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('2.0×', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+              Text('${widget.speed.toStringAsFixed(1)}×', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
               const SizedBox(width: 8),
               SizedBox(
                 width: 16,
@@ -4941,41 +4896,14 @@ class _PipWidgetState extends State<PipOverlayWidget>
                               },
                               onHorizontalDragEnd: (_) =>
                                   setState(() => _isSeeking = false),
-                              child: Container(
-                                height: _trackHovering ? _kPipTrackHeightHover : _kPipTrackHeight,
-                                color: Colors.transparent,
-                                child: Align(
-                                  alignment: Alignment.bottomCenter,
-                                  child: Container(
-                                    height: _trackHovering ? _kPipTrackHeightHover : _kPipTrackHeight,
-                                    child: Row(
-                                      children: [
-                                        Flexible(
-                                          flex: (progress * 1000).round().clamp(0, 1000),
-                                          child: Container(
-                                            decoration: const BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius: BorderRadius.only(
-                                                topLeft: Radius.circular(2),
-                                                bottomLeft: Radius.circular(2),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        Flexible(
-                                          flex: ((1 - progress) * 1000).round().clamp(0, 1000),
-                                          child: Container(
-                                            decoration: const BoxDecoration(
-                                              color: Color(0x66FFFFFF),
-                                              borderRadius: BorderRadius.only(
-                                                topRight: Radius.circular(2),
-                                                bottomRight: Radius.circular(2),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Container(
+                                  height: _trackHovering ? _kPipTrackHeightHover : _kPipTrackHeight,
+                                  color: Colors.transparent,
+                                  child: CustomPaint(
+                                    size: Size.fromHeight(_trackHovering ? _kPipTrackHeightHover : _kPipTrackHeight),
+                                    painter: _PipTrackPainter(progress: progress),
                                   ),
                                 ),
                               ),
@@ -5072,6 +5000,170 @@ class _RadialSpinPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_RadialSpinPainter old) => old.rotation != rotation;
+}
+
+class _OcrBlock {
+  final String text;
+  final Rect rect;
+  const _OcrBlock({required this.text, required this.rect});
+}
+
+class _OcrOverlay extends StatefulWidget {
+  final List<_OcrBlock> blocks;
+  final Size imageSize;
+  final VoidCallback onClose;
+  final VoidCallback onCopyAll;
+
+  const _OcrOverlay({
+    required this.blocks,
+    required this.imageSize,
+    required this.onClose,
+    required this.onCopyAll,
+  });
+
+  @override
+  State<_OcrOverlay> createState() => _OcrOverlayState();
+}
+
+class _OcrOverlayState extends State<_OcrOverlay> {
+  int? _hoveredIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scaleX = constraints.maxWidth / widget.imageSize.width;
+        final scaleY = constraints.maxHeight / widget.imageSize.height;
+        final scale = math.min(scaleX, scaleY);
+        final imgW = widget.imageSize.width * scale;
+        final imgH = widget.imageSize.height * scale;
+        final offX = (constraints.maxWidth - imgW) / 2;
+        final offY = (constraints.maxHeight - imgH) / 2;
+
+        return Stack(
+          children: [
+            GestureDetector(
+              onTap: widget.onClose,
+              child: Container(color: Colors.transparent),
+            ),
+            ...widget.blocks.asMap().entries.map((entry) {
+              final i = entry.key;
+              final block = entry.value;
+              final r = Rect.fromLTWH(
+                offX + block.rect.left * scale,
+                offY + block.rect.top * scale,
+                block.rect.width * scale,
+                block.rect.height * scale,
+              );
+              final hovered = _hoveredIndex == i;
+              return Positioned(
+                left: r.left,
+                top: r.top,
+                width: r.width,
+                height: r.height,
+                child: MouseRegion(
+                  onEnter: (_) => setState(() => _hoveredIndex = i),
+                  onExit: (_) => setState(() { if (_hoveredIndex == i) _hoveredIndex = null; }),
+                  child: GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: block.text));
+                      showTelegramToast(context, 'Copied: ${block.text}');
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: hovered ? const Color(0x443390EC) : const Color(0x223390EC),
+                        border: Border.all(
+                          color: hovered ? const Color(0xCC3390EC) : const Color(0x663390EC),
+                          width: 1,
+                        ),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                      child: hovered
+                          ? Center(
+                              child: Text(
+                                block.text,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                ),
+              );
+            }),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Material(
+                    color: const Color(0xCC000000),
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: widget.onCopyAll,
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.copy, color: Colors.white, size: 14),
+                            SizedBox(width: 4),
+                            Text('Copy All', style: TextStyle(color: Colors.white, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Material(
+                    color: const Color(0xCC000000),
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: widget.onClose,
+                      child: const Padding(
+                        padding: EdgeInsets.all(6),
+                        child: Icon(Icons.close, color: Colors.white, size: 16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PipTrackPainter extends CustomPainter {
+  final double progress;
+  _PipTrackPainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final radius = Radius.circular(size.height / 2);
+    final bgRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height), radius);
+    canvas.drawRRect(bgRect, Paint()..color = const Color(0x66FFFFFF));
+    if (progress > 0) {
+      final fgRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, 0, size.width * progress.clamp(0.0, 1.0), size.height), radius);
+      canvas.drawRRect(fgRect, Paint()..color = Colors.white);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PipTrackPainter old) => old.progress != progress;
 }
 
 class _PipButton extends StatefulWidget {
@@ -6245,6 +6337,7 @@ class _StoriesViewerState extends State<StoriesViewer>
   Duration _videoPosition = Duration.zero;
   Duration _videoDuration = Duration.zero;
   bool _videoPlaying = false;
+  List<Map<String, dynamic>> _topViewers = [];
 
   late final AnimationController _storyTimer;
 
@@ -6322,6 +6415,21 @@ class _StoriesViewerState extends State<StoriesViewer>
       _storyTimer.forward();
     }
     if (mounted) setState(() {});
+    _fetchTopViewers();
+  }
+
+  Future<void> _fetchTopViewers() async {
+    if (!widget.isOwnStory) return;
+    final story = _current;
+    if (story.views <= 0) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    try {
+      final viewers = await engine.getStoryViewers(accountId, story.id);
+      if (mounted) setState(() => _topViewers = viewers.take(3).toList());
+    } catch (_) {}
   }
 
   void _pausePlayback() {
@@ -7176,7 +7284,7 @@ class _StoriesViewerState extends State<StoriesViewer>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _StoryViewsAvatarStack(count: story.views),
+                        _StoryViewsAvatarStack(count: story.views, viewers: _topViewers),
                         const SizedBox(width: 6),
                         Text(
                           '${story.views}',
@@ -7662,8 +7770,9 @@ class _StealthFeatureRow extends StatelessWidget {
 // §32.9: Stacked avatars for story view count
 class _StoryViewsAvatarStack extends StatelessWidget {
   final int count;
+  final List<Map<String, dynamic>> viewers;
 
-  const _StoryViewsAvatarStack({required this.count});
+  const _StoryViewsAvatarStack({required this.count, this.viewers = const []});
 
   static const _kAvatarSize = 24.0;
   static const _kShift = 9.0;
@@ -7688,6 +7797,27 @@ class _StoryViewsAvatarStack extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: List.generate(showCount, (i) {
+          final viewer = i < viewers.length ? viewers[i] : null;
+          final photoPath = viewer?['photo_path'] as String? ?? '';
+          final name = (viewer?['name'] as String?) ??
+              (viewer?['first_name'] as String? ?? '');
+          final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+          Widget avatar;
+          if (photoPath.isNotEmpty && File(photoPath).existsSync()) {
+            avatar = ClipOval(
+              child: Image.file(
+                File(photoPath),
+                width: _kAvatarSize - _kStroke,
+                height: _kAvatarSize - _kStroke,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _initialAvatar(initial, i),
+              ),
+            );
+          } else {
+            avatar = _initialAvatar(initial, i);
+          }
+
           return Positioned(
             left: i * _kShift,
             child: Container(
@@ -7695,22 +7825,36 @@ class _StoryViewsAvatarStack extends StatelessWidget {
               height: _kAvatarSize,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _colors[i % _colors.length],
                 border: Border.all(
                   color: Colors.black,
                   width: _kStroke / 2,
                 ),
               ),
-              child: Center(
-                child: Icon(
-                  Icons.person,
-                  size: _kAvatarSize * 0.5,
-                  color: Colors.white70,
-                ),
-              ),
+              child: Center(child: avatar),
             ),
           );
         }),
+      ),
+    );
+  }
+
+  Widget _initialAvatar(String initial, int index) {
+    return Container(
+      width: _kAvatarSize - _kStroke,
+      height: _kAvatarSize - _kStroke,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: _colors[index % _colors.length],
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -7935,3 +8079,229 @@ class _StoryViewsListPopupState extends State<_StoryViewsListPopup> {
   }
 }
 
+class _MediaForwardBox extends StatefulWidget {
+  final List<ChatInfo> chats;
+  final void Function(List<String> chatIds, {bool dropAuthor, bool dropCaptions}) onSend;
+  final bool hasSender;
+  final bool hasCaption;
+  final String? messageLink;
+
+  const _MediaForwardBox({
+    required this.chats,
+    required this.onSend,
+    this.hasSender = false,
+    this.hasCaption = false,
+    this.messageLink,
+  });
+
+  @override
+  State<_MediaForwardBox> createState() => _MediaForwardBoxState();
+}
+
+class _MediaForwardBoxState extends State<_MediaForwardBox> {
+  final _selectedIds = <String>{};
+  String _search = '';
+  bool _dropAuthor = false;
+  bool _dropCaptions = false;
+  final _searchCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<ChatInfo> get _filtered {
+    if (_search.isEmpty) return widget.chats;
+    final q = _search.toLowerCase();
+    return widget.chats.where((c) => c.title.toLowerCase().contains(q)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const bg = Color(0xFF1E2C3A);
+    const accent = Color(0xFF3390EC);
+    final filtered = _filtered;
+
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: 340,
+          constraints: const BoxConstraints(maxHeight: 520),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 24)],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Forward to...', style: TextStyle(
+                        color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                    ),
+                    if (widget.messageLink != null)
+                      IconButton(
+                        icon: const Icon(Icons.link, color: Colors.white54, size: 20),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: widget.messageLink!));
+                          showTelegramToast(context, 'Link copied to clipboard');
+                        },
+                        tooltip: 'Copy message link',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      ),
+                  ],
+                ),
+              ),
+              if (_selectedIds.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: _selectedIds.map((id) {
+                      final chat = widget.chats.firstWhere((c) => c.chatId == id);
+                      return Chip(
+                        label: Text(chat.title, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                        backgroundColor: accent,
+                        deleteIconColor: Colors.white70,
+                        onDeleted: () => setState(() => _selectedIds.remove(id)),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      );
+                    }).toList(),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: TextField(
+                  controller: _searchCtrl,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: const InputDecoration(
+                    hintText: 'Search chats...',
+                    hintStyle: TextStyle(color: Colors.white38),
+                    prefixIcon: Icon(Icons.search, color: Colors.white38, size: 20),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 8),
+                    border: InputBorder.none,
+                  ),
+                  onChanged: (v) => setState(() => _search = v),
+                ),
+              ),
+              const Divider(height: 1, color: Color(0x33FFFFFF)),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) {
+                    final chat = filtered[i];
+                    final sel = _selectedIds.contains(chat.chatId);
+                    return ListTile(
+                      dense: true,
+                      leading: sel
+                          ? const Icon(Icons.check_circle, color: accent, size: 20)
+                          : const Icon(Icons.circle_outlined, color: Colors.white38, size: 20),
+                      title: Text(chat.title, style: const TextStyle(color: Colors.white)),
+                      onTap: () => setState(() {
+                        if (sel) _selectedIds.remove(chat.chatId);
+                        else _selectedIds.add(chat.chatId);
+                      }),
+                    );
+                  },
+                ),
+              ),
+              if (widget.hasSender || widget.hasCaption) ...[
+                const Divider(height: 1, color: Color(0x33FFFFFF)),
+                if (widget.hasSender)
+                  _ForwardOption(
+                    label: 'Hide sender name',
+                    value: _dropAuthor,
+                    onChanged: (v) => setState(() => _dropAuthor = v),
+                  ),
+                if (widget.hasCaption)
+                  _ForwardOption(
+                    label: 'Remove captions',
+                    value: _dropCaptions,
+                    onChanged: (v) => setState(() => _dropCaptions = v),
+                  ),
+              ],
+              const Divider(height: 1, color: Color(0x33FFFFFF)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: _selectedIds.isEmpty ? null : () {
+                        widget.onSend(
+                          _selectedIds.toList(),
+                          dropAuthor: _dropAuthor,
+                          dropCaptions: _dropCaptions,
+                        );
+                      },
+                      child: Text(
+                        'Send${_selectedIds.isNotEmpty ? ' (${_selectedIds.length})' : ''}',
+                        style: TextStyle(color: _selectedIds.isEmpty ? Colors.white24 : accent),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ForwardOption extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _ForwardOption({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+            ),
+            SizedBox(
+              height: 20,
+              width: 36,
+              child: Switch(
+                value: value,
+                onChanged: onChanged,
+                activeTrackColor: const Color(0xFF3390EC),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
