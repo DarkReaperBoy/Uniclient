@@ -33,7 +33,6 @@ const double _kBarPadding = 8.0;
 const double _kBarGap = 4.0;
 const double _kInactiveBarOpacity = 0.5;
 const double _kShadowMaxAlpha = 80 / 255;
-const double _kParallaxFactor = 0.3;
 const Duration _kRadialFadeDelay = Duration(milliseconds: 300);
 const double _kScrollBarInset = 3.0;
 const Duration _kScrollShowDuration = Duration(milliseconds: 150);
@@ -331,6 +330,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           await engine.getUserPhotoCount(widget.accountId, widget.peerId);
       if (mounted && count > 0) {
         setState(() => _photoCount = count);
+        _preloadAdjacentPhotos(0);
       }
     } catch (_) {}
   }
@@ -488,46 +488,28 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
 
   Widget _buildScrollableContent(
       ThemeData theme, bool isDark, Color bgColor) {
-    return Stack(
-      clipBehavior: Clip.hardEdge,
-      children: [
-        ValueListenableBuilder<double>(
-          valueListenable: _scrollNotifier,
-          builder: (context, scrollOffset, child) {
-            return Positioned(
-              top: -scrollOffset * _kParallaxFactor,
-              left: 0,
-              right: 0,
-              height: _kCoverSize,
-              child: child!,
-            );
-          },
-          child: _buildCoverBackground(isDark),
-        ),
-        RawScrollbar(
-          controller: _scrollController,
-          thickness: _kScrollBarWidth,
-          crossAxisMargin: _kScrollBarInset,
-          fadeDuration: _kScrollShowDuration,
-          timeToFade: _kScrollHideDelay,
-          radius: const Radius.circular(4),
-          thumbColor: isDark
-              ? const Color(0x4DFFFFFF)
-              : const Color(0x66C7C7C7),
-          child: ListView(
-            controller: _scrollController,
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            children: [
-              _buildCoverOverlay(theme, isDark),
-              Container(
-                color: bgColor,
-                child: _buildInfoRows(theme, isDark),
-              ),
-            ],
+    return RawScrollbar(
+      controller: _scrollController,
+      thickness: _kScrollBarWidth,
+      crossAxisMargin: _kScrollBarInset,
+      fadeDuration: _kScrollShowDuration,
+      timeToFade: _kScrollHideDelay,
+      radius: const Radius.circular(4),
+      thumbColor: isDark
+          ? const Color(0x4DFFFFFF)
+          : const Color(0x66C7C7C7),
+      child: ListView(
+        controller: _scrollController,
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+        children: [
+          _buildCoverOverlay(theme, isDark),
+          Container(
+            color: bgColor,
+            child: _buildInfoRows(theme, isDark),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -674,6 +656,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          _buildCoverBackground(isDark),
           ValueListenableBuilder<double>(
             valueListenable: _scrollNotifier,
             builder: (context, scrollOffset, child) {
@@ -1185,7 +1168,22 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
                 onPressed: () {
                   Navigator.of(context).pop();
                   final chatState = context.read<ChatState>();
-                  chatState.openChatById(widget.peerId);
+                  final existing = chatState.chats
+                      .where((c) =>
+                          c.chatId == widget.peerId &&
+                          c.accountId == widget.accountId)
+                      .firstOrNull;
+                  if (existing != null) {
+                    chatState.openChat(existing);
+                  } else {
+                    chatState.openChat(ChatInfo(
+                      accountId: widget.accountId,
+                      chatId: widget.peerId,
+                      type: widget.peerType,
+                      title: widget.peerName,
+                      avatarPath: widget.avatarPath,
+                    ));
+                  }
                 },
                 child: Text(
                   actionLabel,
