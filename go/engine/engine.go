@@ -1662,6 +1662,34 @@ func (e *Engine) GetBoostsList(accountID, chatID string, isGifts bool, offset st
 	return nil, fmt.Errorf("platform does not support boosts list")
 }
 
+func (e *Engine) GetGiftCodeOptions(accountID, chatID string) ([]map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type giftCodeOptionsGetter interface {
+		GetGiftCodeOptions(chatID string) ([]map[string]interface{}, error)
+	}
+	if g, ok := acc.Core.(giftCodeOptionsGetter); ok {
+		return g.GetGiftCodeOptions(chatID)
+	}
+	return nil, fmt.Errorf("platform does not support gift code options")
+}
+
+func (e *Engine) LaunchPrepaidGiveaway(accountID, chatID string, giveawayID int64, params map[string]interface{}) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type prepaidGiveawayLauncher interface {
+		LaunchPrepaidGiveaway(chatID string, giveawayID int64, params map[string]interface{}) error
+	}
+	if l, ok := acc.Core.(prepaidGiveawayLauncher); ok {
+		return l.LaunchPrepaidGiveaway(chatID, giveawayID, params)
+	}
+	return fmt.Errorf("platform does not support prepaid giveaways")
+}
+
 func (e *Engine) GetFullChat(accountID, chatID string) (*cores.Dialog, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

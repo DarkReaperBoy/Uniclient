@@ -22,6 +22,7 @@ import 'chat_list_row.dart' show MyNotesUserpic, SavedMessagesUserpic;
 import 'chat_view.dart' show formatChatLastSeen;
 import 'confirm_box.dart';
 import 'admin_tools.dart' show showEditAdminBox, showEditPeerInfoBox, showEditRestrictedBox;
+import 'create_giveaway_box.dart';
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
 import 'edit_forum_topic_box.dart';
 import 'forum_topic_icon.dart';
@@ -8290,12 +8291,17 @@ class _BoostsPageState extends State<_BoostsPage> {
         ],
         InkWell(
           onTap: () {
-            if (boostUrl.isNotEmpty) {
-              final uri = Uri.tryParse(boostUrl);
-              if (uri != null) {
-                launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            }
+            final prepaid = _data?['prepaid_giveaways'];
+            final prepaidList = prepaid is List
+                ? prepaid.cast<Map<String, dynamic>>()
+                : <Map<String, dynamic>>[];
+            showCreateGiveawayBox(
+              context,
+              accountId: widget.chat.accountId,
+              chatId: widget.chat.chatId,
+              theme: widget.theme,
+              prepaidGiveaways: prepaidList,
+            );
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

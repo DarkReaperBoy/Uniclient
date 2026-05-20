@@ -2175,6 +2175,32 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(result)
 
+	case "GetGiftCodeOptions":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetGiftCodeOptions(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
+	case "LaunchPrepaidGiveaway":
+		var params struct {
+			AccountID  string                 `json:"account_id"`
+			ChatID     string                 `json:"chat_id"`
+			GiveawayID int64                  `json:"giveaway_id"`
+			Params     map[string]interface{} `json:"params"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.LaunchPrepaidGiveaway(params.AccountID, params.ChatID, params.GiveawayID, params.Params)
+
 	case "UpdatePaidMessagesPrice":
 		var params struct {
 			AccountID        string `json:"account_id"`
