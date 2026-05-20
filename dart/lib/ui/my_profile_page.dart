@@ -275,6 +275,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
   }
 
   static const _instantReplaces = {
+    '--': '—', '<<': '«', '>>': '»',
+    ':shrug:': '¯\\_(ツ)_/¯',
     ':-)': '😊', ':)': '😊', ':-D': '😃', ':D': '😃',
     ';-)': '😉', ';)': '😉', ':-(': '😞', ':(': '😞',
     ':-P': '😛', ':P': '😛', ':-p': '😛', ':p': '😛',
@@ -953,6 +955,16 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
           ),
         ),
         const PopupMenuItem<String>(
+          value: 'clipboard',
+          child: Row(
+            children: [
+              Icon(Icons.content_paste, size: 20),
+              SizedBox(width: 12),
+              Text('From Clipboard'),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
           value: 'emoji',
           child: Row(
             children: [
@@ -970,6 +982,8 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
         }
       } else if (value == 'photo') {
         _pickAndUploadPhoto(context);
+      } else if (value == 'clipboard') {
+        _pastePhotoFromClipboard(context);
       } else if (value == 'emoji') {
         _openEmojiBuilder(context);
       }
@@ -1017,6 +1031,103 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
         }
       },
     );
+  }
+
+  void _pastePhotoFromClipboard(BuildContext context) async {
+    final imageBytes = await _getClipboardImage();
+    if (imageBytes == null) {
+      if (mounted) showTelegramToast(context, 'No image in clipboard');
+      return;
+    }
+    final tmpFile = File('${Directory.systemTemp.path}/uniclient_paste_avatar.png');
+    await tmpFile.writeAsBytes(imageBytes);
+    if (!mounted) return;
+
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccount?.id;
+    if (accountId == null) return;
+    final engine = context.read<EngineService>();
+
+    await PhotoCropEditor.open(
+      context,
+      imageFile: tmpFile,
+      shape: PhotoCropShape.ellipse,
+      purpose: PhotoEditorPurpose.setPhoto,
+      onDone: (croppedFile) async {
+        if (!mounted) return;
+        setState(() {
+          _uploading = true;
+          _uploadProgress = 0;
+          _optimisticAvatarPath = croppedFile.path;
+        });
+        try {
+          await engine.uploadProfilePhoto(accountId, croppedFile.path);
+          if (mounted) {
+            setState(() { _uploading = false; _uploadProgress = 1.0; });
+            showTelegramToast(context, 'Profile photo updated');
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() { _uploading = false; _optimisticAvatarPath = null; });
+            showTelegramToast(context, 'Failed to upload photo: $e');
+          }
+        }
+      },
+    );
+    try { tmpFile.deleteSync(); } catch (_) {}
+  }
+
+  Future<Uint8List?> _getClipboardImage() async {
+    if (Platform.isLinux) {
+      try {
+        final result = await Process.run('wl-paste', ['--type', 'image/png']);
+        if (result.exitCode == 0 && (result.stdout as String).isNotEmpty) {
+          return Uint8List.fromList((result.stdout as String).codeUnits);
+        }
+      } catch (_) {}
+      try {
+        final result = await Process.run('xclip',
+            ['-selection', 'clipboard', '-t', 'image/png', '-o']);
+        if (result.exitCode == 0) {
+          return result.stdout is List<int>
+              ? Uint8List.fromList(result.stdout as List<int>)
+              : null;
+        }
+      } catch (_) {}
+    } else if (Platform.isMacOS) {
+      try {
+        final tmpPath = '${Directory.systemTemp.path}/uniclient_clip_paste.png';
+        final result = await Process.run('osascript', ['-e',
+          'set img to the clipboard as «class PNGf»\n'
+          'set f to open for access POSIX file "$tmpPath" with write permission\n'
+          'write img to f\nclose access f']);
+        if (result.exitCode == 0) {
+          final file = File(tmpPath);
+          if (file.existsSync()) {
+            final bytes = file.readAsBytesSync();
+            file.deleteSync();
+            return bytes;
+          }
+        }
+      } catch (_) {}
+    } else if (Platform.isWindows) {
+      try {
+        final tmpPath = '${Directory.systemTemp.path}\\uniclient_clip_paste.png';
+        final result = await Process.run('powershell', ['-command',
+          'Add-Type -Assembly System.Windows.Forms; '
+          r'$img = [System.Windows.Forms.Clipboard]::GetImage(); '
+          'if (\$img -ne \$null) { \$img.Save("$tmpPath") }']);
+        if (result.exitCode == 0) {
+          final file = File(tmpPath);
+          if (file.existsSync()) {
+            final bytes = file.readAsBytesSync();
+            file.deleteSync();
+            return bytes;
+          }
+        }
+      } catch (_) {}
+    }
+    return null;
   }
 
   void _openEmojiBuilder(BuildContext context) async {
@@ -1687,7 +1798,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Message preview text',
+                            'Hello! This is how your name color looks.',
                             style: TextStyle(
                               fontSize: 13,
                               color: textColor.withValues(alpha: 0.7),
