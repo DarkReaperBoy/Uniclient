@@ -565,10 +565,6 @@ All CRITICAL and MAJOR checks passed:
 # language_box — Audit Findings
 
 
-## language_box — Keyboard navigation does not scroll list to highlighted item
-
-- [ ] [MAJOR] When navigating with arrow/page/home/end keys, AyuGram calls `scrollToY(selected.ymin, selected.ymax)` to ensure the highlighted row is visible. Dart updates `_highlightIndex` but never calls `_scrollController.animateTo` or `jumpTo`, so the highlighted row can scroll off-screen — `language_box.dart:135-183` ← `AyuGram/SourceFiles/boxes/language_box.cpp:1510-1524`
-
 ## language_box — Description text after translation toggles is wrong
 
 - [ ] [MAJOR] AyuGram shows `tr::lng_translate_settings_about` = "The 'Translate' button will appear in the context menu of messages containing text." Dart hardcodes "Translate messages in chats with a different language." which is a different string — `language_box.dart:338-340` ← `AyuGram/Resources/langs/lang.strings:6918`
