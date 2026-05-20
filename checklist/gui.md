@@ -564,9 +564,6 @@ All CRITICAL and MAJOR checks passed:
 
 # language_box — Audit Findings
 
-## language_box — Search widget type wrong (MultiSelect vs TextField)
-
-- [ ] [MAJOR] AyuGram uses `Ui::MultiSelect` (tag-based search widget with cancel X button and `st::defaultMultiSelect` style), not a plain underline `TextField`. The Dart implementation uses a `TextField` with `UnderlineInputBorder` which has a different appearance and does not support the cancel (clear) button behavior — `language_box.dart:346-365` ← `AyuGram/SourceFiles/boxes/language_box.cpp:1339-1343`
 
 ## language_box — Keyboard navigation does not scroll list to highlighted item
 
