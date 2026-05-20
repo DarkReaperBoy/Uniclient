@@ -5864,30 +5864,39 @@ class _MediaGrid extends StatelessWidget {
         }
       }
 
+      const dateHeaderHeight = 28.0;
+      double totalHeight = 0;
+      for (final row in flatRows) {
+        totalHeight += row.isHeader ? dateHeaderHeight : (cellHeight + _skip);
+      }
+      final maxHeight = MediaQuery.sizeOf(context).height * 0.55;
+      final constrainedHeight = math.min(totalHeight, maxHeight);
+
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
-        child: ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: flatRows.length,
-          itemBuilder: (context, index) {
-            final row = flatRows[index];
-            if (row.isHeader) {
-              return _DateHeader(label: row.headerLabel!, theme: theme);
-            }
-            final rowItems = row.items!;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: _skip),
-              child: Row(
-                children: [
-                  for (var j = 0; j < rowItems.length; j++) ...[
-                    if (j > 0) const SizedBox(width: _skip),
-                    _GridCell(item: rowItems[j], size: cellSide, height: cellHeight, theme: theme),
+        child: SizedBox(
+          height: constrainedHeight,
+          child: ListView.builder(
+            itemCount: flatRows.length,
+            itemBuilder: (context, index) {
+              final row = flatRows[index];
+              if (row.isHeader) {
+                return _DateHeader(label: row.headerLabel!, theme: theme);
+              }
+              final rowItems = row.items!;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: _skip),
+                child: Row(
+                  children: [
+                    for (var j = 0; j < rowItems.length; j++) ...[
+                      if (j > 0) const SizedBox(width: _skip),
+                      _GridCell(item: rowItems[j], size: cellSide, height: cellHeight, theme: theme),
+                    ],
                   ],
-                ],
-              ),
-            );
-          },
+                ),
+              );
+            },
+          ),
         ),
       );
     });
@@ -5980,37 +5989,55 @@ class _GifMasonryGrid extends StatelessWidget {
         }
       }
 
+      const dateHeaderHeight = 28.0;
+      double totalHeight = 0;
+      for (final row in flatRows) {
+        if (row.isHeader) {
+          totalHeight += dateHeaderHeight;
+        } else {
+          final rowItems = row.items!;
+          final rowHeight = math.min(
+            _rowTargetHeight,
+            (availWidth - (rowItems.length - 1) * _skip) / row.totalAR!,
+          );
+          totalHeight += rowHeight + _skip;
+        }
+      }
+      final maxHeight = MediaQuery.sizeOf(context).height * 0.55;
+      final constrainedHeight = math.min(totalHeight, maxHeight);
+
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
-        child: ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: flatRows.length,
-          itemBuilder: (context, index) {
-            final row = flatRows[index];
-            if (row.isHeader) {
-              return _DateHeader(label: row.headerLabel!, theme: theme);
-            }
-            final rowItems = row.items!;
-            final rowHeight = math.min(
-              _rowTargetHeight,
-              (availWidth - (rowItems.length - 1) * _skip) / row.totalAR!,
-            );
-            return Padding(
-              padding: const EdgeInsets.only(bottom: _skip),
-              child: SizedBox(
-                height: rowHeight,
-                child: Row(
-                  children: [
-                    for (var j = 0; j < rowItems.length; j++) ...[
-                      if (j > 0) const SizedBox(width: _skip),
-                      _buildGifCell(rowItems[j], rowHeight),
+        child: SizedBox(
+          height: constrainedHeight,
+          child: ListView.builder(
+            itemCount: flatRows.length,
+            itemBuilder: (context, index) {
+              final row = flatRows[index];
+              if (row.isHeader) {
+                return _DateHeader(label: row.headerLabel!, theme: theme);
+              }
+              final rowItems = row.items!;
+              final rowHeight = math.min(
+                _rowTargetHeight,
+                (availWidth - (rowItems.length - 1) * _skip) / row.totalAR!,
+              );
+              return Padding(
+                padding: const EdgeInsets.only(bottom: _skip),
+                child: SizedBox(
+                  height: rowHeight,
+                  child: Row(
+                    children: [
+                      for (var j = 0; j < rowItems.length; j++) ...[
+                        if (j > 0) const SizedBox(width: _skip),
+                        _buildGifCell(rowItems[j], rowHeight),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       );
     });
