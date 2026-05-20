@@ -307,11 +307,15 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
       );
       if (mounted) {
         if (_selectedTab == null) {
-          _masterReactors.addAll(result.reactors);
+          final existingMaster = _masterReactors.map((r) => '${r.peerId}:${r.reactionKey}').toSet();
+          final newMaster = result.reactors.where((r) => !existingMaster.contains('${r.peerId}:${r.reactionKey}')).toList();
+          _masterReactors.addAll(newMaster);
           _masterNextOffset = result.nextOffset;
         }
         setState(() {
-          _allReactors.addAll(result.reactors);
+          final existingAll = _allReactors.map((r) => '${r.peerId}:${r.reactionKey}').toSet();
+          final newAll = result.reactors.where((r) => !existingAll.contains('${r.peerId}:${r.reactionKey}')).toList();
+          _allReactors.addAll(newAll);
           _nextOffset = result.nextOffset;
           _loadingMore = false;
         });
@@ -421,6 +425,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
     final palette = PaletteProvider.of(context);
     final grouped = _groupedByEmoji;
     final reactions = widget.message.reactions;
+    final filteredReactors = _filteredReactors;
 
     return Material(
       elevation: 8,
@@ -503,7 +508,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
                     ],
                   ),
                 )
-          else if (_filteredReactors.isEmpty)
+          else if (filteredReactors.isEmpty)
             Padding(
               padding: const EdgeInsets.all(32),
               child: Text(
@@ -520,20 +525,20 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
                 controller: _scrollController,
                 shrinkWrap: true,
                 padding: EdgeInsets.zero,
-                itemCount: _filteredReactors.length + (_loadingMore ? 1 : 0),
+                itemCount: filteredReactors.length + (_loadingMore ? 1 : 0),
                 itemBuilder: (ctx, i) {
-                  if (i >= _filteredReactors.length) {
+                  if (i >= filteredReactors.length) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),
                       child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
                     );
                   }
                   return _ReactorRow(
-                    reactor: _filteredReactors[i],
+                    reactor: filteredReactors[i],
                     showEmoji: _selectedTab == null,
                     palette: palette,
                     accountId: widget.message.accountId,
-                    onTap: () => _onReactorTap(_filteredReactors[i]),
+                    onTap: () => _onReactorTap(filteredReactors[i]),
                   );
                 },
               ),
