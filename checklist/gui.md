@@ -588,13 +588,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 ---
 
-- [ ] [CRITICAL] After reply is sent, the replied popup is slow-hidden (4 000 ms fade-out) instead of fast-hidden (150 ms). C++ `sendReply()` calls `manager()->notificationReplied()` → `unlinkFromShown()` → `unlinkHistory()` → `hideFast()` for the replied notification, then `manager()->startAllHiding()` slow-hides the rest. Dart `_onReplySend` calls `_startSlowHide` on every popup including the replied one, so it takes 4 seconds to disappear instead of 150 ms. — `notification_popup.dart:322-325` ← `AyuGram/window/notifications_manager_default.cpp:1168-1176`
-
-- [ ] [MAJOR] `_hasReceivedInput` is forced to `true` via a 1-second `Timer`, bypassing the platform's user-input detection. C++ `checkLastInput()` queries the OS last-input timestamp via `base::Platform::LastUserInputTimeSupported()` and only starts the hide countdown when real input is detected. On platforms where `WaitForInputForCustom()` returns `true` (Windows), notifications should wait indefinitely until the user actually moves the mouse or types; Dart always overrides after 1 second. — `notification_popup.dart:181-186` ← `AyuGram/window/notifications_manager_default.cpp:767-784`
-
-- [ ] [MAJOR] `_HiddenUserpicPlaceholder` clips the app icon to `BorderRadius.circular(4)` (rounded rect). C++ `hiddenUserpicPlaceholder()` scales `LogoNoMargin()` and draws it with `p.drawPixmap()` — no clip, no rounding. The logo's visual shape comes from the image itself (transparent corners), not from a widget clip. The Dart rounding is wrong. — `notification_popup.dart:776-778` ← `AyuGram/window/notifications_manager_default.cpp:115-127,923-925`
-
-- [ ] [MAJOR] Reply field has no maximum message length. C++ calls `_replyArea->setMaxLength(MaxMessageSize)` (4 096 characters). Without a limit, the user can type an arbitrarily long string that will be rejected at the API level with no feedback. — `notification_popup.dart:997-1010` ← `AyuGram/window/notifications_manager_default.cpp:1138`
 
 ## notifications_settings_screen — Audit Results
 
