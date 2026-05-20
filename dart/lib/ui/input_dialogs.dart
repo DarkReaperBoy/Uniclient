@@ -201,7 +201,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
       setState(() {
         _statusText = null;
         _purchaseUsername = null;
-        _isValid = false;
+        _isValid = true;
         _checking = false;
       });
       return;
@@ -290,15 +290,27 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
 
   Future<void> _save() async {
     final username = _cleanUsername(_ctrl.text);
-    if (!_isValid && username.isNotEmpty) return;
+    if (!_isValid && username.isNotEmpty && username != widget.currentUsername) return;
 
     setState(() => _saving = true);
     try {
+      if (_additionalUsernames.isNotEmpty) {
+        final primary = username.isNotEmpty ? username : widget.currentUsername;
+        final newOrder = [
+          if (primary.isNotEmpty) primary,
+          ..._additionalUsernames
+              .map((u) => u['username'] as String? ?? '')
+              .where((n) => n.isNotEmpty),
+        ];
+        await widget.engine.reorderAccountUsernames(widget.accountId, newOrder);
+      }
       for (final entry in _pendingToggles.entries) {
         await widget.engine.toggleAccountUsername(
             widget.accountId, entry.key, entry.value);
       }
-      await widget.engine.updateAccountUsername(widget.accountId, username);
+      if (username != widget.currentUsername) {
+        await widget.engine.updateAccountUsername(widget.accountId, username);
+      }
       if (mounted) Navigator.of(context).pop(username);
     } catch (e) {
       if (mounted) {
@@ -383,7 +395,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
 
     return TelegramBox(
       title: 'Username',
-      onConfirm: (_isValid || _cleanUsername(_ctrl.text).isEmpty) && !_saving
+      onConfirm: (_isValid || _cleanUsername(_ctrl.text).isEmpty || _pendingToggles.isNotEmpty) && !_saving
           ? _save
           : null,
       content: Padding(
@@ -498,7 +510,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
         TelegramBoxButton(
           text: _saving ? 'Saving...' : 'Save',
           onPressed:
-              (_isValid || _cleanUsername(_ctrl.text).isEmpty) && !_saving ? _save : null,
+              (_isValid || _cleanUsername(_ctrl.text).isEmpty || _pendingToggles.isNotEmpty) && !_saving ? _save : null,
         ),
       ],
     );
@@ -1288,14 +1300,20 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
     _requestApproval = widget.existingRequestApproval;
     if (_isEdit) {
       if (widget.existingExpire > 0) {
-        final match = _expireOptions.keys.where(
-          (k) => k > 0 && (widget.existingExpire - k).abs() < k * 0.1,
-        ).firstOrNull;
-        if (match != null) {
-          _expireOption = match;
+        final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        final remaining = widget.existingExpire - now;
+        if (remaining <= 0) {
+          _expireOption = 0;
         } else {
-          _expireOption = -1;
-          _customExpireDate = widget.existingExpire;
+          final match = _expireOptions.keys.where(
+            (k) => k > 0 && (remaining - k).abs() < k * 0.1,
+          ).firstOrNull;
+          if (match != null) {
+            _expireOption = match;
+          } else {
+            _expireOption = -1;
+            _customExpireDate = widget.existingExpire;
+          }
         }
       } else {
         _expireOption = 0;
@@ -1508,10 +1526,16 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
               _toggleRow(
                 'Subscription',
                 _subscription,
-                (_saving || _subscriptionLocked) ? null : () => setState(() {
-                  _subscription = !_subscription;
-                  if (_subscription) _requestApproval = false;
-                }),
+                _saving ? null : () {
+                  if (_subscriptionLocked) {
+                    showTelegramToast(context, 'You can\'t change the subscription price for an existing subscription link.');
+                    return;
+                  }
+                  setState(() {
+                    _subscription = !_subscription;
+                    if (_subscription) _requestApproval = false;
+                  });
+                },
                 textColor,
                 checkClr,
               ),
@@ -1743,7 +1767,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   static const _kOptionLimit = 100;
   static const _kWarnOptionLimit = 30;
   static const _kSolutionLimit = 200;
-  static const _kMaxOptions = 32;
+  static const _kMaxOptions = 12;
 
   final _questionCtrl = TextEditingController();
   final _questionFocus = FocusNode();
@@ -1756,6 +1780,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   final List<String?> _optionMediaPaths = [null, null];
   bool _multipleChoice = false;
   bool _anonymous = true;
+  bool _showWhoVoted = false;
   bool _quiz = false;
   bool _allowRevoting = true;
   bool _shuffleAnswers = false;
@@ -1857,7 +1882,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
       options: options,
       optionMediaPaths: mediaPaths,
       multipleChoice: _multipleChoice,
-      anonymous: _anonymous,
+      anonymous: _anonymous && !_showWhoVoted,
       quiz: _quiz,
       allowRevoting: _allowRevoting,
       shuffleAnswers: _shuffleAnswers,
@@ -1870,58 +1895,52 @@ class _CreatePollContentState extends State<_CreatePollContent> {
 
   void _showDurationPicker() async {
     final durations = <int, String>{
-      300: '5 minutes',
-      600: '10 minutes',
-      1800: '30 minutes',
       3600: '1 hour',
-      7200: '2 hours',
-      14400: '4 hours',
+      10800: '3 hours',
       28800: '8 hours',
-      43200: '12 hours',
-      86400: '1 day',
-      172800: '2 days',
+      86400: '24 hours',
       259200: '3 days',
-      604800: '7 days',
     };
-    final result = await showTelegramBox<int>(
+    final p = context.palette;
+    final result = await showMenu<int>(
       context: context,
-      builder: (ctx) {
-        final p = ctx.palette;
-        return TelegramBox(
-          title: 'Poll Duration',
-          showClose: true,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: durations.entries.map((e) => InkWell(
-              onTap: () => Navigator.of(ctx).pop(e.key),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: Radio<int>(
-                        value: e.key,
-                        groupValue: _durationSeconds,
-                        onChanged: (v) => Navigator.of(ctx).pop(v),
-                        activeColor: p.windowBgActive,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(e.value, style: TextStyle(fontSize: 14, color: p.boxTextFg)),
-                  ],
-                ),
-              ),
-            )).toList(),
+      position: RelativeRect.fromLTRB(200, 300, 200, 300),
+      items: [
+        ...durations.entries.map((e) => PopupMenuItem<int>(
+          value: e.key,
+          child: Text(
+            e.value,
+            style: TextStyle(
+              fontSize: 14,
+              color: p.boxTextFg,
+              fontWeight: _durationSeconds == e.key ? FontWeight.w600 : FontWeight.normal,
+            ),
           ),
-          buttons: const [],
-        );
-      },
+        )),
+        PopupMenuItem<int>(
+          value: -1,
+          child: Text('Custom date/time', style: TextStyle(fontSize: 14, color: p.boxTextFg)),
+        ),
+      ],
     );
-    if (result != null && mounted) {
+    if (result == null || !mounted) return;
+    if (result == -1) {
+      final now = DateTime.now();
+      final customResult = await showChooseDateTimeBox(
+        context,
+        initialDate: now.add(Duration(seconds: _durationSeconds)),
+        title: 'Poll Deadline',
+        submitText: 'Schedule',
+        showRepeat: false,
+      );
+      if (customResult != null && mounted) {
+        final chosen = customResult.dateTime;
+        final diff = chosen.difference(now).inSeconds;
+        if (diff > 60) {
+          setState(() => _durationSeconds = diff);
+        }
+      }
+    } else {
       setState(() => _durationSeconds = result);
     }
   }
@@ -2150,7 +2169,17 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               'Anonymous Voting',
               'Nobody will see who voted for what option',
               _anonymous,
-              (v) => setState(() => _anonymous = v),
+              (v) => setState(() {
+                _anonymous = v;
+                if (v) _showWhoVoted = false;
+              }),
+              toggleClr, textColor, subColor,
+            ),
+            _settingsToggle(
+              'Show Who Voted',
+              'Users will be able to see who voted for each option',
+              _showWhoVoted,
+              _anonymous ? null : (v) => setState(() => _showWhoVoted = v),
               toggleClr, textColor, subColor,
             ),
             _settingsToggle(
