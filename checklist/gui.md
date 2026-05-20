@@ -547,9 +547,6 @@ All CRITICAL and MAJOR checks passed:
 
 **Lifecycle** — Ref-counting (`_refRetain`/`_refRelease`) and 5-second deferred cache eviction are correctly implemented. `dispose()` cancels the timer, disposes animation/player/temp-file, and releases the ref.
 
-## hamburger_drawer — SRead stories fix
-
-- [ ] [MAJOR] SRead ("Mark Stories as Viewed") uses `markAllChatsRead` which does not send story-specific read packets; AyuGram calls `MarkAsReadChatList` which walks all chats including story sources and sends the appropriate MTProto read events — `hamburger_drawer.dart:443` ← `window_main_menu.cpp:791` (`MarkAsReadChatList(chats)` with `sendReadMessages=true`)
 
 # info_panel — Audit findings
 
