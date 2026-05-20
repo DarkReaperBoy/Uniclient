@@ -567,10 +567,6 @@ All CRITICAL and MAJOR checks passed:
 
 
 
-## language_box — "At least one language" toast text differs
-
-- [ ] [MAJOR] AyuGram shows `tr::lng_translate_settings_one` = "Please choose at least one language so that it can be used as the \"Translate to\" language." Dart shows the shorter hardcoded "You must keep at least one language." — `language_box.dart:845` ← `AyuGram/Resources/langs/lang.strings:6919`
-
 ## language_box — "N languages" label missing singular form
 
 - [ ] [MAJOR] AyuGram uses `tr::lng_languages_count` which has plural forms: "{count} language" (one) / "{count} languages" (other). Dart hardcodes `'${langs.length} languages'` with no singular handling — `language_box.dart:217` ← `AyuGram/Resources/langs/lang.strings:650-651`
