@@ -600,9 +600,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 # send_files_box — Audit Findings
 
 
-## send_files_box — validateLength does not show premium upgrade box
-
-- [ ] [CRITICAL] When the caption exceeds the character limit, AyuGram shows a `CaptionLimitReachedBox` that offers premium upgrade (`_show->showBox(Box(CaptionLimitReachedBox, session, remove, &_st.premium))`). The Dart `_send()` merely does an early return (`if (_captionController.text.length > _kCaptionMaxLength) return;`) with no user-facing error box. The user gets no feedback and no upgrade prompt. — `send_files_box.dart:1358` ← `AyuGram/boxes/send_files_box.cpp:2348-2357`
 
 ## send_files_box — Premium-aware caption character limit not used
 
