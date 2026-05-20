@@ -2850,6 +2850,8 @@ class EmojiKeywords {
   bool get hasServerData => _langPacks.isNotEmpty;
   int get serverVersion => _langPacks.values.fold(0, (m, p) => p.version > m ? p.version : m);
   String get serverLangCode => _langPacks.keys.firstOrNull ?? '';
+  int versionForLang(String langCode) => _langPacks[langCode]?.version ?? 0;
+  bool hasLangData(String langCode) => _langPacks.containsKey(langCode);
 
   void startAutoRefresh(Future<void> Function() refreshCallback) {
     _refreshTimer?.cancel();

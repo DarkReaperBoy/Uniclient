@@ -1296,6 +1296,23 @@ class EngineService {
     }
   }
 
+  Future<EmojiKeywordsResult?> getEmojiKeywordsDiff(String accountId, String langCode, int version) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'lang_code': langCode,
+      'version': version,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetEmojiKeywordsDifference', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return EmojiKeywordsResult.fromJson(data);
+    } catch (e) {
+      Debug.error('ENGINE', 'getEmojiKeywordsDiff failed', e);
+      return null;
+    }
+  }
+
   Future<void> sendSticker(String accountId, String chatId, String stickerId, {bool silent = false, int scheduleDate = 0}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

@@ -2087,3 +2087,50 @@ func (e *Engine) GetEmojiKeywords(accountID, langCode string) (*EmojiKeywordsRes
 	}
 	return result, nil
 }
+
+func (e *Engine) GetEmojiKeywordsDifference(accountID, langCode string, fromVersion int) (*EmojiKeywordsResult, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type emojiKeywordsDiffFetcher interface {
+		MessagesGetEmojiKeywordsDifference(langCode string, fromVersion int) (interface{}, error)
+	}
+	fetcher, ok := acc.Core.(emojiKeywordsDiffFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support emoji keyword diffs")
+	}
+	raw, err := fetcher.MessagesGetEmojiKeywordsDifference(langCode, fromVersion)
+	if err != nil {
+		return nil, err
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize emoji keyword diffs: %w", err)
+	}
+	var diff struct {
+		LangCode string `json:"LangCode"`
+		Version  int    `json:"Version"`
+		Keywords []struct {
+			Keyword   string   `json:"Keyword"`
+			Emoticons []string `json:"Emoticons"`
+		} `json:"Keywords"`
+	}
+	if err := json.Unmarshal(b, &diff); err != nil {
+		return nil, fmt.Errorf("failed to parse emoji keyword diffs: %w", err)
+	}
+	result := &EmojiKeywordsResult{
+		LangCode: diff.LangCode,
+		Version:  diff.Version,
+	}
+	for _, kw := range diff.Keywords {
+		result.Keywords = append(result.Keywords, EmojiKeywordEntry{
+			Keyword:   kw.Keyword,
+			Emoticons: kw.Emoticons,
+		})
+	}
+	return result, nil
+}

@@ -3636,17 +3636,34 @@ class _ChatViewState extends State<ChatView>
 
     for (final lang in langs) {
       try {
-        final result = await engine.getEmojiKeywords(accountId, lang);
-        if (result != null && result.keywords.isNotEmpty) {
-          final kwMap = <String, List<String>>{};
-          for (final entry in result.keywords) {
-            kwMap[entry.keyword] = entry.emoticons;
+        final ek = EmojiKeywords.instance;
+        if (ek.hasLangData(lang)) {
+          final v = ek.versionForLang(lang);
+          final result = await engine.getEmojiKeywordsDiff(accountId, lang, v);
+          if (result != null) {
+            final kwMap = <String, List<String>>{};
+            for (final entry in result.keywords) {
+              kwMap[entry.keyword] = entry.emoticons;
+            }
+            ek.loadServerKeywordsDiff(
+              keywords: kwMap,
+              version: result.version,
+              langCode: result.langCode,
+            );
           }
-          EmojiKeywords.instance.loadServerKeywords(
-            keywords: kwMap,
-            version: result.version,
-            langCode: result.langCode,
-          );
+        } else {
+          final result = await engine.getEmojiKeywords(accountId, lang);
+          if (result != null && result.keywords.isNotEmpty) {
+            final kwMap = <String, List<String>>{};
+            for (final entry in result.keywords) {
+              kwMap[entry.keyword] = entry.emoticons;
+            }
+            ek.loadServerKeywords(
+              keywords: kwMap,
+              version: result.version,
+              langCode: result.langCode,
+            );
+          }
         }
       } catch (_) {}
     }

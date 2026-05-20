@@ -23063,10 +23063,13 @@ func (t *TelegramCore) MessagesGetEmojiKeywords(langcode string) (*tg.EmojiKeywo
 }
 
 // MessagesGetEmojiKeywordsDifference returns updated emoji keywords since a version.
-func (t *TelegramCore) MessagesGetEmojiKeywordsDifference(request *tg.MessagesGetEmojiKeywordsDifferenceRequest) (*tg.EmojiKeywordsDifference, error) {
+func (t *TelegramCore) MessagesGetEmojiKeywordsDifference(langCode string, fromVersion int) (interface{}, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return nil, ErrAuth }
-	return t.api.MessagesGetEmojiKeywordsDifference(t.ctx, request)
+	return t.api.MessagesGetEmojiKeywordsDifference(t.ctx, &tg.MessagesGetEmojiKeywordsDifferenceRequest{
+		LangCode:    langCode,
+		FromVersion: fromVersion,
+	})
 }
 
 // MessagesGetEmojiKeywordsLanguages returns available languages for emoji keywords.
