@@ -8833,15 +8833,7 @@ class _WebPagePreview extends StatelessWidget {
     if (label == null) return null;
     final dividerColor = accentColor.withAlpha((255 * 0.3).round());
     return GestureDetector(
-      onTap: () {
-        final url = message.wpUrl;
-        if (url.isEmpty) return;
-        if (message.wpType.toLowerCase() == 'article_with_iv' || message.wpHasIv) {
-          openInstantView(context, message.accountId, url, siteName: message.wpSiteName);
-        } else {
-          Process.run('xdg-open', [url]);
-        }
-      },
+      onTap: () => _handleActionTap(context),
       behavior: HitTestBehavior.opaque,
       child: Column(
         children: [
@@ -8862,6 +8854,126 @@ class _WebPagePreview extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _handleActionTap(BuildContext context) {
+    final url = message.wpUrl;
+    if (url.isEmpty) return;
+    final wpType = message.wpType.toLowerCase();
+    if (wpType == 'article_with_iv' || message.wpHasIv) {
+      openInstantView(context, message.accountId, url, siteName: message.wpSiteName);
+      return;
+    }
+    switch (wpType) {
+      case 'telegram_channel':
+      case 'telegram_megagroup':
+      case 'telegram_chat':
+      case 'telegram_user':
+      case 'telegram_voicechat':
+      case 'telegram_livestream':
+      case 'telegram_channel_request':
+      case 'telegram_megagroup_request':
+      case 'telegram_chat_request':
+      case 'telegram_channel_boost':
+      case 'telegram_megagroup_boost':
+      case 'telegram_newbot':
+        _openChatFromUrl(context, url);
+      case 'telegram_stickerset':
+        _openStickerSetFromUrl(context, url);
+      case 'telegram_botapp':
+        _openBotAppFromUrl(context, url);
+      case 'telegram_message':
+        _openMessageFromUrl(context, url);
+      default:
+        Process.run('xdg-open', [url]);
+    }
+  }
+
+  void _openChatFromUrl(BuildContext context, String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final segments = uri.pathSegments;
+    if (segments.isEmpty) return;
+    final first = segments.first;
+    if (first == 'c' && segments.length >= 2) {
+      final chatState = context.read<ChatState>();
+      chatState.openChatById('-100${segments[1]}');
+      return;
+    }
+    if (first.startsWith('+') || first == 'joinchat') {
+      Process.run('xdg-open', [url]);
+      return;
+    }
+    final username = first;
+    final engine = context.read<EngineService>();
+    final chatId = await engine.resolveUsername(message.accountId, username);
+    if (chatId != null && chatId.isNotEmpty && context.mounted) {
+      context.read<ChatState>().openChatById(chatId);
+    }
+  }
+
+  void _openStickerSetFromUrl(BuildContext context, String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final segments = uri.pathSegments;
+    String shortName = '';
+    for (int i = 0; i < segments.length - 1; i++) {
+      if (segments[i] == 'addstickers') {
+        shortName = segments[i + 1];
+        break;
+      }
+    }
+    if (shortName.isEmpty && segments.isNotEmpty) {
+      shortName = segments.last;
+    }
+    if (shortName.isNotEmpty) {
+      StickerPackViewer.showByName(context, shortName, message.accountId);
+    }
+  }
+
+  void _openBotAppFromUrl(BuildContext context, String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final segments = uri.pathSegments;
+    if (segments.isEmpty) return;
+    final botUsername = segments.first;
+    final startApp = uri.queryParameters['startapp'] ?? '';
+    final appUrl = startApp.isNotEmpty
+        ? '$url${url.contains('?') ? '&' : '?'}startapp=$startApp'
+        : url;
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    WebAppPanel.open(
+      context,
+      data: WebAppPanelData(
+        botName: message.wpTitle.isNotEmpty ? message.wpTitle : botUsername,
+        botUsername: botUsername,
+        isVerified: false,
+        url: appUrl,
+        accountId: message.accountId,
+        botId: chat?.chatId ?? '',
+      ),
+    );
+  }
+
+  void _openMessageFromUrl(BuildContext context, String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final segments = uri.pathSegments;
+    if (segments.isEmpty) return;
+    if (segments.first == 'c' && segments.length >= 3) {
+      final chatState = context.read<ChatState>();
+      chatState.openChatById('-100${segments[1]}');
+      return;
+    }
+    if (segments.length >= 2) {
+      final username = segments.first;
+      final engine = context.read<EngineService>();
+      final chatId = await engine.resolveUsername(message.accountId, username);
+      if (chatId != null && chatId.isNotEmpty && context.mounted) {
+        context.read<ChatState>().openChatById(chatId);
+      }
+    }
   }
 
   @override
@@ -9020,23 +9132,33 @@ class _GameCardState extends State<_GameCard> {
   void _onPlay() async {
     if (_loading) return;
     setState(() => _loading = true);
-    String? url;
-    for (final row in widget.message.inlineKeyboard) {
-      for (final btn in row) {
-        if (btn.type == 'game' && btn.url.isNotEmpty) {
-          url = btn.url;
-          break;
+    try {
+      String? url;
+      for (final row in widget.message.inlineKeyboard) {
+        for (final btn in row) {
+          if (btn.type == 'game' && btn.url.isNotEmpty) {
+            url = btn.url;
+            break;
+          }
+        }
+        if (url != null) break;
+      }
+      if (url == null) {
+        final chatState = context.read<ChatState>();
+        final result = await chatState.botCallbackGame(widget.message.msgId);
+        if (!mounted) return;
+        if (result.url.isNotEmpty) {
+          url = result.url;
+        } else if (result.message.isNotEmpty) {
+          showTelegramToast(context, result.message);
         }
       }
-      if (url != null) break;
-    }
-    if (url != null) {
-      await Process.run('xdg-open', [url]);
+      if (url != null && url.isNotEmpty) {
+        Process.run('xdg-open', [url]);
+      }
+    } catch (_) {
+    } finally {
       if (mounted) setState(() => _loading = false);
-    } else {
-      Future.delayed(const Duration(seconds: 15), () {
-        if (mounted) setState(() => _loading = false);
-      });
     }
   }
 
@@ -9732,12 +9854,7 @@ class _InlineButtonState extends State<_InlineButton>
           chatState.openChatById(userId);
         }
       case 'request_phone':
-        final chatState = context.read<ChatState>();
-        final appState = context.read<AppState>();
-        final phone = appState.activeAccount?.phone ?? '';
-        if (phone.isNotEmpty) {
-          chatState.sendMessage(phone);
-        }
+        _sharePhoneWithBot(context);
       case 'request_location':
         _showLocationDialog(context);
       case 'request_poll':
@@ -9871,6 +9988,59 @@ class _InlineButtonState extends State<_InlineButton>
         [selected.chatId],
       );
     });
+  }
+
+  void _sharePhoneWithBot(BuildContext context) async {
+    final appState = context.read<AppState>();
+    final phone = appState.activeAccount?.phone ?? '';
+    if (phone.isEmpty) return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = isDark ? const Color(0xFF71baf7) : const Color(0xFF168acd);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Share your phone number with this bot?',
+                  style: TextStyle(fontSize: 14, color: textColor)),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text('Cancel', style: TextStyle(color: textColor.withAlpha(153))),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text('Share', style: TextStyle(color: accentColor)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final chatState = context.read<ChatState>();
+    final engine = context.read<EngineService>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final firstName = appState.activeAccount?.displayName ?? '';
+    await engine.sendContact(chat.accountId, chat.chatId, phone, firstName, '');
   }
 
   void _showLocationDialog(BuildContext context) {

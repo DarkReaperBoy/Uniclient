@@ -16,10 +16,18 @@ import '../theme/telegram_palette.dart';
 import 'telegram_tooltip.dart';
 
 class StickerPackViewer extends StatefulWidget {
-  final CachedMessage message;
+  final CachedMessage? message;
   final EngineService engine;
+  final String _shortName;
+  final String _accountId;
 
-  const StickerPackViewer({super.key, required this.message, required this.engine});
+  const StickerPackViewer({super.key, required CachedMessage this.message, required this.engine})
+    : _shortName = '', _accountId = '';
+
+  const StickerPackViewer.byShortName({super.key, required String shortName, required String accountId, required this.engine})
+    : message = null, _shortName = shortName, _accountId = accountId;
+
+  String get accountId => message?.accountId ?? _accountId;
 
   static void show(BuildContext context, CachedMessage message) {
     final engine = context.read<EngineService>();
@@ -28,6 +36,16 @@ class StickerPackViewer extends StatefulWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => StickerPackViewer(message: message, engine: engine),
+    );
+  }
+
+  static void showByName(BuildContext context, String shortName, String accountId) {
+    final engine = context.read<EngineService>();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StickerPackViewer.byShortName(shortName: shortName, accountId: accountId, engine: engine),
     );
   }
 
@@ -52,10 +70,10 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
     final msg = widget.message;
     try {
       final info = await engine.getStickerSetInfo(
-        msg.accountId,
-        shortName: msg.stickerSetShortName,
-        setId: msg.stickerSetId,
-        accessHash: msg.stickerSetAccessHash,
+        widget.accountId,
+        shortName: msg?.stickerSetShortName ?? widget._shortName,
+        setId: msg?.stickerSetId ?? 0,
+        accessHash: msg?.stickerSetAccessHash ?? 0,
       );
       if (mounted) {
         setState(() {
@@ -147,7 +165,7 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
     if (info == null || _installing) return;
     setState(() => _installing = true);
     try {
-      final accountId = widget.message.accountId;
+      final accountId = widget.accountId;
       final success = await widget.engine.installStickerSet(
           accountId, info.setId, info.accessHash);
       if (success && mounted) {
@@ -205,7 +223,7 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
       if (value == null || !mounted) return;
       final info = _setInfo;
       if (info == null) return;
-      final accountId = widget.message.accountId;
+      final accountId = widget.accountId;
       if (value == 'remove') {
         await widget.engine.uninstallStickerSet(accountId, info.setId, info.accessHash);
         if (mounted) Navigator.pop(context);
@@ -362,7 +380,7 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
         final sticker = stickers[index];
         return _StickerTile(
           sticker: sticker,
-          accountId: widget.message.accountId,
+          accountId: widget.accountId,
           engine: widget.engine,
           onTap: () => _sendSticker(sticker),
         );
