@@ -599,9 +599,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 # send_files_box — Audit Findings
 
-## send_files_box — Missing AI Caption Button
-
-- [ ] [CRITICAL] No AI caption assistance button in the send files dialog. AyuGram sets up a `ComposeAiButton` alongside the caption field (`_aiButton = Ui::SetupCaptionAiButton(...)`) and updates its geometry reactively. The Dart file has no equivalent AI caption button anywhere in the build tree. — `send_files_box.dart:1879` ← `AyuGram/boxes/send_files_box.cpp:1913`
 
 ## send_files_box — Caption "above" is a checkbox, not send-menu-only state
 
