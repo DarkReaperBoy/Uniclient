@@ -386,6 +386,14 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   List<BotCommandInfo> _botCommands = [];
   bool _botCommandsFetched = false;
   int _starsPostLimit = 10000;
+  bool _editorOpenedOnce = false;
+
+  void _onPhotoEditorOpened() {
+    if (!_editorOpenedOnce) {
+      _editorOpenedOnce = true;
+      context.read<AppState>().incrementPhotoEditorHintCount();
+    }
+  }
 
   @override
   void initState() {
@@ -437,9 +445,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     _loadImageDimensions();
     _fetchPremiumStatus();
     _refreshMembersFromEngine();
-    if (_files.any((f) => f.type == _FileType.photo)) {
-      context.read<AppState>().incrementPhotoEditorHintCount();
-    }
   }
 
   List<MemberInfo> _engineMembers = const [];
@@ -2297,6 +2302,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                             isBroadcast: widget.isBroadcast,
                             isSelfChat: widget.isSelfChat,
                             onCoverChanged: () => setState(() {}),
+                            onEditorOpened: _onPhotoEditorOpened,
                           ),
                           if (_hasPaidPrice)
                             Positioned.fill(
@@ -2323,7 +2329,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                             ),
                         ],
                       ),
-                    if (context.read<AppState>().photoEditorHintCount >= 3 && showMediaPreview && mediaFiles.any((f) => f.type == _FileType.photo && !f.isSticker))
+                    if (context.read<AppState>().photoEditorHintCount < 5 && showMediaPreview && mediaFiles.any((f) => f.type == _FileType.photo && !f.isSticker))
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
@@ -2688,6 +2694,7 @@ class _MediaPreview extends StatelessWidget {
   final bool isBroadcast;
   final bool isSelfChat;
   final VoidCallback? onCoverChanged;
+  final VoidCallback? onEditorOpened;
 
   const _MediaPreview({
     required this.files,
@@ -2703,6 +2710,7 @@ class _MediaPreview extends StatelessWidget {
     this.isBroadcast = false,
     this.isSelfChat = false,
     this.onCoverChanged,
+    this.onEditorOpened,
   });
 
   @override
@@ -2722,6 +2730,7 @@ class _MediaPreview extends StatelessWidget {
         isBroadcast: isBroadcast,
         isSelfChat: isSelfChat,
         onCoverChanged: onCoverChanged,
+        onEditorOpened: onEditorOpened,
       );
     }
     return _AlbumPreview(
@@ -2738,6 +2747,7 @@ class _MediaPreview extends StatelessWidget {
       isBroadcast: isBroadcast,
       isSelfChat: isSelfChat,
       onCoverChanged: onCoverChanged,
+      onEditorOpened: onEditorOpened,
     );
   }
 }
@@ -2756,6 +2766,7 @@ class _SingleMediaPreview extends StatelessWidget {
   final bool isBroadcast;
   final bool isSelfChat;
   final VoidCallback? onCoverChanged;
+  final VoidCallback? onEditorOpened;
 
   const _SingleMediaPreview({
     required this.file,
@@ -2771,6 +2782,7 @@ class _SingleMediaPreview extends StatelessWidget {
     this.isSelfChat = false,
     this.fileIndex = 0,
     this.onCoverChanged,
+    this.onEditorOpened,
   });
 
   @override
@@ -2922,6 +2934,7 @@ class _SingleMediaPreview extends StatelessWidget {
 
   void _doEdit(BuildContext context) {
     if (file.type != _FileType.photo) return;
+    onEditorOpened?.call();
     PhotoCropEditor.open(
       context,
       imageFile: File(file.path),
@@ -3099,6 +3112,7 @@ class _AlbumPreview extends StatefulWidget {
   final bool isBroadcast;
   final bool isSelfChat;
   final VoidCallback? onCoverChanged;
+  final VoidCallback? onEditorOpened;
 
   const _AlbumPreview({
     required this.files,
@@ -3114,6 +3128,7 @@ class _AlbumPreview extends StatefulWidget {
     this.isBroadcast = false,
     this.isSelfChat = false,
     this.onCoverChanged,
+    this.onEditorOpened,
   });
 
   @override
@@ -3336,6 +3351,7 @@ class _AlbumPreviewState extends State<_AlbumPreview>
     if (file.type != _FileType.photo) return;
     final allIdx = widget.allFiles.indexOf(file);
     if (allIdx < 0) return;
+    widget.onEditorOpened?.call();
     PhotoCropEditor.open(
       context,
       imageFile: File(file.path),
