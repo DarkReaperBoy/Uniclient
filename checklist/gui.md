@@ -566,10 +566,6 @@ All CRITICAL and MAJOR checks passed:
 
 
 
-## language_box — "Do Not Translate" row value uses nativeName instead of LanguageName
-
-- [ ] [MAJOR] For single language, AyuGram calls `Ui::LanguageName(list.front())` which returns the English name translated into the current UI language. Dart's `_skipLangsLabel` returns `entry.nativeName` (the language's own name, e.g. "Русский" for Russian) instead of the localized English form — `language_box.dart:208-218` ← `AyuGram/SourceFiles/boxes/language_box.cpp:1488-1492`
-
 ## language_box — Skip languages editor uses Checkbox (left) instead of SettingsButton toggle (right)
 
 - [ ] [MAJOR] AyuGram's `EditSkipTranslationLanguages` calls `Ui::ChooseLanguageBox` which renders each language as a `SettingsButton` with a **right-side toggle switch** (`paintToggle`). Dart's `_SkipLanguagesEditor` uses a `Checkbox` widget on the **left side** — a completely different visual layout — `language_box.dart:962-966` ← `AyuGram/SourceFiles/ui/boxes/choose_language_box.cpp:179,312-327`
