@@ -571,13 +571,6 @@ All CRITICAL and MAJOR checks passed:
 
 # message_bubble — Audit
 
-## Game card play stub, request_phone wiring, Telegram deep links
-
-- [ ] [CRITICAL] `_GameCard._onPlay` stub: when no inline-keyboard button has a pre-cached URL (`btn.type == 'game' && btn.url.isNotEmpty` fails), the method starts `Future.delayed(const Duration(seconds: 15), ...)` which silently resets `_loading` without calling the engine. A `botCallbackGame` call must be issued instead (matching `_InlineButton._onTap`'s `'game'` case which already calls `chatState.botCallbackGame` correctly) — `message_bubble.dart:9037` ← `api/api_bot.cpp` (game button → `getBotCallbackAnswer` with `game=true`)
-
-- [ ] [MAJOR] `request_phone` inline button sends the account phone number as a raw text message via `chatState.sendMessage(phone)` (line 9739). AyuGram shows a confirmation box (`tr::lng_bot_share_phone`) and, if confirmed, calls `session.api().shareContact(session.user(), action)` which sends an `InputMediaContact`. Sending as plain text is functionally incorrect — it produces a text message instead of a contact card — `message_bubble.dart:9734-9740` ← `api/api_bot.cpp:373-396`
-
-- [ ] [MAJOR] `_WebPagePreview._buildActionButton` calls `Process.run('xdg-open', [url])` for every Telegram-type web-page link (`telegram_stickerset`, `telegram_botapp`, `telegram_channel`, `telegram_megagroup`, `telegram_chat`, `telegram_user`, `telegram_voicechat`, `telegram_livestream`, `telegram_theme`, `telegram_background`, `telegram_newbot`, `telegram_giftcode`, `telegram_channel_boost`, `telegram_channel_request`). All of these must be handled in-app (opening chats with `chatState.openChatById`, showing the sticker pack viewer for stickerset, opening `WebAppPanel` for botapp, etc.). Browser-fallback defeats the entire Telegram deep-link system — `message_bubble.dart:8836-8843` ← `history/view/media/history_view_web_page.cpp:147,333,354,365`
 
 ## my_profile_page — Profile/Edit Profile page audit
 
