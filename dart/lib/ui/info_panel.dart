@@ -1975,7 +1975,7 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
               child: Text(
                 isGeneral ? '# ${topic.title}' : topic.title,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: nameColor,
                 ),
@@ -1990,7 +1990,7 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
               child: Text(
                 isGeneral ? 'General' : statusText,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 12,
                   color: statusColor,
                 ),
                 maxLines: 1,
@@ -7113,17 +7113,18 @@ class _MembersSection extends StatefulWidget {
 
 class _MembersSectionState extends State<_MembersSection> {
   bool _searching = false;
-  int _displayLimit = _initialLimit;
-  static const _initialLimit = 20;
-  static const _loadMoreStep = 50;
   final _searchCtrl = TextEditingController();
   final _searchFocus = FocusNode();
+  final _memberScrollCtrl = ScrollController();
 
   StreamSubscription<ChatInfo>? _chatUpdatedSub;
   StreamSubscription<MsgReceivedEvent>? _msgReceivedSub;
   Timer? _searchDebounce;
   List<MemberInfo>? _serverSearchResults;
   bool _searchLoading = false;
+
+  static const _kRowHeight = 52.0;
+  static const _kMaxVisibleRows = 8;
 
   @override
   void initState() {
@@ -7166,6 +7167,7 @@ class _MembersSectionState extends State<_MembersSection> {
     _searchDebounce?.cancel();
     _searchCtrl.dispose();
     _searchFocus.dispose();
+    _memberScrollCtrl.dispose();
     super.dispose();
   }
 
@@ -7269,43 +7271,48 @@ class _MembersSectionState extends State<_MembersSection> {
   }
 
   List<Widget> _buildVirtualizedMembers(List<MemberInfo> filtered, ThemeData theme) {
-    final visible = _searching ? filtered : filtered.take(_displayLimit).toList();
-    final showMore = !_searching && filtered.length > _displayLimit;
+    if (filtered.isEmpty) return [];
+
+    final count = filtered.length;
+    final needsScroll = count > _kMaxVisibleRows;
+    final listHeight = needsScroll
+        ? _kMaxVisibleRows * _kRowHeight
+        : count * _kRowHeight;
 
     return [
-      ListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: visible.length,
-        itemBuilder: (context, index) {
-          final m = visible[index];
-          return _MemberRow(
-            member: m,
-            theme: theme,
-            onTap: widget.onMemberTap != null ? () => widget.onMemberTap!(m) : null,
-            accountId: widget.accountId,
-            chatId: widget.chatId,
-            onMutated: _refreshMembers,
-          );
-        },
+      SizedBox(
+        height: listHeight,
+        child: ListView.builder(
+          controller: needsScroll ? _memberScrollCtrl : null,
+          shrinkWrap: !needsScroll,
+          physics: needsScroll ? const ClampingScrollPhysics() : const NeverScrollableScrollPhysics(),
+          itemExtent: _kRowHeight,
+          itemCount: count,
+          itemBuilder: (context, index) {
+            final m = filtered[index];
+            return _MemberRow(
+              member: m,
+              theme: theme,
+              onTap: widget.onMemberTap != null ? () => widget.onMemberTap!(m) : null,
+              accountId: widget.accountId,
+              chatId: widget.chatId,
+              onMutated: _refreshMembers,
+            );
+          },
+        ),
       ),
-      if (showMore)
-        InkWell(
-          onTap: () => setState(() {
-            _displayLimit = (_displayLimit + _loadMoreStep).clamp(0, filtered.length);
-          }),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-            child: Text(
-              'Show more (${filtered.length - _displayLimit} remaining)',
-              style: TextStyle(
-                fontSize: 14,
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w500,
-              ),
+      if (needsScroll)
+        Padding(
+          padding: const EdgeInsets.only(left: 18, top: 4, bottom: 4),
+          child: Text(
+            '$count members',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.textTheme.bodySmall?.color,
             ),
           ),
         ),
+      const SizedBox(height: 10),
     ];
   }
 
