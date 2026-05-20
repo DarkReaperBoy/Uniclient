@@ -605,9 +605,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — `_canMoveCaption` check is weaker than AyuGram's
-
-- [ ] [MAJOR] AyuGram's `canMoveCaption` gate checks `_list.canMoveCaption(way.groupFiles() && way.sendImagesAsPhotos(), way.sendImagesAsPhotos())`, which accounts for the send way combination. The Dart getter `_canMoveCaption` only checks `!_sendAsDocuments && _captionController.text.isNotEmpty && _files.any((f) => f.isMediaType)`, missing the groupFiles dimension and the proper sendImagesAsPhotos coupling. — `send_files_box.dart:625-628` ← `AyuGram/boxes/send_files_box.cpp:732-735`
 
 ## send_files_box — Photo editor hint label shown based on counter, not session setting
 
