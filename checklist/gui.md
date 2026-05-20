@@ -561,7 +561,6 @@ All CRITICAL and MAJOR checks passed:
 
 # emoji_data — Emoji keyword search data and EmojiKeywords manager
 
-- [ ] [MAJOR] Always fetches full keyword list; never uses differential updates — C++ checks `_data.version > 0` and calls `messages.GetEmojiKeywordsDifference` for incremental updates (only changed keywords); Dart always issues `GetEmojiKeywords` (full fetch) and replaces all data, causing unnecessary bandwidth every hourly refresh — `emoji_data.dart:682-695` (full replace, no delta) ← `emoji_keywords.cpp:411-416` (`_data.version > 0 ? GetEmojiKeywordsDifference : GetEmojiKeywords`). NOTE: `EmojiKeywords.serverVersion`/`hasServerData` getters and `loadServerKeywordsDiff()` method are implemented in `emoji_data.dart`, but the call site in `chat_view.dart:_fetchEmojiKeywordsForLangs` always calls `engine.getEmojiKeywords()` (full fetch), and `engine_service.dart` has no `getEmojiKeywordsDiff` method, and `go/bridge/dispatch_engine.go` has no `GetEmojiKeywordsDifference` handler. The Go method `MessagesGetEmojiKeywordsDifference` exists in `telegram.go:23066` but is not wired through the bridge.
 
 # language_box — Audit Findings
 
