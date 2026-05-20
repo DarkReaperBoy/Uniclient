@@ -596,9 +596,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 # reactions_detail — Reactions & Read-Receipt Detail Panel
 
-- [ ] [MAJOR] `_loadMore()` appends paginated reactors without deduplication — `dart/lib/ui/reactions_detail.dart:310,314` (`_masterReactors.addAll(result.reactors)` / `_allReactors.addAll(result.reactors)`) ← `AyuGram/history/view/reactions/history_view_reactions_list.cpp:428-433` (`Controller::appendRow` calls `peerListFindRow(id(peer,reaction))` and returns false on dup). If the reaction list changes mid-scroll (users add/remove reactions between pages), the offset-based pagination can return a previously seen peer; AyuGram's explicit dedup prevents duplicate rows, the Dart has none.
-
-- [ ] [MAJOR] `_filteredReactors` getter is a computed property (lines 332-343) called at minimum N+1 times per `build()` frame: once in `itemCount: _filteredReactors.length` (line 523) and once per `itemBuilder` index (line 532), each call invoking `.where().toList()` — `dart/lib/ui/reactions_detail.dart:332,523,532` ← `AyuGram/history/view/reactions/history_view_reactions_list.cpp:260-280` (AyuGram computes the filtered list once per `showReaction()` call and stores it in `_filtered`). Dart creates N+1 new list objects per render pass; the result should be assigned once at the top of `build()` or cached as a state field updated in `setState()`.
 
 # send_files_box — Audit Findings
 
