@@ -234,7 +234,7 @@ class _LanguageBoxState extends State<LanguageBox> {
       }
       return langs.first.toUpperCase();
     }
-    return '${langs.length} languages';
+    return '${langs.length} ${langs.length == 1 ? 'language' : 'languages'}';
   }
 
   void _openSkipLanguagesEditor(AppState appState) {
