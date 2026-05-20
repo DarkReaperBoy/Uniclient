@@ -168,22 +168,21 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
   void _startHideCountdown(_PopupState popup) {
     popup.hideWaitTimer?.cancel();
     if (!_hasReceivedInput) {
-      popup.hideWaitTimer = Timer.periodic(
-        const Duration(milliseconds: 300),
-        (timer) {
-          if (!mounted) { timer.cancel(); return; }
-          if (_hasReceivedInput) {
-            timer.cancel();
-            _scheduleHideAfterWait(popup);
-          }
-        },
-      );
-      Timer(const Duration(seconds: 1), () {
-        if (!mounted) return;
-        if (!_hasReceivedInput) {
-          _hasReceivedInput = true;
-        }
-      });
+      if (!Platform.isWindows) {
+        _hasReceivedInput = true;
+        _scheduleHideAfterWait(popup);
+      } else {
+        popup.hideWaitTimer = Timer.periodic(
+          const Duration(milliseconds: 300),
+          (timer) {
+            if (!mounted) { timer.cancel(); return; }
+            if (_hasReceivedInput) {
+              timer.cancel();
+              _scheduleHideAfterWait(popup);
+            }
+          },
+        );
+      }
     } else {
       _scheduleHideAfterWait(popup);
     }
@@ -320,7 +319,11 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     widget.onReplySend
         ?.call(popup.item.data.accountId, popup.item.data.chatId, text);
     for (final p in List.of(_popups)) {
-      _startSlowHide(p);
+      if (p.id == popup.id) {
+        _startFastHide(p);
+      } else {
+        _startSlowHide(p);
+      }
     }
   }
 
@@ -773,28 +776,22 @@ class _HiddenUserpicPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: Image.asset(
-        'assets/icon/icon_64.png',
+    return Image.asset(
+      'assets/icon/icon_64.png',
+      width: _photoSize,
+      height: _photoSize,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
         width: _photoSize,
         height: _photoSize,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
-          width: _photoSize,
-          height: _photoSize,
-          decoration: BoxDecoration(
-            color: context.palette.windowBgActive,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          alignment: Alignment.center,
-          child: const Text(
-            'U',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
+        color: context.palette.windowBgActive,
+        alignment: Alignment.center,
+        child: const Text(
+          'U',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
           ),
         ),
       ),
@@ -998,6 +995,9 @@ class _ReplyFieldState extends State<_ReplyField> {
                   controller: widget.controller,
                   autofocus: true,
                   maxLines: null,
+                  maxLength: 4096,
+                  maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                  buildCounter: (_, {required currentLength, required isFocused, required maxLength}) => null,
                   style: TextStyle(fontSize: 13, color: widget.bodyColor),
                   decoration: InputDecoration(
                     hintText: 'Reply...',
