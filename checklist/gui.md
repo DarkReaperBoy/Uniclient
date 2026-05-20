@@ -572,30 +572,6 @@ All CRITICAL and MAJOR checks passed:
 # message_bubble — Audit
 
 
-## my_profile_page — Profile/Edit Profile page audit
-
-- [ ] [CRITICAL] `SetPersonalChannel` and `ClearPersonalChannel` are called from Dart but have NO handler in the Go engine dispatch (`dispatch_engine.go` has no `case "SetPersonalChannel"` or `case "ClearPersonalChannel"`). Engine calls silently fail — setting/clearing personal channel does nothing. — `my_profile_page.dart:2632,2594` ← `engine_service.dart:3843,3851` ← `dispatch_engine.go` (missing cases)
-
-- [ ] [CRITICAL] Profile photo area (`_ProfilePhotoArea`) uses `Column(mainAxisAlignment: MainAxisAlignment.start)` with no `crossAxisAlignment: CrossAxisAlignment.center`, so the avatar, name, and status are left-aligned. AyuGram explicitly centers the photo horizontally with `(max - photoWidth) / 2` and centers name/status with `(max - name->width()) / 2`. The avatar will render pinned to the left edge of the column rather than centered in the available width. — `my_profile_page.dart:779-780` ← `settings_information.cpp:361-377`
-
-- [ ] [CRITICAL] Upload sub-button is 30×30px. AyuGram specifies `uploadUserpicSize: 32px` and `uploadUserpicButtonBorder: 2px`. Dart button is 2px too small. — `my_profile_page.dart:1812-1813` ← `boxes.style:81,88`
-
-- [ ] [CRITICAL] Avatar context menu for photo edit (`_showAvatarMenu`) has only two options: "Upload Photo" and "Set Emoji". AyuGram's `UserpicButton` role `ChoosePhoto` additionally shows the existing photo (view), supports clipboard paste, and integrates with the full media picker flow including "Suggest Photo" in peer context. Missing "View Photo" option when no tap triggers the viewer (tap on button triggers menu, not view). — `my_profile_page.dart:885-913` ← `userpic_button.cpp:247-274`
-
-- [ ] [MAJOR] Bio field does not implement emoji autocomplete/suggestions. AyuGram calls `Ui::Emoji::SuggestionsController::Init()` and `bio->setInstantReplaces(Ui::InstantReplaces::Default())` on the bio `InputField`. The Dart `TextField` has no equivalent emoji popup. — `my_profile_page.dart:672-695` ← `settings_information.cpp:740-744`
-
-- [ ] [MAJOR] Name-to-status vertical gap is `+1px` in Dart (`EdgeInsets.only(top: 1)`). AyuGram uses `settingsInfoNameSkip: -1px` — a negative skip meaning the status label overlaps the name by 1px, creating tighter spacing. Dart adds 1px of positive space instead, making the gap 2px off. — `my_profile_page.dart:856` ← `settings.style:213` / `settings_information.cpp:377`
-
-- [ ] [MAJOR] `_YourColorRow` uses a custom inline `_EditPeerColorBox` dialog with 7 hardcoded fallback colors and a basic emoji picker. AyuGram's `AddPeerColorButton` opens `EditPeerColorBox` which shows a live color-indexed preview bubble rendered using `SetupPeerColorSample` → `Ui::ColorSample` (server-provided color indices, collectible colors, emoji status overlays, full message preview bubble). The Dart implementation shows a static color swatch labeled "A" with hardcoded colors rather than live server indices and the rich preview. — `my_profile_page.dart:1385-1398,1499-1795` ← `edit_peer_color_box.cpp:2724-2780`, `settings_information.cpp:522-529`
-
-- [ ] [MAJOR] Birthday privacy footer logic uses a simplified string match (`'nobody'`, `'everyone'`, `'contacts'`, `'close_friends'`). AyuGram checks `isExactlyContacts` — a reactive stream that evaluates whether the privacy rule is exactly `Option::Contacts` with no allow/deny lists and no premium flag. The Dart fallback shows the wrong text when users have complex privacy rules (e.g. contacts-except-list), always displaying "your contacts" instead of the generic "manage" text. — `my_profile_page.dart:416-476` ← `settings_information.cpp:467-492`
-
-- [ ] [MAJOR] `_EditPeerColorBox` preview widget shows "Your Name" and "Message preview text" as hardcoded strings. AyuGram's `SetupPeerColorSample` subscribes to `peerFlagsValue(peer, PeerUpdate::Flag::Name)` to show the real user name, and renders a full `Ui::ColorSample` bubble that updates reactively when the server returns color data. Dart uses static placeholder text. — `my_profile_page.dart:1608-1624` ← `edit_peer_color_box.cpp:2558-2572`
-
-- [ ] [MAJOR] `_EditPeerColorBox` emoji placeholder falls back to displaying `#NNN` text for unresolved emoji IDs when `thumbB64` is empty. AyuGram renders emoji stickers using actual document thumbnails. The `#NNN` text is a stub. — `my_profile_page.dart:1775-1779`
-
-- [ ] [MAJOR] Birthday picker dialog layout order is Day → Month → Year (left-to-right). AyuGram's `EditBirthdayBox` uses Day → Month → Year with specific geometry: years at right 50% width split, months in center, days at left — with each taking `half/2`, `half`, `half/2` respectively. Dart uses `Flexible(flex:1)`, `Flexible(flex:2)`, `Flexible(flex:1)` which is the same ratio but rendered by Flutter's flex, not AyuGram's fixed pixel geometry. Visual match is approximate but the picker widget is `Ui::VerticalDrumPicker` (custom C++ widget with configurable paint callbacks) vs Flutter's `ListWheelScrollView` — acceptable Flutter equivalent but picker height is 200px in both (AyuGram `settingsWorkingHoursPicker: 200px`, Dart `SizedBox(height: 200)`). — `my_profile_page.dart:2800-2830` ← `edit_birthday_box.cpp:35-95`, `settings.style:681`
-
 # notification_popup — Audit vs AyuGram Default Notification Manager
 
 ## Dimensions / timing — all pass
