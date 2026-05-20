@@ -568,39 +568,6 @@ All CRITICAL and MAJOR checks passed:
 
 # media_viewer — Audit Findings
 
-## media_viewer — Placeholders, Backend Wiring, Visual & Behavioral Issues
-
-- [ ] [CRITICAL] Text recognition shells out to `tesseract` CLI and copies raw stdout to clipboard — no inline OCR overlay rendered on the image (AyuGram draws interactive text-region boxes over the photo with hover+copy support) — `media_viewer.dart:3395-3412` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp:7275-7325`
-
-- [ ] [CRITICAL] `_onDateTap` jumps by timestamp (`chatState.jumpToMessage(msg.timestamp)`) instead of by message ID — will land at wrong message when multiple messages share the same second — `media_viewer.dart:2680-2684` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp:6507-6547`
-
-- [ ] [CRITICAL] `_showInChat` also jumps by timestamp without `highlightMsgId` — same wrong-message bug as `_onDateTap`; the optional `highlightMsgId` parameter exists in `chat_state.dart` but is never passed — `media_viewer.dart:2816-2820` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp:2016-2020`
-
-- [ ] [CRITICAL] `_showInFolder` does not close the viewer after revealing the file in the file manager — AyuGram calls `close()` when not in windowed mode — `media_viewer.dart:3027-3031` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp:3286-3291`
-
-- [ ] [CRITICAL] Forward action shows a homemade `AlertDialog` chat-picker instead of the real forward box — missing "as copy", "no caption", "message link" options; does not respect `noForwards` flag at the API level — `media_viewer.dart:2822-2928` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp:3293-3308`
-
-- [ ] [CRITICAL] Copy-image and copy-frame to clipboard shell out to `wl-copy`/`xclip` subprocess — Linux-only, breaks on Windows/macOS and any Linux without those tools installed — `media_viewer.dart:2966-3024` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp:3424-3430`
-
-- [ ] [CRITICAL] `_onSenderTap` calls `UniClientShell.toggleInfoRequest` (opens current chat's info panel) instead of navigating to the sender's profile — `media_viewer.dart:2671-2678` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp:6522-6530`
-
-- [ ] [MAJOR] Zoom scale math is wrong — `_scaleForLevel` uses `(level+1)` / `1/(-level+1)` arithmetic giving 8× at level 7; AyuGram uses `exp2(_zoom)` giving 128× at level 7 — `media_viewer.dart:739-756` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp:2626-2696`
-
-- [ ] [MAJOR] Speed boost overlay always shows hardcoded `'2.0×'` label — AyuGram's speed is drag-adjustable so the label must update dynamically from `_preBoostSpeed` — `media_viewer.dart:4086` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp:6227-6244`
-
-- [ ] [MAJOR] Gallery thumbnail strip container is `80px` tall with no top/bottom padding — spec requires `14px` padding top + `80px` height + `14px` padding bottom = `108px` total; `_stripOffset` at line 529 also only adds 4px not 28px — `media_viewer.dart:69,529,3771` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view.style:286-291`
-
-- [ ] [MAJOR] PIP progress track rendered as two `Flexible` containers in a `Row` — no `CustomPainter`, no rounded corners, missing `pipPlaybackSkip: 4px` padding above/below the track — `media_viewer.dart:4939-4975` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view.style:451-455`
-
-- [ ] [MAJOR] OCR overlay (interactive text-region boxes on photo) is entirely absent — only the backend call and clipboard copy exist; the visual feature showing recognized text regions over the image is never rendered — `media_viewer.dart:3395-3412` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp:1527-1530`
-
-- [ ] [MAJOR] `mention` and `text_mention` caption entities are rendered as styled text but have no `TapGestureRecognizer` — tapping a mention does nothing; AyuGram opens the peer's profile — `media_viewer.dart:3531-3535` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp:7558`
-
-- [ ] [MAJOR] Story views avatar stack renders placeholder colored circles with person icon instead of real user photos — engine fetch returns viewer data with profile info but it is not used for avatar rendering — `media_viewer.dart:7654-7708` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp` (story views rendering)
-
-- [ ] [MAJOR] `_shareAtTime` constructs a raw string like `"filename at MM:SS"` sent as a plain text message — AyuGram generates a `?t=` timestamp URL; also shown for private videos where a public link does not exist — `media_viewer.dart:3033-3118` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp` (share at time logic)
-
-- [ ] [MAJOR] Save toast text hardcodes the word `'Downloads'` — when saving to a non-Downloads directory the label is wrong; AyuGram shows the actual resolved save path with a clickable directory link — `media_viewer.dart:2750` ← `AyuGramDesktop/Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp:876-913`
 
 # message_bubble — Audit
 
