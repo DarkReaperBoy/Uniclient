@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
@@ -1145,10 +1146,18 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
 
   void _showSoundSelectDialog(BuildContext context) {
     final engine = context.read<EngineService>();
-    showDialog<void>(
+    showDialog<Map<String, dynamic>?>(
       context: context,
       builder: (ctx) => _RingtonePickerDialog(accountId: accountId, engine: engine),
-    );
+    ).then((selected) {
+      if (selected == null) return;
+      final documentId = selected['document_id'] as int? ?? 0;
+      engine.saveLocalNotifyConfig(accountId, {
+        'chat_id': chatId,
+        'sound_document_id': documentId,
+        'sound_name': selected['name'] as String? ?? 'Default',
+      });
+    });
   }
 
   void _showCustomMuteDurationPicker(BuildContext context) {
@@ -1455,7 +1464,7 @@ class _RingtonePickerDialogState extends State<_RingtonePickerDialog> {
                         return ListTile(
                           leading: const Icon(Icons.notifications_active),
                           title: const Text('Default'),
-                          onTap: () => Navigator.pop(context),
+                          onTap: () => Navigator.pop(context, <String, dynamic>{'document_id': 0, 'name': 'Default'}),
                         );
                       }
                       final tone = _ringtones[i - 1];
@@ -1463,7 +1472,7 @@ class _RingtonePickerDialogState extends State<_RingtonePickerDialog> {
                       return ListTile(
                         leading: const Icon(Icons.music_note),
                         title: Text(name),
-                        onTap: () => Navigator.pop(context),
+                        onTap: () => Navigator.pop(context, tone),
                       );
                     },
                   ),
@@ -2647,7 +2656,9 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                 final engine = context.read<EngineService>();
                 engine.startCall(widget.chat.accountId, widget.chat.chatId);
               },
-              avatarBytes: widget.chat.avatarPath.isEmpty ? null : null,
+              avatarBytes: widget.chat.avatarPath.isNotEmpty && File(widget.chat.avatarPath).existsSync()
+                  ? File(widget.chat.avatarPath).readAsBytesSync()
+                  : null,
               notJoined: widget.chat.notJoined,
               linkedChatId: widget.chatState.linkedChatId,
               isPeerPremium: _isPeerGiftEligible(),
@@ -3371,11 +3382,13 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
               }
               final item = row.singleItem!;
               switch (widget.mediaType) {
-                case 'file': return _FileListItem(item: item, theme: widget.theme);
-                case 'audio': return _AudioListItem(item: item, theme: widget.theme);
-                case 'voice': return _VoiceListItem(item: item, theme: widget.theme);
+                case 'file': return _FileListItem(item: item, theme: widget.theme, accountId: widget.chat.accountId, chatId: widget.chat.chatId);
+                case 'audio': return _AudioListItem(item: item, theme: widget.theme, accountId: widget.chat.accountId, chatId: widget.chat.chatId);
+                case 'voice': return _VoiceListItem(item: item, theme: widget.theme, accountId: widget.chat.accountId, chatId: widget.chat.chatId);
                 case 'link': return _LinkListItem(item: item, theme: widget.theme);
-                default: return _FileListItem(item: item, theme: widget.theme);
+                case 'round': return _RoundListItem(item: item, theme: widget.theme, accountId: widget.chat.accountId, chatId: widget.chat.chatId);
+                case 'poll': return _PollListItem(item: item, theme: widget.theme);
+                default: return _FileListItem(item: item, theme: widget.theme, accountId: widget.chat.accountId, chatId: widget.chat.chatId);
               }
             },
           ),
@@ -5321,6 +5334,8 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
                   theme: widget.theme,
                   mediaType: type,
                   isSearch: _searchActive && _searchController.text.isNotEmpty,
+                  accountId: widget.accountId,
+                  chatId: widget.chatId,
                 ),
           ],
         ],
@@ -6012,6 +6027,8 @@ class _MediaListView extends StatelessWidget {
   final ThemeData theme;
   final String mediaType;
   final bool isSearch;
+  final String accountId;
+  final String chatId;
 
   const _MediaListView({
     required this.items,
@@ -6019,6 +6036,8 @@ class _MediaListView extends StatelessWidget {
     required this.theme,
     required this.mediaType,
     this.isSearch = false,
+    this.accountId = '',
+    this.chatId = '',
   });
 
   @override
@@ -6038,37 +6057,68 @@ class _MediaListView extends StatelessWidget {
     }
 
     final grouped = _MediaGrid._groupByMonth(mediaItems);
+    final flatRows = <_ListRowData>[];
+    for (final entry in grouped.entries) {
+      flatRows.add(_ListRowData.header(entry.key));
+      for (final item in entry.value) {
+        flatRows.add(_ListRowData.item(item));
+      }
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final entry in grouped.entries) ...[
-            _DateHeader(label: entry.key, theme: theme),
-            for (final item in entry.value)
-              _buildListItem(item),
-          ],
-        ],
+      child: ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: flatRows.length,
+        itemBuilder: (context, index) {
+          final row = flatRows[index];
+          if (row.isHeader) {
+            return _DateHeader(label: row.headerLabel!, theme: theme);
+          }
+          return _buildListItem(context, row.mediaItem!);
+        },
       ),
     );
   }
 
-  Widget _buildListItem(SharedMediaItem item) {
+  Widget _buildListItem(BuildContext context, SharedMediaItem item) {
     switch (mediaType) {
-      case 'file': return _FileListItem(item: item, theme: theme);
-      case 'audio': return _AudioListItem(item: item, theme: theme);
-      case 'voice': return _VoiceListItem(item: item, theme: theme);
+      case 'file': return _FileListItem(item: item, theme: theme, accountId: accountId, chatId: chatId);
+      case 'audio': return _AudioListItem(item: item, theme: theme, accountId: accountId, chatId: chatId);
+      case 'voice': return _VoiceListItem(item: item, theme: theme, accountId: accountId, chatId: chatId);
       case 'link': return _LinkListItem(item: item, theme: theme);
-      default: return _FileListItem(item: item, theme: theme);
+      case 'round': return _RoundListItem(item: item, theme: theme, accountId: accountId, chatId: chatId);
+      case 'poll': return _PollListItem(item: item, theme: theme);
+      default: return _FileListItem(item: item, theme: theme, accountId: accountId, chatId: chatId);
     }
   }
+}
+
+class _ListRowData {
+  final bool isHeader;
+  final String? headerLabel;
+  final SharedMediaItem? mediaItem;
+  const _ListRowData.header(this.headerLabel) : isHeader = true, mediaItem = null;
+  const _ListRowData.item(this.mediaItem) : isHeader = false, headerLabel = null;
 }
 
 class _FileListItem extends StatelessWidget {
   final SharedMediaItem item;
   final ThemeData theme;
+  final String accountId;
+  final String chatId;
 
-  const _FileListItem({required this.item, required this.theme});
+  const _FileListItem({required this.item, required this.theme, this.accountId = '', this.chatId = ''});
+
+  void _onTap(BuildContext context) {
+    if (item.localPath.isNotEmpty && File(item.localPath).existsSync()) {
+      Process.run('xdg-open', [item.localPath]);
+    } else if (accountId.isNotEmpty && chatId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      engine.requestDownload(accountId, chatId, item.msgId);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -6077,46 +6127,49 @@ class _FileListItem extends StatelessWidget {
     final ext = _extractExtension(item.fileName);
     final extColor = _extensionColor(ext);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: extColor.withValues(alpha: isDark ? 0.25 : 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                ext.isNotEmpty ? ext.toUpperCase() : '?',
-                style: TextStyle(
-                  fontSize: ext.length > 3 ? 9 : 11,
-                  fontWeight: FontWeight.w700,
-                  color: extColor,
+    return InkWell(
+      onTap: () => _onTap(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: extColor.withValues(alpha: isDark ? 0.25 : 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Text(
+                  ext.isNotEmpty ? ext.toUpperCase() : '?',
+                  style: TextStyle(
+                    fontSize: ext.length > 3 ? 9 : 11,
+                    fontWeight: FontWeight.w700,
+                    color: extColor,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.fileName.isNotEmpty ? item.fileName : 'Unknown file',
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  item.fileSizeLabel,
-                  style: TextStyle(fontSize: 12, color: subtitleColor),
-                ),
-              ],
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.fileName.isNotEmpty ? item.fileName : 'Unknown file',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    item.fileSizeLabel,
+                    style: TextStyle(fontSize: 12, color: subtitleColor),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -6145,14 +6198,50 @@ class _FileListItem extends StatelessWidget {
 class _AudioListItem extends StatelessWidget {
   final SharedMediaItem item;
   final ThemeData theme;
+  final String accountId;
+  final String chatId;
 
-  const _AudioListItem({required this.item, required this.theme});
+  const _AudioListItem({required this.item, required this.theme, this.accountId = '', this.chatId = ''});
+
+  void _onTap(BuildContext context) {
+    final audio = context.read<AudioService>();
+    if (item.localPath.isNotEmpty && File(item.localPath).existsSync()) {
+      audio.playVoice(item.localPath, item.msgId,
+        chatId: chatId,
+        performer: _extractArtist(item.fileName),
+        title: _extractTitle(item.fileName),
+        accountId: accountId,
+        isSong: true,
+      );
+    } else if (accountId.isNotEmpty && chatId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      engine.requestDownload(accountId, chatId, item.msgId);
+    }
+  }
+
+  static String _extractArtist(String fileName) {
+    final dashIdx = fileName.indexOf(' - ');
+    return dashIdx > 0 ? fileName.substring(0, dashIdx).trim() : '';
+  }
+
+  static String _extractTitle(String fileName) {
+    var title = fileName;
+    if (title.isEmpty) return 'Unknown track';
+    final dashIdx = title.indexOf(' - ');
+    if (dashIdx > 0) title = title.substring(dashIdx + 3).trim();
+    final dotIdx = title.lastIndexOf('.');
+    if (dotIdx > 0) title = title.substring(0, dotIdx);
+    return title;
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = theme.brightness == Brightness.dark;
     final accentColor = isDark ? const Color(0xFF6AB2F2) : const Color(0xFF40a7e3);
     final subtitleColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final audio = context.watch<AudioService>();
+    final isPlaying = audio.isPlayingMsg(item.msgId);
+    final isActive = audio.isActiveMsg(item.msgId);
 
     String title = item.fileName;
     String artist = '';
@@ -6169,42 +6258,45 @@ class _AudioListItem extends StatelessWidget {
     final sizeStr = item.fileSizeLabel;
     final statusParts = <String>[if (durationStr.isNotEmpty) durationStr, if (sizeStr.isNotEmpty) sizeStr];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: accentColor,
-              shape: BoxShape.circle,
+    return InkWell(
+      onTap: () => _onTap(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: isActive ? accentColor.withValues(alpha: 0.8) : accentColor,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 22),
+              ),
             ),
-            child: const Center(
-              child: Icon(Icons.play_arrow, color: Colors.white, size: 22),
-            ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
-                ),
-                if (artist.isNotEmpty || statusParts.isNotEmpty) ...[
-                  const SizedBox(height: 2),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    [if (artist.isNotEmpty) artist, ...statusParts].join(' \u00b7 '),
+                    title,
                     maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: subtitleColor),
+                    style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
                   ),
+                  if (artist.isNotEmpty || statusParts.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      [if (artist.isNotEmpty) artist, ...statusParts].join(' \u00b7 '),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: subtitleColor),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -6220,8 +6312,23 @@ class _AudioListItem extends StatelessWidget {
 class _VoiceListItem extends StatelessWidget {
   final SharedMediaItem item;
   final ThemeData theme;
+  final String accountId;
+  final String chatId;
 
-  const _VoiceListItem({required this.item, required this.theme});
+  const _VoiceListItem({required this.item, required this.theme, this.accountId = '', this.chatId = ''});
+
+  void _onTap(BuildContext context) {
+    final audio = context.read<AudioService>();
+    if (item.localPath.isNotEmpty && File(item.localPath).existsSync()) {
+      audio.playVoice(item.localPath, item.msgId,
+        chatId: chatId,
+        accountId: accountId,
+      );
+    } else if (accountId.isNotEmpty && chatId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      engine.requestDownload(accountId, chatId, item.msgId);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -6229,44 +6336,50 @@ class _VoiceListItem extends StatelessWidget {
     final accentColor = isDark ? const Color(0xFF6AB2F2) : const Color(0xFF40a7e3);
     final subtitleColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
     final waveColor = isDark ? const Color(0xFFd4dee6) : const Color(0xFFa0c4e0);
+    final audio = context.watch<AudioService>();
+    final isPlaying = audio.isPlayingMsg(item.msgId);
+    final isActive = audio.isActiveMsg(item.msgId);
 
     final durationStr = _formatDuration(item.duration);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: accentColor,
-              shape: BoxShape.circle,
+    return InkWell(
+      onTap: () => _onTap(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: isActive ? accentColor.withValues(alpha: 0.8) : accentColor,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 22),
+              ),
             ),
-            child: const Center(
-              child: Icon(Icons.play_arrow, color: Colors.white, size: 22),
-            ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  height: 20,
-                  child: CustomPaint(
-                    size: const Size(double.infinity, 20),
-                    painter: _MiniWaveformPainter(color: waveColor, waveform: item.waveform),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: 20,
+                    child: CustomPaint(
+                      size: const Size(double.infinity, 20),
+                      painter: _MiniWaveformPainter(color: waveColor, waveform: item.waveform),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  durationStr.isNotEmpty ? durationStr : '0:00',
-                  style: TextStyle(fontSize: 12, color: subtitleColor),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    durationStr.isNotEmpty ? durationStr : '0:00',
+                    style: TextStyle(fontSize: 12, color: subtitleColor),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -6317,6 +6430,15 @@ class _LinkListItem extends StatelessWidget {
 
   const _LinkListItem({required this.item, required this.theme});
 
+  void _onTap() {
+    final url = item.fileName;
+    if (url.isEmpty) return;
+    final uri = Uri.tryParse(url.startsWith('http') ? url : 'https://$url');
+    if (uri != null) {
+      launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = theme.brightness == Brightness.dark;
@@ -6330,6 +6452,140 @@ class _LinkListItem extends StatelessWidget {
     final slashIdx = domain.indexOf('/');
     if (slashIdx > 0) domain = domain.substring(0, slashIdx);
 
+    return InkWell(
+      onTap: _onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: isDark ? 0.25 : 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Icon(Icons.link, size: 22, color: accentColor),
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    domain,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    url,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: subtitleColor),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoundListItem extends StatelessWidget {
+  final SharedMediaItem item;
+  final ThemeData theme;
+  final String accountId;
+  final String chatId;
+
+  const _RoundListItem({required this.item, required this.theme, this.accountId = '', this.chatId = ''});
+
+  void _onTap(BuildContext context) {
+    final audio = context.read<AudioService>();
+    if (item.localPath.isNotEmpty && File(item.localPath).existsSync()) {
+      audio.playVoice(item.localPath, item.msgId,
+        chatId: chatId,
+        accountId: accountId,
+      );
+    } else if (accountId.isNotEmpty && chatId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      engine.requestDownload(accountId, chatId, item.msgId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor = isDark ? const Color(0xFF6AB2F2) : const Color(0xFF40a7e3);
+    final subtitleColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final durationStr = _formatDuration(item.duration);
+
+    return InkWell(
+      onTap: () => _onTap(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: accentColor.withValues(alpha: isDark ? 0.25 : 0.12),
+                border: Border.all(color: accentColor, width: 2),
+              ),
+              child: item.thumbB64.isNotEmpty
+                  ? ClipOval(child: Image.memory(
+                      Uint8List.fromList(base64Decode(item.thumbB64)),
+                      width: 44, height: 44, fit: BoxFit.cover,
+                    ))
+                  : Center(child: Icon(Icons.videocam, size: 20, color: accentColor)),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Video message',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    durationStr.isNotEmpty ? durationStr : item.fileSizeLabel,
+                    style: TextStyle(fontSize: 12, color: subtitleColor),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _formatDuration(int seconds) {
+    if (seconds <= 0) return '';
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+}
+
+class _PollListItem extends StatelessWidget {
+  final SharedMediaItem item;
+  final ThemeData theme;
+
+  const _PollListItem({required this.item, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor = isDark ? const Color(0xFF6AB2F2) : const Color(0xFF40a7e3);
+    final subtitleColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Row(
@@ -6341,7 +6597,7 @@ class _LinkListItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
-              child: Icon(Icons.link, size: 22, color: accentColor),
+              child: Icon(Icons.poll, size: 22, color: accentColor),
             ),
           ),
           const SizedBox(width: 11),
@@ -6350,14 +6606,13 @@ class _LinkListItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  domain,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  item.fileName.isNotEmpty ? item.fileName : 'Poll',
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  url,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  'Poll',
                   style: TextStyle(fontSize: 12, color: subtitleColor),
                 ),
               ],
@@ -6920,6 +7175,47 @@ class _MembersSectionState extends State<_MembersSection> {
     return _sortedMembers();
   }
 
+  List<Widget> _buildVirtualizedMembers(List<MemberInfo> filtered, ThemeData theme) {
+    final visible = _searching ? filtered : filtered.take(_displayLimit).toList();
+    final showMore = !_searching && filtered.length > _displayLimit;
+
+    return [
+      ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: visible.length,
+        itemBuilder: (context, index) {
+          final m = visible[index];
+          return _MemberRow(
+            member: m,
+            theme: theme,
+            onTap: widget.onMemberTap != null ? () => widget.onMemberTap!(m) : null,
+            accountId: widget.accountId,
+            chatId: widget.chatId,
+            onMutated: _refreshMembers,
+          );
+        },
+      ),
+      if (showMore)
+        InkWell(
+          onTap: () => setState(() {
+            _displayLimit = (_displayLimit + _loadMoreStep).clamp(0, filtered.length);
+          }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            child: Text(
+              'Show more (${filtered.length - _displayLimit} remaining)',
+              style: TextStyle(
+                fontSize: 14,
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
@@ -6999,32 +7295,7 @@ class _MembersSectionState extends State<_MembersSection> {
             child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
           ))
         else if (widget.members != null && widget.members!.isNotEmpty) ...[
-          ...(_searching ? filtered : filtered.take(_displayLimit)).map((m) => _MemberRow(
-            member: m,
-            theme: theme,
-            onTap: widget.onMemberTap != null ? () => widget.onMemberTap!(m) : null,
-            accountId: widget.accountId,
-            chatId: widget.chatId,
-            onMutated: _refreshMembers,
-          )),
-          if (!_searching && filtered.length > _displayLimit) ...[
-            InkWell(
-              onTap: () => setState(() {
-                _displayLimit = (_displayLimit + _loadMoreStep).clamp(0, filtered.length);
-              }),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                child: Text(
-                  'Show more (${filtered.length - _displayLimit} remaining)',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ..._buildVirtualizedMembers(filtered, theme),
         ] else
           Padding(
             padding: const EdgeInsets.only(left: 18, top: 8, bottom: 8),
@@ -7917,12 +8188,13 @@ class _BoostsPageState extends State<_BoostsPage> {
           ),
           Divider(height: 1, color: widget.theme.dividerColor),
         ],
-        // Get more boosts button
         InkWell(
           onTap: () {
             if (boostUrl.isNotEmpty) {
-              Clipboard.setData(ClipboardData(text: boostUrl));
-              showTelegramToast(context, 'Boost link copied — share it to get more boosts!');
+              final uri = Uri.tryParse(boostUrl);
+              if (uri != null) {
+                launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
             }
           },
           child: Padding(
