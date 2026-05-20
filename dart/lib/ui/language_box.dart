@@ -70,6 +70,9 @@ class _LanguageBoxState extends State<LanguageBox> {
       _filtered = _buildFilteredList(langs, _searchQuery);
       _loading = false;
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _listFocus.requestFocus();
+    });
   }
 
   List<_LangEntry> _buildFilteredList(List<_LangEntry> all, String query) {
