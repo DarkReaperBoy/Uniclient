@@ -601,9 +601,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — Premium-aware caption character limit not used
-
-- [ ] [MAJOR] AyuGram's character limit for captions is dynamic: it reads `Data::PremiumLimits(&session).captionLengthCurrent()` and computes `remove = text.size() - limit` to display the correct remaining count. The Dart file hardcodes `_kCaptionMaxLength = 4096` and `_kCaptionWarnThreshold = 3900` as constants with no premium awareness. Premium users who have a higher limit will be incorrectly blocked or warned too early. — `send_files_box.dart:21-22` ← `AyuGram/boxes/send_files_box.cpp:1979-1981`
 
 ## send_files_box — `checkWithWay` / permission check completely missing
 
