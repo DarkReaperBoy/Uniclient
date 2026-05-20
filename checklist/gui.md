@@ -561,21 +561,7 @@ All CRITICAL and MAJOR checks passed:
 
 ## input_dialogs — Input Dialogs (UsernameBox, AddContactBox, CountrySelectBox, EditInviteLink, CreatePollBox)
 
-- [ ] [CRITICAL] UsernameBox: reorder of additional usernames never calls `reorderAccountUsernames` — dragging to reorder only updates local UI state; `_save()` only calls `toggleAccountUsername` and `updateAccountUsername` but never calls `engine.reorderAccountUsernames(accountId, newOrder)`, so reordering is silently discarded — `input_dialogs.dart:291-312` ← `username_box.cpp:372-383` (`list->save()` flushes reorder before `editor->save()`)
-
-- [ ] [CRITICAL] EditInviteLink: existing expiry is always shown as "Custom" when editing — `initState` tries to match `existingExpire` (a Unix timestamp, e.g. `1748123456`) against preset keys `{3600, 86400, 604800}` using a 10% tolerance; a timestamp is never within 10% of a 3-digit/6-digit offset, so every link with a standard expiry is wrongly pre-populated as Custom — `input_dialogs.dart:1290-1302` ← `edit_invite_link.cpp:242` (AyuGram uses relative negative offsets like `-kHour, -kDay, -kDay*7` internally and computes expiry as `now - value`; Dart should compute the remaining seconds as `existingExpire - now` and match that)
-
-- [ ] [MAJOR] CreatePollBox: poll options limit is hardcoded to 32 (`_kMaxOptions = 32`) instead of reading the server-configured `poll_answers_max` app config value — AyuGram reads `appConfig->pollOptionsLimit()` which defaults to 12 (not 32) and varies per server; Dart hardcodes 32, so polls will accept up to 32 options but the server will reject them beyond the configured limit — `input_dialogs.dart:1746` ← `create_poll_box.cpp:2510` (`appConfig->pollOptionsLimit()`)
-
 - [ ] [MAJOR] CreatePollBox: poll media upload is local-path-only with no actual upload to Telegram servers — `_pickOptionMedia` collects a local file path and returns `CreatePollResult.optionMediaPaths` as strings; AyuGram uploads each option's media via `startPreparedPhotoUpload`/`startPreparedDocumentUpload`/`startPreparedVideoUpload` before submit, obtaining `MTPInputFile` references; the Dart flow passes raw file paths to `createPoll` which must handle upload internally, but this is not implemented — `input_dialogs.dart:1929-1958` ← `create_poll_box.cpp:1862-1930`
-
-- [ ] [MAJOR] CreatePollBox: "Show Who Voted" (anonymous voting toggle) is missing — AyuGram has a separate `showWhoVoted` toggle (`lng_polls_create_show_who_voted`) distinct from `anonymous`; in AyuGram `anonymous=false` means public votes (show who voted), but it is a separate control that can be disabled for certain peer types; Dart conflates this with the `_anonymous` flag and does not check `_disabled & PollData::Flag::PublicVotes` — `input_dialogs.dart:2149-2155` ← `create_poll_box.cpp:2541-2553`
-
-- [ ] [MAJOR] CreatePollBox: poll duration preset list diverges from AyuGram — Dart offers 12 presets (5min, 10min, 30min, 1h, 2h, 4h, 8h, 12h, 1d, 2d, 3d, 7d); AyuGram uses a popup menu with 5 presets (1h, 3h, 8h, 24h, 72h) plus a "Custom date/time" picker via `ChooseDateTimeBox`; Dart lacks the custom date picker for poll close time — `input_dialogs.dart:1872-1926` ← `create_poll_box.cpp:2664-2700`
-
-- [ ] [MAJOR] UsernameBox: username check debounce fires on every keystroke including when the current username equals `widget.currentUsername` — the `_onChanged` guard at line 200 sets `_isValid=false` and returns early for unchanged username, but this means if the user types, deletes back to current username, then types again, the early-return leaves `_isValid=false` even though the empty-username clear path should allow saving; the save button is gated on `_isValid || username.isEmpty` so saving with unchanged username (clear case) still works, but this is confusing edge case behavior vs AyuGram which simply passes the original username through to the API — `input_dialogs.dart:200-208`
-
-- [ ] [MAJOR] EditInviteLink: subscription toggle toast message missing when link is subscription-locked — AyuGram shows `lng_group_invite_subscription_toast` when clicking a locked subscription toggle; Dart simply sets `onTap: null` (disabling interaction entirely), which silently ignores the tap rather than explaining the lock — `input_dialogs.dart:1510-1513` ← `edit_invite_link.cpp:150-154`
 
 # instant_view — Audit Findings
 
