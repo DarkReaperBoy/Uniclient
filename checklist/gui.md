@@ -516,27 +516,9 @@ The Dart version works but lacks the flexibility and maintainability of the AyuG
 None of these features are fully wired. The widget compiles and renders fallbacks, but collectible gradient colors and userpic emoji status are completely non-functional.
 
 
-## folders_settings_screen — Edit filter box missing static-title toggle; tag-color picker blocks non-premium users incorrectly; Share button is a stub; filter icons use generic Material icons instead of proper SVG filter icons
+## folders_settings_screen — static-title toggle added but not wired to backend
 
 - [ ] [CRITICAL] `_EditFilterBox` has no "Disable Animations / Enable Animations" toggle button for static-title (emoji-only titles). AyuGram shows a `Ui::LinkButton` inside the name field that toggles `staticTitle` and controls whether custom-emoji in the folder name loop or freeze. The Dart box stores no `staticTitle` field and never passes it to `editFolder`/`createFolder`, so folders with animated custom-emoji titles cannot be made static — `folders_settings_screen.dart:1233–1755` ← `AyuGram/boxes/filters/edit_filter_box.cpp:455–488,820–846`
-
-- [ ] [CRITICAL] In `_TagColorSection` (tag-color picker inside `_EditFilterBox`), clicking any color chip when the user is non-premium simply selects the color locally and lets the dialog be saved with that color index. AyuGram gates every non-`kNoTag` button click behind `ShowPremiumPreviewToBuy(w, PremiumFeature::FilterTags)` and does NOT update the local selection — non-premium users see all 7 colors as interactive but AyuGram blocks them. The Dart code lets non-premium users pick any color and saves it — `folders_settings_screen.dart:2117–2130` ← `AyuGram/boxes/filters/edit_filter_box.cpp:782–787`
-
-- [ ] [CRITICAL] The "Show Tags" (`_TagsToggle`) section is shown unconditionally; AyuGram hides the entire tags section when `!session->premiumPossible()` (i.e. on non-standard TG clients/servers). The Dart code has no equivalent `premiumPossible` check — `folders_settings_screen.dart:424–435` ← `AyuGram/settings/sections/settings_folders.cpp:996–998`
-
-- [ ] [CRITICAL] `_ShowLinkBox` "Share" button just copies the URL and shows a toast "Link copied to share" — it does not invoke any platform share sheet. AyuGram calls the OS share mechanism. This is a stub that pretends to share but only copies — `folders_settings_screen.dart:2708–2717` ← `AyuGram/boxes/filters/edit_filter_box.cpp:884–928`
-
-- [ ] [CRITICAL] Tag-color section inside `_EditFilterBox` is always visible. AyuGram wraps it in a `SlideWrap` that is toggled off when `!(possible && (tagsEnabled || !premium))` — i.e. it hides when tags are disabled AND the user is premium, or when premium is not possible. The Dart `_TagColorSection` is always rendered with no such guard — `folders_settings_screen.dart:1980–1986` ← `AyuGram/boxes/filters/edit_filter_box.cpp:643–651`
-
-- [ ] [MAJOR] Filter icon picker (`_FilterIconPanel` / `_kFilterIcons`) uses generic Material Design icons (e.g. `Icons.pets`, `Icons.menu_book`) as substitutes for the actual Telegram filter SVG icons. AyuGram renders real `Ui::FilterIcon` sprites loaded from `ui/filter_icon_panel` / `styles/style_filter_icons`. The mapping is visually wrong for all 30 icons — `folders_settings_screen.dart:26–57,3064` ← `AyuGram/boxes/filters/edit_filter_box.cpp:209–298`
-
-- [ ] [MAJOR] `_FolderRow` marks removal immediately with `_pendingRemovals` and defers the actual `deleteFolder` call to `dispose()` (`_saveChanges`). AyuGram marks `row.removed = true` client-side immediately, then calls `state->save` on navigation-away which fires all pending MTProto requests in a controlled sequence (add → remove → reorder). The Dart version does each deletion independently and serially in a `for` loop without ordering guarantees, and never re-orders filters after removals — `folders_settings_screen.dart:143–154` ← `AyuGram/settings/sections/settings_folders.cpp:623–769`
-
-- [ ] [MAJOR] When removing a chatlist folder, `_ChatlistFolderRemovalDialog._loadSuggestions` populates `_alwaysChats` from `folder.chatIds` directly from local state. AyuGram calls `MTPchatlists_GetLeaveChatlistSuggestions` to get the server-authoritative list of peers to suggest leaving, then additionally calls `Api::ProcessFilterRemove` which shows a dedicated removal box. The Dart code calls `getLeaveChatlistSuggestions` but uses `_alwaysChats` (derived from local `chatIds`) as the display list, not the server suggestions — the two lists can be different — `folders_settings_screen.dart:4419–4436` ← `AyuGram/settings/sections/settings_folders.cpp:394–418`
-
-- [ ] [MAJOR] The View section (`_ViewSection`) uses `LayoutBuilder` with a `452px` width threshold to decide whether to show the section. AyuGram toggles it via `controller->enoughSpaceForFiltersValue()` which is a reactive signal based on the window's actual content width. The hardcoded `452` is an approximation that will be wrong on HiDPI or non-standard window sizes — `folders_settings_screen.dart:445–469` ← `AyuGram/settings/sections/settings_folders.cpp:1118`
-
-- [ ] [MAJOR] `_EditFilterBox` closes on Save via `Navigator.of(context).pop(FolderInfo(...))` and the caller (`_showEditFilterBox`) calls `chatState.editFolder` / `chatState.createFolder`. AyuGram's flow runs `state->save(button, next)` which batches all pending add/remove/reorder MTProto requests atomically and only then calls `doneCallback`. The Dart flow always issues a separate editFolder/createFolder call without re-ordering the filter list — there is no equivalent `saveOrder` MTProto call (`messages.updateDialogFiltersOrder`) — `folders_settings_screen.dart:262–302` ← `AyuGram/settings/sections/settings_folders.cpp:765–769`
 
 # forum_topic_icon — No issues found
 
