@@ -555,13 +555,6 @@ All CRITICAL and MAJOR checks passed:
 
 ## info_panel — Missing features / Missing renderers
 
-- [ ] [MAJOR] `round` (video messages) and `poll` media types have no dedicated list item renderer. Both fall through to `default: return _FileListItem(...)` in `_MediaListView._buildListItem` (line 6062) and in `_SharedMediaSubPage._buildLazyList` (line 3378). Round messages should show a circular thumbnail with duration; polls should show a poll icon with question text. Rendering them as file rows is visually wrong. — `info_panel.dart:6062`
-
-- [ ] [MAJOR] `_AudioListItem` (lines 6145–6218) has a static play icon but tapping it does nothing — no `onTap` handler, no `AudioService.play()` call. Clicking an audio track in the Shared Media list is a no-op. Similarly `_VoiceListItem` (lines 6220–6280) has no tap handler to start playback. AyuGram plays the track on tap from the media list. — `info_panel.dart:6145,6220`
-
-- [ ] [MAJOR] `_FileListItem` (lines 6067–6143) has no `onTap` — tapping a file in the media list does nothing (no open/download action). — `info_panel.dart:6067`
-
-- [ ] [MAJOR] `_LinkListItem` (lines 6314–6370) has no `onTap` — tapping a link does not open it in the browser. — `info_panel.dart:6314`
 
 ## info_panel — Visual accuracy
 
