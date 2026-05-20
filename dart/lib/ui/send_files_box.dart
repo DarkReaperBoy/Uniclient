@@ -346,7 +346,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   late final bool _initialGroupFiles;
   late int _starsPerMessage;
   int _captionMaxLength = _captionMaxLengthDefault;
-  int _photoEditorHintCounter = 0;
+  static int _photoEditorHintShownCount = 0;
   bool _isPremium = false;
   bool _preparing = false;
   int _preparingTotal = 0;
@@ -359,6 +359,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   bool _showTopShadow = false;
   bool _showBottomShadow = false;
   bool _captionDialogOpen = false;
+  bool _replyVisible = true;
   List<MemberInfo> _acFilteredMembers = [];
   String _acMentionQuery = '';
   bool _showMentionPanel = false;
@@ -385,11 +386,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       _preservedCaption = '';
     }
     _starsPerMessage = widget.starsPerMessage;
+    final appState = context.read<AppState>();
     _sendAsDocuments = widget.overrideSendAsDocuments
-        ?? _savedSendAsDocuments
+        ?? appState.rememberedSendAsDocuments
         ?? false;
     _groupFiles = widget.overrideGroupFiles
-        ?? _savedGroupFiles
+        ?? appState.rememberedGroupFiles
         ?? true;
     _initialSendAsDocuments = _sendAsDocuments;
     _initialGroupFiles = _groupFiles;
@@ -416,12 +418,15 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   List<MemberInfo> _engineMembers = const [];
+  bool _membersRefreshPending = false;
 
   Future<void> _refreshMembersFromEngine() async {
     if (widget.members.isNotEmpty) {
       _engineMembers = widget.members;
       return;
     }
+    if (_membersRefreshPending) return;
+    _membersRefreshPending = true;
     try {
       final appState = context.read<AppState>();
       final chatState = context.read<ChatState>();
@@ -431,7 +436,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       final members = await appState.engine.getChatMembers(accountId, chatId);
       if (!mounted) return;
       _engineMembers = members;
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      _membersRefreshPending = false;
+    }
   }
 
   Future<void> _fetchPremiumStatus() async {
@@ -474,6 +482,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   void _detectMentionQuery() {
     final members = _engineMembers.isNotEmpty ? _engineMembers : widget.members;
     if (members.isEmpty) {
+      _refreshMembersFromEngine();
       if (_showMentionPanel) setState(() => _showMentionPanel = false);
       return;
     }
@@ -1101,7 +1110,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   void _replaceFile(int idx, _PreparedFile replacement) {
     if (idx < 0 || idx >= _files.length) return;
-    if (_files[idx].type == _FileType.photo) _photoEditorHintCounter++;
+    if (_files[idx].type == _FileType.photo) _photoEditorHintShownCount++;
     setState(() => _files[idx] = replacement);
     _loadImageDimensions();
   }
@@ -1266,8 +1275,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   bool _canBeSentInSlowmode(List<_PreparedFile> existingFiles, _PreparedFile newFile) {
     if (!widget.isSlowMode) return true;
-    if (existingFiles.isNotEmpty) return false;
-    return true;
+    return existingFiles.isEmpty;
   }
 
   Future<void> _addMoreFiles() async {
@@ -1407,47 +1415,60 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       _files.first.type == _FileType.photo &&
       !_sendAsDocuments;
 
+  List<TelegramMenuItem<String>> _buildDetailMenuItems() {
+    return [
+      if (_hasHighQualityOption)
+        TelegramMenuItem(
+          value: 'quality',
+          icon: Icon(_sendLargePhotos ? Icons.check : Icons.hd_outlined),
+          label: _sendLargePhotos
+              ? 'Send in standard quality'
+              : 'Send in high quality',
+        ),
+      if (_canSpoiler)
+        TelegramMenuItem(
+          value: 'spoiler',
+          icon: Icon(_allSpoilered ? Icons.check : Icons.blur_on),
+          label: _anySpoilered ? 'Remove spoiler' : 'Hide with spoiler',
+        ),
+      if (_canMoveCaption)
+        TelegramMenuItem(
+          value: 'caption_pos',
+          icon: Icon(_captionAbove ? Icons.arrow_downward : Icons.arrow_upward),
+          label: _captionAbove ? 'Move caption down' : 'Move caption up',
+        ),
+      if (_canSendAsSticker) ...[
+        if (_hasHighQualityOption || _canSpoiler || _canMoveCaption)
+          const TelegramMenuItem.separator(),
+        const TelegramMenuItem(
+          value: 'sticker',
+          icon: Icon(Icons.sticky_note_2_outlined),
+          label: 'Send as sticker',
+        ),
+      ],
+    ];
+  }
+
+  void _handleDetailMenuValue(String? value) {
+    if (value == null) return;
+    switch (value) {
+      case 'quality':
+        setState(() => _sendLargePhotos = !_sendLargePhotos);
+      case 'spoiler':
+        _toggleAllSpoilers();
+      case 'caption_pos':
+        setState(() => _captionAbove = !_captionAbove);
+      case 'sticker':
+        _sendAsSticker();
+    }
+  }
+
   void _showTopMenu(Offset position) {
     showTelegramMenu<String>(
       context: context,
       position: position,
-      items: [
-        if (_hasHighQualityOption)
-          TelegramMenuItem(
-            value: 'quality',
-            icon: Icon(_sendLargePhotos ? Icons.check : Icons.hd_outlined),
-            label: _sendLargePhotos
-                ? 'Send in standard quality'
-                : 'Send in high quality',
-          ),
-        if (_canSpoiler)
-          TelegramMenuItem(
-            value: 'spoiler',
-            icon: Icon(_allSpoilered ? Icons.check : Icons.blur_on),
-            label: _anySpoilered ? 'Remove spoiler' : 'Hide with spoiler',
-          ),
-        if (_canMoveCaption)
-          TelegramMenuItem(
-            value: 'caption_pos',
-            icon: Icon(_captionAbove ? Icons.arrow_downward : Icons.arrow_upward),
-            label: _captionAbove ? 'Move caption down' : 'Move caption up',
-          ),
-        if (_canSendAsSticker) ...[
-          if (_hasHighQualityOption || _canSpoiler || _canMoveCaption)
-            const TelegramMenuItem.separator(),
-          const TelegramMenuItem(
-            value: 'sticker',
-            icon: Icon(Icons.sticky_note_2_outlined),
-            label: 'Send as sticker',
-          ),
-        ],
-      ],
-    ).then((value) {
-      if (value == 'quality') setState(() => _sendLargePhotos = !_sendLargePhotos);
-      if (value == 'spoiler') _toggleAllSpoilers();
-      if (value == 'caption_pos') setState(() => _captionAbove = !_captionAbove);
-      if (value == 'sticker') _sendAsSticker();
-    });
+      items: _buildDetailMenuItems(),
+    ).then(_handleDetailMenuValue);
   }
 
   Future<void> _sendAsSticker() async {
@@ -1544,11 +1565,23 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
           child: Text(
             _isPremium
                 ? 'The caption is $excess characters over the limit. Please shorten it.'
-                : 'The caption is $excess characters over the limit. Upgrade to Premium to increase the caption length to ${_captionMaxLengthPremium} characters.',
+                : 'The caption is $excess characters over the limit. Upgrade to Premium to increase the caption length to $_captionMaxLengthPremium characters.',
             style: TextStyle(fontSize: 14, color: ctx.palette.boxTextFg),
           ),
         ),
         buttons: [
+          if (!_isPremium)
+            TelegramBoxButton(
+              text: 'Increase Limit',
+              onPressed: () {
+                Navigator.pop(ctx);
+                final appState = context.read<AppState>();
+                final accountId = appState.activeAccountId;
+                if (accountId != null) {
+                  appState.engine.openPremiumSubscription(accountId, ref: 'caption_limit');
+                }
+              },
+            ),
           TelegramBoxButton(
             text: 'OK',
             onPressed: () => Navigator.pop(ctx),
@@ -1558,13 +1591,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     );
   }
 
-  static bool? _savedSendAsDocuments;
-  static bool? _savedGroupFiles;
-
   void _saveSendWaySettings() {
     if (!_wayRemember) return;
-    _savedSendAsDocuments = _sendAsDocuments;
-    _savedGroupFiles = _groupFiles;
+    final appState = context.read<AppState>();
+    appState.rememberedSendAsDocuments = _sendAsDocuments;
+    appState.rememberedGroupFiles = _groupFiles;
   }
 
   void _send({bool silent = false, DateTime? scheduledDate, bool ctrlShiftEnter = false, bool asSticker = false}) {
@@ -1577,6 +1608,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       _whenReadySend = () => _send(silent: silent, scheduledDate: scheduledDate, ctrlShiftEnter: ctrlShiftEnter, asSticker: asSticker);
       return;
     }
+    _checkSendWayAllowed(asDocuments: _sendAsDocuments, grouped: _groupFiles).then((allowed) {
+      if (!allowed || !mounted) return;
+      _doSend(silent: silent, scheduledDate: scheduledDate, ctrlShiftEnter: ctrlShiftEnter, asSticker: asSticker);
+    });
+  }
+
+  void _doSend({bool silent = false, DateTime? scheduledDate, bool ctrlShiftEnter = false, bool asSticker = false}) {
     _preservedCaption = '';
     _saveSendWaySettings();
     final parsed = _captionController.getTextWithAppliedMarkdown();
@@ -1657,7 +1695,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   void _showSendMenu(BuildContext ctx, Offset position) {
-    final hasDetailItems = _hasHighQualityOption || _canSpoiler || _canMoveCaption || _canSendAsSticker;
+    final detailItems = _buildDetailMenuItems();
     showTelegramMenu<String>(
       context: ctx,
       position: Offset(position.dx, position.dy - 120),
@@ -1667,34 +1705,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         TelegramMenuItem(value: 'schedule', icon: const Icon(Icons.schedule_outlined), label: widget.isSelfChat ? 'Set Reminder' : 'Schedule Message'),
         if (widget.chatType == ChatType.dm && !widget.isSelfChat)
           const TelegramMenuItem(value: 'when_online', icon: Icon(Icons.person_outline), label: 'Send When Online'),
-        if (hasDetailItems)
+        if (detailItems.isNotEmpty)
           const TelegramMenuItem.separator(),
-        if (_hasHighQualityOption)
-          TelegramMenuItem(
-            value: 'quality',
-            icon: Icon(_sendLargePhotos ? Icons.check : Icons.hd_outlined),
-            label: _sendLargePhotos
-                ? 'Send in standard quality'
-                : 'Send in high quality',
-          ),
-        if (_canSpoiler)
-          TelegramMenuItem(
-            value: 'spoiler',
-            icon: Icon(_allSpoilered ? Icons.check : Icons.blur_on),
-            label: 'Spoiler effect',
-          ),
-        if (_canMoveCaption)
-          TelegramMenuItem(
-            value: 'caption_pos',
-            icon: Icon(_captionAbove ? Icons.arrow_downward : Icons.arrow_upward),
-            label: _captionAbove ? 'Move caption down' : 'Move caption up',
-          ),
-        if (_canSendAsSticker)
-          const TelegramMenuItem(
-            value: 'sticker',
-            icon: Icon(Icons.sticky_note_2_outlined),
-            label: 'Send as sticker',
-          ),
+        ...detailItems,
       ],
     ).then((value) {
       if (value == null) return;
@@ -1707,17 +1720,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
           _send(scheduledDate: DateTime.fromMillisecondsSinceEpoch(
             ScheduledMessages.kScheduledUntilOnlineTimestamp * 1000,
           ));
-        case 'quality':
-          setState(() => _sendLargePhotos = !_sendLargePhotos);
-        case 'spoiler':
-          _toggleAllSpoilers();
-        case 'caption_pos':
-          setState(() => _captionAbove = !_captionAbove);
-        case 'sticker':
-          _sendAsSticker();
+        default:
+          _handleDetailMenuValue(value);
       }
     });
   }
+
+  static const int _kMaxStarsPerPost = 10000;
 
   void _showEditPriceDialog() {
     final ctrl = TextEditingController(text: '$_starsPerMessage');
@@ -1740,6 +1749,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                       controller: ctrl,
                       autofocus: true,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       style: TextStyle(fontSize: 14, color: ctx.palette.boxTextFg),
                       decoration: InputDecoration(
                         hintText: 'Stars per message',
@@ -1749,7 +1759,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                       ),
                       onSubmitted: (v) {
                         final n = int.tryParse(v);
-                        if (n != null && n > 0) Navigator.pop(ctx, n);
+                        if (n != null && n > 0 && n <= _kMaxStarsPerPost) Navigator.pop(ctx, n);
                       },
                     ),
                   ),
@@ -1757,7 +1767,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
               ),
               const SizedBox(height: 8),
               Text(
-                'Users will pay this amount in Stars to view your content.',
+                'Users will pay this amount in Stars to view your content. Maximum $_kMaxStarsPerPost Stars.',
                 style: TextStyle(fontSize: 12, color: ctx.palette.boxTitleAdditionalFg),
               ),
             ],
@@ -1770,7 +1780,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
             text: 'Save',
             onPressed: () {
               final n = int.tryParse(ctrl.text);
-              if (n != null && n > 0) Navigator.pop(ctx, n);
+              if (n != null && n > 0 && n <= _kMaxStarsPerPost) {
+                Navigator.pop(ctx, n);
+              } else if (n != null && n > _kMaxStarsPerPost) {
+                showTelegramToast(ctx, 'Maximum $_kMaxStarsPerPost Stars allowed');
+              }
             },
           ),
         ],
@@ -1962,61 +1976,64 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                         children: [
                     const SizedBox(height: 8),
                     if (widget.replyToName != null && widget.replyToName!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Container(
-                          padding: const EdgeInsets.only(left: 12, top: 6, bottom: 6, right: 4),
-                          decoration: BoxDecoration(
-                            color: accentFg.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.reply, size: 16, color: accentFg),
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text.rich(
-                                  TextSpan(children: [
-                                    TextSpan(
-                                      text: widget.replyToName!,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: accentFg,
-                                      ),
-                                    ),
-                                    if (widget.replyToText != null && widget.replyToText!.isNotEmpty) ...[
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 150),
+                        curve: Curves.easeOutCubic,
+                        alignment: Alignment.topCenter,
+                        child: _replyVisible ? Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Container(
+                            padding: const EdgeInsets.only(left: 12, top: 6, bottom: 6, right: 4),
+                            decoration: BoxDecoration(
+                              color: accentFg.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.reply, size: 16, color: accentFg),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text.rich(
+                                    TextSpan(children: [
                                       TextSpan(
-                                        text: '  ${widget.replyToText!}',
+                                        text: widget.replyToName!,
                                         style: TextStyle(
                                           fontSize: 13,
-                                          color: subFg,
+                                          fontWeight: FontWeight.w600,
+                                          color: accentFg,
                                         ),
                                       ),
-                                    ],
-                                  ]),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                      if (widget.replyToText != null && widget.replyToText!.isNotEmpty) ...[
+                                        TextSpan(
+                                          text: '  ${widget.replyToText!}',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: subFg,
+                                          ),
+                                        ),
+                                      ],
+                                    ]),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                              SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: IconButton(
-                                  padding: EdgeInsets.zero,
-                                  iconSize: 14,
-                                  splashRadius: 10,
-                                  icon: Icon(Icons.close, size: 14, color: subFg),
-                                  onPressed: () {
-                                    Navigator.of(context).pop();
-                                  },
+                                const SizedBox(width: 4),
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: IconButton(
+                                    padding: EdgeInsets.zero,
+                                    iconSize: 14,
+                                    splashRadius: 10,
+                                    icon: Icon(Icons.close, size: 14, color: subFg),
+                                    onPressed: () => setState(() => _replyVisible = false),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
+                        ) : const SizedBox.shrink(),
                       ),
                     if (showMediaPreview && mediaFiles.isNotEmpty)
                       Stack(
@@ -2067,7 +2084,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                             ),
                         ],
                       ),
-                    if (_photoEditorHintCounter < 3 && showMediaPreview && mediaFiles.any((f) => f.type == _FileType.photo))
+                    if (_photoEditorHintShownCount < 3 && showMediaPreview && mediaFiles.any((f) => f.type == _FileType.photo))
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
@@ -4370,6 +4387,7 @@ class _CaptionFormattingToolbar extends StatelessWidget {
               _fmtBtn(Icons.format_strikethrough, FormatType.strike),
               _fmtBtn(Icons.code, FormatType.code),
               _fmtBtn(Icons.blur_on, FormatType.spoiler),
+              _fmtBtn(Icons.link, FormatType.link),
               const SizedBox(width: 4),
               _iconBtn(Icons.format_clear, () => controller.clearFormatting()),
             ],
