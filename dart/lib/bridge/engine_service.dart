@@ -4029,6 +4029,32 @@ class EngineService {
     await _callAsync('__engine', 'SetArchiveSettings', Uint8List.fromList(payload));
   }
 
+  Future<List<Map<String, dynamic>>> getWebSessions(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetWebSessions', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (data['sessions'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    } catch (e) {
+      Debug.error('ENGINE', 'getWebSessions failed', e);
+      return [];
+    }
+  }
+
+  Future<void> terminateWebSession(String accountId, int hash) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'hash': hash,
+    }));
+    await _callAsync('__engine', 'TerminateWebSession', Uint8List.fromList(payload));
+  }
+
+  Future<void> terminateAllWebSessions(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    await _callAsync('__engine', 'TerminateAllWebSessions', Uint8List.fromList(payload));
+  }
+
   Future<void> setEmojiStatus(String accountId, String emoji, int expiresInSeconds) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

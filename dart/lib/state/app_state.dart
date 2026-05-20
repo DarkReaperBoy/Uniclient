@@ -2774,8 +2774,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
       final storedHash = data['hash'] as String? ?? '';
-      final bytes = utf8.encode(entered);
-      final hash = sha256.convert(bytes).toString();
+      final salt = data['salt'] as String? ?? '';
+      String hash;
+      if (salt.isNotEmpty) {
+        final saltedInput = utf8.encode(salt + entered);
+        var digest = sha256.convert(saltedInput);
+        for (var i = 0; i < 99999; i++) {
+          digest = sha256.convert(digest.bytes + saltedInput);
+        }
+        hash = digest.toString();
+      } else {
+        hash = sha256.convert(utf8.encode(entered)).toString();
+      }
       if (hash == storedHash) {
         unlockPasscode();
         return true;

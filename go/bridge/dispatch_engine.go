@@ -4453,6 +4453,38 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetSessionAutoTerminateDays(params.AccountID, params.Days)
 
+	case "GetWebSessions":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		sessions, err := e.GetWebSessions(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]any{"sessions": sessions})
+
+	case "TerminateWebSession":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Hash      int64  `json:"hash"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.TerminateWebSession(params.AccountID, params.Hash)
+
+	case "TerminateAllWebSessions":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.TerminateAllWebSessions(params.AccountID)
+
 	case "GetLanguages":
 		var params struct {
 			AccountID string `json:"account_id"`

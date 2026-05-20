@@ -2064,6 +2064,121 @@ func (e *Engine) GetSessionAutoTerminateDays(accountID string) (int, error) {
 	return g.GetSessionAutoTerminateDays()
 }
 
+type webAuthorizationsGetter interface {
+	AccountGetWebAuthorizations() (any, error)
+}
+
+type webAuthorizationResetter interface {
+	AccountResetWebAuthorization(hash int64) (any, error)
+}
+
+type webAuthorizationsResetter interface {
+	AccountResetWebAuthorizations() (any, error)
+}
+
+type WebSession struct {
+	Hash        int64  `json:"hash"`
+	BotID       int64  `json:"bot_id"`
+	BotName     string `json:"bot_name"`
+	Domain      string `json:"domain"`
+	Browser     string `json:"browser"`
+	Platform    string `json:"platform"`
+	DateCreated int    `json:"date_created"`
+	DateActive  int    `json:"date_active"`
+	IP          string `json:"ip"`
+	Region      string `json:"region"`
+}
+
+func (e *Engine) GetWebSessions(accountID string) ([]WebSession, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found")
+	}
+	g, ok := acc.Core.(webAuthorizationsGetter)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
+	}
+	raw, err := g.AccountGetWebAuthorizations()
+	if err != nil {
+		return nil, err
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return nil, err
+	}
+	var parsed struct {
+		Authorizations []struct {
+			Hash        int64  `json:"hash"`
+			BotID       int64  `json:"bot_id"`
+			Domain      string `json:"domain"`
+			Browser     string `json:"browser"`
+			Platform    string `json:"platform"`
+			DateCreated int    `json:"date_created"`
+			DateActive  int    `json:"date_active"`
+			IP          string `json:"ip"`
+			Region      string `json:"region"`
+		} `json:"authorizations"`
+		Users []struct {
+			ID        int64  `json:"id"`
+			FirstName string `json:"first_name"`
+			LastName  string `json:"last_name"`
+		} `json:"users"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return nil, err
+	}
+	userMap := map[int64]string{}
+	for _, u := range parsed.Users {
+		name := u.FirstName
+		if u.LastName != "" {
+			name += " " + u.LastName
+		}
+		userMap[u.ID] = name
+	}
+	var sessions []WebSession
+	for _, a := range parsed.Authorizations {
+		sessions = append(sessions, WebSession{
+			Hash:        a.Hash,
+			BotID:       a.BotID,
+			BotName:     userMap[a.BotID],
+			Domain:      a.Domain,
+			Browser:     a.Browser,
+			Platform:    a.Platform,
+			DateCreated: a.DateCreated,
+			DateActive:  a.DateActive,
+			IP:          a.IP,
+			Region:      a.Region,
+		})
+	}
+	return sessions, nil
+}
+
+func (e *Engine) TerminateWebSession(accountID string, hash int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	r, ok := acc.Core.(webAuthorizationResetter)
+	if !ok {
+		return fmt.Errorf("not supported")
+	}
+	_, err := r.AccountResetWebAuthorization(hash)
+	return err
+}
+
+func (e *Engine) TerminateAllWebSessions(accountID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	r, ok := acc.Core.(webAuthorizationsResetter)
+	if !ok {
+		return fmt.Errorf("not supported")
+	}
+	_, err := r.AccountResetWebAuthorizations()
+	return err
+}
+
 type customDeviceModelSetter interface {
 	SetCustomDeviceModel(model string)
 }

@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import '../utils/system_unlock.dart';
 
 import '../bridge/engine_service.dart';
+import '../models/engine_models.dart' show ChatType;
 import '../state/app_state.dart';
 import 'active_sessions_screen.dart';
 import 'settings_style.dart';
@@ -62,6 +63,12 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   bool _topPeersEnabled = true;
   bool _topPeersLoaded = false;
 
+  bool _sensitiveEnabled = false;
+  bool _sensitiveCanChange = false;
+  bool _sensitiveLoaded = false;
+
+  int _websitesCount = -1;
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +83,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     _fetchArchiveSettings();
     _fetchAccountTTL();
     _fetchTopPeers();
+    _fetchContentSettings();
+    _fetchWebsitesCount();
     _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       _fetchPasswordState();
       _fetchGlobalTTL();
@@ -88,6 +97,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       _fetchArchiveSettings();
       _fetchAccountTTL();
       _fetchTopPeers();
+      _fetchContentSettings();
+      _fetchWebsitesCount();
     });
   }
 
@@ -270,6 +281,37 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       _topPeersEnabled = enabled;
       _topPeersLoaded = true;
     });
+  }
+
+  Future<void> _fetchContentSettings() async {
+    if (!mounted) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    final result = await engine.getContentSettings(accountId);
+    if (!mounted) return;
+    setState(() {
+      _sensitiveEnabled = result.sensitiveEnabled;
+      _sensitiveCanChange = result.sensitiveCanChange;
+      _sensitiveLoaded = true;
+    });
+  }
+
+  Future<void> _fetchWebsitesCount() async {
+    if (!mounted) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    try {
+      final sessions = await engine.getWebSessions(accountId);
+      if (!mounted) return;
+      setState(() => _websitesCount = sessions.length);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _websitesCount = 0);
+    }
   }
 
   String _messagesPrivacyLabel() {
@@ -554,9 +596,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           accentColor, hoverBg),
       _buildPrivacySection(isDark, sectionTitleColor, textColor, subtextColor,
           accentColor, hoverBg),
+      _buildSensitiveContentSection(
+          isDark, textColor, subtextColor, accentColor, hoverBg),
       _buildArchiveAndMuteSection(
           isDark, textColor, subtextColor, accentColor, hoverBg),
-      _buildBotsAndWebsitesSection(isDark, textColor, subtextColor, hoverBg),
+      _buildBotsAndWebsitesSection(isDark, sectionTitleColor, textColor, subtextColor, hoverBg),
       _buildConfirmationExtensionsSection(isDark, textColor, subtextColor,
           accentColor, hoverBg),
       _buildTopPeersSection(isDark, textColor, subtextColor, accentColor,
@@ -718,6 +762,20 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           );
         },
       ),
+      if (_websitesCount > 0)
+        _PrivacyIconRow(
+          icon: Icons.language,
+          label: 'Logged-in Websites',
+          rightLabel: '$_websitesCount',
+          textColor: textColor,
+          subtextColor: subtextColor,
+          hoverBg: hoverBg,
+          onTap: () {
+            Navigator.of(context).push<void>(settingsPageRoute(
+              _WebSessionsScreen(),
+            )).then((_) => _fetchWebsitesCount());
+          },
+        ),
     ];
   }
 
@@ -816,11 +874,14 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         initialGiftAcceptPremium: giftAcceptPremium,
         initialAlwaysUsers: alwaysUsers,
         initialNeverUsers: neverUsers,
-        onSaved: (newOption, {String? addedByPhone, String? callsP2P}) {
+        onSaved: (newOption, {String? addedByPhone, String? callsP2P, List<String>? alwaysUserIds, List<String>? neverUserIds, bool? allowPremium}) {
           setState(() {
             _privacySettings[key] = {
               ...?_privacySettings[key],
               'option': newOption,
+              if (alwaysUserIds != null) 'always_users': alwaysUserIds,
+              if (neverUserIds != null) 'never_users': neverUserIds,
+              if (allowPremium != null) 'allow_premium': allowPremium,
             };
             if (addedByPhone != null) {
               _privacySettings['added_by_phone'] = {
@@ -931,15 +992,86 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
 
   void _toggleArchiveAndMute(bool newVal) {
     setState(() => _archiveAndMute = newVal);
+    _pushArchiveSettings();
+  }
+
+  void _toggleArchiveKeepUnmuted(bool newVal) {
+    setState(() => _archiveKeepUnmuted = newVal);
+    _pushArchiveSettings();
+  }
+
+  void _toggleArchiveKeepFolders(bool newVal) {
+    setState(() => _archiveKeepFolders = newVal);
+    _pushArchiveSettings();
+  }
+
+  void _pushArchiveSettings() {
     final engine = context.read<EngineService>();
     final accountId = context.read<AppState>().activeAccountId;
     if (accountId.isNotEmpty) {
       engine.setArchiveSettings(
         accountId,
-        archiveAndMute: newVal,
+        archiveAndMute: _archiveAndMute,
         keepArchivedUnmuted: _archiveKeepUnmuted,
         keepArchivedFolders: _archiveKeepFolders,
       );
+    }
+  }
+
+  List<Widget> _buildSensitiveContentSection(
+    bool isDark,
+    Color textColor,
+    Color subtextColor,
+    Color accentColor,
+    Color hoverBg,
+  ) {
+    if (!_sensitiveLoaded || !_sensitiveCanChange) return [];
+    return [
+      InkWell(
+        onTap: () => _toggleSensitiveContent(!_sensitiveEnabled),
+        hoverColor: hoverBg,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Disable filtering',
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+              ),
+              SizedBox(
+                width: 36,
+                height: 20,
+                child: IgnorePointer(
+                  child: Switch(
+                    value: _sensitiveEnabled,
+                    onChanged: (_) {},
+                    activeColor: accentColor,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 0, 22, 6),
+        child: Text(
+          'Display sensitive media in public channels on all your devices.',
+          style: TextStyle(fontSize: 13, color: subtextColor),
+        ),
+      ),
+    ];
+  }
+
+  void _toggleSensitiveContent(bool newVal) {
+    setState(() => _sensitiveEnabled = newVal);
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isNotEmpty) {
+      engine.setContentSettings(accountId, newVal);
     }
   }
 
@@ -988,16 +1120,88 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           style: TextStyle(fontSize: 13, color: subtextColor),
         ),
       ),
+      if (_archiveAndMute) ...[
+        InkWell(
+          onTap: () => _toggleArchiveKeepUnmuted(!_archiveKeepUnmuted),
+          hoverColor: hoverBg,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 6, 22, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Keep Archived Unmuted',
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                ),
+                SizedBox(
+                  width: 36,
+                  height: 20,
+                  child: IgnorePointer(
+                    child: Switch(
+                      value: _archiveKeepUnmuted,
+                      onChanged: (_) {},
+                      activeColor: accentColor,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        InkWell(
+          onTap: () => _toggleArchiveKeepFolders(!_archiveKeepFolders),
+          hoverColor: hoverBg,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 6, 22, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Keep Archived in Folders',
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                ),
+                SizedBox(
+                  width: 36,
+                  height: 20,
+                  child: IgnorePointer(
+                    child: Switch(
+                      value: _archiveKeepFolders,
+                      onChanged: (_) {},
+                      activeColor: accentColor,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     ];
   }
 
   List<Widget> _buildBotsAndWebsitesSection(
     bool isDark,
+    Color sectionTitleColor,
     Color textColor,
     Color subtextColor,
     Color hoverBg,
   ) {
     return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+        child: Text(
+          'Bots and Websites',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: sectionTitleColor,
+          ),
+        ),
+      ),
       InkWell(
         onTap: () => _showClearPaymentInfoBox(isDark),
         hoverColor: hoverBg,
@@ -1847,7 +2051,7 @@ class _EditPrivacyBox extends StatefulWidget {
   final String currentOption;
   final String accountId;
   final EngineService engine;
-  final void Function(String newOption, {String? addedByPhone, String? callsP2P}) onSaved;
+  final void Function(String newOption, {String? addedByPhone, String? callsP2P, List<String>? alwaysUserIds, List<String>? neverUserIds, bool? allowPremium}) onSaved;
   final String? initialAddedByPhoneOption;
   final String? initialCallsP2POption;
   final bool isPremium;
@@ -2091,17 +2295,14 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   }
 
   Future<void> _pickBirthday() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
+    final result = await showDialog<({int day, int month})>(
       context: context,
-      initialDate: DateTime(now.year - 18, now.month, now.day),
-      firstDate: DateTime(1900),
-      lastDate: now,
+      builder: (ctx) => _BirthdayDayMonthPicker(),
     );
-    if (picked == null || !mounted) return;
+    if (result == null || !mounted) return;
     try {
       await widget.engine.updateBirthday(
-        widget.accountId, picked.day, picked.month, picked.year,
+        widget.accountId, result.day, result.month, 0,
       );
       if (mounted) {
         setState(() => _hasBirthday = true);
@@ -2213,6 +2414,9 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
         _selected,
         addedByPhone: _isPhoneNumber ? _addedByPhoneOption : null,
         callsP2P: _isCalls ? _callsP2POption : null,
+        alwaysUserIds: _showAlwaysLink ? _alwaysUsers : [],
+        neverUserIds: _showNeverLink ? _neverUsers : [],
+        allowPremium: _isChatInvite ? _allowPremium : null,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -3125,8 +3329,15 @@ class CloudPasswordStart extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 15),
-              const SizedBox(height: 61),
-              const SizedBox(height: 61),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  'You can set a password that will be required when you '
+                  'log in on a new device in addition to the code you get in the SMS.',
+                  style: TextStyle(fontSize: 14, color: subtextColor, height: 1.5),
+                  textAlign: TextAlign.center,
+                ),
+              ),
               const SizedBox(height: 19),
               SizedBox(
                 width: 300,
@@ -5031,6 +5242,44 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
     }
   }
 
+  void _openApplyToExisting() async {
+    if (_selectedTTL <= 0) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Apply to existing chats'),
+        content: Text(
+          'Set a ${_formatPeriod(_selectedTTL)} auto-delete timer for all your existing chats?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
+    try {
+      final chats = await engine.searchChats('', limit: 500);
+      for (final chat in chats) {
+        engine.setHistoryTTL(accountId, chat.chatId, _selectedTTL);
+      }
+      if (mounted) showTelegramToast(context, 'Auto-delete applied to ${chats.length} chats.');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -5116,13 +5365,24 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
           const SizedBox(height: 7),
           Container(height: 1, color: dividerBg),
           Padding(
-            padding: const EdgeInsets.fromLTRB(22, 12, 22, 12),
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 4),
             child: Text(
               'If enabled, all new messages in chats you start will be '
               'automatically deleted for everyone after the selected period of time.',
               style: TextStyle(fontSize: 13, color: subtextColor),
             ),
           ),
+          if (_selectedTTL > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 12),
+              child: GestureDetector(
+                onTap: _openApplyToExisting,
+                child: Text(
+                  'Apply to existing chats',
+                  style: TextStyle(fontSize: 13, color: accentColor),
+                ),
+              ),
+            ),
           if (_saving)
             const Padding(
               padding: EdgeInsets.all(16),
@@ -5256,6 +5516,21 @@ class _CustomTTLDialogState extends State<_CustomTTLDialog> {
 
 // ── Local Passcode Helpers ──
 
+String _generateSalt() {
+  final rng = math.Random.secure();
+  final saltBytes = List<int>.generate(32, (_) => rng.nextInt(256));
+  return base64Encode(saltBytes);
+}
+
+String _hashPasscodeWithSalt(String passcode, String salt) {
+  final saltedInput = utf8.encode(salt + passcode);
+  var digest = sha256.convert(saltedInput);
+  for (var i = 0; i < 99999; i++) {
+    digest = sha256.convert(digest.bytes + saltedInput);
+  }
+  return digest.toString();
+}
+
 String _hashPasscode(String passcode) {
   final bytes = utf8.encode(passcode);
   return sha256.convert(bytes).toString();
@@ -5337,8 +5612,10 @@ class _LocalPasscodeCreateState extends State<_LocalPasscodeCreate> {
       _error = '';
     });
 
+    final salt = _generateSalt();
     await _writePasscodeData(widget.configDir, {
-      'hash': _hashPasscode(first),
+      'hash': _hashPasscodeWithSalt(first, salt),
+      'salt': salt,
       'autoLockSeconds': 300,
     });
 
@@ -5717,6 +5994,137 @@ class _LocalPasscodeCheckState extends State<_LocalPasscodeCheck> {
   }
 }
 
+// ── LocalPasscodeVerify (verify current before changing) ──
+
+class _LocalPasscodeVerify extends StatefulWidget {
+  final String configDir;
+  final String title;
+
+  const _LocalPasscodeVerify({required this.configDir, required this.title});
+
+  @override
+  State<_LocalPasscodeVerify> createState() => _LocalPasscodeVerifyState();
+}
+
+class _LocalPasscodeVerifyState extends State<_LocalPasscodeVerify> {
+  final _controller = TextEditingController();
+  final _focus = FocusNode();
+  bool _obscure = true;
+  String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _verify() async {
+    final entered = _controller.text;
+    if (entered.isEmpty) {
+      setState(() => _error = 'Please enter your passcode');
+      return;
+    }
+    final data = await _readPasscodeData(widget.configDir);
+    final storedHash = data['hash'] as String? ?? '';
+    final salt = data['salt'] as String? ?? '';
+    String hash;
+    if (salt.isNotEmpty) {
+      hash = _hashPasscodeWithSalt(entered, salt);
+    } else {
+      hash = _hashPasscode(entered);
+    }
+    if (hash == storedHash) {
+      if (mounted) Navigator.of(context).pop(true);
+    } else {
+      setState(() => _error = 'Wrong passcode');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = context.palette.windowBgActive;
+    final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        title: Text(
+          widget.title,
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+        ),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _AnimatedSettingsIcon(icon: Icons.lock_outline, size: 100, color: accentColor),
+              const SizedBox(height: 19),
+              Text(widget.title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 19),
+              SizedBox(
+                width: 300,
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focus,
+                  obscureText: _obscure,
+                  style: TextStyle(color: textColor, fontSize: 15),
+                  onSubmitted: (_) => _verify(),
+                  decoration: InputDecoration(
+                    hintText: 'Your passcode',
+                    hintStyle: TextStyle(color: isDark ? const Color(0xFF6C7883) : const Color(0xFF999999)),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: isDark ? const Color(0xFF6C7883) : const Color(0xFF999999)),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                  ),
+                ),
+              ),
+              if (_error.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(_error, style: TextStyle(color: errorColor, fontSize: 13)),
+                ),
+              const SizedBox(height: 19),
+              SizedBox(
+                width: 300,
+                height: 42,
+                child: FilledButton(
+                  onPressed: _verify,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accentColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: const Text('Verify', style: TextStyle(fontSize: 15, color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── LocalPasscodeManage ──
 
 class _LocalPasscodeManage extends StatefulWidget {
@@ -5795,7 +6203,14 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
     widget.onChanged();
   }
 
-  void _changePasscode() {
+  void _changePasscode() async {
+    final verified = await Navigator.of(context).push<bool>(settingsPageRoute(
+      _LocalPasscodeVerify(
+        configDir: widget.configDir,
+        title: 'Enter Current Passcode',
+      ),
+    ));
+    if (verified != true || !mounted) return;
     Navigator.of(context).push(settingsPageRoute(
       _LocalPasscodeCreate(
         configDir: widget.configDir,
@@ -7073,6 +7488,9 @@ class _PrivacyExceptionPickerState extends State<_PrivacyExceptionPicker> {
   late Set<String> _selected;
   String _searchQuery = '';
   Future<List<_ExceptionContact>>? _contactsFuture;
+  List<_ExceptionContact> _searchResults = [];
+  bool _searching = false;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -7081,14 +7499,82 @@ class _PrivacyExceptionPickerState extends State<_PrivacyExceptionPicker> {
     _contactsFuture = _loadContacts();
   }
 
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
+
   Future<List<_ExceptionContact>> _loadContacts() async {
     final contacts = await widget.engine.getContacts(widget.accountId);
-    return contacts.map((c) => _ExceptionContact(
-      id: c.userId,
-      name: c.displayName.isNotEmpty ? c.displayName : (c.username.isNotEmpty ? '@${c.username}' : c.userId),
-      status: c.username.isNotEmpty ? '@${c.username}' : (c.phone.isNotEmpty ? c.phone : ''),
-      avatarB64: c.avatarB64,
-    )).toList();
+    final chatList = await widget.engine.searchChats('', limit: 100);
+    final result = <String, _ExceptionContact>{};
+    for (final c in contacts) {
+      result[c.userId] = _ExceptionContact(
+        id: c.userId,
+        name: c.displayName.isNotEmpty ? c.displayName : (c.username.isNotEmpty ? '@${c.username}' : c.userId),
+        status: c.username.isNotEmpty ? '@${c.username}' : (c.phone.isNotEmpty ? c.phone : ''),
+        avatarB64: c.avatarB64,
+      );
+    }
+    for (final chat in chatList) {
+      if (chat.type == ChatType.group || chat.type == ChatType.channel) {
+        result.putIfAbsent(chat.chatId, () => _ExceptionContact(
+          id: chat.chatId,
+          name: chat.title,
+          status: chat.type.name,
+        ));
+      }
+    }
+    return result.values.toList();
+  }
+
+  void _onSearchChanged(String query) {
+    setState(() => _searchQuery = query);
+    _searchDebounce?.cancel();
+    if (query.startsWith('@') && query.length > 1) {
+      _searchDebounce = Timer(const Duration(milliseconds: 500), () => _searchUsername(query.substring(1)));
+    } else if (query.length >= 3) {
+      _searchDebounce = Timer(const Duration(milliseconds: 500), () => _searchGlobal(query));
+    } else {
+      setState(() => _searchResults = []);
+    }
+  }
+
+  Future<void> _searchUsername(String username) async {
+    setState(() => _searching = true);
+    try {
+      final id = await widget.engine.resolveUsername(widget.accountId, username);
+      if (!mounted) return;
+      if (id != null && id.isNotEmpty) {
+        setState(() {
+          _searchResults = [_ExceptionContact(id: id, name: '@$username', status: 'resolved')];
+          _searching = false;
+        });
+      } else {
+        setState(() { _searchResults = []; _searching = false; });
+      }
+    } catch (_) {
+      if (mounted) setState(() { _searchResults = []; _searching = false; });
+    }
+  }
+
+  Future<void> _searchGlobal(String query) async {
+    setState(() => _searching = true);
+    try {
+      final chats = await widget.engine.searchChats(query, limit: 20);
+      if (!mounted) return;
+      setState(() {
+        _searchResults = chats.map((c) => _ExceptionContact(
+          id: c.chatId,
+          name: c.title,
+          status: c.type.name,
+        )).toList();
+        _searching = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() { _searchResults = []; _searching = false; });
+    }
   }
 
   @override
@@ -7132,7 +7618,7 @@ class _PrivacyExceptionPickerState extends State<_PrivacyExceptionPicker> {
                     borderSide: BorderSide(color: accentColor),
                   ),
                 ),
-                onChanged: (v) => setState(() => _searchQuery = v),
+                onChanged: _onSearchChanged,
               ),
             ),
             const SizedBox(height: 8),
@@ -7156,11 +7642,17 @@ class _PrivacyExceptionPickerState extends State<_PrivacyExceptionPicker> {
                     return const Center(child: CircularProgressIndicator());
                   }
                   final contacts = snap.data!;
-                  final filtered = _searchQuery.isEmpty
+                  final contactFiltered = _searchQuery.isEmpty
                       ? contacts
-                      : contacts.where((c) => c.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
-                  if (filtered.isEmpty) {
-                    return Center(child: Text('No contacts found', style: TextStyle(color: subtextColor)));
+                      : contacts.where((c) => c.name.toLowerCase().contains(_searchQuery.toLowerCase()) || c.status.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+                  final knownIds = contactFiltered.map((c) => c.id).toSet();
+                  final extraSearch = _searchResults.where((r) => !knownIds.contains(r.id)).toList();
+                  final filtered = [...contactFiltered, ...extraSearch];
+                  if (filtered.isEmpty && !_searching) {
+                    return Center(child: Text(_searchQuery.isNotEmpty ? 'No results found' : 'No contacts found', style: TextStyle(color: subtextColor)));
+                  }
+                  if (_searching && filtered.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
                   }
                   return ListView.builder(
                     itemCount: filtered.length,
@@ -7278,4 +7770,269 @@ class _ExceptionContact {
     this.status = '',
     this.avatarB64 = '',
   });
+}
+
+// ── Birthday day/month picker (no year) ──
+
+class _BirthdayDayMonthPicker extends StatefulWidget {
+  @override
+  State<_BirthdayDayMonthPicker> createState() => _BirthdayDayMonthPickerState();
+}
+
+class _BirthdayDayMonthPickerState extends State<_BirthdayDayMonthPicker> {
+  static const _months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  static const _daysInMonth = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+  int _month = DateTime.now().month;
+  int _day = DateTime.now().day;
+
+  int get _maxDay => _daysInMonth[_month - 1];
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+
+    if (_day > _maxDay) _day = _maxDay;
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Set Birthday', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: DropdownButtonFormField<int>(
+                      value: _month,
+                      decoration: InputDecoration(
+                        labelText: 'Month',
+                        labelStyle: TextStyle(color: subtextColor),
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      style: TextStyle(color: textColor, fontSize: 14),
+                      dropdownColor: bgColor,
+                      items: List.generate(12, (i) => DropdownMenuItem(
+                        value: i + 1,
+                        child: Text(_months[i]),
+                      )),
+                      onChanged: (v) => setState(() { _month = v!; if (_day > _maxDay) _day = _maxDay; }),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      value: _day,
+                      decoration: InputDecoration(
+                        labelText: 'Day',
+                        labelStyle: TextStyle(color: subtextColor),
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      style: TextStyle(color: textColor, fontSize: 14),
+                      dropdownColor: bgColor,
+                      items: List.generate(_maxDay, (i) => DropdownMenuItem(
+                        value: i + 1,
+                        child: Text('${i + 1}'),
+                      )),
+                      onChanged: (v) => setState(() => _day = v!),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel', style: TextStyle(color: subtextColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop((day: _day, month: _month)),
+                    child: Text('Save', style: TextStyle(color: accentColor)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Web Sessions Screen ──
+
+class _WebSessionsScreen extends StatefulWidget {
+  @override
+  State<_WebSessionsScreen> createState() => _WebSessionsScreenState();
+}
+
+class _WebSessionsScreenState extends State<_WebSessionsScreen> {
+  List<Map<String, dynamic>>? _sessions;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSessions();
+  }
+
+  Future<void> _loadSessions() async {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isEmpty) return;
+    final sessions = await engine.getWebSessions(accountId);
+    if (!mounted) return;
+    setState(() {
+      _sessions = sessions;
+      _loading = false;
+    });
+  }
+
+  Future<void> _terminateSession(int hash) async {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isEmpty) return;
+    try {
+      await engine.terminateWebSession(accountId, hash);
+      if (!mounted) return;
+      setState(() => _sessions?.removeWhere((s) => s['hash'] == hash));
+      showTelegramToast(context, 'Website disconnected.');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed: $e');
+    }
+  }
+
+  Future<void> _terminateAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Disconnect All Websites'),
+        content: const Text('Are you sure you want to disconnect all logged-in websites?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Disconnect All')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isEmpty) return;
+    try {
+      await engine.terminateAllWebSessions(accountId);
+      if (!mounted) return;
+      setState(() => _sessions = []);
+      showTelegramToast(context, 'All websites disconnected.');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed: $e');
+    }
+  }
+
+  String _formatDate(int timestamp) {
+    if (timestamp <= 0) return '';
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final destructiveColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Logged-in Websites',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+        ),
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _sessions == null || _sessions!.isEmpty
+              ? Center(child: Text('No active web sessions', style: TextStyle(color: subtextColor)))
+              : ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    if (_sessions!.length > 1)
+                      InkWell(
+                        onTap: _terminateAll,
+                        hoverColor: hoverBg,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 12, 22, 12),
+                          child: Text(
+                            'Disconnect All Websites',
+                            style: TextStyle(fontSize: 14, color: destructiveColor),
+                          ),
+                        ),
+                      ),
+                    for (final session in _sessions!)
+                      InkWell(
+                        onTap: () => _terminateSession(session['hash'] as int? ?? 0),
+                        hoverColor: hoverBg,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                (session['bot_name'] as String?) ?? (session['domain'] as String?) ?? 'Unknown',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${session['domain'] ?? ''} — ${session['browser'] ?? ''}, ${session['platform'] ?? ''}',
+                                style: TextStyle(fontSize: 12, color: subtextColor),
+                              ),
+                              Text(
+                                '${session['ip'] ?? ''} — ${session['region'] ?? ''} — ${_formatDate(session['date_active'] as int? ?? 0)}',
+                                style: TextStyle(fontSize: 12, color: subtextColor),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 12, 22, 12),
+                      child: Text(
+                        'You can log in on websites that support signing in with Telegram.',
+                        style: TextStyle(fontSize: 13, color: subtextColor),
+                      ),
+                    ),
+                  ],
+                ),
+    );
+  }
 }
