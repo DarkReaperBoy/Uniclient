@@ -361,8 +361,12 @@ class _LanguageBoxState extends State<LanguageBox> {
               ),
               Container(height: 7, color: dividerColor),
             ],
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
+            Container(
+              margin: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              decoration: BoxDecoration(
+                color: p.boxSearchBg,
+                borderRadius: BorderRadius.circular(4),
+              ),
               child: TextField(
                 controller: _searchController,
                 focusNode: _searchFocus,
@@ -371,25 +375,31 @@ class _LanguageBoxState extends State<LanguageBox> {
                 decoration: InputDecoration(
                   hintText: 'Search languages',
                   hintStyle: TextStyle(fontSize: 13, color: subTextColor),
-                  prefixIcon: Icon(Icons.search, size: 18, color: subTextColor),
-                  prefixIconConstraints: const BoxConstraints(minWidth: 28),
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.only(left: 10, right: 8),
+                    child: Icon(Icons.search, size: 18, color: subTextColor),
+                  ),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 36),
                   suffixIcon: _searchQuery.isNotEmpty
-                      ? GestureDetector(
-                          onTap: () {
-                            _searchController.clear();
-                            _onSearchChanged('');
-                          },
-                          child: Icon(Icons.close, size: 18, color: subTextColor),
+                      ? SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: IconButton(
+                            onPressed: () {
+                              _searchController.clear();
+                              _onSearchChanged('');
+                            },
+                            icon: Icon(Icons.close, size: 16, color: p.boxTitleCloseFg),
+                            padding: EdgeInsets.zero,
+                            splashRadius: 18,
+                          ),
                         )
                       : null,
-                  suffixIconConstraints: const BoxConstraints(minWidth: 28),
-                  border: UnderlineInputBorder(
-                    borderSide: BorderSide(color: dividerColor),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: accentColor),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  suffixIconConstraints: const BoxConstraints(minWidth: 44),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.fromLTRB(2, 7, 2, 0),
                   isDense: true,
                 ),
               ),
