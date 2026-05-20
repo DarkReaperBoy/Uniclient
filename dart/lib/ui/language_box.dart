@@ -136,12 +136,14 @@ class _LanguageBoxState extends State<LanguageBox> {
       setState(() {
         _highlightIndex = (_highlightIndex + 1).clamp(0, entries.length - 1);
       });
+      _scrollToHighlighted();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowUp) {
       setState(() {
         _highlightIndex = (_highlightIndex - 1).clamp(0, entries.length - 1);
       });
+      _scrollToHighlighted();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.pageDown) {
@@ -153,6 +155,7 @@ class _LanguageBoxState extends State<LanguageBox> {
       setState(() {
         _highlightIndex = (_highlightIndex + rowsPerPage).clamp(0, entries.length - 1);
       });
+      _scrollToHighlighted();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.pageUp) {
@@ -164,14 +167,17 @@ class _LanguageBoxState extends State<LanguageBox> {
       setState(() {
         _highlightIndex = (_highlightIndex - rowsPerPage).clamp(0, entries.length - 1);
       });
+      _scrollToHighlighted();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.home) {
       setState(() => _highlightIndex = 0);
+      _scrollToHighlighted();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.end) {
       setState(() => _highlightIndex = entries.length - 1);
+      _scrollToHighlighted();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter ||
@@ -182,6 +188,20 @@ class _LanguageBoxState extends State<LanguageBox> {
       }
     }
     return KeyEventResult.ignored;
+  }
+
+  void _scrollToHighlighted() {
+    if (_highlightIndex < 0 || !_scrollController.hasClients) return;
+    const rowHeight = 52.0;
+    final yMin = _highlightIndex * rowHeight;
+    final yMax = yMin + rowHeight;
+    final viewportTop = _scrollController.offset;
+    final viewportBottom = viewportTop + _scrollController.position.viewportDimension;
+    if (yMin < viewportTop) {
+      _scrollController.animateTo(yMin, duration: const Duration(milliseconds: 150), curve: Curves.easeOutCubic);
+    } else if (yMax > viewportBottom) {
+      _scrollController.animateTo(yMax - _scrollController.position.viewportDimension, duration: const Duration(milliseconds: 150), curve: Curves.easeOutCubic);
+    }
   }
 
   void _selectLanguage(String langCode) {
@@ -210,7 +230,7 @@ class _LanguageBoxState extends State<LanguageBox> {
     if (langs.length == 1) {
       final entry = _allLanguages.where((l) => l.langCode == langs.first).firstOrNull;
       if (entry != null) {
-        return entry.nativeName.isNotEmpty ? entry.nativeName : entry.name;
+        return entry.name.isNotEmpty ? entry.name : entry.nativeName;
       }
       return langs.first.toUpperCase();
     }
@@ -335,7 +355,7 @@ class _LanguageBoxState extends State<LanguageBox> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
                 child: Text(
-                  'Translate messages in chats with a different language.',
+                  'The \'Translate\' button will appear in the context menu of messages containing text.',
                   style: TextStyle(fontSize: 12, color: subTextColor),
                 ),
               ),
@@ -353,6 +373,16 @@ class _LanguageBoxState extends State<LanguageBox> {
                   hintStyle: TextStyle(fontSize: 13, color: subTextColor),
                   prefixIcon: Icon(Icons.search, size: 18, color: subTextColor),
                   prefixIconConstraints: const BoxConstraints(minWidth: 28),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? GestureDetector(
+                          onTap: () {
+                            _searchController.clear();
+                            _onSearchChanged('');
+                          },
+                          child: Icon(Icons.close, size: 18, color: subTextColor),
+                        )
+                      : null,
+                  suffixIconConstraints: const BoxConstraints(minWidth: 28),
                   border: UnderlineInputBorder(
                     borderSide: BorderSide(color: dividerColor),
                   ),
@@ -667,8 +697,8 @@ class _LangMenuToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 34,
-      height: 34,
+      width: 40,
+      height: 40,
       child: IconButton(
         padding: EdgeInsets.zero,
         iconSize: 18,
@@ -737,7 +767,7 @@ class _LangMenuToggle extends StatelessWidget {
         final link = 'https://t.me/setlanguage/${lang.langCode}';
         await Clipboard.setData(ClipboardData(text: link));
         if (context.mounted) {
-          showTelegramToast(context, 'Language link copied to clipboard.');
+          showTelegramToast(context, 'Link copied to clipboard');
         }
       case 'delete':
         appState.addRemovedLanguage(lang.langCode);
@@ -841,7 +871,7 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
     setState(() {
       if (_selected.contains(langCode)) {
         if (_selected.length <= 1) {
-          showTelegramToast(context, 'You must keep at least one language.');
+          showTelegramToast(context, 'Please choose at least one language so that it can be used as the "Translate to" language.');
           return;
         }
         _selected.remove(langCode);
@@ -954,22 +984,9 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
                     onTap: () => _toggle(lang.langCode),
                     hoverColor: hoverColor,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(22, 8, 22, 8),
+                      padding: const EdgeInsets.fromLTRB(22, 8, 16, 8),
                       child: Row(
                         children: [
-                          SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: Checkbox(
-                              value: checked,
-                              onChanged: (_) => _toggle(lang.langCode),
-                              activeColor: accentColor,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ),
-                          const SizedBox(width: 22),
                           Expanded(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -998,6 +1015,16 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ],
+                            ),
+                          ),
+                          SizedBox(
+                            height: 20,
+                            width: 36,
+                            child: Switch(
+                              value: checked,
+                              onChanged: (_) => _toggle(lang.langCode),
+                              activeColor: accentColor,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                           ),
                         ],
