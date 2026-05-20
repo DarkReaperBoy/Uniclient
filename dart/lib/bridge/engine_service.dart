@@ -6241,6 +6241,40 @@ class EngineService {
     }
   }
 
+  Future<bool> getCallsDisabledHere(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final resp = await _callAsync('__engine', 'GetCallsDisabledHere', Uint8List.fromList(payload));
+      if (resp.isEmpty) return false;
+      final decoded = json.decode(utf8.decode(resp));
+      return decoded['disabled'] as bool? ?? false;
+    } catch (e) {
+      Debug.error('ENGINE', 'getCallsDisabledHere failed', e);
+      return false;
+    }
+  }
+
+  Future<void> resetPeerNotifySettings(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId, 'chat_id': chatId}));
+    try {
+      await _callAsync('__engine', 'ResetPeerNotifySettings', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'resetPeerNotifySettings failed', e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getLocalNotifyConfig(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final resp = await _callAsync('__engine', 'GetLocalNotifyConfig', Uint8List.fromList(payload));
+      if (resp.isEmpty) return {};
+      return Map<String, dynamic>.from(json.decode(utf8.decode(resp)));
+    } catch (e) {
+      Debug.error('ENGINE', 'getLocalNotifyConfig failed', e);
+      return {};
+    }
+  }
+
   Future<void> updateDefaultNotifySettings(String accountId, {required String peerType, required bool enabled, bool? soundEnabled}) async {
     final data = <String, dynamic>{'account_id': accountId, 'peer_type': peerType, 'enabled': enabled};
     if (soundEnabled != null) data['sound_enabled'] = soundEnabled;
@@ -6249,6 +6283,15 @@ class EngineService {
       await _callAsync('__engine', 'UpdateDefaultNotifySettings', Uint8List.fromList(payload));
     } catch (e) {
       Debug.error('ENGINE', 'updateDefaultNotifySettings failed', e);
+    }
+  }
+
+  Future<void> muteDefaultNotifyForDuration(String accountId, {required String peerType, required int seconds}) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId, 'peer_type': peerType, 'seconds': seconds}));
+    try {
+      await _callAsync('__engine', 'MuteDefaultNotifyForDuration', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'muteDefaultNotifyForDuration failed', e);
     }
   }
 

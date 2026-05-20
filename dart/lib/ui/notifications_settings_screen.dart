@@ -58,10 +58,40 @@ class _NotificationsSettingsScreenState
   int _groupExceptionCount = 0;
   int _channelExceptionCount = 0;
 
+  bool _serverStatesLoaded = false;
+
   @override
   void initState() {
     super.initState();
     _loadExceptionCounts();
+    _loadServerStates();
+  }
+
+  void _loadServerStates() async {
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    final engine = context.read<EngineService>();
+    try {
+      final contactJoinedEnabled = await engine.getContactSignUpNotification(accountId);
+      if (mounted) appState.setNotifContactJoinedTelegram(contactJoinedEnabled);
+    } catch (_) {}
+    try {
+      final callsDisabled = await engine.getCallsDisabledHere(accountId);
+      if (mounted) appState.setNotifAcceptCallsOnDevice(!callsDisabled);
+    } catch (_) {}
+    try {
+      final config = await engine.getLocalNotifyConfig(accountId);
+      if (mounted && config.isNotEmpty) {
+        if (config.containsKey('pinned_messages')) {
+          appState.setNotifPinnedMessages(config['pinned_messages'] == true);
+        }
+        if (config.containsKey('global_volume')) {
+          appState.notifVolume = (config['global_volume'] as num?)?.toInt() ?? 100;
+        }
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _serverStatesLoaded = true);
   }
 
   void _loadExceptionCounts() async {
@@ -1095,14 +1125,23 @@ class _SampleNotificationCard extends StatelessWidget {
         padding: const EdgeInsets.all(9),
         child: Row(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: accentColor,
-                shape: BoxShape.circle,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.asset(
+                'assets/icon/icon_64.png',
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.message, color: Colors.white, size: 24),
+                ),
               ),
-              child: const Icon(Icons.message, color: Colors.white, size: 24),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -1110,13 +1149,13 @@ class _SampleNotificationCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Uniclient',
+                  Text('Alice',
                       style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: textColor)),
                   const SizedBox(height: 3),
-                  Text('You have a new message',
+                  Text('Hey, how are you?',
                       style: TextStyle(fontSize: 12, color: subtextColor),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis),
@@ -1562,9 +1601,11 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       final results = await Future.wait([
         engine.getDefaultNotifySettings(accountId, peerType: peerType),
         engine.getSavedRingtones(accountId),
+        engine.getLocalNotifyConfig(accountId),
       ]);
       final settings = results[0] as Map<String, dynamic>;
       final serverTones = results[1] as List<Map<String, dynamic>>;
+      final localConfig = results[2] as Map<String, dynamic>;
       if (mounted) {
         setState(() {
           if (settings.isNotEmpty) {
@@ -1596,6 +1637,10 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
           if (_selectedToneId > 0 && _toneName == 'Default') {
             final match = _customTones.where((t) => t.id == _selectedToneId);
             if (match.isNotEmpty) _toneName = match.first.name;
+          }
+          final volKey = 'volume_$peerType';
+          if (localConfig.containsKey(volKey)) {
+            _volume = (localConfig[volKey] as num?)?.toInt() ?? 100;
           }
         });
       }
@@ -1866,7 +1911,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
                 setState(() =>
                     _exceptions.removeWhere((e) => e.chatId == exc.chatId));
                 final engine = context.read<EngineService>();
-                engine.muteChat(exc.accountId, exc.chatId, false);
+                engine.resetPeerNotifySettings(exc.accountId, exc.chatId);
               },
               onToggleMute: () {
                 final newMuted = !exc.isMuted;
@@ -1921,9 +1966,16 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
 
     final existingIds = _exceptions.map((e) => e.chatId).toSet();
     final activeId = appState.activeAccountId;
+    final selfId = appState.activeAccount?.id ?? '';
     final allChats = chatState.chatsForAccount(activeId);
-    final availableChats =
-        allChats.where((c) => !existingIds.contains(c.chatId)).toList();
+    final availableChats = allChats.where((c) {
+      if (existingIds.contains(c.chatId)) return false;
+      if (c.chatId == selfId) return false;
+      final titleLower = c.title.toLowerCase();
+      if (titleLower == 'replies' || titleLower == 'telegram') return false;
+      if (c.title == 'Verification Codes') return false;
+      return true;
+    }).toList();
     var searchQuery = '';
 
     showDialog<ChatInfo>(
@@ -2093,7 +2145,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       if (confirmed == true) {
         final engine = context.read<EngineService>();
         for (final exc in _exceptions) {
-          engine.muteChat(exc.accountId, exc.chatId, false);
+          engine.resetPeerNotifySettings(exc.accountId, exc.chatId);
         }
         setState(() => _exceptions.clear());
       }
@@ -2146,10 +2198,19 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       BuildContext context, Offset position, _NotifException exc) {
     final greenColor = const Color(0xFF4CAF50);
     final items = <TelegramMenuItem<String>>[
+      if (_recentMuteDurations.isNotEmpty) ...[
+        for (final dur in _recentMuteDurations)
+          TelegramMenuItem<String>(
+            value: 'mute_for_$dur',
+            icon: const Icon(Icons.access_time, size: 20),
+            label: 'Mute for ${_compactDuration(dur)}',
+          ),
+        const TelegramMenuItem<String>.separator(),
+      ],
       const TelegramMenuItem<String>(
-        value: 'view_profile',
-        icon: Icon(Icons.person, size: 20),
-        label: 'View profile',
+        value: 'mute_for',
+        icon: Icon(Icons.timer_outlined, size: 20),
+        label: 'Mute for…',
       ),
       const TelegramMenuItem<String>.separator(),
       if (exc.isMuted)
@@ -2164,7 +2225,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
         const TelegramMenuItem<String>(
           value: 'mute',
           icon: Icon(Icons.notifications_off, size: 20),
-          label: 'Mute',
+          label: 'Mute forever',
           isAttention: true,
         ),
       const TelegramMenuItem<String>.separator(),
@@ -2182,30 +2243,71 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       items: items,
     ).then((value) {
       if (value == null) return;
-      if (value == 'view_profile') {
-        Navigator.of(context).pushNamed('/chat_info', arguments: exc.chatId);
-      } else if (value == 'unmute' || value == 'mute') {
-        final newMuted = !exc.isMuted;
-        setState(() {
-          final idx =
-              _exceptions.indexWhere((e) => e.chatId == exc.chatId);
-          if (idx >= 0) {
-            _exceptions[idx] = _NotifException(
-              chatId: exc.chatId,
-              accountId: exc.accountId,
-              name: exc.name,
-              avatarPath: exc.avatarPath,
-              isMuted: newMuted,
-            );
-          }
-        });
-        final engine = context.read<EngineService>();
-        engine.muteChat(exc.accountId, exc.chatId, newMuted);
+      if (value.startsWith('mute_for_')) {
+        final seconds = int.tryParse(value.substring(9));
+        if (seconds != null) {
+          _addRecentDuration(seconds);
+          _muteExceptionForDuration(exc, seconds);
+        }
+      } else if (value == 'mute_for') {
+        _showExceptionMuteDurationPicker(context, exc);
+      } else if (value == 'unmute') {
+        _setExceptionMuted(exc, false);
+      } else if (value == 'mute') {
+        _setExceptionMuted(exc, true);
       } else if (value == 'remove') {
         setState(() =>
             _exceptions.removeWhere((e) => e.chatId == exc.chatId));
         final engine = context.read<EngineService>();
-        engine.muteChat(exc.accountId, exc.chatId, false);
+        engine.resetPeerNotifySettings(exc.accountId, exc.chatId);
+      }
+    });
+  }
+
+  void _setExceptionMuted(_NotifException exc, bool muted) {
+    setState(() {
+      final idx = _exceptions.indexWhere((e) => e.chatId == exc.chatId);
+      if (idx >= 0) {
+        _exceptions[idx] = _NotifException(
+          chatId: exc.chatId,
+          accountId: exc.accountId,
+          name: exc.name,
+          avatarPath: exc.avatarPath,
+          isMuted: muted,
+        );
+      }
+    });
+    final engine = context.read<EngineService>();
+    engine.muteChat(exc.accountId, exc.chatId, muted);
+  }
+
+  void _muteExceptionForDuration(_NotifException exc, int seconds) {
+    setState(() {
+      final idx = _exceptions.indexWhere((e) => e.chatId == exc.chatId);
+      if (idx >= 0) {
+        _exceptions[idx] = _NotifException(
+          chatId: exc.chatId,
+          accountId: exc.accountId,
+          name: exc.name,
+          avatarPath: exc.avatarPath,
+          isMuted: true,
+        );
+      }
+    });
+    final engine = context.read<EngineService>();
+    engine.muteChat(exc.accountId, exc.chatId, true, durationSeconds: seconds);
+  }
+
+  void _showExceptionMuteDurationPicker(BuildContext context, _NotifException exc) {
+    showDialog<int>(
+      context: context,
+      builder: (ctx) => _MuteDurationPickerDialog(
+        isDark: Theme.of(context).brightness == Brightness.dark,
+      ),
+    ).then((seconds) {
+      if (seconds != null) {
+        _addRecentDuration(seconds);
+        _muteExceptionForDuration(exc, seconds);
       }
     });
   }
@@ -2277,7 +2379,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
         if (seconds != null) {
           _addRecentDuration(seconds);
           setState(() => _enabled = false);
-          _persistEnabledState(false);
+          _muteForDuration(seconds);
         }
       } else if (value == 'mute_for') {
         _showMuteDurationPicker(context);
@@ -2291,6 +2393,21 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     });
   }
 
+  void _muteForDuration(int seconds) {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    final peerType = switch (widget.type) {
+      _NotifType.privateChats => 'private',
+      _NotifType.groups => 'group',
+      _NotifType.channels => 'channel',
+      _ => '',
+    };
+    if (peerType.isNotEmpty) {
+      engine.muteDefaultNotifyForDuration(accountId, peerType: peerType, seconds: seconds);
+    }
+  }
+
   void _showMuteDurationPicker(BuildContext context) {
     showDialog<int>(
       context: context,
@@ -2301,7 +2418,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       if (seconds != null) {
         _addRecentDuration(seconds);
         setState(() => _enabled = false);
-        _persistEnabledState(false);
+        _muteForDuration(seconds);
       }
     });
   }
@@ -3006,6 +3123,7 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
   bool _pollVotesEnabled = true;
   _ReactionsFrom _pollVotesFrom = _ReactionsFrom.everyone;
   bool _showSenderName = true;
+  bool _loaded = false;
 
   @override
   void initState() {
@@ -3017,10 +3135,15 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
     final appState = context.read<AppState>();
     final engine = context.read<EngineService>();
     final accountId = appState.activeAccountId;
-    if (accountId.isEmpty) return;
+    if (accountId.isEmpty) {
+      if (mounted) setState(() => _loaded = true);
+      return;
+    }
     final settings = await engine.getReactionsNotifySettings(accountId);
-    if (settings.isNotEmpty && mounted) {
+    if (mounted) {
       setState(() {
+        _loaded = true;
+        if (settings.isEmpty) return;
         _reactionsEnabled = settings['reactions_enabled'] as bool? ?? true;
         _reactionsFrom = _parseReactionsFrom(settings['reactions_from'] as String?);
         if (!_reactionsEnabled) _reactionsFrom = _ReactionsFrom.none;
@@ -3185,7 +3308,9 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
           ),
         ),
       ),
-      body: ListView(
+      body: !_loaded
+          ? Center(child: CircularProgressIndicator(color: accentColor))
+          : ListView(
         padding: EdgeInsets.zero,
         children: [
           Padding(

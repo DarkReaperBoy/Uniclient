@@ -26397,6 +26397,40 @@ func (t *TelegramCore) MuteChatFor(chatID string, durationSeconds int32) error {
 	return err
 }
 
+// GetCallsDisabledHere returns whether calls are disabled on this device/session.
+func (t *TelegramCore) GetCallsDisabledHere() (bool, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return false, ErrAuth
+	}
+	result, err := t.api.AccountGetAuthorizations(t.ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, a := range result.Authorizations {
+		if a.Current {
+			return a.CallRequestsDisabled, nil
+		}
+	}
+	return false, nil
+}
+
+// ResetPeerNotifySettings resets a peer's notification settings to default.
+func (t *TelegramCore) ResetPeerNotifySettings(chatID string) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	settings := tg.InputPeerNotifySettings{}
+	_, err = t.api.AccountUpdateNotifySettings(t.ctx, &tg.AccountUpdateNotifySettingsRequest{
+		Peer:     &tg.InputNotifyPeer{Peer: inputPeer},
+		Settings: settings,
+	})
+	return err
+}
+
 // ToggleCallsDisabledHere toggles whether calls are disabled on this device/session.
 func (t *TelegramCore) ToggleCallsDisabledHere(disabled bool) error {
 	t.mu.RLock()
@@ -26441,6 +26475,36 @@ func (t *TelegramCore) UpdateDefaultNotifySettings(peerType string, enabled bool
 	if silent != nil {
 		settings.SetSilent(*silent)
 	}
+
+	_, err := t.api.AccountUpdateNotifySettings(t.ctx, &tg.AccountUpdateNotifySettingsRequest{
+		Peer:     peer,
+		Settings: settings,
+	})
+	return err
+}
+
+// MuteDefaultNotifyForDuration mutes default notifications for a peer type for a specific duration.
+func (t *TelegramCore) MuteDefaultNotifyForDuration(peerType string, seconds int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+
+	var peer tg.InputNotifyPeerClass
+	switch peerType {
+	case "private":
+		peer = &tg.InputNotifyUsers{}
+	case "group":
+		peer = &tg.InputNotifyChats{}
+	case "channel":
+		peer = &tg.InputNotifyBroadcasts{}
+	default:
+		return fmt.Errorf("unknown peer type: %s", peerType)
+	}
+
+	settings := tg.InputPeerNotifySettings{}
+	settings.SetMuteUntil(int(time.Now().Unix()) + seconds)
 
 	_, err := t.api.AccountUpdateNotifySettings(t.ctx, &tg.AccountUpdateNotifySettingsRequest{
 		Peer:     peer,

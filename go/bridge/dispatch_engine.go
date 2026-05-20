@@ -5441,6 +5441,42 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetCallsDisabledHere(params.AccountID, params.Disabled)
 
+	case "GetCallsDisabledHere":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		disabled, err := e.GetCallsDisabledHere(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"disabled": disabled})
+
+	case "ResetPeerNotifySettings":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ResetPeerNotifySettings(params.AccountID, params.ChatID)
+
+	case "GetLocalNotifyConfig":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		config, err := e.GetLocalNotifyConfig(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(config)
+
 	case "LeaveGroupCall":
 		var params struct {
 			AccountID string `json:"account_id"`
@@ -5503,6 +5539,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			silent = &s
 		}
 		return nil, e.UpdateDefaultNotifySettings(params.AccountID, params.PeerType, params.Enabled, silent)
+
+	case "MuteDefaultNotifyForDuration":
+		var params struct {
+			AccountID string `json:"account_id"`
+			PeerType  string `json:"peer_type"`
+			Seconds   int    `json:"seconds"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.MuteDefaultNotifyForDuration(params.AccountID, params.PeerType, params.Seconds)
 
 	case "GetDefaultNotifySettings":
 		var params struct {
