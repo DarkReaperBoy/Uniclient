@@ -27630,3 +27630,79 @@ func (t *TelegramCore) RenameSavedReactionTag(emoji string, customID int64, titl
 	_, err := t.api.MessagesUpdateSavedReactionTag(t.ctx, req)
 	return err
 }
+
+// GetThemeBySlug resolves a cloud theme by its URL slug and returns its info.
+func (t *TelegramCore) GetThemeBySlug(slug string, isDark bool) (*CloudThemeInfo, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	format := "tdesktop"
+	th, err := t.api.AccountGetTheme(t.ctx, &tg.AccountGetThemeRequest{
+		Format: format,
+		Theme:  &tg.InputThemeSlug{Slug: slug},
+	})
+	if err != nil {
+		return nil, err
+	}
+	info := &CloudThemeInfo{
+		ID:    th.ID,
+		Title: th.Title,
+		Slug:  th.Slug,
+	}
+	if doc, ok := th.GetDocument(); ok {
+		info.DocumentId = doc.GetID()
+	}
+	if len(th.Settings) > 0 {
+		s := th.Settings[0]
+		if isDark && len(th.Settings) > 1 {
+			s = th.Settings[1]
+		}
+		info.AccentColor = s.AccentColor
+		switch s.BaseTheme.(type) {
+		case *tg.BaseThemeNight, *tg.BaseThemeTinted:
+			info.IsDark = true
+		}
+		if len(s.MessageColors) > 0 {
+			info.SentColor = s.MessageColors[0]
+		}
+		info.RecvColor = info.AccentColor
+	}
+	return info, nil
+}
+
+// CheckGiftCode returns information about a Telegram Premium gift code.
+func (t *TelegramCore) CheckGiftCode(slug string) (map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	result, err := t.api.PaymentsCheckGiftCode(t.ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	usedDate, hasUsed := result.GetUsedDate()
+	info := map[string]interface{}{
+		"days":         result.Days,
+		"used":         hasUsed,
+		"date":         result.Date,
+		"via_giveaway": result.ViaGiveaway,
+	}
+	if hasUsed {
+		info["used_date"] = usedDate
+	}
+	return info, nil
+}
+
+// ApplyGiftCode redeems a Telegram Premium gift code.
+func (t *TelegramCore) ApplyGiftCode(slug string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	_, err := t.api.PaymentsApplyGiftCode(t.ctx, slug)
+	return err
+}

@@ -4323,6 +4323,70 @@ class EngineService {
     await _callAsync('__engine', 'DeleteCloudTheme', Uint8List.fromList(payload));
   }
 
+  Future<String?> checkChatInvite(String accountId, String hash) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'hash': hash,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'CheckChatInvite', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return data['title'] as String?;
+    } catch (e) {
+      Debug.error('ENGINE', 'checkChatInvite failed', e);
+      return null;
+    }
+  }
+
+  Future<void> importChatInvite(String accountId, String hash) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'hash': hash,
+    }));
+    await _callAsync('__engine', 'ImportChatInvite', Uint8List.fromList(payload));
+  }
+
+  Future<CloudThemeInfo?> getThemeBySlug(String accountId, String slug, {bool isDark = false}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'slug': slug,
+      'is_dark': isDark,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetThemeBySlug', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return CloudThemeInfo.fromJson(data);
+    } catch (e) {
+      Debug.error('ENGINE', 'getThemeBySlug failed', e);
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> checkGiftCode(String accountId, String slug) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'slug': slug,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'CheckGiftCode', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'checkGiftCode failed', e);
+      return null;
+    }
+  }
+
+  Future<void> applyGiftCode(String accountId, String slug) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'slug': slug,
+    }));
+    await _callAsync('__engine', 'ApplyGiftCode', Uint8List.fromList(payload));
+  }
+
   Future<Map<String, dynamic>?> createCloudTheme(String accountId, String title, String slug, Uint8List themeData) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

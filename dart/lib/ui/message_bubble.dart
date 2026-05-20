@@ -32,6 +32,7 @@ import '../state/audio_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
+import '../theme/wallpaper.dart';
 import 'chat_view.dart' show ChatThemeOverride, ChatView;
 import 'input_dialogs.dart' show showCreatePollBox, CreatePollResult;
 import 'forum_topic_icon.dart';
@@ -8884,6 +8885,12 @@ class _WebPagePreview extends StatelessWidget {
         _openBotAppFromUrl(context, url);
       case 'telegram_message':
         _openMessageFromUrl(context, url);
+      case 'telegram_theme':
+        _openThemeFromUrl(context, url);
+      case 'telegram_background':
+        _openBackgroundFromUrl(context, url);
+      case 'telegram_giftcode':
+        _openGiftCodeFromUrl(context, url);
       default:
         Process.run('xdg-open', [url]);
     }
@@ -8901,7 +8908,9 @@ class _WebPagePreview extends StatelessWidget {
       return;
     }
     if (first.startsWith('+') || first == 'joinchat') {
-      Process.run('xdg-open', [url]);
+      final hash = first.startsWith('+') ? first.substring(1) : (segments.length >= 2 ? segments[1] : '');
+      if (hash.isEmpty) return;
+      _joinByInviteLink(context, hash);
       return;
     }
     final username = first;
@@ -8910,6 +8919,60 @@ class _WebPagePreview extends StatelessWidget {
     if (chatId != null && chatId.isNotEmpty && context.mounted) {
       context.read<ChatState>().openChatById(chatId);
     }
+  }
+
+  void _joinByInviteLink(BuildContext context, String hash) async {
+    final engine = context.read<EngineService>();
+    final title = await engine.checkChatInvite(message.accountId, hash);
+    if (!context.mounted) return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = isDark ? const Color(0xFF71baf7) : const Color(0xFF168acd);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Join Group', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor)),
+                const SizedBox(height: 10),
+                Text(
+                  title != null && title.isNotEmpty ? 'Join "$title"?' : 'Join this group?',
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text('Cancel', style: TextStyle(color: textColor.withAlpha(153))),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text('Join', style: TextStyle(color: accentColor)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await engine.importChatInvite(message.accountId, hash);
+    } catch (_) {}
   }
 
   void _openStickerSetFromUrl(BuildContext context, String url) {
@@ -8972,6 +9035,334 @@ class _WebPagePreview extends StatelessWidget {
       final chatId = await engine.resolveUsername(message.accountId, username);
       if (chatId != null && chatId.isNotEmpty && context.mounted) {
         context.read<ChatState>().openChatById(chatId);
+      }
+    }
+  }
+
+  void _openThemeFromUrl(BuildContext context, String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final segments = uri.pathSegments;
+    String slug = '';
+    for (int i = 0; i < segments.length - 1; i++) {
+      if (segments[i] == 'addtheme') {
+        slug = segments[i + 1];
+        break;
+      }
+    }
+    if (slug.isEmpty && segments.isNotEmpty) {
+      slug = segments.last;
+    }
+    if (slug.isEmpty) return;
+    final engine = context.read<EngineService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = await engine.getThemeBySlug(message.accountId, slug, isDark: isDark);
+    if (!context.mounted) return;
+    if (theme == null) {
+      showTelegramToast(context, 'Theme not found');
+      return;
+    }
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = isDark ? const Color(0xFF71baf7) : const Color(0xFF168acd);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Apply Theme', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor)),
+                const SizedBox(height: 10),
+                Text('Apply theme "${theme.title}"?', style: TextStyle(fontSize: 14, color: textColor)),
+                if (theme.accentColor != 0) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: Color(0xFF000000 | theme.accentColor),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('Accent color', style: TextStyle(fontSize: 13, color: textColor.withAlpha(179))),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text('Cancel', style: TextStyle(color: textColor.withAlpha(153))),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text('Apply', style: TextStyle(color: accentColor)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await engine.installCloudTheme(message.accountId, theme.id, isDark: isDark);
+      if (context.mounted) {
+        showTelegramToast(context, 'Theme applied');
+      }
+    } catch (_) {
+      if (context.mounted) {
+        showTelegramToast(context, 'Failed to apply theme');
+      }
+    }
+  }
+
+  void _openBackgroundFromUrl(BuildContext context, String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final segments = uri.pathSegments;
+    String slug = '';
+    for (int i = 0; i < segments.length - 1; i++) {
+      if (segments[i] == 'bg') {
+        slug = segments[i + 1];
+        break;
+      }
+    }
+    if (slug.isEmpty && segments.isNotEmpty) {
+      slug = segments.last;
+    }
+    if (slug.isEmpty) return;
+    final bgColorStr = uri.queryParameters['bg_color'] ?? '';
+    final intensity = int.tryParse(uri.queryParameters['intensity'] ?? '') ?? 50;
+    final rotation = int.tryParse(uri.queryParameters['rotation'] ?? '') ?? 0;
+    final engine = context.read<EngineService>();
+    final wallpapers = await engine.getWallpapers(message.accountId);
+    if (!context.mounted) return;
+    Map<String, dynamic>? match;
+    for (final wp in wallpapers) {
+      if (wp['slug'] == slug) {
+        match = wp;
+        break;
+      }
+    }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = isDark ? const Color(0xFF71baf7) : const Color(0xFF168acd);
+    final title = match != null ? (match['title'] as String? ?? slug) : slug;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: dialogBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Set Background', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor)),
+                const SizedBox(height: 10),
+                Text('Apply background "$title"?', style: TextStyle(fontSize: 14, color: textColor)),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text('Cancel', style: TextStyle(color: textColor.withAlpha(153))),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text('Apply', style: TextStyle(color: accentColor)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final appState = context.read<AppState>();
+    if (match != null) {
+      final docId = match['doc_id'] as int? ?? 0;
+      final docHash = match['doc_hash'] as int? ?? 0;
+      final docRef = match['doc_ref'] as String? ?? '';
+      if (docId > 0) {
+        final data = await engine.downloadWallpaperDocument(message.accountId, docId, docHash, docRef);
+        if (data != null && context.mounted) {
+          appState.setWallpaper(WallpaperData(
+            type: WallpaperType.image,
+            imageBytes: data,
+            patternIntensity: intensity,
+            gradientRotation: rotation,
+          ));
+          showTelegramToast(context, 'Background applied');
+        }
+        return;
+      }
+    }
+    if (bgColorStr.isNotEmpty) {
+      final colors = _parseBgColors(bgColorStr);
+      if (colors.isNotEmpty) {
+        appState.setWallpaper(WallpaperData(
+          type: colors.length > 1 ? WallpaperType.gradient : WallpaperType.solid,
+          backgroundColors: colors,
+          patternIntensity: intensity,
+          gradientRotation: rotation,
+        ));
+        if (context.mounted) showTelegramToast(context, 'Background applied');
+      }
+    } else {
+      showTelegramToast(context, 'Background not found');
+    }
+  }
+
+  static List<Color> _parseBgColors(String bgColorStr) {
+    final parts = bgColorStr.split(RegExp(r'[-~]'));
+    final colors = <Color>[];
+    for (final part in parts) {
+      final hex = part.trim();
+      if (hex.length == 6) {
+        final value = int.tryParse(hex, radix: 16);
+        if (value != null) {
+          colors.add(Color(0xFF000000 | value));
+        }
+      }
+    }
+    return colors;
+  }
+
+  void _openGiftCodeFromUrl(BuildContext context, String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final segments = uri.pathSegments;
+    String slug = '';
+    for (int i = 0; i < segments.length - 1; i++) {
+      if (segments[i] == 'giftcode') {
+        slug = segments[i + 1];
+        break;
+      }
+    }
+    if (slug.isEmpty && segments.isNotEmpty) {
+      slug = segments.last;
+    }
+    if (slug.isEmpty) return;
+    final engine = context.read<EngineService>();
+    final info = await engine.checkGiftCode(message.accountId, slug);
+    if (!context.mounted) return;
+    if (info == null) {
+      showTelegramToast(context, 'Invalid gift code');
+      return;
+    }
+    final days = info['days'] as int? ?? 0;
+    final used = info['used'] as bool? ?? false;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = isDark ? const Color(0xFF71baf7) : const Color(0xFF168acd);
+    if (used) {
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: bgColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Gift Code', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor)),
+                  const SizedBox(height: 10),
+                  Text('This gift code has already been used.', style: TextStyle(fontSize: 14, color: textColor)),
+                  const SizedBox(height: 20),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text('OK', style: TextStyle(color: accentColor)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Gift Code', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor)),
+                const SizedBox(height: 10),
+                Text(
+                  'Activate ${days >= 30 ? '${days ~/ 30} month${days ~/ 30 != 1 ? 's' : ''}' : '$days day${days != 1 ? 's' : ''}'} of Telegram Premium?',
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text('Cancel', style: TextStyle(color: textColor.withAlpha(153))),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text('Activate', style: TextStyle(color: accentColor)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await engine.applyGiftCode(message.accountId, slug);
+      if (context.mounted) {
+        showTelegramToast(context, 'Gift code activated!');
+      }
+    } catch (_) {
+      if (context.mounted) {
+        showTelegramToast(context, 'Failed to activate gift code');
       }
     }
   }

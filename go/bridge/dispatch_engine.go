@@ -5866,6 +5866,69 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.RemoveBotFromMenu(params.AccountID, botID)
 
+	case "CheckChatInvite":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Hash      string `json:"hash"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		title, err := e.CheckChatInvite(params.AccountID, params.Hash)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"title": title})
+
+	case "ImportChatInvite":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Hash      string `json:"hash"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ImportChatInvite(params.AccountID, params.Hash)
+
+	case "GetThemeBySlug":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Slug      string `json:"slug"`
+			IsDark    bool   `json:"is_dark"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		theme, err := e.GetThemeBySlug(params.AccountID, params.Slug, params.IsDark)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(theme)
+
+	case "CheckGiftCode":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Slug      string `json:"slug"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		info, err := e.CheckGiftCode(params.AccountID, params.Slug)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(info)
+
+	case "ApplyGiftCode":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Slug      string `json:"slug"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ApplyGiftCode(params.AccountID, params.Slug)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

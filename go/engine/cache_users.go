@@ -2331,3 +2331,83 @@ func (e *Engine) DisablePeerConnectedBot(accountID, chatID string) error {
 	}
 	return d.DisablePeerConnectedBot(chatID)
 }
+
+type chatInviteChecker interface {
+	CheckChatInvite(hash string) (string, error)
+}
+
+func (e *Engine) CheckChatInvite(accountID, hash string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account %q not connected", accountID)
+	}
+	c, ok := acc.Core.(chatInviteChecker)
+	if !ok {
+		return "", fmt.Errorf("platform does not support invite link checking")
+	}
+	return c.CheckChatInvite(hash)
+}
+
+type chatInviteImporter interface {
+	ImportChatInvite(hash string) error
+}
+
+func (e *Engine) ImportChatInvite(accountID, hash string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	i, ok := acc.Core.(chatInviteImporter)
+	if !ok {
+		return fmt.Errorf("platform does not support invite link joining")
+	}
+	return i.ImportChatInvite(hash)
+}
+
+type themeBySlugGetter interface {
+	GetThemeBySlug(slug string, isDark bool) (*cores.CloudThemeInfo, error)
+}
+
+func (e *Engine) GetThemeBySlug(accountID, slug string, isDark bool) (*cores.CloudThemeInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(themeBySlugGetter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support theme resolution")
+	}
+	return g.GetThemeBySlug(slug, isDark)
+}
+
+type giftCodeChecker interface {
+	CheckGiftCode(slug string) (map[string]interface{}, error)
+}
+
+func (e *Engine) CheckGiftCode(accountID, slug string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(giftCodeChecker)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support gift codes")
+	}
+	return g.CheckGiftCode(slug)
+}
+
+type giftCodeApplier interface {
+	ApplyGiftCode(slug string) error
+}
+
+func (e *Engine) ApplyGiftCode(accountID, slug string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	a, ok := acc.Core.(giftCodeApplier)
+	if !ok {
+		return fmt.Errorf("platform does not support gift codes")
+	}
+	return a.ApplyGiftCode(slug)
+}
