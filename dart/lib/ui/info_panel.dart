@@ -1887,6 +1887,9 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback onClose;
   final bool showBackButton;
   final ChatInfo chat;
+  final bool isMuted;
+  final VoidCallback? onMuteToggle;
+  final VoidCallback? onManage;
 
   static const double coverHeight = 77.0;
 
@@ -1898,6 +1901,9 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
     required this.onClose,
     required this.showBackButton,
     required this.chat,
+    this.isMuted = false,
+    this.onMuteToggle,
+    this.onManage,
   });
 
   @override
@@ -1912,7 +1918,9 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
       topic.colorId != old.topic.colorId ||
       topic.iconEmojiId != old.topic.iconEmojiId ||
       statusText != old.statusText ||
-      showBackButton != old.showBackButton;
+      showBackButton != old.showBackButton ||
+      isMuted != old.isMuted ||
+      topic.canEdit != old.topic.canEdit;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
@@ -1943,6 +1951,10 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
       );
     }
 
+    final actionBtnCount = (onMuteToggle != null ? 1 : 0)
+        + (topic.canEdit && onManage != null ? 1 : 0);
+    final rightPad = 88.0 + actionBtnCount * 36.0;
+
     return SizedBox(
       height: coverHeight,
       child: Material(
@@ -1959,7 +1971,7 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
             Positioned(
               left: 79,
               top: 14,
-              right: 88,
+              right: rightPad,
               child: Text(
                 isGeneral ? '# ${topic.title}' : topic.title,
                 style: TextStyle(
@@ -1974,12 +1986,12 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
             Positioned(
               left: 79,
               top: 38,
-              right: 88,
+              right: rightPad,
               child: Text(
                 isGeneral ? 'General' : statusText,
                 style: TextStyle(
                   fontSize: 13,
-                  color: isGeneral ? statusColor : statusColor,
+                  color: statusColor,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -1993,6 +2005,25 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (onMuteToggle != null)
+                      IconButton(
+                        icon: Icon(
+                          isMuted ? Icons.notifications_off : Icons.notifications,
+                          size: 20,
+                        ),
+                        onPressed: onMuteToggle,
+                        tooltip: isMuted ? 'Unmute' : 'Mute',
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        padding: const EdgeInsets.all(6),
+                      ),
+                    if (topic.canEdit && onManage != null)
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 20),
+                        onPressed: onManage,
+                        tooltip: 'Manage',
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        padding: const EdgeInsets.all(6),
+                      ),
                     _TopicInfoMenuButton(
                       topic: topic,
                       chat: chat,
@@ -2707,6 +2738,41 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
             onClose: widget.onClose,
             showBackButton: widget.showBackButton,
             chat: widget.chat,
+            isMuted: widget.chat.isMuted,
+            onMuteToggle: () {
+              final chatState = context.read<ChatState>();
+              chatState.muteChat(widget.chat.accountId, widget.chat.chatId, !widget.chat.isMuted);
+            },
+            onManage: topic.canEdit ? () async {
+              final engine = context.read<EngineService>();
+              final chatState = context.read<ChatState>();
+              final parentChatId = topic.parentId.isNotEmpty
+                  ? topic.parentId
+                  : (widget.chatState.forumParentChat?.chatId ?? widget.chat.parentId);
+              final topicId = int.tryParse(topic.id) ?? 0;
+              final result = await showEditForumTopicBox(
+                context,
+                existingTitle: topic.title,
+                existingColorId: topic.colorId,
+                existingIconEmojiId: topic.iconEmojiId,
+                isGeneral: topic.isGeneral,
+                isEditing: true,
+                isPremium: context.read<AppState>().activeAccount?.isPremium ?? false,
+                accountId: widget.chat.accountId,
+              );
+              if (result == null || !context.mounted) return;
+              try {
+                await engine.editForumTopic(
+                  widget.chat.accountId, parentChatId, topicId, result.title,
+                  iconEmojiId: topic.isGeneral ? -1 : result.iconEmojiId,
+                );
+                await chatState.refreshForumTopics();
+              } catch (e) {
+                if (context.mounted) {
+                  showTelegramToast(context, 'Failed to edit topic: $e');
+                }
+              }
+            } : null,
           ),
         ),
         SliverList(
