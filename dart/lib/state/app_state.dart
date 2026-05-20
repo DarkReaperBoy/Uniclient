@@ -243,6 +243,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _hideNotificationCounters = false;
   bool _hideAllChatsFolder = false;
   bool _hideNotificationBadge = false;
+  int _photoEditorHintCount = 0;
 
   // §15: Notification settings persistence
   bool _notifDesktopNotify = true;
@@ -538,6 +539,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get hideNotificationCounters => _hideNotificationCounters;
   bool get hideAllChatsFolder => _hideAllChatsFolder;
   bool get hideNotificationBadge => _hideNotificationBadge;
+  int get photoEditorHintCount => _photoEditorHintCount;
   bool get notifContactJoinedTelegram => _notifContactJoinedTelegram;
   bool get notifPinnedMessages => _notifPinnedMessages;
   bool get notifAcceptCallsOnDevice => _notifAcceptCallsOnDevice;
@@ -833,6 +835,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (_hideNotificationBadge == v) return;
     _hideNotificationBadge = v;
     notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void incrementPhotoEditorHintCount() {
+    _photoEditorHintCount++;
     _saveWindowPrefs();
   }
 
@@ -1388,6 +1395,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _hideNotificationCounters = false;
     _hideAllChatsFolder = false;
     _hideNotificationBadge = false;
+    _photoEditorHintCount = 0;
     _appIcon = '';
     _replaceBottomInfoWithIcons = true;
     _adaptiveCoverColor = true;
@@ -3200,6 +3208,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _hideNotificationCounters = data['hideNotificationCounters'] as bool? ?? false;
       _hideAllChatsFolder = data['hideAllChatsFolder'] as bool? ?? false;
       _hideNotificationBadge = data['hideNotificationBadge'] as bool? ?? false;
+      _photoEditorHintCount = data['photoEditorHintCount'] as int? ?? 0;
       _notifDesktopNotify = data['notifDesktopNotify'] as bool? ?? true;
       _notifFlashBounce = data['notifFlashBounce'] as bool? ?? true;
       _notifAllowSound = data['notifAllowSound'] as bool? ?? true;
@@ -3469,6 +3478,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'hideNotificationCounters': _hideNotificationCounters,
         'hideAllChatsFolder': _hideAllChatsFolder,
         'hideNotificationBadge': _hideNotificationBadge,
+        'photoEditorHintCount': _photoEditorHintCount,
         'notifDesktopNotify': _notifDesktopNotify,
         'notifFlashBounce': _notifFlashBounce,
         'notifAllowSound': _notifAllowSound,

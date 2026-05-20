@@ -346,7 +346,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   late final bool _initialGroupFiles;
   late int _starsPerMessage;
   int _captionMaxLength = _captionMaxLengthDefault;
-  static int _photoEditorHintShownCount = 0;
   bool _isPremium = false;
   bool _preparing = false;
   int _preparingTotal = 0;
@@ -415,6 +414,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     _loadImageDimensions();
     _fetchPremiumStatus();
     _refreshMembersFromEngine();
+    if (_files.any((f) => f.type == _FileType.photo)) {
+      context.read<AppState>().incrementPhotoEditorHintCount();
+    }
   }
 
   List<MemberInfo> _engineMembers = const [];
@@ -1110,7 +1112,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   void _replaceFile(int idx, _PreparedFile replacement) {
     if (idx < 0 || idx >= _files.length) return;
-    if (_files[idx].type == _FileType.photo) _photoEditorHintShownCount++;
     setState(() => _files[idx] = replacement);
     _loadImageDimensions();
   }
@@ -1808,11 +1809,30 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
           if (mounted) showTelegramToast(context, 'Sending documents is not allowed in this chat');
           return false;
         }
-      } else {
-        if (perms['can_send_photos'] == false && perms['can_send_videos'] == false) {
-          if (mounted) showTelegramToast(context, 'Sending media is not allowed in this chat');
+        final hasMusic = _files.any((f) => f.type == _FileType.music);
+        if (hasMusic && perms['can_send_audios'] == false) {
+          if (mounted) showTelegramToast(context, 'Sending audio is not allowed in this chat');
           return false;
         }
+      } else {
+        final hasPhotos = _files.any((f) => f.type == _FileType.photo);
+        final hasVideos = _files.any((f) => f.type == _FileType.video);
+        if (hasPhotos && perms['can_send_photos'] == false) {
+          if (mounted) showTelegramToast(context, 'Sending photos is not allowed in this chat');
+          return false;
+        }
+        if (hasVideos && perms['can_send_videos'] == false) {
+          if (mounted) showTelegramToast(context, 'Sending videos is not allowed in this chat');
+          return false;
+        }
+        if (!hasPhotos && !hasVideos && perms['can_send_documents'] == false) {
+          if (mounted) showTelegramToast(context, 'Sending files is not allowed in this chat');
+          return false;
+        }
+      }
+      if (!grouped && _files.length > 1 && widget.isSlowMode) {
+        if (mounted) showTelegramToast(context, 'Only one file can be sent in slow mode');
+        return false;
       }
     } catch (_) {}
     return true;
@@ -1983,54 +2003,72 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                         child: _replyVisible ? Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Container(
-                            padding: const EdgeInsets.only(left: 12, top: 6, bottom: 6, right: 4),
+                            clipBehavior: Clip.antiAlias,
                             decoration: BoxDecoration(
                               color: accentFg.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.reply, size: 16, color: accentFg),
-                                const SizedBox(width: 6),
-                                Flexible(
-                                  child: Text.rich(
-                                    TextSpan(children: [
-                                      TextSpan(
-                                        text: widget.replyToName!,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: accentFg,
-                                        ),
+                            child: IntrinsicHeight(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 3,
+                                    decoration: BoxDecoration(
+                                      color: accentFg,
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(12),
+                                        bottomLeft: Radius.circular(12),
                                       ),
-                                      if (widget.replyToText != null && widget.replyToText!.isNotEmpty) ...[
-                                        TextSpan(
-                                          text: '  ${widget.replyToText!}',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: subFg,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 6),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            widget.replyToName!,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: accentFg,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                        ),
-                                      ],
-                                    ]),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                          if (widget.replyToText != null && widget.replyToText!.isNotEmpty)
+                                            Text(
+                                              widget.replyToText!,
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: subFg,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 4),
-                                SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: IconButton(
-                                    padding: EdgeInsets.zero,
-                                    iconSize: 14,
-                                    splashRadius: 10,
-                                    icon: Icon(Icons.close, size: 14, color: subFg),
-                                    onPressed: () => setState(() => _replyVisible = false),
+                                  const SizedBox(width: 4),
+                                  SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: IconButton(
+                                      padding: EdgeInsets.zero,
+                                      iconSize: 14,
+                                      splashRadius: 12,
+                                      icon: Icon(Icons.close, size: 14, color: subFg),
+                                      onPressed: () => setState(() => _replyVisible = false),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 4),
+                                ],
+                              ),
                             ),
                           ),
                         ) : const SizedBox.shrink(),
@@ -2084,7 +2122,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                             ),
                         ],
                       ),
-                    if (_photoEditorHintShownCount < 3 && showMediaPreview && mediaFiles.any((f) => f.type == _FileType.photo))
+                    if (context.read<AppState>().photoEditorHintCount < 3 && showMediaPreview && mediaFiles.any((f) => f.type == _FileType.photo))
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
