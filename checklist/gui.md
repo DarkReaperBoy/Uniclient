@@ -566,10 +566,6 @@ All CRITICAL and MAJOR checks passed:
 
 
 
-## language_box — Skip languages editor uses Checkbox (left) instead of SettingsButton toggle (right)
-
-- [ ] [MAJOR] AyuGram's `EditSkipTranslationLanguages` calls `Ui::ChooseLanguageBox` which renders each language as a `SettingsButton` with a **right-side toggle switch** (`paintToggle`). Dart's `_SkipLanguagesEditor` uses a `Checkbox` widget on the **left side** — a completely different visual layout — `language_box.dart:962-966` ← `AyuGram/SourceFiles/ui/boxes/choose_language_box.cpp:179,312-327`
-
 ## language_box — Menu toggle button size wrong (34px vs 40px)
 
 - [ ] [MAJOR] AyuGram computes the menu toggle area as `size = st::topBarSearch.width = 40px` (square 40×40). Dart uses `SizedBox(width: 34, height: 34)` — 6px smaller — `language_box.dart:669-671` ← `AyuGram/SourceFiles/boxes/language_box.cpp:437` / `AyuGram/SourceFiles/info/info.style:1032-1033`
