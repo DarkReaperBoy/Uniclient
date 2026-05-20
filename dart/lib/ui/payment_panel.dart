@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../bridge/engine_service.dart';
 import '../theme/telegram_palette.dart';
@@ -131,8 +133,21 @@ class _PaymentPanelState extends State<PaymentPanel>
   String? _selectedShippingId;
   String? _requestedInfoId;
   String? _credentialsData;
-  String? _cachedPhotoPath;
-  bool _photoDownloading = false;
+
+  String? _street1;
+  String? _street2;
+  String? _city;
+  String? _addrState;
+  String? _country;
+  String? _postcode;
+
+  String? _initialPaymentMethod;
+  String? _initialShippingAddress;
+  String? _initialName;
+  String? _initialEmail;
+  String? _initialPhone;
+
+  Map<String, String> _fieldErrors = {};
 
   int _receiptDate = 0;
   int _tipAmount = 0;
@@ -208,6 +223,12 @@ class _PaymentPanelState extends State<PaymentPanel>
           _savedName = saved['name'] as String?;
           _savedEmail = saved['email'] as String?;
           _savedPhone = saved['phone'] as String?;
+          _street1 = saved['street1'] as String?;
+          _street2 = saved['street2'] as String?;
+          _city = saved['city'] as String?;
+          _addrState = saved['state'] as String?;
+          _country = saved['country'] as String?;
+          _postcode = saved['postcode'] as String?;
           _shippingAddress = _buildFullAddress(saved);
         }
 
@@ -243,6 +264,13 @@ class _PaymentPanelState extends State<PaymentPanel>
         }
 
         _passwordMissing = data['password_missing'] == true;
+
+        _initialPaymentMethod = _paymentMethod;
+        _initialShippingAddress = _shippingAddress;
+        _initialName = _savedName;
+        _initialEmail = _savedEmail;
+        _initialPhone = _savedPhone;
+
         _state = _PanelState.form;
       });
       _progressFade.animateTo(0.0, duration: _kProgressFadeDuration);
@@ -255,7 +283,6 @@ class _PaymentPanelState extends State<PaymentPanel>
     }
   }
 
-  bool _warningAccepted = false;
   bool _passwordMissing = false;
 
   Future<void> _submitPayment() async {
@@ -267,35 +294,15 @@ class _PaymentPanelState extends State<PaymentPanel>
       _showTermsDialog();
       return;
     }
-    if (!_warningAccepted) {
-      final botName = widget.data.botName.isNotEmpty
-          ? widget.data.botName
-          : 'this bot';
-      final providerName = _formData['native_provider'] as String? ?? 'the payment provider';
-      final accepted = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Payment Confirmation'),
-          content: Text(
-            'You are about to pay via $providerName as requested by @$botName. '
-            'Please confirm that you want to proceed with this payment.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Confirm'),
-            ),
-          ],
-        ),
-      );
-      if (accepted != true || !mounted) return;
-      _warningAccepted = true;
+    if (_shippingOptions.isNotEmpty && _selectedShippingId == null) {
+      _chooseShippingOption();
+      return;
     }
-    setState(() => _state = _PanelState.submitting);
+    setState(() {
+      _state = _PanelState.submitting;
+      _errorText = '';
+      _fieldErrors = {};
+    });
     final engine = context.read<EngineService>();
     try {
       if (_requestedInfoId == null && _hasRequestedInfo) {
@@ -303,16 +310,13 @@ class _PaymentPanelState extends State<PaymentPanel>
         if (_nameRequested && _savedName != null) info['name'] = _savedName;
         if (_phoneRequested && _savedPhone != null) info['phone'] = _savedPhone;
         if (_emailRequested && _savedEmail != null) info['email'] = _savedEmail;
-        if (_shippingRequested && _shippingAddress != null) {
-          final saved = _formData['saved_info'] as Map<String, dynamic>?;
-          if (saved != null) {
-            info['street1'] = saved['street1'] ?? '';
-            info['street2'] = saved['street2'] ?? '';
-            info['city'] = saved['city'] ?? '';
-            info['state'] = saved['state'] ?? '';
-            info['country'] = saved['country'] ?? '';
-            info['postcode'] = saved['postcode'] ?? '';
-          }
+        if (_shippingRequested) {
+          info['street1'] = _street1 ?? '';
+          info['street2'] = _street2 ?? '';
+          info['city'] = _city ?? '';
+          info['state'] = _addrState ?? '';
+          info['country'] = _country ?? '';
+          info['postcode'] = _postcode ?? '';
         }
         final validationResult = await engine.validatePaymentInfo(
           widget.data.accountId,
@@ -362,11 +366,109 @@ class _PaymentPanelState extends State<PaymentPanel>
       });
     } catch (e) {
       if (!mounted) return;
+      final errStr = e.toString();
+      final newFieldErrors = <String, String>{};
+      String displayError = errStr;
+
+      if (errStr.contains('BOT_TRUST_REQUIRED')) {
+        _showBotTrustWarning();
+        setState(() => _state = _PanelState.form);
+        return;
+      }
+
+      if (errStr.contains('REQ_INFO_NAME_INVALID')) {
+        newFieldErrors['Name'] = 'Invalid name';
+        displayError = 'Please check your name';
+      } else if (errStr.contains('REQ_INFO_EMAIL_INVALID')) {
+        newFieldErrors['Email'] = 'Invalid email';
+        displayError = 'Please check your email address';
+      } else if (errStr.contains('REQ_INFO_PHONE_INVALID')) {
+        newFieldErrors['Phone'] = 'Invalid phone number';
+        displayError = 'Please check your phone number';
+      } else if (errStr.contains('ADDRESS_STREET_LINE1_INVALID')) {
+        newFieldErrors['Shipping Address'] = 'Invalid street address';
+        displayError = 'Please check your street address';
+      } else if (errStr.contains('ADDRESS_CITY_INVALID')) {
+        newFieldErrors['Shipping Address'] = 'Invalid city';
+        displayError = 'Please check your city';
+      } else if (errStr.contains('ADDRESS_STATE_INVALID')) {
+        newFieldErrors['Shipping Address'] = 'Invalid state';
+        displayError = 'Please check your state/province';
+      } else if (errStr.contains('ADDRESS_COUNTRY_INVALID')) {
+        newFieldErrors['Shipping Address'] = 'Invalid country';
+        displayError = 'Please check your country';
+      } else if (errStr.contains('ADDRESS_POSTCODE_INVALID')) {
+        newFieldErrors['Shipping Address'] = 'Invalid postal code';
+        displayError = 'Please check your postal code';
+      } else if (errStr.contains('LOCAL_CARD_NUMBER_INVALID')) {
+        newFieldErrors['Payment Method'] = 'Invalid card number';
+        displayError = 'Please check your card number';
+      } else if (errStr.contains('LOCAL_CARD_EXPIRE_DATE_INVALID')) {
+        newFieldErrors['Payment Method'] = 'Invalid expiry date';
+        displayError = 'Please check your card expiry date';
+      } else if (errStr.contains('LOCAL_CARD_CVC_INVALID')) {
+        newFieldErrors['Payment Method'] = 'Invalid CVC';
+        displayError = 'Please check your card CVC';
+      } else if (errStr.contains('LOCAL_CARD_HOLDER_NAME_INVALID')) {
+        newFieldErrors['Payment Method'] = 'Invalid cardholder name';
+        displayError = 'Please check the cardholder name';
+      } else if (errStr.contains('LOCAL_CARD_BILLING_COUNTRY_INVALID')) {
+        newFieldErrors['Payment Method'] = 'Invalid billing country';
+        displayError = 'Please check your billing country';
+      } else if (errStr.contains('LOCAL_CARD_BILLING_ZIP_INVALID')) {
+        newFieldErrors['Payment Method'] = 'Invalid billing ZIP';
+        displayError = 'Please check your billing postal code';
+      } else if (errStr.contains('SHIPPING_BOT_TIMEOUT')) {
+        displayError = 'Bot timeout — please try again';
+      } else if (errStr.contains('SHIPPING_NOT_AVAILABLE')) {
+        displayError = 'Shipping is not available to your location';
+      } else if (errStr.contains('INVOICE_ALREADY_PAID')) {
+        displayError = 'This invoice has already been paid';
+      } else if (errStr.contains('PAYMENT_FAILED')) {
+        displayError = 'Payment failed — please try again';
+      } else if (errStr.contains('BOT_PRECHECKOUT_FAILED')) {
+        displayError = 'The bot could not process your order';
+      } else if (errStr.contains('BOT_PRECHECKOUT_TIMEOUT')) {
+        displayError = 'The bot did not respond — please try again';
+      }
+
       setState(() {
         _state = _PanelState.form;
-        _errorText = e.toString();
+        _errorText = displayError;
+        _fieldErrors = newFieldErrors;
       });
     }
+  }
+
+  void _showBotTrustWarning() {
+    final botName = widget.data.botName.isNotEmpty
+        ? widget.data.botName
+        : 'this bot';
+    final providerName =
+        _formData['native_provider'] as String? ?? 'the payment provider';
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Payment Confirmation'),
+        content: Text(
+          'You are about to pay via $providerName as requested by @$botName. '
+          'Please confirm that you want to proceed with this payment.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop(true);
+              _submitPayment();
+            },
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
   }
 
   bool get _hasRequestedInfo =>
@@ -638,7 +740,7 @@ class _PaymentPanelState extends State<PaymentPanel>
             ),
           IconButton(
             icon: Icon(Icons.close, color: windowFg, size: 20),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _requestClose,
             splashRadius: 18,
           ),
         ],
@@ -701,6 +803,17 @@ class _PaymentPanelState extends State<PaymentPanel>
     return ListView(
       padding: EdgeInsets.zero,
       children: [
+        if (_errorText.isNotEmpty && _state == _PanelState.form)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+            color: Colors.red.withValues(alpha: 0.1),
+            child: Text(
+              _errorText,
+              style: const TextStyle(fontSize: 13, color: Colors.red),
+              textAlign: TextAlign.center,
+            ),
+          ),
         const SizedBox(height: 16),
         _buildCoverSection(fg, subFg),
         Divider(height: 1, color: divider),
@@ -828,22 +941,33 @@ class _PaymentPanelState extends State<PaymentPanel>
   }
 
   Widget _buildThumbnail(String photoUrl, Color subFg) {
-    if (_cachedPhotoPath != null) {
-      return Image.file(
-        File(_cachedPhotoPath!),
-        width: _kThumbSize,
-        height: _kThumbSize,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Icon(
-          Icons.receipt_long, size: 40,
-          color: subFg.withValues(alpha: 0.4),
-        ),
-      );
-    }
-    _downloadAndCachePhoto(photoUrl);
-    return Icon(
-      Icons.receipt_long, size: 40,
-      color: subFg.withValues(alpha: 0.4),
+    return Image.network(
+      photoUrl,
+      width: _kThumbSize,
+      height: _kThumbSize,
+      fit: BoxFit.cover,
+      loadingBuilder: (_, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+              valueColor: AlwaysStoppedAnimation(subFg.withValues(alpha: 0.4)),
+            ),
+          ),
+        );
+      },
+      errorBuilder: (_, __, ___) => Icon(
+        Icons.receipt_long,
+        size: 40,
+        color: subFg.withValues(alpha: 0.4),
+      ),
     );
   }
 
@@ -1085,11 +1209,17 @@ class _PaymentPanelState extends State<PaymentPanel>
                           style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: fg),
+                              color: _fieldErrors.containsKey(section.label)
+                                  ? Colors.red
+                                  : fg),
                         ),
                         Text(
-                          section.value,
-                          style: TextStyle(fontSize: 13, color: subFg),
+                          _fieldErrors[section.label] ?? section.value,
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: _fieldErrors.containsKey(section.label)
+                                  ? Colors.red
+                                  : subFg),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1107,27 +1237,20 @@ class _PaymentPanelState extends State<PaymentPanel>
   }
 
   void _onSectionTap(String sectionLabel) {
+    setState(() => _fieldErrors.remove(sectionLabel));
     switch (sectionLabel) {
       case 'Payment Method':
         _editPaymentMethod();
       case 'Shipping Address':
-        _editField('Shipping Address', _shippingAddress ?? '', (v) {
-          setState(() => _shippingAddress = v);
-        });
+        _editShippingAddress();
       case 'Shipping Method':
         _chooseShippingOption();
       case 'Name':
-        _editField('Name', _savedName ?? '', (v) {
-          setState(() => _savedName = v);
-        });
+        _editName();
       case 'Email':
-        _editField('Email', _savedEmail ?? '', (v) {
-          setState(() => _savedEmail = v);
-        });
+        _editEmail();
       case 'Phone':
-        _editField('Phone', _savedPhone ?? '', (v) {
-          setState(() => _savedPhone = v);
-        });
+        _editPhone();
     }
   }
 
@@ -1188,7 +1311,7 @@ class _PaymentPanelState extends State<PaymentPanel>
   void _openPaymentMethodDirect() {
     final url = _formData['url'] as String?;
     if (url != null && url.isNotEmpty) {
-      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      _showWebViewPayment(url);
       return;
     }
     final nativeParams = _formData['native_params'] as Map<String, dynamic>?;
@@ -1200,7 +1323,7 @@ class _PaymentPanelState extends State<PaymentPanel>
     }
     final providerUrl = nativeParams?['url'] as String?;
     if (providerUrl != null && providerUrl.isNotEmpty) {
-      launchUrl(Uri.parse(providerUrl), mode: LaunchMode.externalApplication);
+      _showWebViewPayment(providerUrl);
     }
   }
 
@@ -1209,13 +1332,13 @@ class _PaymentPanelState extends State<PaymentPanel>
     final needZip = nativeParams['need_zip'] == true;
     final needCardholderName = nativeParams['need_cardholder_name'] == true;
     final cardNumberCtrl = TextEditingController();
-    final expMonthCtrl = TextEditingController();
-    final expYearCtrl = TextEditingController();
+    final expiryCtrl = TextEditingController();
     final cvcCtrl = TextEditingController();
     final nameCtrl = TextEditingController();
     final countryCtrl = TextEditingController();
     final zipCtrl = TextEditingController();
     bool isLoading = false;
+    Map<String, String> cardErrors = {};
 
     showDialog(
       context: context,
@@ -1229,46 +1352,68 @@ class _PaymentPanelState extends State<PaymentPanel>
                 TextField(
                   controller: cardNumberCtrl,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[\d ]')),
+                    _CardNumberFormatter(),
+                  ],
+                  decoration: InputDecoration(
                     labelText: 'Card Number',
                     hintText: '4242 4242 4242 4242',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    errorText: cardErrors['number'],
                   ),
+                  onChanged: (_) {
+                    if (cardErrors.containsKey('number')) {
+                      setDialogState(() => cardErrors.remove('number'));
+                    }
+                  },
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
+                      flex: 2,
                       child: TextField(
-                        controller: expMonthCtrl,
+                        controller: expiryCtrl,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'MM',
-                          border: OutlineInputBorder(),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[\d/]')),
+                          _ExpiryDateFormatter(),
+                        ],
+                        decoration: InputDecoration(
+                          labelText: 'MM/YY',
+                          hintText: 'MM/YY',
+                          border: const OutlineInputBorder(),
+                          errorText: cardErrors['expiry'],
                         ),
+                        onChanged: (_) {
+                          if (cardErrors.containsKey('expiry')) {
+                            setDialogState(() => cardErrors.remove('expiry'));
+                          }
+                        },
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: TextField(
-                        controller: expYearCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'YY',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
+                      flex: 1,
                       child: TextField(
                         controller: cvcCtrl,
                         keyboardType: TextInputType.number,
                         obscureText: true,
-                        decoration: const InputDecoration(
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(4),
+                        ],
+                        decoration: InputDecoration(
                           labelText: 'CVC',
-                          border: OutlineInputBorder(),
+                          border: const OutlineInputBorder(),
+                          errorText: cardErrors['cvc'],
                         ),
+                        onChanged: (_) {
+                          if (cardErrors.containsKey('cvc')) {
+                            setDialogState(() => cardErrors.remove('cvc'));
+                          }
+                        },
                       ),
                     ),
                   ],
@@ -1277,9 +1422,13 @@ class _PaymentPanelState extends State<PaymentPanel>
                   const SizedBox(height: 12),
                   TextField(
                     controller: nameCtrl,
-                    decoration: const InputDecoration(
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(64),
+                    ],
+                    decoration: InputDecoration(
                       labelText: 'Cardholder Name',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
+                      errorText: cardErrors['name'],
                     ),
                   ),
                 ],
@@ -1287,10 +1436,16 @@ class _PaymentPanelState extends State<PaymentPanel>
                   const SizedBox(height: 12),
                   TextField(
                     controller: countryCtrl,
-                    decoration: const InputDecoration(
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(2),
+                      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),
+                    ],
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: InputDecoration(
                       labelText: 'Country',
                       hintText: 'US',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
+                      errorText: cardErrors['country'],
                     ),
                   ),
                 ],
@@ -1298,9 +1453,13 @@ class _PaymentPanelState extends State<PaymentPanel>
                   const SizedBox(height: 12),
                   TextField(
                     controller: zipCtrl,
-                    decoration: const InputDecoration(
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(10),
+                    ],
+                    decoration: InputDecoration(
                       labelText: 'ZIP / Postal Code',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
+                      errorText: cardErrors['zip'],
                     ),
                   ),
                 ],
@@ -1316,13 +1475,61 @@ class _PaymentPanelState extends State<PaymentPanel>
               onPressed: isLoading
                   ? null
                   : () async {
+                      final rawNumber = cardNumberCtrl.text.replaceAll(' ', '');
+                      final errors = <String, String>{};
+
+                      if (rawNumber.length < 13 || !_luhnCheck(rawNumber)) {
+                        errors['number'] = 'Invalid card number';
+                      }
+
+                      final expiryParts = expiryCtrl.text.split('/');
+                      if (expiryParts.length != 2 ||
+                          expiryParts[0].length != 2 ||
+                          expiryParts[1].length != 2) {
+                        errors['expiry'] = 'Invalid date';
+                      } else {
+                        final month = int.tryParse(expiryParts[0]) ?? 0;
+                        final year =
+                            2000 + (int.tryParse(expiryParts[1]) ?? 0);
+                        if (month < 1 || month > 12) {
+                          errors['expiry'] = 'Invalid month';
+                        } else {
+                          final now = DateTime.now();
+                          if (year < now.year ||
+                              (year == now.year && month < now.month)) {
+                            errors['expiry'] = 'Card expired';
+                          }
+                        }
+                      }
+
+                      if (cvcCtrl.text.length < 3) {
+                        errors['cvc'] = 'Invalid CVC';
+                      }
+
+                      if (needCardholderName && nameCtrl.text.trim().isEmpty) {
+                        errors['name'] = 'Name required';
+                      }
+                      if (needCountry && countryCtrl.text.trim().length != 2) {
+                        errors['country'] = 'Invalid country code';
+                      }
+                      if (needZip && zipCtrl.text.trim().isEmpty) {
+                        errors['zip'] = 'ZIP required';
+                      }
+
+                      if (errors.isNotEmpty) {
+                        setDialogState(() => cardErrors = errors);
+                        return;
+                      }
+
                       setDialogState(() => isLoading = true);
                       try {
+                        final expMonth = expiryParts[0];
+                        final expYear = expiryParts[1];
                         final token = await _tokenizeCard(
                           publishableKey: publishableKey,
-                          cardNumber: cardNumberCtrl.text.replaceAll(' ', ''),
-                          expMonth: expMonthCtrl.text,
-                          expYear: expYearCtrl.text,
+                          cardNumber: rawNumber,
+                          expMonth: expMonth,
+                          expYear: expYear,
                           cvc: cvcCtrl.text,
                           name: needCardholderName ? nameCtrl.text : null,
                           country: needCountry ? countryCtrl.text : null,
@@ -1331,7 +1538,8 @@ class _PaymentPanelState extends State<PaymentPanel>
                         if (!mounted) return;
                         setState(() {
                           _credentialsData = token;
-                          _paymentMethod = 'Card ****${cardNumberCtrl.text.replaceAll(' ', '').substring(cardNumberCtrl.text.replaceAll(' ', '').length - 4)}';
+                          _paymentMethod =
+                              'Card ****${rawNumber.substring(rawNumber.length - 4)}';
                         });
                         Navigator.of(ctx).pop();
                       } catch (e) {
@@ -1345,7 +1553,8 @@ class _PaymentPanelState extends State<PaymentPanel>
                     },
               child: isLoading
                   ? const SizedBox(
-                      width: 16, height: 16,
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2))
                   : const Text('Save'),
             ),
@@ -1480,33 +1689,296 @@ class _PaymentPanelState extends State<PaymentPanel>
     }
   }
 
-  void _editField(String label, String currentValue, ValueChanged<String> onSave) {
-    final controller = TextEditingController(text: currentValue);
+  void _editShippingAddress() {
+    final street1Ctrl = TextEditingController(text: _street1 ?? '');
+    final street2Ctrl = TextEditingController(text: _street2 ?? '');
+    final cityCtrl = TextEditingController(text: _city ?? '');
+    final stateCtrl = TextEditingController(text: _addrState ?? '');
+    final countryCtrl = TextEditingController(text: _country ?? '');
+    final postcodeCtrl = TextEditingController(text: _postcode ?? '');
+    Map<String, String> addrErrors = {};
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Edit $label'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: 'Enter $label',
-            border: const OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Shipping Address'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: street1Ctrl,
+                  autofocus: true,
+                  inputFormatters: [LengthLimitingTextInputFormatter(64)],
+                  decoration: InputDecoration(
+                    labelText: 'Street Address',
+                    border: const OutlineInputBorder(),
+                    errorText: addrErrors['street1'],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: street2Ctrl,
+                  inputFormatters: [LengthLimitingTextInputFormatter(64)],
+                  decoration: const InputDecoration(
+                    labelText: 'Street Address 2 (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: cityCtrl,
+                  inputFormatters: [LengthLimitingTextInputFormatter(64)],
+                  decoration: InputDecoration(
+                    labelText: 'City',
+                    border: const OutlineInputBorder(),
+                    errorText: addrErrors['city'],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: stateCtrl,
+                  inputFormatters: [LengthLimitingTextInputFormatter(64)],
+                  decoration: const InputDecoration(
+                    labelText: 'State / Province',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: countryCtrl,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(2),
+                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),
+                  ],
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    labelText: 'Country (ISO code)',
+                    hintText: 'US',
+                    border: const OutlineInputBorder(),
+                    errorText: addrErrors['country'],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: postcodeCtrl,
+                  inputFormatters: [LengthLimitingTextInputFormatter(10)],
+                  decoration: InputDecoration(
+                    labelText: 'Postal Code',
+                    border: const OutlineInputBorder(),
+                    errorText: addrErrors['postcode'],
+                  ),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final errors = <String, String>{};
+                if (street1Ctrl.text.trim().isEmpty) {
+                  errors['street1'] = 'Street address required';
+                }
+                if (cityCtrl.text.trim().length < 2) {
+                  errors['city'] = 'City required';
+                }
+                if (countryCtrl.text.trim().isEmpty) {
+                  errors['country'] = 'Country required';
+                }
+                if (postcodeCtrl.text.trim().isEmpty) {
+                  errors['postcode'] = 'Postal code required';
+                }
+                if (errors.isNotEmpty) {
+                  setDialogState(() => addrErrors = errors);
+                  return;
+                }
+                setState(() {
+                  _street1 = street1Ctrl.text.trim();
+                  _street2 = street2Ctrl.text.trim();
+                  _city = cityCtrl.text.trim();
+                  _addrState = stateCtrl.text.trim();
+                  _country = countryCtrl.text.trim().toUpperCase();
+                  _postcode = postcodeCtrl.text.trim();
+                  _shippingAddress = _buildFullAddress({
+                    'street1': _street1,
+                    'street2': _street2,
+                    'city': _city,
+                    'state': _addrState,
+                    'country': _country,
+                    'postcode': _postcode,
+                  });
+                  _requestedInfoId = null;
+                });
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              onSave(controller.text);
-              Navigator.of(ctx).pop();
+      ),
+    );
+  }
+
+  void _editName() {
+    final controller = TextEditingController(text: _savedName ?? '');
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Name'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            inputFormatters: [LengthLimitingTextInputFormatter(64)],
+            decoration: InputDecoration(
+              labelText: 'Full Name',
+              border: const OutlineInputBorder(),
+              errorText: errorText,
+            ),
+            onChanged: (_) {
+              if (errorText != null) {
+                setDialogState(() => errorText = null);
+              }
             },
-            child: const Text('Save'),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (controller.text.trim().isEmpty) {
+                  setDialogState(() => errorText = 'Name is required');
+                  return;
+                }
+                setState(() {
+                  _savedName = controller.text.trim();
+                  _requestedInfoId = null;
+                });
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editEmail() {
+    final controller = TextEditingController(text: _savedEmail ?? '');
+    String? errorText;
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Email'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.emailAddress,
+            inputFormatters: [LengthLimitingTextInputFormatter(128)],
+            decoration: InputDecoration(
+              labelText: 'Email Address',
+              border: const OutlineInputBorder(),
+              errorText: errorText,
+            ),
+            onChanged: (_) {
+              if (errorText != null) {
+                setDialogState(() => errorText = null);
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final val = controller.text.trim();
+                if (val.isEmpty || !emailRegex.hasMatch(val)) {
+                  setDialogState(
+                      () => errorText = 'Enter a valid email address');
+                  return;
+                }
+                setState(() {
+                  _savedEmail = val;
+                  _requestedInfoId = null;
+                });
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editPhone() {
+    final controller = TextEditingController(text: _savedPhone ?? '');
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Phone'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.phone,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(16),
+              FilteringTextInputFormatter.allow(RegExp(r'[\d+() -]')),
+            ],
+            decoration: InputDecoration(
+              labelText: 'Phone Number',
+              hintText: '+1 234 567 8900',
+              border: const OutlineInputBorder(),
+              errorText: errorText,
+            ),
+            onChanged: (_) {
+              if (errorText != null) {
+                setDialogState(() => errorText = null);
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final digits =
+                    controller.text.replaceAll(RegExp(r'[^\d+]'), '');
+                if (digits.length < 7) {
+                  setDialogState(
+                      () => errorText = 'Enter a valid phone number');
+                  return;
+                }
+                setState(() {
+                  _savedPhone = digits;
+                  _requestedInfoId = null;
+                });
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1553,62 +2025,80 @@ class _PaymentPanelState extends State<PaymentPanel>
   void _panelChooseTips(
       String currency, Color accent, Color fg, bool isDark) {
     final controller = TextEditingController();
+    String? tipError;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Custom Tip'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: 'Enter tip amount',
-                prefixText: _currencySymbol(currency),
-                border: const OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Custom Tip'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Enter tip amount',
+                  prefixText: _currencySymbol(currency),
+                  border: const OutlineInputBorder(),
+                  errorText: tipError,
+                ),
+                onChanged: (_) {
+                  if (tipError != null) {
+                    setDialogState(() => tipError = null);
+                  }
+                },
               ),
-            ),
-            if (_suggestedTips.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                children: _suggestedTips.map((tip) {
-                  return ActionChip(
-                    label: Text(_formatAmount(tip, currency)),
-                    onPressed: () {
-                      setState(() => _selectedTip = tip);
-                      Navigator.of(ctx).pop();
-                    },
-                  );
-                }).toList(),
-              ),
+              if (_suggestedTips.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  children: _suggestedTips.map((tip) {
+                    return ActionChip(
+                      label: Text(_formatAmount(tip, currency)),
+                      onPressed: () {
+                        setState(() => _selectedTip = tip);
+                        Navigator.of(ctx).pop();
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
             ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final val = double.tryParse(controller.text);
+                if (val != null && val >= 0) {
+                  final exp = _currencyExponent(currency);
+                  int multiplier = 1;
+                  for (int i = 0; i < exp; i++) multiplier *= 10;
+                  final minorVal = (val * multiplier).round();
+                  if (_maxTip > 0 && minorVal > _maxTip) {
+                    setDialogState(() {
+                      tipError =
+                          'Max tip: ${_formatAmount(_maxTip, currency)}';
+                    });
+                    return;
+                  }
+                  setState(() => _selectedTip = minorVal);
+                  Navigator.of(ctx).pop();
+                } else {
+                  setDialogState(() => tipError = 'Enter a valid amount');
+                }
+              },
+              child: const Text('Set'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final val = int.tryParse(controller.text);
-              if (val != null && val >= 0) {
-                final exp = _currencyExponent(currency);
-                int multiplier = 1;
-                for (int i = 0; i < exp; i++) multiplier *= 10;
-                final minorVal = val * multiplier;
-                if (_maxTip <= 0 || minorVal <= _maxTip) {
-                  setState(() => _selectedTip = minorVal);
-                }
-              }
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Set'),
-          ),
-        ],
       ),
     );
   }
@@ -1662,7 +2152,9 @@ class _PaymentPanelState extends State<PaymentPanel>
             width: double.infinity,
             height: _kSubmitHeight,
             child: TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: (_isReceipt || _state == _PanelState.done)
+                  ? () => Navigator.of(context).pop()
+                  : _requestClose,
               style: TextButton.styleFrom(
                 foregroundColor: fg,
                 textStyle:
@@ -1734,33 +2226,234 @@ class _PaymentPanelState extends State<PaymentPanel>
     return buf.toString();
   }
 
-  bool _photoFailed = false;
+  bool _hasChanges() {
+    return _paymentMethod != _initialPaymentMethod ||
+        _shippingAddress != _initialShippingAddress ||
+        _savedName != _initialName ||
+        _savedEmail != _initialEmail ||
+        _savedPhone != _initialPhone;
+  }
 
-  Future<void> _downloadAndCachePhoto(String url) async {
-    if (_cachedPhotoPath != null || _photoDownloading || _photoFailed) return;
-    _photoDownloading = true;
-    try {
-      final client = HttpClient();
-      final request = await client.getUrl(Uri.parse(url));
-      final response = await request.close();
-      if (response.statusCode == 200) {
-        final bytes = await response.fold<List<int>>(
-          <int>[],
-          (prev, chunk) => prev..addAll(chunk),
-        );
-        final tmpFile = File('${Directory.systemTemp.path}/payment_thumb_${url.hashCode}.jpg');
-        await tmpFile.writeAsBytes(bytes);
-        if (mounted) {
-          setState(() => _cachedPhotoPath = tmpFile.path);
-        }
-      } else {
-        _photoFailed = true;
-      }
-      client.close();
-    } catch (_) {
-      _photoFailed = true;
+  void _requestClose() {
+    if (_state == _PanelState.form && _hasChanges()) {
+      showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Discard changes?'),
+          content: const Text(
+            'You have unsaved changes. Are you sure you want to close?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop(true);
+                Navigator.of(context).pop();
+              },
+              child: const Text('Discard'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      Navigator.of(context).pop();
     }
-    _photoDownloading = false;
+  }
+
+  void _showWebViewPayment(String url) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (routeCtx) => _PaymentWebViewPage(
+          url: url,
+          onPaymentDone: (token) {
+            if (token != null) {
+              setState(() {
+                _credentialsData = token;
+                _paymentMethod = 'Card (web)';
+              });
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  static bool _luhnCheck(String number) {
+    var odd = true;
+    var sum = 0;
+    for (var i = number.length - 1; i >= 0; i--) {
+      var digit = number.codeUnitAt(i) - 48;
+      if (digit < 0 || digit > 9) return false;
+      odd = !odd;
+      if (odd) digit *= 2;
+      if (digit > 9) digit -= 9;
+      sum += digit;
+    }
+    return sum % 10 == 0;
+  }
+
+  static List<int> _cardNumberGroups(String sanitized) {
+    if (sanitized.length >= 2) {
+      final prefix = int.tryParse(sanitized.substring(0, 2)) ?? 0;
+      if (prefix == 34 || prefix == 37) return [4, 6, 5];
+      if (prefix == 30 || prefix == 36 || prefix == 38 || prefix == 39) {
+        if (sanitized.length <= 14) return [4, 6, 4];
+      }
+    }
+    return [4, 4, 4, 4];
+  }
+}
+
+class _CardNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    var digits = newValue.text.replaceAll(' ', '');
+    if (digits.length > 19) digits = digits.substring(0, 19);
+
+    final groups = _PaymentPanelState._cardNumberGroups(digits);
+    final buf = StringBuffer();
+    var pos = 0;
+    var cursorTarget = newValue.selection.baseOffset;
+    var newCursor = cursorTarget;
+
+    for (final len in groups) {
+      if (pos >= digits.length) break;
+      if (buf.isNotEmpty) {
+        buf.write(' ');
+        if (pos < cursorTarget ||
+            (pos == cursorTarget && buf.length <= cursorTarget + 1)) {
+          newCursor++;
+        }
+      }
+      final end = (pos + len).clamp(0, digits.length);
+      buf.write(digits.substring(pos, end));
+      pos = end;
+    }
+
+    final text = buf.toString();
+    newCursor = newCursor.clamp(0, text.length);
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+  }
+}
+
+class _ExpiryDateFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    var digits = newValue.text.replaceAll('/', '');
+    digits = digits.replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(
+          text: '', selection: TextSelection.collapsed(offset: 0));
+    }
+
+    if (digits[0] != '0' && digits[0] != '1') {
+      digits = '0$digits';
+    } else if (digits.length > 1 &&
+        digits[0] == '1' &&
+        digits.codeUnitAt(1) - 48 > 2) {
+      digits = digits.substring(0, 2);
+    }
+
+    if (digits.length > 4) digits = digits.substring(0, 4);
+
+    String text;
+    if (digits.length <= 2) {
+      text = digits;
+    } else {
+      text = '${digits.substring(0, 2)}/${digits.substring(2)}';
+    }
+
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+class _PaymentWebViewPage extends StatefulWidget {
+  final String url;
+  final ValueChanged<String?> onPaymentDone;
+
+  const _PaymentWebViewPage({required this.url, required this.onPaymentDone});
+
+  @override
+  State<_PaymentWebViewPage> createState() => _PaymentWebViewPageState();
+}
+
+class _PaymentWebViewPageState extends State<_PaymentWebViewPage> {
+  WebViewController? _controller;
+  bool _webViewAvailable = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initWebView();
+  }
+
+  void _initWebView() {
+    try {
+      final ctrl = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(NavigationDelegate(
+          onPageStarted: (_) {
+            if (mounted) setState(() => _loading = true);
+          },
+          onPageFinished: (_) {
+            if (mounted) setState(() => _loading = false);
+          },
+          onNavigationRequest: (request) {
+            if (request.url.contains('tg://') ||
+                request.url.contains('done') ||
+                request.url.contains('success')) {
+              widget.onPaymentDone(null);
+              Navigator.of(context).pop();
+              return NavigationDecision.prevent;
+            }
+            return NavigationDecision.navigate;
+          },
+        ))
+        ..loadRequest(Uri.parse(widget.url));
+      _controller = ctrl;
+      _webViewAvailable = true;
+    } catch (_) {
+      _webViewAvailable = false;
+      launchUrl(Uri.parse(widget.url), mode: LaunchMode.externalApplication);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).pop();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_webViewAvailable || _controller == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Payment'),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller!),
+          if (_loading)
+            const LinearProgressIndicator(),
+        ],
+      ),
+    );
   }
 }
 
