@@ -604,9 +604,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — saveSendWaySettings not called on send
-
-- [ ] [MAJOR] AyuGram persists the user's send way preferences when confirmed: `saveSendWaySettings(_wayRemember && _wayRemember->checked())`. This writes to `Core::App().settings().setSendFilesWay(way)` and calls `saveSettingsDelayed()`. The Dart `_send()` reads `_wayRemember` flag but never persists the send way back to app settings; the result is only forwarded in `SendFilesResult.remember` to the caller, which is only advisory. — `send_files_box.dart:1384` ← `AyuGram/boxes/send_files_box.cpp:2411`
 
 ## send_files_box — `_canMoveCaption` check is weaker than AyuGram's
 
