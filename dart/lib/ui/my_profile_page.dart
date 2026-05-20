@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../data/emoji_data.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
@@ -676,7 +677,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
 /// §14.5.2: Bio input field — transparent multiline, margins 22/6/22/4px,
 /// 32px min height, character counter (grey ≥0 / red <0), 70-char limit
 /// (140 Premium), debounced 1000ms auto-save, footer text.
-class _BioInput extends StatelessWidget {
+class _BioInput extends StatefulWidget {
   final TextEditingController controller;
   final bool isDark;
   final bool isPremium;
@@ -694,15 +695,115 @@ class _BioInput extends StatelessWidget {
   });
 
   @override
+  State<_BioInput> createState() => _BioInputState();
+}
+
+class _BioInputState extends State<_BioInput> {
+  final _focusNode = FocusNode();
+  List<EmojiEntry> _emojiSuggestions = [];
+  int _emojiSelectedIndex = 0;
+  int _emojiTriggerOffset = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.onKeyEvent = (node, event) {
+      if (_handleEmojiKey(event)) return KeyEventResult.handled;
+      return KeyEventResult.ignored;
+    };
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _checkEmojiAutocomplete() {
+    final sel = widget.controller.selection;
+    if (!sel.isValid || !sel.isCollapsed) {
+      if (_emojiSuggestions.isNotEmpty) setState(() => _emojiSuggestions = []);
+      return;
+    }
+    final text = widget.controller.text;
+    final cursor = sel.baseOffset;
+    if (cursor <= 0 || cursor > text.length) {
+      if (_emojiSuggestions.isNotEmpty) setState(() => _emojiSuggestions = []);
+      return;
+    }
+    final before = text.substring(0, cursor);
+    final match = RegExp(r'(?:^|(?<=\s)):(\w{2,})$').firstMatch(before);
+    if (match != null) {
+      final query = match.group(1)!;
+      final triggerOffset = match.start + match.group(0)!.indexOf(':');
+      final results = searchEmoji(query, limit: 20);
+      setState(() {
+        _emojiSuggestions = results;
+        _emojiSelectedIndex = 0;
+        _emojiTriggerOffset = triggerOffset;
+      });
+    } else {
+      if (_emojiSuggestions.isNotEmpty) {
+        setState(() => _emojiSuggestions = []);
+      }
+    }
+  }
+
+  void _insertEmoji(EmojiEntry emoji) {
+    final sel = widget.controller.selection;
+    if (!sel.isValid) return;
+    final cursor = sel.baseOffset;
+    final text = widget.controller.text;
+    final newText = text.substring(0, _emojiTriggerOffset) +
+        emoji.emoji +
+        text.substring(cursor);
+    widget.controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(
+          offset: _emojiTriggerOffset + emoji.emoji.length),
+    );
+    setState(() => _emojiSuggestions = []);
+    widget.onChanged(widget.controller.text);
+  }
+
+  bool _handleEmojiKey(KeyEvent event) {
+    if (_emojiSuggestions.isEmpty) return false;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      setState(() {
+        _emojiSelectedIndex = (_emojiSelectedIndex + 1).clamp(0, _emojiSuggestions.length - 1);
+      });
+      return true;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      setState(() {
+        _emojiSelectedIndex = (_emojiSelectedIndex - 1).clamp(0, _emojiSuggestions.length - 1);
+      });
+      return true;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.tab) {
+      _insertEmoji(_emojiSuggestions[_emojiSelectedIndex]);
+      return true;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      setState(() => _emojiSuggestions = []);
+      return true;
+    }
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDark;
     final textColor = isDark
         ? const Color(0xFFF5F5F5)
         : const Color(0xFF000000);
     final subtextColor = isDark
         ? const Color(0xFF6C7883)
         : const Color(0xFF999999);
-    final maxLen = isPremium ? 140 : 70;
-    final remaining = maxLen - controller.text.length;
+    final maxLen = widget.isPremium ? 140 : 70;
+    final remaining = maxLen - widget.controller.text.length;
     final counterColor = remaining < 0
         ? const Color(0xFFE53935)
         : subtextColor;
@@ -717,9 +818,10 @@ class _BioInput extends StatelessWidget {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 32),
                 child: TextField(
-                  controller: controller,
+                  controller: widget.controller,
+                  focusNode: _focusNode,
                   maxLines: null,
-                  enabled: bioLoaded,
+                  enabled: widget.bioLoaded,
                   style: TextStyle(fontSize: 14, color: textColor),
                   decoration: InputDecoration(
                     hintText: 'Bio',
@@ -736,8 +838,11 @@ class _BioInput extends StatelessWidget {
                       return newValue.copyWith(text: stripped);
                     }),
                   ],
-                  onChanged: onChanged,
-                  onSubmitted: (_) => onSubmitted(),
+                  onChanged: (value) {
+                    widget.onChanged(value);
+                    _checkEmojiAutocomplete();
+                  },
+                  onSubmitted: (_) => widget.onSubmitted(),
                 ),
               ),
             ),
@@ -751,6 +856,14 @@ class _BioInput extends StatelessWidget {
             ),
           ],
         ),
+        if (_emojiSuggestions.isNotEmpty)
+          _BioEmojiSuggestionPanel(
+            emojis: _emojiSuggestions,
+            selectedIndex: _emojiSelectedIndex,
+            isDark: isDark,
+            onPick: (i) => _insertEmoji(_emojiSuggestions[i]),
+            onHover: (i) => setState(() => _emojiSelectedIndex = i),
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
           child: Text(
@@ -759,6 +872,78 @@ class _BioInput extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BioEmojiSuggestionPanel extends StatelessWidget {
+  final List<EmojiEntry> emojis;
+  final int selectedIndex;
+  final bool isDark;
+  final ValueChanged<int> onPick;
+  final ValueChanged<int> onHover;
+
+  const _BioEmojiSuggestionPanel({
+    required this.emojis,
+    required this.selectedIndex,
+    required this.isDark,
+    required this.onPick,
+    required this.onHover,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf7f7f7);
+    final hoverColor = isDark ? const Color(0xFF2b3d4f) : const Color(0xFFe8e8e8);
+    final borderColor = isDark ? const Color(0xFF101a23) : const Color(0xFFdadada);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: borderColor, width: 1),
+        ),
+        child: ShaderMask(
+          shaderCallback: (bounds) => const LinearGradient(
+            colors: [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
+            stops: [0.0, 0.03, 0.97, 1.0],
+          ).createShader(bounds),
+          blendMode: BlendMode.dstIn,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            itemCount: emojis.length,
+            itemBuilder: (context, index) {
+              final e = emojis[index];
+              final isSelected = index == selectedIndex;
+              return MouseRegion(
+                onEnter: (_) => onHover(index),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onPick(index),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isSelected ? hoverColor : null,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      e.emoji,
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }
