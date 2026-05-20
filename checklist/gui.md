@@ -605,11 +605,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-
-## send_files_box — `_showTopMenu` (top-right "..." button) duplicates send-menu items incorrectly
-
-- [ ] [MAJOR] The top-right `_TopMenuButton` in the Dart opens `_showTopMenu`, which re-implements its own list of items (quality, spoiler, sticker). In AyuGram the top button opens the same `SendMenu::FillSendMenu` as the send button — with the full menu including CaptionUp/Down and PhotoQuality toggled correctly via `_sendMenuCallback`. The Dart's top menu duplicates quality/spoiler toggle logic in a second code path without the `CaptionDown/Up` items, and misses the sticker conversion that AyuGram does (converting image to WEBP before sending). — `send_files_box.dart:1317-1351` ← `AyuGram/boxes/send_files_box.cpp:1168-1219`
-
 ## send_files_box — Send as sticker converts image to WEBP; Dart omits conversion
 
 - [ ] [CRITICAL] In AyuGram, "Send as sticker" converts the image data to WEBP format in-memory (`sourceImage->data.save(&buffer, "WEBP")`) and calls `addFiles(Storage::PrepareMediaFromImage(...))` with the converted bytes before sending. The Dart `_sendAsSticker()` simply calls `_send(asSticker: true)` and passes the original file path unchanged. No WEBP conversion happens; the file remains whatever format it was. — `send_files_box.dart:1353-1355` ← `AyuGram/boxes/send_files_box.cpp:1192-1213`
