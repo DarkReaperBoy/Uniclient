@@ -559,47 +559,9 @@ All CRITICAL and MAJOR checks passed:
 ## info_panel — Minor wiring notes
 
 
-## input_dialogs — Input Dialogs (UsernameBox, AddContactBox, CountrySelectBox, EditInviteLink, CreatePollBox)
-
-- [ ] [MAJOR] CreatePollBox: poll media upload is local-path-only with no actual upload to Telegram servers — `_pickOptionMedia` collects a local file path and returns `CreatePollResult.optionMediaPaths` as strings; AyuGram uploads each option's media via `startPreparedPhotoUpload`/`startPreparedDocumentUpload`/`startPreparedVideoUpload` before submit, obtaining `MTPInputFile` references; the Dart flow passes raw file paths to `createPoll` which must handle upload internally, but this is not implemented — `input_dialogs.dart:1929-1958` ← `create_poll_box.cpp:1862-1930`
-
-# instant_view — Audit Findings
-
-- [ ] [CRITICAL] Map block renders OpenStreetMap tiles directly instead of using Telegram's `GeoPoint`/`CloudFile` map service — `instant_view.dart:1436,1452` ← `AyuGramDesktop/Telegram/SourceFiles/iv/iv_instance.cpp` (`streamMap()`/`UpdateCloudFile()`). AyuGram fetches map tiles via `LoadCloudFile()` with `GeoPointLocation`; Dart opens an OSM URL in the external browser, breaking visual consistency and correct behavior.
-
-- [ ] [CRITICAL] Subtitle block font size/weight mismatch — `instant_view.dart:383` uses `18px w500`; AyuGram `iv.style` specifies `ivSubtitleFont: font(16px semibold)` (16 px, semibold). >10% size deviation plus wrong weight.
-
-- [ ] [MAJOR] Table colspan padding cells are inserted as bare `SizedBox.shrink()` outside a `TableCell` wrapper — `instant_view.dart:914–920`. Flutter's `Table` widget requires every child in a `TableRow` to be a `TableCell`; mixing unwrapped widgets and `TableCell` siblings in the same row produces layout errors and assertion failures on cells spanning >1 column.
-
-- [ ] [MAJOR] Audio download failure is silent — `instant_view.dart:2064–2068`. On `engine.downloadIVDocument` exception the audio block returns without setting any error state, leaving the user staring at a stopped spinner. The video block correctly sets `_error` on failure (`instant_view.dart:1901`); audio must do the same — `AyuGramDesktop/Telegram/SourceFiles/iv/iv_instance.cpp` (audio error path shows fallback label).
-
-- [ ] [MAJOR] `geo.access` field never validated before constructing the map tile URL — `instant_view.dart:1410`. AyuGram checks the `access` token before making the map request; without it the coordinates alone are insufficient for authenticated tile loading, and the block silently renders a broken map.
-
 # emoji_data — Emoji keyword search data and EmojiKeywords manager
 
-- [ ] [CRITICAL] `kEmojiSuggestions` hardcoded list covers ~500 emoji while AyuGram's legacy database (`emoji_autocomplete.json`) has **2666 entries** — roughly 81% of emoji are unsearchable via keyword fallback before server keywords load — `emoji_data.dart:3-643` ← `AyuGramDesktop/Telegram/lib_ui/emoji_suggestions/emoji_autocomplete.json` (2666 entries) + `emoji_keywords.cpp:200-242` (`AppendLegacySuggestions` calls `GetSuggestions`)
-
-- [ ] [MAJOR] `_searchLegacyData` is called unconditionally at line 804 regardless of `exact` flag, so exact queries still search legacy data — C++ skips all legacy suggestions for exact queries entirely — `emoji_data.dart:804` ← `emoji_keywords.cpp:638-641` (`if (!exact) { AppendLegacySuggestions(result, query); }`)
-
-- [ ] [MAJOR] `_searchLegacyData` is missing the bad-character filter from C++ `AppendLegacySuggestions` — C++ rejects queries containing chars outside `[a-zA-Z0-9_\-+]` before searching legacy data; Dart has no such guard, allowing spurious matches on emoji/punctuation queries — `emoji_data.dart:862-889` ← `emoji_keywords.cpp:203-212` (`badSuggestionChar` lambda + early return)
-
-- [ ] [MAJOR] No `refreshed()` reactive signal — C++ fires `_refreshed.fire({})` whenever server keyword data arrives so the emoji suggestion widget can repaint; Dart has no equivalent, meaning the autocomplete list won't live-update when `loadServerKeywords` is called while the popup is open — `emoji_data.dart:698-907` (no signal) ← `emoji_keywords.h:37` (`rpl::producer<> refreshed() const`) + `emoji_keywords.cpp:518-519`
-
-- [ ] [MAJOR] No disk caching of server keyword data — C++ reads/writes a binary cache at `internal::CacheFileFolder() + "/keywords/<lang>"` so keywords are available instantly on next launch without waiting for the API; Dart must re-fetch all keyword packs from the server on every cold start — `emoji_data.dart:682-695` (`load()` has no persist path) ← `emoji_keywords.cpp:84-166` (`ReadLocalCache` / `WriteLocalCache` + `CacheFilePath`)
-
-- [ ] [MAJOR] No `maxQueryLength()` public API — C++ exposes `maxQueryLength()` so callers can skip the search entirely for queries longer than any stored key (perf guard); Dart exposes nothing, so `_searchLangPack` always enters the binary search even for impossibly long queries — `emoji_data.dart:823-860` (no early-exit on query length at call site) ← `emoji_keywords.h:49` (`int maxQueryLength() const`) + `emoji_keywords.cpp:682-690`
-
-- [ ] [MAJOR] Always fetches full keyword list; never uses differential updates — C++ checks `_data.version > 0` and calls `messages.GetEmojiKeywordsDifference` for incremental updates (only changed keywords); Dart always issues `GetEmojiKeywords` (full fetch) and replaces all data, causing unnecessary bandwidth every hourly refresh — `emoji_data.dart:682-695` (full replace, no delta) ← `emoji_keywords.cpp:411-416` (`_data.version > 0 ? GetEmojiKeywordsDifference : GetEmojiKeywords`)
-
-# keyboard_shortcuts — Audit findings
-
-- [ ] [CRITICAL] `mediaPrevious`/`mediaNext` handlers seek ±5 seconds within the current track instead of moving to the previous/next playlist item — `keyboard_shortcuts.dart:1268-1287` ← `AyuGram/media/player/media_player_instance.cpp:1112-1124` (`previous()` / `next()` call `moveInPlaylist(data, ±1, false)` — track navigation, not seek)
-
-- [ ] [CRITICAL] Chat-switch overlay (Ctrl+Tab) is registered as a plain shortcut command and only fires `showChatSwitchRequest` once (line 1091); AyuGram implements a full state machine via `HandlePossibleChatSwitch` that intercepts raw key events during an active switch: arrow-key/Q navigation within the overlay, Escape to cancel, Enter/Ctrl-release to confirm — none of that exists in the Dart shortcut system — `keyboard_shortcuts.dart:834-839, 1090-1097` ← `AyuGram/core/shortcuts.cpp:34-45, 894-974`
-
-- [ ] [MAJOR] On macOS, folder shortcuts (`allChats`, `folder1`…`lastFolder`) bind with `control: true`, which the Mac key-swap at line 697–698 maps to Command ⌘ (`hwMeta`). AyuGram uses `meta` (= physical Control ^) for folder shortcuts on Mac (`const auto ctrl = Platform::IsMac() ? u"meta"_q : u"ctrl"_q`), so the two keys diverge: Dart fires on ⌘+1…⌘+8, AyuGram fires on ^+1…^+8 — `keyboard_shortcuts.dart:697-698, 884-907` ← `AyuGram/core/shortcuts.cpp:469, 511-517`
-
-- [ ] [MAJOR] `supportScrollToCurrent` handler calls `ChatListPanel.requestNavigateChat(0)` ("navigate by 0 steps") instead of scrolling the list to the currently-active chat row; AyuGram's handler calls `scrollToEntry(row)` on the dialogs widget — `keyboard_shortcuts.dart:1301-1305` ← `AyuGram/core/shortcuts.cpp:87` + `AyuGram/dialogs/dialogs_inner_widget.cpp:5720-5727`
+- [ ] [MAJOR] Always fetches full keyword list; never uses differential updates — C++ checks `_data.version > 0` and calls `messages.GetEmojiKeywordsDifference` for incremental updates (only changed keywords); Dart always issues `GetEmojiKeywords` (full fetch) and replaces all data, causing unnecessary bandwidth every hourly refresh — `emoji_data.dart:682-695` (full replace, no delta) ← `emoji_keywords.cpp:411-416` (`_data.version > 0 ? GetEmojiKeywordsDifference : GetEmojiKeywords`). NOTE: `EmojiKeywords.serverVersion`/`hasServerData` getters and `loadServerKeywordsDiff()` method are implemented in `emoji_data.dart`, but the call site in `chat_view.dart:_fetchEmojiKeywordsForLangs` always calls `engine.getEmojiKeywords()` (full fetch), and `engine_service.dart` has no `getEmojiKeywordsDiff` method, and `go/bridge/dispatch_engine.go` has no `GetEmojiKeywordsDifference` handler. The Go method `MessagesGetEmojiKeywordsDifference` exists in `telegram.go:23066` but is not wired through the bridge.
 
 # language_box — Audit Findings
 
