@@ -593,7 +593,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 # popup_menu — Context menu / popup menu widget
 
-- [ ] [MAJOR] Submenu always opens to the right regardless of locale; AyuGram explicitly checks `style::RightToLeft()` and flips submenu to the left side when in RTL mode — `popup_menu.dart:578` ← `lib_ui/ui/widgets/popup_menu.cpp:927-936`
 
 ## privacy_settings_screen — Privacy & Security settings screen audit
 
