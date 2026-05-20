@@ -23708,12 +23708,53 @@ func (t *TelegramCore) MessagesToggleBotInAttachMenu(request *tg.MessagesToggleB
 	return t.api.MessagesToggleBotInAttachMenu(t.ctx, request)
 }
 
-// MarkAllStoriesRead triggers the server to sync all read story states.
+// MarkAllStoriesRead fetches all active stories and sends read receipts for
+// each peer that has unread stories (stories.readStories per peer).
 func (t *TelegramCore) MarkAllStoriesRead() error {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ErrAuth }
-	_, err := t.api.StoriesGetAllReadPeerStories(t.ctx)
-	return err
+
+	result, err := t.api.StoriesGetAllStories(t.ctx, &tg.StoriesGetAllStoriesRequest{})
+	if err != nil {
+		return err
+	}
+	allStories, ok := result.(*tg.StoriesAllStories)
+	if !ok || len(allStories.PeerStories) == 0 {
+		return nil
+	}
+
+	for _, u := range allStories.Users {
+		if user, ok := u.(*tg.User); ok && user.AccessHash != 0 {
+			t.cacheUserHash(user.ID, user.AccessHash)
+		}
+	}
+	for _, c := range allStories.Chats {
+		if ch, ok := c.(*tg.Channel); ok && ch.AccessHash != 0 {
+			t.cacheChannelHash(ch.ID, ch.AccessHash)
+		}
+	}
+
+	for _, ps := range allStories.PeerStories {
+		maxStoryID := 0
+		for _, s := range ps.Stories {
+			if id := s.GetID(); id > maxStoryID {
+				maxStoryID = id
+			}
+		}
+		if maxStoryID == 0 {
+			continue
+		}
+		maxRead, hasRead := ps.GetMaxReadID()
+		if hasRead && maxRead >= maxStoryID {
+			continue
+		}
+		inputPeer := t.peerToInputPeer(ps.Peer)
+		t.api.StoriesReadStories(t.ctx, &tg.StoriesReadStoriesRequest{
+			Peer:  inputPeer,
+			MaxID: maxStoryID,
+		})
+	}
+	return nil
 }
 
 // RemoveBotFromMenu removes a bot from the side/attach menu.
