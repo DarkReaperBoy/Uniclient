@@ -19061,6 +19061,27 @@ func (t *TelegramCore) GetConfcallSizeLimit() (int, error) {
 	return 200, nil
 }
 
+func (t *TelegramCore) GetStarsPaidPostAmountMax() (int, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 10000, ErrAuth }
+	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	if err != nil { return 10000, nil }
+	cfg, ok := result.(*tg.HelpAppConfig)
+	if !ok { return 10000, nil }
+	if jv := cfg.Config; jv != nil {
+		if obj, ok2 := jv.(*tg.JSONObject); ok2 {
+			for _, kv := range obj.Value {
+				if kv.Key == "stars_paid_post_amount_max" {
+					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 {
+						return int(n.Value), nil
+					}
+				}
+			}
+		}
+	}
+	return 10000, nil
+}
+
 func (t *TelegramCore) GetStarsBalance() (int64, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return 0, ErrAuth }

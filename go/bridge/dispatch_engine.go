@@ -3508,6 +3508,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			"limit": limit,
 		})
 
+	case "GetStarsPaidPostAmountMax":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		limit, err := e.GetStarsPaidPostAmountMax(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{
+			"limit": limit,
+		})
+
 	case "GetPaidMessagesConfig":
 		var params struct {
 			AccountID string `json:"account_id"`

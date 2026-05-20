@@ -228,6 +228,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _rememberedSoundNotifyFromTray = false;
   bool _rememberedFlashBounceNotifyFromTray = false;
 
+  List<String> _recentHashtags = [];
+
   /// Spec §7.3: When true, empty-field send button shows Round (camera) instead of Record (mic).
   bool _recordVideoMessages = false;
 
@@ -2347,6 +2349,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  List<String> get recentHashtags => _recentHashtags;
+  void updateRecentHashtags(List<String> tags) {
+    _recentHashtags = tags.take(40).toList();
+    _saveWindowPrefs();
+  }
+
   bool get rememberedSoundNotifyFromTray => _rememberedSoundNotifyFromTray;
   set rememberedSoundNotifyFromTray(bool value) {
     if (_rememberedSoundNotifyFromTray != value) {
@@ -3127,6 +3135,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _rememberedGroupFiles = data['rememberedGroupFiles'] as bool?;
       _rememberedSoundNotifyFromTray = data['rememberedSoundNotifyFromTray'] as bool? ?? false;
       _rememberedFlashBounceNotifyFromTray = data['rememberedFlashBounceNotifyFromTray'] as bool? ?? false;
+      final savedHashtags = data['recentHashtags'];
+      if (savedHashtags is List) {
+        _recentHashtags = savedHashtags.map((e) => e.toString()).take(40).toList();
+      }
       _recordVideoMessages = data['recordVideoMessages'] as bool? ?? false;
       _powerSavingFlags = data['powerSavingFlags'] as int? ?? 0;
       _autoPowerSaving = data['autoPowerSaving'] as bool? ?? false;
@@ -3416,6 +3428,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         if (_rememberedSendAsDocuments != null) 'rememberedSendAsDocuments': _rememberedSendAsDocuments,
         if (_rememberedGroupFiles != null) 'rememberedGroupFiles': _rememberedGroupFiles,
         'rememberedSoundNotifyFromTray': _rememberedSoundNotifyFromTray,
+        if (_recentHashtags.isNotEmpty) 'recentHashtags': _recentHashtags,
         'rememberedFlashBounceNotifyFromTray': _rememberedFlashBounceNotifyFromTray,
         'recordVideoMessages': _recordVideoMessages,
         'powerSavingFlags': _powerSavingFlags,

@@ -2027,6 +2027,18 @@ class EngineService {
     }
   }
 
+  Future<int> getStarsPaidPostAmountMax(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetStarsPaidPostAmountMax', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 10000;
+      final m = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (m['limit'] as num?)?.toInt() ?? 10000;
+    } catch (_) {
+      return 10000;
+    }
+  }
+
   // ── Group calls ──
 
   /// Get active group call info for a chat, or null if no active call.

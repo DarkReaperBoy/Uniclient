@@ -1433,6 +1433,22 @@ func (e *Engine) GetConfcallSizeLimit(accountID string) (int, error) {
 	return g.GetConfcallSizeLimit()
 }
 
+type starsPaidPostAmountMaxGetter interface {
+	GetStarsPaidPostAmountMax() (int, error)
+}
+
+func (e *Engine) GetStarsPaidPostAmountMax(accountID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 10000, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(starsPaidPostAmountMaxGetter)
+	if !ok {
+		return 10000, nil
+	}
+	return g.GetStarsPaidPostAmountMax()
+}
+
 type cloudThemesFetcher interface {
 	GetCloudThemes() ([]cores.CloudThemeInfo, error)
 }

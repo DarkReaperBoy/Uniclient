@@ -152,6 +152,16 @@ MimeDataState classifyMimeData(List<String> paths) {
 
 class RecentHashtags {
   static final List<String> _tags = [];
+  static bool _loaded = false;
+
+  static void loadFrom(List<String> saved) {
+    if (_loaded) return;
+    _loaded = true;
+    _tags.clear();
+    _tags.addAll(saved.take(40));
+  }
+
+  static List<String> get currentTags => List.unmodifiable(_tags);
 
   static void addTag(String tag) {
     final lower = tag.toLowerCase();
@@ -370,6 +380,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   List<String> _acFilteredHashtags = [];
   String _acHashtagQuery = '';
   bool _showHashtagPanel = false;
+  int _starsPostLimit = 10000;
 
   @override
   void initState() {
@@ -391,6 +402,8 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
     _starsPerMessage = widget.starsPerMessage;
     final appState = context.read<AppState>();
+    RecentHashtags.loadFrom(appState.recentHashtags);
+    _fetchStarsLimit();
     _sendAsDocuments = widget.overrideSendAsDocuments
         ?? appState.rememberedSendAsDocuments
         ?? false;
@@ -462,6 +475,17 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
             ? _captionMaxLengthPremium
             : _captionMaxLengthDefault;
       });
+    } catch (_) {}
+  }
+
+  Future<void> _fetchStarsLimit() async {
+    try {
+      final appState = context.read<AppState>();
+      final accountId = appState.activeAccountId;
+      if (accountId == null) return;
+      final limit = await appState.engine.getStarsPaidPostAmountMax(accountId);
+      if (!mounted) return;
+      setState(() => _starsPostLimit = limit);
     } catch (_) {}
   }
 
@@ -1681,6 +1705,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     _saveSendWaySettings();
     final parsed = _captionController.getTextWithAppliedMarkdown();
     RecentHashtags.extractFromText(parsed.text);
+    try {
+      context.read<AppState>().updateRecentHashtags(RecentHashtags.currentTags);
+    } catch (_) {}
     final coverPaths = <int, String>{};
     for (var i = 0; i < _files.length; i++) {
       if (_files[i].videoCoverPath != null) {
@@ -1811,13 +1838,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     });
   }
 
-  static const int _kMaxStarsPerPost = 10000;
-
   void _showEditPriceDialog() {
     final ctrl = TextEditingController(
       text: _starsPerMessage > 0 ? '$_starsPerMessage' : '',
     );
-    final limit = _kMaxStarsPerPost;
+    final limit = _starsPostLimit;
     showTelegramBox<int>(
       context: context,
       builder: (ctx) => TelegramBox(
