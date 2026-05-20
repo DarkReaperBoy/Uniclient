@@ -3705,6 +3705,25 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, tgCore.SetEmojiProfilePhoto(params.DocumentID)
 
+	case "SetPersonalChannel":
+		var params struct {
+			AccountID       string `json:"account_id"`
+			ChannelUsername string `json:"channel_username"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetPersonalChannel(params.AccountID, params.ChannelUsername)
+
+	case "ClearPersonalChannel":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ClearPersonalChannel(params.AccountID)
+
 	case "UploadFallbackPhoto":
 		var params struct {
 			AccountID string `json:"account_id"`

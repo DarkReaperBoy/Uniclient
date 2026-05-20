@@ -21142,6 +21142,41 @@ func (t *TelegramCore) AccountUpdatePersonalChannel(channel tg.InputChannelClass
 	return t.api.AccountUpdatePersonalChannel(t.ctx, channel)
 }
 
+func (t *TelegramCore) SetPersonalChannel(channelUsername string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	resolved, err := t.api.ContactsResolveUsername(t.ctx, &tg.ContactsResolveUsernameRequest{
+		Username: strings.TrimPrefix(channelUsername, "@"),
+	})
+	if err != nil {
+		return fmt.Errorf("resolve channel: %w", err)
+	}
+	t.cacheEntities(resolved.Users, resolved.Chats)
+	for _, c := range resolved.Chats {
+		if ch, ok := c.(*tg.Channel); ok {
+			_, err := t.api.AccountUpdatePersonalChannel(t.ctx, &tg.InputChannel{
+				ChannelID:  ch.ID,
+				AccessHash: ch.AccessHash,
+			})
+			return err
+		}
+	}
+	return fmt.Errorf("no channel found for username %q", channelUsername)
+}
+
+func (t *TelegramCore) ClearPersonalChannel() error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	_, err := t.api.AccountUpdatePersonalChannel(t.ctx, &tg.InputChannelEmpty{})
+	return err
+}
+
 // AccountUpdateTheme modifies an existing custom theme.
 func (t *TelegramCore) AccountUpdateTheme(request *tg.AccountUpdateThemeRequest) (*tg.Theme, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

@@ -47,6 +47,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
   int _birthdayYear = 0;
   bool _birthdayLoaded = false;
   String _birthdayPrivacy = 'contacts';
+  bool _birthdayPrivacyExact = true;
   String _statusText = '';
   bool _isStatusOnline = false;
   UserProfile? _cachedProfile;
@@ -158,10 +159,18 @@ class _MyProfilePageState extends State<MyProfilePage> {
     });
     engine.getPrivacySetting(account.id, 'birthday').then((result) {
       if (!mounted || result == null) return;
-      final rule = result['rule'] as String? ?? 'contacts';
-      if (rule != _birthdayPrivacy) {
-        setState(() => _birthdayPrivacy = rule);
-      }
+      final rule = result['option'] as String? ?? result['rule'] as String? ?? 'contacts';
+      final alwaysUsers = result['always_users'] as List? ?? [];
+      final neverUsers = result['never_users'] as List? ?? [];
+      final alwaysChats = result['always_chats'] as List? ?? [];
+      final neverChats = result['never_chats'] as List? ?? [];
+      final allowPremium = result['allow_premium'] as bool? ?? false;
+      final isExact = alwaysUsers.isEmpty && neverUsers.isEmpty &&
+          alwaysChats.isEmpty && neverChats.isEmpty && !allowPremium;
+      setState(() {
+        _birthdayPrivacy = rule;
+        _birthdayPrivacyExact = isExact;
+      });
     });
   }
 
@@ -265,11 +274,41 @@ class _MyProfilePageState extends State<MyProfilePage> {
     }
   }
 
+  static const _instantReplaces = {
+    ':-)': '😊', ':)': '😊', ':-D': '😃', ':D': '😃',
+    ';-)': '😉', ';)': '😉', ':-(': '😞', ':(': '😞',
+    ':-P': '😛', ':P': '😛', ':-p': '😛', ':p': '😛',
+    ':-O': '😮', ':O': '😮', ':-o': '😮', ':o': '😮',
+    '<3': '❤️', '>:(': '😠', ':-/': '😕', ':/': '😕',
+    ':-|': '😐', ':|': '😐', ":'(": '😢',
+    'B-)': '😎', 'B)': '😎', ':*': '😘',
+    'O:)': '😇', 'o:)': '😇', '>:)': '😈',
+  };
+
   void _onBioChanged(String value) {
+    final text = _bioController.text;
+    final sel = _bioController.selection;
+    if (sel.isValid && sel.baseOffset == sel.extentOffset) {
+      final cursor = sel.baseOffset;
+      for (final entry in _instantReplaces.entries) {
+        final pat = entry.key;
+        if (cursor >= pat.length && text.substring(cursor - pat.length, cursor) == pat) {
+          final before = text.substring(0, cursor - pat.length);
+          final after = text.substring(cursor);
+          final replaced = '$before${entry.value}$after';
+          final newCursor = before.length + entry.value.length;
+          _bioController.value = TextEditingValue(
+            text: replaced,
+            selection: TextSelection.collapsed(offset: newCursor),
+          );
+          break;
+        }
+      }
+    }
     setState(() {});
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 1000), () {
-      _saveBio(value);
+      _saveBio(_bioController.text);
     });
   }
 
@@ -417,7 +456,9 @@ class _MyProfilePageState extends State<MyProfilePage> {
                     ? 'Your birthday is not visible to anyone. '
                     : _birthdayPrivacy == 'everyone'
                         ? 'Your birthday is visible to everyone. '
-                        : 'Your birthday is visible to ',
+                        : _birthdayPrivacyExact
+                            ? 'Your birthday is visible to '
+                            : 'Your birthday visibility: ',
                 style: TextStyle(fontSize: 13, color: subtextColor),
                 children: [
                   if (_birthdayPrivacy != 'nobody' && _birthdayPrivacy != 'everyone')
@@ -436,7 +477,11 @@ class _MyProfilePageState extends State<MyProfilePage> {
                           );
                         },
                         child: Text(
-                          _birthdayPrivacy == 'close_friends' ? 'your close friends' : 'your contacts',
+                          !_birthdayPrivacyExact
+                              ? 'custom'
+                              : _birthdayPrivacy == 'close_friends'
+                                  ? 'your close friends'
+                                  : 'your contacts',
                           style: TextStyle(
                             fontSize: 13,
                             color: isDark
@@ -778,6 +823,7 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
       height: 162,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const SizedBox(height: 2),
           SizedBox(
@@ -852,8 +898,8 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
               ),
             ),
           if (account != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 1),
+            Transform.translate(
+              offset: const Offset(0, -1),
               child: Text(
                 widget.statusText.isNotEmpty ? widget.statusText : (account.connState == ConnState.connected ? 'online' : 'connecting...'),
                 style: TextStyle(
@@ -879,10 +925,23 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
       renderBox.localToGlobal(Offset.zero) & renderBox.size,
       Offset.zero & overlay.size,
     );
+    final avatarPath = _optimisticAvatarPath ?? widget.account?.avatarPath ?? '';
+    final hasAvatar = avatarPath.isNotEmpty;
     showMenu<String>(
       context: context,
       position: position,
       items: [
+        if (hasAvatar)
+          const PopupMenuItem<String>(
+            value: 'view',
+            child: Row(
+              children: [
+                Icon(Icons.visibility_outlined, size: 20),
+                SizedBox(width: 12),
+                Text('View Photo'),
+              ],
+            ),
+          ),
         const PopupMenuItem<String>(
           value: 'photo',
           child: Row(
@@ -905,7 +964,11 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
         ),
       ],
     ).then((value) {
-      if (value == 'photo') {
+      if (value == 'view') {
+        if (widget.account != null) {
+          _openProfilePhotoViewer(context, widget.account!);
+        }
+      } else if (value == 'photo') {
         _pickAndUploadPhoto(context);
       } else if (value == 'emoji') {
         _openEmojiBuilder(context);
@@ -1388,12 +1451,17 @@ class _YourColorRow extends StatelessWidget {
 
     showDialog(
       context: context,
-      builder: (ctx) => _EditPeerColorBox(
-        isDark: isDark,
-        currentColorId: colorId >= 0 ? colorId : (acctId.hashCode.abs() % 7),
-        accountId: acctId,
-        onColorSaved: onColorChanged,
-      ),
+      builder: (ctx) {
+        final appState = context.read<AppState>();
+        final displayName = appState.activeAccount?.displayName ?? '';
+        return _EditPeerColorBox(
+          isDark: isDark,
+          currentColorId: colorId >= 0 ? colorId : (acctId.hashCode.abs() % 7),
+          accountId: acctId,
+          userName: displayName,
+          onColorSaved: onColorChanged,
+        );
+      },
     );
   }
 }
@@ -1404,12 +1472,14 @@ class _EditPeerColorBox extends StatefulWidget {
   final bool isDark;
   final int currentColorId;
   final String accountId;
+  final String userName;
   final ValueChanged<int> onColorSaved;
 
   const _EditPeerColorBox({
     required this.isDark,
     required this.currentColorId,
     required this.accountId,
+    required this.userName,
     required this.onColorSaved,
   });
 
@@ -1601,26 +1671,30 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Your Name',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: _selectedColor(),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.userName.isNotEmpty ? widget.userName : 'Your Name',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: _selectedColor(),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Message preview text',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: textColor.withValues(alpha: 0.7),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Message preview text',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: textColor.withValues(alpha: 0.7),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1773,9 +1847,13 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   }
 
   Widget _emojiPlaceholder(int emojiId, Color textColor) {
-    return Text(
-      '#${(emojiId % 1000).toString().padLeft(3, '0')}',
-      style: TextStyle(fontSize: 9, color: textColor.withValues(alpha: 0.5)),
+    return SizedBox(
+      width: 20,
+      height: 20,
+      child: CircularProgressIndicator(
+        strokeWidth: 1.5,
+        color: textColor.withValues(alpha: 0.3),
+      ),
     );
   }
 
@@ -1809,8 +1887,8 @@ class _UploadSubButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 30,
-        height: 30,
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
           color: bgColor,
           shape: BoxShape.circle,

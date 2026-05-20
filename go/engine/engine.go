@@ -1811,6 +1811,34 @@ func (e *Engine) ClearPersonalContactPhoto(accountID, userID string) error {
 	return fmt.Errorf("platform does not support clearing personal contact photos")
 }
 
+func (e *Engine) SetPersonalChannel(accountID, channelUsername string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type setter interface {
+		SetPersonalChannel(channelUsername string) error
+	}
+	if s, ok := acc.Core.(setter); ok {
+		return s.SetPersonalChannel(channelUsername)
+	}
+	return fmt.Errorf("platform does not support personal channel")
+}
+
+func (e *Engine) ClearPersonalChannel(accountID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type clearer interface {
+		ClearPersonalChannel() error
+	}
+	if c, ok := acc.Core.(clearer); ok {
+		return c.ClearPersonalChannel()
+	}
+	return fmt.Errorf("platform does not support personal channel")
+}
+
 func (e *Engine) SetGroupStickerSet(accountID, chatID, shortName string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
