@@ -143,6 +143,28 @@ class AudioService extends ChangeNotifier {
     }
   }
 
+  void Function()? onPreviousTrack;
+  void Function()? onNextTrack;
+
+  void previous() {
+    if (_player == null) return;
+    if (_position.inSeconds > 3) {
+      _player!.seek(Duration.zero);
+    } else if (onPreviousTrack != null) {
+      onPreviousTrack!();
+    } else {
+      _player!.seek(Duration.zero);
+    }
+  }
+
+  void next() {
+    if (onNextTrack != null) {
+      onNextTrack!();
+    } else {
+      stop();
+    }
+  }
+
   Future<void> seek(double fraction) async {
     if (_player == null || _duration.inMilliseconds == 0) return;
     final target = Duration(

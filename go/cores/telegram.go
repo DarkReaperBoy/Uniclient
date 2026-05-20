@@ -26176,6 +26176,80 @@ func (t *TelegramCore) CreatePollEx(chatID string, question string, answers []st
 	return t.CreatePollWithRevoting(chatID, question, answers, multipleChoice, anonymous, quiz, true, correctOption, solution)
 }
 
+func (t *TelegramCore) CreatePollWithMedia(chatID string, question string, answers []string, mediaPaths []string, multipleChoice, anonymous, quiz, allowRevoting bool, correctOption int, solution string) (*Message, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	u := uploader.NewUploader(t.api)
+	var pollAnswers []tg.PollAnswerClass
+	for i, a := range answers {
+		answer := &tg.InputPollAnswer{Text: tg.TextWithEntities{Text: a}}
+		if i < len(mediaPaths) && mediaPaths[i] != "" {
+			f, err := os.Open(mediaPaths[i])
+			if err == nil {
+				info, _ := f.Stat()
+				upload, err := u.Upload(t.ctx, uploader.NewUpload(info.Name(), f, info.Size()))
+				f.Close()
+				if err == nil {
+					ext := strings.ToLower(filepath.Ext(mediaPaths[i]))
+					if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp" {
+						answer.SetMedia(&tg.InputMediaUploadedPhoto{File: upload})
+					} else {
+						mtype := "application/octet-stream"
+						switch ext {
+						case ".mp4", ".mov":
+							mtype = "video/mp4"
+						case ".gif":
+							mtype = "image/gif"
+						case ".webm":
+							mtype = "video/webm"
+						}
+						answer.SetMedia(&tg.InputMediaUploadedDocument{
+							File:     upload,
+							MimeType: mtype,
+						})
+					}
+				}
+			}
+		}
+		pollAnswers = append(pollAnswers, answer)
+	}
+	poll := tg.Poll{
+		ID:       time.Now().UnixNano(),
+		Question: tg.TextWithEntities{Text: question},
+		Answers:  pollAnswers,
+	}
+	if !anonymous {
+		poll.SetPublicVoters(true)
+	}
+	if multipleChoice {
+		poll.SetMultipleChoice(true)
+	}
+	if quiz {
+		poll.SetQuiz(true)
+	}
+	if !allowRevoting {
+		poll.SetRevotingDisabled(true)
+	}
+	media := &tg.InputMediaPoll{Poll: poll}
+	if quiz && correctOption >= 0 && correctOption < len(answers) {
+		media.SetCorrectAnswers([]int{correctOption})
+	}
+	if quiz && solution != "" {
+		media.SetSolution(solution)
+	}
+	result, err := t.api.MessagesSendMedia(t.ctx, &tg.MessagesSendMediaRequest{
+		Peer: inputPeer, RandomID: time.Now().UnixNano(), Message: "",
+		Media: media,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return t.extractMessageFromUpdates(result, chatID), nil
+}
+
 // VotePoll submits a vote for specific options on a poll.
 func (t *TelegramCore) VotePoll(chatID string, msgID string, optionIndex int) error {
 	return t.VoteInPoll(chatID, msgID, optionIndex)

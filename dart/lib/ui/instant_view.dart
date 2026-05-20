@@ -381,7 +381,7 @@ class _IvBlock extends StatelessWidget {
       case 'subtitle':
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: _richText(context, block['text'], TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: _subtleColor, height: 1.3)),
+          child: _richText(context, block['text'], TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _subtleColor, height: 1.3)),
         );
       case 'kicker':
         return Padding(
@@ -916,14 +916,14 @@ class _IvBlock extends StatelessWidget {
                 child: cellWidget,
               ));
               for (int s = 1; s < colSpan && rowCells.length < maxCols; s++) {
-                rowCells.add(const SizedBox.shrink());
+                rowCells.add(const TableCell(child: SizedBox.shrink()));
               }
             } else {
               rowCells.add(cellWidget);
             }
           }
           while (rowCells.length < maxCols) {
-            rowCells.add(const SizedBox.shrink());
+            rowCells.add(const TableCell(child: SizedBox.shrink()));
           }
 
           return TableRow(
@@ -1406,6 +1406,7 @@ class _IvBlock extends StatelessWidget {
     final mapW = (block['w'] as num?)?.toInt() ?? 650;
     final mapH = (block['h'] as num?)?.toInt() ?? 200;
     final caption = block['caption'];
+    final geoAccess = block['access'] as num?;
 
     if (lat == null || lng == null) return const SizedBox.shrink();
 
@@ -1413,6 +1414,45 @@ class _IvBlock extends StatelessWidget {
     final lngD = lng.toDouble();
     final displayW = mapW.toDouble().clamp(200.0, 800.0);
     final displayH = mapH.toDouble().clamp(100.0, 400.0);
+
+    if (geoAccess == null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              onTap: () => launchUrl(Uri.parse('https://www.openstreetmap.org/?mlat=$latD&mlon=$lngD#map=$zoom/$latD/$lngD'), mode: LaunchMode.externalApplication),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Container(
+                  width: displayW,
+                  height: displayH,
+                  color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.location_pin, color: Colors.red.shade700, size: 36),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${latD.toStringAsFixed(4)}, ${lngD.toStringAsFixed(4)}',
+                        style: TextStyle(fontSize: 13, color: _subtleColor, fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Tap to open map',
+                        style: TextStyle(fontSize: 12, color: _accentColor),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (caption != null) _buildCaption(context, caption),
+          ],
+        ),
+      );
+    }
 
     final n = 1 << zoom;
     final latRad = latD * math.pi / 180.0;
@@ -2040,6 +2080,7 @@ class _IvAudioBlockState extends State<_IvAudioBlock> {
   bool _downloading = false;
   bool _playing = false;
   bool _paused = false;
+  String? _error;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   final List<StreamSubscription> _subs = [];
@@ -2061,13 +2102,23 @@ class _IvAudioBlockState extends State<_IvAudioBlock> {
       return;
     }
 
-    if (widget.audioId == 0 || widget.extra.isEmpty) return;
-    setState(() => _downloading = true);
+    if (widget.audioId == 0 || widget.extra.isEmpty) {
+      setState(() => _error = 'No audio data available');
+      return;
+    }
+    setState(() { _downloading = true; _error = null; });
     final engine = context.read<EngineService>();
-    final path = await engine.downloadIVDocument(widget.accountId, widget.audioId, widget.extra, widget.mime);
+    String? path;
+    try {
+      path = await engine.downloadIVDocument(widget.accountId, widget.audioId, widget.extra, widget.mime);
+    } on Exception {
+      if (!mounted) return;
+      setState(() { _downloading = false; _error = 'Failed to download audio'; });
+      return;
+    }
     if (!mounted) return;
     if (path == null || path.isEmpty) {
-      setState(() => _downloading = false);
+      setState(() { _downloading = false; _error = 'Failed to download audio'; });
       return;
     }
     final player = Player();
@@ -2112,16 +2163,16 @@ class _IvAudioBlockState extends State<_IvAudioBlock> {
           Row(
             children: [
               GestureDetector(
-                onTap: _downloading ? null : _togglePlayback,
+                onTap: (_downloading || _error != null) ? null : _togglePlayback,
                 child: Container(
                   width: 40, height: 40,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: widget.accentColor),
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: _error != null ? Colors.grey : widget.accentColor),
                   child: _downloading
                       ? const Padding(
                           padding: EdgeInsets.all(10),
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : Icon(_playing && !_paused ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 22),
+                      : Icon(_error != null ? Icons.error_outline : (_playing && !_paused ? Icons.pause : Icons.play_arrow), color: Colors.white, size: 22),
                 ),
               ),
               const SizedBox(width: 12),
@@ -2136,12 +2187,15 @@ class _IvAudioBlockState extends State<_IvAudioBlock> {
                     ),
                     if (widget.performer != null && widget.title != null)
                       Text(widget.performer!, style: TextStyle(fontSize: 12, color: widget.subtleColor), maxLines: 1),
-                    Text(
-                      _playing || _paused
-                          ? '${_formatDuration(_position)} / ${_formatDuration(_duration)}'
-                          : widget.durationStr.isNotEmpty ? widget.durationStr : '',
-                      style: TextStyle(fontSize: 12, color: widget.subtleColor),
-                    ),
+                    if (_error != null)
+                      Text(_error!, style: TextStyle(fontSize: 12, color: widget.subtleColor.withAlpha(180)))
+                    else
+                      Text(
+                        _playing || _paused
+                            ? '${_formatDuration(_position)} / ${_formatDuration(_duration)}'
+                            : widget.durationStr.isNotEmpty ? widget.durationStr : '',
+                        style: TextStyle(fontSize: 12, color: widget.subtleColor),
+                      ),
                   ],
                 ),
               ),

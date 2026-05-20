@@ -117,6 +117,11 @@ class ChatListPanel extends StatefulWidget {
   static bool requestOpenPinnedChat(int zeroIndex) =>
       openPinnedChatRequest?.call(zeroIndex) ?? false;
 
+  static VoidCallback? scrollToActiveChatRequest;
+
+  static void requestScrollToActiveChat() =>
+      scrollToActiveChatRequest?.call();
+
   @override
   State<ChatListPanel> createState() => _ChatListPanelState();
 }
@@ -186,6 +191,7 @@ class _ChatListPanelState extends State<ChatListPanel>
     ChatListPanel.jumpChatRequest = _jumpChat;
     ChatListPanel.switchFolderByIndexRequest = _switchFolderByIndex;
     ChatListPanel.openPinnedChatRequest = _openPinnedChat;
+    ChatListPanel.scrollToActiveChatRequest = _scrollToActiveChat;
     // Listen to controller directly to handle programmatic text changes
     // (e.g. debug type command) in addition to TextField.onChanged.
     _searchController.addListener(_onControllerChanged);
@@ -320,6 +326,40 @@ class _ChatListPanelState extends State<ChatListPanel>
     chatState.openChat(visible[target]);
   }
 
+  void _scrollToActiveChat() {
+    if (!mounted) return;
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
+    final active = chatState.activeChat;
+    if (active == null) return;
+
+    final accountChats = chatState.chatsForAccount(appState.activeAccountId);
+    final base = chatState.activeFolderId != null
+        ? chatState.chatsForFolder(chatState.activeFolderId)
+        : accountChats;
+    final displayChats = _searchResults ?? base;
+    final sorted = List<ChatInfo>.from(displayChats)
+      ..sort((a, b) {
+        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+        return b.lastMsgTime.compareTo(a.lastMsgTime);
+      });
+    final visible = sorted.where((c) => !c.isArchived).toList();
+    final idx = visible.indexWhere(
+      (c) => c.chatId == active.chatId && c.accountId == active.accountId,
+    );
+    if (idx < 0 || !_chatListScrollCtrl.hasClients) return;
+    final targetOffset = idx * _kChatRowHeight;
+    final viewportHeight = _chatListScrollCtrl.position.viewportDimension;
+    final currentOffset = _chatListScrollCtrl.offset;
+    if (targetOffset < currentOffset || targetOffset + _kChatRowHeight > currentOffset + viewportHeight) {
+      _chatListScrollCtrl.animateTo(
+        (targetOffset - viewportHeight / 2 + _kChatRowHeight / 2).clamp(0.0, _chatListScrollCtrl.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
   /// Switch the active folder by [direction] (+1 = next, -1 = previous).
   /// Tab order is `[null ("All Chats"), folders[0], folders[1], ...]` — the
   /// same order rendered by the vertical `FilterColumn` and the horizontal
@@ -447,6 +487,9 @@ class _ChatListPanelState extends State<ChatListPanel>
     }
     if (ChatListPanel.openPinnedChatRequest == _openPinnedChat) {
       ChatListPanel.openPinnedChatRequest = null;
+    }
+    if (ChatListPanel.scrollToActiveChatRequest == _scrollToActiveChat) {
+      ChatListPanel.scrollToActiveChatRequest = null;
     }
     final appState = context.read<AppState>();
     if (appState.onShowArchiveRequested != null) {

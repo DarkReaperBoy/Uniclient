@@ -1850,16 +1850,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "CreatePoll":
 		var params struct {
-			AccountID      string   `json:"account_id"`
-			ChatID         string   `json:"chat_id"`
-			Question       string   `json:"question"`
-			Options        []string `json:"options"`
-			MultipleChoice bool     `json:"multiple_choice"`
-			Anonymous      *bool    `json:"anonymous"`
-			Quiz           bool     `json:"quiz"`
-			AllowRevoting  *bool    `json:"allow_revoting"`
-			CorrectOption  int      `json:"correct_option"`
-			Solution       string   `json:"solution"`
+			AccountID        string   `json:"account_id"`
+			ChatID           string   `json:"chat_id"`
+			Question         string   `json:"question"`
+			Options          []string `json:"options"`
+			OptionMediaPaths []string `json:"option_media_paths"`
+			MultipleChoice   bool     `json:"multiple_choice"`
+			Anonymous        *bool    `json:"anonymous"`
+			Quiz             bool     `json:"quiz"`
+			AllowRevoting    *bool    `json:"allow_revoting"`
+			CorrectOption    int      `json:"correct_option"`
+			Solution         string   `json:"solution"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
@@ -1873,12 +1874,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			allowRevoting = *params.AllowRevoting
 		}
 		msgID, err := e.CreatePollEx(params.AccountID, params.ChatID, params.Question, params.Options, engine.PollOptions{
-			MultipleChoice: params.MultipleChoice,
-			Anonymous:      anon,
-			Quiz:           params.Quiz,
-			AllowRevoting:  allowRevoting,
-			CorrectOption:  params.CorrectOption,
-			Solution:       params.Solution,
+			MultipleChoice:   params.MultipleChoice,
+			Anonymous:        anon,
+			Quiz:             params.Quiz,
+			AllowRevoting:    allowRevoting,
+			CorrectOption:    params.CorrectOption,
+			Solution:         params.Solution,
+			OptionMediaPaths: params.OptionMediaPaths,
 		})
 		if err != nil {
 			return nil, err

@@ -880,31 +880,54 @@ class ShortcutSystem {
         control: true),
     const KeyBinding(
         LogicalKeyboardKey.arrowUp, ShortcutCommand.editLastMessage),
-    if (_isDesktop)
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit1, ShortcutCommand.allChats,
           control: true),
-    if (_isDesktop)
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit1, ShortcutCommand.allChats,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit2, ShortcutCommand.folder1,
           control: true),
-    if (_isDesktop)
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit2, ShortcutCommand.folder1,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit3, ShortcutCommand.folder2,
           control: true),
-    if (_isDesktop)
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit3, ShortcutCommand.folder2,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit4, ShortcutCommand.folder3,
           control: true),
-    if (_isDesktop)
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit4, ShortcutCommand.folder3,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit5, ShortcutCommand.folder4,
           control: true),
-    if (_isDesktop)
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit5, ShortcutCommand.folder4,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit6, ShortcutCommand.folder5,
           control: true),
-    if (_isDesktop)
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit6, ShortcutCommand.folder5,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit7, ShortcutCommand.folder6,
           control: true),
-    if (_isDesktop)
-      const KeyBinding(
-          LogicalKeyboardKey.digit8, ShortcutCommand.lastFolder,
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit7, ShortcutCommand.folder6,
+          meta: true),
+    if (_isDesktop && !_isMac)
+      const KeyBinding(LogicalKeyboardKey.digit8, ShortcutCommand.lastFolder,
           control: true),
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit8, ShortcutCommand.lastFolder,
+          meta: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.digit1, ShortcutCommand.pinnedChat1,
           control: true),
@@ -1268,21 +1291,13 @@ class _ShortcutListenerState extends State<ShortcutListener>
     sys.registerHandler(ShortcutCommand.mediaPrevious, () {
       final audio = context.read<AudioService>();
       if (audio.currentMsgId.isEmpty) return false;
-      final pos = audio.position.inMilliseconds;
-      final dur = audio.duration.inMilliseconds;
-      if (dur <= 0) return false;
-      final target = ((pos - 5000).clamp(0, dur)) / dur;
-      audio.seek(target);
+      audio.previous();
       return true;
     });
     sys.registerHandler(ShortcutCommand.mediaNext, () {
       final audio = context.read<AudioService>();
       if (audio.currentMsgId.isEmpty) return false;
-      final pos = audio.position.inMilliseconds;
-      final dur = audio.duration.inMilliseconds;
-      if (dur <= 0) return false;
-      final target = ((pos + 5000).clamp(0, dur)) / dur;
-      audio.seek(target);
+      audio.next();
       return true;
     });
 
@@ -1301,7 +1316,7 @@ class _ShortcutListenerState extends State<ShortcutListener>
     sys.registerHandler(ShortcutCommand.supportScrollToCurrent, () {
       final chatState = context.read<ChatState>();
       if (chatState.activeChat == null) return false;
-      ChatListPanel.requestNavigateChat(0);
+      ChatListPanel.requestScrollToActiveChat();
       return true;
     });
     sys.registerHandler(ShortcutCommand.supportHistoryBack, () {

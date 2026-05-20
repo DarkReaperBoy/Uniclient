@@ -1942,12 +1942,13 @@ func (e *Engine) SendStickerWithOpts(accountID, chatID, stickerID string, silent
 }
 
 type PollOptions struct {
-	MultipleChoice bool
-	Anonymous      bool
-	Quiz           bool
-	AllowRevoting  bool
-	CorrectOption  int
-	Solution       string
+	MultipleChoice   bool
+	Anonymous        bool
+	Quiz             bool
+	AllowRevoting    bool
+	CorrectOption    int
+	Solution         string
+	OptionMediaPaths []string
 }
 
 func (e *Engine) CreatePoll(accountID, chatID, question string, options []string) (string, error) {
@@ -1961,6 +1962,28 @@ func (e *Engine) CreatePollEx(accountID, chatID, question string, options []stri
 	}
 	if acc.Core == nil {
 		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	hasMedia := false
+	for _, p := range opts.OptionMediaPaths {
+		if p != "" {
+			hasMedia = true
+			break
+		}
+	}
+	if hasMedia {
+		type pollCreatorWithMedia interface {
+			CreatePollWithMedia(chatID string, question string, options []string, mediaPaths []string, multipleChoice, anonymous, quiz, allowRevoting bool, correctOption int, solution string) (*cores.Message, error)
+		}
+		if pc, ok := acc.Core.(pollCreatorWithMedia); ok {
+			msg, err := pc.CreatePollWithMedia(chatID, question, options, opts.OptionMediaPaths, opts.MultipleChoice, opts.Anonymous, opts.Quiz, opts.AllowRevoting, opts.CorrectOption, opts.Solution)
+			if err != nil {
+				return "", err
+			}
+			if msg != nil {
+				return msg.ID, nil
+			}
+			return "", nil
+		}
 	}
 	type pollCreatorWithRevoting interface {
 		CreatePollWithRevoting(chatID string, question string, options []string, multipleChoice, anonymous, quiz, allowRevoting bool, correctOption int, solution string) (*cores.Message, error)
