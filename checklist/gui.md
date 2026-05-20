@@ -547,25 +547,7 @@ All CRITICAL and MAJOR checks passed:
 
 **Lifecycle** — Ref-counting (`_refRetain`/`_refRelease`) and 5-second deferred cache eviction are correctly implemented. `dispose()` cancels the timer, disposes animation/player/temp-file, and releases the ref.
 
-## hamburger_drawer — missing Go bridge handlers, wrong cover color, wrong My Profile target
-
-- [ ] [CRITICAL] `MarkAllChatsRead` called from Dart but Go bridge handler does not exist — silent no-op — `hamburger_drawer.dart:407` ← `window_main_menu.cpp:769` (LRead uses `MarkAsReadChatList(chats)`; Go bridge `dispatch_engine.go` has no `MarkAllChatsRead` case)
-
-- [ ] [CRITICAL] `OpenSavedMessages` called from Dart but Go bridge handler does not exist — silent no-op — `hamburger_drawer.dart:293` ← `window_main_menu.cpp:764` (`showPeerHistory(session.user())` navigates to Saved Messages; Go bridge `dispatch_engine.go` has no `OpenSavedMessages` case)
-
-- [ ] [CRITICAL] `RemoveBotFromMenu` called from Dart but Go bridge handler does not exist — silent no-op — `hamburger_drawer.dart:188` ← `window_main_menu_helpers.cpp:345` (`bots->removeFromMenu(show, user)`; Go bridge `dispatch_engine.go` has no `RemoveBotFromMenu` case)
-
-- [ ] [CRITICAL] "My Profile" tap opens `InfoPanel.pushUserProfileRequest` (user profile panel) instead of the user's Stories section — `hamburger_drawer.dart:165` ← `window_main_menu.cpp:713` (`controller->showSection(Info::Stories::Make(controller->session().user()))`)
-
-- [ ] [MAJOR] Cover background uses `windowBgActive` (`#40a7e3`) but spec says `mainMenuCoverBg = dialogsBgActive` (`#419fd9`) — `hamburger_drawer.dart:748` ← `colors.palette:497` (`mainMenuCoverBg: dialogsBgActive`) and `window.style:124` (`toggledFg: mainMenuCoverBg`)
-
-- [ ] [MAJOR] "Add Account" right-click context menu only shown when `Alt+Shift` is held; AyuGram shows it on any right-click (in release builds right-click without `IsAltShift` returns early but in normal use ctrl+click adds to production) — `hamburger_drawer.dart:1191` ← `settings_information.cpp:1032` (`!IsAltShift` guard is debug-only; normal right-click is swallowed)
-
-- [ ] [MAJOR] Archive context menu missing "New Window" option (Ctrl+click on archive row should open archive in separate window); Dart has no ctrl-modifier check on the archive tap — `hamburger_drawer.dart:479` ← `window_main_menu.cpp:533` (`if (modifiers & Qt::ControlModifier) { controller->showInNewWindow(...) }`) and `window_peer_menu.cpp:1849` (`addNewWindow()` in `fillArchiveActions`)
-
-- [ ] [MAJOR] Archive context menu missing "Expand/Collapse" toggle (shown when archive is not pinned to menu); Dart only shows a static "Show in chat list" item regardless of current archive state — `hamburger_drawer.dart:526` ← `window_peer_menu.cpp:1854` (`if (!inmenu) { _addAction(expand/collapse text, ...) }`)
-
-- [ ] [MAJOR] Seasonal snowflake animation (Christmas/New Year decoration over cover, Dec 24–Jan 1 in night mode) is completely absent in Dart — `hamburger_drawer.dart` (no snowflake code) ← `window_main_menu.cpp:444` (`if (CanCheckSpecialEvent() && CheckSpecialEvent()) { … Ui::Snowflakes … }`)
+## hamburger_drawer — SRead stories fix
 
 - [ ] [MAJOR] SRead ("Mark Stories as Viewed") uses `markAllChatsRead` which does not send story-specific read packets; AyuGram calls `MarkAsReadChatList` which walks all chats including story sources and sends the appropriate MTProto read events — `hamburger_drawer.dart:443` ← `window_main_menu.cpp:791` (`MarkAsReadChatList(chats)` with `sendReadMessages=true`)
 
