@@ -556,12 +556,6 @@ All CRITICAL and MAJOR checks passed:
 ## info_panel — Missing features / Missing renderers
 
 
-## info_panel — Visual accuracy
-
-- [ ] [MAJOR] `_TopicInfoCoverDelegate.coverHeight` is hardcoded to `77.0` (line 1882). AyuGram's topic cover is a non-collapsing fixed bar that mirrors `st::infoTopicCover` dimensions; the hardcoded value has not been cross-referenced against the style sheet value and may be incorrect. The topic cover also has no action buttons (mute, etc.) unlike the user/group cover. — `info_panel.dart:1882`
-
-- [ ] [MAJOR] `_MembersSection` renders the member list as a `Column` via `.map()` spread into the parent `Column` children (lines 7001–7009) with a manual `_displayLimit` = 20 / show-more button. AyuGram uses a proper sliver list that virtualizes all members. With 200+ members the full `Column` materializes all visible rows simultaneously without any virtualization. — `info_panel.dart:7001`
-
 ## info_panel — Minor wiring notes
 
 - [ ] [MAJOR] `_GetMoreBoosts` button (line 7921) just copies the boost URL to clipboard with a toast. In AyuGram this opens the Premium/Boost purchase flow. Copying the URL is a stub workaround, not the real behavior. — `info_panel.dart:7921`
