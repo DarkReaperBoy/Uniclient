@@ -590,27 +590,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 # payment_panel — Payment Panel Audit
 
-- [ ] [CRITICAL] X button closes panel immediately with no confirmation — AyuGram checks `_form->hasChanges()` and shows a "sure you want to close?" dialog first — `payment_panel.dart:641` ← `payments_checkout_process.cpp:576-581`
-
-- [ ] [CRITICAL] Non-native card entry (URL-based providers) calls `launchUrl(..., externalApplication)` which leaves the app — AyuGram opens the provider URL in an **embedded WebView inside the payment panel** via `showEditCardByUrl` / `createWebview` — `payment_panel.dart:1191` ← `payments_panel.cpp:438-468`
-
-- [ ] [CRITICAL] Native card form has zero input validation — no Luhn check, no card number space-group formatting, no expiry date auto-slash formatting — AyuGram uses `stripe_card_validator.cpp` (Luhn, card-type groups) and `PostprocessCardValidateResult`/`PostprocessExpireDateValidateResult` for real-time formatting — `payment_panel.dart:1229-1306` ← `payments_edit_card.cpp:33-95`
-
-- [ ] [CRITICAL] Shipping address edit opens a single free-text `AlertDialog` — AyuGram routes to `panelEditShippingInformation()` → `showEditInformation(InformationField::ShippingStreet)` which opens a full validated multi-field panel (street1, street2, city, state, country, postcode separately) — `payment_panel.dart:1113-1116` ← `payments_checkout_process.cpp:766-768` + `payments_panel.cpp:279-295`
-
-- [ ] [CRITICAL] Name/Email/Phone each edit in a single `AlertDialog` text box — AyuGram routes each to `panelEditName/Email/Phone()` → `showEditInformation` focused on the specific field with proper masking and validation — `payment_panel.dart:1119-1130` ← `payments_checkout_process.cpp:770-779` + `payments_panel.cpp:279-295`
-
-- [ ] [CRITICAL] Payment validation errors displayed as a generic `_errorText` string — AyuGram maps 10+ specific server codes (REQ_INFO_NAME_INVALID, ADDRESS_STREET_LINE1_INVALID, LOCAL_CARD_NUMBER_INVALID, etc.) to individual field highlights — `payment_panel.dart:363-369` ← `payments_checkout_process.cpp:479-515`
-
-- [ ] [CRITICAL] Submission not blocked when shipping options exist but none is selected — AyuGram at submit-time checks `!options.list.empty() && options.selectedId.isEmpty()` and forces the shipping option chooser before proceeding — `payment_panel.dart:334-344` ← `payments_checkout_process.cpp:645-646`
-
-- [ ] [MAJOR] Bot trust warning shown unconditionally before the first submission attempt (client-side) — AyuGram only shows it when a `BotTrustRequired` event fires from the form layer (server-driven); showing it upfront is both incorrect timing and may trigger it for bots that don't require it — `payment_panel.dart:270-296` ← `payments_checkout_process.cpp:410-413`
-
-- [ ] [MAJOR] Product thumbnail downloaded via raw `dart:io` `HttpClient` bypassing the engine — AyuGram loads it through `Form::loadThumbnail()` → `photo->load(Data::PhotoSize::Thumbnail)` using the data layer (blurred preview first, then full quality via `ThumbnailUpdated` event) — `payment_panel.dart:1739-1763` ← `payments_form.cpp:281-309`
-
-- [ ] [MAJOR] Custom tip dialog uses `int.tryParse` so decimal input ("5.00") silently fails and sets no tip — AyuGram uses a money `Field` that accepts decimal values and converts them correctly — `payment_panel.dart:1597` ← `payments_panel.cpp:387-424`
-
-- [ ] [MAJOR] When custom tip exceeds `_maxTip`, input is silently discarded with no feedback — AyuGram shows an animated `errorWrap` label "Max tip: X" — `payment_panel.dart:1603-1606` ← `payments_panel.cpp:409-414`
 
 # peer_short_info — Audit
 
