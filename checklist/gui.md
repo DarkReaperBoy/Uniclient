@@ -603,9 +603,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — DivideByGroups / PrepareFilesBundle not implemented; caption assignment is wrong
-
-- [ ] [CRITICAL] In AyuGram, `send()` calls `DivideByGroups(std::move(_list), way, ...)` then `PrepareFilesBundle(...)` to correctly split files into send groups, then assigns the main caption to the last file in the last album group. The Dart `_send()` skips this entirely — it passes `paths` as a flat list with a single `caption` field and no group/album structure. The caller (compose box) receives no `PreparedBundle` equivalent, so album grouping and per-group caption placement is never enforced at the bundle level. — `send_files_box.dart:1376-1393` ← `AyuGram/boxes/send_files_box.cpp:2426-2449`
 
 ## send_files_box — saveSendWaySettings not called on send
 
