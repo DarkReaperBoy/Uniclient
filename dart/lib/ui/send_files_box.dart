@@ -6,6 +6,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart' show BotCommandInfo, ChatType, MemberInfo, ScheduledMessages;
@@ -1632,61 +1633,45 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
     try {
       final bytes = await srcFile.readAsBytes();
-      final codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      final image = frame.image;
-
-      final origW = image.width;
-      final origH = image.height;
-      final maxDim = math.max(origW, origH);
-      double finalW = origW.toDouble();
-      double finalH = origH.toDouble();
-      ui.Image stickerImg = image;
-      if (maxDim > 512) {
-        final scale = 512.0 / maxDim;
-        final newW = (origW * scale).round();
-        final newH = (origH * scale).round();
-        finalW = newW.toDouble();
-        finalH = newH.toDouble();
-        final recorder = ui.PictureRecorder();
-        Canvas(recorder).drawImageRect(
-          image,
-          Rect.fromLTWH(0, 0, origW.toDouble(), origH.toDouble()),
-          Rect.fromLTWH(0, 0, finalW, finalH),
-          Paint()..filterQuality = FilterQuality.high,
-        );
-        final picture = recorder.endRecording();
-        stickerImg = await picture.toImage(newW, newH);
-        picture.dispose();
-      }
-
-      final pngData = await stickerImg.toByteData(format: ui.ImageByteFormat.png);
-      if (stickerImg != image) stickerImg.dispose();
-      image.dispose();
-      codec.dispose();
-      if (pngData == null) {
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) {
         _send(asSticker: true);
         return;
       }
 
+      final maxDim = math.max(decoded.width, decoded.height);
+      img.Image stickerImg;
+      if (maxDim > 512) {
+        final scale = 512.0 / maxDim;
+        stickerImg = img.copyResize(
+          decoded,
+          width: (decoded.width * scale).round(),
+          height: (decoded.height * scale).round(),
+          interpolation: img.Interpolation.cubic,
+        );
+      } else {
+        stickerImg = decoded;
+      }
+
+      final pngBytes = img.encodePng(stickerImg);
       final ts = DateTime.now().millisecondsSinceEpoch;
       final pngPath = '${Directory.systemTemp.path}/uniclient_sticker_$ts.png';
-      await File(pngPath).writeAsBytes(pngData.buffer.asUint8List());
+      await File(pngPath).writeAsBytes(pngBytes);
 
-      String finalPath = pngPath;
-      String finalExt = 'png';
-      try {
-        final webpPath = '${Directory.systemTemp.path}/uniclient_sticker_$ts.webp';
-        final r = await Process.run('cwebp', ['-lossless', '-q', '100', pngPath, '-o', webpPath]);
-        if (r.exitCode == 0) {
-          final wf = File(webpPath);
-          if (await wf.exists() && await wf.length() > 0) {
-            finalPath = webpPath;
-            finalExt = 'webp';
-            try { await File(pngPath).delete(); } catch (_) {}
-          }
-        }
-      } catch (_) {}
+      final webpPath = '${Directory.systemTemp.path}/uniclient_sticker_$ts.webp';
+      final converted = await _convertToWebp(pngPath, webpPath);
+
+      final String finalPath;
+      final String finalExt;
+      if (converted) {
+        finalPath = webpPath;
+        finalExt = 'webp';
+        try { await File(pngPath).delete(); } catch (_) {}
+      } else {
+        finalPath = pngPath;
+        finalExt = 'png';
+      }
+
       final baseName = _files.first.name.replaceAll(RegExp(r'\.\w+$'), '');
       setState(() {
         _files[0] = _PreparedFile(
@@ -1695,14 +1680,37 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
           size: File(finalPath).lengthSync(),
           type: _FileType.photo,
         )
-          ..imageWidth = finalW
-          ..imageHeight = finalH;
+          ..imageWidth = stickerImg.width.toDouble()
+          ..imageHeight = stickerImg.height.toDouble();
       });
       _send(asSticker: true);
     } catch (_) {
       _send(asSticker: true);
     }
   }
+
+  static Future<bool> _convertToWebp(String pngPath, String webpPath) async {
+    for (final tool in _webpConverters) {
+      try {
+        final r = await Process.run(tool[0] as String, [
+          for (final arg in tool.skip(1)) arg.toString()
+              .replaceAll('{in}', pngPath)
+              .replaceAll('{out}', webpPath),
+        ]);
+        if (r.exitCode == 0) {
+          final f = File(webpPath);
+          if (await f.exists() && await f.length() > 0) return true;
+        }
+      } catch (_) {}
+    }
+    return false;
+  }
+
+  static const _webpConverters = [
+    ['ffmpeg', '-y', '-i', '{in}', '-lossless', '1', '{out}'],
+    ['magick', '{in}', '-define', 'webp:lossless=true', '{out}'],
+    ['cwebp', '-lossless', '-q', '100', '{in}', '-o', '{out}'],
+  ];
 
   void _showCaptionLimitBox(int excess) {
     showTelegramBox(
