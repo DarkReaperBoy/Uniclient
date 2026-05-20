@@ -565,9 +565,6 @@ All CRITICAL and MAJOR checks passed:
 # language_box — Audit Findings
 
 
-## language_box — Description text after translation toggles is wrong
-
-- [ ] [MAJOR] AyuGram shows `tr::lng_translate_settings_about` = "The 'Translate' button will appear in the context menu of messages containing text." Dart hardcodes "Translate messages in chats with a different language." which is a different string — `language_box.dart:338-340` ← `AyuGram/Resources/langs/lang.strings:6918`
 
 ## language_box — "Do Not Translate" row value uses nativeName instead of LanguageName
 
