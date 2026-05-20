@@ -591,22 +591,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 # payment_panel — Payment Panel Audit
 
 
-# peer_short_info — Audit
-
-## peer_short_info — Cover scroll, video bar, open-chat wiring, loader size, phone format, photo preload
-
-- [ ] [CRITICAL] "Send Message" / "View Group" / "View Channel" button silently does nothing when the chat is not present in `chatState.chats` — `chatState.chats.where(...).firstOrNull` returns null and `openChat` is never called. AyuGram always fires `_openRequests` and the caller handles navigation via `window->showPeerHistory(peer)` which does not require the chat to be cached locally. — `peer_short_info.dart:1146-1151` ← `boxes/peers/prepare_short_info_box.cpp:483`
-
-- [ ] [CRITICAL] `_videoProgress` is initialized to `1.0` (line 130) and is not reset when the video player is created. While the video is loading (between `player.open()` and the first position stream event), the photo progress bar for the active frame renders at 100% fill instead of 0%. AyuGram explicitly renders 0 progress when `_videoInstance` exists but `_videoDuration == 0`: `progress = (_videoInstance ? 0. : 1.)`. — `peer_short_info.dart:130` ← `boxes/peers/peer_short_info_box.cpp:299`
-
-- [ ] [MAJOR] Cover background scrolls at `_kParallaxFactor = 0.3` (i.e. 30% of scroll speed) via `Positioned(top: -scrollOffset * _kParallaxFactor)`. AyuGram has no parallax: the cover widget is an ordinary child of the vertical layout inside the scroll area and moves 1:1 with the content. The Dart's parallax layer makes the photo appear to "stick" as the info rows scroll up — a visible behavioral departure from the spec. — `peer_short_info.dart:478` ← `boxes/peers/peer_short_info_box.cpp:217-259`
-
-- [ ] [MAJOR] Circular loading indicator on the cover is 24×24 px (`SizedBox(width: 24, height: 24)`). AyuGram uses `boxLoadingSize = 20px` for the radial animation rect in `PeerShortInfoCover::radialRect()`. Both the cover radial and the info-rows spinner are 24px in Dart. — `peer_short_info.dart:771-772` ← `lib_ui/ui/layers/layers.style:146`
-
-- [ ] [MAJOR] Phone number is only prefixed with `'+'` if missing (`_formatPhone`) with no regional grouping or separators. AyuGram calls `Ui::FormatPhone(user->phone())` which renders the number with proper international spacing (e.g. `+1 234 567-8901`). — `peer_short_info.dart:1088-1091` ← `boxes/peers/prepare_short_info_box.cpp:228`
-
-- [ ] [MAJOR] No adjacent-photo preloading. AyuGram's `Preload()` fetches the previous and next photo in the user's photo history before the user navigates, so photo transitions are instant. The Dart calls `engine.getUserPhotoAtIndex` on demand with a `_photoLoading` spinner visible every navigation step. — `peer_short_info.dart:358-370` ← `boxes/peers/prepare_short_info_box.cpp:112-145`
-
 ## photo_crop_editor — Dart vs AyuGram Desktop audit
 
 ### CRITICAL
