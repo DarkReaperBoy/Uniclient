@@ -69,8 +69,13 @@ const Set<String> _kStickerMimes = {'tgs'};
 class SendFilesGroup {
   final List<int> fileIndices;
   final String albumType;
+  final String captionPosition;
 
-  const SendFilesGroup({required this.fileIndices, required this.albumType});
+  const SendFilesGroup({
+    required this.fileIndices,
+    required this.albumType,
+    this.captionPosition = 'back',
+  });
 }
 
 class SendFilesResult {
@@ -692,11 +697,21 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   bool get _canMoveCaption {
-    if (!_canAddCaption) return false;
     if (_captionController.text.isEmpty) return false;
+    final compress = !_sendAsDocuments;
+    if (!_canAddCaptionForMode(compress)) return false;
     if (_files.length > _maxAlbumCount) return false;
-    if (!_groupFiles || _sendAsDocuments) return _files.length == 1;
+    final sendingAlbum = _groupFiles && compress;
+    if (!sendingAlbum || !compress) return _files.length == 1;
     return _files.every((f) => f.isMediaType);
+  }
+
+  bool _canAddCaptionForMode(bool compress) {
+    if (_files.isEmpty) return false;
+    if (!compress) {
+      return !_files.every((f) => f.isSticker);
+    }
+    return !_files.every((f) => f.isSticker);
   }
 
   Future<void> _handleCaptionPaste() async {
@@ -1601,10 +1616,16 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   void _saveSendWaySettings() {
-    if (!_wayRemember) return;
     final appState = context.read<AppState>();
-    appState.rememberedSendAsDocuments = _sendAsDocuments;
-    appState.rememberedGroupFiles = _groupFiles;
+    if (_wayRemember) {
+      appState.rememberedSendAsDocuments = _sendAsDocuments;
+      appState.rememberedGroupFiles = _groupFiles;
+    } else {
+      final oldAsDoc = appState.rememberedSendAsDocuments;
+      final oldGroup = appState.rememberedGroupFiles;
+      if (oldAsDoc != null) appState.rememberedSendAsDocuments = oldAsDoc;
+      if (oldGroup != null) appState.rememberedGroupFiles = oldGroup;
+    }
   }
 
   void _send({bool silent = false, DateTime? scheduledDate, bool ctrlShiftEnter = false, bool asSticker = false}) {
@@ -1688,9 +1709,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       }
       if (groupType != currentType || currentIndices.length >= _maxAlbumCount) {
         if (currentIndices.isNotEmpty) {
+          final aType = currentIndices.length == 1 ? 'none' : currentType;
           groups.add(SendFilesGroup(
             fileIndices: List.from(currentIndices),
-            albumType: currentIndices.length == 1 ? 'none' : currentType,
+            albumType: aType,
+            captionPosition: aType == 'media' ? 'front' : 'back',
           ));
         }
         currentIndices = [i];
@@ -1700,9 +1723,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       }
     }
     if (currentIndices.isNotEmpty) {
+      final aType = currentIndices.length == 1 ? 'none' : currentType;
       groups.add(SendFilesGroup(
         fileIndices: List.from(currentIndices),
-        albumType: currentIndices.length == 1 ? 'none' : currentType,
+        albumType: aType,
+        captionPosition: aType == 'media' ? 'front' : 'back',
       ));
     }
     return groups;
@@ -2009,82 +2034,87 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                         children: [
                     const SizedBox(height: 8),
                     if (widget.replyToName != null && widget.replyToName!.isNotEmpty)
-                      AnimatedSize(
+                      AnimatedCrossFade(
                         duration: const Duration(milliseconds: 150),
-                        curve: Curves.easeOutCubic,
-                        alignment: Alignment.topCenter,
-                        child: _replyVisible ? Padding(
+                        sizeCurve: Curves.easeOutCubic,
+                        firstCurve: Curves.easeOutCubic,
+                        secondCurve: Curves.easeInCubic,
+                        crossFadeState: _replyVisible
+                            ? CrossFadeState.showFirst
+                            : CrossFadeState.showSecond,
+                        secondChild: const SizedBox(width: double.infinity, height: 0),
+                        firstChild: Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Container(
+                            height: 40,
                             clipBehavior: Clip.antiAlias,
                             decoration: BoxDecoration(
-                              color: accentFg.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
+                              color: accentFg.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                            child: IntrinsicHeight(
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 3,
-                                    decoration: BoxDecoration(
-                                      color: accentFg,
-                                      borderRadius: const BorderRadius.only(
-                                        topLeft: Radius.circular(12),
-                                        bottomLeft: Radius.circular(12),
-                                      ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 3,
+                                  decoration: BoxDecoration(
+                                    color: accentFg,
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(20),
+                                      bottomLeft: Radius.circular(20),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 6),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            widget.replyToName!,
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: accentFg,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(width: 10),
+                                Flexible(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        widget.replyToName!,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: accentFg,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      if (widget.replyToText != null && widget.replyToText!.isNotEmpty)
+                                        Text(
+                                          widget.replyToText!,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: subFg,
                                           ),
-                                          if (widget.replyToText != null && widget.replyToText!.isNotEmpty)
-                                            Text(
-                                              widget.replyToText!,
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: subFg,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                        ],
-                                      ),
-                                    ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 4),
-                                  SizedBox(
-                                    width: 24,
-                                    height: 24,
+                                ),
+                                const SizedBox(width: 4),
+                                SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    shape: const CircleBorder(),
+                                    clipBehavior: Clip.antiAlias,
                                     child: IconButton(
                                       padding: EdgeInsets.zero,
                                       iconSize: 14,
-                                      splashRadius: 12,
                                       icon: Icon(Icons.close, size: 14, color: subFg),
                                       onPressed: () => setState(() => _replyVisible = false),
                                     ),
                                   ),
-                                  const SizedBox(width: 4),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(width: 6),
+                              ],
                             ),
                           ),
-                        ) : const SizedBox.shrink(),
+                        ),
                       ),
                     if (showMediaPreview && mediaFiles.isNotEmpty)
                       Stack(
@@ -2164,6 +2194,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                         files: _sendAsDocuments ? _files : docFiles,
                         allFiles: _files,
                         isDark: isDark,
+                        sendAsDocuments: _sendAsDocuments,
                         textFg: textFg,
                         subFg: subFg,
                         onRemove: (file) {
@@ -3644,6 +3675,7 @@ class _FileListPreview extends StatefulWidget {
   final List<_PreparedFile> files;
   final List<_PreparedFile> allFiles;
   final bool isDark;
+  final bool sendAsDocuments;
   final Color textFg;
   final Color subFg;
   final void Function(_PreparedFile) onRemove;
@@ -3655,6 +3687,7 @@ class _FileListPreview extends StatefulWidget {
     required this.files,
     required this.allFiles,
     required this.isDark,
+    this.sendAsDocuments = false,
     required this.textFg,
     required this.subFg,
     required this.onRemove,
@@ -3670,6 +3703,12 @@ class _FileListPreview extends StatefulWidget {
 class _FileListPreviewState extends State<_FileListPreview> {
   int? _dragFromIndex;
   int? _dragOverIndex;
+
+  bool _isFileBlock(_PreparedFile f) {
+    if (f.type == _FileType.file || f.type == _FileType.music) return true;
+    if (f.type == _FileType.photo && widget.sendAsDocuments) return true;
+    return false;
+  }
 
   void _onDragAccepted(int fromIndex, int toIndex) {
     if (widget.onReorder != null && fromIndex != toIndex) {
@@ -3694,9 +3733,7 @@ class _FileListPreviewState extends State<_FileListPreview> {
               if (fromIdx < 0 || fromIdx >= widget.files.length) return false;
               final fromFile = widget.files[fromIdx];
               final toFile = widget.files[i];
-              final fromIsFile = !fromFile.isMediaType || fromFile.type == _FileType.file || fromFile.type == _FileType.music;
-              final toIsFile = !toFile.isMediaType || toFile.type == _FileType.file || toFile.type == _FileType.music;
-              if (!fromIsFile || !toIsFile) return false;
+              if (!_isFileBlock(fromFile) || !_isFileBlock(toFile)) return false;
               setState(() => _dragOverIndex = i);
               return details.data != i;
             },
@@ -4060,19 +4097,21 @@ class _SpoilerParticlePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0x40000000);
+    final paint = Paint();
     final rng = math.Random(seed);
-    const count = 80;
+    final area = size.width * size.height;
+    final count = (area / 120).clamp(40, 200).round();
     for (int i = 0; i < count; i++) {
       final baseX = rng.nextDouble();
       final baseY = rng.nextDouble();
-      final speed = 0.3 + rng.nextDouble() * 0.7;
-      final r = 1.0 + rng.nextDouble() * 1.5;
-      final offset = (phase * speed) % 1.0;
-      final x = ((baseX + offset) % 1.0) * size.width;
-      final y = ((baseY + offset * 0.5) % 1.0) * size.height;
-      final alpha = (0.3 + 0.7 * math.sin((phase + i * 0.05) * math.pi * 2)).clamp(0.0, 1.0);
-      paint.color = Color.fromRGBO(0, 0, 0, alpha * 0.25);
+      final speed = 0.2 + rng.nextDouble() * 0.6;
+      final r = 1.0 + rng.nextDouble() * 1.2;
+      final localPhase = (phase * speed + i * 0.0137) % 1.0;
+      final drift = math.sin(localPhase * math.pi * 2) * 0.02;
+      final x = ((baseX + localPhase * 0.3 + drift) % 1.0) * size.width;
+      final y = ((baseY + localPhase * 0.15) % 1.0) * size.height;
+      final alpha = (0.4 + 0.6 * math.sin((localPhase) * math.pi * 2)).clamp(0.0, 1.0);
+      paint.color = Color.fromRGBO(255, 255, 255, alpha * 0.4);
       canvas.drawCircle(Offset(x, y), r, paint);
     }
   }
