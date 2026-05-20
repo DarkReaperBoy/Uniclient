@@ -691,11 +691,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     return KeyEventResult.ignored;
   }
 
-  bool get _canMoveCaption =>
-      !_sendAsDocuments &&
-      _groupFiles &&
-      _captionController.text.isNotEmpty &&
-      _files.any((f) => f.isMediaType);
+  bool get _canMoveCaption {
+    if (!_canAddCaption) return false;
+    if (_captionController.text.isEmpty) return false;
+    if (_files.length > _maxAlbumCount) return false;
+    if (!_groupFiles || _sendAsDocuments) return _files.length == 1;
+    return _files.every((f) => f.isMediaType);
+  }
 
   Future<void> _handleCaptionPaste() async {
     if (Platform.isLinux || Platform.isMacOS) {
@@ -1276,7 +1278,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   bool _canBeSentInSlowmode(List<_PreparedFile> existingFiles, _PreparedFile newFile) {
     if (!widget.isSlowMode) return true;
-    return existingFiles.isEmpty;
+    final combined = [...existingFiles, newFile];
+    if (combined.length > _maxAlbumCount) return false;
+    if (combined.length < 2) return true;
+    final allMusic = combined.every((f) => f.type == _FileType.music);
+    final allMedia = combined.every((f) => f.isMediaType);
+    final allFile = combined.every((f) => f.type == _FileType.file || f.type == _FileType.music);
+    return allMusic || allMedia || allFile;
   }
 
   Future<void> _addMoreFiles() async {
@@ -1654,34 +1662,36 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     ));
   }
 
+  String _groupTypeForFile(_PreparedFile f) {
+    if (f.type == _FileType.music) return 'music';
+    if (!_sendAsDocuments && (f.type == _FileType.photo || f.type == _FileType.video)) {
+      return 'media';
+    }
+    return 'file';
+  }
+
   List<SendFilesGroup> _divideByGroups() {
     if (_files.isEmpty) return [];
-    if (!_groupFiles || _sendAsDocuments) {
-      return [SendFilesGroup(
-        fileIndices: List.generate(_files.length, (i) => i),
-        albumType: _sendAsDocuments ? 'documents' : 'files',
-      )];
+    if (!_groupFiles) {
+      return List.generate(_files.length, (i) => SendFilesGroup(
+        fileIndices: [i],
+        albumType: 'none',
+      ));
     }
     final groups = <SendFilesGroup>[];
     var currentIndices = <int>[];
     String currentType = '';
     for (int i = 0; i < _files.length; i++) {
-      final f = _files[i];
-      String fileType;
-      if (f.type == _FileType.photo) {
-        fileType = 'photo';
-      } else if (f.type == _FileType.video) {
-        fileType = 'video';
-      } else {
-        fileType = 'file';
-      }
-      final groupType = (fileType == 'photo' || fileType == 'video') ? 'media' : 'file';
+      final groupType = _groupTypeForFile(_files[i]);
       if (currentType.isEmpty) {
         currentType = groupType;
       }
       if (groupType != currentType || currentIndices.length >= _maxAlbumCount) {
         if (currentIndices.isNotEmpty) {
-          groups.add(SendFilesGroup(fileIndices: List.from(currentIndices), albumType: currentType));
+          groups.add(SendFilesGroup(
+            fileIndices: List.from(currentIndices),
+            albumType: currentIndices.length == 1 ? 'none' : currentType,
+          ));
         }
         currentIndices = [i];
         currentType = groupType;
@@ -1690,7 +1700,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       }
     }
     if (currentIndices.isNotEmpty) {
-      groups.add(SendFilesGroup(fileIndices: List.from(currentIndices), albumType: currentType));
+      groups.add(SendFilesGroup(
+        fileIndices: List.from(currentIndices),
+        albumType: currentIndices.length == 1 ? 'none' : currentType,
+      ));
     }
     return groups;
   }
