@@ -606,10 +606,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — Photo editor hint label shown based on counter, not session setting
-
-- [ ] [MAJOR] AyuGram shows the "click to open in photo editor" hint label only when `_show->session().settings().photoEditorHintShown()` returns true (counter-based) and `_list.canHaveEditorHintLabel()` returns true. The Dart shows the hint based on `_photoEditorHintShown` which is set when any file is replaced via the editor, which is the wrong trigger — it should display when the session counter crosses the threshold, not only after the user has already used the editor. — `send_files_box.dart:1731-1738` ← `AyuGram/boxes/send_files_box.cpp:1831-1834`
-
 ## send_files_box — `_showTopMenu` (top-right "..." button) duplicates send-menu items incorrectly
 
 - [ ] [MAJOR] The top-right `_TopMenuButton` in the Dart opens `_showTopMenu`, which re-implements its own list of items (quality, spoiler, sticker). In AyuGram the top button opens the same `SendMenu::FillSendMenu` as the send button — with the full menu including CaptionUp/Down and PhotoQuality toggled correctly via `_sendMenuCallback`. The Dart's top menu duplicates quality/spoiler toggle logic in a second code path without the `CaptionDown/Up` items, and misses the sticker conversion that AyuGram does (converting image to WEBP before sending). — `send_files_box.dart:1317-1351` ← `AyuGram/boxes/send_files_box.cpp:1168-1219`
