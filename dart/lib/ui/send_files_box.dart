@@ -1465,25 +1465,68 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       final codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
       final image = frame.image;
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+
+      final origW = image.width;
+      final origH = image.height;
+      final maxDim = math.max(origW, origH);
+      double finalW = origW.toDouble();
+      double finalH = origH.toDouble();
+      ui.Image stickerImg = image;
+      if (maxDim > 512) {
+        final scale = 512.0 / maxDim;
+        final newW = (origW * scale).round();
+        final newH = (origH * scale).round();
+        finalW = newW.toDouble();
+        finalH = newH.toDouble();
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawImageRect(
+          image,
+          Rect.fromLTWH(0, 0, origW.toDouble(), origH.toDouble()),
+          Rect.fromLTWH(0, 0, finalW, finalH),
+          Paint()..filterQuality = FilterQuality.high,
+        );
+        final picture = recorder.endRecording();
+        stickerImg = await picture.toImage(newW, newH);
+        picture.dispose();
+      }
+
+      final pngData = await stickerImg.toByteData(format: ui.ImageByteFormat.png);
+      if (stickerImg != image) stickerImg.dispose();
       image.dispose();
       codec.dispose();
-      if (byteData == null) {
+      if (pngData == null) {
         _send(asSticker: true);
         return;
       }
-      final webpPath = '${Directory.systemTemp.path}/uniclient_sticker_${DateTime.now().millisecondsSinceEpoch}.webp';
-      final webpFile = File(webpPath);
-      await webpFile.writeAsBytes(byteData.buffer.asUint8List());
+
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final pngPath = '${Directory.systemTemp.path}/uniclient_sticker_$ts.png';
+      await File(pngPath).writeAsBytes(pngData.buffer.asUint8List());
+
+      String finalPath = pngPath;
+      String finalExt = 'png';
+      try {
+        final webpPath = '${Directory.systemTemp.path}/uniclient_sticker_$ts.webp';
+        final r = await Process.run('cwebp', ['-lossless', '-q', '100', pngPath, '-o', webpPath]);
+        if (r.exitCode == 0) {
+          final wf = File(webpPath);
+          if (await wf.exists() && await wf.length() > 0) {
+            finalPath = webpPath;
+            finalExt = 'webp';
+            try { await File(pngPath).delete(); } catch (_) {}
+          }
+        }
+      } catch (_) {}
+      final baseName = _files.first.name.replaceAll(RegExp(r'\.\w+$'), '');
       setState(() {
         _files[0] = _PreparedFile(
-          path: webpPath,
-          name: '${_files.first.name.replaceAll(RegExp(r'\.\w+$'), '')}.webp',
-          size: webpFile.lengthSync(),
+          path: finalPath,
+          name: '$baseName.$finalExt',
+          size: File(finalPath).lengthSync(),
           type: _FileType.photo,
         )
-          ..imageWidth = _files.first.imageWidth
-          ..imageHeight = _files.first.imageHeight;
+          ..imageWidth = finalW
+          ..imageHeight = finalH;
       });
       _send(asSticker: true);
     } catch (_) {
