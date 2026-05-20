@@ -552,9 +552,6 @@ All CRITICAL and MAJOR checks passed:
 
 ## info_panel — Backend wiring / Stub behavior
 
-- [ ] [MAJOR] `_MediaGrid` (expanded inline panel view, lines 5854–5878) uses `ListView.builder(shrinkWrap: true, physics: NeverScrollableScrollPhysics())` inside a `Column`. This causes the framework to compute all children without virtualization (shrinkWrap forces full measurement), making grids with many photos/videos fully non-lazy. This is the same widget embedded in `_SharedMediaSection._toggleGrid`. — `info_panel.dart:5854`
-
-- [ ] [MAJOR] `_GifMasonryGrid` (expanded inline panel view, lines 5970–5999) same issue: `ListView.builder(shrinkWrap: true, physics: NeverScrollableScrollPhysics())`. Full materialization with no virtual scrolling. — `info_panel.dart:5970`
 
 ## info_panel — Missing features / Missing renderers
 
