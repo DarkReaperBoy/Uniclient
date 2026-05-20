@@ -566,9 +566,6 @@ All CRITICAL and MAJOR checks passed:
 
 
 
-## language_box — Share toast text differs from AyuGram
-
-- [ ] [MAJOR] AyuGram shows `tr::lng_username_copied` = "Link copied to clipboard" after copying the language link. Dart shows "Language link copied to clipboard." — a different hardcoded string — `language_box.dart:740-741` ← `AyuGram/SourceFiles/boxes/language_box.cpp:517`
 
 ## language_box — "At least one language" toast text differs
 
