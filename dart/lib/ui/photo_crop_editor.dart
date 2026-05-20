@@ -8,6 +8,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
@@ -100,16 +101,17 @@ const double _kMaxCanvasZoom = 8.0;
 const double _kCanvasZoomStep = 1.15;
 const double _kCanvasZoomStepFine = 1.015;
 
-const double _kBlurSigmaFactor = 0.8;
+const double _kBlurRadius = 20.0;
+const double _kBlurSizeMultiplier = 3.0;
 const double _kAnnotationHandleSize = 8.0;
 const double _kAnnotationHitSlop = 20.0;
 const double _kAnnotationMinScale = 0.1;
 const double _kAnnotationMaxScale = 10.0;
 
-const double _kRainbowRingSize = 28.0;
+const double _kRainbowRingSize = 24.0;
 const double _kRainbowRingBorder = 3.0;
-const double _kToolButtonSize = 36.0;
-const Duration _kToolSelectDuration = Duration(milliseconds: 200);
+const double _kToolButtonSize = 28.0;
+const Duration _kToolSelectDuration = Duration(milliseconds: 120);
 const Duration _kColorButtonSwitchDuration = Duration(milliseconds: 140);
 const double _kPlusCircleSize = 20.0;
 
@@ -127,7 +129,7 @@ enum _UndoKind { stroke, text }
 class _ToolBrush {
   Color color;
   double sizeRatio;
-  _ToolBrush({required this.color, this.sizeRatio = 0.125});
+  _ToolBrush({required this.color, this.sizeRatio = 0.9});
 }
 
 class _PaintStroke {
@@ -342,6 +344,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   Offset? _inlineTextPosition;
   int _editingAnnotationIndex = -1;
   bool _inlineTextActive = false;
+  OverlayEntry? _stickerOverlay;
 
   bool get _isProfilePhoto => widget.shape != PhotoCropShape.rect;
 
@@ -375,6 +378,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
 
   @override
   void dispose() {
+    _closeStickerPanel();
     if (PhotoCropEditor._activeKeyHandler == _handleKeyCombo) {
       PhotoCropEditor._activeKeyHandler = null;
     }
@@ -707,24 +711,60 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   }
 
   void _openStickersTool() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xF0222222),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => _EditorStickerPicker(
-        onEmojiSelected: (emoji) {
-          Navigator.of(ctx).pop();
-          _addEmojiAnnotation(emoji);
-        },
-        onStickerSelected: (sticker) {
-          Navigator.of(ctx).pop();
-          _addStickerAnnotation(sticker);
-        },
-      ),
+    if (_stickerOverlay != null) {
+      _closeStickerPanel();
+      return;
+    }
+    _stickerOverlay = OverlayEntry(
+      builder: (ctx) {
+        final screenSize = MediaQuery.of(ctx).size;
+        const panelW = 320.0;
+        const panelH = 380.0;
+        final left = (screenSize.width - panelW) / 2;
+        final top = screenSize.height - panelH - _kContentMarginBottom - 16;
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _closeStickerPanel,
+                behavior: HitTestBehavior.opaque,
+                child: const SizedBox.expand(),
+              ),
+            ),
+            Positioned(
+              left: left,
+              top: top.clamp(40.0, screenSize.height - panelH - 20),
+              child: Material(
+                elevation: 8,
+                borderRadius: BorderRadius.circular(12),
+                color: const Color(0xF0222222),
+                clipBehavior: Clip.antiAlias,
+                child: SizedBox(
+                  width: panelW,
+                  height: panelH,
+                  child: _EditorStickerPicker(
+                    onEmojiSelected: (emoji) {
+                      _closeStickerPanel();
+                      _addEmojiAnnotation(emoji);
+                    },
+                    onStickerSelected: (sticker) {
+                      _closeStickerPanel();
+                      _addStickerAnnotation(sticker);
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
+    Overlay.of(context).insert(_stickerOverlay!);
+  }
+
+  void _closeStickerPanel() {
+    _stickerOverlay?.remove();
+    _stickerOverlay = null;
   }
 
   void _addEmojiAnnotation(String emoji) {
@@ -895,6 +935,9 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
       final croppedFile = await _applyCropAndExport();
       if (widget.onDone != null) {
         await widget.onDone!(croppedFile);
+      }
+      if (croppedFile.path != widget.imageFile.path) {
+        croppedFile.delete().ignore();
       }
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
@@ -2145,6 +2188,53 @@ class _CropPainter extends CustomPainter {
     }
   }
 
+  static List<Offset> _smoothPoints(List<Offset> pts) {
+    if (pts.length < 4) return pts;
+    const kInvStrength = 0.5;
+    const kHalfStrength = 0.25;
+    final smoothed = List<Offset>.from(pts);
+    for (int i = 2; i < pts.length - 1; i++) {
+      final prev = pts[i - 1];
+      final curr = pts[i];
+      final next = pts[i + 1];
+      smoothed[i] = Offset(
+        curr.dx * kInvStrength + (prev.dx + next.dx) * kHalfStrength,
+        curr.dy * kInvStrength + (prev.dy + next.dy) * kHalfStrength,
+      );
+    }
+    return smoothed;
+  }
+
+  static Path _buildBezierPath(List<Offset> pts) {
+    final path = Path();
+    if (pts.isEmpty) return path;
+    if (pts.length == 1) {
+      path.moveTo(pts[0].dx, pts[0].dy);
+      return path;
+    }
+    if (pts.length == 2) {
+      path.moveTo(pts[0].dx, pts[0].dy);
+      path.lineTo(pts[1].dx, pts[1].dy);
+      return path;
+    }
+    var ctrl = Offset(
+      (pts[0].dx + pts[1].dx) / 2,
+      (pts[0].dy + pts[1].dy) / 2,
+    );
+    path.moveTo(pts[0].dx, pts[0].dy);
+    path.lineTo(ctrl.dx, ctrl.dy);
+    for (int i = 1; i < pts.length - 1; i++) {
+      final nextCtrl = Offset(
+        (pts[i].dx + pts[i + 1].dx) / 2,
+        (pts[i].dy + pts[i + 1].dy) / 2,
+      );
+      path.quadraticBezierTo(pts[i].dx, pts[i].dy, nextCtrl.dx, nextCtrl.dy);
+      ctrl = nextCtrl;
+    }
+    path.lineTo(pts.last.dx, pts.last.dy);
+    return path;
+  }
+
   static void drawSingleStroke(Canvas canvas, _PaintStroke stroke, [Offset offset = Offset.zero]) {
     final paint = Paint()
       ..color = stroke.color
@@ -2153,24 +2243,18 @@ class _CropPainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
 
-    final pts = offset == Offset.zero
+    final rawPts = offset == Offset.zero
         ? stroke.points
         : stroke.points.map((p) => p + offset).toList();
 
-    if (pts.length == 1) {
-      canvas.drawCircle(pts[0], stroke.width / 2,
+    if (rawPts.length == 1) {
+      canvas.drawCircle(rawPts[0], stroke.width / 2,
           paint..style = PaintingStyle.fill);
       return;
     }
 
-    final path = Path();
-    for (int i = 0; i < pts.length; i++) {
-      if (i == 0) {
-        path.moveTo(pts[i].dx, pts[i].dy);
-      } else {
-        path.lineTo(pts[i].dx, pts[i].dy);
-      }
-    }
+    final pts = _smoothPoints(rawPts);
+    final path = _buildBezierPath(pts);
     canvas.drawPath(path, paint);
 
     if (stroke.tool == _PaintTool.arrow && pts.length >= 2) {
@@ -2221,26 +2305,23 @@ class _CropPainter extends CustomPainter {
       canvas.saveLayer(bounds, Paint());
       final maskPaint = Paint()
         ..color = Colors.white
-        ..strokeWidth = stroke.width
+        ..strokeWidth = stroke.width * _kBlurSizeMultiplier
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
         ..style = PaintingStyle.stroke;
-      final path = Path();
-      for (int i = 0; i < stroke.points.length; i++) {
-        if (i == 0) path.moveTo(stroke.points[i].dx, stroke.points[i].dy);
-        else path.lineTo(stroke.points[i].dx, stroke.points[i].dy);
-      }
-      if (stroke.points.length == 1) {
-        canvas.drawCircle(stroke.points[0], stroke.width / 2,
+      final smoothed = _smoothPoints(stroke.points);
+      if (smoothed.length == 1) {
+        canvas.drawCircle(smoothed[0], stroke.width * _kBlurSizeMultiplier / 2,
             maskPaint..style = PaintingStyle.fill);
       } else {
+        final path = _buildBezierPath(smoothed);
         canvas.drawPath(path, maskPaint);
       }
       canvas.saveLayer(bounds, Paint()
         ..blendMode = BlendMode.srcIn
         ..imageFilter = ui.ImageFilter.blur(
-          sigmaX: stroke.width * _kBlurSigmaFactor,
-          sigmaY: stroke.width * _kBlurSigmaFactor,
+          sigmaX: _kBlurRadius,
+          sigmaY: _kBlurRadius,
         ));
       _drawImage(canvas, size);
       canvas.restore();
@@ -2595,11 +2676,13 @@ class _ControlBar extends StatelessWidget {
     if (editorMode == _EditorMode.paint) {
       children = [
         _EdgeButton(label: 'Cancel', color: _kCancelFg, onPressed: onCancel),
-        _BarIconButton(
-          icon: Icons.brush_outlined,
-          state: _IconState.active,
-          onPressed: () {},
-          tooltip: 'Paint',
+        IgnorePointer(
+          child: _BarIconButton(
+            icon: Icons.brush_outlined,
+            state: _IconState.active,
+            onPressed: () {},
+            tooltip: 'Paint',
+          ),
         ),
         _BarIconButton(
           icon: Icons.emoji_emotions_outlined,
@@ -2944,6 +3027,7 @@ class _PaintTopBar extends StatelessWidget {
         height: _kControlBarHeight,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             _BarIconButton(
               icon: Icons.undo,
@@ -2951,7 +3035,7 @@ class _PaintTopBar extends StatelessWidget {
               onPressed: onUndo,
               tooltip: 'Undo',
             ),
-            const Spacer(),
+            const SizedBox(width: 6),
             _BarIconButton(
               icon: Icons.redo,
               state: canRedo ? _IconState.idle : _IconState.inactive,
@@ -2990,18 +3074,11 @@ class _ColorPaletteRow extends StatelessWidget {
             if (i > 0) SizedBox(width: _kPaletteGap),
             GestureDetector(
               onTap: () => onChanged(colors[i]),
-              child: Container(
-                width: _kPaletteItemSize,
-                height: _kPaletteItemSize,
-                decoration: BoxDecoration(
+              child: CustomPaint(
+                size: const Size(_kPaletteItemSize, _kPaletteItemSize),
+                painter: _ColorSamplePainter(
                   color: colors[i],
-                  shape: BoxShape.circle,
-                  border: _colorsMatch(colors[i], selected)
-                      ? Border.all(color: Colors.white, width: 2)
-                      : (colors[i].r == 0 && colors[i].g == 0 && colors[i].b == 0)
-                          ? Border.all(
-                              color: const Color(0x66FFFFFF), width: 1)
-                          : null,
+                  isSelected: _colorsMatch(colors[i], selected),
                 ),
               ),
             ),
@@ -3010,17 +3087,9 @@ class _ColorPaletteRow extends StatelessWidget {
             SizedBox(width: _kPaletteGap),
             GestureDetector(
               onTap: onCustomColor,
-              child: Container(
-                width: _kPlusCircleSize,
-                height: _kPlusCircleSize,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0x99FFFFFF),
-                    width: 1.5,
-                  ),
-                ),
-                child: const Icon(Icons.add, size: 14, color: Color(0x99FFFFFF)),
+              child: CustomPaint(
+                size: const Size(_kPlusCircleSize, _kPlusCircleSize),
+                painter: _PlusCirclePainter(),
               ),
             ),
           ],
@@ -3054,11 +3123,11 @@ class _PaintToolRow extends StatefulWidget {
   });
 
   static const _tools = [
-    (_PaintTool.pen, Icons.edit, 'Pen'),
-    (_PaintTool.arrow, Icons.arrow_right_alt, 'Arrow'),
-    (_PaintTool.marker, Icons.format_paint, 'Marker'),
-    (_PaintTool.blur, Icons.blur_on, 'Blur'),
-    (_PaintTool.eraser, Icons.auto_fix_high, 'Eraser'),
+    (_PaintTool.pen, Icons.edit, 'Pen', 'assets/animations/photo_editor/pen.json'),
+    (_PaintTool.arrow, Icons.arrow_right_alt, 'Arrow', 'assets/animations/photo_editor/arrow.json'),
+    (_PaintTool.marker, Icons.format_paint, 'Marker', 'assets/animations/photo_editor/marker.json'),
+    (_PaintTool.blur, Icons.blur_on, 'Blur', 'assets/animations/photo_editor/blur.json'),
+    (_PaintTool.eraser, Icons.auto_fix_high, 'Eraser', 'assets/animations/photo_editor/eraser.json'),
   ];
 
   @override
@@ -3107,9 +3176,10 @@ class _PaintToolRowState extends State<_PaintToolRow>
       final idx = _PaintToolRow._tools.indexWhere((t) => t.$1 == widget.currentTool);
       _indicatorFrom = _indicatorTo = idx.toDouble();
     }
-    const buttonSpacing = _kToolButtonSize + 4;
+    const toolGap = 18.0;
+    const buttonSpacing = _kToolButtonSize + toolGap;
     const colorButtonWidth = _kRainbowRingSize;
-    const gap = 8.0;
+    const colorToolGap = 18.0;
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: _kControlBarWidth),
@@ -3124,15 +3194,11 @@ class _PaintToolRowState extends State<_PaintToolRow>
               clipBehavior: Clip.none,
               children: [
                 Positioned(
-                  left: colorButtonWidth + gap + pos * buttonSpacing + 2,
+                  left: colorButtonWidth + colorToolGap + pos * buttonSpacing,
                   top: 2,
-                  child: Container(
-                    width: _kToolButtonSize,
-                    height: _kToolButtonSize,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(0x33FFFFFF),
-                    ),
+                  child: CustomPaint(
+                    size: const Size(_kToolButtonSize, _kToolButtonSize),
+                    painter: _ToolSelectionPainter(opacity: 0.35),
                   ),
                 ),
                 Row(
@@ -3144,19 +3210,17 @@ class _PaintToolRowState extends State<_PaintToolRow>
                       isActive: widget.paletteVisible,
                       onTap: widget.onTogglePalette,
                     ),
-                    const SizedBox(width: gap),
-                    ..._PaintToolRow._tools.map((entry) {
-                      final isSelected = widget.currentTool == entry.$1;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        child: _ToolButton(
-                          icon: entry.$2,
-                          label: entry.$3,
-                          isSelected: isSelected,
-                          onTap: () => widget.onToolChanged(entry.$1),
-                        ),
-                      );
-                    }),
+                    const SizedBox(width: colorToolGap),
+                    for (int i = 0; i < _PaintToolRow._tools.length; i++) ...[
+                      if (i > 0) const SizedBox(width: toolGap),
+                      _ToolButton(
+                        icon: _PaintToolRow._tools[i].$2,
+                        label: _PaintToolRow._tools[i].$3,
+                        lottieAsset: _PaintToolRow._tools[i].$4,
+                        isSelected: widget.currentTool == _PaintToolRow._tools[i].$1,
+                        onTap: () => widget.onToolChanged(_PaintToolRow._tools[i].$1),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -3171,12 +3235,14 @@ class _PaintToolRowState extends State<_PaintToolRow>
 class _ToolButton extends StatefulWidget {
   final IconData icon;
   final String label;
+  final String? lottieAsset;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _ToolButton({
     required this.icon,
     required this.label,
+    this.lottieAsset,
     required this.isSelected,
     required this.onTap,
   });
@@ -3188,7 +3254,7 @@ class _ToolButton extends StatefulWidget {
 class _ToolButtonState extends State<_ToolButton>
     with TickerProviderStateMixin {
   late final AnimationController _selectCtrl;
-  late final AnimationController _hoverCtrl;
+  late final AnimationController _lottieCtrl;
   bool _hovering = false;
 
   @override
@@ -3199,10 +3265,7 @@ class _ToolButtonState extends State<_ToolButton>
       duration: _kToolSelectDuration,
       value: widget.isSelected ? 1.0 : 0.0,
     );
-    _hoverCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 180),
-    );
+    _lottieCtrl = AnimationController(vsync: this);
   }
 
   @override
@@ -3220,44 +3283,60 @@ class _ToolButtonState extends State<_ToolButton>
   @override
   void dispose() {
     _selectCtrl.dispose();
-    _hoverCtrl.dispose();
+    _lottieCtrl.dispose();
     super.dispose();
+  }
+
+  void _onHoverEnter() {
+    setState(() => _hovering = true);
+    if (widget.lottieAsset != null) {
+      _lottieCtrl.forward(from: 0);
+    }
+  }
+
+  void _onHoverExit() {
+    setState(() => _hovering = false);
   }
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      onEnter: (_) {
-        setState(() => _hovering = true);
-        _hoverCtrl.forward(from: 0);
-      },
-      onExit: (_) {
-        setState(() => _hovering = false);
-        _hoverCtrl.reverse();
-      },
+      onEnter: (_) => _onHoverEnter(),
+      onExit: (_) => _onHoverExit(),
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedBuilder(
-          animation: Listenable.merge([_selectCtrl, _hoverCtrl]),
+          animation: _selectCtrl,
           builder: (context, _) {
             final t = Curves.easeOutCirc.transform(_selectCtrl.value);
-            final hoverScale = 1.0 + 0.12 * Curves.easeOut.transform(_hoverCtrl.value);
+            final color = Color.lerp(
+              _hovering ? _kCancelFg : _kIconFgIdle,
+              _kIconFgActive,
+              t,
+            )!;
             return SizedBox(
               width: _kToolButtonSize,
               height: _kToolButtonSize,
               child: Center(
-                child: Transform.scale(
-                  scale: hoverScale,
-                  child: Icon(
-                    widget.icon,
-                    size: 20,
-                    color: Color.lerp(
-                      _hovering ? _kCancelFg : _kIconFgIdle,
-                      _kIconFgActive,
-                      t,
-                    ),
-                  ),
-                ),
+                child: widget.lottieAsset != null
+                    ? Lottie.asset(
+                        widget.lottieAsset!,
+                        controller: _lottieCtrl,
+                        onLoaded: (composition) {
+                          _lottieCtrl.duration = composition.duration;
+                        },
+                        width: 20,
+                        height: 20,
+                        delegates: LottieDelegates(
+                          values: [
+                            ValueDelegate.color(
+                              const ['**'],
+                              value: color,
+                            ),
+                          ],
+                        ),
+                      )
+                    : Icon(widget.icon, size: 20, color: color),
               ),
             );
           },
@@ -3293,11 +3372,15 @@ class _RainbowColorButton extends StatelessWidget {
             width: 1.5,
           ),
         ),
-        child: CustomPaint(
-          size: const Size(_kRainbowRingSize - 3, _kRainbowRingSize - 3),
-          painter: _RainbowRingPainter(
-            innerColor: currentColor,
-            ringWidth: _kRainbowRingBorder,
+        child: TweenAnimationBuilder<Color?>(
+          tween: ColorTween(end: currentColor),
+          duration: _kColorButtonSwitchDuration,
+          builder: (context, color, _) => CustomPaint(
+            size: const Size(_kRainbowRingSize - 3, _kRainbowRingSize - 3),
+            painter: _RainbowRingPainter(
+              innerColor: color ?? currentColor,
+              ringWidth: _kRainbowRingBorder,
+            ),
           ),
         ),
       ),
@@ -3344,6 +3427,97 @@ class _RainbowRingPainter extends CustomPainter {
   @override
   bool shouldRepaint(_RainbowRingPainter old) =>
       old.innerColor != innerColor || old.ringWidth != ringWidth;
+}
+
+class _ColorSamplePainter extends CustomPainter {
+  final Color color;
+  final bool isSelected;
+
+  _ColorSamplePainter({required this.color, required this.isSelected});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    if (isSelected) {
+      canvas.drawCircle(
+        center, radius,
+        Paint()..color = Colors.white,
+      );
+      canvas.drawCircle(
+        center, radius - 2,
+        Paint()..color = color,
+      );
+    } else {
+      canvas.drawCircle(center, radius, Paint()..color = color);
+      if (color.r == 0 && color.g == 0 && color.b == 0) {
+        canvas.drawCircle(
+          center,
+          radius - 0.5,
+          Paint()
+            ..color = const Color(0x66FFFFFF)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ColorSamplePainter old) =>
+      old.color != color || old.isSelected != isSelected;
+}
+
+class _PlusCirclePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    canvas.drawCircle(
+      center,
+      radius - 0.75,
+      Paint()
+        ..color = const Color(0x99FFFFFF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+    const lineLen = 8.0;
+    final linePaint = Paint()
+      ..color = const Color(0x99FFFFFF)
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(center.dx - lineLen / 2, center.dy),
+      Offset(center.dx + lineLen / 2, center.dy),
+      linePaint,
+    );
+    canvas.drawLine(
+      Offset(center.dx, center.dy - lineLen / 2),
+      Offset(center.dx, center.dy + lineLen / 2),
+      linePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_PlusCirclePainter old) => false;
+}
+
+class _ToolSelectionPainter extends CustomPainter {
+  final double opacity;
+
+  _ToolSelectionPainter({required this.opacity});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    canvas.drawOval(
+      Rect.fromCenter(center: center, width: size.width, height: size.height),
+      Paint()..color = Color.fromRGBO(255, 255, 255, opacity),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ToolSelectionPainter old) => old.opacity != opacity;
 }
 
 class _EditorStickerPicker extends StatefulWidget {
@@ -3404,14 +3578,7 @@ class _EditorStickerPickerState extends State<_EditorStickerPicker> {
       height: 380,
       child: Column(
         children: [
-          Container(
-            width: 40, height: 4,
-            margin: const EdgeInsets.only(top: 8, bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+          const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -3864,6 +4031,7 @@ class _EmojiAvatarBuilderState extends State<EmojiAvatarBuilder> {
       if (widget.onDone != null) {
         await widget.onDone!(file);
       }
+      file.delete().ignore();
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) setState(() => _saving = false);

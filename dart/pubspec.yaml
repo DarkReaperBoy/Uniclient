@@ -60,6 +60,7 @@ flutter:
     - assets/images/themeimage.jpg
     - assets/animations/
     - assets/animations/devices/
+    - assets/animations/photo_editor/
     - assets/icons/ayu/
     - assets/icons/ayu/donates/
     - assets/icons/devices/
