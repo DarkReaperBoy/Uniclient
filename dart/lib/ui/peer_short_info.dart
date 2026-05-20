@@ -128,7 +128,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   StreamSubscription<UserStatusEvent>? _statusSub;
   StreamSubscription<ChatInfo>? _chatUpdateSub;
   String? _currentPhotoPath;
-  double _videoProgress = 1.0;
+  double _videoProgress = 0.0;
   bool _videoBuffering = false;
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration>? _durationSub;
@@ -347,6 +347,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       }
     });
     _fetchPhotoAtIndex(idx);
+    _preloadAdjacentPhotos(idx);
   }
 
   Future<void> _fetchPhotoAtIndex(int index) async {
@@ -371,6 +372,21 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       }
     } catch (_) {
       if (mounted) setState(() => _photoLoading = false);
+    }
+  }
+
+  void _preloadAdjacentPhotos(int currentIdx) {
+    if (_photoCount <= 1) return;
+    final engine = context.read<EngineService>();
+    final prevIdx = currentIdx > 0 ? currentIdx - 1 : _photoCount - 1;
+    final nextIdx = currentIdx < _photoCount - 1 ? currentIdx + 1 : 0;
+    if (prevIdx != currentIdx && prevIdx != 0) {
+      engine.getUserPhotoAtIndex(widget.accountId, widget.peerId, prevIdx)
+          .ignore();
+    }
+    if (nextIdx != currentIdx && nextIdx != 0) {
+      engine.getUserPhotoAtIndex(widget.accountId, widget.peerId, nextIdx)
+          .ignore();
     }
   }
 
@@ -772,8 +788,8 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
                   opacity: (_showRadialLoader || _videoBuffering || _photoLoading) ? 1.0 : 0.0,
                   duration: _kAnimDuration,
                   child: SizedBox(
-                    width: 24,
-                    height: 24,
+                    width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: Colors.white.withValues(alpha: 0.8),
@@ -797,8 +813,8 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         padding: EdgeInsets.all(16),
         child: Center(
           child: SizedBox(
-            width: 24,
-            height: 24,
+            width: 20,
+            height: 20,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
         ),
@@ -1090,8 +1106,30 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   }
 
   String _formatPhone(String phone) {
-    if (phone.startsWith('+')) return phone;
-    return '+$phone';
+    final digits = phone.replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.isEmpty) return phone;
+    final buf = StringBuffer('+');
+    if (digits.startsWith('1') && digits.length == 11) {
+      buf.write('${digits[0]} ${digits.substring(1, 4)} ${digits.substring(4, 7)}-${digits.substring(7)}');
+    } else if (digits.startsWith('7') && digits.length == 11) {
+      buf.write('${digits[0]} ${digits.substring(1, 4)} ${digits.substring(4, 7)}-${digits.substring(7, 9)}-${digits.substring(9)}');
+    } else if (digits.startsWith('44') && digits.length == 12) {
+      buf.write('${digits.substring(0, 2)} ${digits.substring(2, 6)} ${digits.substring(6)}');
+    } else if (digits.startsWith('49') && digits.length >= 12) {
+      buf.write('${digits.substring(0, 2)} ${digits.substring(2, 5)} ${digits.substring(5)}');
+    } else if (digits.startsWith('98') && digits.length == 12) {
+      buf.write('${digits.substring(0, 2)} ${digits.substring(2, 5)} ${digits.substring(5, 8)} ${digits.substring(8)}');
+    } else {
+      int cc = 1;
+      if (digits.length > 10) cc = digits.length > 11 ? 3 : 2;
+      buf.write(digits.substring(0, cc));
+      final rest = digits.substring(cc);
+      for (int i = 0; i < rest.length; i++) {
+        if (i > 0 && i % 3 == 0) buf.write(' ');
+        buf.write(rest[i]);
+      }
+    }
+    return buf.toString();
   }
 
   String _formatBirthday(int day, int month, int year) {
@@ -1147,12 +1185,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
                 onPressed: () {
                   Navigator.of(context).pop();
                   final chatState = context.read<ChatState>();
-                  final chat = chatState.chats
-                      .where((c) =>
-                          c.chatId == widget.peerId &&
-                          c.accountId == widget.accountId)
-                      .firstOrNull;
-                  if (chat != null) chatState.openChat(chat);
+                  chatState.openChatById(widget.peerId);
                 },
                 child: Text(
                   actionLabel,
