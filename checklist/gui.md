@@ -558,7 +558,6 @@ All CRITICAL and MAJOR checks passed:
 
 ## info_panel — Minor wiring notes
 
-- [ ] [MAJOR] `_GetMoreBoosts` button (line 7921) just copies the boost URL to clipboard with a toast. In AyuGram this opens the Premium/Boost purchase flow. Copying the URL is a stub workaround, not the real behavior. — `info_panel.dart:7921`
 
 ## input_dialogs — Input Dialogs (UsernameBox, AddContactBox, CountrySelectBox, EditInviteLink, CreatePollBox)
 
