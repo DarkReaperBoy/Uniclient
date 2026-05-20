@@ -600,10 +600,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 # send_files_box — Audit Findings
 
 
-## send_files_box — Caption "above" is a checkbox, not send-menu-only state
-
-- [ ] [MAJOR] The `_captionAbove` state (whether caption is above media) is exposed as a standalone `_CheckboxRow` widget in the footer area. In AyuGram it is not a checkbox at all — it is exclusively controlled via the send-menu (`CaptionDown`/`CaptionUp` action types), driven by `_invertCaption` and surfaced only as a menu item. The Dart implementation exposes this as a persistent visible checkbox, which is wrong behavior. — `send_files_box.dart:1941-1948` ← `AyuGram/boxes/send_files_box.cpp:757-759`
-
 ## send_files_box — validateLength does not show premium upgrade box
 
 - [ ] [CRITICAL] When the caption exceeds the character limit, AyuGram shows a `CaptionLimitReachedBox` that offers premium upgrade (`_show->showBox(Box(CaptionLimitReachedBox, session, remove, &_st.premium))`). The Dart `_send()` merely does an early return (`if (_captionController.text.length > _kCaptionMaxLength) return;`) with no user-facing error box. The user gets no feedback and no upgrade prompt. — `send_files_box.dart:1358` ← `AyuGram/boxes/send_files_box.cpp:2348-2357`
