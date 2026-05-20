@@ -796,6 +796,7 @@ class ChatState extends ChangeNotifier {
     bool groups = false,
     bool channels = false,
     bool bots = false,
+    bool staticTitle = false,
   }) async {
     final result = await _engine.createFolder(accountId, name, chatIds,
       contacts: contacts,
@@ -803,6 +804,7 @@ class ChatState extends ChangeNotifier {
       groups: groups,
       channels: channels,
       bots: bots,
+      staticTitle: staticTitle,
     );
     if (result != null) {
       await loadFoldersForAccount(accountId);
@@ -820,6 +822,7 @@ class ChatState extends ChangeNotifier {
     bool excludeRead = false,
     bool excludeArchived = false,
     List<String> excludeChatIds = const [],
+    bool staticTitle = false,
   }) async {
     await _engine.editFolder(accountId, folderId, name, chatIds,
       contacts: contacts,
@@ -831,6 +834,7 @@ class ChatState extends ChangeNotifier {
       excludeRead: excludeRead,
       excludeArchived: excludeArchived,
       excludeChatIds: excludeChatIds,
+      staticTitle: staticTitle,
     );
     await loadFoldersForAccount(accountId);
   }

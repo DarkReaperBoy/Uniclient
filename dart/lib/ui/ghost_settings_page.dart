@@ -82,7 +82,12 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
             sectionLabelColor: sectionLabelColor,
             accounts: appState.accounts,
             useGlobal: appState.useGlobalGhostMode,
-            activeAccount: appState.activeAccount,
+            activeAccount: _selectedUserId == null
+                ? appState.activeAccount
+                : appState.accounts.cast<AccountInfo?>().firstWhere(
+                    (a) => a?.selfUserId == _selectedUserId,
+                    orElse: () => appState.activeAccount,
+                  ),
             onScopeChanged: (bool global, String? userId) {
               if (global) {
                 appState.setUseGlobalGhostMode(true);

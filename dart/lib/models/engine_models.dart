@@ -1576,6 +1576,7 @@ class FolderInfo {
   final int colorIndex;
   final bool isChatList;
   final String emoticon;
+  final bool staticTitle;
 
   bool get hasTypeFilters => contacts || nonContacts || groups || channels || bots;
   bool get hasTagColor => colorIndex >= 0 && colorIndex <= 7;
@@ -1599,6 +1600,7 @@ class FolderInfo {
     this.colorIndex = -1,
     this.isChatList = false,
     this.emoticon = '',
+    this.staticTitle = false,
   });
 }
 

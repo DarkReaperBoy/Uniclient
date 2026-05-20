@@ -87,6 +87,7 @@ void showEditFolderBox(BuildContext context, FolderInfo folder) {
         excludeRead: result.excludeRead,
         excludeArchived: result.excludeArchived,
         excludeChatIds: result.excludeChatIds,
+        staticTitle: result.staticTitle,
       ).then((_) {
         if (context.mounted) {
           final order = chatState.folders.map((f) => int.tryParse(f.id) ?? 0).toList();
@@ -291,6 +292,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
             excludeRead: result.excludeRead,
             excludeArchived: result.excludeArchived,
             excludeChatIds: result.excludeChatIds,
+            staticTitle: result.staticTitle,
           ).then((_) {
             if (mounted) {
               setState(() => _folders = List.of(chatState.folders));
@@ -306,6 +308,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
             groups: result.groups,
             channels: result.channels,
             bots: result.bots,
+            staticTitle: result.staticTitle,
           ).then((_) {
             if (mounted) {
               chatState.loadFoldersForAccount(account.id).then((_) {
@@ -1313,6 +1316,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       _excludeArchived = f.excludeArchived;
       _userTyped = f.name.isNotEmpty;
       _colorIndex = f.colorIndex;
+      _staticTitle = f.staticTitle;
       _includedChatIds = List<String>.from(f.chatIds);
       _excludedChatIds = List<String>.from(f.excludeChatIds);
     }
@@ -1777,6 +1781,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       excludeArchived: _excludeArchived,
       colorIndex: _colorIndex,
       isChatList: existing?.isChatList ?? false,
+      staticTitle: _staticTitle,
     ));
   }
 
