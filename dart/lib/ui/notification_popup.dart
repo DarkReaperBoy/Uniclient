@@ -40,6 +40,7 @@ class _PopupState {
   double targetY;
   double currentY;
   bool hiding;
+  bool fastHiding;
   bool hovered;
   bool replyOpen;
   double replyHeight;
@@ -54,6 +55,7 @@ class _PopupState {
     this.targetY = 0.0,
     this.currentY = 0.0,
     this.hiding = false,
+    this.fastHiding = false,
     this.hovered = false,
     this.replyOpen = false,
     this.replyHeight = _replyFieldMinH,
@@ -200,6 +202,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
   void _startSlowHide(_PopupState popup) {
     if (popup.hiding) return;
     popup.hiding = true;
+    popup.fastHiding = false;
     setState(() => popup.opacity = 0.0);
     popup.hideAnimTimer?.cancel();
     popup.hideAnimTimer = Timer(_slowHideDuration, () {
@@ -209,6 +212,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
 
   void _startFastHide(_PopupState popup) {
     popup.hiding = true;
+    popup.fastHiding = true;
     setState(() => popup.opacity = 0.0);
     popup.hideAnimTimer?.cancel();
     popup.hideAnimTimer = Timer(_fastHideDuration, () {
@@ -251,6 +255,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       p.hideWaitTimer?.cancel();
       if (p.hiding && !p.replyOpen) {
         p.hiding = false;
+        p.fastHiding = false;
         p.hideAnimTimer?.cancel();
       }
     }
@@ -524,9 +529,13 @@ class _NotificationPopupWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = popup.item.data;
     final hideEasing =
-        popup.hiding ? Curves.easeInCirc : Curves.linear;
+        popup.hiding
+            ? (popup.fastHiding ? Curves.linear : Curves.easeInCirc)
+            : Curves.linear;
     final hideDuration =
-        popup.hiding ? _slowHideDuration : _fadeInDuration;
+        popup.hiding
+            ? (popup.fastHiding ? _fastHideDuration : _slowHideDuration)
+            : _fadeInDuration;
     final content = composeNotificationContent(data, settings);
     final nameHidden = !settings.previewName;
 
