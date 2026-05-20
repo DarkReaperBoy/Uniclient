@@ -594,32 +594,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 # popup_menu — Context menu / popup menu widget
 
 
-## privacy_settings_screen — Privacy & Security settings screen audit
-
-- [ ] [CRITICAL] "Active Web Sessions (Logged-in Websites)" button is entirely missing from the Security section — AyuGram shows it whenever `websites().totalValue() > 0`, with a count label; the Dart file has no `getWebsites`/`getWebsiteCount` call, no websites screen navigation, and no websites entry in the security section — `privacy_settings_screen.dart:994-1012` ← `settings_privacy_security.cpp:765-784`
-
-- [ ] [CRITICAL] "Disable Sensitive Content Filtering" toggle is completely absent — AyuGram calls `SetupSensitiveContent` which shows a toggle for `sensitiveContent().enabled()` gated on `canChange()`; the Dart file has zero references to sensitive content anywhere — `privacy_settings_screen.dart:552-610` ← `settings_privacy_security.cpp:258-314`
-
-- [ ] [CRITICAL] `onSaved` callback after editing a privacy rule does NOT update `always_users`/`never_users` counts in `_privacySettings` — the map is merged with only `{'option': newOption}`, so `_privacyLabel()` immediately shows stale exception counts (e.g. "+3, -1" vanishes) until the next 15-second poll — `privacy_settings_screen.dart:819-838` ← `settings_privacy_security.cpp:124-144`
-
-- [ ] [CRITICAL] `_PrivacyExceptionPicker` only shows contacts — AyuGram's `EditPrivacyBox` lets users search and add any user/group/channel by username or peer search, not just contacts; entering a non-contact username to whitelist/blacklist is impossible in the Dart implementation — `privacy_settings_screen.dart:7055-7267` ← `settings_privacy_controllers.cpp`
-
-- [ ] [MAJOR] Archive-and-mute section is missing the two premium-gated sub-toggles: "Keep Archived Unmuted" and "Keep Archived in Folders" — the fields `_archiveKeepUnmuted` and `_archiveKeepFolders` are fetched and sent to the engine but never rendered as toggles in `_buildArchiveAndMuteSection` — `privacy_settings_screen.dart:946-992` ← `settings_privacy_security.cpp:981-1023`
-
-- [ ] [MAJOR] `_GlobalTTLScreen` missing "Apply to existing chats" link — AyuGram's `BuildApplyToExisting` adds a footer link that opens a chat-list picker allowing the user to bulk-apply the new TTL to selected chats; the Dart screen has no equivalent — `privacy_settings_screen.dart:4932-5135` ← `settings_global_ttl.cpp:401-464`
-
-- [ ] [MAJOR] Local passcode stored as a plain SHA-256 hash on disk with no per-device salt — AyuGram uses `domain.local().setPasscode()` which applies OS-level domain storage with multiple passes; the Dart implementation writes `{hash: sha256(passcode)}` to a plain JSON file in configDir, making it trivially brute-forceable from the filesystem — `privacy_settings_screen.dart:5340-5343`
-
-- [ ] [MAJOR] `_LocalPasscodeManage._changePasscode()` pushes a new `_LocalPasscodeCreate` screen instead of the correct "Change Passcode" flow — it does not first verify the current passcode before allowing creation of a new one, unlike AyuGram which uses `LocalPasscodeChange` (which re-checks the old passcode first) — `privacy_settings_screen.dart:5798-5808` ← `settings_local_passcode.cpp:379-383`
-
-- [ ] [MAJOR] `CloudPasswordStart` intro screen has three consecutive empty `SizedBox(height: 61)` spacers and no body content between the subtitle and the "Set Password" button — the equivalent AyuGram screen (`settings_cloud_password_start`) shows a lottie animation, an explanation paragraph, and a link to "Learn more"; this looks broken — `privacy_settings_screen.dart:3127-3131`
-
-- [ ] [MAJOR] `_buildBotsAndWebsitesSection` section title is missing — AyuGram renders a "Bots & Websites" subsection title above "Clear Payment and Shipping Info"; the Dart section has no heading, causing the row to appear headingless between sections — `privacy_settings_screen.dart:994-1012` ← `settings_privacy_security.cpp:1026-1049`
-
-- [ ] [MAJOR] Birthday picker in the privacy editor uses `showDatePicker` (a generic Flutter date picker) instead of a day/month only picker — Telegram birthday privacy does not include a year, but the Dart code saves full `picked.day, picked.month, picked.year` via `engine.updateBirthday` — this sends the birth year to the server unnecessarily and is inconsistent with the AyuGram privacy controller which works with a `Data::Birthday{.day, .month}` without year — `privacy_settings_screen.dart:2093-2115` ← `settings_privacy_controllers.cpp`
-
-- [ ] [MAJOR] Privacy exception picker (always/never lists) only persists user IDs from contacts; it cannot accept group or channel exceptions — AyuGram's `ExceptionUsersCount` counts all peer types including chats and channels, and the UI lets users add groups/channels to exception lists; the Dart picker has no concept of chat/channel exceptions and the `_alwaysUsers`/`_neverUsers` lists hold only string user IDs — `privacy_settings_screen.dart:1968-1995, 2176-2196` ← `settings_privacy_security.cpp:316-326`
-
 # reactions_detail — Reactions & Read-Receipt Detail Panel
 
 - [ ] [MAJOR] `_loadMore()` appends paginated reactors without deduplication — `dart/lib/ui/reactions_detail.dart:310,314` (`_masterReactors.addAll(result.reactors)` / `_allReactors.addAll(result.reactors)`) ← `AyuGram/history/view/reactions/history_view_reactions_list.cpp:428-433` (`Controller::appendRow` calls `peerListFindRow(id(peer,reaction))` and returns false on dup). If the reaction list changes mid-scroll (users add/remove reactions between pages), the offset-based pagination can return a previously seen peer; AyuGram's explicit dedup prevents duplicate rows, the Dart has none.
