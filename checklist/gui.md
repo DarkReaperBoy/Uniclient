@@ -602,9 +602,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — Reply header is a plain static widget, not animated ReplyPillHeader
-
-- [ ] [MAJOR] AyuGram uses a dedicated `SendFiles::ReplyPillHeader` widget (with hide animation, close button, dynamic height, and spoiler preview) sourced from the live history item. The Dart implementation renders a static `Container` with hardcoded `Icon(Icons.reply)` and plain text — no close button, no animation, no resolve of the actual message data. — `send_files_box.dart:1639-1681` ← `AyuGram/boxes/send_files_box_reply_header.h:31-75`
 
 ## send_files_box — DivideByGroups / PrepareFilesBundle not implemented; caption assignment is wrong
 
