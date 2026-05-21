@@ -605,49 +605,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — `_SpoilerOverlay` uses `BackdropFilter` blur; AyuGram uses Lottie-particle animation
-
-- [ ] [MAJOR] AyuGram spoiler overlays use `SpoilerAnimation` (Lottie-based particle animation distinct from a simple CSS-style blur). The Dart `_SpoilerOverlay` uses `BackdropFilter(filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24))` with a custom `CustomPainter` for particles. While visually similar, the blur-based approach is heavier on GPU compositing (forces offscreen layer for every spoilered thumbnail), and the animation is not the correct Lottie-backed particle system. — `send_files_box.dart:3587-3659` ← `AyuGram/boxes/send_files_box.h:64` (uses `Ui::SpoilerAnimation`)
-
-# settings_screen — Audit
-
-- [ ] [CRITICAL] `setEmojiStatus` and `clearEmojiStatus` call Go bridge methods that don't exist — `AccountUpdateEmojiStatus` is explicitly skipped in dispatch_gen.go; emoji status picker renders and accepts input but the API call silently fails every time — `settings_screen.dart:1180,1214` ← `go/bridge/dispatch_gen.go:19079` (`// Skipped: AccountUpdateEmojiStatus`)
-
-- [ ] [CRITICAL] `setEmojiStatus` passes `item.fileId` (a document ID string) as the `emoji` parameter — even if the backend were implemented, the payload would send `{"emoji": "5123456789"}` (a file ID) instead of a custom emoji document reference; parameter semantics are wrong — `settings_screen.dart:1180` ← `dart/lib/bridge/engine_service.dart:3827` (`String emoji`)
-
-- [ ] [MAJOR] Video/camera device selection not persisted to backend — `_selectedCamera` state update calls only `setState()` with no `engine.setCallAudioDevice(accountId, 'camera', dev)` call; audio output/input devices at lines 2256/2267 DO call the engine, camera does not — `settings_screen.dart:2310-2313` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_calls.cpp:776` (`Core::App().settings().setCameraDeviceId(id)`)
-
-- [ ] [MAJOR] "Use same device for calls" toggle not persisted — toggling `_sameDevice` only calls `setState()`; no engine call to clear/set device IDs; in AyuGram toggling this clears `callPlaybackDeviceId`/`callCaptureDeviceId` and immediately calls `Core::App().saveSettingsDelayed()` — `settings_screen.dart:2272-2289` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_calls.cpp:255-275`
-
-- [ ] [MAJOR] Business Hours editor is a read-only stub — hours display as static text with hardcoded fallback `'9:00 - 18:00'`; no time picker, no edit tap target, no way to change per-day hours; AyuGram treats `BusinessHours` as a full interactive section (`PremiumFeature::BusinessHours`) — `settings_screen.dart:3074-3086` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_business.cpp:118`
-
-- [ ] [MAJOR] Premium features screen silently falls back to a hardcoded list of 21 features when `getPremiumFeatures()` fails or returns empty — backend errors are invisible and the displayed features may not match what the user's account actually supports — `settings_screen.dart:2461-2484` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_premium.cpp` (dynamic feature list from API)
-
-- [ ] [MAJOR] Quick replies list has no delete/remove control — individual quick reply items render as read-only rows; AyuGram uses `messages.DeleteQuickReplyShortcut` (TL method); Go bridge has the method but Dart UI never calls it — `settings_screen.dart:3156-3173` ← `AyuGramDesktop/Telegram/SourceFiles/data/business/data_shortcut_messages.cpp:579`
-
-- [ ] [MAJOR] Business chat links list has no revoke/delete control — link rows show only a copy button; Go bridge has `AccountDeleteBusinessChatLink` at dispatch_gen.go:18686 but it is never exposed in engine_service.dart or called from the UI — `settings_screen.dart:3326-3350` ← `go/bridge/dispatch_gen.go:18686`
-
-# shell — Shell layout, connection state, call bar wiring
-
-- [ ] [CRITICAL] Personal call hangup does not call engine — `onHangup: () => chatState.setActivePersonalCall(null)` only clears local state; the Go engine never receives a hang-up command and keeps the call alive in the background. Group call correctly calls `engine.endCall(accountId, callId)` but personal call has no equivalent — `shell.dart:348` ← `calls/calls_top_bar.cpp:271` (`tr::lng_call_bar_hangup` wired to `hangup()` which calls `_call->hangup()`)
-
-- [ ] [CRITICAL] Personal call mute toggle does not call engine — `onToggleMute: () { chatState.setActivePersonalCall(personalCall.copyWith(isMuted: !personalCall.isMuted)) }` only mutates local Dart state; `engine.setCallMuted()` is never invoked, so the actual call audio stream is unaffected — `shell.dart:350-353` ← `calls/calls_top_bar.cpp:727` (`TopBar::setMuted` wired to real call mute)
-
-- [ ] [MAJOR] Connection widget tap opens proxy dialog instead of refreshing state — `onTap: () => showProxiesDialog(context)` (line 1147) opens the proxy settings screen. In AyuGram the widget is an `AbstractButton`; pressing it fires `_refreshStateRequests` which calls `refreshState()` to re-poll the network manager — no proxy dialog is opened — `shell.dart:1147` ← `window/window_connecting_widget.cpp:518-523`
-
-- [ ] [MAJOR] Group call self-muted detection compares wrong identifiers — `p.userId == accountId` (line 358) compares a participant's Telegram user-ID string against `chatState.activeChat?.accountId` which is the internal account/session identifier (e.g. the engine-side account handle), not the platform user ID. `AccountInfo` has a separate `selfUserId` field for this purpose; the comparison will never match so `selfMuted` is always `false`, causing the mute button to always show the unmuted icon — `shell.dart:357-358` ← `calls/calls_top_bar.cpp` (self-participant identified by user peer matching, not session handle)
-
-- [ ] [MAJOR] `_InfoLayerOverlay` in two-column mode covers the dialogs column — the dim overlay is stacked over the entire `_buildTwoColumn` widget tree (lines 558-563), so the dialogs column is dimmed and tapping it closes the info panel. In AyuGram, the info section is shown as a `LayerWidget` (`Wrap::Layer`) which is positioned only over the chat/right portion of the window; the dialogs column remains interactive and does not dismiss the layer — `shell.dart:558-563` ← `info/info_layer_widget.cpp:255` (`resizeGetHeight` scopes layer to chat area width), `mainwidget.cpp:1831-1836` (layer shown via `showSpecialLayer`, not full-screen overlay)
-
-# shortcuts_settings_screen — Keyboard Shortcuts Settings
-
-- [ ] [MAJOR] `_isModified` getter called directly inside `build()` on every rebuild — it allocates a full `defaultByCmd` map, iterates all 50+ `ShortcutCommand.values`, calls `ShortcutSystem.defaultBindingsList` (which wraps a `List.unmodifiable` each call), and sorts per-command lists. During recording, every key event triggers `setState` → rebuild → this full O(n) scan. Should be a cached `bool _modified` field updated only in `_assignBinding`, `_clearBinding`, `_resetToDefaults`, and `_loadBindings`. — `shortcuts_settings_screen.dart:376` ← `settings/sections/settings_shortcuts.cpp:198-210` (`checkModified` is called only on mutation, not on every paint)
-
-- [ ] [MAJOR] `_startRecording` calls `_removedKeys.clear()` unconditionally, erasing conflict strikethrough markers for ALL commands whenever the user clicks a new row to record. In AyuGram, conflict state is per-button (`button->removed = rpl::variable<bool>`) and is only cleared when the conflicting key is explicitly resolved via `S::Change(was, now, command, entry.command)`. In the Dart, if the user assigns Ctrl+K to Search (displacing FormatLink) and then immediately clicks on "Close Telegram" to record, FormatLink's Ctrl+K strikethrough disappears from the UI even though `_currentBindings` still holds the entry (it's only excluded via `_removedKeys`). The shortcut system state is correct but the UI shows stale/wrong conflict state. — `shortcuts_settings_screen.dart:203` ← `settings/sections/settings_shortcuts.cpp:377-386`
-
-- [ ] [MAJOR] `ListView` with all rows built as an eager `children` list — the total row count is 54 commands × (1 or more bindings per command) ≈ 60–80+ `_ShortcutRow` widgets, all constructed unconditionally on every `build()`. Should use `ListView.builder` with a pre-flattened `List<Widget>` or a `SliverList` with a delegate to allow viewport-based lazy construction. — `shortcuts_settings_screen.dart:397` ← `settings/sections/settings_shortcuts.cpp:474-484` (AyuGram adds widgets lazily via `fill()` per visible entry)
-
-- [ ] [MAJOR] `_addAnotherBinding` (called from the context menu) always appends a new empty slot without checking whether the command already has an existing empty slot waiting for input. AyuGram's context menu handler first searches `i->now` for an existing `QKeySequence()` (empty) entry and reuses it; only if none exists does it push a new one. In the Dart, clicking "Add another binding" twice creates two phantom recording rows for the same command. — `shortcuts_settings_screen.dart:255-258` ← `settings/sections/settings_shortcuts.cpp:312-323`
 
 # spoiler_animation — 2 issues
 
