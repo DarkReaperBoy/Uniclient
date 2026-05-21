@@ -35,22 +35,6 @@
 - Should use `basename()` or `File(path).uri.pathSegments.last` instead
 
 
-## notification_manager_native — cleanup
-
-- [ ] [CRITICAL] Portal notifications never added to `_notifications`/`_nativeIdToData`, so ALL clearXxx methods are no-ops for Flatpak users — `clearForChat`, `clearAll`, etc. only iterate `_notifications` (which stays empty for portal) and call `_closeNotification()` which issues `CloseNotification` on `org.freedesktop.Notifications` — the wrong interface; portal needs `org.freedesktop.portal.Notification.RemoveNotification` — notifications pile up in the notification center forever after chat is read — `notification_manager_native.dart:657` (show) / `notification_manager_native.dart:747` (clear)
-
-- [ ] [MAJOR] `_buildImageHint` creates 16,384 individual `DBusByte` objects per notification: `rawBytes.map((b) => DBusByte(b)).toList()` at line 610 boxes every byte of a 64×64 RGBA image (64×64×4 = 16,384 heap objects) — massive GC pressure on every non-Flatpak notification; pass raw bytes directly instead — `notification_manager_native.dart:610`
-
-- [ ] [MAJOR] Portal icon also boxes every PNG byte: `pngBytes.map((b) => DBusByte(b)).toList()` at line 699 repeats the same per-byte boxing for the PNG file bytes — `notification_manager_native.dart:699`
-
-- [ ] [MAJOR] `_buildImageHint` double-decodes the cached PNG: `CachedUserpics.get()` already decoded the original image, resized to 64×64, and wrote a PNG to disk; `_buildImageHint` then reads that PNG from disk and decodes it again on every notification — raw RGBA bytes should be stored alongside the cached file path to avoid the second decode — `notification_manager_native.dart:594`
-
-- [ ] [MAJOR] `_nativeIdToData` grows unboundedly over long sessions: entries for expired (reason=1) and programmatically-closed (reason=3) notifications are intentionally kept (see comment at line 373) but there is no TTL eviction — every notification that expires without user interaction stays in the map forever — `notification_manager_native.dart:369`
-
-- [ ] [MAJOR] `_generatePlaceholderUserpic` writes files to the same temp dir as `CachedUserpics` but never registers them in `_cache` — `CachedUserpics.dispose()` and the 30s cleanup timer both skip placeholder files, so they accumulate in `/tmp/uniclient_userpics/` and are never deleted — `notification_manager_native.dart:197`
-
-- [ ] [MAJOR] Unnecessary double-copy in `_buildImageHint` line 609: `Uint8List.fromList(resized.toUint8List())` copies the pixel buffer twice — `toUint8List()` already returns a `Uint8List`; the outer `fromList()` is a no-op copy — `notification_manager_native.dart:609`
-
 ## notification_system — cleanup
 
 - [ ] [CRITICAL] `nm.onReply` never wired in `main.dart` — `NativeManager._onNotificationReplied` fires on inline DBus replies (when server supports `inline-reply` capability) and calls `onReply?.call(...)`, but `nm.onReply` is never assigned (only `nm.onAction` is). Inline replies from system notification toasts are silently dropped — `main.dart:519-524`, `notification_manager_native.dart:381-391`
