@@ -18,6 +18,7 @@ import '../theme/telegram_palette.dart';
 import 'compose_entities.dart';
 import 'confirm_box.dart' show showTelegramBox, TelegramBox, TelegramBoxButton;
 import 'emoji_panel.dart' show EmojiTabbedPanel, addRecentEmoji;
+import 'spoiler_animation.dart' show SpoilerAnimationMixin, SpoilerTilePainter, SpoilerType;
 import 'popup_menu.dart';
 import 'choose_datetime_box.dart';
 import 'photo_crop_editor.dart';
@@ -2819,7 +2820,7 @@ class _SingleMediaPreview extends StatelessWidget {
                 ),
               ),
               if (file.spoiler)
-                const Positioned.fill(child: _SpoilerOverlay()),
+                Positioned.fill(child: _SpoilerOverlay()),
               if (canRemove)
                 Positioned(
                   top: 5,
@@ -3462,7 +3463,7 @@ class _AlbumPreviewState extends State<_AlbumPreview>
                       color: Colors.white54, size: 32),
                 ),
               ),
-              if (file.spoiler) const _SpoilerOverlay(),
+              if (file.spoiler) _SpoilerOverlay(),
               if (file.type == _FileType.video)
                 const Center(
                   child:
@@ -4232,85 +4233,47 @@ class _HdBadge extends StatelessWidget {
 }
 
 class _SpoilerOverlay extends StatefulWidget {
-  const _SpoilerOverlay({super.key});
+  const _SpoilerOverlay();
 
   @override
   State<_SpoilerOverlay> createState() => _SpoilerOverlayState();
 }
 
 class _SpoilerOverlayState extends State<_SpoilerOverlay>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late int _seed;
-
+    with SpoilerAnimationMixin {
   @override
   void initState() {
     super.initState();
-    _seed = identityHashCode(this);
-    _ctrl = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    )..repeat();
+    initSpoiler(SpoilerType.image);
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    disposeSpoiler();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (spoilerSheet == null) {
+      return Container(color: const Color(0x20000000));
+    }
     return ClipRect(
       child: Stack(
         fit: StackFit.expand,
         children: [
-          BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(color: const Color(0x20000000)),
-          ),
-          AnimatedBuilder(
-            animation: _ctrl,
-            builder: (context, _) {
-              return CustomPaint(
-                painter: _SpoilerParticlePainter(_ctrl.value, seed: _seed),
-              );
-            },
+          Container(color: const Color(0x20000000)),
+          CustomPaint(
+            painter: SpoilerTilePainter(
+              sheet: spoilerSheet!,
+              frame: spoilerFrame,
+              isMedia: true,
+            ),
           ),
         ],
       ),
     );
   }
-}
-
-class _SpoilerParticlePainter extends CustomPainter {
-  final double phase;
-  final int seed;
-  _SpoilerParticlePainter(this.phase, {this.seed = 0});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint();
-    final rng = math.Random(seed);
-    final area = size.width * size.height;
-    final count = (area / 120).clamp(40, 200).round();
-    for (int i = 0; i < count; i++) {
-      final baseX = rng.nextDouble();
-      final baseY = rng.nextDouble();
-      final speed = 0.2 + rng.nextDouble() * 0.6;
-      final r = 1.0 + rng.nextDouble() * 1.2;
-      final localPhase = (phase * speed + i * 0.0137) % 1.0;
-      final drift = math.sin(localPhase * math.pi * 2) * 0.02;
-      final x = ((baseX + localPhase * 0.3 + drift) % 1.0) * size.width;
-      final y = ((baseY + localPhase * 0.15) % 1.0) * size.height;
-      final alpha = (0.4 + 0.6 * math.sin((localPhase) * math.pi * 2)).clamp(0.0, 1.0);
-      paint.color = Color.fromRGBO(180, 180, 180, alpha * 0.5);
-      canvas.drawCircle(Offset(x, y), r, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_SpoilerParticlePainter old) => old.phase != phase;
 }
 
 class _CheckboxRow extends StatelessWidget {
