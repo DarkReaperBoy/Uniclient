@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/engine_models.dart' show BotCommandInfo, ChatType, MemberInfo, ScheduledMessages;
 import '../state/app_state.dart';
@@ -1256,48 +1257,90 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     final ctrl = RichTextEditingController();
     if (existing.isNotEmpty) ctrl.text = existing;
     _captionDialogOpen = true;
+    var showEmojiInDialog = false;
     showTelegramBox<({String text, String entities})>(
       context: context,
-      builder: (ctx) => TelegramBox(
-        title: 'Edit caption',
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _CaptionFormattingToolbar(
-              controller: ctrl,
-              accentColor: ctx.palette.windowActiveTextFg,
-              subColor: ctx.palette.boxTitleAdditionalFg,
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: TextField(
+      builder: (ctx) => StatefulBuilder(
+        builder: (stCtx, setDialogState) => TelegramBox(
+          title: 'Edit caption',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _CaptionFormattingToolbar(
                 controller: ctrl,
-                autofocus: true,
-                maxLength: _captionMaxLength,
-                maxLines: 3,
-                style: TextStyle(fontSize: 14, color: ctx.palette.boxTextFg),
-                decoration: InputDecoration(
-                  hintText: 'Add a caption for this file...',
-                  hintStyle: TextStyle(fontSize: 14, color: ctx.palette.boxTitleAdditionalFg),
-                  counterText: '',
-                  border: InputBorder.none,
-                  isDense: true,
+                accentColor: ctx.palette.windowActiveTextFg,
+                subColor: ctx.palette.boxTitleAdditionalFg,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 4, 0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: _captionMaxHeight),
+                        child: TextField(
+                          controller: ctrl,
+                          autofocus: true,
+                          maxLength: _captionMaxLength,
+                          maxLines: null,
+                          style: TextStyle(fontSize: 14, color: ctx.palette.boxTextFg),
+                          decoration: InputDecoration(
+                            hintText: 'Add a caption for this file...',
+                            hintStyle: TextStyle(fontSize: 14, color: ctx.palette.boxTitleAdditionalFg),
+                            counterText: '',
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                          ),
+                        ),
+                      ),
+                    ),
+                    _EmojiToggleButton(
+                      active: showEmojiInDialog,
+                      accentColor: ctx.palette.windowActiveTextFg,
+                      subColor: ctx.palette.boxTitleAdditionalFg,
+                      onPressed: () => setDialogState(() => showEmojiInDialog = !showEmojiInDialog),
+                    ),
+                  ],
                 ),
               ),
+              EmojiTabbedPanel(
+                emojiOnly: true,
+                visible: showEmojiInDialog,
+                onHide: () => setDialogState(() => showEmojiInDialog = false),
+                onEmojiSelected: (emoji) {
+                  final sel = ctrl.selection;
+                  final text = ctrl.text;
+                  final start = sel.isValid ? sel.start : text.length;
+                  final end = sel.isValid ? sel.end : text.length;
+                  final newText = text.replaceRange(start, end, emoji);
+                  if (newText.length <= _captionMaxLength) {
+                    ctrl.value = TextEditingValue(
+                      text: newText,
+                      selection: TextSelection.collapsed(offset: start + emoji.length),
+                    );
+                  }
+                  addRecentEmoji(emoji);
+                },
+                onCustomEmojiSelected: (documentId, altText) {
+                  ctrl.insertCustomEmoji(documentId, altText);
+                },
+              ),
+            ],
+          ),
+          scrollableContent: false,
+          buttons: [
+            TelegramBoxButton(text: 'Cancel', onPressed: () => Navigator.of(ctx).pop()),
+            TelegramBoxButton(
+              text: 'Save',
+              onPressed: () {
+                final parsed = ctrl.getTextWithAppliedMarkdown();
+                Navigator.of(ctx).pop((text: parsed.text, entities: parsed.entitiesJson));
+              },
             ),
           ],
         ),
-        scrollableContent: false,
-        buttons: [
-          TelegramBoxButton(text: 'Cancel', onPressed: () => Navigator.of(ctx).pop()),
-          TelegramBoxButton(
-            text: 'Save',
-            onPressed: () {
-              final parsed = ctrl.getTextWithAppliedMarkdown();
-              Navigator.of(ctx).pop((text: parsed.text, entities: parsed.entitiesJson));
-            },
-          ),
-        ],
       ),
     ).then((result) {
       _captionDialogOpen = false;
@@ -1975,9 +2018,25 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                 ],
               ),
               const SizedBox(height: 12),
-              Text(
-                'Users will pay this amount in Telegram Stars to unlock and view your content. You can set 0 to make it free.',
-                style: TextStyle(fontSize: 12, color: ctx.palette.boxTitleAdditionalFg),
+              GestureDetector(
+                onTap: () {
+                  launchUrl(
+                    Uri.parse('https://telegram.org/blog/telegram-stars'),
+                    mode: LaunchMode.externalApplication,
+                  );
+                },
+                child: Text.rich(
+                  TextSpan(
+                    style: TextStyle(fontSize: 12, color: ctx.palette.boxTitleAdditionalFg),
+                    children: [
+                      const TextSpan(text: 'Users will pay this amount in Telegram Stars to unlock and view your content. '),
+                      TextSpan(
+                        text: 'Learn more',
+                        style: TextStyle(color: ctx.palette.windowActiveTextFg),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
