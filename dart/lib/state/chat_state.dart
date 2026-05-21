@@ -33,6 +33,7 @@ class ChatState extends ChangeNotifier {
   // "accountId:userId" → (kind, lastSeenMs) for DM subtitle text.
   final Map<String, ({String kind, int lastSeenMs})> _userLastSeen = {};
   final Map<String, String> _senderAvatars = {}; // senderId → base64 avatar thumbnail
+  final Map<String, Map<String, String>> _avatarCache = {}; // "accountId:chatId" → {senderId → b64}
   final Map<String, String> _altQualityPaths = {}; // "msgId:seq" → local path
   final Map<String, DownloadProgressEvent> _downloadProgress = {}; // msgId → latest progress
   int _groupOnlineCount = 0; // online members in active group/channel chat
@@ -216,7 +217,18 @@ class ChatState extends ChangeNotifier {
     return result;
   }
   int get openedUnreadCount => _openedUnreadCount;
-  List<CachedMessage> get messages => _messages;
+  List<CachedMessage> get messages {
+    if (_selectedReactionTagIds.isEmpty) return _messages;
+    return _messages.where((msg) {
+      for (final r in msg.reactions) {
+        final key = r.isCustomEmoji
+            ? 'custom:${r.documentId}'
+            : 'emoji:${r.emoji}';
+        if (_selectedReactionTagIds.contains(key)) return true;
+      }
+      return false;
+    }).toList();
+  }
   List<CachedMessage> get pinnedMessages => _pinnedMessages;
   GroupCallInfo? get activeGroupCall => _activeGroupCall;
   PersonalCallInfo? get activePersonalCall => _activePersonalCall;
@@ -384,7 +396,8 @@ class ChatState extends ChangeNotifier {
   }
 
   void _ensureEnoughTaggedMessages() {
-    if (_hasMoreMessages) {
+    if (!_hasMoreMessages) return;
+    if (messages.length < 20) {
       _loadMessages();
     }
   }
@@ -965,12 +978,47 @@ class ChatState extends ChangeNotifier {
     final chat = history[newIdx];
     if (chat.chatId == _activeChat?.chatId) return false;
     _activeChat = chat;
+    _openedUnreadCount = chat.unreadCount;
     _messages = [];
     _pinnedMessages = [];
     _hasMoreMessages = true;
     _isFirstLoad = true;
-    notifyListeners();
+    _jumpedUntil = null;
+    _groupOnlineCount = 0;
+    _activeGroupCall = null;
+    _connectedBot = null;
+    _connectedBotPaused = false;
+    _scheduledCount = 0;
+    _isScheduledView = false;
+    _isEditHistoryView = false;
+    _editHistoryMsgId = '';
+    _editHistorySenderName = '';
+    _isDeletedMessagesView = false;
+    _deletedMsgSearch = '';
+    _linkedChatId = '';
+    _botStartToken = '';
+    _peerBarSettings = const {};
+    _engine.setActiveChat(chat.accountId, chat.chatId);
     _loadMessages();
+    _loadPinnedMessages(chat.accountId, chat.chatId);
+    _loadScheduledCount(chat.accountId, chat.chatId);
+    final cacheKey = '${chat.accountId}:${chat.chatId}';
+    if (!_avatarCache.containsKey(cacheKey)) {
+      if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic) {
+        _loadMemberAvatars(chat.accountId, chat.chatId);
+        _loadOnlineCount(chat.accountId, chat.chatId);
+        _loadGroupCall(chat.accountId, chat.chatId);
+      }
+    } else {
+      _senderAvatars
+        ..clear()
+        ..addAll(_avatarCache[cacheKey]!);
+    }
+    if (chat.type == ChatType.dm) {
+      _loadConnectedBot(chat.accountId, chat.chatId);
+    }
+    _loadPeerBarSettings(chat.accountId, chat.chatId);
+    notifyListeners();
     return true;
   }
 
@@ -1022,9 +1070,14 @@ class ChatState extends ChangeNotifier {
     _botStartToken = '';
     _peerBarSettings = const {};
     _loadScheduledCount(chat.accountId, chat.chatId);
+    final cacheKey = '${chat.accountId}:${chat.chatId}';
     _senderAvatars.clear();
     if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic) {
-      _loadMemberAvatars(chat.accountId, chat.chatId);
+      if (_avatarCache.containsKey(cacheKey)) {
+        _senderAvatars.addAll(_avatarCache[cacheKey]!);
+      } else {
+        _loadMemberAvatars(chat.accountId, chat.chatId);
+      }
       _loadOnlineCount(chat.accountId, chat.chatId);
       _loadGroupCall(chat.accountId, chat.chatId);
       if (chat.type == ChatType.channel) {
@@ -2041,6 +2094,9 @@ class ChatState extends ChangeNotifier {
     _loadingMessages = false;
     _autoDownloadMedia(newMsgs);
     notifyListeners();
+    if (_selectedReactionTagIds.isNotEmpty) {
+      _ensureEnoughTaggedMessages();
+    }
   }
 
   /// Fetch chat members and cache their avatar thumbnails for sender display.
@@ -2059,13 +2115,12 @@ class ChatState extends ChangeNotifier {
           }
         }
         offset += fetched;
-        // Stop after first batch if we got fewer than requested (no more pages).
-        // Also cap at 1000 to avoid hammering huge channels.
       } while (fetched >= batchSize && offset < 1000);
-      if (_senderAvatars.isNotEmpty) notifyListeners();
-    } catch (_) {
-      // Non-critical — avatars fall back to initials.
-    }
+      if (_senderAvatars.isNotEmpty) {
+        _avatarCache['$accountId:$chatId'] = Map.of(_senderAvatars);
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   /// Fetch the online member count for a group/channel via the platform API.
@@ -2506,7 +2561,13 @@ class ChatState extends ChangeNotifier {
 
   void _handleDownloadProgress(DownloadProgressEvent event) {
     if (_disposed) return;
+    final prev = _downloadProgress[event.msgId];
     _downloadProgress[event.msgId] = event;
+    if (prev != null && event.bytesTotal > 0 && prev.bytesTotal > 0) {
+      final prevPct = prev.bytesRecv / prev.bytesTotal;
+      final curPct = event.bytesRecv / event.bytesTotal;
+      if ((curPct - prevPct).abs() < 0.02 && curPct < 1.0) return;
+    }
     notifyListeners();
   }
 
