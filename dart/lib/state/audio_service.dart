@@ -337,7 +337,9 @@ class AudioService extends ChangeNotifier {
     final old = _player;
     _player = null;
     _playing = false;
-    old?.dispose();
+    if (old != null) {
+      old.dispose().catchError((_) {});
+    }
     super.dispose();
   }
 }
