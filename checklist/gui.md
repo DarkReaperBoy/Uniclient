@@ -138,24 +138,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # ayu_toggle — clean
 
-## call_screen — cleanup
-
-- [ ] [CRITICAL] `_showJoinAsChooser` onTap (line 1360–1362) just calls `Navigator.pop(ctx)` — selecting an account does nothing; no engine call to rejoin/switch identity. The entire "Join As..." feature is a non-functional stub. Need to call `engine.joinGroupCall(selectedAccountId, callId)` and update the active account in the panel. — `call_screen.dart:1360`
-
-- [ ] [CRITICAL] `_showInviteMembersFromMenu` (line 1448) is fully implemented (fetches contacts, shows picker, calls `engine.inviteToConferenceCall`) but is **never called** — there is no "Invite Members" entry in `_showGroupCallMenu` (lines 1248–1308). Invite feature is unreachable from the UI. Add a ListTile for it in `_showGroupCallMenu`. — `call_screen.dart:1448`
-
-- [ ] [CRITICAL] Linux audio device picker (lines 1383–1388) strips and prettifies the PulseAudio sink name before adding it to `devices`, then passes the prettified display name directly to `engine.setCallAudioDevice(accountId, 'output', d)` at line 1437. The engine stores that name in `config.CallOutputDevice` and will use it for routing — but `"pci-0000 00 1f.3 (Analog Stereo)"` is not a valid PulseAudio sink identifier. Fix by storing the raw sink name (`parts[1]`) as the device ID while keeping the prettified string only for display. — `call_screen.dart:1383`
-
-- [ ] [CRITICAL] Recording hardcodes path `/tmp/call_recording_$timestamp.wav` (line 1266) with no platform guard. `/tmp/` does not exist or is sandboxed on macOS, Windows, Android, and iOS; recordings silently fail on those platforms. Use `getTemporaryDirectory()` (from `path_provider`) and show the saved path to the user. — `call_screen.dart:1266`
-
-- [ ] [CRITICAL] macOS/Windows window enumeration in `_enumerateWindows` (lines 2642–2646) returns a single stub entry `ScreenShareSource(id: 'window:0', name: 'All Windows', isScreen: false)`. Selecting it passes the meaningless ID `'window:0'` to the engine. Need real window enumeration via `CGWindowListCopyWindowInfo` on macOS or `EnumWindows` on Windows, or at minimum remove the tab and show "Not supported on this platform". — `call_screen.dart:2643`
-
-- [ ] [MAJOR] `File(p.avatarPath).existsSync()` is called inside `_buildParticipantRow` (line 218), which is invoked synchronously during `build()` for every participant row. Synchronous filesystem I/O on the UI thread causes jank when the participant list scrolls or updates. Cache the result in the model or pre-compute it outside `build()`. — `call_screen.dart:218`
-
-- [ ] [MAJOR] `Image.file(File(p.avatarPath), width: 36, height: 36, ...)` (lines 220–225) specifies display size but omits `cacheWidth`/`cacheHeight`, so Flutter decodes the full-resolution image into the image cache. For a 36×36 px display target use `cacheWidth: 72, cacheHeight: 72` (2× for HiDPI). Same issue in `_ParticipantAvatar` which uses `FileImage(File(avatarPath))` (line 2304) without cache sizing for a 28×28 px avatar. — `call_screen.dart:220`, `call_screen.dart:2304`
-
-- [ ] [MAJOR] `_MinimisedCallBarState` timer (line 1749) increments `_durationSeconds++` on each tick rather than recalculating from `callStartTime`, so the displayed duration drifts under system load. `_GroupCallPanelState` correctly recalculates on every tick (`DateTime.now().difference(_callStartTime).inSeconds`). Apply the same approach here. — `call_screen.dart:1749`
-
 # calls_screen — cleanup
 
 - [ ] [CRITICAL] `_ConferenceCallLinkBox` "Join this call yourself" (line 1679): calls `engine.joinGroupCall` but never calls `showGroupCallPanel` — user enters the call with no UI to mute/hang up. Also skips `requestCallPermissions` check. Compare with the functioning join at line 721 which does both. Fix: add permission check, then after join fetch `GroupCallInfo` via `engine.getGroupCall` and call `showGroupCallPanel`. — `calls_screen.dart:1679`
