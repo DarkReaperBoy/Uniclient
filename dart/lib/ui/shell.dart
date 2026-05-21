@@ -11,7 +11,6 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
 import '../state/chat_state.dart';
-import 'advanced_settings_screen.dart' show showProxiesDialog;
 import 'auth_screen.dart';
 import 'chat_export.dart';
 import 'chat_list_panel.dart';
@@ -336,6 +335,8 @@ class _UniClientShellState extends State<UniClientShell>
 
     if (hasActiveCall) {
       final Widget callBar;
+      final accountId = chatState.activeChat?.accountId
+          ?? context.read<AppState>().activeAccountId;
       if (personalCall != null) {
         callBar = MinimisedCallBar(
           isPersonalCall: true,
@@ -345,17 +346,26 @@ class _UniClientShellState extends State<UniClientShell>
           isConnecting: personalCall.isConnecting,
           signalQuality: personalCall.signalQuality,
           callStartTime: personalCall.startTime,
-          onHangup: () => chatState.setActivePersonalCall(null),
+          onHangup: () {
+            if (accountId.isNotEmpty && personalCall.callId.isNotEmpty) {
+              context.read<EngineService>().endCall(accountId, personalCall.callId);
+            }
+            chatState.setActivePersonalCall(null);
+          },
           onToggleMute: () {
+            if (accountId.isNotEmpty && personalCall.callId.isNotEmpty) {
+              context.read<EngineService>().setCallMuted(
+                accountId, personalCall.callId, !personalCall.isMuted);
+            }
             chatState.setActivePersonalCall(
               personalCall.copyWith(isMuted: !personalCall.isMuted),
             );
           },
         );
       } else {
-        final accountId = chatState.activeChat?.accountId ?? '';
+        final selfUserId = context.read<AppState>().activeAccount?.selfUserId ?? '';
         final selfMuted = groupCall!.participants.any((p) =>
-            p.userId == accountId && p.isMuted);
+            p.userId == selfUserId && p.isMuted);
         callBar = MinimisedCallBar(
           peerName: groupCall.title.isNotEmpty
               ? groupCall.title
@@ -536,31 +546,30 @@ class _UniClientShellState extends State<UniClientShell>
           },
         ),
         Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final wideChat = constraints.maxWidth >= _wideChatThreshold;
-              return chatState.activeChat != null
-                  ? ChatView(
-                      showBackButton: false,
-                      onToggleInfo: _toggleInfo,
-                      isInfoOpen: _infoOpen,
-                      wideChatMode: wideChat,
-                    )
-                  : _EmptyChatPlaceholder();
-            },
+          child: Stack(
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final wideChat = constraints.maxWidth >= _wideChatThreshold;
+                  return chatState.activeChat != null
+                      ? ChatView(
+                          showBackButton: false,
+                          onToggleInfo: _toggleInfo,
+                          isInfoOpen: _infoOpen,
+                          wideChatMode: wideChat,
+                        )
+                      : _EmptyChatPlaceholder();
+                },
+              ),
+              if (_infoOpen && chatState.activeChat != null)
+                _InfoLayerOverlay(onClose: _closeInfo),
+            ],
           ),
         ),
       ],
     );
 
-    if (!_infoOpen || chatState.activeChat == null) return columns;
-
-    return Stack(
-      children: [
-        columns,
-        _InfoLayerOverlay(onClose: _closeInfo),
-      ],
-    );
+    return columns;
   }
 
   /// Three columns: dialogs + chat + info panel.
@@ -1144,7 +1153,7 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
           onEnter: (_) => setState(() => _isHovered = true),
           onExit: (_) => setState(() => _isHovered = false),
           child: GestureDetector(
-            onTap: () => showProxiesDialog(context),
+            onTap: _tryReconnect,
             behavior: HitTestBehavior.opaque,
             child: _buildPill(state, p, proxyEnabled),
           ),
