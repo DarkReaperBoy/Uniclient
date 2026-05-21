@@ -149,6 +149,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
   ShortcutCommand? _recordingCommand;
   int _recordingIndex = -1;
   final _removedKeys = <ShortcutCommand, Set<String>>{};
+  bool _modified = false;
 
   @override
   void initState() {
@@ -169,15 +170,17 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
     for (final b in ShortcutSystem.instance.currentBindings) {
       _currentBindings.putIfAbsent(b.command, () => []).add(b);
     }
+    _recomputeModified();
   }
 
-  bool get _isModified {
+  void _recomputeModified() {
     final defaultByCmd = <ShortcutCommand, List<String>>{};
     for (final b in ShortcutSystem.defaultBindingsList) {
       defaultByCmd
           .putIfAbsent(b.command, () => [])
           .add(bindingToKeyString(b));
     }
+    bool mod = false;
     for (final cmd in ShortcutCommand.values) {
       final removed = _removedKeys[cmd];
       final currKeys = (_currentBindings[cmd] ?? [])
@@ -186,12 +189,13 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
           .toList()
         ..sort();
       final defKeys = (defaultByCmd[cmd] ?? [])..sort();
-      if (currKeys.length != defKeys.length) return true;
+      if (currKeys.length != defKeys.length) { mod = true; break; }
       for (int i = 0; i < currKeys.length; i++) {
-        if (currKeys[i] != defKeys[i]) return true;
+        if (currKeys[i] != defKeys[i]) { mod = true; break; }
       }
+      if (mod) break;
     }
-    return false;
+    _modified = mod;
   }
 
   bool get _isRecording => _recordingCommand != null;
@@ -200,7 +204,6 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
     setState(() {
       _recordingCommand = cmd;
       _recordingIndex = index;
-      _removedKeys.clear();
     });
     ShortcutSystem.instance.startRecording(_onRecordingKeyEvent);
   }
@@ -233,6 +236,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
       }
       _recordingCommand = null;
       _recordingIndex = -1;
+      _recomputeModified();
     });
     ShortcutSystem.instance.stopRecording();
     _syncToSystem();
@@ -247,6 +251,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
       }
       _recordingCommand = null;
       _recordingIndex = -1;
+      _recomputeModified();
     });
     ShortcutSystem.instance.stopRecording();
     _syncToSystem();
@@ -254,8 +259,8 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
 
   void _addAnotherBinding(ShortcutCommand cmd) {
     final bindings = _currentBindings.putIfAbsent(cmd, () => []);
-    final newIndex = bindings.length;
-    _startRecording(cmd, newIndex);
+    if (_recordingCommand == cmd && _recordingIndex >= bindings.length) return;
+    _startRecording(cmd, bindings.length);
   }
 
   void _showContextMenu(ShortcutCommand cmd, Offset globalPosition) {
@@ -291,6 +296,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
       for (final b in ShortcutSystem.defaultBindingsList) {
         _currentBindings.putIfAbsent(b.command, () => []).add(b);
       }
+      _recomputeModified();
     });
     _syncToSystem();
   }
@@ -373,7 +379,49 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
     final goodColor = const Color(0xFF4CAF50);
     final attentionColor =
         isDark ? const Color(0xFFE53935) : const Color(0xFFDF3F40);
-    final modified = _isModified;
+    final items = <Widget>[
+      AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        child: _modified
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(height: 1, color: dividerColor),
+                  const SizedBox(height: 7),
+                  _ResetButton(
+                    bgColor: bgColor,
+                    textColor: accentColor,
+                    hoverBg: hoverBg,
+                    onTap: _resetToDefaults,
+                  ),
+                  const SizedBox(height: 7),
+                  Container(height: 1, color: dividerColor),
+                ],
+              )
+            : const SizedBox.shrink(),
+      ),
+    ];
+    for (int gi = 0; gi < _commandGroups.length; gi++) {
+      if (gi > 0) {
+        items.add(const SizedBox(height: 7));
+        items.add(Container(height: 1, color: dividerColor));
+        items.add(const SizedBox(height: 7));
+      }
+      for (final (cmd, label) in _commandGroups[gi]) {
+        items.addAll(_buildCommandRows(
+          cmd,
+          label,
+          textColor: textColor,
+          subtextColor: subtextColor,
+          hoverBg: hoverBg,
+          goodColor: goodColor,
+          attentionColor: attentionColor,
+        ));
+      }
+    }
+    items.add(const SizedBox(height: 24));
 
     return Scaffold(
         backgroundColor: bgColor,
@@ -394,50 +442,10 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
             ),
           ),
         ),
-        body: ListView(
+        body: ListView.builder(
           padding: EdgeInsets.zero,
-          children: [
-            AnimatedSize(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
-              child: modified
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(height: 1, color: dividerColor),
-                        const SizedBox(height: 7),
-                        _ResetButton(
-                          bgColor: bgColor,
-                          textColor: accentColor,
-                          hoverBg: hoverBg,
-                          onTap: _resetToDefaults,
-                        ),
-                        const SizedBox(height: 7),
-                        Container(height: 1, color: dividerColor),
-                      ],
-                    )
-                  : const SizedBox.shrink(),
-            ),
-            for (int gi = 0; gi < _commandGroups.length; gi++) ...[
-              if (gi > 0) ...[
-                const SizedBox(height: 7),
-                Container(height: 1, color: dividerColor),
-                const SizedBox(height: 7),
-              ],
-              for (final (cmd, label) in _commandGroups[gi])
-                ..._buildCommandRows(
-                  cmd,
-                  label,
-                  textColor: textColor,
-                  subtextColor: subtextColor,
-                  hoverBg: hoverBg,
-                  goodColor: goodColor,
-                  attentionColor: attentionColor,
-                ),
-            ],
-            const SizedBox(height: 24),
-          ],
+          itemCount: items.length,
+          itemBuilder: (_, i) => items[i],
         ),
     );
   }
