@@ -615,38 +615,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 - AyuGram: `Telegram/SourceFiles/window/themes/window_theme_editor_box.cpp`
 - Style: `Telegram/SourceFiles/window/window.style:167-170`
 
----
-
-# titlebar — Custom CSD titlebar
-
-- [ ] [CRITICAL] `_startDrag()` is called on **every** `onPointerMove` event during a drag, spamming the native channel with repeated `startDrag` method calls. AyuGram calls `startSystemMove()` once and immediately sends a synthetic `MouseButtonRelease` to clear `_mousePressed`, guaranteeing a single invocation per drag gesture — `titlebar.dart:241` (`onPointerMove: (_) => _startDrag()`) ← `ui_platform_window_title.cpp:487-494` (`if (_mousePressed) { window()->windowHandle()->startSystemMove(); SendSynteticMouseEvent(…, Qt::LeftButton); }`)
-
-- [ ] [MAJOR] Window context menu is shown on `onSecondaryTapUp` (right-button **release**), but AyuGram shows it on `mousePressEvent` with `Qt::RightButton` (right-button **press-down**). The menu appears immediately on press in the reference — `titlebar.dart:238` (`onSecondaryTapUp: (_) => _showWindowMenu()`) ← `ui_platform_window_title.cpp:476-478` (`} else if (e->button() == Qt::RightButton) { ShowWindowMenu(window(), e->windowPos().toPoint()); }`)
-
-- [ ] [MAJOR] Button icons use generic Flutter Material icons (`Icons.remove`, `Icons.crop_square`, `Icons.filter_none`, `Icons.close`) instead of Telegram's custom SVG assets (`title_button_minimize`, `title_button_maximize`, `title_button_restore`, `title_button_close`). The restore icon in particular (`Icons.filter_none`) is visually wrong — the reference uses a distinct overlapping-squares glyph — `titlebar.dart:296-302` ← `widgets.style:1602,1620,1635-1648,1653` (`{ "title_button_minimize", … }`, `{ "title_button_maximize", … }`, `{ "title_button_restore", … }`, `{ "title_button_close", … }`)
-
-# web_app_panel — WebApp Mini-App Panel
-
-- [ ] [CRITICAL] `_allowClipboardRead` is always `false` and never set — `WebAppPanelData` has no `allowClipboardRead` field so it can never be passed in; the flag stays false forever and blocks all clipboard reads even for bots that have permission — `web_app_panel.dart:136` ← `attach_bot_webview.h:272` (`_allowClipboardRead : 1 = false` initialized from `args.allowClipboardRead`)
-
-- [ ] [CRITICAL] `_lastWebviewInteraction` is initialized to epoch and never updated — `setInteractionHandler` wires up a native callback that updates this timestamp on every webview interaction; Dart never wires this up, so `timeSinceInteraction.inSeconds` is always billions of seconds > 10, meaning clipboard reads are permanently blocked even when `_allowClipboardRead` were true — `web_app_panel.dart:137,715-717` ← `attach_bot_webview.cpp:920-922` (`raw->setInteractionHandler([=] { _lastWebviewInteraction = crl::now(); });`)
-
-- [ ] [CRITICAL] `web_app_close` incorrectly triggers close-confirmation dialog — AyuGram calls `_delegate->botClose()` directly (no confirmation) because the bot itself is requesting close; Dart calls `_close()` which checks `_closeNeedConfirmation` and may show a dialog, contradicting the spec — `web_app_panel.dart:263-264` ← `attach_bot_webview.cpp:963`
-
-- [ ] [MAJOR] `web_app_open_tg_link` missing `keepOpen=true` — AyuGram passes `keepOpen = true` so the panel stays open when the TG link is handled; Dart's engine call has no equivalent and the panel may close unexpectedly — `web_app_panel.dart:435-438` ← `attach_bot_webview.cpp:1374` (`_delegate->botHandleLocalUri("https://t.me" + path, true)`)
-
-- [ ] [MAJOR] Downloads submenu missing from the three-dot menu — AyuGram checks `botDownloads(true)`, and if non-empty inserts a full downloads submenu with per-entry actions above Settings; Dart's `_showMenu` has no downloads section at all — `web_app_panel.dart:1256-1313` ← `attach_bot_webview.cpp:752-830`
-
-- [ ] [MAJOR] Button state is accumulated progressively using `prev.*` — AyuGram reads all fields fresh from the incoming args object on each `processButtonMessage` call (`args["is_active"].toBool()` defaults to `false` when absent, `args["text"].toString()` defaults to empty string); Dart substitutes `prev.active` / `prev.text` when fields are absent, causing stale button state when bots send partial updates — `web_app_panel.dart:1023-1036` ← `attach_bot_webview.cpp:1713-1745`
-
-- [ ] [MAJOR] `invoiceClosed` / `hideForPayment` not implemented — AyuGram hides the panel with `hideForPayment()` while the native payment UI runs and re-shows it via `invoiceClosed(slug, status)` after completion; Dart immediately fires `invoice_closed` from the engine call result without any panel hiding/re-showing, breaking the native payment flow — `web_app_panel.dart:487-508` ← `attach_bot_webview.cpp:2147-2163`
-
-- [ ] [MAJOR] `openPopup` with empty `message` doesn't close bot — AyuGram calls `_delegate->botClose()` if message is empty or buttons array is empty; Dart shows the dialog with an empty message or no buttons instead — `web_app_panel.dart:1082-1109` ← `attach_bot_webview.cpp:1442-1450`
-
-- [ ] [MAJOR] Viewport not re-sent on webview geometry changes — AyuGram sends `viewport_changed` inside the container geometry listener (`rpl::combine(container->geometryValue(), _footerHeight.value()) | rpl::on_next(...)`) so bots get live resize updates; Dart only sends viewport when the bot explicitly requests it with `web_app_request_viewport` — `web_app_panel.dart:1067-1080` ← `attach_bot_webview.cpp:940-951`
-
-- [ ] [MAJOR] Progress spinner color is wrong — AyuGram uses `st::paymentsLoading.color` which maps to `windowSubTextFg` (a dedicated muted color, fully opaque); Dart uses `(isDark ? Colors.white : palette.windowFg).withValues(alpha: _kProgressOpacity)` (30% opacity of the foreground text color); the constant `_kProgressOpacity = 0.3` in AyuGram is used for the background fill overlay, not the spinner arc — `web_app_panel.dart:1531-1532` ← `attach_bot_webview.cpp:637-644` + `payments.style:137-141`
-
 ## engine_models — Data model audit
 
 ### GroupCallParticipant — fields in Dart class never populated from Go JSON
