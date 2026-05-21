@@ -608,9 +608,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 # main — Audit findings
 
-## main — Theme revert overlay timer drift
-
-- [ ] [MAJOR] `_ThemeRevertOverlayState` decrements `_remainingMs` by a fixed 100 on every timer tick (`_remainingMs -= 100`). If the timer fires late (tab throttled, debug breakpoint, frame jank) the countdown underestimates elapsed time and auto-revert fires later than the 16-second spec. AyuGram computes remaining seconds from wall clock (`(kWaitBeforeRevertMs - msPassed) / 1000` where `msPassed = crl::now() - _started`) so it is immune to timer jitter. — `main.dart:2183` ← `window_theme_warning.cpp:99-104`
 
 ## main — Passcode lock screen uses hardcoded English strings
 
