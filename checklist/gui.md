@@ -606,15 +606,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## story_editor — video story backend missing, disabled premium gate broken, contacts exclusion stub
-
-- [ ] [CRITICAL] `sendStoryWithVideoFile` calls engine command `'SendStoryWithVideo'` but no handler for this command exists anywhere in the Go backend (not in `dispatch_engine.go`, not in `dispatch_gen.go`, not in `telegram.go`) — video story posting always throws an unhandled error — `story_editor.dart:472` ← `go/bridge/dispatch_engine.go:3562` (only `SendStoryWithPhoto` exists, `SendStoryWithVideo` is absent)
-
-- [ ] [CRITICAL] "Contacts" privacy option UI shows subtitle "Exclude people" but clicking it never opens a contact-exclusion picker; selecting `StoryPrivacyOption.contacts` and posting sends `InputPrivacyValueAllowContacts{}` with no disallow-list — the "exclude specific contacts from contacts audience" flow is a stub with misleading UI — `story_editor.dart:2248` ← `data/data_story.h:30` (`StoryPrivacy::Contacts` with exclusion is a distinct privacy mode, not raw AllowContacts)
-
-- [ ] [MAJOR] `_durationItem(48)` creates a `PopupMenuItem` with `enabled: false` and `onTap` set to show a premium toast, but Flutter's `PopupMenuItem` does not fire `onTap` when `enabled: false` — the 48h option is silently unresponsive instead of showing the paywall toast — `story_editor.dart:1700-1707` ← `media/stories/media_stories_controller.cpp:1875` (premium gate check triggers visible prompt)
-
-- [ ] [MAJOR] When a video file is selected and the user reaches the post stage, `_renderCanvasToBytes()` is NOT called and no overlay (paint strokes, text items, stickers) is composited onto the video — all editorial annotations placed on a video story are silently discarded on post — `story_editor.dart:471-483` ← `editor/editor_paint.cpp` (paint layer is composited into the final media before sending)
 
 # telegram_toast — Sticker/emoji premium toast wiring and style issues
 
