@@ -43,9 +43,10 @@ bool nativeNotificationsSupported() {
 
 class _CachedUserpic {
   final String filePath;
+  final Uint8List rawRgba;
   DateTime lastUsed;
 
-  _CachedUserpic({required this.filePath, required this.lastUsed});
+  _CachedUserpic({required this.filePath, required this.rawRgba, required this.lastUsed});
 }
 
 class CachedUserpics {
@@ -77,6 +78,7 @@ class CachedUserpics {
       if (image == null) return null;
 
       final resized = img.copyResize(image, width: _kPhotoSize, height: _kPhotoSize);
+      final rawRgba = resized.toUint8List();
       final pngBytes = Uint8List.fromList(img.encodePng(resized));
 
       final hash = avatarPath.hashCode.toRadixString(16);
@@ -85,6 +87,7 @@ class CachedUserpics {
 
       _cache[avatarPath] = _CachedUserpic(
         filePath: outPath,
+        rawRgba: rawRgba,
         lastUsed: DateTime.now(),
       );
 
@@ -94,6 +97,15 @@ class CachedUserpics {
       Debug.log('NOTIF', 'Userpic cache write failed: $e');
       return null;
     }
+  }
+
+  Uint8List? getRawRgba(String key) {
+    final existing = _cache[key];
+    if (existing != null) {
+      existing.lastUsed = DateTime.now();
+      return existing.rawRgba;
+    }
+    return null;
   }
 
   void _ensureCleanupTimer() {
@@ -153,7 +165,7 @@ class NativeManager extends NotificationManager {
 
   final Map<String, Map<String, int>> _notifications = {};
   final Map<int, NotificationData> _nativeIdToData = {};
-  final Map<String, Set<String>> _portalNotifIds = {};
+  final Map<String, Map<String, NotificationData>> _portalNotifData = {};
 
   DBusClient? _dbus;
   DBusRemoteObject? _notifProxy;
@@ -235,11 +247,13 @@ class NativeManager extends NotificationManager {
           font: font, x: x, y: y,
           color: img.ColorRgba8(255, 255, 255, 255));
 
+      final rawRgba = image.toUint8List();
       final outPath = p.join(cacheDir, 'placeholder_${hash.toRadixString(16)}.png');
       await File(outPath).writeAsBytes(Uint8List.fromList(img.encodePng(image)));
 
       _userpicCache._cache[cacheKey] = _CachedUserpic(
         filePath: outPath,
+        rawRgba: rawRgba,
         lastUsed: DateTime.now(),
       );
       _userpicCache._ensureCleanupTimer();
@@ -385,32 +399,14 @@ class NativeManager extends NotificationManager {
     if (signal.values.length < 2) return;
     final nativeId = signal.values[0].asUint32();
     final reason = signal.values[1].asUint32();
-    if (reason == 2) {
-      _removeNativeId(nativeId);
-    } else {
-      // Expired/programmatic close — remove from _nativeIdToData but keep
-      // in _notifications for clearForChat to close from notification history.
-      _nativeIdToData.remove(nativeId);
-    }
-    _evictStaleEntries();
+    _removeNativeId(nativeId);
   }
 
   void _evictStaleEntries() {
-    if (_nativeIdToData.length <= 100) return;
-    final staleIds = <int>[];
-    for (final id in _nativeIdToData.keys) {
-      var found = false;
-      for (final contextMap in _notifications.values) {
-        if (contextMap.containsValue(id)) {
-          found = true;
-          break;
-        }
-      }
-      if (!found) staleIds.add(id);
+    for (final contextMap in _notifications.values) {
+      contextMap.removeWhere((_, nativeId) => !_nativeIdToData.containsKey(nativeId));
     }
-    for (final id in staleIds) {
-      _nativeIdToData.remove(id);
-    }
+    _notifications.removeWhere((_, map) => map.isEmpty);
   }
 
   void _onNotificationReplied(DBusSignal signal) {
@@ -536,18 +532,19 @@ class NativeManager extends NotificationManager {
 
     final forceHideDetails = !settings.previewName && !settings.previewText;
     if (!forceHideDetails) {
-      String? imgPath;
+      Uint8List? rawRgba;
       if (data.avatarPath.isNotEmpty) {
-        imgPath = await _userpicCache.get(data.avatarPath) ?? data.avatarPath;
+        await _userpicCache.get(data.avatarPath);
+        rawRgba = _userpicCache.getRawRgba(data.avatarPath);
       } else {
         final title = data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName;
-        imgPath = await _generatePlaceholderUserpic(title);
+        await _generatePlaceholderUserpic(title);
+        rawRgba = _userpicCache.getRawRgba('__placeholder:$title');
       }
-      if (imgPath != null) {
-        final imageHint = await _buildImageHint(imgPath);
-        if (imageHint != null) {
-          hints[DBusString(_imageDataKey)] = DBusVariant(imageHint);
-        }
+      if (rawRgba != null) {
+        hints[DBusString(_imageDataKey)] = DBusVariant(
+          _buildImageHintFromRgba(rawRgba),
+        );
       }
     }
 
@@ -626,36 +623,16 @@ class NativeManager extends NotificationManager {
         .replaceAll('"', '&quot;');
   }
 
-  Future<DBusStruct?> _buildImageHint(String avatarPath) async {
-    try {
-      final file = File(avatarPath);
-      if (!await file.exists()) return null;
-      final bytes = await file.readAsBytes();
-      final image = img.decodeImage(bytes);
-      if (image == null) return null;
-
-      final resized = (image.width == 64 && image.height == 64)
-          ? image
-          : img.copyResize(image, width: 64, height: 64);
-      final width = resized.width;
-      final height = resized.height;
-      final rowstride = width * 4;
-
-      final rawBytes = resized.toUint8List();
-
-      return DBusStruct([
-        DBusInt32(width),
-        DBusInt32(height),
-        DBusInt32(rowstride),
-        DBusBoolean(true),
-        DBusInt32(8),
-        DBusInt32(4),
-        DBusArray.byte(rawBytes),
-      ]);
-    } catch (e) {
-      Debug.log('NOTIF', 'Image hint build failed: $e');
-      return null;
-    }
+  static DBusStruct _buildImageHintFromRgba(Uint8List rawRgba, {int size = 64}) {
+    return DBusStruct([
+      DBusInt32(size),
+      DBusInt32(size),
+      DBusInt32(size * 4),
+      DBusBoolean(true),
+      DBusInt32(8),
+      DBusInt32(4),
+      DBusArray.byte(rawRgba),
+    ]);
   }
 
   StreamSubscription<DBusSignal>? _portalActionSub;
@@ -760,7 +737,7 @@ class NativeManager extends NotificationManager {
         ],
       );
       final contextKey = '${data.accountId}:${data.chatId}';
-      _portalNotifIds.putIfAbsent(contextKey, () => {}).add(notifId);
+      _portalNotifData.putIfAbsent(contextKey, () => {})[notifId] = data;
       Debug.log('NOTIF', 'Flatpak portal notification sent: $title');
     } catch (e) {
       Debug.log('NOTIF', 'Flatpak portal notification failed: $e');
@@ -805,9 +782,9 @@ class NativeManager extends NotificationManager {
       }
       _notifications.remove(contextKey);
     }
-    final portalIds = _portalNotifIds.remove(contextKey);
-    if (portalIds != null) {
-      for (final notifId in portalIds) {
+    final portalMap = _portalNotifData.remove(contextKey);
+    if (portalMap != null) {
+      for (final notifId in portalMap.keys) {
         _removePortalNotification(notifId);
       }
     }
@@ -827,27 +804,48 @@ class NativeManager extends NotificationManager {
         _notifications.remove(contextKey);
       }
     }
+    final portalMap = _portalNotifData[contextKey];
+    if (portalMap != null) {
+      final portalNotifId = '${accountId}_${chatId}_$messageId';
+      if (portalMap.remove(portalNotifId) != null) {
+        _removePortalNotification(portalNotifId);
+      }
+      if (portalMap.isEmpty) _portalNotifData.remove(contextKey);
+    }
   }
 
   @override
   void clearForTopic(String accountId, String chatId, String topicRootId) {
     final contextKey = '$accountId:$chatId';
     final ids = _notifications[contextKey];
-    if (ids == null) return;
-    final toRemove = <String>[];
-    for (final entry in ids.entries) {
-      final data = _nativeIdToData[entry.value];
-      if (data != null && data.isForumTopic && data.topicRootId == topicRootId) {
-        _closeNotification(entry.value);
-        _nativeIdToData.remove(entry.value);
-        toRemove.add(entry.key);
+    if (ids != null) {
+      final toRemove = <String>[];
+      for (final entry in ids.entries) {
+        final data = _nativeIdToData[entry.value];
+        if (data != null && data.isForumTopic && data.topicRootId == topicRootId) {
+          _closeNotification(entry.value);
+          _nativeIdToData.remove(entry.value);
+          toRemove.add(entry.key);
+        }
       }
+      for (final key in toRemove) {
+        ids.remove(key);
+      }
+      if (ids.isEmpty) _notifications.remove(contextKey);
     }
-    for (final key in toRemove) {
-      ids.remove(key);
-    }
-    if (ids.isEmpty) {
-      _notifications.remove(contextKey);
+    final portalMap = _portalNotifData[contextKey];
+    if (portalMap != null) {
+      final portalToRemove = <String>[];
+      for (final entry in portalMap.entries) {
+        if (entry.value.isForumTopic && entry.value.topicRootId == topicRootId) {
+          portalToRemove.add(entry.key);
+        }
+      }
+      for (final id in portalToRemove) {
+        portalMap.remove(id);
+        _removePortalNotification(id);
+      }
+      if (portalMap.isEmpty) _portalNotifData.remove(contextKey);
     }
   }
 
@@ -855,21 +853,34 @@ class NativeManager extends NotificationManager {
   void clearForSublist(String accountId, String chatId, String sublistPeerId) {
     final contextKey = '$accountId:$chatId';
     final ids = _notifications[contextKey];
-    if (ids == null) return;
-    final toRemove = <String>[];
-    for (final entry in ids.entries) {
-      final data = _nativeIdToData[entry.value];
-      if (data != null && data.isMonoforumSublist && data.sublistPeerId == sublistPeerId) {
-        _closeNotification(entry.value);
-        _nativeIdToData.remove(entry.value);
-        toRemove.add(entry.key);
+    if (ids != null) {
+      final toRemove = <String>[];
+      for (final entry in ids.entries) {
+        final data = _nativeIdToData[entry.value];
+        if (data != null && data.isMonoforumSublist && data.sublistPeerId == sublistPeerId) {
+          _closeNotification(entry.value);
+          _nativeIdToData.remove(entry.value);
+          toRemove.add(entry.key);
+        }
       }
+      for (final key in toRemove) {
+        ids.remove(key);
+      }
+      if (ids.isEmpty) _notifications.remove(contextKey);
     }
-    for (final key in toRemove) {
-      ids.remove(key);
-    }
-    if (ids.isEmpty) {
-      _notifications.remove(contextKey);
+    final portalMap = _portalNotifData[contextKey];
+    if (portalMap != null) {
+      final portalToRemove = <String>[];
+      for (final entry in portalMap.entries) {
+        if (entry.value.isMonoforumSublist && entry.value.sublistPeerId == sublistPeerId) {
+          portalToRemove.add(entry.key);
+        }
+      }
+      for (final id in portalToRemove) {
+        portalMap.remove(id);
+        _removePortalNotification(id);
+      }
+      if (portalMap.isEmpty) _portalNotifData.remove(contextKey);
     }
   }
 
@@ -889,16 +900,16 @@ class NativeManager extends NotificationManager {
       _notifications.remove(key);
     }
     final portalToRemove = <String>[];
-    for (final entry in _portalNotifIds.entries) {
+    for (final entry in _portalNotifData.entries) {
       if (entry.key.startsWith('$accountId:')) {
-        for (final notifId in entry.value) {
+        for (final notifId in entry.value.keys) {
           _removePortalNotification(notifId);
         }
         portalToRemove.add(entry.key);
       }
     }
     for (final key in portalToRemove) {
-      _portalNotifIds.remove(key);
+      _portalNotifData.remove(key);
     }
   }
 
@@ -911,12 +922,12 @@ class NativeManager extends NotificationManager {
     }
     _notifications.clear();
     _nativeIdToData.clear();
-    for (final ids in _portalNotifIds.values) {
-      for (final notifId in ids) {
+    for (final map in _portalNotifData.values) {
+      for (final notifId in map.keys) {
         _removePortalNotification(notifId);
       }
     }
-    _portalNotifIds.clear();
+    _portalNotifData.clear();
   }
 
   @override
