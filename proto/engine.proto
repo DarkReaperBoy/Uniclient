@@ -122,6 +122,7 @@ message EngineAuthState {
   string avatar_b64  = 23;
   string message     = 24;
   bool   recoverable = 25;
+  bool   code_by_telegram = 26;
 }
 
 message EngineStartAuthRequest {

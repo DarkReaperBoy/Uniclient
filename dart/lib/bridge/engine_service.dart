@@ -5911,6 +5911,7 @@ class EngineService {
     avatarB64: p.avatarB64,
     message: _safeStr(p.message),
     recoverable: p.recoverable,
+    codeByTelegram: p.codeByTelegram,
   );
 
   static ChatInfo _chatInfoFromProto(epb.EngineChatInfo p) => ChatInfo(

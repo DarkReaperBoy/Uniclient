@@ -41,8 +41,9 @@ type AuthState struct {
 	QRExpiresIn  int          `json:"qr_expires_in,omitempty"` // qr state
 	DisplayName  string       `json:"display_name,omitempty"`  // ready state
 	AvatarB64    string       `json:"avatar_b64,omitempty"`    // ready state
-	Message      string       `json:"message,omitempty"`       // error state
-	Recoverable  bool         `json:"recoverable,omitempty"`   // error state
+	Message        string       `json:"message,omitempty"`         // error state
+	Recoverable    bool         `json:"recoverable,omitempty"`     // error state
+	CodeByTelegram bool         `json:"code_by_telegram,omitempty"` // otp state: code sent via Telegram app
 }
 
 type AuthOption struct {
@@ -407,6 +408,7 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 		base.CodeLength = 5
 		base.SentTo = "Telegram app"
 		base.TimeoutSecs = 60
+		base.CodeByTelegram = true
 		return base, nil
 	case AuthStateOTP:
 		if input == "__resend_code" {

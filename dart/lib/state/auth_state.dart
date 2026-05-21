@@ -272,7 +272,7 @@ class AuthState extends ChangeNotifier {
 
       switch (action) {
         case 'choose' || 'submit':
-          if (value.isNotEmpty) submitInput(value);
+          if (value.isNotEmpty) await submitInput(value);
         case 'cancel':
           cancelAuth();
         default:

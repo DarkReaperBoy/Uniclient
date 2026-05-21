@@ -875,6 +875,7 @@ class EngineAuthState extends $pb.GeneratedMessage {
     $core.String? avatarB64,
     $core.String? message,
     $core.bool? recoverable,
+    $core.bool? codeByTelegram,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -934,6 +935,9 @@ class EngineAuthState extends $pb.GeneratedMessage {
     if (recoverable != null) {
       $result.recoverable = recoverable;
     }
+    if (codeByTelegram != null) {
+      $result.codeByTelegram = codeByTelegram;
+    }
     return $result;
   }
   EngineAuthState._() : super();
@@ -960,6 +964,7 @@ class EngineAuthState extends $pb.GeneratedMessage {
     ..aOS(23, _omitFieldNames ? '' : 'avatarB64')
     ..aOS(24, _omitFieldNames ? '' : 'message')
     ..aOB(25, _omitFieldNames ? '' : 'recoverable')
+    ..aOB(26, _omitFieldNames ? '' : 'codeByTelegram')
     ..hasRequiredFields = false
   ;
 
@@ -1148,6 +1153,15 @@ class EngineAuthState extends $pb.GeneratedMessage {
   $core.bool hasRecoverable() => $_has(18);
   @$pb.TagNumber(25)
   void clearRecoverable() => clearField(25);
+
+  @$pb.TagNumber(26)
+  $core.bool get codeByTelegram => $_getBF(19);
+  @$pb.TagNumber(26)
+  set codeByTelegram($core.bool v) { $_setBool(19, v); }
+  @$pb.TagNumber(26)
+  $core.bool hasCodeByTelegram() => $_has(19);
+  @$pb.TagNumber(26)
+  void clearCodeByTelegram() => clearField(26);
 }
 
 class EngineStartAuthRequest extends $pb.GeneratedMessage {

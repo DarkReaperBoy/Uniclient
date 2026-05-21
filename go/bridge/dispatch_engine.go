@@ -6302,8 +6302,9 @@ func authStateToProto(s *engine.AuthState) *pb.EngineAuthState {
 		QrExpiresIn: int32(s.QRExpiresIn),
 		DisplayName: s.DisplayName,
 		AvatarB64:   s.AvatarB64,
-		Message:     s.Message,
-		Recoverable: s.Recoverable,
+		Message:        s.Message,
+		Recoverable:    s.Recoverable,
+		CodeByTelegram: s.CodeByTelegram,
 	}
 	for _, o := range s.Options {
 		p.Options = append(p.Options, &pb.AuthOption{Id: o.ID, Label: o.Label})
