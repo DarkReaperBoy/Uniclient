@@ -604,10 +604,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — `_showEditPriceDialog` uses AlertDialog; AyuGram uses EditPriceBox with star icon
-
-- [ ] [MAJOR] AyuGram's "Set price" flow opens `EditPriceBox` which renders a `NumberInput` widget, paints a star icon at a specific position (`st::paidStarIcon.paint` at `st::paidStarIconTop`), includes an about-link label, and enforces a server-side `stars_paid_post_amount_max` limit. The Dart uses an `AlertDialog` with a plain `TextField` and a hardcoded `⭐` prefix text, ignoring server limits entirely. — `send_files_box.dart:1459-1492` ← `AyuGram/boxes/send_files_box.cpp:260-335`
-
 ## send_files_box — Autocomplete uses local `members` list; should use `FieldAutocomplete` with peer session
 
 - [ ] [CRITICAL] AyuGram sets up caption autocomplete via `setupCaptionAutocomplete()` which calls `ChatHelpers::InitFieldAutocomplete` binding to the actual `_toPeer` for both mentions and hashtags via the session. The Dart implements its own `_detectMentionQuery()` / `_detectHashtagQuery()` that scan a `List<MemberInfo>` passed in at construction time and a static in-memory `RecentHashtags` list. This means (a) the mention list is stale (not updated from engine), (b) hashtag suggestions are session-local and not synced with Telegram's server-side recent hashtags, and (c) commands and other autocomplete features supported by `FieldAutocomplete` are absent. — `send_files_box.dart:417-505` ← `AyuGram/boxes/send_files_box.cpp:1922-1969`
