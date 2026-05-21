@@ -2545,7 +2545,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final appState = context.read<AppState>();
     final entered = _controller.text;
     if (entered.isEmpty) {
@@ -2556,10 +2556,10 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
       _showError(TrStrings.lngFloodError());
       return;
     }
-    if (appState.checkPasscode(entered)) {
+    if (await appState.checkPasscode(entered)) {
       return;
     }
-    _showError(TrStrings.lngPasscodeWrong());
+    if (mounted) _showError(TrStrings.lngPasscodeWrong());
   }
 
   void _showError(String msg) {

@@ -4,7 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -143,6 +143,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   static const kPremiumMaxAccounts = 200;
 
   List<AccountInfo> _accounts = [];
+  Map<String, AccountInfo> _accountById = {};
+  AccountInfo? _cachedActiveAccount;
   final Map<String, ConnState> _connStates = {};
   final Map<String, int> _connWaitSeconds = {};
   String _activeAccountId = ''; // currently viewed account (always set when accounts exist)
@@ -157,6 +159,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _autoLockTimer;
   int _shouldLockAt = 0; // millisecondsSinceEpoch when lock should trigger
   int _lastNonIdleTime = 0; // millisecondsSinceEpoch of last user interaction
+  bool? _cachedHasPasscode;
+  int? _cachedAutoLockSeconds;
   bool _nativeWindowFrame = false;
   bool _mainMenuAccountsShown = false;
   bool _systemDarkMode = false;
@@ -455,13 +459,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   AppState(this._engine);
 
+  void _rebuildAccountLookup() {
+    _accountById = {for (final a in _accounts) a.id: a};
+    _cachedActiveAccount = _accountById[_activeAccountId];
+  }
+
   // ── Getters ──
 
   List<AccountInfo> get accounts {
     if (_accountOrder.isEmpty) return _accounts;
     final ordered = <AccountInfo>[];
     for (final id in _accountOrder) {
-      final a = _accounts.where((x) => x.id == id).firstOrNull;
+      final a = _accountById[id];
       if (a != null) ordered.add(a);
     }
     for (final a in _accounts) {
@@ -476,9 +485,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get initialized => _initialized;
   String? get initError => _initError;
 
-  /// The currently active account (null if no accounts exist).
-  AccountInfo? get activeAccount =>
-      _accounts.where((a) => a.id == _activeAccountId).firstOrNull;
+  AccountInfo? get activeAccount => _cachedActiveAccount;
 
   /// Spec §3.2: account limit — 200 if any account is premium, else 100.
   int get maxAccountLimit =>
@@ -878,6 +885,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _callOutputDevice = v;
     notifyListeners();
     _saveWindowPrefs();
+    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
+      'type': 'output', 'device': v,
+    }).catchError((_) {});
   }
 
   void setCallInputDevice(String v) {
@@ -885,6 +895,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _callInputDevice = v;
     notifyListeners();
     _saveWindowPrefs();
+    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
+      'type': 'input', 'device': v,
+    }).catchError((_) {});
   }
 
   void setCallCameraDevice(String v) {
@@ -892,6 +905,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _callCameraDevice = v;
     notifyListeners();
     _saveWindowPrefs();
+    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
+      'type': 'camera', 'device': v,
+    }).catchError((_) {});
   }
 
   void setCallUseSameDevices(bool v) {
@@ -959,7 +975,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void setWideMultiplier(double v) {
     v = (v * 20).round() / 20.0; // snap to 0.05 increments
-    v = v.clamp(0.5, 4.0);
+    v = v.clamp(1.0, 4.0);
     if ((_wideMultiplier - v).abs() < 0.001) return;
     _wideMultiplier = v;
     notifyListeners();
@@ -2122,6 +2138,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _proxyRotationEnabled = v;
     notifyListeners();
     _saveWindowPrefs();
+    _syncProxyToEngine();
   }
 
   void setProxyRotationTimeout(int v) {
@@ -2129,6 +2146,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _proxyRotationTimeout = v;
     notifyListeners();
     _saveWindowPrefs();
+    _syncProxyToEngine();
   }
 
   void setProxyList(List<Map<String, dynamic>> list) {
@@ -2142,7 +2160,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final activeProxy = (_proxyMode == 2 && _proxyList.isNotEmpty)
         ? _proxyList.first
         : <String, dynamic>{};
-    _engine.callGeneric(_activeAccountId, 'SetProxy', {
+    final payload = {
       'mode': _proxyMode,
       'ipv6': _proxyIpv6,
       'use_for_calls': _proxyForCalls,
@@ -2153,17 +2171,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       'password': activeProxy['password'] ?? '',
       'secret': activeProxy['secret'] ?? '',
       'proxies': _proxyList,
-    }).catchError((_) {});
+    };
+    for (final a in _accounts) {
+      _engine.callGeneric(a.id, 'SetProxy', payload).catchError((_) {});
+    }
   }
 
   void setAutoDownloadSettings(String source, Map<String, dynamic> settings) {
     _autoDownloadSettings[source] = settings;
     notifyListeners();
     _saveWindowPrefs();
-    _engine.callGeneric(_activeAccountId, 'SetAutoDownload', {
-      'source': source,
-      ...settings,
-    }).catchError((_) {});
+    final payload = {'source': source, ...settings};
+    for (final a in _accounts) {
+      _engine.callGeneric(a.id, 'SetAutoDownload', payload).catchError((_) {});
+    }
   }
 
   Map<String, dynamic> getAutoDownloadForSource(String source) {
@@ -2185,6 +2206,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _saveWindowPrefs();
     _engine.updateConfig(maxCacheSize: _localStorageTotalLimit * 1024 * 1024);
+    _engine.callGeneric('__engine', 'SetLocalStorageLimits', {
+      'total_limit_mb': _localStorageTotalLimit,
+      'media_limit_mb': _localStorageMediaLimit,
+      'time_limit_days': _localStorageTimeLimit,
+    }).catchError((_) {});
   }
 
   void addRecentDownload(String fileName, String filePath, int sizeBytes) {
@@ -2379,16 +2405,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get notifAllowSound => _notifAllowSound;
   set notifAllowSound(bool v) { if (_notifAllowSound != v) { _notifAllowSound = v; _saveWindowPrefs(); notifyListeners(); } }
   int get notifVolume => _notifVolume;
-  set notifVolume(int v) { if (_notifVolume != v) { _notifVolume = v; _saveWindowPrefs(); notifyListeners(); } }
+  set notifVolume(int v) { if (_notifVolume != v) { _notifVolume = v; _engine.callGeneric('__engine', 'SetNotificationVolume', {'volume': v}).catchError((_) {}); _saveWindowPrefs(); notifyListeners(); } }
   void setNotifVolumeFromEngine(int v) { if (_notifVolume != v) { _notifVolume = v; notifyListeners(); } }
   bool get notifPreviewName => _notifPreviewName;
   set notifPreviewName(bool v) { if (_notifPreviewName != v) { _notifPreviewName = v; _saveWindowPrefs(); notifyListeners(); } }
   bool get notifPreviewText => _notifPreviewText;
   set notifPreviewText(bool v) { if (_notifPreviewText != v) { _notifPreviewText = v; _saveWindowPrefs(); notifyListeners(); } }
   bool get notifPrivateChats => _notifPrivateChats;
-  set notifPrivateChats(bool v) { if (_notifPrivateChats != v) { _notifPrivateChats = v; _engine.updateConfig(notifyDms: v); _saveWindowPrefs(); notifyListeners(); } }
+  set notifPrivateChats(bool v) { if (_notifPrivateChats != v) { _notifPrivateChats = v; _engine.updateConfig(notifyDms: v); _engine.updateDefaultNotifySettings(_activeAccountId, peerType: 'private', enabled: v); _saveWindowPrefs(); notifyListeners(); } }
   bool get notifGroups => _notifGroups;
-  set notifGroups(bool v) { if (_notifGroups != v) { _notifGroups = v; _engine.updateConfig(notifyGroups: v); _saveWindowPrefs(); notifyListeners(); } }
+  set notifGroups(bool v) { if (_notifGroups != v) { _notifGroups = v; _engine.updateConfig(notifyGroups: v); _engine.updateDefaultNotifySettings(_activeAccountId, peerType: 'group', enabled: v); _saveWindowPrefs(); notifyListeners(); } }
   bool get notifChannels => _notifChannels;
   set notifChannels(bool v) { if (_notifChannels != v) { _notifChannels = v; _engine.updateDefaultNotifySettings(_activeAccountId, peerType: 'channel', enabled: v); _saveWindowPrefs(); notifyListeners(); } }
   bool get notifReactions => _notifReactions;
@@ -2432,7 +2458,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String get customFontFamily => _customFontFamily;
   set customFontFamily(String v) { if (_customFontFamily != v) { _customFontFamily = v; _saveWindowPrefs(); notifyListeners(); } }
   String get customDeviceModel => _customDeviceModel;
-  set customDeviceModel(String v) { if (_customDeviceModel != v) { _customDeviceModel = v; _saveWindowPrefs(); notifyListeners(); } }
+  set customDeviceModel(String v) { if (_customDeviceModel != v) { _customDeviceModel = v; _engine.callGeneric(_activeAccountId, 'SetDeviceModel', {'model': v}).catchError((_) {}); _saveWindowPrefs(); notifyListeners(); } }
 
   bool get recordVideoMessages => _recordVideoMessages;
   set recordVideoMessages(bool value) {
@@ -2625,6 +2651,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // Subscribe to events.
       _subs.add(_engine.onAccountList.listen((accounts) {
         _accounts = accounts;
+        _rebuildAccountLookup();
         _ensureActiveAccount();
         notifyListeners();
       }));
@@ -2635,6 +2662,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         _connWaitSeconds[event.accountId] = event.waitSeconds;
         if (newState == ConnState.connected && oldState != ConnState.connected) {
           _accounts = _engine.listAccounts();
+          _rebuildAccountLookup();
         }
         notifyListeners();
 
@@ -2677,6 +2705,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
       // Load initial state.
       _accounts = _engine.listAccounts();
+      _rebuildAccountLookup();
       _config = _engine.getConfig();
       _ensureActiveAccount();
       // Load window prefs (native frame toggle) before marking initialized.
@@ -2719,6 +2748,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// or connectAllAccounts(). Used when engine is already running.
   void initForTest(List<AccountInfo> accounts) {
     _accounts = accounts;
+    _rebuildAccountLookup();
     _initialized = true;
     notifyListeners();
   }
@@ -2739,13 +2769,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   bool get hasLocalPasscode {
+    if (_cachedHasPasscode != null) return _cachedHasPasscode!;
     if (_configDir.isEmpty) return false;
     final file = File('$_configDir/local_passcode.json');
-    if (!file.existsSync()) return false;
+    if (!file.existsSync()) {
+      _cachedHasPasscode = false;
+      return false;
+    }
     try {
       final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-      return (data['hash'] as String? ?? '').isNotEmpty;
+      _cachedHasPasscode = (data['hash'] as String? ?? '').isNotEmpty;
+      return _cachedHasPasscode!;
     } catch (_) {
+      _cachedHasPasscode = false;
       return false;
     }
   }
@@ -2783,7 +2819,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return elapsed >= waitMs;
   }
 
-  bool checkPasscode(String entered) {
+  static String _computePasscodeHash(List<String> args) {
+    final salt = args[0];
+    final entered = args[1];
+    if (salt.isNotEmpty) {
+      final saltedInput = utf8.encode(salt + entered);
+      var digest = sha256.convert(saltedInput);
+      for (var i = 0; i < 99999; i++) {
+        digest = sha256.convert(digest.bytes + saltedInput);
+      }
+      return digest.toString();
+    }
+    return sha256.convert(utf8.encode(entered)).toString();
+  }
+
+  Future<bool> checkPasscode(String entered) async {
     if (_configDir.isEmpty) return false;
     final file = File('$_configDir/local_passcode.json');
     if (!file.existsSync()) return false;
@@ -2791,17 +2841,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
       final storedHash = data['hash'] as String? ?? '';
       final salt = data['salt'] as String? ?? '';
-      String hash;
-      if (salt.isNotEmpty) {
-        final saltedInput = utf8.encode(salt + entered);
-        var digest = sha256.convert(saltedInput);
-        for (var i = 0; i < 99999; i++) {
-          digest = sha256.convert(digest.bytes + saltedInput);
-        }
-        hash = digest.toString();
-      } else {
-        hash = sha256.convert(utf8.encode(entered)).toString();
-      }
+      final hash = await compute(_computePasscodeHash, [salt, entered]);
       if (hash == storedHash) {
         unlockPasscode();
         return true;
@@ -2815,13 +2855,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   static const _kAutoLockTimeoutLateMs = 3000;
 
   int _readAutoLockSeconds() {
+    if (_cachedAutoLockSeconds != null) return _cachedAutoLockSeconds!;
     if (_configDir.isEmpty) return 0;
     final file = File('$_configDir/local_passcode.json');
-    if (!file.existsSync()) return 0;
+    if (!file.existsSync()) {
+      _cachedAutoLockSeconds = 0;
+      return 0;
+    }
     try {
       final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-      return (data['autoLockSeconds'] as int?) ?? 0;
+      _cachedAutoLockSeconds = (data['autoLockSeconds'] as int?) ?? 0;
+      return _cachedAutoLockSeconds!;
     } catch (_) {
+      _cachedAutoLockSeconds = 0;
       return 0;
     }
   }
@@ -2870,6 +2916,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void localPasscodeChanged() {
+    _cachedHasPasscode = null;
+    _cachedAutoLockSeconds = null;
     _shouldLockAt = 0;
     _autoLockTimer?.cancel();
     checkAutoLock(DateTime.now().millisecondsSinceEpoch);
@@ -2880,6 +2928,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setActiveAccountId(String accountId) {
     if (_activeAccountId == accountId) return;
     _activeAccountId = accountId;
+    _cachedActiveAccount = _accountById[accountId];
     resetEmojiPrefsForAccountSwitch();
     if (!_useGlobalGhostMode) _syncGhostToEngine();
     _autoMigrateGhostToGlobal();
@@ -2890,15 +2939,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void _ensureActiveAccount() {
     if (_accounts.isEmpty) {
       _activeAccountId = '';
+      _cachedActiveAccount = null;
       return;
     }
-    // If current selection is still valid, keep it.
-    if (_activeAccountId.isNotEmpty &&
-        _accounts.any((a) => a.id == _activeAccountId)) {
+    if (_activeAccountId.isNotEmpty && _accountById.containsKey(_activeAccountId)) {
+      _cachedActiveAccount = _accountById[_activeAccountId];
       return;
     }
-    // Default to first account.
     _activeAccountId = _accounts.first.id;
+    _cachedActiveAccount = _accounts.first;
   }
 
   String addAccount(String platform) {
@@ -2912,6 +2961,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final id = _engine.addAccount(platform);
       _accounts = _engine.listAccounts();
+      _rebuildAccountLookup();
       _ensureActiveAccount();
       Debug.log('APP', 'Account added: $platform → $id (${_accounts.length} total)');
       notifyListeners();
@@ -2925,6 +2975,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void removeAccount(String accountId) {
     _engine.removeAccount(accountId);
     _accounts = _engine.listAccounts();
+    _rebuildAccountLookup();
     _connStates.remove(accountId);
     _accountOrder.remove(accountId);
     _ensureActiveAccount();
@@ -2934,6 +2985,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void removePasscodeIfEmpty() {
+    _cachedHasPasscode = null;
+    _cachedAutoLockSeconds = null;
     if (_accounts.isNotEmpty) return;
     if (!hasLocalPasscode) return;
     if (_passcodeLocked) {
@@ -3730,6 +3783,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _cmdPollTimer?.cancel();
     _autoLockTimer?.cancel();
+    _streamerModeController.close();
     if (_saveDebounceTimer?.isActive ?? false) {
       _saveDebounceTimer!.cancel();
       _flushWindowPrefsSync();

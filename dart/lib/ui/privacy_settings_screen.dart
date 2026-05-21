@@ -5855,7 +5855,7 @@ class _LocalPasscodeCheckState extends State<_LocalPasscodeCheck> {
       _error = '';
     });
 
-    if (appState.checkPasscode(entered)) {
+    if (await appState.checkPasscode(entered)) {
       if (mounted) widget.onSuccess();
     } else {
       if (mounted) {
