@@ -605,10 +605,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — Send as sticker converts image to WEBP; Dart omits conversion
-
-- [ ] [CRITICAL] In AyuGram, "Send as sticker" converts the image data to WEBP format in-memory (`sourceImage->data.save(&buffer, "WEBP")`) and calls `addFiles(Storage::PrepareMediaFromImage(...))` with the converted bytes before sending. The Dart `_sendAsSticker()` simply calls `_send(asSticker: true)` and passes the original file path unchanged. No WEBP conversion happens; the file remains whatever format it was. — `send_files_box.dart:1353-1355` ← `AyuGram/boxes/send_files_box.cpp:1192-1213`
-
 ## send_files_box — File drag-and-drop between document blocks uses desktop_drop not internal QDrag
 
 - [ ] [MAJOR] AyuGram implements file reordering for document blocks via `setupDragForBlock` using a custom `application/x-tg-sendfile-index` MIME type and `QDrag`, restricting drops to only blocks where `isFileBlock(from) && isFileBlock(index)` (files/music, not media). The Dart's `_FileListPreview` uses Flutter's `LongPressDraggable<int>` / `DragTarget<int>` accepting any index without the `isFileBlock` restriction, meaning media items can be reordered with the file drag system when they should be handled by album reorder. — `send_files_box.dart:3317-3330` ← `AyuGram/boxes/send_files_box.cpp:2484-2549`
