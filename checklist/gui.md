@@ -617,30 +617,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 ---
 
-- [ ] [CRITICAL] `accessHash` hardcoded as `0` when building `CloudThemeMeta` for update path — `account_UpdateTheme` requires a real access hash obtained from `account_GetTheme`, so passing 0 will cause the API call to fail for any existing theme update — `theme_editor.dart:281` ← `window_theme_editor_box.cpp:525` (`MTP_inputTheme(MTP_long(fields.id), MTP_long(fields.accessHash))`)
-
-- [ ] [CRITICAL] Import file picker uses `FileType.any` (accepts all files) — AyuGram filters to `*.tdesktop-theme *.tdesktop-palette` only; accepting arbitrary files causes silent parse failures with no user feedback — `theme_editor.dart:341` ← `window_theme_editor.cpp:787` (`"Theme files (*.tdesktop-theme *.tdesktop-palette)"`)
-
-- [ ] [CRITICAL] "Show in Folder" menu item is disabled unless the user has previously exported a file (`_themeFilePath != null`) — AyuGram always enables this item and shows the live editing palette path (`EditingPalettePath()`), not an export destination; the Dart behavior breaks the primary "show your editing file in folder" use case — `theme_editor.dart:402-406` ← `window_theme_editor.cpp:757-759`
-
-- [ ] [CRITICAL] When editing a token whose value is referenced (copied) by other tokens, Dart only updates the single token in `_colorMap` — AyuGram propagates the change through all dependent copies via `checkCopiesChanged()` cascading through `_context.changed` events — `theme_editor.dart:169-178` (`_updateColor`) ← `window_theme_editor_block.cpp:624-637` (`checkCopiesChanged`)
-
-- [ ] [MAJOR] Active editing row uses `accentColor.withAlpha(30)` (~12% tinted background) — AyuGram fills the row with solid `st::dialogsBgActive` (fully opaque selection blue), a dramatically different visual — `theme_editor.dart:771` ← `window_theme_editor_block.cpp:717` (`p.fillRect(rect, active ? st::dialogsBgActive : ...)`)
-
-- [ ] [MAJOR] When a color editor is open (editing state), AyuGram dims all rows below the active row with a `st::layerBg` semi-transparent overlay to visually focus attention — Dart has no such overlay; all non-editing rows remain fully opaque, breaking the focus UX — `theme_editor.dart` (no overlay anywhere in `_PaletteEntryRow`) ← `window_theme_editor_block.cpp:751-752` (`if (isEditing() && !active ...) p.fillRect(rect, st::layerBg)`)
-
-- [ ] [MAJOR] Close button is positioned on the LEFT of the toolbar (`Row` starts with `IconButton(Icons.close)`) — AyuGram places the close button on the RIGHT via `_close->moveToRight(0, 0)` with the menu toggle immediately to its left — `theme_editor.dart:657-661` ← `window_theme_editor.cpp:857-858`
-
-- [ ] [MAJOR] `updateCloudTheme` engine call does not pass the access hash — the bridge method signature omits it (`updateCloudTheme(accountId, themeId, title, slug, themeData)`) while the MTProto `account.updateTheme` requires `InputTheme` which is `{id, access_hash}` — `theme_editor.dart:311-316` ← `window_theme_editor_box.cpp:522-525`
-
-- [ ] [MAJOR] Page-down/page-up keyboard navigation uses estimated row heights via `_estimateRowHeight` instead of reading actual rendered positions — AyuGram computes `selectSkipPage` from the real scroll height and iterates through actual row heights (`st::themeEditorMargin.top() + st::themeEditorSampleSize.height() + ...`) — `theme_editor.dart:462-483` ← `window_theme_editor.cpp:530-538`
-
-- [ ] [MAJOR] `_sortByAccentDistance` computes accent distance using HSL lightness (via `HSLColor`) but returns score `255 - (color.saturation * 255).round()` — AyuGram sorts by `255 - fromSaturation` where `fromSaturation` is QColor's HSL saturation (0–255 int range), while Flutter's `HSLColor.saturation` is 0.0–1.0; the `clamp(0,255)` at the end masks the error but the sort order is computed identically only by accident — `theme_editor.dart:116-122` ← `window_theme_editor_block.cpp:454-466`
-
-- [ ] [MAJOR] Background image in `_SaveThemeBox` is always re-encoded as JPEG at quality 87, even if the source was a PNG — AyuGram preserves the original format (`parsed.isPng`) and writes `background.png` vs `background.jpg` accordingly; Dart always produces JPEG — `theme_editor.dart:1173-1177` (`_encodeAsJpeg87`) ← `window_theme_editor_box.cpp:338-343` (`parsed.isPng ? ".png" : ".jpg"`)
-
-- [ ] [MAJOR] Save precondition checks (passcode lock, session existence) are absent from the Dart SAVE THEME button — AyuGram blocks the save with a toast if the account is passcode-locked or has no session before opening the save box — `theme_editor.dart:275-337` (`_handleSaveToCloud` — no lock check) ← `window_theme_editor.cpp:837-842`
-
 # titlebar — Custom CSD titlebar
 
 - [ ] [CRITICAL] `_startDrag()` is called on **every** `onPointerMove` event during a drag, spamming the native channel with repeated `startDrag` method calls. AyuGram calls `startSystemMove()` once and immediately sends a synthetic `MouseButtonRelease` to clear `_mousePressed`, guaranteeing a single invocation per drag gesture — `titlebar.dart:241` (`onPointerMove: (_) => _startDrag()`) ← `ui_platform_window_title.cpp:487-494` (`if (_mousePressed) { window()->windowHandle()->startSystemMove(); SendSynteticMouseEvent(…, Qt::LeftButton); }`)
