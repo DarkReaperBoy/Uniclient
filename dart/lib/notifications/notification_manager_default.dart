@@ -34,6 +34,8 @@ class DefaultManager extends NotificationManager {
   @override
   ManagerType get type => ManagerType.defaultPopup;
 
+  static const _kMaxQueueSize = 6;
+
   final List<DefaultNotificationItem> _active = [];
   final Queue<DefaultNotificationItem> _queue = Queue();
   final Map<String, Timer> _dismissTimers = {};
@@ -78,6 +80,9 @@ class DefaultManager extends NotificationManager {
     );
 
     if (_active.length >= _maxVisible) {
+      if (_queue.length >= _kMaxQueueSize) {
+        _queue.removeFirst();
+      }
       _queue.addLast(item);
       onHideAllChanged?.call();
       return;
@@ -145,18 +150,6 @@ class DefaultManager extends NotificationManager {
       _displayItem(_queue.removeFirst());
     }
     onHideAllChanged?.call();
-  }
-
-  void pauseDismissTimer(String id) {
-    _dismissTimers[id]?.cancel();
-  }
-
-  void resumeDismissTimer(String id) {
-    _dismissTimers[id]?.cancel();
-    _dismissTimers[id] = Timer(_dismissDuration, () {
-      _dismissTimers.remove(id);
-      onStartHiding?.call(id);
-    });
   }
 
   void startAllHiding() {
@@ -292,8 +285,12 @@ class DefaultManager extends NotificationManager {
     }
     _dismissTimers.clear();
     _inputCheckTimer?.cancel();
+    final ids = _active.map((n) => n.id).toList();
     _active.clear();
     _queue.clear();
+    for (final id in ids) {
+      onDismiss?.call(id);
+    }
     onHideAllChanged?.call();
   }
 

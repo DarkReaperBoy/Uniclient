@@ -519,7 +519,18 @@ class _UniClientAppState extends State<UniClientApp>
     final nm = _notifSystem.nativeManager;
     if (nm != null) {
       nm.onAction = (accountId, chatId, action) {
-        if (action == 'open') _onNotifTap(accountId, chatId);
+        if (action == 'open') {
+          _onNotifTap(accountId, chatId);
+        } else if (action == 'markRead') {
+          context.read<EngineService>().markChatRead(accountId, chatId, '');
+          _notifSystem.clearForChat(accountId, chatId);
+        }
+      };
+      nm.onReply = (accountId, chatId, messageId, replyText) {
+        if (replyText.isNotEmpty) {
+          context.read<EngineService>().sendMessage(accountId, chatId, replyText);
+          _notifSystem.clearForChat(accountId, chatId);
+        }
       };
     }
     chatState.onNotification = (data) {

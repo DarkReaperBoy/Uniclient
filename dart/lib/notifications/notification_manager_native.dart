@@ -153,6 +153,7 @@ class NativeManager extends NotificationManager {
 
   final Map<String, Map<String, int>> _notifications = {};
   final Map<int, NotificationData> _nativeIdToData = {};
+  final Map<String, Set<String>> _portalNotifIds = {};
 
   DBusClient? _dbus;
   DBusRemoteObject? _notifProxy;
@@ -196,6 +197,13 @@ class NativeManager extends NotificationManager {
 
   Future<String?> _generatePlaceholderUserpic(String title) async {
     try {
+      final cacheKey = '__placeholder:$title';
+      final existing = _userpicCache._cache[cacheKey];
+      if (existing != null && File(existing.filePath).existsSync()) {
+        existing.lastUsed = DateTime.now();
+        return existing.filePath;
+      }
+
       final cacheDir = p.join(Directory.systemTemp.path, 'uniclient_userpics');
       await Directory(cacheDir).create(recursive: true);
 
@@ -229,6 +237,13 @@ class NativeManager extends NotificationManager {
 
       final outPath = p.join(cacheDir, 'placeholder_${hash.toRadixString(16)}.png');
       await File(outPath).writeAsBytes(Uint8List.fromList(img.encodePng(image)));
+
+      _userpicCache._cache[cacheKey] = _CachedUserpic(
+        filePath: outPath,
+        lastUsed: DateTime.now(),
+      );
+      _userpicCache._ensureCleanupTimer();
+
       return outPath;
     } catch (e) {
       Debug.log('NOTIF', 'Placeholder userpic generation failed: $e');
@@ -370,11 +385,31 @@ class NativeManager extends NotificationManager {
     if (signal.values.length < 2) return;
     final nativeId = signal.values[0].asUint32();
     final reason = signal.values[1].asUint32();
-    // Only drop tracking when user dismissed (reason 2). For expired/programmatic
-    // close, keep the reference so clearForChat can later call CloseNotification
-    // to remove it from notification history.
     if (reason == 2) {
       _removeNativeId(nativeId);
+    } else {
+      // Expired/programmatic close — remove from _nativeIdToData but keep
+      // in _notifications for clearForChat to close from notification history.
+      _nativeIdToData.remove(nativeId);
+    }
+    _evictStaleEntries();
+  }
+
+  void _evictStaleEntries() {
+    if (_nativeIdToData.length <= 100) return;
+    final staleIds = <int>[];
+    for (final id in _nativeIdToData.keys) {
+      var found = false;
+      for (final contextMap in _notifications.values) {
+        if (contextMap.containsValue(id)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) staleIds.add(id);
+    }
+    for (final id in staleIds) {
+      _nativeIdToData.remove(id);
     }
   }
 
@@ -606,8 +641,7 @@ class NativeManager extends NotificationManager {
       final height = resized.height;
       final rowstride = width * 4;
 
-      final rawBytes = Uint8List.fromList(resized.toUint8List());
-      final dbusBytes = rawBytes.map((b) => DBusByte(b)).toList();
+      final rawBytes = resized.toUint8List();
 
       return DBusStruct([
         DBusInt32(width),
@@ -616,7 +650,7 @@ class NativeManager extends NotificationManager {
         DBusBoolean(true),
         DBusInt32(8),
         DBusInt32(4),
-        DBusArray(DBusSignature('y'), dbusBytes),
+        DBusArray.byte(rawBytes),
       ]);
     } catch (e) {
       Debug.log('NOTIF', 'Image hint build failed: $e');
@@ -694,9 +728,7 @@ class NativeManager extends NotificationManager {
             notifDict[DBusString('icon')] = DBusVariant(
               DBusStruct([
                 DBusString('bytes'),
-                DBusVariant(DBusArray(
-                    DBusSignature('y'),
-                    pngBytes.map((b) => DBusByte(b)).toList())),
+                DBusVariant(DBusArray.byte(pngBytes)),
               ]),
             );
           }
@@ -727,6 +759,8 @@ class NativeManager extends NotificationManager {
           DBusDict(DBusSignature('s'), DBusSignature('v'), notifDict),
         ],
       );
+      final contextKey = '${data.accountId}:${data.chatId}';
+      _portalNotifIds.putIfAbsent(contextKey, () => {}).add(notifId);
       Debug.log('NOTIF', 'Flatpak portal notification sent: $title');
     } catch (e) {
       Debug.log('NOTIF', 'Flatpak portal notification failed: $e');
@@ -743,6 +777,23 @@ class NativeManager extends NotificationManager {
     } catch (_) {}
   }
 
+  Future<void> _removePortalNotification(String notifId) async {
+    try {
+      final dbus = _dbus;
+      if (dbus == null) return;
+      final portalProxy = DBusRemoteObject(
+        dbus,
+        name: 'org.freedesktop.portal.Desktop',
+        path: DBusObjectPath('/org/freedesktop/portal/desktop'),
+      );
+      await portalProxy.callMethod(
+        'org.freedesktop.portal.Notification',
+        'RemoveNotification',
+        [DBusString(notifId)],
+      );
+    } catch (_) {}
+  }
+
   @override
   void clearForChat(String accountId, String chatId) {
     final contextKey = '$accountId:$chatId';
@@ -753,6 +804,12 @@ class NativeManager extends NotificationManager {
         _nativeIdToData.remove(nativeId);
       }
       _notifications.remove(contextKey);
+    }
+    final portalIds = _portalNotifIds.remove(contextKey);
+    if (portalIds != null) {
+      for (final notifId in portalIds) {
+        _removePortalNotification(notifId);
+      }
     }
   }
 
@@ -831,6 +888,18 @@ class NativeManager extends NotificationManager {
     for (final key in toRemove) {
       _notifications.remove(key);
     }
+    final portalToRemove = <String>[];
+    for (final entry in _portalNotifIds.entries) {
+      if (entry.key.startsWith('$accountId:')) {
+        for (final notifId in entry.value) {
+          _removePortalNotification(notifId);
+        }
+        portalToRemove.add(entry.key);
+      }
+    }
+    for (final key in portalToRemove) {
+      _portalNotifIds.remove(key);
+    }
   }
 
   @override
@@ -842,6 +911,12 @@ class NativeManager extends NotificationManager {
     }
     _notifications.clear();
     _nativeIdToData.clear();
+    for (final ids in _portalNotifIds.values) {
+      for (final notifId in ids) {
+        _removePortalNotification(notifId);
+      }
+    }
+    _portalNotifIds.clear();
   }
 
   @override

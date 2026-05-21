@@ -46,6 +46,10 @@ class _WebDropZone extends StatefulWidget {
 class _WebDropZoneState extends State<_WebDropZone> {
   bool _active = false;
   int _enterCount = 0;
+  DateTime _lastDragUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+  static const _kDragUpdateThrottleMs = 16; // ~60Hz max
+  static const _kMaxConcurrentReads = 4;
+  static const _kMaxFileSizeBytes = 2 * 1024 * 1024 * 1024; // 2 GB
 
   late final JSFunction _onDragEnter;
   late final JSFunction _onDragOver;
@@ -105,6 +109,11 @@ class _WebDropZoneState extends State<_WebDropZone> {
     if (de.dataTransfer != null) {
       de.dataTransfer!.dropEffect = 'copy';
     }
+    final now = DateTime.now();
+    if (now.difference(_lastDragUpdate).inMilliseconds < _kDragUpdateThrottleMs) {
+      return;
+    }
+    _lastDragUpdate = now;
     final box = context.findRenderObject() as RenderBox?;
     if (box != null) {
       final globalPos = Offset(de.clientX.toDouble(), de.clientY.toDouble());
@@ -151,21 +160,25 @@ class _WebDropZoneState extends State<_WebDropZone> {
   }
 
   Future<void> _readFiles(List<web.File> webFiles) async {
-    final futures = webFiles.map((wf) async {
-      try {
-        final bytes = await _readFileBytes(wf);
-        return WebDroppedFile(
-          name: wf.name,
-          size: wf.size,
-          mimeType: wf.type,
-          bytes: bytes,
-        );
-      } catch (_) {
-        return null;
-      }
-    });
-    final all = await Future.wait(futures);
-    final results = all.whereType<WebDroppedFile>().toList();
+    final results = <WebDroppedFile>[];
+    for (var i = 0; i < webFiles.length; i += _kMaxConcurrentReads) {
+      final batch = webFiles.skip(i).take(_kMaxConcurrentReads);
+      final batchResults = await Future.wait(batch.map((wf) async {
+        try {
+          if (wf.size > _kMaxFileSizeBytes) return null;
+          final bytes = await _readFileBytes(wf);
+          return WebDroppedFile(
+            name: wf.name,
+            size: wf.size,
+            mimeType: wf.type,
+            bytes: bytes,
+          );
+        } catch (_) {
+          return null;
+        }
+      }));
+      results.addAll(batchResults.whereType<WebDroppedFile>());
+    }
     if (!mounted) return;
     if (results.isNotEmpty) {
       widget.onDrop?.call(results);
