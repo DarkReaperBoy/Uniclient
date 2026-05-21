@@ -454,6 +454,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   List<MemberInfo> _engineMembers = const [];
   bool _membersRefreshPending = false;
   Timer? _memberRefreshDebounce;
+  Timer? _mentionSearchDebounce;
   DateTime _lastMemberRefresh = DateTime(0);
 
   Future<void> _refreshMembersFromEngine() async {
@@ -534,6 +535,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   @override
   void dispose() {
     _memberRefreshDebounce?.cancel();
+    _mentionSearchDebounce?.cancel();
     _dragOverlayAnimCtrl.dispose();
     _scrollController.removeListener(_updateScrollShadows);
     _scrollController.dispose();
@@ -551,17 +553,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
     _detectMentionQuery();
     _detectHashtagQuery();
+    _detectCommandQuery();
   }
 
   void _detectMentionQuery() {
-    final members = _engineMembers.isNotEmpty ? _engineMembers : widget.members;
-    if (members.isEmpty) {
-      _refreshMembersFromEngine().then((_) {
-        if (mounted) _detectMentionQuery();
-      });
-      if (_showMentionPanel) setState(() => _showMentionPanel = false);
-      return;
-    }
     final sel = _captionController.selection;
     if (!sel.isValid || !sel.isCollapsed) {
       if (_showMentionPanel) setState(() => _showMentionPanel = false);
@@ -577,16 +572,58 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
     final query = match.group(1)!.toLowerCase();
     _acMentionQuery = query;
-    final filtered = members.where((m) {
-      final name = m.displayName.toLowerCase();
-      final uname = m.username.toLowerCase();
-      return name.contains(query) || uname.contains(query);
-    }).take(5).toList();
-    setState(() {
-      _acFilteredMembers = filtered;
-      _showMentionPanel = filtered.isNotEmpty;
+    final members = _engineMembers.isNotEmpty ? _engineMembers : widget.members;
+    if (members.isNotEmpty) {
+      final localFiltered = members.where((m) {
+        final name = m.displayName.toLowerCase();
+        final uname = m.username.toLowerCase();
+        return name.contains(query) || uname.contains(query);
+      }).take(5).toList();
+      setState(() {
+        _acFilteredMembers = localFiltered;
+        _showMentionPanel = localFiltered.isNotEmpty;
+      });
+    }
+    _mentionSearchDebounce?.cancel();
+    _mentionSearchDebounce = Timer(const Duration(milliseconds: 300), () {
+      _searchMembersFromEngine(query);
     });
-    _debouncedMemberRefresh();
+  }
+
+  Future<void> _searchMembersFromEngine(String query) async {
+    try {
+      final appState = context.read<AppState>();
+      final chatState = context.read<ChatState>();
+      final accountId = appState.activeAccountId;
+      final chatId = chatState.activeChat?.chatId;
+      if (accountId == null || chatId == null) return;
+      final result = await appState.engine.getChatMembersByRole(
+        accountId, chatId,
+        role: 'members', query: query, limit: 10,
+      );
+      if (!mounted || _acMentionQuery != query) return;
+      final seen = <String>{};
+      final merged = <MemberInfo>[];
+      for (final m in result.members) {
+        if (seen.add(m.userId)) merged.add(m);
+        if (merged.length >= 5) break;
+      }
+      if (merged.isEmpty) {
+        for (final m in _acFilteredMembers) {
+          if (seen.add(m.userId)) merged.add(m);
+          if (merged.length >= 5) break;
+        }
+      }
+      _engineMembers = [
+        ..._engineMembers,
+        ...result.members.where((m) =>
+            !_engineMembers.any((e) => e.userId == m.userId)),
+      ];
+      setState(() {
+        _acFilteredMembers = merged;
+        _showMentionPanel = merged.isNotEmpty;
+      });
+    } catch (_) {}
   }
 
   void _insertMention(MemberInfo member) {
@@ -651,6 +688,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     );
     setState(() => _showHashtagPanel = false);
     RecentHashtags.addTag(hashtag);
+    context.read<AppState>().updateRecentHashtags(RecentHashtags.currentTags);
   }
 
   void _detectCommandQuery() {
@@ -1900,74 +1938,90 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       text: _starsPerMessage > 0 ? '$_starsPerMessage' : '',
     );
     final limit = _starsPostLimit;
+    final focusNode = FocusNode();
+    bool hasSelectedAll = false;
+    focusNode.addListener(() {
+      if (focusNode.hasFocus && !hasSelectedAll && ctrl.text.isNotEmpty) {
+        hasSelectedAll = true;
+        ctrl.selection = TextSelection(baseOffset: 0, extentOffset: ctrl.text.length);
+      }
+    });
     showTelegramBox<int>(
       context: context,
       builder: (ctx) => TelegramBox(
         title: 'Set price',
         content: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Enter cost in Stars',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: ctx.palette.boxTitleAdditionalFg,
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  'Enter cost in Stars',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: ctx.palette.boxTitleAdditionalFg,
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  CustomPaint(
-                    size: const Size(20, 20),
-                    painter: _StarIconPainter(ctx.palette.premiumButtonFg),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: ctrl,
-                      autofocus: true,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        _MaxValueInputFormatter(limit),
-                      ],
-                      style: TextStyle(fontSize: 14, color: ctx.palette.boxTextFg),
-                      decoration: InputDecoration(
-                        hintText: 'Stars per message',
-                        hintStyle: TextStyle(fontSize: 14, color: ctx.palette.boxTitleAdditionalFg),
-                        border: InputBorder.none,
-                        isDense: true,
+              SizedBox(
+                height: 36,
+                child: TextField(
+                  controller: ctrl,
+                  focusNode: focusNode,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    _MaxValueInputFormatter(limit),
+                  ],
+                  style: TextStyle(fontSize: 14, color: ctx.palette.boxTextFg),
+                  decoration: InputDecoration(
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.only(top: 7, right: 6),
+                      child: CustomPaint(
+                        size: const Size(18, 18),
+                        painter: _StarIconPainter(ctx.palette.premiumButtonFg),
                       ),
-                      onSubmitted: (v) {
-                        final n = int.tryParse(v);
-                        if (n != null && n >= 0 && n <= limit) Navigator.pop(ctx, n);
-                      },
                     ),
+                    prefixIconConstraints: const BoxConstraints(minWidth: 24, minHeight: 18),
+                    hintText: 'Price in Stars',
+                    hintStyle: TextStyle(fontSize: 14, color: ctx.palette.placeholderFg),
+                    filled: false,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.fromLTRB(0, 8, 0, 8),
                   ),
-                ],
+                  onSubmitted: (v) {
+                    final n = int.tryParse(v);
+                    if (n != null && n >= 0 && n <= limit) Navigator.pop(ctx, n);
+                  },
+                ),
               ),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () {
-                  launchUrl(
-                    Uri.parse('https://telegram.org/blog/telegram-stars'),
-                    mode: LaunchMode.externalApplication,
-                  );
-                },
-                child: Text.rich(
-                  TextSpan(
-                    style: TextStyle(fontSize: 12, color: ctx.palette.boxTitleAdditionalFg),
-                    children: [
-                      const TextSpan(text: 'Users will pay this amount in Telegram Stars to unlock and view your content. '),
-                      TextSpan(
-                        text: 'Learn more',
-                        style: TextStyle(color: ctx.palette.windowActiveTextFg),
-                      ),
-                    ],
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: GestureDetector(
+                  onTap: () {
+                    launchUrl(
+                      Uri.parse('https://telegram.org/blog/telegram-stars'),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  },
+                  child: Text.rich(
+                    TextSpan(
+                      style: TextStyle(fontSize: 12, color: ctx.palette.boxTitleAdditionalFg),
+                      children: [
+                        const TextSpan(text: 'Users will pay this amount in Telegram Stars to unlock and view your content. '),
+                        TextSpan(
+                          text: 'Learn more',
+                          style: TextStyle(color: ctx.palette.windowActiveTextFg),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1991,6 +2045,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         ],
       ),
     ).then((price) {
+      focusNode.dispose();
       if (price == null) return;
       setState(() => _starsPerMessage = price);
     });
@@ -2446,6 +2501,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                 hashtags: _acFilteredHashtags,
                 isDark: isDark,
                 onSelect: _insertHashtag,
+              ),
+            if (_showCommandPanel && _acFilteredCommands.isNotEmpty)
+              _CommandAutocompletePanel(
+                commands: _acFilteredCommands,
+                isDark: isDark,
+                onSelect: _insertCommand,
               ),
             if (_canAddCaption) ...[
             _CaptionFormattingToolbar(
