@@ -34,13 +34,6 @@
 - `.last` returns entire path; `replaceAll('.dic', '')` leaves `C:\Users\...\en_US`
 - Should use `basename()` or `File(path).uri.pathSegments.last` instead
 
-## notification_manager_default — cleanup
-
-- [ ] [MAJOR] `clearAllFast` clears `_active` without calling `onDismiss(id)` per item (lines 289-298) — `notification_popup.dart`'s `_popups` list is never drained, leaving ghost popup widgets in the overlay tree. Only `onHideAllChanged` fires, which updates the "hide all" button visibility but leaves the individual popups rendered. Fix: iterate `_active`, collect ids, call `onDismiss` for each before clearing. — `notification_manager_default.dart:289`
-
-- [ ] [MAJOR] `pauseDismissTimer` and `resumeDismissTimer` are dead public methods (lines 150-160) — never called from anywhere outside this file. Hover pause/resume is handled by `stopAllHiding`/`startAllHiding` instead. These two methods are wired to nothing and cannot be reached by the UI. Either wire them to hover events in `notification_popup.dart` (replacing the all-or-nothing stop/start approach with per-popup pause) or remove them. — `notification_manager_default.dart:150`
-
-- [ ] [MAJOR] `_queue` is unbounded (line 38) — no cap on how many notifications accumulate. A message burst (e.g. 100 unread messages arriving at account login) queues all of them and plays them one-by-one at 3 s each, resulting in minutes of popup churn. Cap the queue at a reasonable size (e.g. `_maxVisible * 2` or 6) and drop the oldest when the cap is reached. — `notification_manager_default.dart:38`
 
 ## notification_manager_native — cleanup
 
