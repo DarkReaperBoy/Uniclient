@@ -603,9 +603,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — `_showEditCaptionDialog` / `_editFileCaption` use AlertDialog not styled box
-
-- [ ] [MAJOR] Per-file caption editing in AyuGram opens a proper `EditFileCaptionBox` that uses `Ui::InputField` with `InitMessageFieldHandlers`, session-aware emoji, and `SetupCaptionAiButton`. The Dart uses a plain `AlertDialog` with a bare `TextField` — no custom emoji support, no AI button, no markdown field handlers, and no styled format matching the desktop design. — `send_files_box.dart:729-789` ← `AyuGram/boxes/send_files_box.cpp:180-258`
 
 ## send_files_box — `_showEditPriceDialog` uses AlertDialog; AyuGram uses EditPriceBox with star icon
 
