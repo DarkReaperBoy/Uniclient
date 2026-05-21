@@ -136,18 +136,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 
 
-## ayu_section_builder — cleanup
-
-- [ ] [MAJOR] `_BetaBadgeOverlay.build()` calls `TextPainter.layout()` on every rebuild (lines 204–212) to measure label width for badge x-offset — heavy layout computation inside `build()`, and the painter is never disposed (memory pressure on high-rebuild trees); should cache in a stateful wrapper or use `LayoutBuilder` — `ayu_section_builder.dart:204`
-
-- [ ] [MAJOR] `_BetaBadgeOverlay` badge position uses hardcoded `fontSize: 14` in the measurement `TextSpan` (line 206) without applying `MediaQuery.textScaleFactor` — at non-default system font sizes the measured width diverges from the actual rendered width, causing the beta badge to visually overlap or gap the label text — `ayu_section_builder.dart:206`
-
-- [ ] [MAJOR] Inconsistent accent-color sourcing: `_AyuSlider` derives accent from `context.palette.windowBgActive` (lines 384, 403), but `_AyuChooseButton` (line 452), `_AyuCollapsibleToggle` (line 617), and `_NestedCheckbox` (line 751) all hardcode the same hex literals (`0xFF6AB2F2` / `0xFF3390EC`) — if the palette's `windowBgActive` is ever customised (per-account accent colour, custom themes), those three widgets will stay frozen on the default blue — `ayu_section_builder.dart:452`
-
-- [ ] [MAJOR] `ayuSettingsScaffold` hardcodes AppBar background as `Color(0xFF17212B)` / `Colors.white` (line 878) instead of using `context.palette.titleBg` / `titleBgActive` — bypasses the palette system entirely; will look wrong under any non-default theme — `ayu_section_builder.dart:878`
-
-- [ ] [MAJOR] `addSectionTitle` and `addSubsectionTitle` are byte-for-byte identical (lines 23–38, same padding, same font style, same accent colour) — one of them is dead code; callers cannot produce visually distinct section vs subsection titles, making the distinction a no-op — `ayu_section_builder.dart:32`
-
 # ayu_toggle — clean
 
 ## call_panel — cleanup
