@@ -406,49 +406,65 @@ class _MultiGradientPainter extends CustomPainter {
       old.colors != colors;
 }
 
-class _TiledImage extends StatelessWidget {
+class _TiledImage extends StatefulWidget {
   final Uint8List imageBytes;
 
   const _TiledImage({required this.imageBytes});
 
   @override
+  State<_TiledImage> createState() => _TiledImageState();
+}
+
+class _TiledImageState extends State<_TiledImage> {
+  ui.Image? _decoded;
+
+  @override
+  void initState() {
+    super.initState();
+    _decodeImage();
+  }
+
+  @override
+  void didUpdateWidget(_TiledImage old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.imageBytes, widget.imageBytes)) {
+      _decodeImage();
+    }
+  }
+
+  void _decodeImage() {
+    ui.decodeImageFromList(widget.imageBytes, (image) {
+      if (mounted) setState(() => _decoded = image);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_decoded == null) return const SizedBox.shrink();
     return CustomPaint(
-      painter: _TiledPainter(imageBytes: imageBytes),
+      painter: _TiledPainter(image: _decoded!),
       size: Size.infinite,
     );
   }
 }
 
 class _TiledPainter extends CustomPainter {
-  final Uint8List imageBytes;
-  ui.Image? _decoded;
-  bool _loading = false;
+  final ui.Image image;
 
-  _TiledPainter({required this.imageBytes});
+  _TiledPainter({required this.image});
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (_decoded == null && !_loading) {
-      _loading = true;
-      ui.decodeImageFromList(imageBytes, (img) {
-        _decoded = img;
-      });
-    }
-
-    if (_decoded == null) return;
-
-    final img = _decoded!;
     final paint = Paint();
-    for (double y = 0; y < size.height; y += img.height) {
-      for (double x = 0; x < size.width; x += img.width) {
-        canvas.drawImage(img, Offset(x, y), paint);
+    for (double y = 0; y < size.height; y += image.height) {
+      for (double x = 0; x < size.width; x += image.width) {
+        canvas.drawImage(image, Offset(x, y), paint);
       }
     }
   }
 
   @override
-  bool shouldRepaint(_TiledPainter old) => old.imageBytes != imageBytes;
+  bool shouldRepaint(_TiledPainter old) => !identical(old.image, image);
 }
 
 class _PatternWallpaper extends StatefulWidget {
