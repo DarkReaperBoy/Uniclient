@@ -603,11 +603,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-
-## send_files_box — Emoji panel uses EmojiTabbedPanel (full panel); AyuGram uses EmojiOnly-mode TabbedPanel
-
-- [ ] [MAJOR] AyuGram sets up the emoji panel with `TabbedSelector::Mode::EmojiOnly` and `features.stickersSettings = false` / `features.openStickerSets = false`. The Dart uses `EmojiTabbedPanel` from `emoji_panel.dart` which is the full tabbed emoji+sticker panel (also used in the compose bar). This makes the send-files emoji panel heavier and inconsistent with the AyuGram source. — `send_files_box.dart:1895-1917` ← `AyuGram/boxes/send_files_box.cpp:2003-2051`
-
 ## send_files_box — Caption field does not drop files via MimeData hook
 
 - [ ] [MAJOR] In AyuGram, the caption `InputField` has a `setMimeDataHook` that intercepts paste/drop events on the field itself: if the dropped data contains local files or an image, it calls `addFiles(data)` to add them to the list. The Dart caption `TextField` has no equivalent hook — dropping files onto the caption area does not add them to the file list, only the outer `DropTarget` handles drops. — `send_files_box.dart:1862-1876` ← `AyuGram/boxes/send_files_box.cpp:1892-1901`
