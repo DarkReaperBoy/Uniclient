@@ -22,10 +22,10 @@ class AyuSectionBuilder {
 
   void addSectionTitle(String title) {
     _children.add(Padding(
-      padding: const EdgeInsets.fromLTRB(22, 7, 10, 9),
+      padding: const EdgeInsets.fromLTRB(22, 14, 10, 9),
       child: Text(title,
           style: TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w600, color: _accentColor)),
+              fontSize: 15, fontWeight: FontWeight.w600, color: _accentColor)),
     ));
   }
 
@@ -34,7 +34,7 @@ class AyuSectionBuilder {
       padding: const EdgeInsets.fromLTRB(22, 7, 10, 9),
       child: Text(title,
           style: TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w600, color: _accentColor)),
+              fontSize: 13, fontWeight: FontWeight.w600, color: _accentColor)),
     ));
   }
 
@@ -184,7 +184,7 @@ class AyuNestedCheckboxItem {
   bool get isLocked => lockGetter?.call() ?? false;
 }
 
-class _BetaBadgeOverlay extends StatelessWidget {
+class _BetaBadgeOverlay extends StatefulWidget {
   final String badge;
   final bool isDark;
   final Widget child;
@@ -198,26 +198,57 @@ class _BetaBadgeOverlay extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    double leftOffset = 22;
-    if (labelText != null) {
-      final tp = TextPainter(
+  State<_BetaBadgeOverlay> createState() => _BetaBadgeOverlayState();
+}
+
+class _BetaBadgeOverlayState extends State<_BetaBadgeOverlay> {
+  TextPainter? _textPainter;
+  double _leftOffset = 26;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _updateOffset();
+  }
+
+  @override
+  void didUpdateWidget(_BetaBadgeOverlay old) {
+    super.didUpdateWidget(old);
+    if (old.labelText != widget.labelText) _updateOffset();
+  }
+
+  void _updateOffset() {
+    _textPainter?.dispose();
+    if (widget.labelText != null) {
+      final scaledSize = MediaQuery.textScalerOf(context).scale(14);
+      _textPainter = TextPainter(
         text: TextSpan(
-          text: labelText,
-          style: const TextStyle(fontSize: 14),
+          text: widget.labelText,
+          style: TextStyle(fontSize: scaledSize),
         ),
         maxLines: 1,
         textDirection: TextDirection.ltr,
       )..layout();
-      leftOffset += tp.width + 4;
+      _leftOffset = 22 + _textPainter!.width + 4;
     } else {
-      leftOffset += 4;
+      _textPainter = null;
+      _leftOffset = 26;
     }
+  }
+
+  @override
+  void dispose() {
+    _textPainter?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Stack(
       children: [
-        child,
+        widget.child,
         Positioned(
-          left: leftOffset,
+          left: _leftOffset,
           top: 0,
           bottom: 0,
           child: Align(
@@ -231,7 +262,7 @@ class _BetaBadgeOverlay extends StatelessWidget {
                   color: badgeColor,
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(badge,
+                child: Text(widget.badge,
                     style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
@@ -449,8 +480,7 @@ class _AyuChooseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor =
-        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    final accentColor = context.palette.windowBgActive;
     final currentLabel = items[value] ?? '';
     return InkWell(
       onTap: () => _showChoiceDialog(context),
@@ -613,9 +643,7 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
       toggleValue = widget.children.any((c) => c.value);
     }
 
-    final accentColor = widget.isDark
-        ? const Color(0xFF6AB2F2)
-        : const Color(0xFF3390EC);
+    final accentColor = context.palette.windowBgActive;
     final textColor = widget.isDark ? Colors.white : Colors.black87;
     final dividerColor = widget.isDark
         ? const Color(0xFF2B3C4C)
@@ -747,9 +775,7 @@ class _NestedCheckbox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = isDark
-        ? const Color(0xFF6AB2F2)
-        : const Color(0xFF3390EC);
+    final activeColor = context.palette.windowBgActive;
     final borderColor = isDark
         ? const Color(0xFF5A6A78)
         : const Color(0xFFCBCBCB);
@@ -871,11 +897,12 @@ Scaffold ayuSettingsScaffold({
   required List<Widget> children,
   List<Widget>? actions,
 }) {
+  final p = context.palette;
   final isDark = Theme.of(context).brightness == Brightness.dark;
   return Scaffold(
     backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     appBar: AppBar(
-      backgroundColor: isDark ? const Color(0xFF17212B) : Colors.white,
+      backgroundColor: p.titleBg,
       foregroundColor: isDark ? Colors.white : Colors.black87,
       elevation: 0,
       title: Text(title,
