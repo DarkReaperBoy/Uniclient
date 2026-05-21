@@ -103,37 +103,6 @@ final frameworkPath = '$parentDir/Frameworks/libcores.dylib';
 - ✅ Thread safety proper — callback unset before stream close
 - ✅ Initialization guarded — both sync/async check `_initialized`
 
-## theme_file — cleanup
-
-- [ ] [MAJOR] palette reference resolution is order-dependent — forward references silently use fallback — `theme_file.dart:137-146`
-  In `parsePaletteText`, the second pass resolves `String` references by looking up in `resolved` (populated in the first pass with direct `Color` values only). Because it iterates `parsed` in insertion/file order AND mutates `resolved` as it goes, a forward reference like `c: b` appearing before `b: #ff0000` in the file fails: when `c` is processed, `b` is not yet in `resolved`, so `c` falls back to the palette default instead of `b`'s color. Only reverse or same-order references work. TDesktop themes commonly use alphabetical ordering where forward references occur. Fix: run the second pass iteratively until no new tokens are resolved, or topologically sort references before resolving.
-
-- [ ] [MAJOR] `loadThemeCache` returns background bytes without any image validation — `theme_file.dart:1563-1565`
-  ```dart
-  final bgFile = File('$configDir/theme_cache_bg.dat');
-  if (bgFile.existsSync()) bgBytes = bgFile.readAsBytesSync();
-  ```
-  Unlike `_parseZipTheme` (line 308) which gates the background through `_isValidBackgroundImage()`, the cache load path skips all validation. A corrupted or tampered `theme_cache_bg.dat` (wrong magic bytes, oversized dimensions, truncated data) is returned directly and will eventually be handed to an image decoder, which may crash. Fix: call `_isValidBackgroundImage(bgBytes)` before returning and set `bgBytes = null` if it fails.
-
-- [ ] [MAJOR] `_paletteStructureChecksum()` hashes color values, not just token names — causes unnecessary cache invalidation — `theme_file.dart:1477-1479`
-  ```dart
-  buf.write('${entry.key}:${_colorToHex(entry.value)};');
-  ```
-  The function name and usage imply it detects whether the schema of palette tokens changed (new tokens added/removed), so old caches can be invalidated. But by including the hex VALUE of each dayBlue color in the checksum, any tweak to a default dayBlue color (even an unrelated refactor) blows away every user's theme cache. The checksum should only cover the sorted token names: `buf.write('${entry.key};')`. That is the actual structural signal.
-
-- [ ] [MAJOR] `exportThemeFile` copies the entire ZIP output unnecessarily — `theme_file.dart:184-185`
-  ```dart
-  final encoded = ZipEncoder().encode(archive);
-  return Uint8List.fromList(encoded);
-  ```
-  In archive 4.x (the version in use: `^4.0.2`, resolved 4.0.9), `ZipEncoder.encode()` is an alias for `encodeBytes()`, which returns `Uint8List` directly. `Uint8List.fromList(encoded)` allocates and copies the entire ZIP — potentially megabytes — for no reason. Fix: `return ZipEncoder().encodeBytes(archive)` or cast: `return encoded as Uint8List`.
-
-- [ ] [MAJOR] `String.fromCharCodes(bytes)` at lines 48 and 301 — wrong for UTF-8 palette files
-  ```dart
-  final text = String.fromCharCodes(bytes);   // line 48
-  final text = String.fromCharCodes(paletteBytes);  // line 301
-  ```
-  `String.fromCharCodes` treats each byte as a UTF-16 code unit (1:1 mapping), not UTF-8. For pure ASCII palette content this is equivalent, but any `.tdesktop-theme` file with UTF-8 encoded text (non-ASCII in comments, cloud theme titles embedded in the service block, or localized theme names) will produce mojibake. TDesktop writes files in UTF-8. Fix: `utf8.decode(bytes, allowMalformed: true)` at both sites. The `dart:convert` import is already present.
 
 # theme_preview — clean
 
