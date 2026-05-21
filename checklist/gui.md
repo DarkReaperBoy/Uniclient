@@ -133,16 +133,6 @@ No critical, major, or maintenance issues found. The widget correctly displays a
 
 One blocking bug: `_TiledImage` won't render because async decode doesn't trigger repaint. Needs immediate fix.
 
-## auth_screen — cleanup
-
-- [ ] [CRITICAL] `_hasCover` always returns `false` (line 137) — `_CoverGradient` widget is fully implemented but permanently unreachable. No auth step ever shows the gradient header with UniClient branding. The `_isCover` transition flag (line 308) and the `AnimatedContainer` height logic (line 367) are also dead. Fix: implement `_hasCover` to return `true` for the appropriate step(s) (e.g. `'choose'`) so the cover gradient actually appears. — `auth_screen.dart:137`
-
-- [ ] [MAJOR] `_rebuildDigits` (line 1592) does not reinitialize `_isDeleting` — when `widget.digitCount` changes (handled in `didUpdateWidget` at line 1587), `_digits`, `_digitAnimControllers`, `_fadeAnims`, and `_slideAnims` are all rebuilt to the new length, but `_isDeleting` is never touched. Any subsequent `_isDeleting[i]` access for `i >= old.digitCount` will throw `RangeError`. Add `_isDeleting = List.filled(widget.digitCount, false);` inside `_rebuildDigits`. — `auth_screen.dart:1592`
-
-- [ ] [MAJOR] `_startCallTimer` callback calls `setState` without a `mounted` guard (line 1616) — `dispose()` cancels the timer, but there is a race window where the timer fires after `dispose()` begins but before `cancel()` runs. The callback mutates `_callSecondsLeft` and invokes `widget.onResendCode` unconditionally. Add `if (!mounted) { t.cancel(); return; }` at the top of the callback. — `auth_screen.dart:1616`
-
-- [ ] [MAJOR] `_startFloodCountdown` callback calls `setState` without a `mounted` guard (line 1295) — same race as above. The timer is cancelled in `dispose()` but a pending callback can still fire. Add `if (!mounted) { timer.cancel(); return; }` at the top of the callback. — `auth_screen.dart:1295`
-
 ## ayu_appearance_page — cleanup
 
 - [ ] [CRITICAL] Fallback avatar in `_AvatarCornersPreviewState.build()` uses `ClipOval` (line 480) instead of `ClipRRect(borderRadius: BorderRadius.circular(avatarRadius))` — when no real avatar loads (network unavailable, not logged in, etc.), the preview stays circular regardless of the slider position, so the entire corner-radius preview is broken in the no-avatar case. Fix: replace `ClipOval` with `ClipRRect(borderRadius: BorderRadius.circular(avatarRadius))` matching the real-avatar path at line 464. — `ayu_appearance_page.dart:480`
