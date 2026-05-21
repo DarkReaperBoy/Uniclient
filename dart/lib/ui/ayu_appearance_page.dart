@@ -468,6 +468,8 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
           width: photoSize,
           height: photoSize,
           fit: BoxFit.cover,
+          cacheWidth: 92,
+          cacheHeight: 92,
         ),
       );
     } else {
@@ -477,7 +479,8 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
         Color(0xFFA695E7), Color(0xFFED9B9B),
       ];
       final colorIdx = 'AyuGramReleases'.hashCode.abs() % colors.length;
-      avatarWidget = ClipOval(
+      avatarWidget = ClipRRect(
+        borderRadius: BorderRadius.circular(avatarRadius),
         child: Container(
           width: photoSize,
           height: photoSize,
@@ -647,6 +650,8 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
   List<String> _systemFonts = [];
   bool _loadingFonts = true;
   late String _selectedFont;
+  List<String>? _cachedFilteredFonts;
+  String _cachedFilterQuery = '';
 
   @override
   void initState() {
@@ -681,7 +686,7 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
         _selectedFont = fonts[newIdx];
         _controller.text = _selectedFont;
       });
-      final offset = newIdx * 40.0;
+      final offset = newIdx * 32.0;
       _scrollController.animateTo(
         offset,
         duration: const Duration(milliseconds: 100),
@@ -705,11 +710,12 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
       }
     } catch (_) {}
     if (families != null && families.isNotEmpty) {
-      if (mounted) setState(() { _systemFonts = ['', ...families!]; _loadingFonts = false; });
+      if (mounted) setState(() { _systemFonts = ['', ...families!]; _loadingFonts = false; _cachedFilteredFonts = null; });
     } else if (mounted) {
       setState(() {
         _systemFonts = [''];
         _loadingFonts = false;
+        _cachedFilteredFonts = null;
       });
     }
   }
@@ -796,11 +802,16 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
 
   List<String> get _filteredFonts {
     if (_searchQuery.isEmpty) return _systemFonts;
-    return _systemFonts
+    if (_cachedFilteredFonts != null && _cachedFilterQuery == _searchQuery) {
+      return _cachedFilteredFonts!;
+    }
+    _cachedFilterQuery = _searchQuery;
+    _cachedFilteredFonts = _systemFonts
         .where((f) => f.isEmpty
             ? 'default'.contains(_searchQuery)
             : f.toLowerCase().contains(_searchQuery))
         .toList();
+    return _cachedFilteredFonts!;
   }
 
   @override
