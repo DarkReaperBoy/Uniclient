@@ -134,17 +134,6 @@ No critical, major, or maintenance issues found. The widget correctly displays a
 One blocking bug: `_TiledImage` won't render because async decode doesn't trigger repaint. Needs immediate fix.
 
 
-## ayu_filters_page — cleanup
-
-- [ ] [CRITICAL] `_doImport` never reads `parsed['version']` so version validation is silently skipped — `AyuFilterEngine.previewImport()` (`ayu_filter.dart:356-358`) throws on `version > 2`; `_doImport` reimplements parsing inline and never calls `previewImport()`, so a v3+ export is applied without error instead of being rejected — `ayu_filters_page.dart:1510`
-
-- [ ] [MAJOR] `_doImport` (lines 1558–1608) reimplements `AyuFilterEngine.previewImport()` + `applyImport()` inline — the diff computation (add vs update split, exclusion dedup) and the apply loop are duplicated verbatim; call `engine.previewImport(parsed)` then `engine.applyImport(changes)` instead — `ayu_filters_page.dart:1558`
-
-- [ ] [MAJOR] `_doExport` (lines 1703–1802) reimplements `AyuFilterEngine.exportFilters()` + `publishFilters()` inline — both engine methods (`ayu_filter.dart:346`, `ayu_filter.dart:433`) already contain the identical clipboard/dpaste logic and are kept in sync there; the UI copy will drift — `ayu_filters_page.dart:1703`
-
-- [ ] [MAJOR] `_AyuFiltersListScreen.build()` calls `context.watch<AppState>()` (line 559) which triggers a full rebuild — including `_buildFilterListContent`/`_buildShadowBanContent`/`_buildPickExcludeContent` list allocations — on every unrelated `AppState` notification (incoming messages, typing state, etc.); narrow to `context.select` for the filter-specific fields (`filterEngine`, `shadowBanIds`) — `ayu_filters_page.dart:559`
-
-- [ ] [MAJOR] filter rows built as pre-allocated `List<Widget>` inside `_buildFilterListContent` / `_buildPickExcludeContent` (for-loops adding to `children`) rather than lazy `ListView.builder` items — all rows constructed even when off-screen; `ayuSettingsScaffold` passes these as a flat children list so Flutter's deferred rendering cannot help — `ayu_filters_page.dart:640`
 
 ## ayugram_settings_screen — cleanup
 
