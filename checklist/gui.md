@@ -40,14 +40,6 @@
 No issues found.
 
 
-## ayu_forward — cleanup
-
-- [ ] [MAJOR] `isForwarding` returns false for the entire duration of a single-chunk forward and during the last chunk of any multi-chunk forward — `chunkIndex` is set to `i+1` (1-indexed), so when processing chunk N of N, `chunkIndex < totalChunks` evaluates `N < N = false`, prematurely reporting the forward as not in progress even though `phase != finished`; fix: change to `chunkIndex <= totalChunks` — `ayu_forward.dart:93`
-
-- [ ] [MAJOR] `isForwarding` is immediately false after `startNativeForward` — that helper sets `chunk: 1, chunks: 1` before the engine call completes, so any UI polling `isForwarding` during a native forward always sees `false` — `ayu_forward.dart:98-106`
-
-- [ ] [MAJOR] `progress.dispose()` called after 2-second delay while widgets may still hold listeners — `ChangeNotifier.dispose` asserts no active listeners remain in debug mode and silently corrupts state in release; the delayed dispose has no mechanism to detach observers first; callers must remove listeners before the delay fires, or switch to a weak-ref / reference-counted pattern — `ayu_forward.dart:110-113, 276-279`
-
 # bridge_ffi — audit findings
 
 ## Issues Found
