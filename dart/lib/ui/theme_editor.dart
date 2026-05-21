@@ -50,6 +50,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   Set<String> _explicitTokens = {};
   bool _sortedByAccent = false;
   String? _themeFilePath;
+  String? _editingPalettePath;
 
   List<_ListItem>? _cachedItems;
 
@@ -68,6 +69,23 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     _originalColorMap = Map.of(_colorMap);
     _explicitTokens = _colorMap.keys.toSet();
     _searchController.addListener(_onSearchChanged);
+    _initEditingPalettePath();
+  }
+
+  Future<void> _initEditingPalettePath() async {
+    final dir = Directory.systemTemp;
+    final palettePath = '${dir.path}${Platform.pathSeparator}uniclient_editing_palette.tdesktop-palette';
+    _editingPalettePath = palettePath;
+    _writeEditingPalette();
+  }
+
+  Future<void> _writeEditingPalette() async {
+    if (_editingPalettePath == null) return;
+    try {
+      final data = ThemeFileData(palette: _currentPalette);
+      final text = exportThemeFile(data);
+      await File(_editingPalettePath!).writeAsBytes(text);
+    } catch (_) {}
   }
 
   @override
@@ -115,10 +133,14 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
 
   int _accentSortScore(HSLColor accent, HSLColor color, bool isCopyOf) {
     if (isCopyOf) return 365;
-    final dh = (accent.hue - color.hue).abs();
-    final minDh = dh < 180 ? dh : 360 - dh;
-    if (minDh > 15) return 363;
-    return (255 - (color.saturation * 255).round()).clamp(0, 255);
+    final fromHue = color.hue.round();
+    final toHue = accent.hue.round();
+    final a = (fromHue - toHue).abs();
+    final b = 360 + fromHue - toHue;
+    final c = 360 + toHue - fromHue;
+    if (min(a, min(b, c)) > 15) return 363;
+    final fromSaturation = (color.saturation * 255).round();
+    return 255 - fromSaturation;
   }
 
   static final _searchSplitter = RegExp(r'[\s\-_+.,;:!#@()\[\]{}<>]+');
@@ -169,12 +191,26 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   void _updateColor(String token, Color color) {
     setState(() {
       _colorMap[token] = color;
+      _explicitTokens.add(token);
+      final changed = <String>{token};
+      var frontier = <String>{token};
+      while (frontier.isNotEmpty) {
+        final next = <String>{};
+        for (final entry in _referenceChain.entries) {
+          if (frontier.contains(entry.value) && !changed.contains(entry.key)) {
+            _colorMap[entry.key] = color;
+            changed.add(entry.key);
+            next.add(entry.key);
+          }
+        }
+        frontier = next;
+      }
       _currentPalette = paletteFromMap(_colorMap, widget.palette);
       _isDirty = true;
-      _explicitTokens.add(token);
       _cachedItems = null;
     });
     widget.onPaletteChanged(_currentPalette);
+    _writeEditingPalette();
   }
 
   void _openColorPicker(String token, Color currentColor) {
@@ -274,11 +310,23 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
 
   void _handleSaveToCloud() async {
     if (_saving) return;
+
+    final appState = context.read<AppState>();
+    if (appState.passcodeLocked) {
+      showTelegramToast(context, 'Unlock passcode first to save themes');
+      return;
+    }
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) {
+      showTelegramToast(context, 'Sign in to save themes to cloud');
+      return;
+    }
+
     _saving = true;
     try {
       final existingCloud = widget.cloudTheme;
       final existingMeta = existingCloud != null && existingCloud.id != 0
-          ? CloudThemeMeta(id: existingCloud.id, accessHash: 0, title: existingCloud.title, slug: existingCloud.slug)
+          ? CloudThemeMeta(id: existingCloud.id, accessHash: existingCloud.accessHash, title: existingCloud.title, slug: existingCloud.slug)
           : null;
 
       final result = await showDialog<_CloudSaveResult>(
@@ -292,12 +340,6 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
       if (result == null || !mounted) return;
 
       final engine = context.read<EngineService>();
-      final appState = context.read<AppState>();
-      final accountId = appState.activeAccountId;
-      if (accountId.isEmpty) {
-        showTelegramToast(context, 'No active account');
-        return;
-      }
 
       final themeBytes = exportThemeFile(ThemeFileData(
         palette: _currentPalette,
@@ -311,6 +353,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
         await engine.updateCloudTheme(
           accountId,
           existingCloud.id,
+          existingCloud.accessHash,
           result.title,
           result.slug,
           themeBytes,
@@ -338,7 +381,8 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
 
   void _handleImport() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.any,
+      type: FileType.custom,
+      allowedExtensions: ['tdesktop-theme', 'tdesktop-palette'],
     );
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
@@ -399,10 +443,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
         ),
         PopupMenuItem<String>(
           value: 'show',
-          enabled: _themeFilePath != null,
-          child: Text('Show in Folder', style: TextStyle(
-            color: _themeFilePath != null ? textColor : textColor.withAlpha(100),
-          )),
+          child: Text('Show in Folder', style: TextStyle(color: textColor)),
         ),
       ],
     ).then((value) {
@@ -419,14 +460,14 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   }
 
   void _showInFolder() {
-    if (_themeFilePath == null) return;
-    final dir = File(_themeFilePath!).parent.path;
+    final target = _themeFilePath ?? _editingPalettePath;
+    if (target == null) return;
     if (Platform.isLinux) {
-      Process.run('xdg-open', [dir]);
+      Process.run('xdg-open', [File(target).parent.path]);
     } else if (Platform.isMacOS) {
-      Process.run('open', ['-R', _themeFilePath!]);
+      Process.run('open', ['-R', target]);
     } else if (Platform.isWindows) {
-      Process.run('explorer', ['/select,', _themeFilePath!]);
+      Process.run('explorer', ['/select,', target]);
     }
   }
 
@@ -463,23 +504,23 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
       final viewport = _scrollController.hasClients
           ? _scrollController.position.viewportDimension
           : 400.0;
-      final defaultHeight = _estimateRowHeight(null);
+      const defaultHeight = _kRowMarginTop + _kSwatchHeight + _kDescriptionSkip + 14.0 + _kRowMarginBottom;
       final skipCount = max(1, (viewport / defaultHeight).ceil());
-      setState(() {
-        _focusedIndex =
-            (_focusedIndex + skipCount).clamp(0, entryItems.length - 1);
-      });
+      for (var i = 0; i < skipCount; i++) {
+        if (_focusedIndex >= entryItems.length - 1) break;
+        setState(() => _focusedIndex++);
+      }
       _ensureVisible(_focusedIndex, items);
     } else if (event.logicalKey == LogicalKeyboardKey.pageUp) {
       final viewport = _scrollController.hasClients
           ? _scrollController.position.viewportDimension
           : 400.0;
-      final defaultHeight = _estimateRowHeight(null);
+      const defaultHeight = _kRowMarginTop + _kSwatchHeight + _kDescriptionSkip + 14.0 + _kRowMarginBottom;
       final skipCount = max(1, (viewport / defaultHeight).ceil());
-      setState(() {
-        _focusedIndex =
-            (_focusedIndex - skipCount).clamp(0, entryItems.length - 1);
-      });
+      for (var i = 0; i < skipCount; i++) {
+        if (_focusedIndex <= 0) break;
+        setState(() => _focusedIndex--);
+      }
       _ensureVisible(_focusedIndex, items);
     } else if (event.logicalKey == LogicalKeyboardKey.enter) {
       if (_focusedIndex >= 0 && _focusedIndex < entryItems.length) {
@@ -654,11 +695,6 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               children: [
-                IconButton(
-                  icon: Icon(Icons.close, color: textColor, size: 22),
-                  onPressed: _handleClose,
-                  tooltip: 'Close',
-                ),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
@@ -684,6 +720,11 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                   icon: Icon(Icons.more_vert, color: textColor, size: 22),
                   onPressed: _showMenu,
                   tooltip: 'Options',
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, color: textColor, size: 22),
+                  onPressed: _handleClose,
+                  tooltip: 'Close',
                 ),
               ],
             ),
@@ -762,17 +803,19 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                   final isEditing = _editingToken == entry.key;
                   final desc = _tokenDescription(entry.key);
 
+                  final dimmed = _editingToken != null && !isEditing;
                   return _PaletteEntryRow(
                     token: entry.key,
                     color: entry.value,
                     referenceName: _referenceChain[entry.key],
                     description: desc,
                     backgroundColor:
-                        isEditing ? accentColor.withAlpha(30) : (isFocused ? bgOver : bgColor),
-                    textColor: textColor,
-                    subtextColor: subtextColor,
+                        isEditing ? _currentPalette.dialogsBgActive : (isFocused ? bgOver : bgColor),
+                    textColor: isEditing ? _currentPalette.activeButtonFg : textColor,
+                    subtextColor: isEditing ? _currentPalette.activeButtonSecondaryFg : subtextColor,
                     hoverColor: bgOver,
                     accentColor: accentColor,
+                    dimOverlay: dimmed ? _currentPalette.layerBg : null,
                     onTap: () {
                       final idx = entryIndex;
                       setState(() => _focusedIndex = idx);
@@ -885,6 +928,7 @@ class _PaletteEntryRow extends StatefulWidget {
   final Color subtextColor;
   final Color hoverColor;
   final Color accentColor;
+  final Color? dimOverlay;
   final String? referenceName;
   final String? description;
   final VoidCallback onTap;
@@ -898,6 +942,7 @@ class _PaletteEntryRow extends StatefulWidget {
     required this.hoverColor,
     required this.accentColor,
     required this.onTap,
+    this.dimOverlay,
     this.referenceName,
     this.description,
   });
@@ -916,7 +961,7 @@ class _PaletteEntryRowState extends State<_PaletteEntryRow> {
     final hasDescription =
         widget.description != null && widget.description!.isNotEmpty;
 
-    return MouseRegion(
+    final row = MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Material(
@@ -998,6 +1043,20 @@ class _PaletteEntryRowState extends State<_PaletteEntryRow> {
         ),
       ),
     );
+
+    if (widget.dimOverlay != null) {
+      return Stack(
+        children: [
+          row,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ColoredBox(color: widget.dimOverlay!),
+            ),
+          ),
+        ],
+      );
+    }
+    return row;
   }
 }
 
@@ -1170,7 +1229,15 @@ const _kMinSlugSize = 5;
 const _kJpegQuality = 87;
 const _kSlugPattern = r'^[a-zA-Z0-9_]+$';
 
-Uint8List _encodeAsJpeg87(Uint8List imageBytes) {
+bool _isPngBytes(Uint8List bytes) {
+  return bytes.length >= 8 &&
+      bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E &&
+      bytes[3] == 0x47 && bytes[4] == 0x0D && bytes[5] == 0x0A &&
+      bytes[6] == 0x1A && bytes[7] == 0x0A;
+}
+
+Uint8List _encodeBackground(Uint8List imageBytes) {
+  if (_isPngBytes(imageBytes)) return imageBytes;
   final decoded = img.decodeImage(imageBytes);
   if (decoded == null) return imageBytes;
   return Uint8List.fromList(img.encodeJpg(decoded, quality: _kJpegQuality));
@@ -1277,7 +1344,7 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
 
     Uint8List? bgBytes;
     if (_backgroundImage != null) {
-      bgBytes = _encodeAsJpeg87(_backgroundImage!);
+      bgBytes = _encodeBackground(_backgroundImage!);
     }
 
     if (widget.cloudSave) {

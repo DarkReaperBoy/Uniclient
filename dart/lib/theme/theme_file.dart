@@ -170,7 +170,11 @@ Uint8List exportThemeFile(ThemeFileData data) {
   ));
 
   if (data.backgroundImage != null) {
-    final bgName = data.backgroundTiled ? 'tiled.jpg' : 'background.jpg';
+    final isPng = data.backgroundImage!.length >= 8 &&
+        data.backgroundImage![0] == 0x89 && data.backgroundImage![1] == 0x50 &&
+        data.backgroundImage![2] == 0x4E && data.backgroundImage![3] == 0x47;
+    final ext = isPng ? '.png' : '.jpg';
+    final bgName = (data.backgroundTiled ? 'tiled' : 'background') + ext;
     archive.addFile(ArchiveFile(
       bgName,
       data.backgroundImage!.length,

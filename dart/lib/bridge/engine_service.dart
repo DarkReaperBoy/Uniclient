@@ -4522,10 +4522,11 @@ class EngineService {
     }
   }
 
-  Future<Map<String, dynamic>?> updateCloudTheme(String accountId, int themeId, String title, String slug, Uint8List themeData) async {
+  Future<Map<String, dynamic>?> updateCloudTheme(String accountId, int themeId, int accessHash, String title, String slug, Uint8List themeData) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'theme_id': themeId,
+      'access_hash': accessHash,
       'title': title,
       'slug': slug,
       'theme_data': base64.encode(themeData),

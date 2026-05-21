@@ -20875,10 +20875,11 @@ func (t *TelegramCore) CreateCloudThemeWithData(title, slug string, themeData []
 	}
 
 	info := &CloudThemeInfo{
-		ID:        theme.ID,
-		Title:     theme.Title,
-		Slug:      theme.Slug,
-		IsCreator: theme.Creator,
+		ID:         theme.ID,
+		AccessHash: theme.AccessHash,
+		Title:      theme.Title,
+		Slug:       theme.Slug,
+		IsCreator:  theme.Creator,
 	}
 	if doc, ok := theme.GetDocument(); ok {
 		info.DocumentId = doc.GetID()
@@ -20898,7 +20899,7 @@ func (t *TelegramCore) CreateCloudThemeWithData(title, slug string, themeData []
 	return info, nil
 }
 
-func (t *TelegramCore) UpdateCloudThemeWithData(themeID int64, title, slug string, themeData []byte) (*CloudThemeInfo, error) {
+func (t *TelegramCore) UpdateCloudThemeWithData(themeID, accessHash int64, title, slug string, themeData []byte) (*CloudThemeInfo, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -20927,7 +20928,7 @@ func (t *TelegramCore) UpdateCloudThemeWithData(themeID int64, title, slug strin
 
 	req := &tg.AccountUpdateThemeRequest{
 		Format: "tdesktop",
-		Theme:  &tg.InputTheme{ID: themeID},
+		Theme:  &tg.InputTheme{ID: themeID, AccessHash: accessHash},
 		Slug:   slug,
 		Title:  title,
 	}
@@ -20945,10 +20946,11 @@ func (t *TelegramCore) UpdateCloudThemeWithData(themeID int64, title, slug strin
 	}
 
 	info := &CloudThemeInfo{
-		ID:        theme.ID,
-		Title:     theme.Title,
-		Slug:      theme.Slug,
-		IsCreator: theme.Creator,
+		ID:         theme.ID,
+		AccessHash: theme.AccessHash,
+		Title:      theme.Title,
+		Slug:       theme.Slug,
+		IsCreator:  theme.Creator,
 	}
 	if doc, ok := theme.GetDocument(); ok {
 		info.DocumentId = doc.GetID()
@@ -22426,6 +22428,7 @@ type PeerColorEntry struct {
 
 type CloudThemeInfo struct {
 	ID          int64  `json:"id"`
+	AccessHash  int64  `json:"access_hash"`
 	Title       string `json:"title"`
 	Slug        string `json:"slug"`
 	IsCreator   bool   `json:"is_creator"`
@@ -27909,9 +27912,10 @@ func (t *TelegramCore) GetThemeBySlug(slug string, isDark bool) (*CloudThemeInfo
 		return nil, err
 	}
 	info := &CloudThemeInfo{
-		ID:    th.ID,
-		Title: th.Title,
-		Slug:  th.Slug,
+		ID:         th.ID,
+		AccessHash: th.AccessHash,
+		Title:      th.Title,
+		Slug:       th.Slug,
 	}
 	if doc, ok := th.GetDocument(); ok {
 		info.DocumentId = doc.GetID()

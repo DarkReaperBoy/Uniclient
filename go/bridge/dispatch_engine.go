@@ -3681,11 +3681,12 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "UpdateCloudTheme":
 		var params struct {
-			AccountID string `json:"account_id"`
-			ThemeID   int64  `json:"theme_id"`
-			Title     string `json:"title"`
-			Slug      string `json:"slug"`
-			ThemeData string `json:"theme_data"`
+			AccountID  string `json:"account_id"`
+			ThemeID    int64  `json:"theme_id"`
+			AccessHash int64  `json:"access_hash"`
+			Title      string `json:"title"`
+			Slug       string `json:"slug"`
+			ThemeData  string `json:"theme_data"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
@@ -3694,7 +3695,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("decode theme data: %w", err)
 		}
-		info, err := e.UpdateCloudTheme(params.AccountID, params.ThemeID, params.Title, params.Slug, themeBytes)
+		info, err := e.UpdateCloudTheme(params.AccountID, params.ThemeID, params.AccessHash, params.Title, params.Slug, themeBytes)
 		if err != nil {
 			return nil, err
 		}

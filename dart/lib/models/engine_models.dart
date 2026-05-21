@@ -3026,6 +3026,7 @@ class ReportMessageResult {
 
 class CloudThemeInfo {
   final int id;
+  final int accessHash;
   final String title;
   final String slug;
   final bool isCreator;
@@ -3038,6 +3039,7 @@ class CloudThemeInfo {
 
   const CloudThemeInfo({
     required this.id,
+    this.accessHash = 0,
     required this.title,
     required this.slug,
     this.isCreator = false,
@@ -3051,6 +3053,7 @@ class CloudThemeInfo {
 
   factory CloudThemeInfo.fromJson(Map<String, dynamic> json) => CloudThemeInfo(
     id: (json['id'] as num?)?.toInt() ?? 0,
+    accessHash: (json['access_hash'] as num?)?.toInt() ?? 0,
     title: json['title'] as String? ?? '',
     slug: json['slug'] as String? ?? '',
     isCreator: json['is_creator'] as bool? ?? false,

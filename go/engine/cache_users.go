@@ -1545,10 +1545,10 @@ func (e *Engine) CreateCloudTheme(accountID, title, slug string, themeData []byt
 }
 
 type cloudThemeUpdater interface {
-	UpdateCloudThemeWithData(themeID int64, title, slug string, themeData []byte) (*cores.CloudThemeInfo, error)
+	UpdateCloudThemeWithData(themeID, accessHash int64, title, slug string, themeData []byte) (*cores.CloudThemeInfo, error)
 }
 
-func (e *Engine) UpdateCloudTheme(accountID string, themeID int64, title, slug string, themeData []byte) (*cores.CloudThemeInfo, error) {
+func (e *Engine) UpdateCloudTheme(accountID string, themeID, accessHash int64, title, slug string, themeData []byte) (*cores.CloudThemeInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return nil, fmt.Errorf("account not found: %s", accountID)
@@ -1560,7 +1560,7 @@ func (e *Engine) UpdateCloudTheme(accountID string, themeID int64, title, slug s
 	if !ok {
 		return nil, fmt.Errorf("core does not support cloud theme update")
 	}
-	return c.UpdateCloudThemeWithData(themeID, title, slug, themeData)
+	return c.UpdateCloudThemeWithData(themeID, accessHash, title, slug, themeData)
 }
 
 type cloudThemeInstaller interface {
