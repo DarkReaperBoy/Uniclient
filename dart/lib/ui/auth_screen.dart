@@ -134,7 +134,7 @@ class _AuthScreenState extends State<AuthScreen>
 
   static const _kCoverHeight = 208.0;
 
-  static bool _hasCover(String s) => false;
+  static bool _hasCover(String s) => s == 'choose';
 
   void _submit(AuthState authState) {
     final data = authState.currentAuth;
@@ -1293,6 +1293,7 @@ class _AuthScreenState extends State<AuthScreen>
     _floodSecondsLeft = match != null ? int.parse(match.group(1)!) : 0;
     if (_floodSecondsLeft > 0) {
       _floodTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) { timer.cancel(); return; }
         setState(() {
           _floodSecondsLeft--;
           if (_floodSecondsLeft <= 0) {
@@ -1594,6 +1595,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
       c.dispose();
     }
     _digits = List.filled(widget.digitCount, '');
+    _isDeleting = List.filled(widget.digitCount, false);
     _digitAnimControllers = List.generate(widget.digitCount, (_) {
       return AnimationController(
         duration: const Duration(milliseconds: 120),
@@ -1614,6 +1616,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
   void _startCallTimer() {
     _callTimer?.cancel();
     _callTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) { t.cancel(); return; }
       setState(() {
         _callSecondsLeft--;
         if (_callSecondsLeft <= 0) {
