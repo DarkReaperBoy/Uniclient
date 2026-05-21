@@ -603,10 +603,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — Caption field does not drop files via MimeData hook
-
-- [ ] [MAJOR] In AyuGram, the caption `InputField` has a `setMimeDataHook` that intercepts paste/drop events on the field itself: if the dropped data contains local files or an image, it calls `addFiles(data)` to add them to the list. The Dart caption `TextField` has no equivalent hook — dropping files onto the caption area does not add them to the file list, only the outer `DropTarget` handles drops. — `send_files_box.dart:1862-1876` ← `AyuGram/boxes/send_files_box.cpp:1892-1901`
-
 ## send_files_box — `_showEditCaptionDialog` / `_editFileCaption` use AlertDialog not styled box
 
 - [ ] [MAJOR] Per-file caption editing in AyuGram opens a proper `EditFileCaptionBox` that uses `Ui::InputField` with `InitMessageFieldHandlers`, session-aware emoji, and `SetupCaptionAiButton`. The Dart uses a plain `AlertDialog` with a bare `TextField` — no custom emoji support, no AI button, no markdown field handlers, and no styled format matching the desktop design. — `send_files_box.dart:729-789` ← `AyuGram/boxes/send_files_box.cpp:180-258`
