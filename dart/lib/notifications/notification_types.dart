@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../l10n/strings.dart';
+
 enum ManagerType { native, defaultPopup, dummy }
 
 enum NotificationCorner {
@@ -283,7 +285,7 @@ String _composeTitle(NotificationData data, NotificationSettings settings) {
 
   String title;
   if (data.isScheduled && data.isOutgoing) {
-    title = 'Reminder';
+    title = TrStrings.lngNotifReminder();
   } else if (data.isMonoforumSublist && data.sublistPeerName.isNotEmpty) {
     title = '${data.sublistPeerName} (${data.chatTitle})';
   } else if (data.isForumTopic && data.topicTitle.isNotEmpty) {
@@ -315,7 +317,7 @@ String _composeSubtitle(NotificationData data, NotificationSettings settings) {
   }
 
   if (data.isGroup || data.isChannel) {
-    if (data.isScheduled && data.isOutgoing) return 'You';
+    if (data.isScheduled && data.isOutgoing) return TrStrings.lngNotifYou();
     return data.senderName;
   }
 
@@ -333,10 +335,10 @@ String _composeBody(NotificationData data, NotificationSettings settings) {
     return _composeReactionText(data, hideMessageText: hideMessageText);
   }
 
-  if (hideMessageText) return 'You have a new message';
+  if (hideMessageText) return TrStrings.lngNotifNewMessage();
 
   if (data.forwardCount > 1) {
-    return '${data.forwardCount} forwarded messages';
+    return TrStrings.lngForwardMessages(data.forwardCount);
   }
   if (data.forwardFrom.isNotEmpty && data.forwardCount <= 1) {
     final fwdText = _messageTextForType(data);
@@ -353,36 +355,36 @@ String _composeBody(NotificationData data, NotificationSettings settings) {
 String _messageTextForType(NotificationData data) {
   switch (data.messageType) {
     case 1: // image
-      return data.caption.isNotEmpty ? 'Photo, ${_applySpoiler(data.caption, data.hasSpoiler)}' : 'Photo';
+      return data.caption.isNotEmpty ? '${TrStrings.lngNotifPhoto()}, ${_applySpoiler(data.caption, data.hasSpoiler)}' : TrStrings.lngNotifPhoto();
     case 2: // video
-      return data.caption.isNotEmpty ? 'Video, ${_applySpoiler(data.caption, data.hasSpoiler)}' : 'Video';
+      return data.caption.isNotEmpty ? '${TrStrings.lngNotifVideo()}, ${_applySpoiler(data.caption, data.hasSpoiler)}' : TrStrings.lngNotifVideo();
     case 3: // audio
-      return 'Audio file';
+      return TrStrings.lngNotifAudioFile();
     case 4: // voice
-      return 'Voice message';
+      return TrStrings.lngNotifVoiceMessage();
     case 5: // videonote
-      return 'Video message';
+      return TrStrings.lngNotifVideoMessage();
     case 6: // sticker
       if (data.stickerEmoji.isNotEmpty) {
-        return '${data.stickerEmoji} Sticker';
+        return '${data.stickerEmoji} ${TrStrings.lngNotifSticker()}';
       }
-      return 'Sticker';
+      return TrStrings.lngNotifSticker();
     case 7: // gif
-      return 'GIF';
+      return TrStrings.lngNotifGif();
     case 8: // file
-      return 'File';
+      return TrStrings.lngNotifFile();
     case 9: // poll
       return data.pollQuestion.isNotEmpty
           ? '\u{1F4CA} ${data.pollQuestion}'
-          : 'Poll';
+          : TrStrings.lngNotifPoll();
     case 10: // location
-      return data.isLiveLocation ? 'Live location' : 'Location';
+      return data.isLiveLocation ? TrStrings.lngNotifLiveLocation() : TrStrings.lngNotifLocation();
     case 11: // contact
       return data.contactName.isNotEmpty
-          ? 'Contact: ${data.contactName}'
-          : 'Contact';
+          ? '${TrStrings.lngNotifContact()}: ${data.contactName}'
+          : TrStrings.lngNotifContact();
     case 12: // invoice
-      return data.invoiceTitle.isNotEmpty ? data.invoiceTitle : 'Invoice';
+      return data.invoiceTitle.isNotEmpty ? data.invoiceTitle : TrStrings.lngNotifInvoice();
     default:
       return _applySpoiler(data.text, data.hasSpoiler);
   }
@@ -429,49 +431,49 @@ String _composeReactionText(NotificationData data, {required bool hideMessageTex
   final emoji = data.reactionEmoji;
   if (emoji.isEmpty) return '';
 
-  if (hideMessageText) return '$emoji to your message';
+  if (hideMessageText) return TrStrings.lngNotifReactedToMessage(emoji);
 
   switch (data.reactedToType) {
-    case 1: return '$emoji to your photo';
-    case 2: return '$emoji to your video';
-    case 3: return '$emoji to your file';
-    case 4: return '$emoji to your voice message';
-    case 5: return '$emoji to your video message';
+    case 1: return TrStrings.lngNotifReactedToPhoto(emoji);
+    case 2: return TrStrings.lngNotifReactedToVideo(emoji);
+    case 3: return TrStrings.lngNotifReactedToFile(emoji);
+    case 4: return TrStrings.lngNotifReactedToVoice(emoji);
+    case 5: return TrStrings.lngNotifReactedToVideoMsg(emoji);
     case 6:
       if (data.stickerEmoji.isNotEmpty) {
-        return '$emoji to your ${data.stickerEmoji} sticker';
+        return TrStrings.lngNotifReactedToSticker(emoji, data.stickerEmoji);
       }
-      return '$emoji to your sticker';
-    case 7: return '$emoji to your GIF';
-    case 8: return '$emoji to your file';
-    case 9: return '$emoji to your poll';
-    case 10: return '$emoji to your location';
+      return TrStrings.lngNotifReactedToStickerPlain(emoji);
+    case 7: return TrStrings.lngNotifReactedToGif(emoji);
+    case 8: return TrStrings.lngNotifReactedToFile(emoji);
+    case 9: return TrStrings.lngNotifReactedToPoll(emoji);
+    case 10: return TrStrings.lngNotifReactedToLocation(emoji);
     case 11:
       if (data.contactName.isNotEmpty) {
-        return '$emoji to contact: ${data.contactName}';
+        return TrStrings.lngNotifReactedToContact(emoji, data.contactName);
       }
-      return '$emoji to your contact';
-    case 12: return '$emoji to your invoice';
+      return TrStrings.lngNotifReactedToContactPlain(emoji);
+    case 12: return TrStrings.lngNotifReactedToInvoice(emoji);
     default:
       if (data.text.isNotEmpty) {
-        return '$emoji to: ${data.text}';
+        return TrStrings.lngNotifReactedToText(emoji, data.text);
       }
       return emoji;
   }
 }
 
 String _composePollVoteText(NotificationData data, {required bool hideMessageText}) {
-  if (hideMessageText) return 'Voted in a poll';
+  if (hideMessageText) return TrStrings.lngNotifVotedInPoll();
 
   if (data.pollVoteOption.isNotEmpty) {
-    return 'Voted for «${data.pollVoteOption}»';
+    return TrStrings.lngNotifVotedFor(data.pollVoteOption);
   }
 
   if (data.pollQuestion.isNotEmpty) {
-    return 'Voted in poll: ${data.pollQuestion}';
+    return TrStrings.lngNotifVotedInPollNamed(data.pollQuestion);
   }
 
-  return 'Voted in a poll';
+  return TrStrings.lngNotifVotedInPoll();
 }
 
 class NotificationSettings {
