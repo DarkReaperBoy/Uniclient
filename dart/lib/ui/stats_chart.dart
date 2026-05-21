@@ -314,6 +314,10 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
 
   double _chartWidth = 400.0;
 
+  int? _tooltipCachedIdx;
+  bool _tooltipCachedHasCurrency = false;
+  double _tooltipMaxNameW = 0, _tooltipMaxValW = 0, _tooltipMaxPctW = 0;
+
   StatsChartData? _serverZoomedData;
   bool _serverZoomLoading = false;
   late AnimationController _serverZoomAnim;
@@ -960,7 +964,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
                     accentColor: widget.theme.colorScheme.primary,
                     lineAlphas: _lineAlphas,
                     animatedFooterYMax: _footerAnimatedMax,
-                    dimOverlayColor: const Color(0x99e2eef9),
+                    dimOverlayColor: isDark ? const Color(0x99182533) : const Color(0x99e2eef9),
                   ),
                 ),
               );
@@ -1033,39 +1037,49 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
 
     final allLines = widget.data.lines;
 
-    final nameStyle = TextStyle(fontSize: 12, color: subColor);
-    final valStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: fgColor);
-    final pctStyle = TextStyle(fontSize: 12, color: subColor);
-    double maxNameW = 0, maxValW = 0, maxPctW = 0;
-    for (final line in allLines) {
-      final ntp = TextPainter(
-        text: TextSpan(text: line.name, style: nameStyle),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      if (ntp.width > maxNameW) maxNameW = ntp.width;
-      ntp.dispose();
-
-      final val = idx < line.values.length ? line.values[idx] : 0.0;
-      final vText = hasCurrency
-          ? '${_formatValue(val)} ${widget.data.currency}'
-          : _formatValue(val);
-      final vtp = TextPainter(
-        text: TextSpan(text: vText, style: valStyle),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      if (vtp.width > maxValW) maxValW = vtp.width;
-      vtp.dispose();
-
-      if (widget.data.hasPercentages && totalAtIdx > 0) {
-        final pText = '${(val / totalAtIdx * 100).toStringAsFixed(0)}%';
-        final ptp = TextPainter(
-          text: TextSpan(text: pText, style: pctStyle),
+    if (_tooltipCachedIdx != idx || _tooltipCachedHasCurrency != hasCurrency) {
+      final nameStyle = TextStyle(fontSize: 12, color: subColor);
+      final valStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: fgColor);
+      final pctStyle = TextStyle(fontSize: 12, color: subColor);
+      double mxName = 0, mxVal = 0, mxPct = 0;
+      for (final line in allLines) {
+        final ntp = TextPainter(
+          text: TextSpan(text: line.name, style: nameStyle),
           textDirection: TextDirection.ltr,
         )..layout();
-        if (ptp.width > maxPctW) maxPctW = ptp.width;
-        ptp.dispose();
+        if (ntp.width > mxName) mxName = ntp.width;
+        ntp.dispose();
+
+        final val = idx < line.values.length ? line.values[idx] : 0.0;
+        final vText = hasCurrency
+            ? '${_formatValue(val)} ${widget.data.currency}'
+            : _formatValue(val);
+        final vtp = TextPainter(
+          text: TextSpan(text: vText, style: valStyle),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        if (vtp.width > mxVal) mxVal = vtp.width;
+        vtp.dispose();
+
+        if (widget.data.hasPercentages && totalAtIdx > 0) {
+          final pText = '${(val / totalAtIdx * 100).toStringAsFixed(0)}%';
+          final ptp = TextPainter(
+            text: TextSpan(text: pText, style: pctStyle),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          if (ptp.width > mxPct) mxPct = ptp.width;
+          ptp.dispose();
+        }
       }
+      _tooltipCachedIdx = idx;
+      _tooltipCachedHasCurrency = hasCurrency;
+      _tooltipMaxNameW = mxName;
+      _tooltipMaxValW = mxVal;
+      _tooltipMaxPctW = mxPct;
     }
+    final maxNameW = _tooltipMaxNameW;
+    final maxValW = _tooltipMaxValW;
+    final maxPctW = _tooltipMaxPctW;
 
     double tooltipWidth = _kTooltipPadH * 2 + maxNameW + 8.0 + maxValW;
     if (widget.data.hasPercentages && totalAtIdx > 0) {
@@ -1421,7 +1435,7 @@ class _FilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inactiveBg = Theme.of(context).colorScheme.surface;
-    const inactiveText = Colors.white;
+    final inactiveText = color;
     Widget btn = AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.fromLTRB(8, 5, 10, 5),
@@ -1591,7 +1605,7 @@ class _ChartAreaPainter extends CustomPainter {
   }
 
   TextPainter _cachedTP(String text, TextStyle style) {
-    final key = '$text|${style.fontSize}';
+    final key = '$text|${style.fontSize}|${style.color?.value}';
     var tp = textCache[key];
     if (tp == null) {
       tp = TextPainter(textDirection: TextDirection.ltr);
@@ -2348,7 +2362,7 @@ class _FooterPainter extends CustomPainter {
     }
 
     final handlePaint = Paint()
-      ..color = accentColor.withValues(alpha: 0.7);
+      ..color = const Color(0xD8BACCD9);
     canvas.drawRRect(
       RRect.fromRectAndCorners(
         Rect.fromLTWH(leftX, 0, _kHandleWidth, h),

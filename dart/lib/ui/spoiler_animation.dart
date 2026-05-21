@@ -223,9 +223,12 @@ Future<SpoilerSpriteSheet?> _loadSpoilerCache(
     final framesCount = header.getInt32(12, Endian.little);
     final canvasSize = header.getInt32(16, Endian.little);
 
+    final frameDuration = header.getInt32(20, Endian.little);
+
     if (version != _kCacheVersion ||
         framesCount != _kFrameCount ||
         canvasSize != expectedTileSize.round() ||
+        frameDuration != _kFrameDurationMs ||
         _kCacheHeaderSize + dataLen != bytes.length) {
       return null;
     }
@@ -298,6 +301,9 @@ void _applyImageDarkening(Uint8List pixels) {
   for (int i = 0; i < pixels.length; i += 4) {
     final srcA = pixels[i + 3];
     if (srcA == 0) {
+      pixels[i] = 0;
+      pixels[i + 1] = 0;
+      pixels[i + 2] = 0;
       pixels[i + 3] = _kImageSpoilerDarkenAlpha;
     } else {
       final outA = srcA + _kImageSpoilerDarkenAlpha -
