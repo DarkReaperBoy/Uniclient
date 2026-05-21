@@ -103,15 +103,6 @@ final frameworkPath = '$parentDir/Frameworks/libcores.dylib';
 - ✅ Thread safety proper — callback unset before stream close
 - ✅ Initialization guarded — both sync/async check `_initialized`
 
-# chat_state — cleanup
-
-- [ ] [CRITICAL] `_selectedReactionTagIds` is maintained and toggled but **never passed to `_engine.getMessages()`** — the engine `getMessages` signature has no tag filter param and the `messages` getter returns `_messages` unfiltered regardless of selection. `_ensureEnoughTaggedMessages()` (line 386) only loads *more* unfiltered messages. Selecting a reaction tag does absolutely nothing to the displayed message list. Either add a tag filter param through the bridge and engine, or filter client-side via `_messages.where(...)` keyed on `msg.reactionEmoji` — `chat_state.dart:386`
-
-- [ ] [CRITICAL] `navigateChatHistory()` (line 959) is missing all the side-effects that `openChat()` performs: it doesn't call `_engine.setActiveChat()`, so the Go backend never learns the active chat changed (mark-as-read, typing, polling are still pointed at the old chat). It also doesn't reset `_groupOnlineCount`, `_scheduledCount`, `_isScheduledView`, `_activeGroupCall`, `_connectedBot`, `_connectedBotPaused`, `_linkedChatId`, `_peerBarSettings`, `_jumpedUntil`, `_openedUnreadCount`, or `_botStartToken` — the user sees stale UI from the previous chat in the header/toolbar while reading a different one — `chat_state.dart:959`
-
-- [ ] [MAJOR] `_handleDownloadProgress` (line 2507) calls `notifyListeners()` unconditionally on every progress tick — during a file download, this rebuilds every widget subscribed to `ChatState` dozens of times per second. Throttle with a debounce timer or only notify if the progress delta is >2% — `chat_state.dart:2507`
-
-- [ ] [MAJOR] `_senderAvatars.clear()` at line 1025 wipes the avatar cache on every `openChat()`, immediately followed by `_loadMemberAvatars()` which fires up to 5 batched API calls (200 members × 5 pages = 1000 members) for every group/channel open. The same members are re-fetched each time the user switches back to a group. Cache by `accountId:chatId` key and skip re-fetch if already loaded this session — `chat_state.dart:1025`
 
 ## telegram_palette — cleanup
 
