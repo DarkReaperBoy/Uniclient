@@ -158,6 +158,8 @@ class RecentHashtags {
   static final List<String> _tags = [];
   static bool _loaded = false;
 
+  static bool get isLoaded => _loaded;
+
   static void loadFrom(List<String> saved) {
     if (_loaded) return;
     _loaded = true;
@@ -458,9 +460,8 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   DateTime _lastMemberRefresh = DateTime(0);
 
   Future<void> _refreshMembersFromEngine() async {
-    if (widget.members.isNotEmpty) {
+    if (widget.members.isNotEmpty && _engineMembers.isEmpty) {
       _engineMembers = widget.members;
-      return;
     }
     if (_membersRefreshPending) return;
     _membersRefreshPending = true;
@@ -572,9 +573,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
     final query = match.group(1)!.toLowerCase();
     _acMentionQuery = query;
-    final members = _engineMembers.isNotEmpty ? _engineMembers : widget.members;
-    if (members.isNotEmpty) {
-      final localFiltered = members.where((m) {
+    _debouncedMemberRefresh();
+    if (_engineMembers.isNotEmpty) {
+      final localFiltered = _engineMembers.where((m) {
         final name = m.displayName.toLowerCase();
         final uname = m.username.toLowerCase();
         return name.contains(query) || uname.contains(query);
@@ -658,7 +659,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       if (_showHashtagPanel) setState(() => _showHashtagPanel = false);
       return;
     }
-    if (!RecentHashtags._loaded) {
+    if (!RecentHashtags.isLoaded) {
       final appState = context.read<AppState>();
       RecentHashtags.loadFrom(appState.recentHashtags);
     }
