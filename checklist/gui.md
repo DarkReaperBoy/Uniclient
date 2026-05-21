@@ -39,19 +39,6 @@
 
 No issues found.
 
-## audio_service — cleanup
-
-- [ ] [CRITICAL] `_savedPositions` is `static final Map<String, Duration>` (line 36) — in-memory only, wiped on every app restart. For content that qualifies (music ≥20 min, video ≥60 s), the save-position feature silently loses state between sessions. Telegram Desktop persists these to its local DB. Fix: call an engine persist method on save and restore on load, or use SharedPreferences — `audio_service.dart:36`
-
-- [ ] [MAJOR] `dispose()` calls `stop()` without `await` (line 268) — `stop()` is `async` and internally does `await old.dispose()` on the `media_kit` `Player`. Because `dispose()` doesn't await it, player teardown is fire-and-forget. This can cause use-after-free inside media_kit (stream subscriptions firing after the player object is gone) and leaks the native decoder resources — `audio_service.dart:268`
-
-- [ ] [MAJOR] `position` stream calls `notifyListeners()` on every tick (line 116) — media_kit emits position updates at ~5–10 Hz during playback. Every listener (`context.watch<AudioService>()`) rebuilds that frequently. The progress bar is the only UI element that needs sub-second granularity; all other consumers (player title, controls) rebuild needlessly. Fix: split into a separate `ValueNotifier<Duration>` for position, or throttle with a timer so `notifyListeners` fires at most once per 250 ms — `audio_service.dart:116`
-
-# auth_state — cleanup
-
-- [ ] [CRITICAL] `code_by_telegram` missing from `EngineAuthState` proto — `startAuth()` and `submitAuthInput()` responses can never set `codeByTelegram` on `AuthStateData` because the field doesn't exist in the proto definition (`proto/engine.proto:104-125`). `_authStateFromProto` at `engine_service.dart:5894` can't map a field that doesn't exist. The OTP screen's "Didn't get the code?" button (`auth_screen.dart:1970`, gated on `widget.codeByTelegram`) relies entirely on a push event arriving after the response — if the engine doesn't emit a redundant push event for the same state startAuth already returned, the button never appears. Fix: add `bool code_by_telegram = 26;` to `EngineAuthState` in `proto/engine.proto`, regenerate protos, add `codeByTelegram: p.codeByTelegram,` to `_authStateFromProto` in `engine_service.dart:5914`. — `proto/engine.proto:125`, `dart/lib/bridge/engine_service.dart:5894`, `dart/lib/ui/auth_screen.dart:1970`
-
-- [ ] [MAJOR] Missing `await` on `submitInput()` call in `_checkAutoInput` at line 275 — `_autoInputBusy` is reset to `false` in the `finally` block immediately after the async call is fired, not after it completes, making the busy-guard semantically meaningless. In practice harmless (the file is deleted before the unawaited gap, so re-entrant timer fires exit early at the `file.exists()` check), but the unawaited Future swallows the call's exceptions and violates the stated intent of the flag. Fix: change `if (value.isNotEmpty) submitInput(value);` to `if (value.isNotEmpty) await submitInput(value);` — `dart/lib/state/auth_state.dart:275`
 
 ## ayu_forward — cleanup
 
