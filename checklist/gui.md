@@ -133,16 +133,6 @@ No critical, major, or maintenance issues found. The widget correctly displays a
 
 One blocking bug: `_TiledImage` won't render because async decode doesn't trigger repaint. Needs immediate fix.
 
-## ayu_appearance_page — cleanup
-
-- [ ] [CRITICAL] Fallback avatar in `_AvatarCornersPreviewState.build()` uses `ClipOval` (line 480) instead of `ClipRRect(borderRadius: BorderRadius.circular(avatarRadius))` — when no real avatar loads (network unavailable, not logged in, etc.), the preview stays circular regardless of the slider position, so the entire corner-radius preview is broken in the no-avatar case. Fix: replace `ClipOval` with `ClipRRect(borderRadius: BorderRadius.circular(avatarRadius))` matching the real-avatar path at line 464. — `ayu_appearance_page.dart:480`
-
-- [ ] [MAJOR] Keyboard scroll offset in `_onKeyEvent` uses `newIdx * 40.0` (line 684) but each font list item is `padding: EdgeInsets.symmetric(vertical: 8)` (16 px) + fontSize 13 text (~16 px) = ~32 px tall. The 40 px constant overshoots by ~25% per item — keyboard navigation scrolls past the selected row. Fix: use the real item height constant (32.0) or use `Scrollable.ensureVisible`. — `ayu_appearance_page.dart:684`
-
-- [ ] [MAJOR] `Image.memory(_userpicBytes!)` at line 466 has no `cacheWidth`/`cacheHeight` — Telegram avatar files can be up to 640×640; the display size is 46×46 (92×92 at 2× DPI). The full-resolution image is decoded and kept in memory. Fix: add `cacheWidth: 92, cacheHeight: 92`. — `ayu_appearance_page.dart:466`
-
-- [ ] [MAJOR] `_filteredFonts` getter (line 797) allocates a new `List<String>` on every invocation — called in `build()` (line 815) AND in `_onKeyEvent` (line 661). With 500+ system fonts, every key-repeat event triggers an O(n) allocation. Fix: cache the filtered result in a field, invalidate only when `_searchQuery` or `_systemFonts` changes (e.g. in the `onChanged` callback and after `_loadSystemFonts` completes). — `ayu_appearance_page.dart:797`
-
 ## ayu_chats_page — cleanup
 
 - [ ] [CRITICAL] `_BubbleRadiusSlider` applies change before confirmation — `ayu_chats_page.dart:494-510`
