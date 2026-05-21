@@ -135,15 +135,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 
 
-## ayu_other_page — cleanup
-
-- [ ] [CRITICAL] `_SupportDescription` creates `TapGestureRecognizer()` inline in `build()` (line 409) — a new recognizer is allocated on every parent rebuild and the previous one is never disposed, leaking `GestureRecognizer` objects. Must be converted to a `StatefulWidget` with `late final TapGestureRecognizer _recognizer` initialized in `initState()` and disposed in `dispose()`, same pattern as `_DonateInfoBoxState` — `ayu_other_page.dart:409`
-
-- [ ] [CRITICAL] `_DonateQrBox.name` is a required constructor parameter (line 638) but is never referenced in `build()` — the dialog title is hardcoded as `'QR Code'` (line 668) for every coin. The user cannot tell which coin's address they are looking at. Fix: change title to `Text('$name', ...)` — `ayu_other_page.dart:668`
-
-- [ ] [CRITICAL] `crashReporting` toggle (lines 95–104) is a UI-only stub — `setCrashReporting(v)` (app_state.dart:1381) only stores the preference and calls `_saveWindowPrefs()`; it does not initialize, enable, or disable any crash reporting SDK. No Sentry/Crashlytics/native crash handler is wired anywhere. The feature appears functional but does nothing — `ayu_other_page.dart:99`
-
-- [ ] [MAJOR] `_DonateInfoBox._rcFetched = true` is set before the HTTP request (line 429), before the `try` block. A network failure on first open (cold start, no connectivity) permanently marks the config as fetched for the entire process lifetime; the fallback hardcoded values (`'5.00'`, `'3.50'`, `'386'`, `'RadianceTG'`) are shown forever with no retry. Fix: only set `_rcFetched = true` inside the `if (response.statusCode == 200)` branch, and use a separate in-progress bool to prevent concurrent calls — `ayu_other_page.dart:429`
 
 ## ayu_section_builder — cleanup
 
