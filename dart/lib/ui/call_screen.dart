@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:dbus/dbus.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
@@ -74,6 +75,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   Timer? _durationTimer;
   int _durationSeconds = 0;
   late DateTime _callStartTime;
+  final _validAvatarPaths = <String>{};
 
   @override
   void initState() {
@@ -82,6 +84,31 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     _durationSeconds = DateTime.now().difference(_callStartTime).inSeconds;
     if (_durationSeconds < 0) _durationSeconds = 0;
     _startDurationTimer();
+    _cacheAvatarPaths();
+  }
+
+  @override
+  void didUpdateWidget(GroupCallPanel old) {
+    super.didUpdateWidget(old);
+    if (widget.info.participants != old.info.participants) {
+      _cacheAvatarPaths();
+    }
+  }
+
+  void _cacheAvatarPaths() {
+    final paths = widget.info.participants
+        .map((p) => p.avatarPath)
+        .where((p) => p.isNotEmpty)
+        .toSet();
+    for (final path in paths) {
+      if (!_validAvatarPaths.contains(path)) {
+        File(path).exists().then((exists) {
+          if (exists && mounted) {
+            setState(() => _validAvatarPaths.add(path));
+          }
+        });
+      }
+    }
   }
 
   @override
@@ -215,13 +242,15 @@ class _GroupCallPanelState extends State<GroupCallPanel>
             : '?';
 
     Widget avatar;
-    if (p.avatarPath.isNotEmpty && File(p.avatarPath).existsSync()) {
+    if (p.avatarPath.isNotEmpty && _validAvatarPaths.contains(p.avatarPath)) {
       avatar = ClipOval(
         child: Image.file(
           File(p.avatarPath),
           width: 36,
           height: 36,
           fit: BoxFit.cover,
+          cacheWidth: 72,
+          cacheHeight: 72,
         ),
       );
     } else {
@@ -1263,8 +1292,14 @@ void _showGroupCallMenu(BuildContext context, {String callId = ''}) {
                     Navigator.pop(ctx2);
                     if (callId.isNotEmpty) {
                       final timestamp = DateTime.now().millisecondsSinceEpoch;
-                      final filePath = '/tmp/call_recording_$timestamp.wav';
+                      final tmpDir = await getTemporaryDirectory();
+                      final filePath = '${tmpDir.path}/call_recording_$timestamp.wav';
                       await engine.startCallRecording(accountId, callId, filePath);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Recording to: $filePath')),
+                        );
+                      }
                     }
                   },
                 ),
@@ -1281,6 +1316,15 @@ void _showGroupCallMenu(BuildContext context, {String callId = ''}) {
                             sourceId: result.id, withAudio: result.withAudio);
                       }
                     }
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.person_add, color: Colors.white70),
+                  title: const Text('Invite Members',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(ctx2);
+                    _showInviteMembersFromMenu(context, callId: callId);
                   },
                 ),
                 ListTile(
@@ -1357,8 +1401,13 @@ void _showJoinAsChooser(BuildContext context, {String callId = ''}) {
                   trailing: acc.id == appState.activeAccountId
                       ? const Icon(Icons.check_circle, color: Color(0xFF3390EC))
                       : null,
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(ctx);
+                    if (acc.id != appState.activeAccountId && callId.isNotEmpty) {
+                      final engine = context.read<EngineService>();
+                      appState.setActiveAccountId(acc.id);
+                      await engine.joinGroupCall(acc.id, callId);
+                    }
                   },
                 )),
           ],
@@ -1370,7 +1419,8 @@ void _showJoinAsChooser(BuildContext context, {String callId = ''}) {
 
 Future<void> _showSoundDevicePicker(BuildContext context) async {
   final appState = context.read<AppState>();
-  final devices = <String>['Default'];
+  // Map from display name to raw device ID passed to engine
+  final deviceMap = <String, String>{'Default': 'Default'};
   if (Platform.isLinux) {
     try {
       final result = await Process.run('pactl', ['list', 'sinks', 'short']);
@@ -1380,12 +1430,13 @@ Future<void> _showSoundDevicePicker(BuildContext context) async {
           if (line.trim().isEmpty) continue;
           final parts = line.split('\t');
           if (parts.length >= 2) {
-            final name = parts[1]
+            final rawName = parts[1];
+            final displayName = rawName
                 .replaceAll('alsa_output.', '')
                 .replaceAll('.analog-stereo', ' (Analog Stereo)')
                 .replaceAll('.hdmi-stereo', ' (HDMI Stereo)')
                 .replaceAll('_', ' ');
-            devices.add(name);
+            deviceMap[displayName] = rawName;
           }
         }
       }
@@ -1395,8 +1446,8 @@ Future<void> _showSoundDevicePicker(BuildContext context) async {
       final engine = context.read<EngineService>();
       final accountId = appState.activeAccountId;
       final devList = await engine.getAudioDevices(accountId, 'output');
-      if (devList.isNotEmpty) {
-        devices.addAll(devList);
+      for (final d in devList) {
+        deviceMap[d] = d;
       }
     } catch (_) {}
   }
@@ -1422,19 +1473,19 @@ Future<void> _showSoundDevicePicker(BuildContext context) async {
                       fontSize: 16,
                       fontWeight: FontWeight.w600)),
             ),
-            for (final d in devices)
+            for (final entry in deviceMap.entries)
               ListTile(
                 leading: Icon(
-                  d == current ? Icons.check_circle : Icons.circle_outlined,
-                  color: d == current ? const Color(0xFF4DC920) : Colors.white38,
+                  entry.value == current ? Icons.check_circle : Icons.circle_outlined,
+                  color: entry.value == current ? const Color(0xFF4DC920) : Colors.white38,
                   size: 20,
                 ),
-                title: Text(d, style: const TextStyle(color: Colors.white)),
+                title: Text(entry.key, style: const TextStyle(color: Colors.white)),
                 onTap: () {
-                  appState.setCallOutputDevice(d);
+                  appState.setCallOutputDevice(entry.value);
                   final engine = context.read<EngineService>();
                   final accountId = appState.activeAccountId;
-                  engine.setCallAudioDevice(accountId, 'output', d);
+                  engine.setCallAudioDevice(accountId, 'output', entry.value);
                   Navigator.pop(ctx);
                 },
               ),
@@ -1746,7 +1797,12 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
   void _startDurationTimer() {
     _durationTimer?.cancel();
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _durationSeconds++);
+      if (mounted && widget.callStartTime != null) {
+        setState(() {
+          _durationSeconds = DateTime.now().difference(widget.callStartTime!).inSeconds;
+          if (_durationSeconds < 0) _durationSeconds = 0;
+        });
+      }
     });
   }
 
@@ -2301,7 +2357,11 @@ class _ParticipantAvatar extends StatelessWidget {
         color: hasAvatar ? null : _colorForName(name),
         image: hasAvatar
             ? DecorationImage(
-                image: FileImage(File(avatarPath)),
+                image: ResizeImage(
+                  FileImage(File(avatarPath)),
+                  width: (size * 2).toInt(),
+                  height: (size * 2).toInt(),
+                ),
                 fit: BoxFit.cover,
               )
             : null,
@@ -2640,9 +2700,6 @@ class _ScreenShareChooserDialogState
 
   static Future<List<ScreenShareSource>> _enumerateWindows() async {
     if (!Platform.isLinux) {
-      if (Platform.isMacOS || Platform.isWindows) {
-        return [const ScreenShareSource(id: 'window:0', name: 'All Windows', isScreen: false)];
-      }
       return [];
     }
     final windows = <ScreenShareSource>[];
