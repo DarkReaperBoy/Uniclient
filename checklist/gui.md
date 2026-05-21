@@ -606,29 +606,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-
-# telegram_toast — Sticker/emoji premium toast wiring and style issues
-
-- [ ] [CRITICAL] Animated emoji premium toast never triggered — both callers (`message_bubble.dart:3436`, `chat_view.dart:1588`) pass `isEmoji: false`. The toast branches for `isEmoji: true` (animated emoji subscribe prompt, toSaved variant) are completely dead. In AyuGram, `StickerToast::showFor` sets `isEmoji = (setType == Data::StickersType::Emoji)` and triggers a different message for emoji packs. — `telegram_toast.dart:426-449` ← `history_view_sticker_toast.cpp:143-155`
-
-- [ ] [CRITICAL] `onOpenSavedMessages` callback always `null` in every call site — both `message_bubble.dart:3436-3443` and `chat_view.dart:1588-1595` never pass `onOpenSavedMessages`. The "Open" button shown on every second emoji toast would silently do nothing (`_viewCallback` returns `null`, so the button is hidden, but the correct behavior is to navigate to Saved Messages). — `telegram_toast.dart:503` ← `history_view_sticker_toast.cpp:227-233`
-
-- [ ] [MAJOR] Wrong "View"/"Open" button color — Dart uses `Color(0xFF6AB2F2)` (#6ab2f2, R=106 G=178 B=242). AyuGram uses `mediaviewTextLinkFg = #4db8ff` (R=77 G=184 B=255). These are visually distinct colours (>10% channel deviation on R and B). — `telegram_toast.dart:548` ← `colors.palette:527` + `chat.style:266`
-
-- [ ] [MAJOR] Pack name shows technical short name instead of display title — callers pass `message.stickerSetShortName` (e.g. `"AnimatedEmoji"`) as `packName`. AyuGram first looks up the title from the local sets cache, then if missing makes a `messages.getStickerSet` API request to fetch the display title (e.g. `"Animated Emoji"`) before showing the toast. The Dart toast therefore shows the URL short-name to users instead of the human-readable pack title. — `message_bubble.dart:3438-3440` / `chat_view.dart:1590-1592` ← `history_view_sticker_toast.cpp:89-132`
-
-# telegram_tooltip — 5 issues
-
-- [ ] [MAJOR] `_ArrowPainter.paint()` clamps arrow position to `[arrowSkip, size.width - arrowSkip]` (66px minimum from each edge), but AyuGram constrains the tooltip box so the arrow is at least `arrowSkipMin` (24px) from the edge — the clamp bound should come from `arrowSkipMin` (24px), not `arrowSkip` (66px); in edge cases where the target is near a screen edge the Dart arrow is clamped 2.75× too aggressively — `telegram_tooltip.dart:462-463` ← `tooltip.cpp:380-381` + `widgets.style:1308`
-
-- [ ] [MAJOR] `_resolveSide()` never returns `TooltipSide.left` or `TooltipSide.right` — the `left`/`right` cases at lines 351-354 fall through to bottom/top, making `TooltipSide.left` and `TooltipSide.right` dead code; AyuGram preserves Left/Right as distinct sides that affect both layout and animation — `telegram_tooltip.dart:351-355` ← `tooltip.h:96-98` + `tooltip.cpp:372-387`
-
-- [ ] [MAJOR] Animation slide direction is always vertical (`Offset(0.0, slideOffset)`) regardless of tooltip side; AyuGram uses horizontal slide (`x += shift`) for Left/Right sides and vertical slide for Top/Bottom — `telegram_tooltip.dart:327-335` ← `tooltip.cpp:395-401`
-
-- [ ] [MAJOR] Regular `TelegramTooltip` follows the cursor dynamically — `_onHover` updates `_lastPointer` and calls `markNeedsBuild()` causing the overlay to reposition on every pointer move; AyuGram tooltip is static (positioned once when shown) and hides if the cursor moves more than `startDragDistance()` from the initial show position — `telegram_tooltip.dart:71-74` ← `tooltip.cpp:62-72`
-
-- [ ] [MAJOR] No window-active guard before showing the regular tooltip — Dart's `_show()` inserts the overlay unconditionally; AyuGram only shows the tooltip when `tooltipWindowActive()` returns true (i.e., when the application window has focus) — `telegram_tooltip.dart:85-95` ← `tooltip.cpp:49-60`
-
 # theme_editor — Audit Findings
 
 ## Sources
