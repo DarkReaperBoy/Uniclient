@@ -91,7 +91,6 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     _descCtrl = TextEditingController();
     _forumEnabled = widget.chat.isForum;
     _loadDescription();
-    if (_isMegagroup) _loadAntiSpamState();
     _loadChatFullInfo();
   }
 
@@ -150,6 +149,8 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           _origNoForwards = _noForwards;
           _origJoinToSend = _joinToSend;
           _origJoinRequest = _joinRequest;
+          _antispamEnabled = flags['antispam'] == true;
+          _antispamLoaded = true;
         });
       }
     } catch (_) {
@@ -158,26 +159,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           _historyLoaded = true;
           _signMessagesLoaded = true;
           _autoTranslateLoaded = true;
-        });
-      }
-    }
-  }
-
-  Future<void> _loadAntiSpamState() async {
-    try {
-      final engine = context.read<EngineService>();
-      final flags = await engine.getChatPermissionFlags(
-        widget.chat.accountId,
-        widget.chat.chatId,
-      );
-      if (mounted) {
-        setState(() {
-          _antispamEnabled = flags['antispam'] == true;
           _antispamLoaded = true;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _antispamLoaded = true);
     }
   }
 
@@ -512,7 +496,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         _EditRow(
           icon: _isChannel ? Icons.forum_outlined : Icons.groups_outlined,
           label: _isChannel ? 'Discussion Group' : 'Linked Channel',
-          value: 'Add',
+          value: _linkedChatId.isNotEmpty ? 'Linked' : 'Add',
           textColor: textColor,
           subTextColor: subTextColor,
           onTap: () => _showLinkedChatDialog(),
@@ -1289,10 +1273,16 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final accentColor = PaletteProvider.of(context).windowBgActive;
 
-    final stats = await engine.getStarsRevenueStats(
-      widget.chat.accountId,
-      widget.chat.chatId,
-    );
+    Map<String, dynamic>? stats;
+    try {
+      stats = await engine.getStarsRevenueStats(
+        widget.chat.accountId,
+        widget.chat.chatId,
+      );
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed to load stats: $e');
+      return;
+    }
     if (!mounted) return;
     if (stats == null) {
       showTelegramToast(context, 'Could not load revenue stats');
@@ -1417,6 +1407,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
       context: context,
       builder: (ctx) {
         var filtered = List<ContactInfo>.from(contacts);
+        final toggledIds = <String>{};
         return StatefulBuilder(
           builder: (ctx, setDialogState) => AlertDialog(
             backgroundColor: bgColor,
@@ -1460,11 +1451,12 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                             itemCount: filtered.length,
                             itemBuilder: (ctx, i) {
                               final c = filtered[i];
+                              final effectiveVerified = c.isVerified ^ toggledIds.contains(c.userId);
                               return ListTile(
                                 dense: true,
                                 leading: Icon(
-                                  c.isVerified ? Icons.verified : Icons.person_outline,
-                                  color: c.isVerified ? accentColor : subTextColor,
+                                  effectiveVerified ? Icons.verified : Icons.person_outline,
+                                  color: effectiveVerified ? accentColor : subTextColor,
                                   size: 20,
                                 ),
                                 title: Text(
@@ -1482,11 +1474,18 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                                       {
                                         'bot_id': widget.chat.chatId,
                                         'peer_id': c.userId,
-                                        'enabled': !c.isVerified,
+                                        'enabled': !effectiveVerified,
                                       },
                                     );
                                     if (ctx.mounted) {
-                                      showTelegramToast(ctx, c.isVerified ? 'Verification removed' : 'Verification added');
+                                      setDialogState(() {
+                                        if (toggledIds.contains(c.userId)) {
+                                          toggledIds.remove(c.userId);
+                                        } else {
+                                          toggledIds.add(c.userId);
+                                        }
+                                      });
+                                      showTelegramToast(ctx, effectiveVerified ? 'Verification removed' : 'Verification added');
                                     }
                                   } catch (e) {
                                     if (ctx.mounted) showTelegramToast(ctx, 'Failed: $e');
@@ -1968,6 +1967,7 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
   int _slowmodeIndex = 0;
   int _boostsUnrestrict = 0;
   int _chargeStars = 0;
+  late final TextEditingController _chargeStarsCtrl;
   String? _error;
 
   late AnimationController _expandCtrl;
@@ -1988,6 +1988,7 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
   @override
   void initState() {
     super.initState();
+    _chargeStarsCtrl = TextEditingController(text: '0');
     _expandCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 150),
@@ -2017,6 +2018,7 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
 
   @override
   void dispose() {
+    _chargeStarsCtrl.dispose();
     _expandCtrl.dispose();
     super.dispose();
   }
@@ -2036,6 +2038,7 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
         final boosts = rights['boosts_unrestrict'] as int? ?? 0;
         _boostsUnrestrict = boosts.clamp(0, 5);
         _chargeStars = (rights['charge_stars'] as int?) ?? 0;
+        _chargeStarsCtrl.text = '$_chargeStars';
         _loading = false;
       });
     } catch (e) {
@@ -2481,8 +2484,10 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
                   height: 24,
                   child: Switch(
                     value: _chargeStars > 0,
-                    onChanged: (val) => setState(() =>
-                      _chargeStars = val ? _kDefaultChargeStars : 0),
+                    onChanged: (val) => setState(() {
+                      _chargeStars = val ? _kDefaultChargeStars : 0;
+                      _chargeStarsCtrl.text = '$_chargeStars';
+                    }),
                     activeColor: accentColor,
                   ),
                 ),
@@ -2501,7 +2506,7 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
                   child: SizedBox(
                     height: 36,
                     child: TextField(
-                      controller: TextEditingController(text: '$_chargeStars'),
+                      controller: _chargeStarsCtrl,
                       keyboardType: TextInputType.number,
                       style: TextStyle(fontSize: 14, color: textColor),
                       decoration: InputDecoration(
@@ -2517,7 +2522,7 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
                       onChanged: (v) {
                         final parsed = int.tryParse(v);
                         if (parsed != null && parsed >= 0) {
-                          _chargeStars = parsed;
+                          setState(() => _chargeStars = parsed);
                         }
                       },
                     ),
@@ -4033,6 +4038,12 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
         _hasMore = events.length >= limit;
         _loading = false;
         _loadingMore = false;
+        if (_itemKeys.length > 150) {
+          final keysToRemove = _itemKeys.keys.toList()..sort();
+          for (final k in keysToRemove.take(_itemKeys.length - 100)) {
+            _itemKeys.remove(k);
+          }
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -4084,12 +4095,18 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
     final date = DateTime.fromMillisecondsSinceEpoch(event.date * 1000);
     final newLabel = _formatDateHeader(date);
 
-    setState(() {
-      _currentDateLabel = newLabel;
-      _dateBadgeOpacity = 1.0;
-    });
+    final labelChanged = _currentDateLabel != newLabel;
+    final needsShow = _dateBadgeOpacity != 1.0;
+    if (labelChanged || needsShow) {
+      setState(() {
+        _currentDateLabel = newLabel;
+        _dateBadgeOpacity = 1.0;
+      });
+    }
     _dateHideTimer = Timer(const Duration(milliseconds: 1000), () {
-      if (mounted) setState(() => _dateBadgeOpacity = 0.0);
+      if (mounted && _dateBadgeOpacity != 0.0) {
+        setState(() => _dateBadgeOpacity = 0.0);
+      }
     });
   }
 
@@ -4547,13 +4564,13 @@ class _AdminLogEventTile extends StatelessWidget {
     final memberLabel = isChannel ? 'subscriber' : 'member';
     switch (event.action) {
       case 'change_title':
-        return 'changed the group title';
+        return 'changed the ${isChannel ? 'channel' : 'group'} title';
       case 'change_about':
-        return 'changed the group description';
+        return 'changed the ${isChannel ? 'channel' : 'group'} description';
       case 'change_username':
-        return 'changed the group link';
+        return 'changed the ${isChannel ? 'channel' : 'group'} link';
       case 'change_photo':
-        return 'changed the group photo';
+        return 'changed the ${isChannel ? 'channel' : 'group'} photo';
       case 'toggle_invites':
         return '${event.detail} invites';
       case 'toggle_signatures':
