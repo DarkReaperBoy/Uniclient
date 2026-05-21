@@ -29,6 +29,7 @@ class ForwardProgress extends ChangeNotifier {
   int _chunkIndex = 0;
   int _totalChunks = 0;
   bool _cancelled = false;
+  bool _isDisposed = false;
 
   AyuForwardPhase get phase => _phase;
   int get sentCount => _sentCount;
@@ -36,6 +37,19 @@ class ForwardProgress extends ChangeNotifier {
   int get chunkIndex => _chunkIndex;
   int get totalChunks => _totalChunks;
   bool get isCancelled => _cancelled;
+  bool get isDisposed => _isDisposed;
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
+  }
 
   String get statusText {
     switch (_phase) {
@@ -95,6 +109,16 @@ class AyuForward {
         && ((p.totalChunks > 0 && p.totalCount > 0) || p.phase == AyuForwardPhase.downloading);
   }
 
+  static void _scheduleCleanup(String toChatId) {
+    Future.delayed(const Duration(seconds: 2), () {
+      final p = _activeForwards.remove(toChatId);
+      if (p == null || p.isDisposed) return;
+      if (!p.hasListeners) {
+        p.dispose();
+      }
+    });
+  }
+
   static void startNativeForward(String toChatId, ForwardProgress progress, int total) {
     _activeForwards[toChatId] = progress;
     progress.update(
@@ -107,9 +131,7 @@ class AyuForward {
 
   static void finishNativeForward(String toChatId, ForwardProgress progress, int sent) {
     progress.update(phase: AyuForwardPhase.finished, sent: sent);
-    Future.delayed(const Duration(seconds: 2), () {
-      _activeForwards.remove(toChatId);
-    });
+    _scheduleCleanup(toChatId);
   }
 
   static bool isMessageRestricted(CachedMessage msg) {
@@ -272,9 +294,7 @@ class AyuForward {
       }
     } finally {
       progress?.update(phase: AyuForwardPhase.finished, sent: sentSoFar);
-      Future.delayed(const Duration(seconds: 2), () {
-        _activeForwards.remove(toChatId);
-      });
+      _scheduleCleanup(toChatId);
     }
   }
 
