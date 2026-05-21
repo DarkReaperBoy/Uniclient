@@ -606,24 +606,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-# spoiler_animation — 2 issues
-
-- [ ] [MAJOR] Image darkening overlay uses white (255,255,255,32) instead of black (0,0,0,32) for zero-particle areas, causing image spoilers to lighten the background rather than darken it. C++ pre-fills with `QColor(0,0,0,kImageSpoilerDarkenAlpha)` (pure black at alpha=32) then composites white particles on top; Dart initializes all pixels as white (255,255,255) then in `_applyImageDarkening` sets transparent-pixel alpha to 32, yielding (255,255,255,32) — a whitening effect opposite to the intended darkening. — `spoiler_animation.dart:300-302` ← `spoiler_mess.cpp:853-854`
-
-- [ ] [MAJOR] Cache header `frameDuration` field (written at offset 20) is never read or validated on cache load. `_saveSpoilerCache` writes all 6 header fields including `_kFrameDurationMs` at offset 20 (`header.setInt32(20, _kFrameDurationMs, Endian.little)`), but `_loadSpoilerCache` only reads and checks version, dataLen, storedHash, framesCount, and canvasSize — skipping frameDuration entirely. C++ `FromSerialized` validates all three Validator fields (frameDuration, framesCount, canvasSize) and rejects the cache if any mismatch. A stale cache built with a different frame duration would be silently accepted by Dart, producing a timing mismatch between the stored animation and runtime expectations. — `spoiler_animation.dart:219-230, 288` ← `spoiler_mess.cpp:732-741`
-
-# stats_chart — Chart rendering visual bugs and per-frame performance issues
-
-- [ ] [CRITICAL] `_FilterButton` inactive text color is always `Colors.white` (line 1424: `const inactiveText = Colors.white`), applied on line 1454 when `active = false`. Background when inactive is `colorScheme.surface` (white in light mode) → white text on white background = invisible label. AyuGram uses the line's own color as inactive text so the label stays readable — `stats_chart.dart:1424` ← `AyuGram/statistics/widgets/chart_lines_filter_widget.cpp:57` (`_inactiveTextColor(st::premiumButtonFg->c)` / line 122 transitions text from `_activeColor` toward `_inactiveTextColor`; unchecked state = `_activeColor` = colored text on background)
-
-- [ ] [MAJOR] Footer dim overlay color is hardcoded to `const Color(0x99e2eef9)` (line 963) regardless of `isDark`. `isDark` is available at the call site but ignored for this parameter. In dark mode this renders a light-blue overlay on a dark background — `stats_chart.dart:963` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:665` (`statisticsChartInactive: #e2eef999` is the default/light-theme value; dark themes override it; `chart_widget.cpp:449` uses `st::statisticsChartInactive` which is theme-aware)
-
-- [ ] [MAJOR] `_cachedTP` cache key (line 1594) is `'$text|${style.fontSize}'` — omits color. The equality guard on line 1601 compares full `TextSpan` (which includes `TextStyle.color`). During ruler crossfade animation `rulerCrossfade < 1.0`, label colors change each frame (e.g. `Colors.white.withValues(alpha: 0.6 * rulerCrossfade)` at line 1694), so the equality check always fails and `layout()` is called on every animation frame for every ruler and date label — `stats_chart.dart:1594` / `stats_chart.dart:1601` ← `AyuGram/statistics/chart_widget.cpp:749` (AyuGram animates ruler alpha via `rulersView.setAlpha()` separately without relaying out text per tick)
-
-- [ ] [MAJOR] `_buildTooltip` allocates, lays out, and immediately disposes multiple `TextPainter` objects on every call (lines 1041-1066) just to measure maximum column widths. `_buildTooltip` is called from `build()` whenever `_selectedIndex != null`, and `build()` is driven by `setState` on each animation tick (from `_chartTicker`, `_lineAlphaControllers`, etc.). While a point is selected during any active animation, this creates N×3 TextPainters per frame (N = line count) — `stats_chart.dart:1040` ← `AyuGram/statistics/widgets/point_details_widget.cpp` (AyuGram uses a persistent `PointDetailsWidget` that updates in place rather than rebuilding per frame)
-
-- [ ] [MAJOR] Footer handle color uses `accentColor.withValues(alpha: 0.7)` (line 2351) — theme primary color. AyuGram specifies a fixed neutral gray-blue `statisticsChartActive: #baccd9d8` for the selection handles, independent of the accent color — `stats_chart.dart:2351` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:666` / `AyuGram/statistics/chart_widget.cpp:488` (`p.setBrush(st::statisticsChartActive)`)
-
 # main — Audit findings
 
 ## main — Tray Ctrl+click separate window not implemented
