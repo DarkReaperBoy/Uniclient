@@ -6,17 +6,6 @@
 
 ## CRITICAL Issues
 
-- [ ] **[CRITICAL]** Uninitialized state check uses `assert()` instead of `throw` — fails silently in release builds — `bridge_web.dart:37`
-  - Web platform uses `assert(_initialized, ...)` while FFI uses `throw StateError(...)`
-  - In release mode, assertions are disabled, so uninitialized `call()` proceeds and crashes with unclear error
-  - Fix: Replace `assert()` with `throw StateError('Bridge not initialized. Call init() first.');`
-
-- [ ] **[CRITICAL]** `callAsync()` is a stub on web platform — blocks JavaScript event loop — `bridge_web.dart:44`
-  - Implementation: `Future<Uint8List> callAsync(Uint8List requestBytes) async => call(requestBytes);`
-  - This is NOT actually async — it just wraps the synchronous `call()` in a Future
-  - WASM will freeze the browser thread during long operations (auth, network calls, etc.)
-  - FFI platform correctly uses `Isolate.run()` for true async isolation (`bridge_ffi.dart:82`)
-  - Fix: Implement proper async behavior (e.g., Web Workers, microtask scheduling, or document as limitation)
 
 ## OK / No issues found
 
