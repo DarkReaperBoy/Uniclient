@@ -606,31 +606,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-# main — Audit findings
-
-
-## main — Passcode lock screen uses hardcoded English strings
-
-- [ ] [MAJOR] `_PasscodeLockScreen` hardcodes four main-UI strings in English while the rest of the app uses the `TrStrings` l10n system and supports 19 locales. The hardcoded strings and their AyuGram equivalents:
-  - `'Please enter your passcode'` (AyuGram: `lng_passcode_enter` = "Enter your local passcode") — `main.dart:2561` ← `lang.strings:1173`
-  - `'Your passcode'` hint — `main.dart:2592` ← `lang.strings:1174`
-  - `'Submit'` button — `main.dart:2639` ← `lang.strings:1175`
-  - `'Log out'` link — `main.dart:2674` ← `lang.strings:1176`
-
-  `strings.dart` only declares `lngPasscodeWrong()` (line 15); the other four keys are absent from the l10n file entirely, so non-English users see English text on the passcode screen.
-
-# sticker_pack_viewer — Audit findings
-
-- [ ] [CRITICAL] "View Pack" context menu item is a stub — `case 'pack': break;` does nothing when tapped — `sticker_pack_viewer.dart:648-649` ← `boxes/sticker_set_box.cpp:1782-1801` (AyuGram shows "Add to Set" or navigates to the pack; the Dart case simply breaks with no action)
-
-- [ ] [CRITICAL] Premium Unlock button has empty `onPressed: () {}` — tapping it does nothing — `sticker_pack_viewer.dart:305` ← `boxes/sticker_set_box.cpp:984-988` (AyuGram calls `Settings::ShowPremium(window, u"animated_emoji"_q)` to open the Premium upgrade screen)
-
-- [ ] [CRITICAL] Fave toggle doesn't update local UI state — after calling `faveSticker()` the `sticker.isFaved` field on the `StickerInfoItem` is not flipped, so the context menu immediately reopened still shows the wrong label ("Add to Favorites" when it was just added, or vice versa) — `sticker_pack_viewer.dart:643-647` ← `boxes/sticker_set_box.cpp:1773` (AyuGram reads `isFaved(document)` from the live data layer which is updated synchronously by `ToggleFavedSticker`)
-
-- [ ] [MAJOR] Context menu missing "Delete sticker" action for set creators — AyuGram shows a destructive "Delete" menu item with confirmation box when `amSetCreator()` is true — `sticker_pack_viewer.dart:630-650` ← `boxes/sticker_set_box.cpp:1788-1800`
-
-- [ ] [MAJOR] Context menu missing "Add to Set" action for non-creators — AyuGram adds `Api::AddAddToStickerSetAction` for users who own a custom sticker set but didn't create this one — `sticker_pack_viewer.dart:630-650` ← `boxes/sticker_set_box.cpp:1782-1786`
-
 ## story_editor — video story backend missing, disabled premium gate broken, contacts exclusion stub
 
 - [ ] [CRITICAL] `sendStoryWithVideoFile` calls engine command `'SendStoryWithVideo'` but no handler for this command exists anywhere in the Go backend (not in `dispatch_engine.go`, not in `dispatch_gen.go`, not in `telegram.go`) — video story posting always throws an unhandled error — `story_editor.dart:472` ← `go/bridge/dispatch_engine.go:3562` (only `SendStoryWithPhoto` exists, `SendStoryWithVideo` is absent)
