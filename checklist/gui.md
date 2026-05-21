@@ -133,48 +133,6 @@ No critical, major, or maintenance issues found. The widget correctly displays a
 
 One blocking bug: `_TiledImage` won't render because async decode doesn't trigger repaint. Needs immediate fix.
 
-## active_sessions_screen — cleanup
-
-- [ ] [MAJOR] `_formatDaysLabel(365)` returns "12 months" instead of "1 year" — the math `(365/30).round()` = 12, but Telegram Desktop displays "1 year" for the 365-day option — `active_sessions_screen.dart:284`
-
-- [ ] [MAJOR] `_buildAutoTerminateSection` is gated on `otherSessions.isNotEmpty` (line 858) — users with no other active sessions cannot access the auto-terminate setting at all; Telegram Desktop always shows the "Terminate old sessions" section regardless of other-session count — `active_sessions_screen.dart:858`
-
-- [ ] [MAJOR] When `_autoTerminateDays == 0` (never configured), `_formatDaysLabel` returns `''` and the "If Inactive For" row renders with no value on the right side (line 1078 guard `if (label.isNotEmpty)`) — should show "Never" — `active_sessions_screen.dart:1049`
-
-- [ ] [MAJOR] No user feedback when `terminateSession` or `terminateAllOtherSessions` returns `false` — the `if (ok && mounted) _loadSessions()` branches silently drop failures with no snackbar or retry; from the user's perspective the session appears to still be active — `active_sessions_screen.dart:257,265`
-
-- [ ] [MAJOR] Route animation status listener in `_DeviceUserpicBigState._onLottieLoaded` (line 1298) only removes itself on `AnimationStatus.completed`; if the dialog is popped before the open animation finishes, the listener is never removed from the route's animation — leaves a dead closure holding a reference to `_lottieController` and `route` for the duration of the dismiss animation — `active_sessions_screen.dart:1292`
-
-- [ ] [MAJOR] `_classifyDevice()` called inside `_SessionRow.build()` (line 1140) on every frame — involves three `toLowerCase()` allocations and up to a dozen `contains()` checks per session row; result is never cached — should be computed once in `_recomputeCachedLists()` and stored alongside the session map — `active_sessions_screen.dart:1140`
-
-- [ ] [MAJOR] `Image.asset` in `_DeviceUserpic.build()` (line 1245) renders at `size * 0.52` (≈22 px for the default 42 px icon) but supplies no `cacheWidth`/`cacheHeight` — Flutter decodes and caches the PNG at its full on-disk resolution; every distinct `size` creates a separate cache entry — add `cacheWidth` / `cacheHeight` matching the rendered size — `active_sessions_screen.dart:1245`
-
-- [ ] [MAJOR] Same `Image.asset` issue in `_DeviceUserpicBigState.build()` fallback path (line 1337) — icon rendered at `70 * 0.52 ≈ 36 px` with no `cacheWidth`/`cacheHeight` — `active_sessions_screen.dart:1337`
-
-- [ ] [MAJOR] `context.watch<AppState>()` called inside `_buildCurrentSession()` at line 896, which is a plain method call from `build()` — registers the entire screen's BuildContext as a listener to AppState, so any property change on AppState (messages, chat state, etc.) triggers a full `ActiveSessionsScreen` rebuild; scope this to `customDeviceModel` only via `context.select((s) => s.customDeviceModel)` — `active_sessions_screen.dart:896`
-
-- [ ] [MAJOR] `_loadSessions()` is called concurrently from both the 60-second timer and the `onConnState` listener without deduplication — if a `connected` event fires while a fetch is still in flight, two parallel `getSessions` calls are issued; add an in-flight guard (`_loading` is already present but only checked to show the spinner, not to debounce parallel calls) — `active_sessions_screen.dart:197,199`
-
-# admin_tools — cleanup
-
-- [ ] [CRITICAL] `TextEditingController` created inline inside `build()` in `_buildChargeStarsSection` — line 2504: `TextEditingController(text: '$_chargeStars')` is instantiated fresh on every rebuild with no dispose path. Any `setState` above it (e.g. toggling the switch, moving the slowmode slider) immediately replaces the controller and resets whatever the user typed to the old value. Store a controller in the state and update its text only when `_chargeStars` changes programmatically. — `admin_tools.dart:2504`
-
-- [ ] [CRITICAL] `_showRevenueStats` has no try/catch around `engine.getStarsRevenueStats` (line 1292). If the engine call throws, the async method propagates the exception and the caller's `onTap` receives an unhandled error — no feedback to user, potential crash in error overlay. Wrap in try/catch with a toast. — `admin_tools.dart:1292`
-
-- [ ] [CRITICAL] `_actionDescription` always uses "group" wording for `change_title`, `change_about`, `change_username`, `change_photo` (lines 4550–4556) even when `isChannel == true`. A channel admin log event would say "changed the group title" for a channel. Use `isChannel ? "channel" : "group"` for these four cases. — `admin_tools.dart:4549`
-
-- [ ] [CRITICAL] Double network call on open for megagroups: `initState` fires both `_loadAntiSpamState` (line 94) and `_loadChatFullInfo` (line 95), both of which call `engine.getChatPermissionFlags` with identical arguments (same `accountId`, `chatId`). Move the `antispam` flag read into `_loadChatFullInfo` (which already reads all other flags from the same response) and delete `_loadAntiSpamState`. — `admin_tools.dart:94`
-
-- [ ] [CRITICAL] `_showVerifyAccountsDialog`: after `engine.callGeneric('BotsSetCustomVerification', ...)` succeeds (line 1479), the `isVerified` icon for that contact is never updated — the contact objects are immutable and `setDialogState` is not called with a refreshed list. The user sees stale verification badges after toggling. Either reload contacts or maintain a local `Set<String>` of toggled IDs to flip the icon. — `admin_tools.dart:1479`
-
-- [ ] [MAJOR] Linked chat row always shows hardcoded `value: 'Add'` (line 515) regardless of `_linkedChatId`. After `_loadChatFullInfo` runs, `_linkedChatId` is set but the row still reads "Add". Should show `_linkedChatId.isNotEmpty ? 'Linked' : 'Add'` (or the resolved chat title). — `admin_tools.dart:515`
-
-- [ ] [MAJOR] `_updateDateBadge` is called on every scroll-position change via `_onScroll` (line 4053) and calls `setState(...)` unconditionally (line 4087), rebuilding the entire `_AdminLogScreenState` tree on each scroll frame. It also runs an O(n) linear scan through `_events` on every frame (lines 4068–4081). Replace with a `ValueNotifier<String>` + `ValueListenableBuilder` for the badge, and only call `setState` when the date label actually changes. — `admin_tools.dart:4053`
-
-- [ ] [MAJOR] `_chargeStars` is mutated without `setState` in the TextField `onChanged` at line 2519 (`_chargeStars = parsed`). The description text below (`'Non-admin members must pay $_chargeStars stars...'`) never updates while the user types. Call `setState(() => _chargeStars = parsed)`. — `admin_tools.dart:2519`
-
-- [ ] [MAJOR] `_itemKeys` (line 3989) grows unboundedly during pagination: entries are added for every loaded event index and never pruned for off-screen events when `append: true`. With large logs (hundreds of events across many pages) this accumulates thousands of live `GlobalKey` objects. Clear stale keys when events scroll well off-screen, or limit tracked keys to a sliding window around the visible range. — `admin_tools.dart:3989`
-
 ## advanced_settings_screen — cleanup
 
 - [ ] [CRITICAL] Double-toggle bug in `_ManageDictionariesBox`: `InkWell.onTap` (line 2348) and `Checkbox.onChanged` (line 2362) both call `appState.toggleDictionary(d.code)` — Flutter fires both handlers on a single tap, so the dict toggles on then immediately back off. Net effect: clicking a dictionary row never changes its state. Fix: remove the `onChanged` from the `Checkbox` and keep only the `InkWell.onTap`, or wrap the `Checkbox` in `AbsorbPointer` — `advanced_settings_screen.dart:2347`
