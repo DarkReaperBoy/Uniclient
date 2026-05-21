@@ -46,7 +46,7 @@ ThemeFileData? parseThemeFile(
     return _parseZipTheme(bytes, fallback);
   }
 
-  final text = String.fromCharCodes(bytes);
+  final text = utf8.decode(bytes, allowMalformed: true);
   if (text.length > _maxPaletteFileSize) return null;
   final result = parsePaletteText(text, fallback: fallback);
   if (result == null) return null;
@@ -133,16 +133,21 @@ PaletteParseResult? parsePaletteText(
   for (final entry in parsed.entries) {
     if (entry.value is Color) {
       resolved[entry.key] = entry.value;
+    } else if (entry.value is String) {
+      references[entry.key] = entry.value;
     }
   }
-  for (final entry in parsed.entries) {
-    if (entry.value is String) {
-      final ref = entry.value as String;
-      references[entry.key] = ref;
-      if (resolved.containsKey(ref)) {
-        resolved[entry.key] = resolved[ref]!;
-      } else if (fallbackMap.containsKey(ref)) {
-        resolved[entry.key] = fallbackMap[ref]!;
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (final entry in references.entries) {
+      if (resolved.containsKey(entry.key)) continue;
+      if (resolved.containsKey(entry.value)) {
+        resolved[entry.key] = resolved[entry.value]!;
+        changed = true;
+      } else if (fallbackMap.containsKey(entry.value)) {
+        resolved[entry.key] = fallbackMap[entry.value]!;
+        changed = true;
       }
     }
   }
@@ -183,7 +188,7 @@ Uint8List exportThemeFile(ThemeFileData data) {
   }
 
   final encoded = ZipEncoder().encode(archive);
-  return Uint8List.fromList(encoded);
+  return encoded is Uint8List ? encoded : Uint8List.fromList(encoded);
 }
 
 String writeCloudMeta(CloudThemeMeta meta) {
@@ -299,7 +304,7 @@ ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
   final paletteBytes = paletteFile.content as List<int>;
   if (paletteBytes.length > _maxPaletteFileSize) return null;
 
-  final text = String.fromCharCodes(paletteBytes);
+  final text = utf8.decode(paletteBytes, allowMalformed: true);
   final result = parsePaletteText(text, fallback: fallback);
   if (result == null) return null;
 
@@ -1475,7 +1480,7 @@ int _paletteStructureChecksum() {
   if (_paletteStructureChecksumCache != null) return _paletteStructureChecksumCache!;
   final buf = StringBuffer();
   for (final entry in paletteToMap(TelegramPalette.dayBlue).entries) {
-    buf.write('${entry.key}:${_colorToHex(entry.value)};');
+    buf.write('${entry.key};');
   }
   _paletteStructureChecksumCache = getCrc32(utf8.encode(buf.toString()));
   return _paletteStructureChecksumCache!;
@@ -1562,7 +1567,10 @@ ThemeCacheData? loadThemeCache(String configDir) {
 
     Uint8List? bgBytes;
     final bgFile = File('$configDir/theme_cache_bg.dat');
-    if (bgFile.existsSync()) bgBytes = bgFile.readAsBytesSync();
+    if (bgFile.existsSync()) {
+      final raw = bgFile.readAsBytesSync();
+      if (_isValidBackgroundImage(raw)) bgBytes = raw;
+    }
 
     CloudThemeMeta? cloudMeta;
     final cmId = data['cloudMetaId'] as int?;
