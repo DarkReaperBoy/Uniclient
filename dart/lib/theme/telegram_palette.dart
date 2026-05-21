@@ -1117,10 +1117,14 @@ class TelegramPalette {
     required this.groupCallVideoSubTextFg,
   });
 
-  bool get isDark {
-    final hsv = HSVColor.fromColor(dialogsBg);
-    return hsv.value < 0.5;
+  static double _cppLightness(Color c) {
+    final hsv = HSVColor.fromColor(c);
+    final v = hsv.value * 255;
+    final s = hsv.saturation * 255;
+    return v - (v * s) / 511;
   }
+
+  bool get isDark => _cppLightness(dialogsBg) < 128;
 
   // ── §57.11 Derived / alias tokens ──
   Color get dialogsChatBgOver => dialogsBgOver;
@@ -1205,8 +1209,8 @@ class TelegramPalette {
     final origAccent = windowBgActive;
     if (colorEq(origAccent, newAccent)) return this;
 
-    final baseHash = origAccent.hashCode;
-    final accentHash = newAccent.hashCode;
+    final baseHash = origAccent.value;
+    final accentHash = newAccent.value;
     if (_cachedColorizeResult != null &&
         _cachedColorizeBaseHash == baseHash &&
         _cachedColorizeAccentHash == accentHash &&
@@ -1237,8 +1241,7 @@ class TelegramPalette {
       if (h.saturation < 0.01) return c;
       final hueDelta = (h.hue - oHsv.hue).abs();
       if (hueDelta > hueThreshold) return c;
-      var hue = (h.hue + hDiff) % 360;
-      if (hue < 0) hue += 360;
+      final hue = (h.hue + hDiff) % 360;
       // Piecewise saturation formula (C++ style_palette_colorizer.cpp:33-43)
       final double cSat = h.saturation, oSat = oHsv.saturation, nSat = nHsv.saturation;
       final double sat;
@@ -2292,14 +2295,8 @@ class TelegramPalette {
   }
 
   TelegramPalette _enforceContrast({bool includeFileIcons = true}) {
-    double cppLightness(Color c) {
-      final hsv = HSVColor.fromColor(c);
-      final v = hsv.value * 255;
-      final s = hsv.saturation * 255;
-      return v - (v * s) / 511;
-    }
     Color fix(Color fg, Color bg, [Color? fallback]) {
-      if ((cppLightness(fg) - cppLightness(bg)).abs() >= 64) return fg;
+      if ((_cppLightness(fg) - _cppLightness(bg)).abs() >= 64) return fg;
       return fallback ?? windowFgActive;
     }
     return TelegramPalette(
