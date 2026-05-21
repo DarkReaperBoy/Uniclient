@@ -362,12 +362,14 @@ type SavedReactionTagInfo struct {
 
 // StickerInfo holds data for a single sticker in a set.
 type StickerInfo struct {
-	Emoji    string `json:"emoji"`
-	ThumbB64 string `json:"thumb_b64"`
-	Width    int    `json:"width"`
-	Height   int    `json:"height"`
-	MimeType string `json:"mime_type"`
-	FileID   string `json:"file_id"`
+	Emoji     string `json:"emoji"`
+	ThumbB64  string `json:"thumb_b64"`
+	Width     int    `json:"width"`
+	Height    int    `json:"height"`
+	MimeType  string `json:"mime_type"`
+	FileID    string `json:"file_id"`
+	IsFaved   bool   `json:"is_faved,omitempty"`
+	IsPremium bool   `json:"is_premium,omitempty"`
 }
 
 // CustomEmojiThumb holds a document ID, its base64 thumbnail, and optional SVG path.
@@ -392,16 +394,20 @@ type BotCallbackResult struct {
 
 // StickerSetResult holds the structured result of a sticker set lookup.
 type StickerSetResult struct {
-	Title     string        `json:"title"`
-	ShortName string        `json:"short_name"`
-	Count     int           `json:"count"`
-	Installed bool          `json:"installed"`
-	Archived  bool          `json:"archived"`
-	Animated  bool          `json:"animated"`
-	Video     bool          `json:"video"`
-	Masks     bool          `json:"masks"`
-	Emojis    bool          `json:"emojis"`
-	Stickers  []StickerInfo `json:"stickers"`
+	Title      string        `json:"title"`
+	ShortName  string        `json:"short_name"`
+	Count      int           `json:"count"`
+	Installed  bool          `json:"installed"`
+	Archived   bool          `json:"archived"`
+	Animated   bool          `json:"animated"`
+	Video      bool          `json:"video"`
+	Masks      bool          `json:"masks"`
+	Emojis     bool          `json:"emojis"`
+	Stickers   []StickerInfo `json:"stickers"`
+	IsCreator  bool          `json:"is_creator,omitempty"`
+	IsPremium  bool          `json:"is_premium,omitempty"`
+	SetID      int64         `json:"set_id,omitempty"`
+	AccessHash int64         `json:"access_hash,omitempty"`
 }
 
 type EmojiSetSummary struct {

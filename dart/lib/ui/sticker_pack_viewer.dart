@@ -234,6 +234,15 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
     });
   }
 
+  void _showPremiumRequired() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Subscribe to Telegram Premium to unlock this pack'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+
   bool get _isOfficialPack => _setInfo?.official ?? false;
 
   bool get _isPremiumLocked {
@@ -320,7 +329,7 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: TextButton(
-                  onPressed: () {},
+                  onPressed: _showPremiumRequired,
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -383,6 +392,19 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
           accountId: widget.accountId,
           engine: widget.engine,
           onTap: () => _sendSticker(sticker),
+          isCreator: info?.isCreator ?? false,
+          onFaveToggled: (nowFaved) {
+            if (_setInfo == null) return;
+            final updated = List<StickerInfoItem>.of(_setInfo!.stickers);
+            updated[index] = sticker.copyWith(isFaved: nowFaved);
+            setState(() => _setInfo = _setInfo!.copyWithStickers(updated));
+          },
+          onDeleted: () {
+            if (_setInfo == null) return;
+            final updated = List<StickerInfoItem>.of(_setInfo!.stickers);
+            updated.removeAt(index);
+            setState(() => _setInfo = _setInfo!.copyWithStickers(updated));
+          },
         );
       },
     );
@@ -415,12 +437,18 @@ class _StickerTile extends StatefulWidget {
   final String accountId;
   final EngineService engine;
   final VoidCallback? onTap;
+  final bool isCreator;
+  final ValueChanged<bool>? onFaveToggled;
+  final VoidCallback? onDeleted;
 
   const _StickerTile({
     required this.sticker,
     required this.accountId,
     required this.engine,
     this.onTap,
+    this.isCreator = false,
+    this.onFaveToggled,
+    this.onDeleted,
   });
 
   @override
@@ -642,31 +670,112 @@ class _StickerTileState extends State<_StickerTile>
       Rect.fromLTWH(position.dx, position.dy, 0, 0),
       Offset.zero & overlay.size,
     );
+    final items = <PopupMenuEntry<String>>[
+      const PopupMenuItem(value: 'send', child: Text('Send')),
+      PopupMenuItem(
+        value: 'fav',
+        child: Text(sticker.isFaved ? 'Remove from Favorites' : 'Add to Favorites'),
+      ),
+      if (!widget.isCreator)
+        const PopupMenuItem(value: 'addtoset', child: Text('Add to Set')),
+      if (widget.isCreator)
+        const PopupMenuItem(value: 'delete', child: Text('Delete Sticker',
+          style: TextStyle(color: Color(0xFFE53935)))),
+    ];
     showMenu<String>(
       context: context,
       position: relativeRect,
-      items: [
-        const PopupMenuItem(value: 'send', child: Text('Send')),
-        PopupMenuItem(
-          value: 'fav',
-          child: Text(sticker.isFaved ? 'Remove from Favorites' : 'Add to Favorites'),
-        ),
-        const PopupMenuItem(value: 'pack', child: Text('View Pack')),
-      ],
-    ).then((value) {
+      items: items,
+    ).then((value) async {
       if (value == null || !mounted) return;
       switch (value) {
         case 'send':
           widget.onTap?.call();
         case 'fav':
           final docId = int.tryParse(sticker.fileId);
-            if (docId != null) {
-              widget.engine.faveSticker(widget.accountId, docId, unfave: sticker.isFaved);
+          if (docId != null) {
+            final wasFaved = sticker.isFaved;
+            final success = await widget.engine.faveSticker(
+              widget.accountId, docId, unfave: wasFaved);
+            if (success && mounted) {
+              widget.onFaveToggled?.call(!wasFaved);
             }
-        case 'pack':
-          break;
+          }
+        case 'addtoset':
+          _showAddToSetDialog();
+        case 'delete':
+          _confirmDeleteSticker();
       }
     });
+  }
+
+  void _confirmDeleteSticker() {
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Sticker'),
+        content: const Text('Are you sure you want to delete this sticker from the set?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFE53935)),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ).then((confirmed) async {
+      if (confirmed != true || !mounted) return;
+      final docId = int.tryParse(widget.sticker.fileId);
+      if (docId == null) return;
+      final success = await widget.engine.deleteStickerFromSet(
+        widget.accountId, docId);
+      if (success && mounted) {
+        widget.onDeleted?.call();
+      }
+    });
+  }
+
+  Future<void> _showAddToSetDialog() async {
+    final sets = await widget.engine.getCreatedStickerSets(widget.accountId);
+    if (!mounted) return;
+    if (sets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You don\'t have any custom sticker sets'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    final selected = await showDialog<StickerSetInfo>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Add to Set'),
+        children: sets.map((set) => SimpleDialogOption(
+          onPressed: () => Navigator.pop(ctx, set),
+          child: Text('${set.title} (${set.count})'),
+        )).toList(),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    final docId = int.tryParse(widget.sticker.fileId);
+    if (docId == null) return;
+    final success = await widget.engine.addStickerToExistingSet(
+      widget.accountId, selected.setId, selected.accessHash, docId,
+      widget.sticker.emoji.isNotEmpty ? widget.sticker.emoji : '⭐',
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Added to ${selected.title}' : 'Failed to add sticker'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _showStickerPreview(BuildContext context, Offset position, Widget stickerWidget) {

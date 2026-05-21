@@ -1025,6 +1025,63 @@ func (e *Engine) GetStickerSetInfo(accountID, shortName string, setID, accessHas
 	return fetcher.GetStickerSetInfo(shortName, setID, accessHash)
 }
 
+type StickerDeleter interface {
+	DeleteStickerFromSet(fileID int64) error
+}
+
+func (e *Engine) DeleteStickerFromSet(accountID string, fileID int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	deleter, ok := acc.Core.(StickerDeleter)
+	if !ok {
+		return fmt.Errorf("platform does not support sticker deletion")
+	}
+	return deleter.DeleteStickerFromSet(fileID)
+}
+
+type CreatedStickerSetsFetcher interface {
+	GetCreatedStickerSets() ([]cores.StickerSetResult, error)
+}
+
+func (e *Engine) GetCreatedStickerSets(accountID string) ([]cores.StickerSetResult, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(CreatedStickerSetsFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support listing created sticker sets")
+	}
+	return fetcher.GetCreatedStickerSets()
+}
+
+type StickerAdder interface {
+	AddStickerToExistingSet(setID, accessHash, fileID int64, emoji string) error
+}
+
+func (e *Engine) AddStickerToExistingSet(accountID string, setID, accessHash, fileID int64, emoji string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	adder, ok := acc.Core.(StickerAdder)
+	if !ok {
+		return fmt.Errorf("platform does not support adding stickers to sets")
+	}
+	return adder.AddStickerToExistingSet(setID, accessHash, fileID, emoji)
+}
+
 type StickerSuggestionsFetcher interface {
 	GetStickerSuggestions(emoji string) ([]cores.StickerInfo, error)
 }

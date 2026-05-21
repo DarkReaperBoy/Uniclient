@@ -1039,6 +1039,8 @@ message EngineStickerInfo {
   int32  height    = 4;
   string mime_type = 5;  // e.g. "image/webp", "application/x-tgsticker", "video/webm"
   string file_id   = 6;  // document ID for downloading
+  bool   is_faved    = 7;
+  bool   is_premium  = 8;
 }
 
 message EngineGetStickerSetInfoResponse {
@@ -1052,6 +1054,19 @@ message EngineGetStickerSetInfoResponse {
   repeated EngineStickerInfo stickers = 8;
   bool   masks      = 9;
   bool   emojis     = 10;
+  bool   is_creator  = 11;
+  bool   is_premium  = 12;
+  int64  set_id      = 13;
+  int64  access_hash = 14;
+}
+
+message EngineDeleteStickerFromSetRequest {
+  string account_id = 1;
+  int64  file_id    = 2;
+}
+
+message EngineDeleteStickerFromSetResponse {
+  bool success = 1;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

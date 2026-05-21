@@ -2502,27 +2502,73 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		resp := &pb.EngineGetStickerSetInfoResponse{
-			Title:     info.Title,
-			ShortName: info.ShortName,
-			Count:     int32(info.Count),
-			Installed: info.Installed,
-			Archived:  info.Archived,
-			Animated:  info.Animated,
-			Video:     info.Video,
-			Masks:     info.Masks,
-			Emojis:    info.Emojis,
+			Title:      info.Title,
+			ShortName:  info.ShortName,
+			Count:      int32(info.Count),
+			Installed:  info.Installed,
+			Archived:   info.Archived,
+			Animated:   info.Animated,
+			Video:      info.Video,
+			Masks:      info.Masks,
+			Emojis:     info.Emojis,
+			IsCreator:  info.IsCreator,
+			IsPremium:  info.IsPremium,
+			SetId:      info.SetID,
+			AccessHash: info.AccessHash,
 		}
 		for _, s := range info.Stickers {
 			resp.Stickers = append(resp.Stickers, &pb.EngineStickerInfo{
-				Emoji:    s.Emoji,
-				ThumbB64: s.ThumbB64,
-				Width:    int32(s.Width),
-				Height:   int32(s.Height),
-				MimeType: s.MimeType,
-				FileId:   s.FileID,
+				Emoji:     s.Emoji,
+				ThumbB64:  s.ThumbB64,
+				Width:     int32(s.Width),
+				Height:    int32(s.Height),
+				MimeType:  s.MimeType,
+				FileId:    s.FileID,
+				IsFaved:   s.IsFaved,
+				IsPremium: s.IsPremium,
 			})
 		}
 		return proto.Marshal(resp)
+
+	case "DeleteStickerFromSet":
+		var req pb.EngineDeleteStickerFromSetRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.DeleteStickerFromSet(req.AccountId, req.FileId); err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineDeleteStickerFromSetResponse{Success: true}
+		return proto.Marshal(resp)
+
+	case "GetCreatedStickerSets":
+		var req struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		sets, err := e.GetCreatedStickerSets(req.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(sets)
+
+	case "AddStickerToExistingSet":
+		var req struct {
+			AccountID  string `json:"account_id"`
+			SetID      int64  `json:"set_id"`
+			AccessHash int64  `json:"access_hash"`
+			FileID     int64  `json:"file_id"`
+			Emoji      string `json:"emoji"`
+		}
+		if err := json.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.AddStickerToExistingSet(req.AccountID, req.SetID, req.AccessHash, req.FileID, req.Emoji); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"success": true})
 
 	case "GetStickerSuggestions":
 		var req pb.EngineGetStickerSuggestionsRequest

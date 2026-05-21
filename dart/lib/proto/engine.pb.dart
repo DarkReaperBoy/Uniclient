@@ -11977,6 +11977,8 @@ class EngineStickerInfo extends $pb.GeneratedMessage {
     $core.int? height,
     $core.String? mimeType,
     $core.String? fileId,
+    $core.bool? isFaved,
+    $core.bool? isPremium,
   }) {
     final $result = create();
     if (emoji != null) {
@@ -11997,6 +11999,12 @@ class EngineStickerInfo extends $pb.GeneratedMessage {
     if (fileId != null) {
       $result.fileId = fileId;
     }
+    if (isFaved != null) {
+      $result.isFaved = isFaved;
+    }
+    if (isPremium != null) {
+      $result.isPremium = isPremium;
+    }
     return $result;
   }
   EngineStickerInfo._() : super();
@@ -12010,6 +12018,8 @@ class EngineStickerInfo extends $pb.GeneratedMessage {
     ..a<$core.int>(4, _omitFieldNames ? '' : 'height', $pb.PbFieldType.O3)
     ..aOS(5, _omitFieldNames ? '' : 'mimeType')
     ..aOS(6, _omitFieldNames ? '' : 'fileId')
+    ..aOB(7, _omitFieldNames ? '' : 'isFaved')
+    ..aOB(8, _omitFieldNames ? '' : 'isPremium')
     ..hasRequiredFields = false
   ;
 
@@ -12087,6 +12097,24 @@ class EngineStickerInfo extends $pb.GeneratedMessage {
   $core.bool hasFileId() => $_has(5);
   @$pb.TagNumber(6)
   void clearFileId() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get isFaved => $_getBF(6);
+  @$pb.TagNumber(7)
+  set isFaved($core.bool v) { $_setBool(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasIsFaved() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearIsFaved() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.bool get isPremium => $_getBF(7);
+  @$pb.TagNumber(8)
+  set isPremium($core.bool v) { $_setBool(7, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasIsPremium() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearIsPremium() => clearField(8);
 }
 
 class EngineGetStickerSetInfoResponse extends $pb.GeneratedMessage {
@@ -12101,6 +12129,10 @@ class EngineGetStickerSetInfoResponse extends $pb.GeneratedMessage {
     $core.Iterable<EngineStickerInfo>? stickers,
     $core.bool? masks,
     $core.bool? emojis,
+    $core.bool? isCreator,
+    $core.bool? isPremium,
+    $fixnum.Int64? setId,
+    $fixnum.Int64? accessHash,
   }) {
     final $result = create();
     if (title != null) {
@@ -12133,6 +12165,18 @@ class EngineGetStickerSetInfoResponse extends $pb.GeneratedMessage {
     if (emojis != null) {
       $result.emojis = emojis;
     }
+    if (isCreator != null) {
+      $result.isCreator = isCreator;
+    }
+    if (isPremium != null) {
+      $result.isPremium = isPremium;
+    }
+    if (setId != null) {
+      $result.setId = setId;
+    }
+    if (accessHash != null) {
+      $result.accessHash = accessHash;
+    }
     return $result;
   }
   EngineGetStickerSetInfoResponse._() : super();
@@ -12150,6 +12194,10 @@ class EngineGetStickerSetInfoResponse extends $pb.GeneratedMessage {
     ..pc<EngineStickerInfo>(8, _omitFieldNames ? '' : 'stickers', $pb.PbFieldType.PM, subBuilder: EngineStickerInfo.create)
     ..aOB(9, _omitFieldNames ? '' : 'masks')
     ..aOB(10, _omitFieldNames ? '' : 'emojis')
+    ..aOB(11, _omitFieldNames ? '' : 'isCreator')
+    ..aOB(12, _omitFieldNames ? '' : 'isPremium')
+    ..aInt64(13, _omitFieldNames ? '' : 'setId')
+    ..aInt64(14, _omitFieldNames ? '' : 'accessHash')
     ..hasRequiredFields = false
   ;
 
@@ -12257,6 +12305,114 @@ class EngineGetStickerSetInfoResponse extends $pb.GeneratedMessage {
   $core.bool hasEmojis() => $_has(9);
   @$pb.TagNumber(10)
   void clearEmojis() => clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.bool get isCreator => $_getBF(10);
+  @$pb.TagNumber(11)
+  set isCreator($core.bool v) { $_setBool(10, v); }
+  @$pb.TagNumber(11)
+  $core.bool hasIsCreator() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearIsCreator() => clearField(11);
+
+  @$pb.TagNumber(12)
+  $core.bool get isPremium => $_getBF(11);
+  @$pb.TagNumber(12)
+  set isPremium($core.bool v) { $_setBool(11, v); }
+  @$pb.TagNumber(12)
+  $core.bool hasIsPremium() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearIsPremium() => clearField(12);
+
+  @$pb.TagNumber(13)
+  $fixnum.Int64 get setId => $_getI64(12);
+  @$pb.TagNumber(13)
+  set setId($fixnum.Int64 v) { $_setInt64(12, v); }
+  @$pb.TagNumber(13)
+  $core.bool hasSetId() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearSetId() => clearField(13);
+
+  @$pb.TagNumber(14)
+  $fixnum.Int64 get accessHash => $_getI64(13);
+  @$pb.TagNumber(14)
+  set accessHash($fixnum.Int64 v) { $_setInt64(13, v); }
+  @$pb.TagNumber(14)
+  $core.bool hasAccessHash() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearAccessHash() => clearField(14);
+}
+
+class EngineDeleteStickerFromSetRequest extends $pb.GeneratedMessage {
+  factory EngineDeleteStickerFromSetRequest({
+    $core.String? accountId,
+    $fixnum.Int64? fileId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (fileId != null) {
+      $result.fileId = fileId;
+    }
+    return $result;
+  }
+  EngineDeleteStickerFromSetRequest._() : super();
+  factory EngineDeleteStickerFromSetRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineDeleteStickerFromSetRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aInt64(2, _omitFieldNames ? '' : 'fileId')
+    ..hasRequiredFields = false
+  ;
+
+  EngineDeleteStickerFromSetRequest clone() => EngineDeleteStickerFromSetRequest()..mergeFromMessage(this);
+
+  @$core.pragma('dart2js:noInline')
+  static EngineDeleteStickerFromSetRequest create() => EngineDeleteStickerFromSetRequest._();
+  EngineDeleteStickerFromSetRequest createEmptyInstance() => create();
+  $pb.BuilderInfo get info_ => _i;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get fileId => $_getI64(1);
+  @$pb.TagNumber(2)
+  set fileId($fixnum.Int64 v) { $_setInt64(1, v); }
+}
+
+class EngineDeleteStickerFromSetResponse extends $pb.GeneratedMessage {
+  factory EngineDeleteStickerFromSetResponse({
+    $core.bool? success,
+  }) {
+    final $result = create();
+    if (success != null) {
+      $result.success = success;
+    }
+    return $result;
+  }
+  EngineDeleteStickerFromSetResponse._() : super();
+  factory EngineDeleteStickerFromSetResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineDeleteStickerFromSetResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'success')
+    ..hasRequiredFields = false
+  ;
+
+  EngineDeleteStickerFromSetResponse clone() => EngineDeleteStickerFromSetResponse()..mergeFromMessage(this);
+
+  @$core.pragma('dart2js:noInline')
+  static EngineDeleteStickerFromSetResponse create() => EngineDeleteStickerFromSetResponse._();
+  EngineDeleteStickerFromSetResponse createEmptyInstance() => create();
+  $pb.BuilderInfo get info_ => _i;
+
+  @$pb.TagNumber(1)
+  $core.bool get success => $_getBF(0);
+  @$pb.TagNumber(1)
+  set success($core.bool v) { $_setBool(0, v); }
 }
 
 class EngineTranscribeAudioRequest extends $pb.GeneratedMessage {

@@ -1236,12 +1236,16 @@ class EngineService {
         height: s.height,
         mimeType: s.mimeType,
         fileId: s.fileId,
+        isFaved: s.isFaved,
+        isPremium: s.isPremium,
       )).toList();
+      final rSetId = resp.hasSetId() ? resp.setId.toInt() : setId;
+      final rAccessHash = resp.hasAccessHash() ? resp.accessHash.toInt() : accessHash;
       return StickerSetInfo(
         title: resp.title,
         shortName: resp.shortName,
-        setId: setId,
-        accessHash: accessHash,
+        setId: rSetId,
+        accessHash: rAccessHash,
         count: resp.count,
         installed: resp.installed,
         archived: resp.archived,
@@ -1249,7 +1253,8 @@ class EngineService {
         video: resp.video,
         masks: resp.masks,
         emojis: resp.emojis,
-        isPremium: stickerItems.any((s) => s.isPremium),
+        isPremium: resp.isPremium || stickerItems.any((s) => s.isPremium),
+        isCreator: resp.isCreator,
         stickers: stickerItems,
       );
     } catch (e) {
@@ -1881,6 +1886,59 @@ class EngineService {
       return true;
     } catch (e) {
       Debug.error('ENGINE', 'removeRecentSticker failed', e);
+      return false;
+    }
+  }
+
+  Future<List<StickerSetInfo>> getCreatedStickerSets(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetCreatedStickerSets', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final data = json.decode(utf8.decode(respBytes)) as List<dynamic>;
+      return data.map((item) {
+        final m = item as Map<String, dynamic>;
+        return StickerSetInfo(
+          title: m['title'] as String? ?? '',
+          shortName: m['short_name'] as String? ?? '',
+          setId: (m['set_id'] as num?)?.toInt() ?? 0,
+          accessHash: (m['access_hash'] as num?)?.toInt() ?? 0,
+          count: (m['count'] as num?)?.toInt() ?? 0,
+          isCreator: true,
+        );
+      }).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getCreatedStickerSets failed', e);
+      return [];
+    }
+  }
+
+  Future<bool> addStickerToExistingSet(String accountId, int setId, int accessHash, int fileId, String emoji) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'set_id': setId,
+      'access_hash': accessHash,
+      'file_id': fileId,
+      'emoji': emoji,
+    }));
+    try {
+      await _callAsync('__engine', 'AddStickerToExistingSet', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'addStickerToExistingSet failed', e);
+      return false;
+    }
+  }
+
+  Future<bool> deleteStickerFromSet(String accountId, int fileId) async {
+    final req = epb.EngineDeleteStickerFromSetRequest()
+      ..accountId = accountId
+      ..fileId = Int64(fileId);
+    try {
+      await _callAsync('__engine', 'DeleteStickerFromSet', req.writeToBuffer());
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'deleteStickerFromSet failed', e);
       return false;
     }
   }

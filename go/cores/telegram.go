@@ -13446,15 +13446,22 @@ func (t *TelegramCore) GetStickerSetInfo(shortName string, setID int64, accessHa
 	}
 
 	_, installed := stickerSet.Set.GetInstalledDate()
+	setIsPremium := stickerSet.Set.Official && stickerSet.Set.Emojis
 	res := &StickerSetResult{
-		Title:     stickerSet.Set.Title,
-		ShortName: stickerSet.Set.ShortName,
-		Count:     stickerSet.Set.Count,
-		Installed: installed,
-		Archived:  stickerSet.Set.Archived,
-		Masks:     stickerSet.Set.Masks,
-		Emojis:    stickerSet.Set.Emojis,
+		Title:      stickerSet.Set.Title,
+		ShortName:  stickerSet.Set.ShortName,
+		Count:      stickerSet.Set.Count,
+		Installed:  installed,
+		Archived:   stickerSet.Set.Archived,
+		Masks:      stickerSet.Set.Masks,
+		Emojis:     stickerSet.Set.Emojis,
+		IsCreator:  stickerSet.Set.Creator,
+		IsPremium:  setIsPremium,
+		SetID:      stickerSet.Set.ID,
+		AccessHash: stickerSet.Set.AccessHash,
 	}
+
+	favedIDs := t.getFavedStickerIDs()
 
 	for _, doc := range stickerSet.Documents {
 		d, ok := doc.(*tg.Document)
@@ -13468,6 +13475,7 @@ func (t *TelegramCore) GetStickerSetInfo(shortName string, setID int64, accessHa
 			ThumbB64: extractStrippedThumbB64(d.Thumbs),
 			MimeType: d.MimeType,
 			FileID:   strconv.FormatInt(d.ID, 10),
+			IsFaved:  favedIDs[d.ID],
 		}
 		for _, attr := range d.Attributes {
 			switch a := attr.(type) {
@@ -13477,11 +13485,105 @@ func (t *TelegramCore) GetStickerSetInfo(shortName string, setID int64, accessHa
 			case *tg.DocumentAttributeVideo:
 				si.Width = a.W
 				si.Height = a.H
+			case *tg.DocumentAttributeCustomEmoji:
+				if !a.Free {
+					si.IsPremium = true
+				}
 			}
 		}
 		res.Stickers = append(res.Stickers, si)
 	}
 	return res, nil
+}
+
+func (t *TelegramCore) getFavedStickerIDs() map[int64]bool {
+	result, err := t.api.MessagesGetFavedStickers(t.ctx, 0)
+	if err != nil {
+		return nil
+	}
+	fs, ok := result.(*tg.MessagesFavedStickers)
+	if !ok {
+		return nil
+	}
+	ids := make(map[int64]bool, len(fs.Stickers))
+	for _, doc := range fs.Stickers {
+		if d, ok := doc.(*tg.Document); ok {
+			ids[d.ID] = true
+		}
+	}
+	return ids
+}
+
+// DeleteStickerFromSet removes a sticker from its set (creator only).
+func (t *TelegramCore) DeleteStickerFromSet(fileID int64) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	accessHash := t.getCachedFileHash(fileID)
+	fileRef := t.getCachedFileRef(fileID)
+	_, err := t.StickersRemoveStickerFromSet(&tg.InputDocument{
+		ID:            fileID,
+		AccessHash:    accessHash,
+		FileReference: fileRef,
+	})
+	return err
+}
+
+// GetCreatedStickerSets returns sticker sets created by the user.
+func (t *TelegramCore) GetCreatedStickerSets() ([]StickerSetResult, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	result, err := t.api.MessagesGetAllStickers(t.ctx, 0)
+	if err != nil {
+		return nil, fmt.Errorf("get all stickers: %w", err)
+	}
+	allStickers, ok := result.(*tg.MessagesAllStickers)
+	if !ok {
+		return nil, nil
+	}
+	var created []StickerSetResult
+	for _, s := range allStickers.Sets {
+		if !s.Creator {
+			continue
+		}
+		created = append(created, StickerSetResult{
+			Title:      s.Title,
+			ShortName:  s.ShortName,
+			SetID:      s.ID,
+			AccessHash: s.AccessHash,
+			Count:      s.Count,
+			IsCreator:  true,
+		})
+	}
+	return created, nil
+}
+
+// AddStickerToExistingSet adds a sticker to a user-created sticker set.
+func (t *TelegramCore) AddStickerToExistingSet(setID, accessHash, fileID int64, emoji string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	docAccessHash := t.getCachedFileHash(fileID)
+	fileRef := t.getCachedFileRef(fileID)
+	_, err := t.StickersAddStickerToSet(&tg.StickersAddStickerToSetRequest{
+		Stickerset: &tg.InputStickerSetID{ID: setID, AccessHash: accessHash},
+		Sticker: tg.InputStickerSetItem{
+			Document: &tg.InputDocument{
+				ID:            fileID,
+				AccessHash:    docAccessHash,
+				FileReference: fileRef,
+			},
+			Emoji: emoji,
+		},
+	})
+	return err
 }
 
 func (t *TelegramCore) GetStickerSuggestions(emoji string) ([]StickerInfo, error) {

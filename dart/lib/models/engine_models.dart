@@ -2732,6 +2732,7 @@ class StickerSetInfo {
   final bool official;
   final bool isPremium;
   final bool userPremium;
+  final bool isCreator;
   final List<StickerInfoItem> stickers;
 
   const StickerSetInfo({
@@ -2749,8 +2750,28 @@ class StickerSetInfo {
     this.official = false,
     this.isPremium = false,
     this.userPremium = false,
+    this.isCreator = false,
     this.stickers = const [],
   });
+
+  StickerSetInfo copyWithStickers(List<StickerInfoItem> newStickers) => StickerSetInfo(
+    title: title,
+    shortName: shortName,
+    setId: setId,
+    accessHash: accessHash,
+    count: count,
+    installed: installed,
+    archived: archived,
+    animated: animated,
+    video: video,
+    masks: masks,
+    emojis: emojis,
+    official: official,
+    isPremium: isPremium,
+    userPremium: userPremium,
+    isCreator: isCreator,
+    stickers: newStickers,
+  );
 }
 
 class CustomEmojiThumbData {
