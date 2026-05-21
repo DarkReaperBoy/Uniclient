@@ -138,22 +138,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # ayu_toggle — clean
 
-## call_panel — cleanup
-
-- [ ] [CRITICAL] "Get Shareable Link" flow calls `endCall` before `joinGroupCall` with no try-catch — if `joinGroupCall` throws after the P2P call is dropped, the user is left with no active call and no error feedback; compare the 'invite' flow at line 442 which correctly joins first, then ends — `call_panel.dart:470-474`
-
-- [ ] [CRITICAL] `_LiveCallPanelDialog` wraps `CallPanel` in a hardcoded `SizedBox(width: 720, height: 540)` — on a 400px mobile screen the dialog overflows and is unusable; needs `LayoutBuilder`/`MediaQuery` to constrain to screen size — `call_panel.dart:2248-2250`
-
-- [ ] [MAJOR] macOS device enumeration adds `coreaudio_output_source` devices (speakers/headphones) to `_cameraDevices` — `SPAudioDataType` output sources are audio outputs, not cameras; only `SPCameraDataType` items should go into the cameras list — `call_panel.dart:203-206`
-
-- [ ] [MAJOR] `_buildUserpic` calls `File(url).existsSync()` synchronously inside `build()` on every rebuild — blocking I/O on the UI thread; should cache the existence check or use `FutureBuilder` — `call_panel.dart:673`
-
-- [ ] [MAJOR] `_SelfViewBubble` uses `_snapController.addListener(() => setState(() {}))` — rebuilds the entire bubble subtree on every animation frame during the snap; replace with `AnimatedBuilder` scoped to the positioned child — `call_panel.dart:2001`
-
-- [ ] [MAJOR] `_durationTimer` calls `setState` on the root `_CallPanelState` every second — forces a full rebuild of the entire call panel (including video widgets) just to update a `mm:ss` counter; extract the timer display into a `ValueListenableBuilder` with a `ValueNotifier<int>` — `call_panel.dart:321-327`
-
-- [ ] [MAJOR] `_filteredContacts` getter allocates a new filtered list on every `build()` call — no memoization; fires on every keystroke `setState` in the search field; cache the result and only recompute when `_searchQuery` or `_contacts` changes — `call_panel.dart:1442-1450`
-
 ## call_screen — cleanup
 
 - [ ] [CRITICAL] `_showJoinAsChooser` onTap (line 1360–1362) just calls `Navigator.pop(ctx)` — selecting an account does nothing; no engine call to rejoin/switch identity. The entire "Join As..." feature is a non-functional stub. Need to call `engine.joinGroupCall(selectedAccountId, callId)` and update the active account in the panel. — `call_screen.dart:1360`
