@@ -135,12 +135,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 
 
-## ayugram_settings_screen — cleanup
-
-- [ ] [MAJOR] `launchUrl` return value discarded with no error handling at line 249 — if no browser/handler is installed on Linux the link silently does nothing, user gets zero feedback — `ayugram_settings_screen.dart:249`
-- [ ] [MAJOR] Four consecutive `const SizedBox(height: 8)` at lines 118-121 — should be a single `const SizedBox(height: 32)`; confusing and fragile if spacing ever needs adjusting — `ayugram_settings_screen.dart:118`
-- [ ] [MAJOR] `Image.asset` at line 72 decoded at full PNG resolution — display size is 100 dp (up to 300px at 3× DPR) but no `cacheWidth`/`cacheHeight` hint, so a 512×512 app icon PNG is decoded at full size and held in the image cache — `ayugram_settings_screen.dart:72`
-
 ## ayu_other_page — cleanup
 
 - [ ] [CRITICAL] `_SupportDescription` creates `TapGestureRecognizer()` inline in `build()` (line 409) — a new recognizer is allocated on every parent rebuild and the previous one is never disposed, leaking `GestureRecognizer` objects. Must be converted to a `StatefulWidget` with `late final TapGestureRecognizer _recognizer` initialized in `initState()` and disposed in `dispose()`, same pattern as `_DonateInfoBoxState` — `ayu_other_page.dart:409`
