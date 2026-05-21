@@ -100,6 +100,7 @@ void main() {
   final engineService = EngineService();
 
   final appState = AppState(engineService);
+  final audioService = AudioService(engineService);
 
   runApp(
     MultiProvider(
@@ -108,7 +109,7 @@ void main() {
         ChangeNotifierProvider.value(value: appState),
         ChangeNotifierProvider(create: (_) => ChatState(engineService, appState)),
         ChangeNotifierProvider(create: (_) => AuthState(engineService)),
-        ChangeNotifierProvider(create: (_) => AudioService(engineService)),
+        ChangeNotifierProvider.value(value: audioService),
       ],
       child: const UniClientApp(),
     ),
@@ -319,6 +320,10 @@ class _UniClientAppState extends State<UniClientApp>
       cacheDir: cacheDir,
       downloadDir: downloadDir,
     );
+
+    if (!kIsWeb && configDir.isNotEmpty) {
+      context.read<AudioService>().setConfigDir(configDir);
+    }
 
     if (appState.spellcheckerEnabled) {
       UniSpellCheckService.instance.loadDictionaries(appState.enabledDictionaries);

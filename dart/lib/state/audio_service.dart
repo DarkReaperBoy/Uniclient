@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 
@@ -33,7 +35,12 @@ class AudioService extends ChangeNotifier {
 
   static const _kMinLengthSavePosMusicSec = 20 * 60;
   static const _kMinLengthSavePosVideoSec = 60;
-  static final Map<String, Duration> _savedPositions = {};
+  static const _kPositionNotifyThrottleMs = 250;
+  final Map<String, Duration> _savedPositions = {};
+  String _configDir = '';
+  Timer? _positionSaveTimer;
+  Timer? _positionNotifyTimer;
+  DateTime _lastPositionNotify = DateTime.fromMillisecondsSinceEpoch(0);
 
   String get currentMsgId => _currentMsgId;
   bool get playing => _playing;
@@ -51,6 +58,57 @@ class AudioService extends ChangeNotifier {
 
   bool isPlayingMsg(String msgId) => _currentMsgId == msgId && _playing;
   bool isActiveMsg(String msgId) => _currentMsgId == msgId;
+
+  void setConfigDir(String dir) {
+    _configDir = dir;
+    _loadSavedPositions();
+  }
+
+  void _loadSavedPositions() {
+    if (_configDir.isEmpty || kIsWeb) return;
+    try {
+      final file = File('$_configDir/audio_positions.json');
+      if (file.existsSync()) {
+        final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+        _savedPositions.clear();
+        for (final entry in data.entries) {
+          _savedPositions[entry.key] = Duration(milliseconds: entry.value as int);
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _persistSavedPositions() {
+    if (_configDir.isEmpty || kIsWeb) return;
+    _positionSaveTimer?.cancel();
+    _positionSaveTimer = Timer(const Duration(milliseconds: 500), () {
+      try {
+        final data = <String, int>{};
+        for (final entry in _savedPositions.entries) {
+          data[entry.key] = entry.value.inMilliseconds;
+        }
+        File('$_configDir/audio_positions.json')
+            .writeAsStringSync(jsonEncode(data));
+      } catch (_) {}
+    });
+  }
+
+  void _schedulePositionNotify() {
+    if (_positionNotifyTimer?.isActive == true) return;
+    final elapsed = DateTime.now().difference(_lastPositionNotify).inMilliseconds;
+    if (elapsed >= _kPositionNotifyThrottleMs) {
+      _lastPositionNotify = DateTime.now();
+      notifyListeners();
+    } else {
+      _positionNotifyTimer = Timer(
+        Duration(milliseconds: _kPositionNotifyThrottleMs - elapsed),
+        () {
+          _lastPositionNotify = DateTime.now();
+          notifyListeners();
+        },
+      );
+    }
+  }
 
   void togglePlayback() {
     if (_player == null) return;
@@ -113,7 +171,7 @@ class AudioService extends ChangeNotifier {
     _subs.add(player.stream.position.listen((v) {
       if (_player != player) return;
       _position = v;
-      notifyListeners();
+      _schedulePositionNotify();
     }));
     _subs.add(player.stream.duration.listen((v) {
       if (_player != player) return;
@@ -136,6 +194,7 @@ class AudioService extends ChangeNotifier {
       if (savedPos != null && savedPos > Duration.zero) {
         await player.seek(savedPos);
         _savedPositions.remove(_currentDocId);
+        _persistSavedPositions();
       }
     } catch (e) {
       debugPrint('AudioService: failed to open $filePath: $e');
@@ -227,6 +286,7 @@ class AudioService extends ChangeNotifier {
     final minSec = _isSong ? _kMinLengthSavePosMusicSec : _kMinLengthSavePosVideoSec;
     if (totalSec >= minSec) {
       _savedPositions[_currentDocId] = _position;
+      _persistSavedPositions();
     }
   }
 
@@ -264,8 +324,20 @@ class AudioService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _positionNotifyTimer?.cancel();
+    _positionSaveTimer?.cancel();
     _pauseTimer?.cancel();
-    stop();
+    _savePositionIfNeeded();
+    _accumulateListenTime();
+    _reportListenIfNeeded();
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _subs.clear();
+    final old = _player;
+    _player = null;
+    _playing = false;
+    old?.dispose();
     super.dispose();
   }
 }
