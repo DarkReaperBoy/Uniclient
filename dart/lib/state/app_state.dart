@@ -3320,7 +3320,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _adaptiveCoverColor = data['adaptiveCoverColor'] as bool? ?? true;
       _simpleQuotesAndReplies = data['simpleQuotesAndReplies'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
-      _wideMultiplier = (data['wideMultiplier'] as num?)?.toDouble() ?? 1.0;
+      _wideMultiplier = ((data['wideMultiplier'] as num?)?.toDouble() ?? 1.0).clamp(1.0, 4.0);
       _uiScalePercent = (data['uiScalePercent'] as num?)?.toDouble() ?? 100.0;
       _ivZoom = (data['ivZoom'] as num?)?.toDouble() ?? 1.0;
       _showNightModeToggleInDrawer = data['showNightModeToggleInDrawer'] as bool? ?? true;

@@ -119,6 +119,7 @@ class AyuChatsPage extends StatelessWidget {
       deletedMark: appState.deletedMark,
       editedMark: appState.editedMark,
       hideFastShare: appState.hideFastShare,
+      userName: appState.activeAccount?.displayName ?? 'You',
       isDark: isDark,
     ));
     b.addSettingToggle(
@@ -494,19 +495,22 @@ class _BubbleRadiusSliderState extends State<_BubbleRadiusSlider> {
               onChanged: (v) {
                 final newVal = v.round();
                 setState(() => _localValue = newVal);
-                widget.onChanged(newVal);
               },
               onChangeEnd: (v) {
                 final newVal = v.round();
-                if (newVal == _committedValue) {
-                  return;
-                }
-                _committedValue = newVal;
+                if (newVal == _committedValue) return;
                 showConfirmBox(
                   context,
                   title: 'Restart Required',
                   text: 'Some settings will be applied after restarting.',
-                  confirmText: 'OK',
+                  confirmText: 'Apply',
+                  cancelText: 'Cancel',
+                  onConfirm: () {
+                    _committedValue = newVal;
+                    widget.onChanged(newVal);
+                  },
+                  onCancel: () =>
+                      setState(() => _localValue = _committedValue),
                 );
               },
             ),
@@ -669,6 +673,7 @@ class _MessagePreviewStandalone extends StatelessWidget {
   final String deletedMark;
   final String editedMark;
   final bool hideFastShare;
+  final String userName;
   final bool isDark;
 
   const _MessagePreviewStandalone({
@@ -680,14 +685,13 @@ class _MessagePreviewStandalone extends StatelessWidget {
     required this.deletedMark,
     required this.editedMark,
     required this.hideFastShare,
+    required this.userName,
     required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    final appState = context.read<AppState>();
-    final userName = appState.activeAccount?.displayName ?? 'You';
     final radiusLarge = bubbleRadius.toDouble();
     final radiusSmall = showTail
         ? (radiusLarge * 6 / 16).clamp(0.0, 6.0)
