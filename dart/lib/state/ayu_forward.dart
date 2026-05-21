@@ -90,7 +90,7 @@ class AyuForward {
     final p = _activeForwards[peerId];
     if (p == null) return false;
     return p.phase != AyuForwardPhase.finished
-        && p.chunkIndex < p.totalChunks
+        && p.chunkIndex <= p.totalChunks
         && !p.isCancelled
         && ((p.totalChunks > 0 && p.totalCount > 0) || p.phase == AyuForwardPhase.downloading);
   }
@@ -109,7 +109,6 @@ class AyuForward {
     progress.update(phase: AyuForwardPhase.finished, sent: sent);
     Future.delayed(const Duration(seconds: 2), () {
       _activeForwards.remove(toChatId);
-      progress.dispose();
     });
   }
 
@@ -275,7 +274,6 @@ class AyuForward {
       progress?.update(phase: AyuForwardPhase.finished, sent: sentSoFar);
       Future.delayed(const Duration(seconds: 2), () {
         _activeForwards.remove(toChatId);
-        progress?.dispose();
       });
     }
   }
