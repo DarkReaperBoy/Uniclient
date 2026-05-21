@@ -12,6 +12,10 @@ class TrStrings {
   static String lngThemeRevert() => 'Revert';
 
   // Passcode lock (window_lock_widgets.cpp)
+  static String lngPasscodeEnter() => 'Enter your local passcode';
+  static String lngPasscodePh() => 'Your passcode';
+  static String lngPasscodeSubmit() => 'Submit';
+  static String lngPasscodeLogout() => 'Log out';
   static String lngPasscodeWrong() => 'Wrong passcode';
   static String lngFloodError() => 'Too many tries. Please try again later.';
 

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Directory, File, Platform, exit;
+import 'dart:io' show Directory, File, Platform, Process, ProcessStartMode, exit;
 import 'dart:math' show pi, sin;
 import 'dart:ui' as ui show Image;
 import 'dart:ui' show PointerChange, PointerDeviceKind, PointerData, PointerSignalKind;
@@ -53,12 +53,13 @@ import 'package:media_kit/media_kit.dart';
 
 /// §51.7: `-ghost` CLI flag — forces Ghost Mode on at startup.
 bool _cliGhostFlag = false;
+String _cliAccountId = '';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
 
-  // §51.7: Parse -ghost CLI flag.
+  // §51.7: Parse -ghost CLI flag and --account <id> for separate window.
   if (!kIsWeb) {
     var args = Platform.executableArguments;
     if (Platform.isLinux) {
@@ -72,6 +73,10 @@ void main() {
     }
     if (args.contains('-ghost') || args.contains('--ghost')) {
       _cliGhostFlag = true;
+    }
+    final accountIdx = args.indexOf('--account');
+    if (accountIdx >= 0 && accountIdx + 1 < args.length) {
+      _cliAccountId = args[accountIdx + 1];
     }
   }
 
@@ -324,6 +329,11 @@ class _UniClientAppState extends State<UniClientApp>
       appState.setGhostModeEnabled(true);
     }
 
+    // Apply --account CLI arg — switch to specified account for separate window.
+    if (_cliAccountId.isNotEmpty) {
+      appState.setActiveAccountId(_cliAccountId);
+    }
+
     // Initialize folder state for the active account.
     if (appState.activeAccountId.isNotEmpty) {
       chatState.switchAccount(appState.activeAccountId);
@@ -408,7 +418,10 @@ class _UniClientAppState extends State<UniClientApp>
       // Matches AyuGram's TrayAccountsMenu::Fill: only shown when >1 account.
       _tray.onAccountSwitch = (accountId, {bool ctrlPressed = false}) {
         if (ctrlPressed) {
-          Debug.log('TRAY', 'Ctrl+click account $accountId — separate window requested');
+          Debug.log('TRAY', 'Ctrl+click account $accountId — opening separate window');
+          Process.start(Platform.resolvedExecutable, ['--account', accountId],
+              mode: ProcessStartMode.detached);
+          return;
         }
         appState.setActiveAccountId(accountId);
         chatState.switchAccount(accountId);
@@ -2220,6 +2233,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
   static const _animDuration = Duration(milliseconds: 200);
 
   final _escapeFocus = FocusNode();
+  final _stopwatch = Stopwatch();
   Timer? _countdownTimer;
   int _remainingMs = _totalMs;
   bool _visible = false;
@@ -2240,10 +2254,12 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
     _visible = true;
     _mounted = true;
     _remainingMs = _totalMs;
+    _stopwatch.reset();
+    _stopwatch.start();
     _escapeFocus.requestFocus();
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      _remainingMs -= 100;
+      _remainingMs = _totalMs - _stopwatch.elapsedMilliseconds;
       if (_remainingMs <= 0) {
         _revert();
       } else {
@@ -2256,6 +2272,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
     _visible = false;
     _countdownTimer?.cancel();
     _countdownTimer = null;
+    _stopwatch.stop();
     setState(() {});
   }
 
@@ -2278,6 +2295,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _stopwatch.stop();
     _escapeFocus.dispose();
     super.dispose();
   }
@@ -2621,7 +2639,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                   right: 0,
                   top: inputY - 80,
                   child: Text(
-                    'Please enter your passcode',
+                    TrStrings.lngPasscodeEnter(),
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 19, color: textColor),
                   ),
@@ -2652,7 +2670,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                             onChanged: (_) => _clearError(),
                             onSubmitted: (_) => _submit(),
                             decoration: InputDecoration(
-                              hintText: 'Your passcode',
+                              hintText: TrStrings.lngPasscodePh(),
                               hintStyle: TextStyle(color: subtextColor),
                               enabledBorder: UnderlineInputBorder(
                                 borderSide: BorderSide(color: enabledColor),
@@ -2699,9 +2717,9 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                           borderRadius: BorderRadius.circular(6),
                         ),
                       ),
-                      child: const Text(
-                        'Submit',
-                        style: TextStyle(fontSize: 15, color: Colors.white),
+                      child: Text(
+                        TrStrings.lngPasscodeSubmit(),
+                        style: const TextStyle(fontSize: 15, color: Colors.white),
                       ),
                     ),
                   ),
@@ -2734,7 +2752,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                   child: GestureDetector(
                     onTap: _confirmLogout,
                     child: Text(
-                      'Log out',
+                      TrStrings.lngPasscodeLogout(),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
