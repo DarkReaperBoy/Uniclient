@@ -138,20 +138,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # ayu_toggle — clean
 
-# calls_screen — cleanup
-
-- [ ] [CRITICAL] `_ConferenceCallLinkBox` "Join this call yourself" (line 1679): calls `engine.joinGroupCall` but never calls `showGroupCallPanel` — user enters the call with no UI to mute/hang up. Also skips `requestCallPermissions` check. Compare with the functioning join at line 721 which does both. Fix: add permission check, then after join fetch `GroupCallInfo` via `engine.getGroupCall` and call `showGroupCallPanel`. — `calls_screen.dart:1679`
-
-- [ ] [MAJOR] Side effects inside `_InputLevelMeterState.build()` (lines 3042-3047): `_controller.stop()` and `_controller.repeat()` are called conditionally based on `powerSaving` state — mutating an `AnimationController` inside `build()` violates Flutter's pure-build requirement. Move to `didUpdateWidget` or a separate method triggered by `AppState` listener. — `calls_screen.dart:3042`
-
-- [ ] [MAJOR] `_onMsgReceived` at line 274 triggers a full `getCallHistory` API call for every service message (including "X joined group", "Admin changed title", pin events, etc. — confirmed by Go base.go:282 comment). Should filter to call-type service messages only before refreshing. — `calls_screen.dart:274`
-
-- [ ] [MAJOR] `ListView.builder` at line 431 uses `shrinkWrap: true` inside a `Flexible` parent. The `Flexible` already bounds height, so `shrinkWrap` forces the ListView to compute the full content extent on every layout pass, degrading scroll performance for large call histories. Remove `shrinkWrap: true`. — `calls_screen.dart:431`
-
-- [ ] [MAJOR] `Image.file()` at lines 664 and 2140 (group call row and call history row) lack `cacheWidth`/`cacheHeight` — full-resolution avatar images are decoded into memory and then scaled by the widget. Add `cacheWidth: (avatarSize * 2).toInt()` and `cacheHeight: (avatarSize * 2).toInt()`. — `calls_screen.dart:664`, `calls_screen.dart:2140`
-
-- [ ] [MAJOR] `base64Decode(c.avatarB64)` at line 1806 is called inside `_ConfInviteRowState.build()` on every render of each contact row. Base64 decoding is CPU-intensive; with 100s of contacts this fires frequently (search input triggers setState per keystroke). Cache the decoded bytes in a field keyed to the contact, or compute in `initState`/`didUpdateWidget`. — `calls_screen.dart:1806`
-
 ## chat_export — cleanup
 
 - [ ] [CRITICAL] dead branch in `_buildPerChatSettings`: `if (!_isPerChat) _buildSectionHeader('Media export settings', ...)` at line 1851 — `_buildPerChatSettings` is only ever called when `_isPerChat == true` (line 1298–1300), so this condition is always false and the "Media export settings" header is **never rendered** in per-chat mode — media checkboxes appear with no section header above them — `chat_export.dart:1851`
