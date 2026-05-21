@@ -76,6 +76,7 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
   bool _isActive = true;
   bool _oneSideControls = false;
   bool _resizeEnabled = true;
+  bool _mousePressed = false;
   _ButtonLayout _layout = _ButtonLayout.fallback;
 
   @override
@@ -233,12 +234,24 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
         children: [
           ...leftButtons,
           Expanded(
-            child: GestureDetector(
-              onDoubleTap: _toggleMaximize,
-              onSecondaryTapUp: (_) => _showWindowMenu(),
+            child: Listener(
+              onPointerDown: (e) {
+                if (e.buttons & 0x02 != 0) {
+                  _showWindowMenu();
+                } else if (e.buttons & 0x01 != 0) {
+                  _mousePressed = true;
+                }
+              },
+              onPointerUp: (_) => _mousePressed = false,
+              onPointerMove: (_) {
+                if (_mousePressed) {
+                  _mousePressed = false;
+                  _startDrag();
+                }
+              },
               behavior: HitTestBehavior.opaque,
-              child: Listener(
-                onPointerMove: (_) => _startDrag(),
+              child: GestureDetector(
+                onDoubleTap: _toggleMaximize,
                 behavior: HitTestBehavior.opaque,
                 child: const SizedBox.expand(),
               ),
@@ -274,6 +287,63 @@ class _WinButton extends StatefulWidget {
   State<_WinButton> createState() => _WinButtonState();
 }
 
+class _TitleButtonPainter extends CustomPainter {
+  final _ButtonType type;
+  final bool isMaximized;
+  final Color color;
+
+  _TitleButtonPainter({
+    required this.type,
+    required this.isMaximized,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    switch (type) {
+      case _ButtonType.minimize:
+        final y = size.height / 2;
+        canvas.drawLine(Offset(1, y), Offset(size.width - 1, y), paint);
+      case _ButtonType.maximize:
+        if (isMaximized) {
+          canvas.drawRect(const Rect.fromLTWH(0, 2, 7, 7), paint);
+          final path = Path()
+            ..moveTo(2, 2)
+            ..lineTo(2, 0)
+            ..lineTo(9, 0)
+            ..lineTo(9, 7)
+            ..lineTo(7, 7);
+          canvas.drawPath(path, paint);
+        } else {
+          canvas.drawRect(
+            Rect.fromLTWH(0.5, 0.5, size.width - 1, size.height - 1),
+            paint,
+          );
+        }
+      case _ButtonType.close:
+        canvas.drawLine(
+          const Offset(1, 1),
+          Offset(size.width - 1, size.height - 1),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(size.width - 1, 1),
+          Offset(1, size.height - 1),
+          paint,
+        );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TitleButtonPainter old) =>
+      type != old.type || isMaximized != old.isMaximized || color != old.color;
+}
+
 class _WinButtonState extends State<_WinButton> {
   bool _hovered = false;
 
@@ -292,16 +362,13 @@ class _WinButtonState extends State<_WinButton> {
           height: CustomTitlebar.height,
           color: _hovered ? widget.bgOverColor : widget.bgColor,
           alignment: Alignment.center,
-          child: Icon(
-            switch (widget.type) {
-              _ButtonType.minimize => Icons.remove,
-              _ButtonType.maximize => widget.isMaximized
-                  ? Icons.filter_none
-                  : Icons.crop_square,
-              _ButtonType.close => Icons.close,
-            },
-            size: 10,
-            color: _hovered ? widget.fgOverColor : widget.fgColor,
+          child: CustomPaint(
+            size: const Size(10, 10),
+            painter: _TitleButtonPainter(
+              type: widget.type,
+              isMaximized: widget.isMaximized,
+              color: _hovered ? widget.fgOverColor : widget.fgColor,
+            ),
           ),
         ),
       ),

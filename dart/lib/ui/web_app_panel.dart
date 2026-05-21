@@ -64,6 +64,7 @@ class WebAppPanelData {
   final Color? bottomBarColor;
   final String accountId;
   final String botId;
+  final bool allowClipboardRead;
 
   const WebAppPanelData({
     required this.botName,
@@ -75,6 +76,7 @@ class WebAppPanelData {
     this.bottomBarColor,
     this.accountId = '',
     this.botId = '',
+    this.allowClipboardRead = false,
   });
 }
 
@@ -134,7 +136,9 @@ class _WebAppPanelState extends State<WebAppPanel>
   bool _webViewAvailable = false;
   bool _inBlockingRequest = false;
   bool _allowClipboardRead = false;
+  bool _hiddenForPayment = false;
   DateTime _lastWebviewInteraction = DateTime.fromMillisecondsSinceEpoch(0);
+  Size _lastContentSize = Size.zero;
 
   final Map<String, String?> _deviceStorage = {};
 
@@ -163,6 +167,7 @@ class _WebAppPanelState extends State<WebAppPanel>
     _headerColor = widget.data.headerColor;
     _bgColor = widget.data.bgColor;
     _bottomBarColor = widget.data.bottomBarColor;
+    _allowClipboardRead = widget.data.allowClipboardRead;
 
     _progressFade = AnimationController(
       vsync: this,
@@ -261,7 +266,7 @@ class _WebAppPanelState extends State<WebAppPanel>
   void _handleWebAppEvent(String event, Map<String, dynamic> data) {
     switch (event) {
       case 'web_app_close':
-        _close();
+        Navigator.of(context).pop();
       case 'web_app_ready':
         break;
       case 'web_app_setup_main_button':
@@ -435,7 +440,7 @@ class _WebAppPanelState extends State<WebAppPanel>
       engine.callGeneric(
         _accountId,
         'BotHandleLocalUri',
-        {'uri': 'https://t.me$path', 'from_bot': true},
+        {'uri': 'https://t.me$path', 'from_bot': true, 'keep_open': true},
       ).catchError((_) {});
     }
   }
@@ -492,6 +497,7 @@ class _WebAppPanelState extends State<WebAppPanel>
     }
     final engine = _engine;
     if (engine != null && _accountId.isNotEmpty) {
+      setState(() => _hiddenForPayment = true);
       engine.callGeneric(
         _accountId,
         'BotHandleInvoice',
@@ -500,9 +506,11 @@ class _WebAppPanelState extends State<WebAppPanel>
         if (!mounted) return;
         final status = result?['status'] as String? ?? 'failed';
         _postEventToWebView('invoice_closed', {'slug': slug, 'status': status});
+        setState(() => _hiddenForPayment = false);
       }).catchError((_) {
         if (mounted) {
           _postEventToWebView('invoice_closed', {'slug': slug, 'status': 'failed'});
+          setState(() => _hiddenForPayment = false);
         }
       });
     }
@@ -1020,19 +1028,17 @@ class _WebAppPanelState extends State<WebAppPanel>
 
   void _handleSetupButton(Map<String, dynamic> data, {required bool isMain}) {
     setState(() {
-      final prev = isMain ? _mainButton : _secondaryButton;
-      final text = data['text'] as String? ?? prev.text;
-      final emojiId = data['icon_custom_emoji_id'] as String? ?? prev.iconCustomEmojiId;
-      final rawVisible = data['is_visible'] as bool? ?? prev.visible;
+      final text = (data['text'] as String? ?? '').trim();
+      final emojiId = data['icon_custom_emoji_id'] as String?;
+      final rawVisible = data['is_visible'] as bool? ?? false;
       final effectiveVisible = rawVisible && (text.isNotEmpty || (emojiId != null && emojiId.isNotEmpty));
       final updated = WebAppButtonConfig(
         visible: effectiveVisible,
-        active: data['is_active'] as bool? ?? prev.active,
-        showProgress:
-            data['is_progress_visible'] as bool? ?? prev.showProgress,
+        active: data['is_active'] as bool? ?? false,
+        showProgress: data['is_progress_visible'] as bool? ?? false,
         text: text,
-        textColor: _parseColor(data['text_color']) ?? prev.textColor,
-        bgColor: _parseColor(data['color']) ?? prev.bgColor,
+        textColor: _parseColor(data['text_color']),
+        bgColor: _parseColor(data['color']),
         iconCustomEmojiId: emojiId,
       );
       if (isMain) {
@@ -1084,6 +1090,11 @@ class _WebAppPanelState extends State<WebAppPanel>
     final message = data['message'] as String? ?? '';
     final buttons =
         (data['buttons'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+
+    if (message.isEmpty || buttons.isEmpty) {
+      Navigator.of(context).pop();
+      return;
+    }
 
     showDialog<String>(
       context: context,
@@ -1248,77 +1259,126 @@ class _WebAppPanelState extends State<WebAppPanel>
       Offset.zero & overlay.size,
     );
 
+    List<Map<String, dynamic>> downloads = [];
+    final engine = _engine;
+    if (engine != null && _accountId.isNotEmpty) {
+      try {
+        final dlResult = await engine.callGeneric(
+          _accountId,
+          'BotGetDownloads',
+          {'bot_id': _botId},
+        );
+        if (dlResult != null && dlResult['downloads'] is List) {
+          downloads = (dlResult['downloads'] as List)
+              .whereType<Map<String, dynamic>>()
+              .toList();
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+
+    final menuItems = <PopupMenuEntry<String>>[
+      PopupMenuItem<String>(
+        value: 'open_bot',
+        child: Row(children: [
+          Icon(Icons.smart_toy_outlined, size: 20, color: menuFg),
+          const SizedBox(width: 12),
+          Text('Open Bot',
+              style: TextStyle(color: menuFg, fontSize: 14)),
+        ]),
+      ),
+      if (downloads.isNotEmpty) ...[
+        const PopupMenuDivider(),
+        for (final dl in downloads)
+          PopupMenuItem<String>(
+            value: 'download_${dl['id'] ?? ''}',
+            child: Row(children: [
+              Icon(Icons.download_outlined, size: 20, color: menuFg),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  dl['file_name'] as String? ?? 'Download',
+                  style: TextStyle(color: menuFg, fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ]),
+          ),
+        const PopupMenuDivider(),
+      ],
+      if (_hasSettingsButton)
+        PopupMenuItem<String>(
+          value: 'settings',
+          child: Row(children: [
+            Icon(Icons.settings_outlined, size: 20, color: menuFg),
+            const SizedBox(width: 12),
+            Text('Settings',
+                style: TextStyle(color: menuFg, fontSize: 14)),
+          ]),
+        ),
+      PopupMenuItem<String>(
+        value: 'reload',
+        child: Row(children: [
+          Icon(Icons.refresh, size: 20, color: menuFg),
+          const SizedBox(width: 12),
+          Text('Reload Page',
+              style: TextStyle(color: menuFg, fontSize: 14)),
+        ]),
+      ),
+      PopupMenuItem<String>(
+        value: 'terms',
+        child: Row(children: [
+          Icon(Icons.description_outlined, size: 20, color: menuFg),
+          const SizedBox(width: 12),
+          Text('Terms of Use',
+              style: TextStyle(color: menuFg, fontSize: 14)),
+        ]),
+      ),
+      PopupMenuItem<String>(
+        value: 'privacy',
+        child: Row(children: [
+          Icon(Icons.privacy_tip_outlined, size: 20, color: menuFg),
+          const SizedBox(width: 12),
+          Text('Privacy Policy',
+              style: TextStyle(color: menuFg, fontSize: 14)),
+        ]),
+      ),
+      PopupMenuItem<String>(
+        value: 'remove_menu',
+        child: Row(children: [
+          Icon(Icons.delete_outline, size: 20, color: menuFg),
+          const SizedBox(width: 12),
+          Text('Remove from Menu',
+              style: TextStyle(color: menuFg, fontSize: 14)),
+        ]),
+      ),
+    ];
+
     final result = await showMenu<String>(
       context: context,
       position: position,
       constraints: BoxConstraints(maxHeight: _kMenuMaxHeight),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       color: menuBg,
-      items: [
-        PopupMenuItem<String>(
-          value: 'open_bot',
-          child: Row(children: [
-            Icon(Icons.smart_toy_outlined, size: 20, color: menuFg),
-            const SizedBox(width: 12),
-            Text('Open Bot',
-                style: TextStyle(color: menuFg, fontSize: 14)),
-          ]),
-        ),
-        if (_hasSettingsButton)
-          PopupMenuItem<String>(
-            value: 'settings',
-            child: Row(children: [
-              Icon(Icons.settings_outlined, size: 20, color: menuFg),
-              const SizedBox(width: 12),
-              Text('Settings',
-                  style: TextStyle(color: menuFg, fontSize: 14)),
-            ]),
-          ),
-        PopupMenuItem<String>(
-          value: 'reload',
-          child: Row(children: [
-            Icon(Icons.refresh, size: 20, color: menuFg),
-            const SizedBox(width: 12),
-            Text('Reload Page',
-                style: TextStyle(color: menuFg, fontSize: 14)),
-          ]),
-        ),
-        PopupMenuItem<String>(
-          value: 'terms',
-          child: Row(children: [
-            Icon(Icons.description_outlined, size: 20, color: menuFg),
-            const SizedBox(width: 12),
-            Text('Terms of Use',
-                style: TextStyle(color: menuFg, fontSize: 14)),
-          ]),
-        ),
-        PopupMenuItem<String>(
-          value: 'privacy',
-          child: Row(children: [
-            Icon(Icons.privacy_tip_outlined, size: 20, color: menuFg),
-            const SizedBox(width: 12),
-            Text('Privacy Policy',
-                style: TextStyle(color: menuFg, fontSize: 14)),
-          ]),
-        ),
-        PopupMenuItem<String>(
-          value: 'remove_menu',
-          child: Row(children: [
-            Icon(Icons.delete_outline, size: 20, color: menuFg),
-            const SizedBox(width: 12),
-            Text('Remove from Menu',
-                style: TextStyle(color: menuFg, fontSize: 14)),
-          ]),
-        ),
-      ],
+      items: menuItems,
     );
 
     if (result == null || !mounted) return;
+    if (result.startsWith('download_')) {
+      final id = result.substring('download_'.length);
+      _engine?.callGeneric(
+        _accountId,
+        'BotDownloadsAction',
+        {'bot_id': _botId, 'id': id, 'action': 'open'},
+      ).catchError((_) {});
+      return;
+    }
     switch (result) {
       case 'open_bot':
-        final engine = _engine;
-        if (engine != null && _accountId.isNotEmpty) {
-          engine.callGeneric(
+        final eng = _engine;
+        if (eng != null && _accountId.isNotEmpty) {
+          eng.callGeneric(
             _accountId,
             'BotHandleMenuButton',
             {'bot_id': _botId, 'action': 'open_bot'},
@@ -1334,9 +1394,9 @@ class _WebAppPanelState extends State<WebAppPanel>
         _launchUrl(
             'https://telegram.org/privacy-miniapp#mini-apps-privacy-policy');
       case 'remove_menu':
-        final engine = _engine;
-        if (engine != null && _accountId.isNotEmpty) {
-          engine.callGeneric(
+        final eng = _engine;
+        if (eng != null && _accountId.isNotEmpty) {
+          eng.callGeneric(
             _accountId,
             'BotHandleMenuButton',
             {'bot_id': _botId, 'action': 'remove_from_menu'},
@@ -1393,34 +1453,40 @@ class _WebAppPanelState extends State<WebAppPanel>
     final defaultButtonBg = palette.windowBgActive;
     final defaultButtonFg = palette.windowFgActive;
 
-    return Center(
-      child: Material(
-        color: Colors.transparent,
-        child: GestureDetector(
-          onTap: () {},
-          child: Container(
-            width: panelWidth,
-            height: panelHeight,
-            decoration: BoxDecoration(
-              color: contentBg,
-              borderRadius: BorderRadius.circular(_kCornerRadius),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: _kPanelShadowBlur,
-                  offset: const Offset(0, 4),
+    return Opacity(
+      opacity: _hiddenForPayment ? 0.0 : 1.0,
+      child: IgnorePointer(
+        ignoring: _hiddenForPayment,
+        child: Center(
+          child: Material(
+            color: Colors.transparent,
+            child: GestureDetector(
+              onTap: () {},
+              child: Container(
+                width: panelWidth,
+                height: panelHeight,
+                decoration: BoxDecoration(
+                  color: contentBg,
+                  borderRadius: BorderRadius.circular(_kCornerRadius),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: _kPanelShadowBlur,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: [
-                _buildHeader(headerBg, palette, isDark),
-                Expanded(
-                    child: _buildContent(contentBg, palette, isDark)),
-                _buildBottomSection(bottomBg, defaultButtonBg,
-                    defaultButtonFg, palette, isDark),
-              ],
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    _buildHeader(headerBg, palette, isDark),
+                    Expanded(
+                        child: _buildContent(contentBg, palette, isDark)),
+                    _buildBottomSection(bottomBg, defaultButtonBg,
+                        defaultButtonFg, palette, isDark),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -1515,26 +1581,41 @@ class _WebAppPanelState extends State<WebAppPanel>
     }
 
     if (_webViewAvailable && _webController != null) {
-      return Stack(
-        children: [
-          WebViewWidget(controller: _webController!),
-          if (_loadingState != WebAppLoadingState.ready)
-            Container(
-              color: bg,
-              child: Center(
-                child: FadeTransition(
-                  opacity: _progressFade,
-                  child: _InfiniteRadialSpinner(
-                    animation: _spinnerAnim,
-                    size: _kProgressSize,
-                    strokeWidth: _kProgressStroke,
-                    color: (isDark ? Colors.white : palette.windowFg)
-                        .withValues(alpha: _kProgressOpacity),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final newSize = Size(constraints.maxWidth, constraints.maxHeight);
+          if (newSize != _lastContentSize) {
+            _lastContentSize = newSize;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _handleRequestViewport();
+            });
+          }
+          return Stack(
+            children: [
+              Listener(
+                onPointerDown: (_) =>
+                    _lastWebviewInteraction = DateTime.now(),
+                behavior: HitTestBehavior.translucent,
+                child: WebViewWidget(controller: _webController!),
+              ),
+              if (_loadingState != WebAppLoadingState.ready)
+                Container(
+                  color: bg,
+                  child: Center(
+                    child: FadeTransition(
+                      opacity: _progressFade,
+                      child: _InfiniteRadialSpinner(
+                        animation: _spinnerAnim,
+                        size: _kProgressSize,
+                        strokeWidth: _kProgressStroke,
+                        color: palette.windowSubTextFg,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-        ],
+            ],
+          );
+        },
       );
     }
 
