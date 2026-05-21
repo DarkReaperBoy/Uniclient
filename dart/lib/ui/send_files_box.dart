@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -451,6 +452,8 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   List<MemberInfo> _engineMembers = const [];
   bool _membersRefreshPending = false;
+  Timer? _memberRefreshDebounce;
+  DateTime _lastMemberRefresh = DateTime(0);
 
   Future<void> _refreshMembersFromEngine() async {
     if (widget.members.isNotEmpty) {
@@ -468,10 +471,21 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       final members = await appState.engine.getChatMembers(accountId, chatId);
       if (!mounted) return;
       _engineMembers = members;
+      _lastMemberRefresh = DateTime.now();
     } catch (_) {
     } finally {
       _membersRefreshPending = false;
     }
+  }
+
+  void _debouncedMemberRefresh() {
+    if (DateTime.now().difference(_lastMemberRefresh).inSeconds < 10) return;
+    _memberRefreshDebounce?.cancel();
+    _memberRefreshDebounce = Timer(const Duration(milliseconds: 300), () {
+      _refreshMembersFromEngine().then((_) {
+        if (mounted && _showMentionPanel) _detectMentionQuery();
+      });
+    });
   }
 
   Future<void> _fetchBotCommands() async {
@@ -518,6 +532,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   @override
   void dispose() {
+    _memberRefreshDebounce?.cancel();
     _dragOverlayAnimCtrl.dispose();
     _scrollController.removeListener(_updateScrollShadows);
     _scrollController.dispose();
@@ -571,6 +586,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       _acFilteredMembers = filtered;
       _showMentionPanel = filtered.isNotEmpty;
     });
+    _debouncedMemberRefresh();
   }
 
   void _insertMention(MemberInfo member) {
@@ -604,6 +620,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     if (match == null) {
       if (_showHashtagPanel) setState(() => _showHashtagPanel = false);
       return;
+    }
+    if (!RecentHashtags._loaded) {
+      final appState = context.read<AppState>();
+      RecentHashtags.loadFrom(appState.recentHashtags);
     }
     final query = match.group(1)!;
     _acHashtagQuery = query;
@@ -865,10 +885,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
     if (types == null) return false;
     if (!types.contains('image/png') && !types.contains('image/jpeg')) return false;
-    if (widget.isSlowMode && _files.isNotEmpty) {
-      if (mounted) showTelegramToast(context, 'Only one file can be sent in slow mode');
-      return true;
-    }
     final ext = types.contains('image/png') ? 'png' : 'jpg';
     final tmpFile = File('${Directory.systemTemp.path}/uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.$ext');
     ProcessResult pasteResult;
@@ -880,10 +896,14 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     if (pasteResult.exitCode == 0 && pasteResult.stdout is List<int>) {
       await tmpFile.writeAsBytes(pasteResult.stdout as List<int>);
       if (await tmpFile.exists() && await tmpFile.length() > 0) {
+        final name = tmpFile.uri.pathSegments.last;
+        final prepared = _PreparedFile(path: tmpFile.path, name: name, size: tmpFile.lengthSync(), type: _detectType(name));
+        if (!_canBeSentInSlowmode(_files, prepared)) {
+          if (mounted) showTelegramToast(context, 'Cannot add this file in slow mode');
+          return true;
+        }
         setState(() {
-          final name = tmpFile.uri.pathSegments.last;
-          if (widget.isSlowMode) _files.clear();
-          _files.add(_PreparedFile(path: tmpFile.path, name: name, size: tmpFile.lengthSync(), type: _detectType(name)));
+          _files.add(prepared);
         });
         _loadImageDimensions();
         return true;
@@ -897,14 +917,14 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     if (r.exitCode != 0) return false;
     final tmpFile = File('${Directory.systemTemp.path}\\uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.png');
     if (await tmpFile.exists() && await tmpFile.length() > 0) {
-      if (widget.isSlowMode && _files.isNotEmpty) {
-        if (mounted) showTelegramToast(context, 'Only one file can be sent in slow mode');
+      final name = tmpFile.uri.pathSegments.last;
+      final prepared = _PreparedFile(path: tmpFile.path, name: name, size: tmpFile.lengthSync(), type: _detectType(name));
+      if (!_canBeSentInSlowmode(_files, prepared)) {
+        if (mounted) showTelegramToast(context, 'Cannot add this file in slow mode');
         return true;
       }
       setState(() {
-        final name = tmpFile.uri.pathSegments.last;
-        if (widget.isSlowMode) _files.clear();
-        _files.add(_PreparedFile(path: tmpFile.path, name: name, size: tmpFile.lengthSync(), type: _detectType(name)));
+        _files.add(prepared);
       });
       _loadImageDimensions();
       return true;
@@ -913,75 +933,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   Future<void> _showEditCaptionDialog(int fileIndex) async {
-    _captionDialogOpen = true;
-    final current = _perFileCaptions[fileIndex] ?? '';
-    final controller = RichTextEditingController();
-    if (current.isNotEmpty) controller.text = current;
-    final result = await showTelegramBox<({String text, String entities})>(
-      context: context,
-      builder: (ctx) {
-        return TelegramBox(
-          title: 'Edit caption',
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _CaptionFormattingToolbar(
-                controller: controller,
-                accentColor: ctx.palette.windowActiveTextFg,
-                subColor: ctx.palette.boxTitleAdditionalFg,
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: TextField(
-                  controller: controller,
-                  maxLines: 3,
-                  maxLength: _captionMaxLength,
-                  autofocus: true,
-                  style: TextStyle(fontSize: 14, color: ctx.palette.boxTextFg),
-                  decoration: InputDecoration(
-                    hintText: 'Caption...',
-                    hintStyle: TextStyle(fontSize: 14, color: ctx.palette.boxTitleAdditionalFg),
-                    counterText: '',
-                    border: InputBorder.none,
-                    isDense: true,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          scrollableContent: false,
-          buttons: [
-            TelegramBoxButton(
-              text: 'Cancel',
-              onPressed: () => Navigator.pop(ctx),
-            ),
-            TelegramBoxButton(
-              text: 'Save',
-              onPressed: () {
-                final parsed = controller.getTextWithAppliedMarkdown();
-                Navigator.pop(ctx, (text: parsed.text, entities: parsed.entitiesJson));
-              },
-            ),
-          ],
-        );
-      },
-    );
-    _captionDialogOpen = false;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        controller.dispose();
-      });
-    });
-    if (result == null) return;
-    setState(() {
-      if (result.text.isEmpty) {
-        _perFileCaptions.remove(fileIndex);
-        _perFileCaptionEntities.remove(fileIndex);
-      } else {
-        _perFileCaptions[fileIndex] = result.text;
-        _perFileCaptionEntities[fileIndex] = result.entities;
-      }
-    });
+    _editFileCaption(fileIndex);
   }
 
   Future<void> _prepareOneFile(_PreparedFile file) async {
@@ -1307,6 +1259,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
               ),
               EmojiTabbedPanel(
                 emojiOnly: true,
+                suppressStickerSets: true,
                 visible: showEmojiInDialog,
                 onHide: () => setDialogState(() => showEmojiInDialog = false),
                 onEmojiSelected: (emoji) {
@@ -1448,10 +1401,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   Future<void> _addMoreFiles() async {
-    if (widget.isSlowMode && _files.isNotEmpty) {
-      showTelegramToast(context, 'Only one file can be sent in slow mode');
-      return;
-    }
     try {
       final result = await FilePicker.platform.pickFiles(allowMultiple: !widget.isSlowMode);
       if (result == null || result.files.isEmpty) return;
@@ -1468,29 +1417,19 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
           type: _detectType(name),
         );
         if (!_canBeSentInSlowmode(_files + newFiles, prepared)) {
-          showTelegramToast(context, 'Only one file can be sent in slow mode');
+          showTelegramToast(context, 'Cannot add this file in slow mode');
           break;
         }
         newFiles.add(prepared);
       }
       if (newFiles.isEmpty) return;
-      if (widget.isSlowMode) {
-        setState(() => _files
-          ..clear()
-          ..add(newFiles.first));
-      } else {
-        setState(() => _files.addAll(newFiles));
-      }
+      setState(() => _files.addAll(newFiles));
       _loadImageDimensions();
     } catch (_) {}
   }
 
   void _addDroppedFiles(List<String> paths) {
     if (paths.isEmpty) return;
-    if (widget.isSlowMode && _files.isNotEmpty) {
-      showTelegramToast(context, 'Only one file can be sent in slow mode');
-      return;
-    }
     final newFiles = <_PreparedFile>[];
     for (final p in paths) {
       final f = File(p);
@@ -1504,19 +1443,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         type: _detectType(name),
       );
       if (!_canBeSentInSlowmode(_files + newFiles, prepared)) {
-        showTelegramToast(context, 'Only one file can be sent in slow mode');
+        showTelegramToast(context, 'Cannot add this file in slow mode');
         break;
       }
       newFiles.add(prepared);
     }
     if (newFiles.isEmpty) return;
-    if (widget.isSlowMode) {
-      setState(() => _files
-        ..clear()
-        ..add(newFiles.first));
-    } else {
-      setState(() => _files.addAll(newFiles));
-    }
+    setState(() => _files.addAll(newFiles));
     _loadImageDimensions();
   }
 
@@ -2580,6 +2513,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
             ],
             EmojiTabbedPanel(
               emojiOnly: true,
+              suppressStickerSets: true,
               visible: _showEmojiPanel && _canAddCaption,
               onHide: () => setState(() => _showEmojiPanel = false),
               onEmojiSelected: (emoji) {
@@ -4327,15 +4261,24 @@ class _SpoilerOverlayState extends State<_SpoilerOverlay>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (context, child) {
-        return CustomPaint(
-          painter: _SpoilerParticlePainter(_ctrl.value, seed: _seed),
-          child: child,
-        );
-      },
-      child: Container(color: const Color(0x20000000)),
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(color: const Color(0x20000000)),
+          ),
+          AnimatedBuilder(
+            animation: _ctrl,
+            builder: (context, _) {
+              return CustomPaint(
+                painter: _SpoilerParticlePainter(_ctrl.value, seed: _seed),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }
@@ -4361,7 +4304,7 @@ class _SpoilerParticlePainter extends CustomPainter {
       final x = ((baseX + localPhase * 0.3 + drift) % 1.0) * size.width;
       final y = ((baseY + localPhase * 0.15) % 1.0) * size.height;
       final alpha = (0.4 + 0.6 * math.sin((localPhase) * math.pi * 2)).clamp(0.0, 1.0);
-      paint.color = Color.fromRGBO(255, 255, 255, alpha * 0.4);
+      paint.color = Color.fromRGBO(180, 180, 180, alpha * 0.5);
       canvas.drawCircle(Offset(x, y), r, paint);
     }
   }

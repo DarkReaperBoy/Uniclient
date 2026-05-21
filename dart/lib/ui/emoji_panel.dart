@@ -259,6 +259,7 @@ class EmojiTabbedPanel extends StatefulWidget {
   final void Function(String gifFileId, {StickerSendMode mode})? onGifSend;
   final void Function(int queryId, String resultId)? onInlineResultSend;
   final bool emojiOnly;
+  final bool suppressStickerSets;
 
   const EmojiTabbedPanel({
     super.key,
@@ -270,6 +271,7 @@ class EmojiTabbedPanel extends StatefulWidget {
     this.onGifSend,
     this.onInlineResultSend,
     this.emojiOnly = false,
+    this.suppressStickerSets = false,
   });
 
   @override
