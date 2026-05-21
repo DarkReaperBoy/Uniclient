@@ -379,7 +379,7 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-class _SupportDescription extends StatelessWidget {
+class _SupportDescription extends StatefulWidget {
   final bool isDark;
   final VoidCallback onSupportTap;
 
@@ -389,11 +389,38 @@ class _SupportDescription extends StatelessWidget {
   });
 
   @override
+  State<_SupportDescription> createState() => _SupportDescriptionState();
+}
+
+class _SupportDescriptionState extends State<_SupportDescription> {
+  late final TapGestureRecognizer _recognizer;
+
+  @override
+  void initState() {
+    super.initState();
+    _recognizer = TapGestureRecognizer()..onTap = widget.onSupportTap;
+  }
+
+  @override
+  void didUpdateWidget(_SupportDescription oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.onSupportTap != widget.onSupportTap) {
+      _recognizer.onTap = widget.onSupportTap;
+    }
+  }
+
+  @override
+  void dispose() {
+    _recognizer.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final subtextColor =
-        isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+        widget.isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     final linkColor =
-        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+        widget.isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
       child: RichText(
@@ -406,7 +433,7 @@ class _SupportDescription extends StatelessWidget {
             TextSpan(
               text: 'contact support',
               style: TextStyle(color: linkColor),
-              recognizer: TapGestureRecognizer()..onTap = onSupportTap,
+              recognizer: _recognizer,
             ),
             const TextSpan(text: '.'),
           ],
@@ -424,10 +451,11 @@ class _DonateInfoBox extends StatefulWidget {
   static String _donateAmountRub = '386';
   static String _donateUsername = 'RadianceTG';
   static bool _rcFetched = false;
+  static bool _rcFetching = false;
 
   static Future<void> _fetchRcConfig() async {
-    if (_rcFetched) return;
-    _rcFetched = true;
+    if (_rcFetched || _rcFetching) return;
+    _rcFetching = true;
     try {
       final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 10);
@@ -441,9 +469,12 @@ class _DonateInfoBox extends StatefulWidget {
         if (data.containsKey('donate_ton')) _donateAmountTon = data['donate_ton'].toString();
         if (data.containsKey('donate_rub')) _donateAmountRub = data['donate_rub'].toString();
         if (data.containsKey('donate_username')) _donateUsername = data['donate_username'].toString();
+        _rcFetched = true;
       }
       client.close();
-    } catch (_) {}
+    } catch (_) {} finally {
+      _rcFetching = false;
+    }
   }
 
   const _DonateInfoBox({required this.isDark});
@@ -665,7 +696,7 @@ class _DonateQrBox extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('QR Code',
+            Text(name,
                 style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w600,

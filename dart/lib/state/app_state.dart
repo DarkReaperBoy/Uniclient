@@ -1397,6 +1397,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setCrashReporting(bool v) {
     if (_crashReporting == v) return;
     _crashReporting = v;
+    Debug.crashReportingEnabled = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -2641,6 +2642,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     try {
       _configDir = configDir;
       _cacheDir = cacheDir;
+      Debug.setCrashLogDir('$configDir/crash_reports');
       await _engine.init(
         configDir: configDir,
         cacheDir: cacheDir,
@@ -3425,6 +3427,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _disableAds = data['disableAds'] as bool? ?? true;
       _deleteOnlyForYouRemembered = data['deleteOnlyForYouRemembered'] as bool? ?? false;
       _crashReporting = data['crashReporting'] as bool? ?? true;
+      Debug.crashReportingEnabled = _crashReporting;
+      if (_configDir.isNotEmpty) {
+        Debug.setCrashLogDir('$_configDir/crash_reports');
+      }
       _filtersEnabled = data['filtersEnabled'] as bool? ?? false;
       _filtersEnabledInChats = data['filtersEnabledInChats'] as bool? ?? false;
       _hideFromBlocked = data['hideFromBlocked'] as bool? ?? false;
