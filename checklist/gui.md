@@ -133,30 +133,6 @@ No critical, major, or maintenance issues found. The widget correctly displays a
 
 One blocking bug: `_TiledImage` won't render because async decode doesn't trigger repaint. Needs immediate fix.
 
-## ayu_chats_page — cleanup
-
-- [ ] [CRITICAL] `_BubbleRadiusSlider` applies change before confirmation — `ayu_chats_page.dart:494-510`
-  `onChanged` calls `widget.onChanged(newVal)` on every drag tick, persisting the value immediately.
-  `onChangeEnd` then shows a "Restart Required" confirm box **with no `onCancel`** and no revert path.
-  Contrast with `_WideMultiplierSlider` (lines 384–399) which only calls `widget.onChanged` inside
-  `onConfirm` and reverts the visual on cancel.
-  Fix: move `widget.onChanged` out of `onChanged`, into `onChangeEnd`'s `onConfirm` callback, and
-  add `onCancel: () => setState(() => _localValue = _committedValue)` — matching the multiplier pattern.
-  Also move `_committedValue = newVal` inside `onConfirm` so it isn't clobbered before the user decides.
-
-- [ ] [MAJOR] `_MessagePreviewStandalone.build()` calls `context.read<AppState>()` at line 689 — anti-pattern
-  `context.read` inside `build()` does not subscribe to updates.  If `activeAccount` changes (login /
-  account switch) without the parent `AyuChatsPage` also rebuilding, the displayed `userName` goes stale.
-  Fix: pass `userName` as a constructor parameter from `AyuChatsPage.build()` where `context.watch` is
-  already live, or change line 689 to `context.watch<AppState>()`.
-
-- [ ] [MAJOR] `_WideMultiplierSlider` slider range [1.0, 4.0] doesn't match `AppState.setWideMultiplier`
-  clamp of [0.5, 4.0] — `ayu_chats_page.dart:381-382` vs `app_state.dart:962`
-  Persisted prefs with `wideMultiplier < 1.0` (e.g. from a future import or direct prefs edit) will be
-  accepted by the state but clamped to 1.0 silently in `initState` (line 328).  The slider will show 1.0
-  while AppState holds 0.7, so the next drag will immediately snap to 1.0 and save that, discarding the
-  persisted value.  Fix: align the clamp in both places (either widen the slider min to 0.5 or tighten
-  the setter's lower bound to 1.0).
 
 ## ayu_filters_page — cleanup
 
