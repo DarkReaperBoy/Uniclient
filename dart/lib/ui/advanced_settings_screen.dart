@@ -291,12 +291,26 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
       await sink.close();
       client.close();
 
-      await Process.run('chmod', ['+x', tmpPath]);
-      await File(tmpPath).rename(exePath);
+      if (!Platform.isWindows) {
+        await Process.run('chmod', ['+x', tmpPath]);
+      }
 
-      if (mounted) {
-        setState(() => _downloadingUpdate = false);
-        _showRestartDialog(context, isDark);
+      if (Platform.isLinux || Platform.isMacOS) {
+        await Process.start(
+          'bash',
+          ['-c', 'sleep 1 && mv "\$1" "\$2" && exec "\$2"', '--', tmpPath, exePath],
+          mode: ProcessStartMode.detached,
+        );
+        if (mounted) {
+          setState(() => _downloadingUpdate = false);
+        }
+        exit(0);
+      } else {
+        await File(tmpPath).rename(exePath);
+        if (mounted) {
+          setState(() => _downloadingUpdate = false);
+          _showRestartDialog(context, isDark);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -1157,6 +1171,9 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   String _getDictionaryCountLabel() {
+    final appState = context.read<AppState>();
+    final enabledCount = appState.enabledDictionaries.length;
+    if (enabledCount > 0) return '$enabledCount';
     if (Platform.isLinux) {
       try {
         final dir = Directory('/usr/share/hunspell');
@@ -1164,11 +1181,19 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
           final count = dir.listSync()
               .where((f) => f.path.endsWith('.dic'))
               .length;
-          return '$count';
+          if (count > 0) return '$count';
         }
       } catch (_) {}
-      return 'System';
     }
+    try {
+      final customDir = Directory(UniSpellCheckService.dictsDir);
+      if (customDir.existsSync()) {
+        final count = customDir.listSync()
+            .where((f) => f.path.endsWith('.dic'))
+            .length;
+        if (count > 0) return '$count';
+      }
+    } catch (_) {}
     return 'System';
   }
 
@@ -1900,9 +1925,11 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
         }
       }
     } catch (_) {}
-    try {
-      appState.engine.clearCache(accountId: appState.activeAccountId);
-    } catch (_) {}
+    if (tagIdx == 5) {
+      try {
+        appState.engine.clearCache(accountId: appState.activeAccountId);
+      } catch (_) {}
+    }
     if (mounted) setState(() => _tagSizes[tagIdx] = 0);
   }
 
@@ -2357,17 +2384,14 @@ class _ManageDictionariesBoxState extends State<_ManageDictionariesBox> {
                             children: [
                               SizedBox(
                                 width: 22, height: 22,
-                                child: Checkbox(
-                                  value: d.enabled,
-                                  onChanged: (v) {
-                                    setState(() => d.enabled = v ?? true);
-                                    final appState = context.read<AppState>();
-                                    appState.toggleDictionary(d.code);
-                                    UniSpellCheckService.instance.loadDictionaries(appState.enabledDictionaries);
-                                  },
-                                  activeColor: accentColor,
-                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  visualDensity: VisualDensity.compact,
+                                child: AbsorbPointer(
+                                  child: Checkbox(
+                                    value: d.enabled,
+                                    onChanged: (_) {},
+                                    activeColor: accentColor,
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -2923,7 +2947,10 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
   Future<void> _checkAllProxies() async {
     for (var i = 0; i < _proxies.length; i++) {
       if (_proxies[i].deleted) continue;
-      _checkProxy(i);
+      await _checkProxy(i);
+      if (i < _proxies.length - 1) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
     }
   }
 
@@ -4411,18 +4438,20 @@ class ExperimentalSettingsBox extends StatefulWidget {
 
 class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
   late Map<String, bool> _flags;
+  late Map<String, bool> _originalFlags;
 
   @override
   void initState() {
     super.initState();
     _flags = Map<String, bool>.from(context.read<AppState>().experimentalFlags);
+    _originalFlags = Map<String, bool>.from(_flags);
   }
 
   bool _flag(String key) => _flags[key] == true;
 
   bool get _changed {
     for (final (key, _) in _experimentalFlagDefs) {
-      if (_flag(key)) return true;
+      if ((_flags[key] == true) != (_originalFlags[key] == true)) return true;
     }
     return false;
   }
