@@ -19906,23 +19906,22 @@ func (t *TelegramCore) SendInlineBotResult(chatID string, queryID int64, resultI
 	return 0, nil
 }
 
-// SendStoryWithPhoto uploads a photo and posts it as a story.
-func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte, opts StoryPostOptions) (int, error) {
-	t.mu.RLock(); defer t.mu.RUnlock()
-	if !t.authed || t.api == nil { return 0, ErrAuth }
-	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload("story.png", io.NopCloser(bytes.NewReader(photoData)), int64(len(photoData))))
-	if err != nil { return 0, fmt.Errorf("upload: %w", err) }
-	rb := make([]byte, 8)
-	if _, err := rand.Read(rb); err != nil { return 0, err }
-	randomID := int64(binary.LittleEndian.Uint64(rb))
-
-	var privacyRules []tg.InputPrivacyRuleClass
+func (t *TelegramCore) storyPrivacyRules(opts StoryPostOptions) []tg.InputPrivacyRuleClass {
+	var rules []tg.InputPrivacyRuleClass
 	switch opts.Privacy {
 	case "contacts":
-		privacyRules = []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowContacts{}}
+		rules = append(rules, &tg.InputPrivacyValueAllowContacts{})
+		if len(opts.ExcludedContactIDs) > 0 {
+			users := make([]tg.InputUserClass, 0, len(opts.ExcludedContactIDs))
+			for _, uid := range opts.ExcludedContactIDs {
+				id, parseErr := strconv.ParseInt(uid, 10, 64)
+				if parseErr != nil { continue }
+				users = append(users, &tg.InputUser{UserID: id})
+			}
+			rules = append(rules, &tg.InputPrivacyValueDisallowUsers{Users: users})
+		}
 	case "closeFriends":
-		privacyRules = []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowCloseFriends{}}
+		rules = append(rules, &tg.InputPrivacyValueAllowCloseFriends{})
 	case "selectedContacts":
 		if len(opts.SelectedContactIDs) > 0 {
 			users := make([]tg.InputUserClass, 0, len(opts.SelectedContactIDs))
@@ -19931,30 +19930,17 @@ func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte, opts St
 				if parseErr != nil { continue }
 				users = append(users, &tg.InputUser{UserID: id})
 			}
-			privacyRules = []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowUsers{Users: users}}
+			rules = append(rules, &tg.InputPrivacyValueAllowUsers{Users: users})
 		} else {
-			privacyRules = []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowContacts{}}
+			rules = append(rules, &tg.InputPrivacyValueAllowContacts{})
 		}
 	default:
-		privacyRules = []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowAll{}}
+		rules = append(rules, &tg.InputPrivacyValueAllowAll{})
 	}
+	return rules
+}
 
-	req := &tg.StoriesSendStoryRequest{
-		Peer: &tg.InputPeerSelf{},
-		Media: &tg.InputMediaUploadedPhoto{File: upload},
-		RandomID: randomID,
-		PrivacyRules: privacyRules,
-	}
-	if text != "" { req.SetCaption(text) }
-	if opts.DurationHours > 0 {
-		req.SetPeriod(opts.DurationHours * 3600)
-	}
-	if opts.SaveToProfile {
-		req.SetPinned(true)
-	}
-	if !opts.AllowSharing {
-		req.SetNoforwards(true)
-	}
+func (t *TelegramCore) sendStoryCommon(req *tg.StoriesSendStoryRequest) (int, error) {
 	result, err := t.api.StoriesSendStory(t.ctx, req)
 	if err != nil { return 0, err }
 	switch v := result.(type) {
@@ -19966,6 +19952,88 @@ func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte, opts St
 		}
 	}
 	return 0, nil
+}
+
+// SendStoryWithPhoto uploads a photo and posts it as a story.
+func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte, opts StoryPostOptions) (int, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 0, ErrAuth }
+	u := uploader.NewUploader(t.api)
+	upload, err := u.Upload(t.ctx, uploader.NewUpload("story.png", io.NopCloser(bytes.NewReader(photoData)), int64(len(photoData))))
+	if err != nil { return 0, fmt.Errorf("upload: %w", err) }
+	rb := make([]byte, 8)
+	if _, err := rand.Read(rb); err != nil { return 0, err }
+	randomID := int64(binary.LittleEndian.Uint64(rb))
+
+	req := &tg.StoriesSendStoryRequest{
+		Peer: &tg.InputPeerSelf{},
+		Media: &tg.InputMediaUploadedPhoto{File: upload},
+		RandomID: randomID,
+		PrivacyRules: t.storyPrivacyRules(opts),
+	}
+	if text != "" { req.SetCaption(text) }
+	if opts.DurationHours > 0 {
+		req.SetPeriod(opts.DurationHours * 3600)
+	}
+	if opts.SaveToProfile {
+		req.SetPinned(true)
+	}
+	if !opts.AllowSharing {
+		req.SetNoforwards(true)
+	}
+	return t.sendStoryCommon(req)
+}
+
+// SendStoryWithVideoFile reads a video from disk and posts it as a story.
+func (t *TelegramCore) SendStoryWithVideoFile(text string, videoPath string, opts StoryPostOptions) (int, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 0, ErrAuth }
+
+	videoData, err := os.ReadFile(videoPath)
+	if err != nil { return 0, fmt.Errorf("read video: %w", err) }
+
+	u := uploader.NewUploader(t.api)
+	upload, err := u.Upload(t.ctx, uploader.NewUpload(filepath.Base(videoPath), io.NopCloser(bytes.NewReader(videoData)), int64(len(videoData))))
+	if err != nil { return 0, fmt.Errorf("upload video: %w", err) }
+
+	media := &tg.InputMediaUploadedDocument{
+		File:     upload,
+		MimeType: "video/mp4",
+		Attributes: []tg.DocumentAttributeClass{
+			&tg.DocumentAttributeVideo{
+				SupportsStreaming: true,
+			},
+		},
+	}
+
+	if len(opts.OverlayData) > 0 {
+		thumbUpload, thumbErr := u.Upload(t.ctx, uploader.NewUpload("thumb.png", io.NopCloser(bytes.NewReader(opts.OverlayData)), int64(len(opts.OverlayData))))
+		if thumbErr == nil {
+			media.SetThumb(thumbUpload)
+		}
+	}
+
+	rb := make([]byte, 8)
+	if _, err := rand.Read(rb); err != nil { return 0, err }
+	randomID := int64(binary.LittleEndian.Uint64(rb))
+
+	req := &tg.StoriesSendStoryRequest{
+		Peer:         &tg.InputPeerSelf{},
+		Media:        media,
+		RandomID:     randomID,
+		PrivacyRules: t.storyPrivacyRules(opts),
+	}
+	if text != "" { req.SetCaption(text) }
+	if opts.DurationHours > 0 {
+		req.SetPeriod(opts.DurationHours * 3600)
+	}
+	if opts.SaveToProfile {
+		req.SetPinned(true)
+	}
+	if !opts.AllowSharing {
+		req.SetNoforwards(true)
+	}
+	return t.sendStoryCommon(req)
 }
 
 // SendStory publishes a new story.

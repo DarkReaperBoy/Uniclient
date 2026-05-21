@@ -2291,6 +2291,25 @@ func (e *Engine) SendStoryWithPhoto(accountID, text string, photoData []byte, op
 	return sender.SendStoryWithPhoto(text, photoData, opts)
 }
 
+type StoryVideoSender interface {
+	SendStoryWithVideoFile(text string, videoPath string, opts cores.StoryPostOptions) (int, error)
+}
+
+func (e *Engine) SendStoryWithVideoFile(accountID, text string, videoPath string, opts cores.StoryPostOptions) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return 0, fmt.Errorf("account not connected: %s", accountID)
+	}
+	sender, ok := acc.Core.(StoryVideoSender)
+	if !ok {
+		return 0, fmt.Errorf("platform does not support sending video stories")
+	}
+	return sender.SendStoryWithVideoFile(text, videoPath, opts)
+}
+
 type StoryReactor interface {
 	ReactToStory(userID string, storyID int, emoji string) error
 }

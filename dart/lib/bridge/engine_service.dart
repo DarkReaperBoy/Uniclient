@@ -1342,6 +1342,7 @@ class EngineService {
     bool saveToProfile = true,
     bool allowSharing = true,
     List<String> selectedContactIds = const [],
+    List<String> excludedContactIds = const [],
     double trimStart = 0.0,
     double trimEnd = 1.0,
   }) async {
@@ -1354,6 +1355,7 @@ class EngineService {
       'save_to_profile': saveToProfile,
       'allow_sharing': allowSharing,
       'selected_contact_ids': selectedContactIds,
+      'excluded_contact_ids': excludedContactIds,
       'trim_start': trimStart,
       'trim_end': trimEnd,
     }));
@@ -1379,6 +1381,8 @@ class EngineService {
     bool saveToProfile = true,
     bool allowSharing = true,
     List<String> selectedContactIds = const [],
+    List<String> excludedContactIds = const [],
+    Uint8List? overlayData,
     double trimStart = 0.0,
     double trimEnd = 1.0,
   }) async {
@@ -1386,11 +1390,13 @@ class EngineService {
       'account_id': accountId,
       'caption': caption,
       'video_file_path': videoFilePath,
+      if (overlayData != null) 'overlay_data': overlayData.toList(),
       'privacy': privacy,
       'duration_hours': durationHours,
       'save_to_profile': saveToProfile,
       'allow_sharing': allowSharing,
       'selected_contact_ids': selectedContactIds,
+      'excluded_contact_ids': excludedContactIds,
       'trim_start': trimStart,
       'trim_end': trimEnd,
     }));

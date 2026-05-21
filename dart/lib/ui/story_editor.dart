@@ -213,6 +213,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   double _uploadProgress = 0;
   bool _posted = false;
   List<String> _selectedContactIds = [];
+  List<String> _excludedContactIds = [];
 
   // Video thumbnails for trim slider
   List<ui.Image?> _videoThumbnails = [];
@@ -469,6 +470,10 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       });
 
       if (_videoFile != null) {
+        Uint8List? overlayBytes;
+        if (_strokes.isNotEmpty || _sceneItems.isNotEmpty) {
+          overlayBytes = await _renderCanvasToBytes();
+        }
         await engine.sendStoryWithVideoFile(
           accountId,
           _captionController.text,
@@ -478,6 +483,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           saveToProfile: _saveToProfile,
           allowSharing: _allowSharing,
           selectedContactIds: _selectedContactIds,
+          excludedContactIds: _excludedContactIds,
+          overlayData: overlayBytes,
           trimStart: _trimStart,
           trimEnd: _trimEnd,
         );
@@ -492,6 +499,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           saveToProfile: _saveToProfile,
           allowSharing: _allowSharing,
           selectedContactIds: _selectedContactIds,
+          excludedContactIds: _excludedContactIds,
         );
       }
 
@@ -1670,6 +1678,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
         onSelected: (v) => setState(() => _privacy = v),
         selectedContactIds: _selectedContactIds,
         onContactsSelected: (ids) => setState(() => _selectedContactIds = ids),
+        excludedContactIds: _excludedContactIds,
+        onExcludedContactsSelected: (ids) => setState(() => _excludedContactIds = ids),
       ),
     );
   }
@@ -1700,7 +1710,6 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     final isPremiumGated = hours == 48;
     return PopupMenuItem(
       value: isPremiumGated ? null : hours,
-      enabled: !isPremiumGated,
       onTap: isPremiumGated
           ? () {
               showTelegramToast(context, 'Subscribe to Telegram Premium to set 48h duration.');
@@ -2220,12 +2229,16 @@ class _PrivacyDialog extends StatefulWidget {
   final ValueChanged<StoryPrivacyOption> onSelected;
   final ValueChanged<List<String>>? onContactsSelected;
   final List<String> selectedContactIds;
+  final ValueChanged<List<String>>? onExcludedContactsSelected;
+  final List<String> excludedContactIds;
 
   const _PrivacyDialog({
     required this.current,
     required this.onSelected,
     this.onContactsSelected,
     this.selectedContactIds = const [],
+    this.onExcludedContactsSelected,
+    this.excludedContactIds = const [],
   });
 
   @override
@@ -2235,12 +2248,14 @@ class _PrivacyDialog extends StatefulWidget {
 class _PrivacyDialogState extends State<_PrivacyDialog> {
   late StoryPrivacyOption _selected;
   late List<String> _contactIds;
+  late List<String> _excludedIds;
 
   @override
   void initState() {
     super.initState();
     _selected = widget.current;
     _contactIds = List<String>.from(widget.selectedContactIds);
+    _excludedIds = List<String>.from(widget.excludedContactIds);
   }
 
   static const _options = [
@@ -2293,7 +2308,9 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
                 InkWell(
                   onTap: () {
                     setState(() => _selected = option);
-                    if (option == StoryPrivacyOption.selectedContacts) {
+                    if (option == StoryPrivacyOption.contacts) {
+                      _showExclusionPicker(context);
+                    } else if (option == StoryPrivacyOption.selectedContacts) {
                       _showContactPicker(context);
                     }
                   },
@@ -2308,7 +2325,12 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(label, style: TextStyle(fontSize: 14, color: textColor)),
-                              Text(subtitle, style: TextStyle(fontSize: 12, color: subtextColor)),
+                              Text(
+                                option == StoryPrivacyOption.contacts && _excludedIds.isNotEmpty
+                                    ? 'Excluded ${_excludedIds.length} ${_excludedIds.length == 1 ? 'person' : 'people'}'
+                                    : subtitle,
+                                style: TextStyle(fontSize: 12, color: subtextColor),
+                              ),
                             ],
                           ),
                         ),
@@ -2318,7 +2340,9 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
                           onChanged: (v) {
                             if (v != null) {
                               setState(() => _selected = v);
-                              if (v == StoryPrivacyOption.selectedContacts) {
+                              if (v == StoryPrivacyOption.contacts) {
+                                _showExclusionPicker(context);
+                              } else if (v == StoryPrivacyOption.selectedContacts) {
                                 _showContactPicker(context);
                               }
                             }
@@ -2343,6 +2367,7 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
                       onPressed: () {
                         widget.onSelected(_selected);
                         widget.onContactsSelected?.call(_contactIds);
+                        widget.onExcludedContactsSelected?.call(_excludedIds);
                         Navigator.pop(context);
                       },
                       child: const Text('Save', style: TextStyle(color: Color(0xFF4DB8FF))),
@@ -2377,15 +2402,39 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
       setState(() => _contactIds = result);
     }
   }
+
+  Future<void> _showExclusionPicker(BuildContext context) async {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId == null) return;
+
+    final contacts = await engine.getContacts(accountId);
+    if (!context.mounted) return;
+
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (ctx) => _ContactPickerDialog(
+        contacts: contacts,
+        selectedIds: _excludedIds,
+        title: 'Exclude People',
+      ),
+    );
+    if (result != null) {
+      setState(() => _excludedIds = result);
+    }
+  }
 }
 
 class _ContactPickerDialog extends StatefulWidget {
   final List<ContactInfo> contacts;
   final List<String> selectedIds;
+  final String title;
 
   const _ContactPickerDialog({
     required this.contacts,
     required this.selectedIds,
+    this.title = 'Select Contacts',
   });
 
   @override
@@ -2449,7 +2498,7 @@ class _ContactPickerDialogState extends State<_ContactPickerDialog> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Select contacts (${_selected.length})',
+                  '${widget.title} (${_selected.length})',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,

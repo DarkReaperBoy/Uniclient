@@ -782,8 +782,10 @@ type StoryPostOptions struct {
 	SaveToProfile      bool
 	AllowSharing       bool
 	SelectedContactIDs []string
+	ExcludedContactIDs []string
 	TrimStart          float64
 	TrimEnd            float64
+	OverlayData        []byte
 }
 
 type ForwardWithOptionsSupporter interface {

@@ -3859,6 +3859,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			SaveToProfile      bool     `json:"save_to_profile"`
 			AllowSharing       bool     `json:"allow_sharing"`
 			SelectedContactIDs []string `json:"selected_contact_ids"`
+			ExcludedContactIDs []string `json:"excluded_contact_ids"`
 			TrimStart          float64  `json:"trim_start"`
 			TrimEnd            float64  `json:"trim_end"`
 		}
@@ -3871,10 +3872,47 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			SaveToProfile:      params.SaveToProfile,
 			AllowSharing:       params.AllowSharing,
 			SelectedContactIDs: params.SelectedContactIDs,
+			ExcludedContactIDs: params.ExcludedContactIDs,
 			TrimStart:          params.TrimStart,
 			TrimEnd:            params.TrimEnd,
 		}
 		storyID, err := e.SendStoryWithPhoto(params.AccountID, params.Caption, params.PhotoData, opts)
+		if err != nil {
+			return nil, err
+		}
+		resp := map[string]int{"story_id": storyID}
+		return json.Marshal(resp)
+
+	case "SendStoryWithVideo":
+		var params struct {
+			AccountID          string   `json:"account_id"`
+			Caption            string   `json:"caption"`
+			VideoFilePath      string   `json:"video_file_path"`
+			OverlayData        []byte   `json:"overlay_data"`
+			Privacy            string   `json:"privacy"`
+			DurationHours      int      `json:"duration_hours"`
+			SaveToProfile      bool     `json:"save_to_profile"`
+			AllowSharing       bool     `json:"allow_sharing"`
+			SelectedContactIDs []string `json:"selected_contact_ids"`
+			ExcludedContactIDs []string `json:"excluded_contact_ids"`
+			TrimStart          float64  `json:"trim_start"`
+			TrimEnd            float64  `json:"trim_end"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		opts := cores.StoryPostOptions{
+			Privacy:            params.Privacy,
+			DurationHours:      params.DurationHours,
+			SaveToProfile:      params.SaveToProfile,
+			AllowSharing:       params.AllowSharing,
+			SelectedContactIDs: params.SelectedContactIDs,
+			ExcludedContactIDs: params.ExcludedContactIDs,
+			TrimStart:          params.TrimStart,
+			TrimEnd:            params.TrimEnd,
+			OverlayData:        params.OverlayData,
+		}
+		storyID, err := e.SendStoryWithVideoFile(params.AccountID, params.Caption, params.VideoFilePath, opts)
 		if err != nil {
 			return nil, err
 		}
