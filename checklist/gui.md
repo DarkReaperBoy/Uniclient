@@ -112,13 +112,6 @@ No critical, major, or maintenance issues found. The widget correctly displays a
 
 ## Critical Issues
 
-- [ ] [CRITICAL] `_TiledPainter` async decode won't trigger repaint — `wallpaper.dart:423-452`
-  - Lines 434-435: `ui.decodeImageFromList()` callback sets `_decoded` asynchronously
-  - But CustomPainter doesn't notify Flutter when async state changes
-  - `shouldRepaint()` (line 451) only compares `imageBytes` — won't detect `_decoded` changes
-  - Result: tiled image decodes but never paints to canvas
-  - Fix: Convert `_TiledImage` to StatefulWidget, call `setState()` in decode callback, or use `Image.memory()` directly
-  - Pattern: See `_PatternWallpaperState` (line 498-501) — it correctly does `setState(() => _patternImage = image)`
 
 ## Minor Issues
 
