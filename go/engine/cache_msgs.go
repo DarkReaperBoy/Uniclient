@@ -39,7 +39,8 @@ type CachedMessage struct {
 	Status       int    `json:"status"`
 	ReplyToID    string `json:"reply_to_id,omitempty"`
 	ReplyPreview string `json:"reply_preview,omitempty"`
-	ForwardFrom  string `json:"forward_from,omitempty"`
+	ForwardFrom   string `json:"forward_from,omitempty"`
+	ForwardFromID string `json:"forward_from_id,omitempty"`
 	IsPinned     bool   `json:"is_pinned"`
 	IsOutgoing   bool   `json:"is_outgoing"`
 	IsService    bool   `json:"is_service"`
@@ -88,7 +89,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
+			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ? AND timestamp < ?
 			 ORDER BY timestamp DESC
@@ -97,7 +98,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
+			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ?
 			 ORDER BY timestamp DESC
@@ -150,7 +151,7 @@ func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, e
 	rows, err := e.db.Query(
 		`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 		        content_text, content_raw, content_rich, timestamp, edited_at,
-		        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
+		        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
 		 FROM messages
 		 WHERE account_id = ? AND chat_id = ? AND is_pinned = 1
 		 ORDER BY timestamp DESC`, accountID, chatID)
@@ -195,7 +196,7 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 	var msgs []CachedMessage
 	for rows.Next() {
 		var m CachedMessage
-		var localID, senderID, senderName, senderRank, replyToID, replyPreview, forwardFrom, groupedID sql.NullString
+		var localID, senderID, senderName, senderRank, replyToID, replyPreview, forwardFrom, forwardFromID, groupedID sql.NullString
 		var contentRaw, contentRich []byte
 		var editedAt, deletedAt sql.NullInt64
 		var isPinned, isOutgoing, isService, hasMedia, noForwards, isDeleted int
@@ -203,7 +204,7 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 		if err := rows.Scan(
 			&m.AccountID, &m.ChatID, &m.MsgID, &localID, &senderID, &senderName, &senderRank, &m.SenderColorID,
 			&m.ContentText, &contentRaw, &contentRich, &m.Timestamp, &editedAt,
-			&m.Status, &replyToID, &replyPreview, &forwardFrom, &isPinned, &isOutgoing, &isService, &hasMedia, &groupedID,
+			&m.Status, &replyToID, &replyPreview, &forwardFrom, &forwardFromID, &isPinned, &isOutgoing, &isService, &hasMedia, &groupedID,
 			&noForwards, &isDeleted, &deletedAt,
 		); err != nil {
 			return msgs, err
@@ -222,6 +223,7 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 		m.ReplyToID = replyToID.String
 		m.ReplyPreview = replyPreview.String
 		m.ForwardFrom = forwardFrom.String
+		m.ForwardFromID = forwardFromID.String
 		m.IsPinned = isPinned == 1
 		m.IsOutgoing = isOutgoing == 1
 		m.IsService = isService == 1
@@ -418,20 +420,21 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		`INSERT INTO messages
 		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 		  content_raw, content_rich, content_text, timestamp, edited_at,
-		  status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, topic_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		  status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, topic_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, chat_id, msg_id) DO UPDATE SET
 		  local_id=excluded.local_id, sender_id=excluded.sender_id, sender_name=excluded.sender_name,
 		  sender_rank=excluded.sender_rank, sender_color_id=excluded.sender_color_id,
 		  content_raw=excluded.content_raw, content_rich=excluded.content_rich, content_text=excluded.content_text,
 		  timestamp=excluded.timestamp, edited_at=excluded.edited_at, status=excluded.status,
 		  reply_to_id=excluded.reply_to_id, reply_preview=excluded.reply_preview, forward_from=excluded.forward_from,
+		  forward_from_id=excluded.forward_from_id,
 		  is_pinned=excluded.is_pinned, is_outgoing=excluded.is_outgoing, is_service=excluded.is_service,
 		  has_media=excluded.has_media, grouped_id=excluded.grouped_id, no_forwards=excluded.no_forwards, topic_id=excluded.topic_id`,
 		accountID, chatID, msg.ID, nil, msg.SenderID, msg.SenderName, nullStr(msg.SenderRank), msg.SenderColorID,
 		rawBytes, richBytes, msg.Text, ts, editedAt,
 		status, nullStr(msg.ReplyToID), nullStr(msg.ReplyPreview),
-		nullStr(msg.ForwardFrom), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards), nullStr(topicID))
+		nullStr(msg.ForwardFrom), nullStr(msg.ForwardFromID), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards), nullStr(topicID))
 
 	// Cache media references.
 	for i, att := range msg.Attachments {
@@ -454,7 +457,8 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		Status:       status,
 		ReplyToID:    msg.ReplyToID,
 		ReplyPreview: msg.ReplyPreview,
-		ForwardFrom:  msg.ForwardFrom,
+		ForwardFrom:   msg.ForwardFrom,
+		ForwardFromID: msg.ForwardFromID,
 		IsPinned:     msg.IsPinned,
 		IsOutgoing:   msg.IsOutgoing,
 		IsService:    msg.IsService,
@@ -2409,7 +2413,7 @@ func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, off
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
+			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ? AND is_deleted = 1 AND content_text LIKE ? ESCAPE '\'
 			 ORDER BY timestamp DESC
@@ -2418,7 +2422,7 @@ func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, off
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
+			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ? AND is_deleted = 1
 			 ORDER BY timestamp DESC

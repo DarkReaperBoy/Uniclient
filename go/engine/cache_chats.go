@@ -1517,6 +1517,9 @@ type GroupCallInfo struct {
 	ParticipantsCount int                     `json:"participants_count"`
 	Participants      []GroupCallParticipant   `json:"participants"`
 	Active            bool                    `json:"active"`
+	IsRtmp            bool                    `json:"is_rtmp,omitempty"`
+	ScheduleDate      int64                   `json:"schedule_date,omitempty"`
+	Origin            string                  `json:"origin,omitempty"`
 }
 
 // GroupCallParticipant is a single participant in a group call.
@@ -1577,6 +1580,17 @@ func (e *Engine) GetGroupCall(accountID, chatID string) (*GroupCallInfo, error) 
 		if n, err := strconv.Atoi(countStr); err == nil {
 			info.ParticipantsCount = n
 		}
+	}
+	if v, ok := cs.Meta["is_rtmp"]; ok && v == "true" {
+		info.IsRtmp = true
+	}
+	if v, ok := cs.Meta["schedule_date"]; ok {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			info.ScheduleDate = n
+		}
+	}
+	if v, ok := cs.Meta["origin"]; ok {
+		info.Origin = v
 	}
 	avatarDir := filepath.Join(e.mediaDir, accountID, "avatars")
 	for _, p := range cs.Participants {

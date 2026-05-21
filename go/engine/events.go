@@ -460,13 +460,35 @@ func (e *Engine) handleCallUpdate(accountID string, call *cores.CallSession) {
 				info.ParticipantsCount = n
 			}
 		}
+		if v, ok := call.Meta["is_rtmp"]; ok && v == "true" {
+			info.IsRtmp = true
+		}
+		if v, ok := call.Meta["schedule_date"]; ok {
+			if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+				info.ScheduleDate = n
+			}
+		}
+		if v, ok := call.Meta["origin"]; ok {
+			info.Origin = v
+		}
 		for _, p := range call.Participants {
 			info.Participants = append(info.Participants, GroupCallParticipant{
-				UserID:      p.UserID,
-				DisplayName: p.DisplayName,
-				IsMuted:     p.IsMuted,
-				IsSpeaking:  p.IsSpeaking,
-				HasVideo:    p.HasVideo,
+				UserID:             p.UserID,
+				DisplayName:        p.DisplayName,
+				IsMuted:            p.IsMuted,
+				IsSpeaking:         p.IsSpeaking,
+				HasVideo:           p.HasVideo,
+				CanSelfUnmute:      p.CanSelfUnmute,
+				RaisedHandRating:   p.RaisedHandRating,
+				Volume:             p.Volume,
+				AudioLevel:         p.AudioLevel,
+				MutedByMe:          p.MutedByMe,
+				Sounding:           p.Sounding,
+				AdditionalSounding: p.AdditionalSounding,
+				AdditionalSpeaking: p.AdditionalSpeaking,
+				SSRC:               p.SSRC,
+				LastActive:         p.LastActive,
+				Date:               p.Date,
 			})
 		}
 		if info.ParticipantsCount == 0 && len(info.Participants) > 0 {
