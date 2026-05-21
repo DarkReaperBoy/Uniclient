@@ -556,67 +556,85 @@ class _AyuFiltersListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
+    context.select<AppState, List<RegexFilter>>((s) => s.filterEngine.filters);
+    context.select<AppState, List<RegexFilterExclusion>>((s) => s.filterEngine.exclusions);
+    context.select<AppState, Set<int>>((s) => s.shadowBanIds);
+    final appState = context.read<AppState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final subtitleColor =
         isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     final accentColor =
         isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
 
-    final List<Widget> children;
+    final items = <Widget Function()>[];
 
     if (mode == _FiltersListMode.shadowBan) {
-      children = _buildShadowBanContent(appState, isDark, subtitleColor, accentColor);
+      _buildShadowBanItems(items, appState, isDark, subtitleColor, accentColor);
     } else if (mode == _FiltersListMode.perDialog && !showExclude) {
-      children = _buildPickExcludeContent(appState, isDark, subtitleColor, accentColor, context);
+      _buildPickExcludeItems(items, appState, isDark, subtitleColor, accentColor, context);
     } else {
-      children = _buildFilterListContent(appState, isDark, subtitleColor, accentColor, context);
+      _buildFilterListItems(items, appState, isDark, subtitleColor, accentColor, context);
     }
 
-    return ayuSettingsScaffold(
-      context: context,
-      title: _title,
-      actions: [
-        if (mode == _FiltersListMode.shadowBan)
-          IconButton(
-            icon: Icon(Icons.add,
-                color: isDark ? Colors.white : Colors.black87),
-            onPressed: () => _showAddShadowBanDialog(context, appState),
-          )
-        else if (mode != _FiltersListMode.perDialog || showExclude)
-          IconButton(
-            icon: Icon(Icons.add,
-                color: isDark ? Colors.white : Colors.black87),
-            onPressed: () => _showRegexEditBox(context, appState, null),
-          ),
-      ],
-      children: children,
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: isDark ? const Color(0xFF17212B) : Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black87,
+        elevation: 0,
+        title: Text(_title,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        actions: [
+          if (mode == _FiltersListMode.shadowBan)
+            IconButton(
+              icon: Icon(Icons.add,
+                  color: isDark ? Colors.white : Colors.black87),
+              onPressed: () => _showAddShadowBanDialog(context, appState),
+            )
+          else if (mode != _FiltersListMode.perDialog || showExclude)
+            IconButton(
+              icon: Icon(Icons.add,
+                  color: isDark ? Colors.white : Colors.black87),
+              onPressed: () => _showRegexEditBox(context, appState, null),
+            ),
+        ],
+      ),
+      body: ListView.builder(
+        padding: EdgeInsets.zero,
+        itemCount: items.length,
+        itemBuilder: (ctx, index) => items[index](),
+      ),
     );
   }
 
-  List<Widget> _buildShadowBanContent(
+  void _buildShadowBanItems(List<Widget Function()> items,
       AppState appState, bool isDark, Color subtitleColor, Color accentColor) {
     if (appState.shadowBanIds.isEmpty) {
-      return [_emptyState(isDark, subtitleColor, 'No shadow-banned peers.')];
+      items.add(() => _emptyState(isDark, subtitleColor, 'No shadow-banned peers.'));
+      return;
     }
-    return [
-      const SizedBox(height: 8),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
-        child: Text('Filters',
-            style: TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w500, color: accentColor)),
-      ),
-      ...appState.shadowBanIds.map((id) => _ShadowBanRow(
+    items.add(() => const SizedBox(height: 8));
+    items.add(() => Padding(
+      padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
+      child: Text('Filters',
+          style: TextStyle(
+              fontSize: 14, fontWeight: FontWeight.w500, color: accentColor)),
+    ));
+    for (final id in appState.shadowBanIds) {
+      items.add(() => _ShadowBanRow(
             id: id,
             isDark: isDark,
             onDelete: () => appState.removeShadowBan(id),
-          )),
-      const SizedBox(height: 8),
-    ];
+          ));
+    }
+    items.add(() => const SizedBox(height: 8));
   }
 
-  List<Widget> _buildFilterListContent(
+  void _buildFilterListItems(List<Widget Function()> items,
       AppState appState, bool isDark, Color subtitleColor, Color accentColor, BuildContext context) {
     final engine = appState.filterEngine;
     final List<RegexFilter> filters;
@@ -634,21 +652,20 @@ class _AyuFiltersListScreen extends StatelessWidget {
     }
 
     if (filters.isEmpty && exclusionFilters.isEmpty) {
-      return [_emptyState(isDark, subtitleColor, 'No filters.')];
+      items.add(() => _emptyState(isDark, subtitleColor, 'No filters.'));
+      return;
     }
 
-    final List<Widget> children = [];
-
     if (filters.isNotEmpty) {
-      children.add(const SizedBox(height: 8));
-      children.add(Padding(
+      items.add(() => const SizedBox(height: 8));
+      items.add(() => Padding(
         padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
         child: Text('Filters',
             style: TextStyle(
                 fontSize: 14, fontWeight: FontWeight.w500, color: accentColor)),
       ));
       for (final f in filters) {
-        children.add(_FilterRow(
+        items.add(() => _FilterRow(
           filter: f,
           isDark: isDark,
           onEdit: () => _showRegexEditBox(context, appState, f),
@@ -666,16 +683,16 @@ class _AyuFiltersListScreen extends StatelessWidget {
 
     if (exclusionFilters.isNotEmpty) {
       if (filters.isNotEmpty) {
-        children.add(_sectionDivider(isDark));
+        items.add(() => _sectionDivider(isDark));
       }
-      children.add(Padding(
+      items.add(() => Padding(
         padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
         child: Text('Excluded',
             style: TextStyle(
                 fontSize: 14, fontWeight: FontWeight.w500, color: accentColor)),
       ));
       for (final f in exclusionFilters) {
-        children.add(_ExclusionRow(
+        items.add(() => _ExclusionRow(
           filter: f,
           isDark: isDark,
           onDelete: () {
@@ -687,20 +704,19 @@ class _AyuFiltersListScreen extends StatelessWidget {
     }
 
     if (mode == _FiltersListMode.perDialog) {
-      children.add(const SizedBox(height: 12));
-      children.add(_sectionDivider(isDark));
-      children.add(const SizedBox(height: 4));
-      children.add(_AddExclusionButton(
+      items.add(() => const SizedBox(height: 12));
+      items.add(() => _sectionDivider(isDark));
+      items.add(() => const SizedBox(height: 4));
+      items.add(() => _AddExclusionButton(
         isDark: isDark,
         onTap: () => _navigateToPickExclude(context, appState),
       ));
     }
 
-    children.add(const SizedBox(height: 8));
-    return children;
+    items.add(() => const SizedBox(height: 8));
   }
 
-  List<Widget> _buildPickExcludeContent(
+  void _buildPickExcludeItems(List<Widget Function()> items,
       AppState appState, bool isDark, Color subtitleColor, Color accentColor, BuildContext context) {
     final engine = appState.filterEngine;
     final exclIds = engine.exclusionsForDialog(dialogId!);
@@ -709,17 +725,18 @@ class _AyuFiltersListScreen extends StatelessWidget {
         .toList();
 
     if (available.isEmpty) {
-      return [_emptyState(isDark, subtitleColor, 'No shared filters available to exclude.')];
+      items.add(() => _emptyState(isDark, subtitleColor, 'No shared filters available to exclude.'));
+      return;
     }
 
-    final List<Widget> children = [const SizedBox(height: 8)];
-    children.add(Padding(
+    items.add(() => const SizedBox(height: 8));
+    items.add(() => Padding(
       padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
       child: Text('Tap to exclude a shared filter',
           style: TextStyle(fontSize: 13, color: subtitleColor)),
     ));
     for (final f in available) {
-      children.add(_PickExcludeRow(
+      items.add(() => _PickExcludeRow(
         filter: f,
         isDark: isDark,
         onTap: () {
@@ -732,8 +749,7 @@ class _AyuFiltersListScreen extends StatelessWidget {
         },
       ));
     }
-    children.add(const SizedBox(height: 8));
-    return children;
+    items.add(() => const SizedBox(height: 8));
   }
 
   Widget _emptyState(bool isDark, Color subtitleColor, String text) {
@@ -1516,18 +1532,16 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
         return;
       }
 
-      final filters = (parsed['filters'] as List<dynamic>?)
-          ?.map((e) => RegexFilter.fromJson(e as Map<String, dynamic>))
-          .toList() ?? [];
-      final exclusions = (parsed['exclusions'] as List<dynamic>?)
-          ?.map((e) => RegexFilterExclusion.fromJson(e as Map<String, dynamic>))
-          .toList() ?? [];
-      final removeFilterIds = (parsed['removeFiltersById'] as List<dynamic>?)
-          ?.map((e) => e.toString())
-          .toList() ?? [];
-      final removeExclusions = (parsed['removeExclusions'] as List<dynamic>?)
-          ?.map((e) => RegexFilterExclusion.fromJson(e as Map<String, dynamic>))
-          .toList() ?? [];
+      final engine = appState.filterEngine;
+      final ImportChanges changes;
+      try {
+        changes = engine.previewImport(parsed);
+      } on Exception catch (e) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+        return;
+      }
 
       final peersRaw = parsed['peers'];
       final peerHints = <String, String>{};
@@ -1555,23 +1569,7 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
         }
       }
 
-      final engine = appState.filterEngine;
-      int newCount = 0;
-      int updatedCount = 0;
-      for (final f in filters) {
-        final existing = engine.filters.where((ef) => ef.id == f.id);
-        if (existing.isNotEmpty) {
-          updatedCount++;
-        } else {
-          newCount++;
-        }
-      }
-      final newExclCount = exclusions.where((e) =>
-          !engine.exclusions.contains(e)).length;
-
-      if (newCount == 0 && updatedCount == 0 && newExclCount == 0 &&
-          removeFilterIds.isEmpty && removeExclusions.isEmpty &&
-          peersToResolve.isEmpty) {
+      if (!changes.hasChanges && peersToResolve.isEmpty) {
         messenger.showSnackBar(
           const SnackBar(content: Text('No changes')),
         );
@@ -1580,32 +1578,16 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
 
       if (!mounted) return;
       final confirmed = await _showImportConfirmation(
-        newFilters: newCount,
-        updatedFilters: updatedCount,
-        removedFilters: removeFilterIds.length,
-        newExclusions: newExclCount,
-        removedExclusions: removeExclusions.length,
+        newFilters: changes.addedCount,
+        updatedFilters: changes.updatedCount,
+        removedFilters: changes.removedFiltersCount,
+        newExclusions: changes.newExclusionsCount,
+        removedExclusions: changes.removedExclusionsCount,
         dialogsToResolve: peersToResolve.length,
       );
       if (confirmed != true) return;
 
-      for (final f in filters) {
-        final existing = engine.filters.where((ef) => ef.id == f.id);
-        if (existing.isNotEmpty) {
-          engine.updateFilter(f);
-        } else {
-          engine.addFilter(f);
-        }
-      }
-      for (final e in exclusions) {
-        engine.addExclusion(e);
-      }
-      for (final id in removeFilterIds) {
-        engine.deleteFilter(id);
-      }
-      for (final e in removeExclusions) {
-        engine.deleteExclusion(e.dialogId, e.filterId);
-      }
+      engine.applyImport(changes);
       appState.saveFilterEngine();
 
       if (peersToResolve.isNotEmpty) {
@@ -1620,10 +1602,10 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
         }
       }
 
-      final total = newCount + updatedCount;
+      final total = changes.addedCount + changes.updatedCount;
       messenger.showSnackBar(
         SnackBar(content: Text('Imported $total filter${total != 1 ? "s" : ""}'
-            '${removeFilterIds.isNotEmpty ? ', removed ${removeFilterIds.length}' : ''}'
+            '${changes.removedFiltersCount > 0 ? ', removed ${changes.removedFiltersCount}' : ''}'
             '${peersToResolve.isNotEmpty ? ', resolved ${peersToResolve.length} dialog${peersToResolve.length != 1 ? "s" : ""}' : ''}')),
       );
     } on FormatException {
@@ -1702,6 +1684,29 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
 
   Future<void> _doExport(AppState appState, ScaffoldMessengerState messenger) async {
     final engine = appState.filterEngine;
+    final peers = await _resolvePeerUsernames(appState, engine);
+
+    if (_useUrl) {
+      final result = await engine.publishFilters(peers: peers);
+      if (result.error != null) {
+        messenger.showSnackBar(SnackBar(content: Text(result.error!)));
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Link copied to clipboard')),
+        );
+      }
+    } else {
+      final exportData = engine.exportFilters(peers: peers);
+      final jsonText = const JsonEncoder.withIndent('  ').convert(exportData);
+      await Clipboard.setData(ClipboardData(text: jsonText));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Copied to clipboard')),
+      );
+    }
+  }
+
+  Future<Map<String, String>> _resolvePeerUsernames(
+      AppState appState, AyuFilterEngine engine) async {
     final dialogIds = <String>{};
     for (final f in engine.filters) {
       if (f.dialogId != null && f.dialogId!.isNotEmpty) {
@@ -1709,97 +1714,31 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
       }
     }
     final peers = <String, String>{};
-    if (dialogIds.isNotEmpty) {
-      final chatState = context.read<ChatState>();
-      final engineSvc = context.read<EngineService>();
-      final accountId = appState.activeAccountId;
-      for (final dId in dialogIds) {
-        String? username;
-        for (final chat in chatState.chats) {
-          if (chat.chatId == dId) {
-            if (accountId.isNotEmpty) {
-              try {
-                final profile = await engineSvc.getUserProfile(accountId, dId);
-                if (profile != null && profile.username.isNotEmpty) {
-                  username = profile.username;
-                }
-              } catch (_) {}
-            }
-            break;
+    if (dialogIds.isEmpty) return peers;
+
+    final chatState = context.read<ChatState>();
+    final engineSvc = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    for (final dId in dialogIds) {
+      String? username;
+      for (final chat in chatState.chats) {
+        if (chat.chatId == dId) {
+          if (accountId.isNotEmpty) {
+            try {
+              final profile = await engineSvc.getUserProfile(accountId, dId);
+              if (profile != null && profile.username.isNotEmpty) {
+                username = profile.username;
+              }
+            } catch (_) {}
           }
-        }
-        if (username != null && username.isNotEmpty) {
-          peers[dId] = username;
+          break;
         }
       }
-    }
-
-    final exportData = {
-      'version': 2,
-      'filters': engine.filters.map((f) => f.toJson()).toList(),
-      'exclusions': engine.exclusions.map((e) => e.toJson()).toList(),
-      'removeFiltersById': <String>[],
-      'removeExclusions': <Map<String, dynamic>>[],
-      'peers': peers,
-    };
-    final jsonText = const JsonEncoder.withIndent('  ').convert(exportData);
-
-    if (_useUrl) {
-      try {
-        final client = HttpClient();
-        client.connectionTimeout = const Duration(seconds: 10);
-        final request = await client.postUrl(
-          Uri.parse('https://dpaste.com/api/v2/'),
-        );
-        final boundary = '----DartFormBoundary${DateTime.now().millisecondsSinceEpoch}';
-        request.headers.set('Content-Type', 'multipart/form-data; boundary=$boundary');
-
-        final body = StringBuffer();
-        void addField(String name, String value) {
-          body.write('--$boundary\r\n');
-          body.write('Content-Disposition: form-data; name="$name"\r\n\r\n');
-          body.write('$value\r\n');
-        }
-        addField('content', jsonText);
-        addField('syntax', 'json');
-        addField('title', 'AyuGram Filters');
-        body.write('--$boundary--\r\n');
-
-        request.write(body.toString());
-        final response = await request.close();
-        final responseBody = await response.transform(utf8.decoder).join();
-        client.close();
-
-        String pasteUrl = responseBody.trim();
-        if (response.statusCode == 201 &&
-            response.headers['location'] != null &&
-            response.headers['location']!.isNotEmpty) {
-          pasteUrl = response.headers['location']!.first;
-        }
-        if (!pasteUrl.startsWith('http')) {
-          messenger.showSnackBar(
-            const SnackBar(content: Text('Failed to publish filters')),
-          );
-          return;
-        }
-        if (!pasteUrl.endsWith('.txt')) {
-          pasteUrl = '$pasteUrl.txt';
-        }
-        await Clipboard.setData(ClipboardData(text: pasteUrl));
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Link copied to clipboard')),
-        );
-      } catch (_) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Failed to publish filters')),
-        );
+      if (username != null && username.isNotEmpty) {
+        peers[dId] = username;
       }
-    } else {
-      await Clipboard.setData(ClipboardData(text: jsonText));
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Copied to clipboard')),
-      );
     }
+    return peers;
   }
 
   @override
