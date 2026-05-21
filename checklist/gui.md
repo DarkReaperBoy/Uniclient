@@ -605,10 +605,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-## send_files_box — File drag-and-drop between document blocks uses desktop_drop not internal QDrag
-
-- [ ] [MAJOR] AyuGram implements file reordering for document blocks via `setupDragForBlock` using a custom `application/x-tg-sendfile-index` MIME type and `QDrag`, restricting drops to only blocks where `isFileBlock(from) && isFileBlock(index)` (files/music, not media). The Dart's `_FileListPreview` uses Flutter's `LongPressDraggable<int>` / `DragTarget<int>` accepting any index without the `isFileBlock` restriction, meaning media items can be reordered with the file drag system when they should be handled by album reorder. — `send_files_box.dart:3317-3330` ← `AyuGram/boxes/send_files_box.cpp:2484-2549`
-
 ## send_files_box — `canBeSentInSlowmode` check missing when adding files
 
 - [ ] [MAJOR] AyuGram's `addFile()` checks `_list.canBeSentInSlowmode()` after appending each file and removes it if the slow-mode constraint is violated. The Dart `_addMoreFiles()` and `_addDroppedFiles()` only gate at the UI level with a toast if `isSlowMode && _files.isNotEmpty`, but do not individually validate each file against the slow-mode rule after addition — a race condition could allow extra files to accumulate in the list. — `send_files_box.dart:1191-1250` ← `AyuGram/boxes/send_files_box.cpp:2150-2166`
