@@ -188,6 +188,8 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
 
   List<Map<String, dynamic>> _cachedOtherSessions = [];
   List<Map<String, dynamic>> _cachedIncompleteSessions = [];
+  Map<String, _DeviceInfo> _cachedDeviceInfos = {};
+  bool _loadingInFlight = false;
 
   @override
   void initState() {
@@ -226,21 +228,53 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
       return bDate.compareTo(aDate);
     });
     _cachedIncompleteSessions = incomplete;
+
+    final infos = <String, _DeviceInfo>{};
+    for (final s in _sessions) {
+      final id = s['id'] as String? ?? '';
+      if (id.isNotEmpty) {
+        infos[id] = _classifyDevice(
+          s['device'] as String? ?? '',
+          s['platform'] as String? ?? '',
+          s['app_name'] as String? ?? '',
+          apiId: s['api_id'] as int?,
+          system: s['system'] as String?,
+        );
+      }
+    }
+    _cachedDeviceInfos = infos;
+  }
+
+  _DeviceInfo _getDeviceInfo(Map<String, dynamic> session) {
+    final id = session['id'] as String? ?? '';
+    return _cachedDeviceInfos[id] ?? _classifyDevice(
+      session['device'] as String? ?? '',
+      session['platform'] as String? ?? '',
+      session['app_name'] as String? ?? '',
+      apiId: session['api_id'] as int?,
+      system: session['system'] as String?,
+    );
   }
 
   Future<void> _loadSessions() async {
-    final engine = context.read<EngineService>();
-    final appState = context.read<AppState>();
-    final accountId = appState.activeAccountId;
-    if (accountId.isEmpty) return;
+    if (_loadingInFlight) return;
+    _loadingInFlight = true;
+    try {
+      final engine = context.read<EngineService>();
+      final appState = context.read<AppState>();
+      final accountId = appState.activeAccountId;
+      if (accountId.isEmpty) return;
 
-    final sessions = await engine.getSessions(accountId);
-    if (!mounted) return;
-    setState(() {
-      _sessions = sessions;
-      _loading = false;
-      _recomputeCachedLists();
-    });
+      final sessions = await engine.getSessions(accountId);
+      if (!mounted) return;
+      setState(() {
+        _sessions = sessions;
+        _loading = false;
+        _recomputeCachedLists();
+      });
+    } finally {
+      _loadingInFlight = false;
+    }
   }
 
   Map<String, dynamic>? get _currentSession {
@@ -254,8 +288,13 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
     final ok = await engine.terminateSession(appState.activeAccountId, sessionId);
-    if (ok && mounted) {
+    if (!mounted) return;
+    if (ok) {
       _loadSessions();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to terminate session')),
+      );
     }
   }
 
@@ -263,8 +302,13 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
     final ok = await engine.terminateAllOtherSessions(appState.activeAccountId);
-    if (ok && mounted) {
+    if (!mounted) return;
+    if (ok) {
       _loadSessions();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to terminate sessions')),
+      );
     }
   }
 
@@ -282,6 +326,10 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     if (days <= 0) return '';
     if (days > 25) {
       final months = (days / 30).round().clamp(1, 999);
+      if (months >= 12) {
+        final years = (months / 12).round().clamp(1, 999);
+        return years == 1 ? '1 year' : '$years years';
+      }
       return months == 1 ? '1 month' : '$months months';
     }
     final weeks = (days / 7).round().clamp(1, 999);
@@ -808,6 +856,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                     delegate: SliverChildBuilderDelegate(
                       (context, index) => _SessionRow(
                         session: incompleteSessions[index],
+                        deviceInfo: _getDeviceInfo(incompleteSessions[index]),
                         textColor: textColor,
                         subtextColor: subtextColor,
                         formatDate: _formatActiveDate,
@@ -834,6 +883,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                     delegate: SliverChildBuilderDelegate(
                       (context, index) => _SessionRow(
                         session: otherSessions[index],
+                        deviceInfo: _getDeviceInfo(otherSessions[index]),
                         textColor: textColor,
                         subtextColor: subtextColor,
                         formatDate: _formatActiveDate,
@@ -855,10 +905,9 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   SliverToBoxAdapter(
                     child: _buildEmptyPlaceholder(subtextColor),
                   ),
-                if (otherSessions.isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: _buildAutoTerminateSection(textColor, subtextColor, dividerColor, accentColor),
-                  ),
+                SliverToBoxAdapter(
+                  child: _buildAutoTerminateSection(textColor, subtextColor, dividerColor, accentColor),
+                ),
               ],
             );
 
@@ -893,7 +942,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     Color dividerColor,
   ) {
     final current = _currentSession;
-    final appState = context.watch<AppState>();
+    final customDeviceModel = context.select<AppState, String>((s) => s.customDeviceModel);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -928,12 +977,13 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         ),
         if (current != null) _SessionRow(
           session: current,
+          deviceInfo: _getDeviceInfo(current),
           textColor: textColor,
           subtextColor: subtextColor,
           formatDate: _formatActiveDate,
           isCurrent: true,
           showTerminate: false,
-          customDeviceName: appState.customDeviceModel,
+          customDeviceName: customDeviceModel,
           onTap: () => _showSessionInfoBox(current),
         ),
         Container(height: 1, color: dividerColor),
@@ -1046,7 +1096,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     Color dividerColor,
     Color accentColor,
   ) {
-    final label = _autoTerminateDays > 0 ? _formatDaysLabel(_autoTerminateDays) : '';
+    final label = _autoTerminateDays > 0 ? _formatDaysLabel(_autoTerminateDays) : 'Never';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1075,11 +1125,10 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                     style: TextStyle(color: textColor, fontSize: 14),
                   ),
                 ),
-                if (label.isNotEmpty)
-                  Text(
-                    label,
-                    style: TextStyle(color: accentColor, fontSize: 14),
-                  ),
+                Text(
+                  label,
+                  style: TextStyle(color: accentColor, fontSize: 14),
+                ),
               ],
             ),
           ),
@@ -1102,6 +1151,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
 
 class _SessionRow extends StatelessWidget {
   final Map<String, dynamic> session;
+  final _DeviceInfo deviceInfo;
   final Color textColor;
   final Color subtextColor;
   final String Function(String?) formatDate;
@@ -1113,6 +1163,7 @@ class _SessionRow extends StatelessWidget {
 
   const _SessionRow({
     required this.session,
+    required this.deviceInfo,
     required this.textColor,
     required this.subtextColor,
     required this.formatDate,
@@ -1129,15 +1180,12 @@ class _SessionRow extends StatelessWidget {
     final device = (customDeviceName != null && customDeviceName!.isNotEmpty)
         ? customDeviceName!
         : rawDevice;
-    final platform = session['platform'] as String? ?? '';
-    final systemStr = session['system'] as String? ?? '';
     final appName = session['app_name'] as String? ?? '';
     final appVersion = session['app_version'] as String? ?? '';
     final ip = session['ip'] as String? ?? '';
     final location = session['location'] as String? ?? '';
     final lastActive = session['last_active'] as String? ?? '';
-    final apiId = session['api_id'] as int?;
-    final info = _classifyDevice(rawDevice, platform, appName, apiId: apiId, system: systemStr);
+    final info = deviceInfo;
 
     final statusParts = <String>[];
     if (appName.isNotEmpty) statusParts.add(appName);
@@ -1230,6 +1278,8 @@ class _DeviceUserpic extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheSize = (size * 0.52 * dpr).round();
     return Container(
       width: size,
       height: size,
@@ -1246,6 +1296,8 @@ class _DeviceUserpic extends StatelessWidget {
           info.iconAsset,
           width: size * 0.52,
           height: size * 0.52,
+          cacheWidth: cacheSize,
+          cacheHeight: cacheSize,
           color: Colors.white,
           colorBlendMode: BlendMode.srcIn,
         ),
@@ -1266,6 +1318,8 @@ class _DeviceUserpicBig extends StatefulWidget {
 
 class _DeviceUserpicBigState extends State<_DeviceUserpicBig> with SingleTickerProviderStateMixin {
   AnimationController? _lottieController;
+  Animation<double>? _routeAnimation;
+  void Function(AnimationStatus)? _routeAnimationListener;
 
   @override
   void initState() {
@@ -1277,6 +1331,9 @@ class _DeviceUserpicBigState extends State<_DeviceUserpicBig> with SingleTickerP
 
   @override
   void dispose() {
+    if (_routeAnimationListener != null) {
+      _routeAnimation?.removeStatusListener(_routeAnimationListener!);
+    }
     _lottieController?.dispose();
     super.dispose();
   }
@@ -1290,11 +1347,15 @@ class _DeviceUserpicBigState extends State<_DeviceUserpicBig> with SingleTickerP
         _lottieController?.forward();
       } else {
         void listener(AnimationStatus status) {
-          if (status == AnimationStatus.completed && mounted) {
-            _lottieController?.forward();
+          if (status == AnimationStatus.completed) {
+            if (mounted) _lottieController?.forward();
             route?.animation?.removeStatusListener(listener);
+            _routeAnimationListener = null;
+            _routeAnimation = null;
           }
         }
+        _routeAnimation = route?.animation;
+        _routeAnimationListener = listener;
         route?.animation?.addStatusListener(listener);
       }
     });
@@ -1304,6 +1365,8 @@ class _DeviceUserpicBigState extends State<_DeviceUserpicBig> with SingleTickerP
   Widget build(BuildContext context) {
     const size = 70.0;
     final lottieAsset = _lottiePath(widget.info.type);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheSize = (size * 0.52 * dpr).round();
 
     return Container(
       width: size,
@@ -1338,6 +1401,8 @@ class _DeviceUserpicBigState extends State<_DeviceUserpicBig> with SingleTickerP
                 _bigIconPath(widget.info.type),
                 width: size * 0.52,
                 height: size * 0.52,
+                cacheWidth: cacheSize,
+                cacheHeight: cacheSize,
                 color: Colors.white,
                 colorBlendMode: BlendMode.srcIn,
               ),
