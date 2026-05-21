@@ -604,11 +604,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 
 
-
-## send_files_box — `canBeSentInSlowmode` check missing when adding files
-
-- [ ] [MAJOR] AyuGram's `addFile()` checks `_list.canBeSentInSlowmode()` after appending each file and removes it if the slow-mode constraint is violated. The Dart `_addMoreFiles()` and `_addDroppedFiles()` only gate at the UI level with a toast if `isSlowMode && _files.isNotEmpty`, but do not individually validate each file against the slow-mode rule after addition — a race condition could allow extra files to accumulate in the list. — `send_files_box.dart:1191-1250` ← `AyuGram/boxes/send_files_box.cpp:2150-2166`
-
 ## send_files_box — Emoji panel uses EmojiTabbedPanel (full panel); AyuGram uses EmojiOnly-mode TabbedPanel
 
 - [ ] [MAJOR] AyuGram sets up the emoji panel with `TabbedSelector::Mode::EmojiOnly` and `features.stickersSettings = false` / `features.openStickerSets = false`. The Dart uses `EmojiTabbedPanel` from `emoji_panel.dart` which is the full tabbed emoji+sticker panel (also used in the compose bar). This makes the send-files emoji panel heavier and inconsistent with the AyuGram source. — `send_files_box.dart:1895-1917` ← `AyuGram/boxes/send_files_box.cpp:2003-2051`
