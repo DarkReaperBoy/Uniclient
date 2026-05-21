@@ -34,12 +34,6 @@
 - `.last` returns entire path; `replaceAll('.dic', '')` leaves `C:\Users\...\en_US`
 - Should use `basename()` or `File(path).uri.pathSegments.last` instead
 
-## web_drop_web — cleanup
-
-- [ ] [MAJOR] `_handleDragOver` fires `widget.onDragUpdate?.call(localPos)` on every DOM `dragover` event with zero throttling — `dragover` fires at pointer frequency (~60–120 Hz while dragging), so any non-trivial consumer work in `onDragUpdate` (setState, layout, etc.) will cause sustained jank for the entire drag duration — `web_drop_web.dart:112`
-
-- [ ] [MAJOR] `_readFiles` launches all file reads concurrently via `Future.wait` with no size limit — every dropped file is fully buffered into a `Uint8List` simultaneously; dropping several large files (videos, archives) spikes RAM proportionally to total size × count — `web_drop_web.dart:154`
-
 ## notification_manager_default — cleanup
 
 - [ ] [MAJOR] `clearAllFast` clears `_active` without calling `onDismiss(id)` per item (lines 289-298) — `notification_popup.dart`'s `_popups` list is never drained, leaving ghost popup widgets in the overlay tree. Only `onHideAllChanged` fires, which updates the "hide all" button visibility but leaves the individual popups rendered. Fix: iterate `_active`, collect ids, call `onDismiss` for each before clearing. — `notification_manager_default.dart:289`
