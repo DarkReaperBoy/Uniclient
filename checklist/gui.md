@@ -39,38 +39,6 @@
 
 No issues found.
 
-## app_state — cleanup
-
-- [ ] [CRITICAL] `_streamerModeController` StreamController is never `.close()`d in `dispose()` (line 318 / line 3729) — resource leak on every `AppState` teardown — `app_state.dart:3729`
-
-- [ ] [CRITICAL] `checkPasscode` runs SHA-256 × 100,000 synchronously on the UI thread (lines 2796–2801) — blocks the isolate for ~100–500 ms on every passcode attempt, janks the entire app — wrap in `compute()` or use `Isolate.run()` — `app_state.dart:2796`
-
-- [ ] [CRITICAL] `setProxyRotationEnabled` and `setProxyRotationTimeout` save to prefs but never call `_syncProxyToEngine()` (lines 2120–2131) — proxy rotation settings are written to disk but the engine never sees them — `app_state.dart:2120`
-
-- [ ] [CRITICAL] `_syncProxyToEngine()` calls `_engine.callGeneric(_activeAccountId, 'SetProxy', ...)` (line 2145) — proxy is set only for the currently active account; switching accounts leaves the new active account without any proxy configured — should iterate all account IDs or use a global engine API — `app_state.dart:2145`
-
-- [ ] [CRITICAL] `setCallOutputDevice`, `setCallInputDevice`, `setCallCameraDevice` setters (lines 876–895) call only `_saveWindowPrefs()` with no engine call — device selection is stored in prefs but never forwarded to the engine, so audio device changes have no effect on actual calls — `app_state.dart:876`
-
-- [ ] [CRITICAL] `customDeviceModel` setter (line 2435) saves to prefs via `_saveWindowPrefs()` but never calls any engine method — the custom device model identifier is never sent to the Telegram API — needs `_engine.updateConfig(deviceModel: v)` or equivalent — `app_state.dart:2435`
-
-- [ ] [CRITICAL] `setLocalStorageLimits` only forwards `totalLimit` to the engine (`_engine.updateConfig(maxCacheSize: ...)`, line 2187) — `mediaLimit` and `timeLimit` are saved to prefs but never passed to the engine — cache eviction by media type and time is never actually configured — `app_state.dart:2181`
-
-- [ ] [CRITICAL] `notifPrivateChats` and `notifGroups` setters use `_engine.updateConfig(notifyDms/notifyGroups: v)` (lines 2389–2391) but `notifChannels` uses `_engine.updateDefaultNotifySettings(_activeAccountId, peerType: 'channel', ...)` (line 2393) — inconsistent: DMs and groups skip the per-account Telegram API call that channels correctly make. Muting DMs/groups globally via `updateConfig` is insufficient — all three need `updateDefaultNotifySettings` calls with their respective `peerType` — `app_state.dart:2389`
-
-- [ ] [CRITICAL] `notifVolume` setter (line 2382) saves to prefs but never calls the engine — yet `setNotifVolumeFromEngine` (line 2383) exists, proving the engine owns volume. The setter and the engine-ingress method are disconnected; UI volume changes are never pushed to the engine — `app_state.dart:2382`
-
-- [ ] [CRITICAL] `setAutoDownloadSettings` calls `_engine.callGeneric(_activeAccountId, 'SetAutoDownload', ...)` (line 2163) — same single-account flaw as proxy: auto-download is configured only for the active account; non-active accounts use defaults — `app_state.dart:2163`
-
-- [ ] [MAJOR] `_readAutoLockSeconds()` reads `local_passcode.json` synchronously from disk (lines 2817–2827) and is called by `checkAutoLock` which is called by `updateNonIdle` on every user interaction (line 2866) — repeated synchronous file I/O on the UI thread; cache the value and invalidate only in `localPasscodeChanged()` — `app_state.dart:2817`
-
-- [ ] [MAJOR] `hasLocalPasscode` does a synchronous file read + JSON parse on every call (lines 2741–2751) — called from `checkAutoLock` → `updateNonIdle` which fires on mouse/keyboard events — should cache the result and invalidate in `localPasscodeChanged()` / `removePasscodeIfEmpty()` — `app_state.dart:2741`
-
-- [ ] [MAJOR] `accounts` getter is O(n²) — for each of up to 200 entries in `_accountOrder` it does a full linear scan of `_accounts` (lines 460–470) — 40,000 comparisons at max account count; should keep a `Map<String, AccountInfo>` lookup table updated whenever `_accounts` changes — `app_state.dart:460`
-
-- [ ] [MAJOR] `activeAccount` getter does an O(n) linear scan of `_accounts` on every call (line 481) — called inside `_ghostSettings` getter which is called by every single ghost-mode property getter; should cache the result alongside `_activeAccountId` — `app_state.dart:481`
-
-- [ ] [MAJOR] `wideMultiplier` setter clamps to `(0.5, 4.0)` (line 962) but the spec comment on line 299 says range is `1.00–4.00`; values below 1.0 are out-of-spec and may break layout math — `app_state.dart:962`
-
 ## audio_service — cleanup
 
 - [ ] [CRITICAL] `_savedPositions` is `static final Map<String, Duration>` (line 36) — in-memory only, wiped on every app restart. For content that qualifies (music ≥20 min, video ≥60 s), the save-position feature silently loses state between sessions. Telegram Desktop persists these to its local DB. Fix: call an engine persist method on save and restore on load, or use SharedPreferences — `audio_service.dart:36`
