@@ -34,24 +34,6 @@
 - `.last` returns entire path; `replaceAll('.dic', '')` leaves `C:\Users\...\en_US`
 - Should use `basename()` or `File(path).uri.pathSegments.last` instead
 
-## system_tray — cleanup
-
-- [ ] [CRITICAL] `onWindowShown` case (line 452) sets `_windowVisible = true` but never sets `_windowActive = true` — on the next tray icon click, `isActiveForTray = _windowVisible && _windowActive = true && false = false`, so clicking the tray shows the window again instead of hiding it (toggle is broken after any non-click show path) — `system_tray.dart:452`
-
-- [ ] [CRITICAL] `showWindow()` (line 328) sets `_windowVisible = true` but not `_windowActive = true` — same stale-state bug: after a programmatic `showWindow()` call, the tray click logic misfires and shows the window a second time instead of toggling to hide — `system_tray.dart:328`
-
-- [ ] [MAJOR] `flashWindow()` silently no-ops on `MissingPluginException` (line 148-149, comment: "Native side doesn't implement it yet") — wired from `main.dart:498` via `_notifSystem.onFlashBounce`; taskbar flash on new messages never fires — `system_tray.dart:148`
-
-- [ ] [MAJOR] `updateIconCounters()` silently no-ops on `MissingPluginException` (line 287-289, comment: "Not implemented on native side yet") — called from `main.dart:361` on every window restore (`onWindowShown`); tray icon badge never refreshes after restoring from tray — `system_tray.dart:287`
-
-- [ ] [MAJOR] `updateAppIcon()` silently no-ops on `MissingPluginException` (lines 302-304, comment: "Not implemented on native side yet") — called from `main.dart:379,383` when `appState.appIcon` changes; custom/alternate app icon setting has zero effect — `system_tray.dart:302`
-
-- [ ] [MAJOR] `updateAccountsMenu()` silently no-ops on `MissingPluginException` (line 433-434, comment: "Native side doesn't implement it yet") — called from `main.dart:551,554` with real account list; multi-account switcher in tray context menu never populates — `system_tray.dart:433`
-
-- [ ] [MAJOR] `minimizeWindow()` silently no-ops on `MissingPluginException` (line 356-358, comment: "not-Linux for now") — wired to `SystemTray.minimizeWindowRequest` and called from `keyboard_shortcuts.dart:1183` and `main.dart:1448`; Ctrl+M "minimize" shortcut does nothing — `system_tray.dart:356`
-
-- [ ] [MAJOR] `quitApp()` silently no-ops on `MissingPluginException` (line 371-372, comment: "Native side doesn't implement it") — wired to `SystemTray.quitAppRequest` and called from `keyboard_shortcuts.dart:1187` and `main.dart:1455`; Ctrl+Q "quit" shortcut does nothing — `system_tray.dart:371`
-
 ## web_drop_web — cleanup
 
 - [ ] [MAJOR] `_handleDragOver` fires `widget.onDragUpdate?.call(localPos)` on every DOM `dragover` event with zero throttling — `dragover` fires at pointer frequency (~60–120 Hz while dragging), so any non-trivial consumer work in `onDragUpdate` (setState, layout, etc.) will cause sustained jank for the entire drag duration — `web_drop_web.dart:112`
