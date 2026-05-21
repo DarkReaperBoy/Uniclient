@@ -551,7 +551,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
     _detectMentionQuery();
     _detectHashtagQuery();
-    _detectCommandQuery();
   }
 
   void _detectMentionQuery() {
@@ -2447,12 +2446,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                 hashtags: _acFilteredHashtags,
                 isDark: isDark,
                 onSelect: _insertHashtag,
-              ),
-            if (_showCommandPanel && _acFilteredCommands.isNotEmpty)
-              _CommandAutocompletePanel(
-                commands: _acFilteredCommands,
-                isDark: isDark,
-                onSelect: _insertCommand,
               ),
             if (_canAddCaption) ...[
             _CaptionFormattingToolbar(
