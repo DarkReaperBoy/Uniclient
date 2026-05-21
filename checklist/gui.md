@@ -18,9 +18,6 @@
 
 # spell_service — issues found
 
-- [ ] [CRITICAL] Empty suggestions list at line 88 — `SuggestionSpan(..., const [])` returns misspelled spans with zero suggestions — spell checker finds errors but can't fix them — stub implementation `spell_service.dart:88`
-- [ ] [CRITICAL] Windows path parsing broken at line 44 — `f.path.split('/').last` fails on Windows (uses backslashes not forward slashes) — will return full path instead of filename, breaking dict code extraction — `spell_service.dart:44`
-- [ ] [CRITICAL] Windows path parsing broken at line 186 — same issue as line 44 — `f.path.split('/').last` in `listDownloadedDictCodes()` won't work on Windows — `spell_service.dart:186`
 
 ## Details
 
