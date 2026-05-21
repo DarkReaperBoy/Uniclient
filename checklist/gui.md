@@ -103,25 +103,6 @@ final frameworkPath = '$parentDir/Frameworks/libcores.dylib';
 - ✅ Thread safety proper — callback unset before stream close
 - ✅ Initialization guarded — both sync/async check `_initialized`
 
-
-## telegram_palette — cleanup
-
-- [ ] [MAJOR] Static single-entry colorize cache uses `hashCode` as key — thrashes during accent preview and subject to hash collisions — `telegram_palette.dart:1199-1202`
-
-  Lines 1199-1202 declare four `static` mutable fields (`_cachedColorizeResult`, `_cachedColorizeBaseHash`, `_cachedColorizeAccentHash`, `_cachedColorizeThreshold`) that store exactly one cached result for the `colorize()` method. Three problems: (a) If the theme editor animates the accent color across frames, every frame is a cache miss → 300+ HSV conversions at 60 fps (b) Cache key uses `Color.hashCode` — in the modern Flutter `Color` (double-component representation), hashCode is not guaranteed collision-free for close colors (c) Static mutable state on an immutable value class pollutes test isolation — any test calling `colorize` poisons subsequent tests.
-  Fix: replace static fields with an instance-level `Map<(int, int, double), TelegramPalette>` or keep static but key on actual ARGB integer values (`Color.value`) with a proper equality guard.
-
-- [ ] [MAJOR] `isDark` uses raw HSV `.value` threshold while `_enforceContrast` internally uses the C++ `cppLightness` formula — diverge for saturated backgrounds — `telegram_palette.dart:1120-1122`, `2295-2300`
-
-  `isDark` at line 1121-1122 checks `HSVColor.fromColor(dialogsBg).value < 0.5`.
-  `_enforceContrast` at line 2295-2300 defines `cppLightness(c) = v - (v*s)/511` (matching `style_palette_colorizer.cpp`).
-  For a saturated dark background (e.g. custom teal theme: HSV s=1.0, v=0.6), `isDark` returns `false` (0.6 > 0.5) so `_enforceContrast` is never called — but `cppLightness` gives `0.6·255 - 0.6·255·1.0/511 ≈ 152`, still above the 128 threshold, so enforcement would also skip. For a medium-saturation case (s=0.6, v=0.55): `isDark`=false, but `cppLightness = 0.55·255 - 0.55·255·0.6/511 ≈ 140 - 16 = 124 < 128`, meaning C++ WOULD enforce contrast but Dart skips it.
-  Fix: compute `isDark` using `cppLightness(dialogsBg) < 128` to stay consistent with the same formula used in `_enforceContrast`.
-
-- [ ] [MINOR] Dead code: `if (hue < 0) hue += 360` in `colorize` is unreachable — `telegram_palette.dart:1241`
-
-  In Dart, the `%` operator with a positive right operand always returns a non-negative `double` result (Dart spec: "The result is always non-negative"). Since `hDiff ∈ (-360, 360)` and `h.hue ∈ [0, 360)`, `(h.hue + hDiff) % 360` is always in `[0, 360)`. The guard `if (hue < 0) hue += 360` can never fire. Remove it to avoid confusion — a reader would assume the `%` operator can return negative here (C++ semantics), which is wrong in Dart.
-
 ## theme_file — cleanup
 
 - [ ] [MAJOR] palette reference resolution is order-dependent — forward references silently use fallback — `theme_file.dart:137-146`
