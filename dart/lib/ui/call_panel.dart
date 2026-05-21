@@ -121,8 +121,9 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   late AnimationController _controlsFadeController;
   Timer? _durationTimer;
   Timer? _controlsHideTimer;
-  int _durationSeconds = 0;
+  final ValueNotifier<int> _durationNotifier = ValueNotifier<int>(0);
   DateTime? _callStartTime;
+  bool _avatarFileExists = false;
   bool _controlsVisible = true;
   bool _isMuted = false;
   bool _isCameraOn = false;
@@ -149,6 +150,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
       value: 1.0,
     );
     _extractDominantColors();
+    _cacheAvatarFileExists();
     _enumerateDevices();
     if (widget.info.state == CallPanelState.active) {
       _startDurationTimer();
@@ -201,8 +203,6 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
               if (name.isEmpty) continue;
               final inputs = item['coreaudio_input_source'] as String?;
               if (inputs != null && inputs.isNotEmpty) mics.add(name);
-              final outputs = item['coreaudio_output_source'] as String?;
-              if (outputs != null && outputs.isNotEmpty) cameras.add(name);
             }
           } catch (_) {}
         }
@@ -261,6 +261,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     if (oldWidget.info.callerAvatarUrl != widget.info.callerAvatarUrl ||
         oldWidget.info.callerId != widget.info.callerId) {
       _extractDominantColors();
+      _cacheAvatarFileExists();
     }
     if (widget.info.state == CallPanelState.active &&
         oldWidget.info.state != CallPanelState.active) {
@@ -276,10 +277,24 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     }
   }
 
+  void _cacheAvatarFileExists() {
+    final url = widget.info.callerAvatarUrl;
+    if (url.isNotEmpty) {
+      File(url).exists().then((exists) {
+        if (mounted && _avatarFileExists != exists) {
+          setState(() => _avatarFileExists = exists);
+        }
+      });
+    } else {
+      _avatarFileExists = false;
+    }
+  }
+
   @override
   void dispose() {
     _rippleController.dispose();
     _controlsFadeController.dispose();
+    _durationNotifier.dispose();
     _durationTimer?.cancel();
     _controlsHideTimer?.cancel();
     super.dispose();
@@ -316,13 +331,11 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   void _startDurationTimer() {
     _callStartTime ??= widget.info.callStartTime ?? DateTime.now();
     final startTime = _callStartTime!;
-    _durationSeconds = DateTime.now().difference(startTime).inSeconds;
+    _durationNotifier.value = DateTime.now().difference(startTime).inSeconds;
     _durationTimer?.cancel();
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
-        setState(() {
-          _durationSeconds = DateTime.now().difference(startTime).inSeconds;
-        });
+        _durationNotifier.value = DateTime.now().difference(startTime).inSeconds;
       }
     });
   }
@@ -467,11 +480,16 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
       final result = await engine.createConferenceCall(accountId);
       if (result == null || !mounted) return;
 
+      try {
+        await engine.joinGroupCall(accountId, result.callId);
+      } catch (e) {
+        Debug.error('CALL', 'Failed to join conference, aborting link share', e);
+        return;
+      }
+
       if (widget.info.callId.isNotEmpty) {
         await engine.endCall(accountId, widget.info.callId);
       }
-
-      await engine.joinGroupCall(accountId, result.callId);
 
       if (!mounted) return;
       showConfirmBox(
@@ -668,13 +686,10 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
 
   Widget _buildUserpic(double size) {
     final url = widget.info.callerAvatarUrl;
-    if (url.isNotEmpty) {
-      final file = File(url);
-      if (file.existsSync()) {
-        return ClipOval(
-          child: Image.file(file, width: size, height: size, fit: BoxFit.cover),
-        );
-      }
+    if (url.isNotEmpty && _avatarFileExists) {
+      return ClipOval(
+        child: Image.file(File(url), width: size, height: size, fit: BoxFit.cover),
+      );
     }
     final id = widget.info.callerId;
     final hash = id.hashCode.abs();
@@ -873,11 +888,14 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          _formatDuration(_durationSeconds),
-          style: const TextStyle(
-            color: Color(0xAAFFFFFF),
-            fontSize: 15,
+        ValueListenableBuilder<int>(
+          valueListenable: _durationNotifier,
+          builder: (context, seconds, _) => Text(
+            _formatDuration(seconds),
+            style: const TextStyle(
+              color: Color(0xAAFFFFFF),
+              fontSize: 15,
+            ),
           ),
         ),
         if (widget.info.fingerprintEmoji.length == 4) ...[
@@ -1409,6 +1427,8 @@ class _InviteContactPickerState extends State<_InviteContactPicker> {
   final Set<String> _selectedIds = {};
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  List<ContactInfo>? _filteredCache;
+  String _filteredCacheQuery = '';
 
   @override
   void initState() {
@@ -1431,6 +1451,7 @@ class _InviteContactPickerState extends State<_InviteContactPicker> {
               .where((c) => !c.isBot && c.userId != widget.excludeUserId)
               .toList()
             ..sort((a, b) => a.displayName.compareTo(b.displayName));
+          _filteredCache = null;
           _loading = false;
         });
       }
@@ -1442,12 +1463,17 @@ class _InviteContactPickerState extends State<_InviteContactPicker> {
   List<ContactInfo> get _filteredContacts {
     final all = _contacts ?? [];
     if (_searchQuery.isEmpty) return all;
+    if (_filteredCache != null && _filteredCacheQuery == _searchQuery) {
+      return _filteredCache!;
+    }
     final q = _searchQuery.toLowerCase();
-    return all
+    _filteredCache = all
         .where((c) =>
             c.displayName.toLowerCase().contains(q) ||
             c.username.toLowerCase().contains(q))
         .toList();
+    _filteredCacheQuery = _searchQuery;
+    return _filteredCache!;
   }
 
   @override
@@ -1998,7 +2024,7 @@ class _SelfViewBubbleState extends State<_SelfViewBubble>
     _snapController = AnimationController(
       vsync: this,
       duration: _SelfViewBubble._snapDuration,
-    )..addListener(() => setState(() {}));
+    );
   }
 
   @override
@@ -2043,85 +2069,93 @@ class _SelfViewBubbleState extends State<_SelfViewBubble>
 
   @override
   Widget build(BuildContext context) {
+    Widget videoContent = ClipRRect(
+      borderRadius: BorderRadius.circular(_SelfViewBubble._borderRadius),
+      child: SizedBox(
+        width: _SelfViewBubble._width,
+        height: _SelfViewBubble._height,
+        child: widget.videoWidget,
+      ),
+    );
+
+    if (widget.mirror) {
+      videoContent = Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.identity()..scale(-1.0, 1.0),
+        child: videoContent,
+      );
+    }
+
+    final stableChild = Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(_SelfViewBubble._borderRadius),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x40000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: videoContent,
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final parentSize = Size(constraints.maxWidth, constraints.maxHeight);
 
-        Offset currentPos;
-        if (_isDragging) {
-          currentPos = _dragOffset;
-        } else if (_snapController.isAnimating) {
-          final t = Curves.easeOutCirc.transform(_snapController.value);
-          currentPos = Offset.lerp(_snapFrom, _snapTo, t)!;
-        } else {
-          currentPos = _cornerPosition(parentSize, _corner);
-        }
+        return AnimatedBuilder(
+          animation: _snapController,
+          builder: (context, child) {
+            Offset currentPos;
+            if (_isDragging) {
+              currentPos = _dragOffset;
+            } else if (_snapController.isAnimating) {
+              final t = Curves.easeOutCirc.transform(_snapController.value);
+              currentPos = Offset.lerp(_snapFrom, _snapTo, t)!;
+            } else {
+              currentPos = _cornerPosition(parentSize, _corner);
+            }
 
-        Widget videoContent = ClipRRect(
-          borderRadius: BorderRadius.circular(_SelfViewBubble._borderRadius),
-          child: SizedBox(
-            width: _SelfViewBubble._width,
-            height: _SelfViewBubble._height,
-            child: widget.videoWidget,
-          ),
-        );
-
-        if (widget.mirror) {
-          videoContent = Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()..scale(-1.0, 1.0),
-            child: videoContent,
-          );
-        }
-
-        return Positioned(
-          left: currentPos.dx,
-          top: currentPos.dy,
-          child: GestureDetector(
-            onPanStart: (details) {
-              _snapController.stop();
-              setState(() {
-                _isDragging = true;
-                _dragOffset = currentPos;
-              });
-            },
-            onPanUpdate: (details) {
-              setState(() {
-                _dragOffset += details.delta;
-                _dragOffset = Offset(
-                  _dragOffset.dx.clamp(0, parentSize.width - _SelfViewBubble._width),
-                  _dragOffset.dy.clamp(0, parentSize.height - _SelfViewBubble._height),
-                );
-              });
-            },
-            onPanEnd: (_) {
-              final center = Offset(
-                _dragOffset.dx + _SelfViewBubble._width / 2,
-                _dragOffset.dy + _SelfViewBubble._height / 2,
-              );
-              final newCorner = _nearestCorner(center, parentSize);
-              _snapFrom = _dragOffset;
-              _snapTo = _cornerPosition(parentSize, newCorner);
-              setState(() {
-                _isDragging = false;
-                _corner = newCorner;
-              });
-              _snapController.forward(from: 0.0);
-            },
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(_SelfViewBubble._borderRadius),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x40000000),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
+            return Positioned(
+              left: currentPos.dx,
+              top: currentPos.dy,
+              child: GestureDetector(
+                onPanStart: (details) {
+                  _snapController.stop();
+                  setState(() {
+                    _isDragging = true;
+                    _dragOffset = currentPos;
+                  });
+                },
+                onPanUpdate: (details) {
+                  setState(() {
+                    _dragOffset += details.delta;
+                    _dragOffset = Offset(
+                      _dragOffset.dx.clamp(0, parentSize.width - _SelfViewBubble._width),
+                      _dragOffset.dy.clamp(0, parentSize.height - _SelfViewBubble._height),
+                    );
+                  });
+                },
+                onPanEnd: (_) {
+                  final center = Offset(
+                    _dragOffset.dx + _SelfViewBubble._width / 2,
+                    _dragOffset.dy + _SelfViewBubble._height / 2,
+                  );
+                  final newCorner = _nearestCorner(center, parentSize);
+                  _snapFrom = _dragOffset;
+                  _snapTo = _cornerPosition(parentSize, newCorner);
+                  setState(() {
+                    _isDragging = false;
+                    _corner = newCorner;
+                  });
+                  _snapController.forward(from: 0.0);
+                },
+                child: child!,
               ),
-              child: videoContent,
-            ),
-          ),
+            );
+          },
+          child: stableChild,
         );
       },
     );
@@ -2244,10 +2278,13 @@ class _LiveCallPanelDialogState extends State<_LiveCallPanelDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final dialogWidth = screenSize.width.clamp(CallPanel.minWidth, CallPanel.defaultWidth);
+    final dialogHeight = screenSize.height.clamp(CallPanel.minHeight, CallPanel.defaultHeight);
     return Center(
       child: SizedBox(
-        width: CallPanel.defaultWidth,
-        height: CallPanel.defaultHeight,
+        width: dialogWidth,
+        height: dialogHeight,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: CallPanel(
