@@ -43,6 +43,34 @@ import 'web_app_panel.dart';
 
 Uint8List _gzipDecode(Uint8List data) => Uint8List.fromList(gzip.decode(data));
 
+void _showStickerPackToast(BuildContext ctx, CachedMessage msg) {
+  final engine = ctx.read<EngineService>();
+  final accountId = ctx.read<AppState>().activeAccountId;
+  engine.getStickerSetInfo(
+    accountId,
+    shortName: msg.stickerSetShortName,
+    setId: msg.stickerSetId,
+    accessHash: msg.stickerSetAccessHash,
+  ).then((info) {
+    if (!ctx.mounted) return;
+    final packTitle = info?.title ?? (msg.stickerSetShortName.isNotEmpty ? msg.stickerSetShortName : 'Premium Stickers');
+    final isEmoji = info?.emojis ?? false;
+    final chatState = ctx.read<ChatState>();
+    final savedChat = chatState.chats.where(
+      (c) => c.isSelf && c.type == ChatType.dm,
+    ).firstOrNull;
+    showStickerToast(
+      ctx,
+      packName: packTitle,
+      isEmoji: isEmoji,
+      onOpenPack: () => StickerPackViewer.show(ctx, msg),
+      onOpenSavedMessages: savedChat != null
+          ? () => chatState.openChat(savedChat)
+          : null,
+    );
+  });
+}
+
 /// Spec §5: bubble shape with decorative tail on the last message in a group.
 /// The tail is a curved triangular protrusion at the bottom sender-side corner:
 /// bottom-right for outgoing, bottom-left for incoming.
@@ -3434,14 +3462,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                   ? () {
                       StickerPackViewer.show(context, message);
                       if (message.stickerPremium) {
-                        showStickerToast(
-                          context,
-                          packName: message.stickerSetShortName.isNotEmpty
-                              ? message.stickerSetShortName
-                              : 'Premium Stickers',
-                          isEmoji: false,
-                          onOpenPack: () => StickerPackViewer.show(context, message),
-                        );
+                        _showStickerPackToast(context, message);
                       }
                     }
                   : null,

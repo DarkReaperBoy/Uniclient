@@ -571,7 +571,7 @@ class _StickerToastState extends State<_StickerToast>
               child: Text(
                 _viewButtonText,
                 style: const TextStyle(
-                  color: Color(0xFF6AB2F2),
+                  color: Color(0xFF4DB8FF),
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   decoration: TextDecoration.none,

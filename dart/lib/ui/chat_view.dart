@@ -1631,14 +1631,7 @@ class _ChatViewState extends State<ChatView>
         case 'view_sticker_set':
           StickerPackViewer.show(context, msg);
           if (msg.stickerPremium) {
-            showStickerToast(
-              context,
-              packName: msg.stickerSetShortName.isNotEmpty
-                  ? msg.stickerSetShortName
-                  : 'Premium Stickers',
-              isEmoji: false,
-              onOpenPack: () => StickerPackViewer.show(context, msg),
-            );
+            _showStickerPackToast(msg);
           }
         case 'fave_sticker':
           _faveSticker(msg);
@@ -1788,6 +1781,34 @@ class _ChatViewState extends State<ChatView>
       if (!mounted) return;
       showTelegramToast(context, 'Failed to copy image');
     }
+  }
+
+  void _showStickerPackToast(CachedMessage msg) {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    engine.getStickerSetInfo(
+      accountId,
+      shortName: msg.stickerSetShortName,
+      setId: msg.stickerSetId,
+      accessHash: msg.stickerSetAccessHash,
+    ).then((info) {
+      if (!mounted) return;
+      final packTitle = info?.title ?? (msg.stickerSetShortName.isNotEmpty ? msg.stickerSetShortName : 'Premium Stickers');
+      final isEmoji = info?.emojis ?? false;
+      final chatState = context.read<ChatState>();
+      final savedChat = chatState.chats.where(
+        (c) => c.isSelf && c.type == ChatType.dm,
+      ).firstOrNull;
+      showStickerToast(
+        context,
+        packName: packTitle,
+        isEmoji: isEmoji,
+        onOpenPack: () => StickerPackViewer.show(context, msg),
+        onOpenSavedMessages: savedChat != null
+            ? () => chatState.openChat(savedChat)
+            : null,
+      );
+    });
   }
 
   void _faveSticker(CachedMessage msg) async {

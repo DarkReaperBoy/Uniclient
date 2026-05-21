@@ -32,10 +32,12 @@ class TelegramTooltip extends StatefulWidget {
 }
 
 class _TelegramTooltipState extends State<TelegramTooltip> {
+  static const double _kDragDistanceThreshold = 20.0;
+
   Timer? _showTimer;
   Timer? _hideTimer;
   OverlayEntry? _entry;
-  Offset _lastPointer = Offset.zero;
+  Offset _showPointer = Offset.zero;
 
   @override
   void dispose() {
@@ -62,15 +64,19 @@ class _TelegramTooltipState extends State<TelegramTooltip> {
   void _onEnter(PointerEvent event) {
     _hideTimer?.cancel();
     _hideTimer = null;
-    _lastPointer = event.position;
+    _showPointer = event.position;
     if (_entry != null) return;
     _showTimer?.cancel();
     _showTimer = Timer(widget.showDelay, _show);
   }
 
   void _onHover(PointerEvent event) {
-    _lastPointer = event.position;
-    _entry?.markNeedsBuild();
+    if (_entry != null) {
+      final dist = (event.position - _showPointer).distance;
+      if (dist > _kDragDistanceThreshold) {
+        _removeEntry();
+      }
+    }
   }
 
   void _onExit(PointerEvent _) {
@@ -84,11 +90,15 @@ class _TelegramTooltipState extends State<TelegramTooltip> {
 
   void _show() {
     if (!mounted || _entry != null) return;
+    final lifecycleState = WidgetsBinding.instance.lifecycleState;
+    if (lifecycleState != null && lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
     final overlay = Overlay.of(context, rootOverlay: true);
     _entry = OverlayEntry(
       builder: (_) => _TooltipOverlay(
         message: widget.message,
-        pointer: _lastPointer,
+        pointer: _showPointer,
       ),
     );
     overlay.insert(_entry!);
@@ -200,6 +210,7 @@ const double _kArrowHeight = 4.0;
 const double _kImportantRadius = 4.0;
 const double _kImportantShift = 12.0;
 const double _kArrowSkip = 66.0;
+const double _kArrowSkipMin = 24.0;
 const EdgeInsets _kImportantPadding = EdgeInsets.fromLTRB(10, 3, 10, 5);
 const EdgeInsets _kImportantMargin = EdgeInsets.all(4);
 const Duration _kImportantDuration = Duration(milliseconds: 200);
@@ -324,12 +335,22 @@ class _ImportantTooltipState extends State<ImportantTooltip>
       animation: _curvedAnim,
       builder: (context, child) {
         final progress = _curvedAnim.value;
-        final shiftDir = side == TooltipSide.top ? -1.0 : 1.0;
-        final slideOffset = _kImportantShift * (1.0 - progress) * shiftDir;
+        final slideAmount = _kImportantShift * (1.0 - progress);
+        final Offset slideOffset;
+        switch (side) {
+          case TooltipSide.top:
+            slideOffset = Offset(0.0, -slideAmount);
+          case TooltipSide.bottom:
+            slideOffset = Offset(0.0, slideAmount);
+          case TooltipSide.left:
+            slideOffset = Offset(-slideAmount, 0.0);
+          case TooltipSide.right:
+            slideOffset = Offset(slideAmount, 0.0);
+        }
         return Opacity(
           opacity: progress,
           child: Transform.translate(
-            offset: Offset(0.0, slideOffset),
+            offset: slideOffset,
             child: child,
           ),
         );
@@ -349,7 +370,13 @@ class _ImportantTooltipState extends State<ImportantTooltip>
         if (target.top - _kArrowHeight - minSpace > 0) return side;
         return TooltipSide.bottom;
       case TooltipSide.right:
+        if (target.right + _kArrowHeight + minSpace < screen.width) return side;
+        if (target.left - _kArrowHeight - minSpace > 0) return TooltipSide.left;
+        if (target.bottom + _kArrowHeight + minSpace < screen.height) return TooltipSide.bottom;
+        return TooltipSide.top;
       case TooltipSide.left:
+        if (target.left - _kArrowHeight - minSpace > 0) return side;
+        if (target.right + _kArrowHeight + minSpace < screen.width) return TooltipSide.right;
         if (target.bottom + _kArrowHeight + minSpace < screen.height) return TooltipSide.bottom;
         return TooltipSide.top;
     }
@@ -460,14 +487,14 @@ class _ArrowPainter extends CustomPainter {
     switch (side) {
       case TooltipSide.bottom:
         final cx = arrowRel.clamp(
-            arrowSkip, size.width - arrowSkip);
+            _kArrowSkipMin, size.width - _kArrowSkipMin);
         path.moveTo(cx - _kArrowHalfWidth, _kArrowHeight);
         path.lineTo(cx, 0);
         path.lineTo(cx + _kArrowHalfWidth, _kArrowHeight);
         path.close();
       case TooltipSide.top:
         final cx = arrowRel.clamp(
-            arrowSkip, size.width - arrowSkip);
+            _kArrowSkipMin, size.width - _kArrowSkipMin);
         final bottom = size.height;
         path.moveTo(cx - _kArrowHalfWidth, bottom - _kArrowHeight);
         path.lineTo(cx, bottom);
@@ -475,14 +502,14 @@ class _ArrowPainter extends CustomPainter {
         path.close();
       case TooltipSide.right:
         final cy = arrowRel.clamp(
-            arrowSkip, size.height - arrowSkip);
+            _kArrowSkipMin, size.height - _kArrowSkipMin);
         path.moveTo(_kArrowHeight, cy - _kArrowHalfWidth);
         path.lineTo(0, cy);
         path.lineTo(_kArrowHeight, cy + _kArrowHalfWidth);
         path.close();
       case TooltipSide.left:
         final cy = arrowRel.clamp(
-            arrowSkip, size.height - arrowSkip);
+            _kArrowSkipMin, size.height - _kArrowSkipMin);
         final right = size.width;
         path.moveTo(right - _kArrowHeight, cy - _kArrowHalfWidth);
         path.lineTo(right, cy);
