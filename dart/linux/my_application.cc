@@ -27,6 +27,10 @@ struct _MyApplication {
   GtkWidget* ghost_item;
   int badge_toggle;
   gchar* badge_dir;
+  int last_badge_count;
+  gboolean last_badge_muted;
+  GList* account_items;
+  GtkWidget* accounts_separator;
 #endif
   int close_behavior; // 0=Run in Background, 1=Close to Taskbar, 2=Quit
 };
@@ -118,9 +122,23 @@ static void on_tray_quit(GtkMenuItem* /*item*/, gpointer user_data) {
   }
 }
 
+static void on_tray_account_click(GtkMenuItem* item, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  const gchar* account_id =
+      (const gchar*)g_object_get_data(G_OBJECT(item), "account-id");
+  if (self->tray_channel && account_id) {
+    g_autoptr(FlValue) args = fl_value_new_string(account_id);
+    fl_method_channel_invoke_method(
+        self->tray_channel, "onAccountSwitch", args, nullptr, nullptr,
+        nullptr);
+  }
+}
+
 static void update_tray_badge(MyApplication* self, int count,
                               gboolean muted) {
   if (!self->indicator) return;
+  self->last_badge_count = count;
+  self->last_badge_muted = muted;
 
   if (count <= 0) {
     gchar* icon_path = get_icon_path();
@@ -444,6 +462,68 @@ static void tray_method_call_handler(FlMethodChannel* channel,
         }
       }
     }
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "flashWindow") == 0) {
+    if (self->window) {
+      gtk_window_set_urgency_hint(self->window, TRUE);
+    }
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "updateIconCounters") == 0) {
+#ifdef HAVE_APPINDICATOR
+    if (self->indicator) {
+      update_tray_badge(self, self->last_badge_count, self->last_badge_muted);
+    }
+#endif
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "setAccountsMenu") == 0) {
+#ifdef HAVE_APPINDICATOR
+    if (self->tray_menu) {
+      // Remove existing account items.
+      for (GList* l = self->account_items; l; l = l->next) {
+        gtk_widget_destroy(GTK_WIDGET(l->data));
+      }
+      g_list_free(self->account_items);
+      self->account_items = nullptr;
+      if (self->accounts_separator) {
+        gtk_widget_destroy(self->accounts_separator);
+        self->accounts_separator = nullptr;
+      }
+
+      FlValue* args = fl_method_call_get_args(method_call);
+      if (fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+        FlValue* accounts_val = fl_value_lookup_string(args, "accounts");
+        if (accounts_val &&
+            fl_value_get_type(accounts_val) == FL_VALUE_TYPE_LIST &&
+            fl_value_get_length(accounts_val) > 1) {
+          self->accounts_separator = gtk_separator_menu_item_new();
+          gtk_menu_shell_prepend(GTK_MENU_SHELL(self->tray_menu),
+                                self->accounts_separator);
+          gtk_widget_show(self->accounts_separator);
+
+          // Insert accounts in reverse so prepend results in correct order.
+          for (size_t i = fl_value_get_length(accounts_val); i > 0; i--) {
+            FlValue* acct = fl_value_get_list_value(accounts_val, i - 1);
+            if (fl_value_get_type(acct) != FL_VALUE_TYPE_MAP) continue;
+            FlValue* id_val = fl_value_lookup_string(acct, "id");
+            FlValue* name_val = fl_value_lookup_string(acct, "name");
+            if (!id_val || !name_val) continue;
+            const gchar* acct_id = fl_value_get_string(id_val);
+            const gchar* acct_name = fl_value_get_string(name_val);
+
+            GtkWidget* item = gtk_menu_item_new_with_label(acct_name);
+            g_object_set_data_full(G_OBJECT(item), "account-id",
+                                   g_strdup(acct_id), g_free);
+            g_signal_connect(item, "activate",
+                             G_CALLBACK(on_tray_account_click), self);
+            gtk_menu_shell_prepend(GTK_MENU_SHELL(self->tray_menu), item);
+            gtk_widget_show(item);
+            self->account_items =
+                g_list_prepend(self->account_items, item);
+          }
+        }
+      }
+    }
+#endif
     fl_method_call_respond_success(method_call, nullptr, nullptr);
   } else if (g_strcmp0(method, "setCloseBehavior") == 0) {
     FlValue* args = fl_method_call_get_args(method_call);

@@ -34,14 +34,20 @@ class BridgeImpl {
   }
 
   Uint8List call(Uint8List requestBytes) {
-    assert(_initialized, 'Bridge not initialized. Call init() first.');
+    if (!_initialized) {
+      throw StateError('Bridge not initialized. Call init() first.');
+    }
 
     final jsReq = requestBytes.toJS;
     final jsResp = _jsBridgeCall(jsReq);
     return jsResp.toDart;
   }
 
-  Future<Uint8List> callAsync(Uint8List requestBytes) async => call(requestBytes);
+  /// Async bridge call. WASM runs on the main JS thread so the Go call still
+  /// blocks during execution, but wrapping in Future.microtask ensures pending
+  /// microtasks and I/O callbacks are processed before the blocking call starts.
+  Future<Uint8List> callAsync(Uint8List requestBytes) =>
+      Future.microtask(() => call(requestBytes));
 
   void dispose() {
     if (!_initialized) return;

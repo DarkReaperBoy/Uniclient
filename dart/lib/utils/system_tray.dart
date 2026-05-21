@@ -1,3 +1,5 @@
+import 'dart:io' show Platform, exit;
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 
@@ -146,7 +148,7 @@ class SystemTray {
     try {
       await _channel.invokeMethod<void>('flashWindow');
     } on MissingPluginException {
-      // Native side doesn't implement it yet. Silent no-op.
+      Debug.log('TRAY', 'flashWindow: not implemented on this platform');
     } catch (e) {
       Debug.log('TRAY', 'flashWindow failed: $e');
     }
@@ -285,7 +287,7 @@ class SystemTray {
     try {
       await _channel.invokeMethod<void>('updateIconCounters');
     } on MissingPluginException {
-      // Not implemented on native side yet.
+      Debug.log('TRAY', 'updateIconCounters: not implemented on this platform');
     } catch (e) {
       Debug.log('TRAY', 'updateIconCounters failed: $e');
     }
@@ -300,7 +302,7 @@ class SystemTray {
         'icon': iconName.isEmpty ? 'default' : iconName,
       });
     } on MissingPluginException {
-      // Not implemented on native side yet.
+      Debug.log('TRAY', 'updateAppIcon: not implemented on this platform');
     } catch (e) {
       Debug.log('TRAY', 'updateAppIcon failed: $e');
     }
@@ -326,6 +328,7 @@ class SystemTray {
     try {
       await _channel.invokeMethod<void>('showWindow');
       _windowVisible = true;
+      _windowActive = true;
     } catch (e) {
       Debug.log('TRAY', 'showWindow failed: $e');
     }
@@ -354,7 +357,7 @@ class SystemTray {
       await _channel.invokeMethod<void>('minimizeWindow');
       Debug.log('TRAY', 'minimizeWindow dispatched');
     } on MissingPluginException {
-      // Native side doesn't implement it (non-Linux for now). Silent no-op.
+      Debug.log('TRAY', 'minimizeWindow: native handler missing, no fallback available');
     } catch (e) {
       Debug.log('TRAY', 'minimizeWindow failed: $e');
     }
@@ -369,7 +372,8 @@ class SystemTray {
       await _channel.invokeMethod<void>('quitApp');
       Debug.log('TRAY', 'quitApp dispatched');
     } on MissingPluginException {
-      // Native side doesn't implement it. Silent no-op.
+      Debug.log('TRAY', 'quitApp: native handler missing, using exit(0) fallback');
+      if (!kIsWeb) exit(0);
     } catch (e) {
       Debug.log('TRAY', 'quitApp failed: $e');
     }
@@ -431,7 +435,7 @@ class SystemTray {
         'accounts': truncated,
       });
     } on MissingPluginException {
-      // Native side doesn't implement it yet.
+      Debug.log('TRAY', 'setAccountsMenu: not implemented on this platform');
     } catch (e) {
       Debug.log('TRAY', 'setAccountsMenu failed: $e');
     }
@@ -450,6 +454,7 @@ class SystemTray {
       case 'onWindowShown':
         Debug.log('TRAY', 'window shown from tray');
         _windowVisible = true;
+        _windowActive = true;
         onWindowShown?.call();
       case 'onStreamerToggle':
         Debug.log('TRAY', 'streamer toggle requested from tray menu');

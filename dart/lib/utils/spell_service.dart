@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/services.dart';
@@ -41,7 +42,7 @@ class UniSpellCheckService implements SpellCheckService {
       if (!dir.existsSync()) continue;
       for (final f in dir.listSync()) {
         if (!f.path.endsWith('.dic')) continue;
-        final code = f.path.split('/').last.replaceAll('.dic', '');
+        final code = f.uri.pathSegments.last.replaceAll('.dic', '');
         if (enabledCodes.isNotEmpty && !enabledCodes.contains(code)) continue;
         if (_dictionaries.containsKey(code)) continue;
         try {
@@ -85,11 +86,68 @@ class UniSpellCheckService implements SpellCheckService {
       if (!isWordCorrect(word)) {
         spans.add(SuggestionSpan(
           TextRange(start: match.start, end: match.end),
-          const [],
+          _suggestCorrections(word),
         ));
       }
     }
     return spans;
+  }
+
+  List<String> _suggestCorrections(String word, {int maxResults = 5}) {
+    final lower = word.toLowerCase();
+    final candidates = <String>{};
+
+    for (final dict in _dictionaries.values) {
+      // Only check words within ±2 length to bound the search.
+      final minLen = math.max(1, lower.length - 2);
+      final maxLen = lower.length + 2;
+      for (final entry in dict) {
+        if (entry.length < minLen || entry.length > maxLen) continue;
+        final d = _editDistance(lower, entry);
+        if (d > 0 && d <= 2) candidates.add(entry);
+        if (candidates.length >= maxResults * 3) break;
+      }
+      if (candidates.length >= maxResults * 3) break;
+    }
+
+    // Sort by edit distance (prefer distance-1), then alphabetical.
+    final sorted = candidates.toList()
+      ..sort((a, b) {
+        final da = _editDistance(lower, a);
+        final db = _editDistance(lower, b);
+        if (da != db) return da.compareTo(db);
+        return a.compareTo(b);
+      });
+    return sorted.take(maxResults).toList();
+  }
+
+  static int _editDistance(String a, String b) {
+    if (a == b) return 0;
+    if (a.isEmpty) return b.length;
+    if (b.isEmpty) return a.length;
+
+    // Optimized: bail early if length difference > 2.
+    if ((a.length - b.length).abs() > 2) return 3;
+
+    final m = a.length;
+    final n = b.length;
+    var prev = List<int>.generate(n + 1, (i) => i);
+    var curr = List<int>.filled(n + 1, 0);
+
+    for (var i = 1; i <= m; i++) {
+      curr[0] = i;
+      for (var j = 1; j <= n; j++) {
+        final cost = a[i - 1] == b[j - 1] ? 0 : 1;
+        curr[j] = math.min(
+          math.min(curr[j - 1] + 1, prev[j] + 1),
+          prev[j - 1] + cost,
+        );
+      }
+      final tmp = prev;
+      prev = curr;
+      curr = tmp;
+    }
+    return prev[n];
   }
 
   List<String> getLoadedDictCodes() => _dictionaries.keys.toList();
@@ -183,7 +241,7 @@ class UniSpellCheckService implements SpellCheckService {
     return dir
         .listSync()
         .where((f) => f.path.endsWith('.dic'))
-        .map((f) => f.path.split('/').last.replaceAll('.dic', ''))
+        .map((f) => f.uri.pathSegments.last.replaceAll('.dic', ''))
         .toList();
   }
 }
