@@ -35,16 +35,6 @@
 - Should use `basename()` or `File(path).uri.pathSegments.last` instead
 
 
-## notification_system — cleanup
-
-- [ ] [CRITICAL] `nm.onReply` never wired in `main.dart` — `NativeManager._onNotificationReplied` fires on inline DBus replies (when server supports `inline-reply` capability) and calls `onReply?.call(...)`, but `nm.onReply` is never assigned (only `nm.onAction` is). Inline replies from system notification toasts are silently dropped — `main.dart:519-524`, `notification_manager_native.dart:381-391`
-
-- [ ] [CRITICAL] `nm.onAction` ignores `'markRead'` — the "Mark as Read" button in native notifications calls `onAction?.call(accountId, chatId, 'markRead')` but the handler in `main.dart` only checks `if (action == 'open')` and discards everything else. Clicking "Mark as Read" does nothing — `main.dart:521-524`, `notification_manager_native.dart:360-366`
-
-- [ ] [MAJOR] `_buildImageHint` allocates 16,384 `DBusByte` objects per notification — 64×64 RGBA = 16,384 bytes, each wrapped individually via `.map((b) => DBusByte(b)).toList()`. High GC pressure on every native notification dispatch. Check if dbus-dart has a bulk byte array API; if not, consider downscaling avatar to 48×48 (9,216 objects) as the spec minimum — `notification_manager_native.dart:606-621`
-
-- [ ] [MAJOR] Dozens of notification body strings are raw English literals in `notification_types.dart` instead of going through `TrStrings` — `'You have a new message'`, `'Photo'`, `'Video'`, `'Audio file'`, `'Voice message'`, `'Video message'`, `'Sticker'`, `'GIF'`, `'File'`, `'Poll'`, `'Location'`, `'Live location'`, `'Contact'`, `'Invoice'`, `'Reminder'`, `'You'`, `'Voted in a poll'`, `'Voted for «...»'`, reaction strings, etc. Only `lngForwardMessages` and `lngInDlgAlbum` are centralized. These will need to be hunted down individually when i18n is implemented — inconsistent with the established TrStrings pattern — `notification_types.dart:286-475`
-
 # notification_types — clean
 
 No issues found.
