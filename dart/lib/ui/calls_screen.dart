@@ -272,9 +272,24 @@ class _CallsBoxState extends State<_CallsBox> {
   }
 
   void _onMsgReceived(MsgReceivedEvent event) {
-    if (event.message.isService) {
+    if (event.message.isService && _isCallServiceMessage(event.message)) {
       _refreshCallHistory();
     }
+  }
+
+  static bool _isCallServiceMessage(CachedMessage msg) {
+    if (msg.contentRaw.isEmpty) return false;
+    try {
+      final m = jsonDecode(msg.contentRaw);
+      if (m is Map<String, dynamic>) {
+        final extra = m['extra'] as Map<String, dynamic>?;
+        if (extra != null) {
+          final action = extra['service_action'] as String? ?? '';
+          return action == 'phone_call' || action == 'group_call';
+        }
+      }
+    } catch (_) {}
+    return false;
   }
 
   Future<void> _refreshCallHistory() async {
@@ -430,7 +445,6 @@ class _CallsBoxState extends State<_CallsBox> {
 
     return ListView.builder(
       controller: _scrollController,
-      shrinkWrap: true,
       itemCount: _groupedCalls.length + (_loadingMore ? 1 : 0),
       itemBuilder: (context, index) {
         if (index >= _groupedCalls.length) {
@@ -666,6 +680,8 @@ class _GroupCallRowState extends State<_GroupCallRow> {
                             width: avatarSize,
                             height: avatarSize,
                             fit: BoxFit.cover,
+                            cacheWidth: (avatarSize * 2).toInt(),
+                            cacheHeight: (avatarSize * 2).toInt(),
                             errorBuilder: (_, __, ___) => _fallbackAvatar(
                                 avatarColor, initials, avatarSize, avatarRadius),
                           ),
@@ -1677,14 +1693,27 @@ class _ConferenceCallLinkBox extends StatelessWidget {
                 const SizedBox(height: 8),
                 GestureDetector(
                   onTap: () async {
-                    Navigator.of(context).pop();
-                    if (callId.isNotEmpty) {
-                      final engine = context.read<EngineService>();
-                      final accountId =
-                          context.read<AppState>().activeAccountId;
-                      try {
-                        await engine.joinGroupCall(accountId, callId);
-                      } catch (_) {}
+                    if (callId.isEmpty) return;
+                    final permOk = await requestCallPermissions(context);
+                    if (!permOk || !context.mounted) return;
+                    final engine = context.read<EngineService>();
+                    final accountId =
+                        context.read<AppState>().activeAccountId;
+                    try {
+                      await engine.joinGroupCall(accountId, callId);
+                      if (!context.mounted) return;
+                      Navigator.of(context).pop();
+                      final info = await engine.getGroupCall(accountId, callId);
+                      if (context.mounted) {
+                        showGroupCallPanel(
+                          context,
+                          info ?? GroupCallInfo(callId: callId),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        showTelegramToast(context, 'Failed to join call: $e');
+                      }
                     }
                   },
                   child: Text(
@@ -1743,8 +1772,35 @@ class _ConfInviteRow extends StatefulWidget {
 
 class _ConfInviteRowState extends State<_ConfInviteRow> {
   bool _hovered = false;
+  Uint8List? _cachedAvatar;
+  String _cachedAvatarB64 = '';
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+
+  @override
+  void initState() {
+    super.initState();
+    _updateCachedAvatar();
+  }
+
+  @override
+  void didUpdateWidget(_ConfInviteRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.contact.avatarB64 != widget.contact.avatarB64) {
+      _updateCachedAvatar();
+    }
+  }
+
+  void _updateCachedAvatar() {
+    final b64 = widget.contact.avatarB64;
+    if (b64.isNotEmpty && b64 != _cachedAvatarB64) {
+      _cachedAvatarB64 = b64;
+      _cachedAvatar = base64Decode(b64);
+    } else if (b64.isEmpty) {
+      _cachedAvatarB64 = '';
+      _cachedAvatar = null;
+    }
+  }
 
   String _lastSeenLabel(ContactInfo c) {
     if (c.isOnline) return 'online';
@@ -1799,11 +1855,11 @@ class _ConfInviteRowState extends State<_ConfInviteRow> {
                 child: SizedBox(
                   width: avatarSize,
                   height: avatarSize,
-                  child: c.avatarB64.isNotEmpty
+                  child: _cachedAvatar != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(avatarRadius),
                           child: Image.memory(
-                            base64Decode(c.avatarB64),
+                            _cachedAvatar!,
                             width: avatarSize,
                             height: avatarSize,
                             fit: BoxFit.cover,
@@ -2142,6 +2198,8 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
                             width: avatarSize,
                             height: avatarSize,
                             fit: BoxFit.cover,
+                            cacheWidth: (avatarSize * 2).toInt(),
+                            cacheHeight: (avatarSize * 2).toInt(),
                             errorBuilder: (_, __, ___) => _fallbackAvatar(
                                 avatarColor,
                                 initials,
@@ -2948,6 +3006,7 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
   double _currentLevel = 0.0;
   double _targetLevel = 0.0;
   bool _capturing = false;
+  bool _powerSaving = false;
 
   @override
   void initState() {
@@ -2957,6 +3016,23 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
       duration: const Duration(milliseconds: 100),
     )..addListener(_onTick);
     _startCapture();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncPowerSaving();
+  }
+
+  void _syncPowerSaving() {
+    final ps = context.read<AppState>().powerSaving(AppState.kPowerSavingCalls);
+    if (ps == _powerSaving) return;
+    _powerSaving = ps;
+    if (_powerSaving && _controller.isAnimating) {
+      _controller.stop();
+    } else if (!_powerSaving && _capturing && !_controller.isAnimating) {
+      _controller.repeat();
+    }
   }
 
   void _onTick() {
@@ -3039,16 +3115,10 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
 
   @override
   Widget build(BuildContext context) {
-    final powerSaving = context.read<AppState>().powerSaving(AppState.kPowerSavingCalls);
-    if (powerSaving && _controller.isAnimating) {
-      _controller.stop();
-    } else if (!powerSaving && _capturing && !_controller.isAnimating) {
-      _controller.repeat();
-    }
     return CustomPaint(
       size: const Size(double.infinity, 18),
       painter: _LevelMeterPainter(
-        level: (_capturing && !powerSaving) ? _currentLevel : 0.0,
+        level: (_capturing && !_powerSaving) ? _currentLevel : 0.0,
         activeColor: widget.accentColor,
         inactiveColor: widget.isDark
             ? const Color(0xFF3B4654)
