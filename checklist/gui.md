@@ -133,22 +133,6 @@ No critical, major, or maintenance issues found. The widget correctly displays a
 
 One blocking bug: `_TiledImage` won't render because async decode doesn't trigger repaint. Needs immediate fix.
 
-## advanced_settings_screen — cleanup
-
-- [ ] [CRITICAL] Double-toggle bug in `_ManageDictionariesBox`: `InkWell.onTap` (line 2348) and `Checkbox.onChanged` (line 2362) both call `appState.toggleDictionary(d.code)` — Flutter fires both handlers on a single tap, so the dict toggles on then immediately back off. Net effect: clicking a dictionary row never changes its state. Fix: remove the `onChanged` from the `Checkbox` and keep only the `InkWell.onTap`, or wrap the `Checkbox` in `AbsorbPointer` — `advanced_settings_screen.dart:2347`
-
-- [ ] [CRITICAL] `_getDictionaryCountLabel()` always returns `'System'` (lines 1159–1173): On Linux/macOS `isSystem=true` so the Manage Dictionaries row is hidden anyway; on Windows `isSystem=false` and the row is shown, but the function falls through to `return 'System'` without counting custom dictionaries from `UniSpellCheckService`. The label next to "Manage Dictionaries" is permanently "System" on every platform. Should query `UniSpellCheckService` for installed/enabled dict count — `advanced_settings_screen.dart:1159`
-
-- [ ] [CRITICAL] `_downloadAndApplyUpdate` calls `File(tmpPath).rename(exePath)` (line 295) on Linux — this fails with ETXTBSY because you cannot rename over a running executable on Linux. The auto-update write step is broken on Linux. Fix: write to a sibling path, then use a small shell wrapper (`mv "$tmp" "$exe" && exec "$exe"`) launched as a detached process before `exit(0)` — `advanced_settings_screen.dart:295`
-
-- [ ] [CRITICAL] `Process.run('chmod', ['+x', tmpPath])` (line 294) is called unconditionally on all platforms — `chmod` does not exist on Windows, causing a silent error and a non-executable binary being renamed over the app. Needs `if (!Platform.isWindows)` guard — `advanced_settings_screen.dart:294`
-
-- [ ] [MAJOR] `_LocalStorageBox._clearTag` calls `appState.engine.clearCache(accountId: appState.activeAccountId)` for **every** tag index (0–5), not just tag 5 ("Media Cache") — lines 1903–1905. Clearing "Images" or "Stickers" also wipes the engine's entire media cache for the active account. Fix: wrap the engine call in `if (tagIdx == 5)` — `advanced_settings_screen.dart:1903`
-
-- [ ] [MAJOR] `_ProxiesBoxState._checkAllProxies` (lines 2923–2928) fires all proxy `callGeneric('CheckProxy', ...)` calls simultaneously with no concurrency limit or await — all proxies are checked in parallel instantly. With 10+ proxies this could flood the engine. Should add a small delay between checks or use a sequential approach — `advanced_settings_screen.dart:2923`
-
-- [ ] [MAJOR] `_ExperimentalSettingsBoxState._changed` getter (lines 4423–4428) returns `true` if any flag is currently `true`, not if flags differ from what was loaded in `initState`. The "Reset" button is visible whenever any flag is enabled, even when the user opened the dialog with those flags already set and made no changes. Should compare `_flags` against the original snapshot captured in `initState` — `advanced_settings_screen.dart:4423`
-
 ## auth_screen — cleanup
 
 - [ ] [CRITICAL] `_hasCover` always returns `false` (line 137) — `_CoverGradient` widget is fully implemented but permanently unreachable. No auth step ever shows the gradient header with UniClient branding. The `_isCover` transition flag (line 308) and the `AnimatedContainer` height logic (line 367) are also dead. Fix: implement `_hasCover` to return `true` for the appropriate step(s) (e.g. `'choose'`) so the cover gradient actually appears. — `auth_screen.dart:137`
