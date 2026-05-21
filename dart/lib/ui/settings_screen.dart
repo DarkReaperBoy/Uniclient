@@ -1177,9 +1177,12 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                         final item = stickerItems[i];
                         return InkWell(
                           onTap: () {
-                            engine.setEmojiStatus(accountId, item.fileId, selectedDuration);
-                            Navigator.of(ctx).pop();
-                            showTelegramToast(context, 'Emoji status set');
+                            final docId = int.tryParse(item.fileId) ?? 0;
+                            if (docId > 0) {
+                              engine.setEmojiStatus(accountId, docId, selectedDuration);
+                              Navigator.of(ctx).pop();
+                              showTelegramToast(context, 'Emoji status set');
+                            }
                           },
                           hoverColor: hoverBg,
                           borderRadius: BorderRadius.circular(6),
@@ -2275,9 +2278,16 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
         ),
         const SizedBox(height: 4),
         InkWell(
-          onTap: () {
+          onTap: () async {
             final val = !_sameDevice;
             setState(() => _sameDevice = val);
+            final appState = context.read<AppState>();
+            final engine = context.read<EngineService>();
+            final accountId = appState.activeAccountId;
+            if (val) {
+              await engine.setCallAudioDevice(accountId, 'playback', _selectedOutput);
+              await engine.setCallAudioDevice(accountId, 'capture', _selectedInput);
+            }
           },
           hoverColor: hoverBg,
           child: Padding(
@@ -2292,7 +2302,16 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
                   height: 20,
                   child: Switch(
                     value: _sameDevice,
-                    onChanged: (v) => setState(() => _sameDevice = v),
+                    onChanged: (v) async {
+                      setState(() => _sameDevice = v);
+                      final appState = context.read<AppState>();
+                      final engine = context.read<EngineService>();
+                      final accountId = appState.activeAccountId;
+                      if (v) {
+                        await engine.setCallAudioDevice(accountId, 'playback', _selectedOutput);
+                        await engine.setCallAudioDevice(accountId, 'capture', _selectedInput);
+                      }
+                    },
                     activeColor: accentColor,
                   ),
                 ),
@@ -2313,8 +2332,11 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
             label: 'Video device',
             value: _selectedCamera,
             isDark: isDark,
-            onTap: () => _showDevicePicker('Video device', _cameraDevices, _selectedCamera, (dev) {
+            onTap: () => _showDevicePicker('Video device', _cameraDevices, _selectedCamera, (dev) async {
               setState(() => _selectedCamera = dev);
+              final appState = context.read<AppState>();
+              final engine = context.read<EngineService>();
+              await engine.setCallAudioDevice(appState.activeAccountId, 'camera', dev);
             }),
           ),
         ],
@@ -2485,6 +2507,7 @@ class _PremiumInfoScreen extends StatefulWidget {
 class _PremiumInfoScreenState extends State<_PremiumInfoScreen> {
   List<String> _features = [];
   bool _loading = true;
+  bool _loadError = false;
 
   @override
   void initState() {
@@ -2500,6 +2523,7 @@ class _PremiumInfoScreenState extends State<_PremiumInfoScreen> {
         setState(() {
           _features = result;
           _loading = false;
+          _loadError = false;
         });
         return;
       }
@@ -2527,7 +2551,7 @@ class _PremiumInfoScreenState extends State<_PremiumInfoScreen> {
       'Message effects',
       'AI-powered compose',
     ];
-    if (mounted) setState(() => _loading = false);
+    if (mounted) setState(() { _loading = false; _loadError = true; });
   }
 
   @override
@@ -2581,6 +2605,11 @@ class _PremiumInfoScreenState extends State<_PremiumInfoScreen> {
                 ),
                 const SizedBox(height: 20),
                 Text('Features', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: accentColor)),
+                if (_loadError) ...[
+                  const SizedBox(height: 4),
+                  Text('Could not load feature list from server. Showing default features.',
+                    style: TextStyle(fontSize: 12, color: subtextColor, fontStyle: FontStyle.italic)),
+                ],
                 const SizedBox(height: 8),
                 for (final f in _features)
                   Padding(
@@ -3117,21 +3146,99 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
           Text('Set your availability', style: TextStyle(fontSize: 13, color: subtextColor)),
           const SizedBox(height: 8),
           for (final day in days)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Expanded(child: Text(day, style: TextStyle(fontSize: 14, color: textColor))),
-                  Text(
-                    hours[day.toLowerCase()] as String? ?? '9:00 - 18:00',
-                    style: TextStyle(fontSize: 13, color: accentColor),
-                  ),
-                ],
+            InkWell(
+              onTap: () => _pickDayHours(day, hours, textColor, subtextColor, accentColor, isDark),
+              hoverColor: hoverBg,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(day, style: TextStyle(fontSize: 14, color: textColor))),
+                    Text(
+                      hours[day.toLowerCase()] as String? ?? '9:00 - 18:00',
+                      style: TextStyle(fontSize: 13, color: accentColor),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.chevron_right, size: 16, color: subtextColor),
+                  ],
+                ),
               ),
             ),
         ],
       ],
     );
+  }
+
+  void _pickDayHours(String day, Map<String, dynamic> hours, Color textColor, Color subtextColor, Color accentColor, bool isDark) {
+    final current = (hours[day.toLowerCase()] as String?) ?? '9:00 - 18:00';
+    final parts = current.split(' - ');
+    var startHour = 9, startMin = 0, endHour = 18, endMin = 0;
+    if (parts.length == 2) {
+      final s = parts[0].split(':');
+      final e = parts[1].split(':');
+      if (s.length == 2) { startHour = int.tryParse(s[0]) ?? 9; startMin = int.tryParse(s[1]) ?? 0; }
+      if (e.length == 2) { endHour = int.tryParse(e[0]) ?? 18; endMin = int.tryParse(e[1]) ?? 0; }
+    }
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        var sH = startHour, sM = startMin, eH = endHour, eM = endMin;
+        return StatefulBuilder(
+          builder: (ctx, setDlgState) => AlertDialog(
+            backgroundColor: bgColor,
+            title: Text('$day hours', style: TextStyle(color: textColor)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text('From: ', style: TextStyle(color: subtextColor)),
+                    TextButton(
+                      onPressed: () async {
+                        final t = await showTimePicker(context: ctx, initialTime: TimeOfDay(hour: sH, minute: sM));
+                        if (t != null) setDlgState(() { sH = t.hour; sM = t.minute; });
+                      },
+                      child: Text('${sH.toString().padLeft(2, '0')}:${sM.toString().padLeft(2, '0')}', style: TextStyle(color: accentColor, fontSize: 16)),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Text('To:     ', style: TextStyle(color: subtextColor)),
+                    TextButton(
+                      onPressed: () async {
+                        final t = await showTimePicker(context: ctx, initialTime: TimeOfDay(hour: eH, minute: eM));
+                        if (t != null) setDlgState(() { eH = t.hour; eM = t.minute; });
+                      },
+                      child: Text('${eH.toString().padLeft(2, '0')}:${eM.toString().padLeft(2, '0')}', style: TextStyle(color: accentColor, fontSize: 16)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('Cancel', style: TextStyle(color: subtextColor))),
+              TextButton(
+                onPressed: () {
+                  final result = '${sH.toString().padLeft(2, '0')}:${sM.toString().padLeft(2, '0')} - ${eH.toString().padLeft(2, '0')}:${eM.toString().padLeft(2, '0')}';
+                  Navigator.of(ctx).pop(result);
+                },
+                child: Text('Save', style: TextStyle(color: accentColor)),
+              ),
+            ],
+          ),
+        );
+      },
+    ).then((result) {
+      if (result != null && mounted) {
+        setState(() {
+          final h = Map<String, dynamic>.from(_data['hours'] as Map<String, dynamic>? ?? {});
+          h[day.toLowerCase()] = result;
+          _data['hours'] = h;
+        });
+      }
+    });
   }
 
   Widget _buildLocationEditor(Color textColor, Color subtextColor, Color accentColor) {
@@ -3212,6 +3319,22 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
                   Text('/${replies[i]['shortcut'] ?? ''}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
                   const SizedBox(width: 12),
                   Expanded(child: Text(replies[i]['message'] as String? ?? '', style: TextStyle(fontSize: 14, color: textColor), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  IconButton(
+                    icon: Icon(Icons.delete_outline, size: 18, color: subtextColor),
+                    onPressed: () async {
+                      final shortcutId = replies[i]['shortcut_id'] as int? ?? 0;
+                      if (shortcutId > 0) {
+                        final engine = context.read<EngineService>();
+                        try {
+                          await engine.deleteQuickReplyShortcut(widget.accountId, shortcutId);
+                        } catch (_) {}
+                      }
+                      setState(() {
+                        final r = List<dynamic>.from(replies)..removeAt(i);
+                        _data['replies'] = r;
+                      });
+                    },
+                  ),
                 ],
               ),
             ),
@@ -3387,6 +3510,23 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: links[i] as String? ?? ''));
                       showTelegramToast(context, 'Link copied');
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.delete_outline, size: 18, color: subtextColor),
+                    onPressed: () async {
+                      final link = links[i] as String? ?? '';
+                      final slug = link.contains('/') ? link.split('/').last : link;
+                      if (slug.isNotEmpty) {
+                        final engine = context.read<EngineService>();
+                        try {
+                          await engine.deleteBusinessChatLink(widget.accountId, slug);
+                        } catch (_) {}
+                      }
+                      setState(() {
+                        final l = List<dynamic>.from(links)..removeAt(i);
+                        _data['links'] = l;
+                      });
                     },
                   ),
                 ],

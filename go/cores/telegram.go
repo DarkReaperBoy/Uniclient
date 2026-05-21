@@ -21142,6 +21142,42 @@ func (t *TelegramCore) AccountUpdateEmojiStatus(emojistatus tg.EmojiStatusClass)
 	return t.api.AccountUpdateEmojiStatus(t.ctx, emojistatus)
 }
 
+// SetEmojiStatus sets the user's emoji status to a custom emoji document.
+func (t *TelegramCore) SetEmojiStatus(documentID int64, expiresIn int) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	status := &tg.EmojiStatus{DocumentID: documentID}
+	if expiresIn > 0 {
+		status.SetUntil(int(time.Now().Unix()) + expiresIn)
+	}
+	_, err := t.api.AccountUpdateEmojiStatus(t.ctx, status)
+	return err
+}
+
+// ClearEmojiStatus removes the user's emoji status.
+func (t *TelegramCore) ClearEmojiStatus() error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.AccountUpdateEmojiStatus(t.ctx, &tg.EmojiStatusEmpty{})
+	return err
+}
+
+// DeleteQuickReply deletes a quick reply shortcut by ID.
+func (t *TelegramCore) DeleteQuickReply(shortcutID int) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.MessagesDeleteQuickReplyShortcut(t.ctx, shortcutID)
+	return err
+}
+
+// DeleteBusinessLink deletes a business chat link by slug.
+func (t *TelegramCore) DeleteBusinessLink(slug string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.AccountDeleteBusinessChatLink(t.ctx, slug)
+	return err
+}
+
 // AccountUpdateNotifySettings configures notification settings for a chat or category.
 func (t *TelegramCore) AccountUpdateNotifySettings(request *tg.AccountUpdateNotifySettingsRequest) (bool, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

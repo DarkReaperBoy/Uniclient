@@ -4067,10 +4067,10 @@ class EngineService {
     await _callAsync('__engine', 'TerminateAllWebSessions', Uint8List.fromList(payload));
   }
 
-  Future<void> setEmojiStatus(String accountId, String emoji, int expiresInSeconds) async {
+  Future<void> setEmojiStatus(String accountId, int documentId, int expiresInSeconds) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
-      'emoji': emoji,
+      'document_id': documentId,
       'expires_in': expiresInSeconds,
     }));
     await _callAsync('__engine', 'SetEmojiStatus', Uint8List.fromList(payload));
@@ -4081,6 +4081,22 @@ class EngineService {
       'account_id': accountId,
     }));
     await _callAsync('__engine', 'ClearEmojiStatus', Uint8List.fromList(payload));
+  }
+
+  Future<void> deleteQuickReplyShortcut(String accountId, int shortcutId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'shortcut_id': shortcutId,
+    }));
+    await _callAsync('__engine', 'DeleteQuickReplyShortcut', Uint8List.fromList(payload));
+  }
+
+  Future<void> deleteBusinessChatLink(String accountId, String slug) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'slug': slug,
+    }));
+    await _callAsync('__engine', 'DeleteBusinessChatLink', Uint8List.fromList(payload));
   }
 
   Future<void> setPersonalChannel(String accountId, String channelUsername) async {

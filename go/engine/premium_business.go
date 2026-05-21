@@ -41,6 +41,22 @@ type businessChatLinkCreator interface {
 	CreateBusinessChatLink() (string, error)
 }
 
+type emojiStatusSetter interface {
+	SetEmojiStatus(documentID int64, expiresIn int) error
+}
+
+type emojiStatusClearer interface {
+	ClearEmojiStatus() error
+}
+
+type quickReplyDeleter interface {
+	DeleteQuickReply(shortcutID int) error
+}
+
+type businessLinkDeleter interface {
+	DeleteBusinessLink(slug string) error
+}
+
 func (e *Engine) GetPremiumFeatures(accountID string) ([]string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -167,4 +183,52 @@ func (e *Engine) CreateBusinessChatLink(accountID string) ([]byte, error) {
 		return nil, err
 	}
 	return json.Marshal(map[string]interface{}{"link": link})
+}
+
+func (e *Engine) SetEmojiStatus(accountID string, documentID int64, expiresIn int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	s, ok := acc.Core.(emojiStatusSetter)
+	if !ok {
+		return fmt.Errorf("core does not support emoji status")
+	}
+	return s.SetEmojiStatus(documentID, expiresIn)
+}
+
+func (e *Engine) ClearEmojiStatus(accountID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	c, ok := acc.Core.(emojiStatusClearer)
+	if !ok {
+		return fmt.Errorf("core does not support emoji status")
+	}
+	return c.ClearEmojiStatus()
+}
+
+func (e *Engine) DeleteQuickReplyShortcut(accountID string, shortcutID int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	d, ok := acc.Core.(quickReplyDeleter)
+	if !ok {
+		return fmt.Errorf("core does not support quick reply deletion")
+	}
+	return d.DeleteQuickReply(shortcutID)
+}
+
+func (e *Engine) DeleteBusinessChatLink(accountID, slug string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	d, ok := acc.Core.(businessLinkDeleter)
+	if !ok {
+		return fmt.Errorf("core does not support business link deletion")
+	}
+	return d.DeleteBusinessLink(slug)
 }

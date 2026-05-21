@@ -5858,6 +5858,46 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return e.CreateBusinessChatLink(params.AccountID)
 
+	case "SetEmojiStatus":
+		var params struct {
+			AccountID  string `json:"account_id"`
+			DocumentID int64  `json:"document_id"`
+			ExpiresIn  int    `json:"expires_in"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetEmojiStatus(params.AccountID, params.DocumentID, params.ExpiresIn)
+
+	case "ClearEmojiStatus":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ClearEmojiStatus(params.AccountID)
+
+	case "DeleteQuickReplyShortcut":
+		var params struct {
+			AccountID  string `json:"account_id"`
+			ShortcutID int    `json:"shortcut_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.DeleteQuickReplyShortcut(params.AccountID, params.ShortcutID)
+
+	case "DeleteBusinessChatLink":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Slug      string `json:"slug"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.DeleteBusinessChatLink(params.AccountID, params.Slug)
+
 	case "StartBot":
 		var params struct {
 			AccountID  string `json:"account_id"`
