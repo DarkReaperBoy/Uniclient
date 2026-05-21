@@ -489,26 +489,41 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final engine = context.read<EngineService>();
     engine.loadExportSettings(accountId).then((data) {
       if (!mounted || data.isEmpty) return;
-      setState(() {
-        _personalInfo = (data['personalInfo'] as bool?) ?? _personalInfo;
-        _contacts = (data['contacts'] as bool?) ?? _contacts;
-        _stories = (data['stories'] as bool?) ?? _stories;
-        _profileMusic = (data['profileMusic'] as bool?) ?? _profileMusic;
-        _personalChats = (data['personalChats'] as bool?) ?? _personalChats;
-        _botChats = (data['botChats'] as bool?) ?? _botChats;
-        _privateGroups = (data['privateGroups'] as bool?) ?? _privateGroups;
-        _privateChannels = (data['privateChannels'] as bool?) ?? _privateChannels;
-        _publicGroups = (data['publicGroups'] as bool?) ?? _publicGroups;
-        _publicChannels = (data['publicChannels'] as bool?) ?? _publicChannels;
-        _exportLocation = (data['exportLocation'] as String?) ?? _exportLocation;
-        final fmt = data['format'] as String?;
-        if (fmt != null) {
-          _format = _ExportFormat.values.firstWhere(
-            (e) => e.name == fmt,
-            orElse: () => _format,
-          );
+      bool changed = false;
+      void merge<T>(String key, T current, void Function(T) setter) {
+        final val = data[key];
+        if (val is T && val != current) {
+          setter(val);
+          changed = true;
         }
-      });
+      }
+      merge<bool>('personalInfo', _personalInfo, (v) => _personalInfo = v);
+      merge<bool>('contacts', _contacts, (v) => _contacts = v);
+      merge<bool>('stories', _stories, (v) => _stories = v);
+      merge<bool>('profileMusic', _profileMusic, (v) => _profileMusic = v);
+      merge<bool>('personalChats', _personalChats, (v) => _personalChats = v);
+      merge<bool>('botChats', _botChats, (v) => _botChats = v);
+      merge<bool>('privateGroups', _privateGroups, (v) => _privateGroups = v);
+      merge<bool>('privateChannels', _privateChannels, (v) => _privateChannels = v);
+      merge<bool>('publicGroups', _publicGroups, (v) => _publicGroups = v);
+      merge<bool>('publicChannels', _publicChannels, (v) => _publicChannels = v);
+      final newLoc = data['exportLocation'] as String?;
+      if (newLoc != null && newLoc != _exportLocation) {
+        _exportLocation = newLoc;
+        changed = true;
+      }
+      final fmt = data['format'] as String?;
+      if (fmt != null) {
+        final newFormat = _ExportFormat.values.firstWhere(
+          (e) => e.name == fmt,
+          orElse: () => _format,
+        );
+        if (newFormat != _format) {
+          _format = newFormat;
+          changed = true;
+        }
+      }
+      if (changed) setState(() {});
     }).catchError((_) {});
   }
 
@@ -870,80 +885,83 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final stepIdx = event.stepIndex;
     final totalSteps = event.totalSteps;
     final progress = event.progress;
+    bool fileIdChanged = false;
 
-    if (stepIdx >= 0 && totalSteps > 0) {
-      while (_exportSteps.length < totalSteps) {
-        _exportSteps.add(_ExportStepInfo(label: 'Step ${_exportSteps.length + 1}'));
-      }
-      if (stepIdx < _exportSteps.length) {
-        final isFirstReport = !_exportSteps[stepIdx].wasReported;
-        _exportSteps[stepIdx].label = stepLabel;
-        if (progress >= 0) {
-          _exportSteps[stepIdx].progress = progress.clamp(0.0, 1.0);
+    setState(() {
+      if (stepIdx >= 0 && totalSteps > 0) {
+        while (_exportSteps.length < totalSteps) {
+          _exportSteps.add(_ExportStepInfo(label: 'Step ${_exportSteps.length + 1}'));
         }
-        _exportSteps[stepIdx].info = event.info;
-        _exportSteps[stepIdx].wasReported = true;
-        if (isFirstReport) {
-          _exportSteps[stepIdx].opacity = 0.0;
-          final idx = stepIdx;
-          SchedulerBinding.instance.addPostFrameCallback((_) {
-            if (mounted && idx < _exportSteps.length) {
-              setState(() => _exportSteps[idx].opacity = 1.0);
-            }
-          });
-        } else {
-          _exportSteps[stepIdx].opacity = 1.0;
-        }
-        if (stepIdx > _currentStepIndex) {
-          for (int i = _currentStepIndex; i < stepIdx; i++) {
-            _exportSteps[i].progress = 1.0;
-            _exportSteps[i].opacity = 0.0;
+        if (stepIdx < _exportSteps.length) {
+          final isFirstReport = !_exportSteps[stepIdx].wasReported;
+          _exportSteps[stepIdx].label = stepLabel;
+          if (progress >= 0) {
+            _exportSteps[stepIdx].progress = progress.clamp(0.0, 1.0);
           }
-          _scheduleFadeOutRemoval();
-        }
-        _currentStepIndex = stepIdx;
-      }
-    } else {
-      final existing = _exportSteps.indexWhere((s) => s.label == stepLabel);
-      if (existing >= 0) {
-        final isFirstReport = !_exportSteps[existing].wasReported;
-        if (progress >= 0) {
-          _exportSteps[existing].progress = progress.clamp(0.0, 1.0);
-        }
-        _exportSteps[existing].info = event.info;
-        _exportSteps[existing].wasReported = true;
-        if (isFirstReport) {
-          _exportSteps[existing].opacity = 0.0;
-          final idx = existing;
-          SchedulerBinding.instance.addPostFrameCallback((_) {
-            if (mounted && idx < _exportSteps.length) {
-              setState(() => _exportSteps[idx].opacity = 1.0);
-            }
-          });
-        } else {
-          _exportSteps[existing].opacity = 1.0;
-        }
-        if (existing > _currentStepIndex) {
-          for (int i = _currentStepIndex; i < existing; i++) {
-            _exportSteps[i].progress = 1.0;
-            _exportSteps[i].opacity = 0.0;
+          _exportSteps[stepIdx].info = event.info;
+          _exportSteps[stepIdx].wasReported = true;
+          if (isFirstReport) {
+            _exportSteps[stepIdx].opacity = 0.0;
+            final idx = stepIdx;
+            SchedulerBinding.instance.addPostFrameCallback((_) {
+              if (mounted && idx < _exportSteps.length) {
+                setState(() => _exportSteps[idx].opacity = 1.0);
+              }
+            });
+          } else {
+            _exportSteps[stepIdx].opacity = 1.0;
           }
-          _scheduleFadeOutRemoval();
+          if (stepIdx > _currentStepIndex) {
+            for (int i = _currentStepIndex; i < stepIdx; i++) {
+              _exportSteps[i].progress = 1.0;
+              _exportSteps[i].opacity = 0.0;
+            }
+            _scheduleFadeOutRemoval();
+          }
+          _currentStepIndex = stepIdx;
         }
-        _currentStepIndex = existing;
+      } else {
+        final existing = _exportSteps.indexWhere((s) => s.label == stepLabel);
+        if (existing >= 0) {
+          final isFirstReport = !_exportSteps[existing].wasReported;
+          if (progress >= 0) {
+            _exportSteps[existing].progress = progress.clamp(0.0, 1.0);
+          }
+          _exportSteps[existing].info = event.info;
+          _exportSteps[existing].wasReported = true;
+          if (isFirstReport) {
+            _exportSteps[existing].opacity = 0.0;
+            final idx = existing;
+            SchedulerBinding.instance.addPostFrameCallback((_) {
+              if (mounted && idx < _exportSteps.length) {
+                setState(() => _exportSteps[idx].opacity = 1.0);
+              }
+            });
+          } else {
+            _exportSteps[existing].opacity = 1.0;
+          }
+          if (existing > _currentStepIndex) {
+            for (int i = _currentStepIndex; i < existing; i++) {
+              _exportSteps[i].progress = 1.0;
+              _exportSteps[i].opacity = 0.0;
+            }
+            _scheduleFadeOutRemoval();
+          }
+          _currentStepIndex = existing;
+        }
       }
-    }
 
-    _totalFiles = event.totalFiles;
-    _totalSizeBytes = event.totalSizeBytes;
-    if (event.fileRandomId != _fileRandomId) {
-      _fileRandomId = event.fileRandomId;
-      _showSkipFile = false;
-      _resetSkipFileTimer();
-    }
+      _totalFiles = event.totalFiles;
+      _totalSizeBytes = event.totalSizeBytes;
+      if (event.fileRandomId != _fileRandomId) {
+        _fileRandomId = event.fileRandomId;
+        _showSkipFile = false;
+        fileIdChanged = true;
+      }
+    });
 
+    if (fileIdChanged) _resetSkipFileTimer();
     _syncExportBar();
-    setState(() {});
   }
 
   void _scheduleFadeOutRemoval() {
@@ -1056,11 +1074,12 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     if (accountId == null || accountId.isEmpty) return;
 
     if (_currentStepIndex < _exportSteps.length) {
-      _exportSteps[_currentStepIndex].progress = 1.0;
-      _exportSteps[_currentStepIndex].info = 'Skipped';
-      _showSkipFile = false;
+      setState(() {
+        _exportSteps[_currentStepIndex].progress = 1.0;
+        _exportSteps[_currentStepIndex].info = 'Skipped';
+        _showSkipFile = false;
+      });
       _resetSkipFileTimer();
-      setState(() {});
     }
 
     context.read<EngineService>().skipExportFile(accountId, _fileRandomId);
@@ -1848,7 +1867,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                 controller: _scrollController,
                 padding: EdgeInsets.zero,
                 children: [
-                  if (!_isPerChat) _buildSectionHeader('Media export settings', headerColor),
+                  _buildSectionHeader('Media export settings', headerColor),
                   _buildMediaCheckbox('Photos', _mediaPhotos,
                       (v) => _updateSetting(() => _mediaPhotos = v!), textColor),
                   _buildMediaCheckbox('Video files', _mediaVideo,
@@ -2517,10 +2536,18 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     );
   }
 
+  void _retryExport() {
+    setState(() {
+      _phase = ExportPhase.settings;
+      _errorDetail = '';
+    });
+  }
+
   Widget _buildErrorPlaceholder(Color subtextColor) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final errorColor =
         context.palette.attentionButtonFg;
+    final accentColor = context.palette.windowBgActive;
 
     final String errorText;
     if (_errorType == _ExportErrorType.diskIo) {
@@ -2541,10 +2568,44 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
           constraints: const BoxConstraints(minWidth: 175),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              errorText,
-              style: TextStyle(fontSize: 14, color: errorColor),
-              textAlign: TextAlign.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  errorText,
+                  style: TextStyle(fontSize: 14, color: errorColor),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: _closePanel,
+                      style: TextButton.styleFrom(
+                        foregroundColor: subtextColor,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        textStyle: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                      child: const Text('Close'),
+                    ),
+                    const SizedBox(width: 12),
+                    TextButton(
+                      onPressed: _retryExport,
+                      style: TextButton.styleFrom(
+                        foregroundColor: accentColor,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        textStyle: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                      child: const Text('Try Again'),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
@@ -2763,6 +2824,7 @@ class _CalendarBoxState extends State<_CalendarBox> {
 
     final rows = <Widget>[];
     var day = 1;
+    final now = DateTime.now();
 
     for (var row = 0; row < 6 && day <= daysInMonth; row++) {
       final cells = <Widget>[];
@@ -2780,7 +2842,6 @@ class _CalendarBoxState extends State<_CalendarBox> {
               _selected!.year == _year &&
               _selected!.month == _month &&
               _selected!.day == thisDay;
-          final now = DateTime.now();
           final isToday = now.year == _year &&
               now.month == _month &&
               now.day == thisDay;
