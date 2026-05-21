@@ -218,6 +218,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   // Video thumbnails for trim slider
   List<ui.Image?> _videoThumbnails = [];
 
+  bool get _hasPremium => context.read<AppState>().activeAccount?.isPremium ?? false;
+
   // Gesture state for item manipulation
   Offset? _dragStart;
   double? _initialScale;
@@ -472,7 +474,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       if (_videoFile != null) {
         Uint8List? overlayBytes;
         if (_strokes.isNotEmpty || _sceneItems.isNotEmpty) {
-          overlayBytes = await _renderCanvasToBytes();
+          overlayBytes = await _renderCanvasToBytes(overlayOnly: true);
         }
         await engine.sendStoryWithVideoFile(
           accountId,
@@ -519,13 +521,13 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     }
   }
 
-  Future<Uint8List> _renderCanvasToBytes() async {
+  Future<Uint8List> _renderCanvasToBytes({bool overlayOnly = false}) async {
     final w = _canvasWidth.toInt();
     final h = _canvasHeight.toInt();
     final canvasBounds = Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight);
 
-    ui.Image bgImage;
-    {
+    ui.Image? bgImage;
+    if (!overlayOnly) {
       final rec = ui.PictureRecorder();
       final c = Canvas(rec, canvasBounds);
       if (_hasMedia && _loadedImage != null) {
@@ -540,38 +542,41 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
         c.drawRect(canvasBounds, Paint()..shader = gradient.createShader(canvasBounds));
       }
       bgImage = await rec.endRecording().toImage(w, h);
-    }
 
-    final blurStrokes = _strokes.where((s) => s.tool == _BrushTool.blur).toList();
-    if (blurStrokes.isNotEmpty) {
-      final blurRec = ui.PictureRecorder();
-      final bc = Canvas(blurRec, canvasBounds);
-      bc.drawImage(bgImage, Offset.zero, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10));
-      final blurredImage = await blurRec.endRecording().toImage(w, h);
+      final blurStrokes = _strokes.where((s) => s.tool == _BrushTool.blur).toList();
+      if (blurStrokes.isNotEmpty) {
+        final blurRec = ui.PictureRecorder();
+        final bc = Canvas(blurRec, canvasBounds);
+        bc.drawImage(bgImage!, Offset.zero, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10));
+        final blurredImage = await blurRec.endRecording().toImage(w, h);
 
-      final mergeRec = ui.PictureRecorder();
-      final mc = Canvas(mergeRec, canvasBounds);
-      mc.drawImage(bgImage, Offset.zero, Paint());
-      for (final stroke in blurStrokes) {
-        final blurPath = Path();
-        final r = stroke.width / 2;
-        for (final pt in stroke.points) {
-          blurPath.addOval(Rect.fromCircle(center: pt, radius: r));
+        final mergeRec = ui.PictureRecorder();
+        final mc = Canvas(mergeRec, canvasBounds);
+        mc.drawImage(bgImage!, Offset.zero, Paint());
+        for (final stroke in blurStrokes) {
+          final blurPath = Path();
+          final r = stroke.width / 2;
+          for (final pt in stroke.points) {
+            blurPath.addOval(Rect.fromCircle(center: pt, radius: r));
+          }
+          mc.save();
+          mc.clipPath(blurPath);
+          mc.drawImage(blurredImage, Offset.zero, Paint());
+          mc.restore();
         }
-        mc.save();
-        mc.clipPath(blurPath);
-        mc.drawImage(blurredImage, Offset.zero, Paint());
-        mc.restore();
+        bgImage = await mergeRec.endRecording().toImage(w, h);
       }
-      bgImage = await mergeRec.endRecording().toImage(w, h);
     }
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, canvasBounds);
-    canvas.drawImage(bgImage, Offset.zero, Paint());
+    if (bgImage != null) {
+      canvas.drawImage(bgImage, Offset.zero, Paint());
+    }
 
     canvas.saveLayer(canvasBounds, Paint());
     for (final stroke in _strokes) {
+      if (overlayOnly && stroke.tool == _BrushTool.blur) continue;
       _StrokePainter.paintStroke(canvas, stroke.points, stroke.color, stroke.width, stroke.tool, 1.0);
     }
     canvas.restore();
@@ -1696,21 +1701,21 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
         offset.dy + box.size.height,
       ),
       items: [
-        _durationItem(6),
-        _durationItem(12),
-        _durationItem(24),
-        _durationItem(48),
+        _durationItem(6, hasPremium: _hasPremium),
+        _durationItem(12, hasPremium: _hasPremium),
+        _durationItem(24, hasPremium: _hasPremium),
+        _durationItem(48, hasPremium: _hasPremium),
       ],
     ).then((value) {
       if (value != null) setState(() => _durationHours = value);
     });
   }
 
-  PopupMenuItem<int> _durationItem(int hours) {
-    final isPremiumGated = hours == 48;
+  PopupMenuItem<int> _durationItem(int hours, {required bool hasPremium}) {
+    final isPremiumLocked = hours == 48 && !hasPremium;
     return PopupMenuItem(
-      value: isPremiumGated ? null : hours,
-      onTap: isPremiumGated
+      value: isPremiumLocked ? null : hours,
+      onTap: isPremiumLocked
           ? () {
               showTelegramToast(context, 'Subscribe to Telegram Premium to set 48h duration.');
             }
@@ -1723,7 +1728,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
             const SizedBox(width: 18),
           const SizedBox(width: 8),
           Text('$hours hours'),
-          if (isPremiumGated) ...[
+          if (isPremiumLocked) ...[
             const SizedBox(width: 6),
             const Icon(Icons.lock, size: 14, color: Color(0xFF8E8E93)),
           ],

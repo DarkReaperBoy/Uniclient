@@ -17,6 +17,7 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -19984,12 +19985,46 @@ func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte, opts St
 	return t.sendStoryCommon(req)
 }
 
+// overlayVideoWithFFmpeg composites a transparent PNG overlay onto a video using ffmpeg.
+func overlayVideoWithFFmpeg(videoPath string, overlayPNG []byte) (string, error) {
+	overlayPath := filepath.Join(os.TempDir(), fmt.Sprintf("story_overlay_%d.png", time.Now().UnixNano()))
+	if err := os.WriteFile(overlayPath, overlayPNG, 0644); err != nil {
+		return "", err
+	}
+	defer os.Remove(overlayPath)
+
+	outPath := filepath.Join(os.TempDir(), fmt.Sprintf("story_composited_%d.mp4", time.Now().UnixNano()))
+	cmd := exec.Command("ffmpeg", "-y",
+		"-i", videoPath,
+		"-i", overlayPath,
+		"-filter_complex", "[1:v]scale=main_w:main_h[ovr];[0:v][ovr]overlay=0:0",
+		"-c:a", "copy",
+		"-shortest",
+		outPath)
+	if err := cmd.Run(); err != nil {
+		os.Remove(outPath)
+		return "", fmt.Errorf("ffmpeg overlay: %w", err)
+	}
+	return outPath, nil
+}
+
 // SendStoryWithVideoFile reads a video from disk and posts it as a story.
 func (t *TelegramCore) SendStoryWithVideoFile(text string, videoPath string, opts StoryPostOptions) (int, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return 0, ErrAuth }
 
-	videoData, err := os.ReadFile(videoPath)
+	actualVideoPath := videoPath
+	overlayApplied := false
+	if len(opts.OverlayData) > 0 {
+		composited, compErr := overlayVideoWithFFmpeg(videoPath, opts.OverlayData)
+		if compErr == nil {
+			defer os.Remove(composited)
+			actualVideoPath = composited
+			overlayApplied = true
+		}
+	}
+
+	videoData, err := os.ReadFile(actualVideoPath)
 	if err != nil { return 0, fmt.Errorf("read video: %w", err) }
 
 	u := uploader.NewUploader(t.api)
@@ -20006,7 +20041,7 @@ func (t *TelegramCore) SendStoryWithVideoFile(text string, videoPath string, opt
 		},
 	}
 
-	if len(opts.OverlayData) > 0 {
+	if len(opts.OverlayData) > 0 && !overlayApplied {
 		thumbUpload, thumbErr := u.Upload(t.ctx, uploader.NewUpload("thumb.png", io.NopCloser(bytes.NewReader(opts.OverlayData)), int64(len(opts.OverlayData))))
 		if thumbErr == nil {
 			media.SetThumb(thumbUpload)
