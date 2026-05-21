@@ -72,6 +72,8 @@ class AyuGramSettingsScreen extends StatelessWidget {
                 child: Image.asset(
                   'assets/icons/ayu/$selectedIcon.png',
                   fit: BoxFit.contain,
+                  cacheWidth: 200,
+                  cacheHeight: 200,
                   errorBuilder: (_, __, ___) => Container(
                     decoration: BoxDecoration(
                       color: logoColor,
@@ -115,10 +117,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 8),
-          const SizedBox(height: 8),
-          const SizedBox(height: 8),
-          const SizedBox(height: 8),
+          const SizedBox(height: 32),
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
 
@@ -203,14 +202,14 @@ class AyuGramSettingsScreen extends StatelessWidget {
             label: 'Translate',
             rightLabel: 'Crowdin',
             isDark: isDark,
-            onTap: () => _openUrl('https://translate.ayugram.one'),
+            onTap: () => _openUrl(context, 'https://translate.ayugram.one'),
           ),
           _LinkButton(
             icon: Icons.dns,
             label: 'Documentation',
             rightLabel: 'docs.ayugram.one',
             isDark: isDark,
-            onTap: () => _openUrl('https://docs.ayugram.one'),
+            onTap: () => _openUrl(context, 'https://docs.ayugram.one'),
           ),
 
           const SizedBox(height: 24),
@@ -245,8 +244,14 @@ class AyuGramSettingsScreen extends StatelessWidget {
     };
   }
 
-  static void _openUrl(String url) {
-    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  static Future<void> _openUrl(BuildContext context, String url) async {
+    final launched =
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open $url')),
+      );
+    }
   }
 
   static void _navigateToPeer(BuildContext context, String username) {
@@ -254,7 +259,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
     final engine = context.read<EngineService>();
     final accountId = appState.activeAccountId;
     if (accountId.isEmpty) {
-      _openUrl('https://t.me/$username');
+      _openUrl(context, 'https://t.me/$username');
       return;
     }
     final overlay = OverlayEntry(
@@ -274,11 +279,11 @@ class AyuGramSettingsScreen extends StatelessWidget {
         chatState.openChatById(chatId);
         Navigator.of(context).popUntil((route) => route.isFirst);
       } else {
-        _openUrl('https://t.me/$username');
+        _openUrl(context, 'https://t.me/$username');
       }
     }).catchError((_) {
       overlay.remove();
-      _openUrl('https://t.me/$username');
+      _openUrl(context, 'https://t.me/$username');
     });
   }
 
