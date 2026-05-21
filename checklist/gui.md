@@ -115,11 +115,6 @@ No critical, major, or maintenance issues found. The widget correctly displays a
 
 ## Minor Issues
 
-- [ ] [MINOR] `_TiledPainter._loading` flag never resets (line 426)
-  - Flag is set to true but never reset to false after decode
-  - If painter is reused and decode fails, flag stays true and won't retry
-  - Not critical since decode only initiates once, but semantically wrong
-  - Consider removing the flag or resetting it after decode completes
 
 ## Green Flags
 
