@@ -608,10 +608,6 @@ Border color uses `palette?.windowShadowFgFallback` = `notifyBorder: windowShado
 
 # main — Audit findings
 
-## main — Tray Ctrl+click separate window not implemented
-
-- [ ] [CRITICAL] Ctrl+click on a tray account item logs a debug message and then falls through to the same normal account-switch path — no separate window is opened. AyuGram calls `Core::App().ensureSeparateWindowFor({ strong })` on Ctrl+click and skips `maybeActivate` entirely; the Dart does the opposite: it still calls `appState.setActiveAccountId` + `chatState.switchAccount` even when `ctrlPressed == true`, so the window is just switched instead of duplicated. — `main.dart:393-397` ← `tray_accounts_menu.cpp:62-64`
-
 ## main — Theme revert overlay timer drift
 
 - [ ] [MAJOR] `_ThemeRevertOverlayState` decrements `_remainingMs` by a fixed 100 on every timer tick (`_remainingMs -= 100`). If the timer fires late (tab throttled, debug breakpoint, frame jank) the countdown underestimates elapsed time and auto-revert fires later than the 16-second spec. AyuGram computes remaining seconds from wall clock (`(kWaitBeforeRevertMs - msPassed) / 1000` where `msPassed = crl::now() - _started`) so it is immune to timer jitter. — `main.dart:2183` ← `window_theme_warning.cpp:99-104`
