@@ -23955,6 +23955,46 @@ func (t *TelegramCore) ReportMusicListen(docID int64, accessHash int64, fileRef 
 	return err
 }
 
+func (t *TelegramCore) RefreshDocumentFileRef(docID int64, chatID string, msgID string) ([]byte, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return nil, err }
+	defer unlock()
+
+	id, err := tgMsgID(msgID)
+	if err != nil { return nil, err }
+
+	var msgs tg.MessagesMessagesClass
+	if ch, ok := inputPeer.(*tg.InputPeerChannel); ok {
+		msgs, err = t.api.ChannelsGetMessages(t.ctx, &tg.ChannelsGetMessagesRequest{
+			Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: ch.AccessHash},
+			ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: id}},
+		})
+	} else {
+		msgs, err = t.api.MessagesGetMessages(t.ctx, []tg.InputMessageClass{&tg.InputMessageID{ID: id}})
+	}
+	if err != nil { return nil, err }
+
+	var messageList []tg.MessageClass
+	switch m := msgs.(type) {
+	case *tg.MessagesMessages:
+		messageList = m.Messages
+	case *tg.MessagesMessagesSlice:
+		messageList = m.Messages
+	case *tg.MessagesChannelMessages:
+		messageList = m.Messages
+	}
+	for _, msg := range messageList {
+		m, ok := msg.(*tg.Message)
+		if !ok || m.Media == nil { continue }
+		if md, ok := m.Media.(*tg.MessageMediaDocument); ok {
+			if d, ok := md.Document.(*tg.Document); ok && d.ID == docID {
+				return d.FileReference, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("document %d not found in message", docID)
+}
+
 // MessagesReportReaction reports an inappropriate reaction.
 func (t *TelegramCore) MessagesReportReaction(request *tg.MessagesReportReactionRequest) (bool, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

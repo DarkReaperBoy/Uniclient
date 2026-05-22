@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -1598,6 +1599,10 @@ type MusicListenReporter interface {
 	ReportMusicListen(docID int64, accessHash int64, fileRef []byte, durationSec int) error
 }
 
+type FileRefRefresher interface {
+	RefreshDocumentFileRef(docID int64, chatID string, msgID string) ([]byte, error)
+}
+
 func (e *Engine) ReportMusicListen(accountID string, docID int64, accessHash int64, fileRef []byte, durationSec int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1610,7 +1615,30 @@ func (e *Engine) ReportMusicListen(accountID string, docID int64, accessHash int
 	if !ok {
 		return nil
 	}
-	return reporter.ReportMusicListen(docID, accessHash, fileRef, durationSec)
+	err := reporter.ReportMusicListen(docID, accessHash, fileRef, durationSec)
+	if err == nil || !strings.Contains(err.Error(), "FILE_REFERENCE") {
+		return err
+	}
+	refresher, ok := acc.Core.(FileRefRefresher)
+	if !ok {
+		return err
+	}
+	var chatID, msgID string
+	row := e.db.QueryRow(`SELECT chat_id, msg_id FROM media WHERE account_id = ? AND remote_ref = ? LIMIT 1`, accountID, fmt.Sprint(docID))
+	if scanErr := row.Scan(&chatID, &msgID); scanErr != nil {
+		return err
+	}
+	newRef, refreshErr := refresher.RefreshDocumentFileRef(docID, chatID, msgID)
+	if refreshErr != nil || bytes.Equal(newRef, fileRef) {
+		return err
+	}
+	retryErr := reporter.ReportMusicListen(docID, accessHash, newRef, durationSec)
+	if retryErr == nil {
+		e.db.Exec(`UPDATE media SET extra = ? WHERE account_id = ? AND remote_ref = ?`,
+			fmt.Sprintf("%d:%s", accessHash, base64.StdEncoding.EncodeToString(newRef)),
+			accountID, fmt.Sprint(docID))
+	}
+	return retryErr
 }
 
 func (e *Engine) ReadMessageContents(accountID, chatID, msgID string) error {

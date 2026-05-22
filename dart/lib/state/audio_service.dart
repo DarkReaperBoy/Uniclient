@@ -36,6 +36,7 @@ class AudioService extends ChangeNotifier {
   static const _kMinLengthSavePosMusicSec = 20 * 60;
   static const _kMinLengthSavePosVideoSec = 60;
   static const _kPositionNotifyThrottleMs = 250;
+  static const _kMaxSavedPositions = 256;
   final Map<String, Duration> _savedPositions = {};
   String _configDir = '';
   Timer? _positionSaveTimer;
@@ -71,8 +72,12 @@ class AudioService extends ChangeNotifier {
       if (file.existsSync()) {
         final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
         _savedPositions.clear();
-        for (final entry in data.entries) {
-          _savedPositions[entry.key] = Duration(milliseconds: entry.value as int);
+        final entries = data.entries.toList();
+        final start = entries.length > _kMaxSavedPositions
+            ? entries.length - _kMaxSavedPositions
+            : 0;
+        for (var i = start; i < entries.length; i++) {
+          _savedPositions[entries[i].key] = Duration(milliseconds: entries[i].value as int);
         }
       }
     } catch (_) {}
@@ -286,6 +291,9 @@ class AudioService extends ChangeNotifier {
     final minSec = _isSong ? _kMinLengthSavePosMusicSec : _kMinLengthSavePosVideoSec;
     if (totalSec >= minSec) {
       _savedPositions[_currentDocId] = _position;
+      while (_savedPositions.length > _kMaxSavedPositions) {
+        _savedPositions.remove(_savedPositions.keys.first);
+      }
       _persistSavedPositions();
     }
   }
@@ -313,12 +321,8 @@ class AudioService extends ChangeNotifier {
         _currentFileRef,
         duration,
       );
-    } on EngineException catch (e) {
-      if (e.message.contains('FILE_REFERENCE')) {
-        debugPrint('AudioService: FILE_REFERENCE expired, skipping report (engine refresh needed)');
-      } else {
-        debugPrint('AudioService: reportMusicListen failed: $e');
-      }
+    } catch (e) {
+      debugPrint('AudioService: reportMusicListen failed: $e');
     }
   }
 
