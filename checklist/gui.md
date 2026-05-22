@@ -206,10 +206,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 - ✅ Power saving: conditional rendering respects power saving mode
 - ✅ Shader masking: RadialGradient collectible effects properly applied
 
-## filter_column — cleanup
-
-- [ ] [MAJOR] `_onDropHighlightChanged` calls `setState(() {})` unconditionally (line 170), triggering a full `FilterColumn` rebuild every time `dropHighlightIndex` changes — this fires on every pointer-move during a drag-over-folder operation (via `DragTarget.onMove` → `ValueNotifier`). The full rebuild includes the hamburger button, all-chats button, AND all folder tabs. Scope with a `ValueListenableBuilder` wrapping just the folder `Column` to limit redraws to the scrollable list — `filter_column.dart:170`
-
 ## folders_settings_screen — cleanup
 
 - [ ] [CRITICAL] Tag color selection is silently dropped on save — `_colorIndex` is correctly tracked in `_EditFilterBoxState` and included in the returned `FolderInfo`, but `ChatState.editFolder()` and `ChatState.createFolder()` have no `colorIndex` parameter, and `EngineService.editFolder`/`createFolder` don't include it in their JSON payloads. The tag color UI is fully visual but persists nothing to the engine. Fix: add `colorIndex` param through the entire call chain (engine_service → chat_state → callers at lines 284 and 304) — `folders_settings_screen.dart:284,304` · `engine_service.dart:880,821`
