@@ -864,7 +864,6 @@ class _SingleChoiceContentState extends State<_SingleChoiceContent> {
   void _select(int index) {
     setState(() => _selected = index);
     widget.onChanged?.call(index);
-    Navigator.of(context).pop(index);
   }
 
   @override
@@ -1019,8 +1018,14 @@ Future<PermissionStatus> getPermissionStatus(PermissionType type) async {
 
 void openSystemSettingsForPermission(PermissionType type) {
   if (Platform.isLinux) {
-    Process.run('xdg-open', ['gnome-control-center://sound']).catchError((_) {
-      Process.run('xdg-open', ['x-settings://sound']);
+    final panel = type == PermissionType.microphone ? 'sound' : 'sound';
+    Process.run('gnome-control-center', [panel]).then((r) {
+      if (r.exitCode != 0) {
+        return Process.run('systemsettings', ['kcm_pulseaudio']);
+      }
+      return r;
+    }).catchError((_) {
+      Process.run('pavucontrol', []);
     });
   } else if (Platform.isMacOS) {
     final pane = type == PermissionType.microphone
@@ -1292,11 +1297,19 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
   }
 
   Future<void> _captureThumbnails() async {
-    for (int i = 0; i < _sources.length && i < 12; i++) {
+    final count = _sources.length < 12 ? _sources.length : 12;
+    final futures = List.generate(count, (i) async {
       final path = await _captureThumb(_sources[i], i);
-      if (path != null && mounted) {
-        setState(() => _thumbnails[i] = path);
-      }
+      return path != null ? MapEntry(i, path) : null;
+    });
+    final results = await Future.wait(futures);
+    if (!mounted) return;
+    final captured = <int, String>{};
+    for (final entry in results) {
+      if (entry != null) captured[entry.key] = entry.value;
+    }
+    if (captured.isNotEmpty) {
+      setState(() => _thumbnails.addAll(captured));
     }
   }
 
@@ -1396,6 +1409,8 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
                                                       File(_thumbnails[i]!),
                                                       fit: BoxFit.cover,
                                                       width: double.infinity,
+                                                      cacheWidth: 160,
+                                                      cacheHeight: 100,
                                                       errorBuilder:
                                                           (_, __, ___) => Icon(
                                                         source.isScreen
@@ -1501,7 +1516,7 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
 
 // ─── §36.13 Report Flow ─────────────────────────────────────────────────────
 
-enum ReportTarget { message, channel, group, bot, story, profilePhoto, user }
+const String _kReportBack = '__back__';
 
 Future<bool> showDynamicReportFlow(
   BuildContext context, {
@@ -1510,8 +1525,8 @@ Future<bool> showDynamicReportFlow(
   required String chatId,
   required List<int> msgIds,
 }) async {
+  final optionStack = <List<int>>[];
   List<int> currentOption = [];
-  bool isSubLevel = false;
 
   while (true) {
     final result = await engine.reportMessage(
@@ -1539,10 +1554,18 @@ Future<bool> showDynamicReportFlow(
           hasComment: hasComment,
           commentOptional: result.commentOptional,
           commentOption: result.commentOption,
-          showBackButton: isSubLevel,
+          showBackButton: optionStack.isNotEmpty,
         ),
       );
       if (picked == null || !context.mounted) return false;
+
+      if (picked == _kReportBack) {
+        if (optionStack.isNotEmpty) {
+          currentOption = optionStack.removeLast();
+          continue;
+        }
+        return false;
+      }
 
       if (picked is Map) {
         final comment = picked['comment'] as String? ?? '';
@@ -1565,8 +1588,8 @@ Future<bool> showDynamicReportFlow(
         return true;
       }
 
+      optionStack.add(currentOption);
       currentOption = picked as List<int>;
-      isSubLevel = true;
       continue;
     }
 
@@ -1718,7 +1741,7 @@ class _ReportOptionPickerBoxState extends State<_ReportOptionPickerBox> {
           TelegramBoxButton(
             text: 'Back',
             isLeft: true,
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(context).pop(_kReportBack),
           ),
         if (!widget.showBackButton)
           TelegramBoxButton(
