@@ -217,18 +217,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # payment_panel — cleanup
 
-## peer_short_info — cleanup
-
-- [ ] [CRITICAL] `TapGestureRecognizer` instances created inline in `_parseTextWithEntities` are never stored or disposed — every `setState` rebuild (status update, photo nav, buffering) that re-invokes `_buildInfoRows` leaks all recognizers from the previous render; Flutter's `RenderParagraph` does not auto-dispose inline recognizers — store them as state fields and dispose in `dispose()` — `peer_short_info.dart:1065-1079`
-
-- [ ] [CRITICAL] `#hashtag` matches in bio/about text are styled as tappable links (rendered in `labelColor`, with a `TapGestureRecognizer`) but the `onTap` handler immediately `return`s — user sees a blue clickable hashtag that does nothing — either strip `#\w+` from the regex so hashtags render as plain text, or implement hashtag search navigation — `peer_short_info.dart:1073-1074`
-
-- [ ] [MAJOR] `Image.file` used without `cacheWidth`/`cacheHeight` for both the primary avatar (`widget.avatarPath`) and navigated photos (`_currentPhotoPath`) — the cover display is 304×304 logical pixels but the full-resolution image file is decoded and cached at its native size, wasting memory proportional to the avatar's actual resolution — set `cacheWidth: (_kCoverSize * MediaQuery.of(context).devicePixelRatio).round()` — `peer_short_info.dart:522-529`
-
-- [ ] [MAJOR] `value.replaceAll(' ', ' ')` at line 946 is a dead no-op — with `maxLines: 1` already enforced on the `SelectableText`, non-breaking space substitution has no effect on wrapping, and if both characters are ASCII 0x20 it allocates a new string on every call for nothing — remove the `replaceAll` call — `peer_short_info.dart:946`
-
-- [ ] [MAJOR] `_PhotoProgressBarsPainter.paint` silently draws nothing when `smallWidth < size.height` (i.e. bar width < 2 px) — for users with many photos the condition triggers at roughly 50+ photos on a 304 px wide box, leaving the nav zones active but with no visual progress indicator; needs graceful degradation (e.g. collapse bars below a minimum count threshold, or reduce `_kBarGap` proportionally) — `peer_short_info.dart:1253-1256`
-
 # photo_crop_editor — cleanup
 
 - [ ] [CRITICAL] blur strokes silently dropped from export — `_applyCropAndExport` (line 1010) skips every stroke where `tool == _PaintTool.blur` via `continue` and never calls the blur rendering equivalent of `_CropPainter._drawBlurStrokes`; users see blur on-screen but the saved file has none — `photo_crop_editor.dart:1010`
