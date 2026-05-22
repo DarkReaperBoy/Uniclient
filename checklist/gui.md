@@ -168,19 +168,6 @@ The notification composition system is production-ready. Data flows correctly fr
 
 - [ ] [CRITICAL] `_reportListenIfNeeded` catches `FILE_REFERENCE` errors and silently drops the listen report instead of refreshing the file reference and retrying — AyuGram wraps the `MTPmessages_ReportMusicListen` call in a self-referential lambda (`send(send)`) that, on `FILE_REFERENCE_*` 400 errors, calls `refreshFileReference` and retries if the reference actually changed — `audio_service.dart:316-320` ← `media/player/media_player_listen_tracker.cpp:77-95`
 
-- [ ] [MAJOR] `_savedPositions` is an unbounded `Map<String, Duration>` with no eviction — AyuGram caps saved positions at `kMaxSavedPlaybackPositions = 256` and evicts the oldest entry when the limit is reached — `audio_service.dart:39` ← `storage/storage_account.cpp:51`, `storage/storage_account.cpp:3111`
-
-# auth_state — Auth flow state management
-
-- [ ] [CRITICAL] `_onQrExpired()` calls `startAuth()` which resets the **entire** auth flow instead of only refreshing the QR token. AyuGram's `refreshCode()` issues a targeted `MTPauth_ExportLoginToken` request without touching auth state; calling `startAuth()` cancels the current session and begins from scratch, causing a full UI reset on every QR expiry. — `auth_state.dart:231` ← `AyuGramDesktop/Telegram/SourceFiles/intro/intro_qr.cpp:417`
-
-- [ ] [MAJOR] QR expiry timer delay is clamped to `[1, 300]` seconds (`qrExpiresIn - 1).clamp(1, 300)`). AyuGram computes `left = expires - now()` and uses `std::max(left, 1)` with no upper cap. Any token with more than 301 seconds remaining fires the expiry handler up to 301s too early, triggering a needless `startAuth()` reset. — `auth_state.dart:222` ← `AyuGramDesktop/Telegram/SourceFiles/intro/intro_qr.cpp:441`
-
-- [ ] [MAJOR] `switchToMethod()` places a `Future.delayed(Duration.zero)` between `_engine.cancelAuth()` and `_engine.startAuth()` to "yield to let the engine process the cancel." This relies on microtask ordering: if the Go engine's cancel is asynchronous, the new `startAuth` may race with the in-flight cancel, resulting in two concurrent auth flows for the same account. — `auth_state.dart:167` ← `AyuGramDesktop/Telegram/SourceFiles/intro/intro_password_check.cpp:126` (AyuGram uses synchronous `api().request(base::take(_sentRequest)).cancel()` before state transition)
-
-- [ ] [MAJOR] SRP_ID_INVALID detection uses substring `.contains('SRP_ID_INVALID')` on the raw error string. AyuGram matches the exact error type string `type == u"SRP_ID_INVALID"_q`. A future Telegram error like `SRP_ID_INVALID_EXT` would false-positive, triggering the throttle / re-fetch path incorrectly. — `auth_state.dart:104` ← `AyuGramDesktop/Telegram/SourceFiles/intro/intro_password_check.cpp:157`
-
-- [ ] [MAJOR] In `_handleAuthEvent`, when `event.fullData == null` the fallback `AuthStateData` is constructed with only four fields (`accountId`, `state`, `label`, `error`). Fields `platform`, `hint`, `hasRecovery`, `sentTo`, and `qrExpiresIn` all default to empty/zero. If this path is hit during a QR auth event, `_updateQrExpiryTimer()` sees `qrExpiresIn == 0` and skips the timer entirely, so the QR code is never refreshed. If hit during a 2FA event, `hint` and `hasRecovery` are lost and the UI cannot offer the recovery link. — `auth_state.dart:206` ← `AyuGramDesktop/Telegram/SourceFiles/intro/intro_password_check.cpp:34` (AyuGram initialises all password state fields in one shot from `getData()->pwdState`, no partial-data path exists)
 
 # ayu_forward — Forward chunking & progress tracking
 
