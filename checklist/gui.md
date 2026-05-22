@@ -229,14 +229,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 
 
-## telegram_tooltip — cleanup
-
-- [ ] [CRITICAL] `_ImportantTooltipDelegate.getPositionForChild` left/right cases use wrong x and y at lines 432–437 — for `TooltipSide.right`, `x = targetRect.center.dx - arrowSkip` places the tooltip to the LEFT of the target center, and `y = targetRect.top - childSize.height` places it ABOVE the target instead of beside it; for `TooltipSide.left`, same y bug; correct values are `x = targetRect.right + _kArrowHeight` / `y = targetRect.center.dy - childSize.height / 2` for right, and `x = targetRect.left - childSize.width - _kArrowHeight` / same y for left — `telegram_tooltip.dart:432`
-
-- [ ] [MAJOR] `_TooltipPositionDelegate.shouldRelayout` at line 200 only compares `pointer`, ignoring `screenSize`, `shift`, and `edgeSkip` — after a window resize the overlay tooltip keeps its stale position until the pointer moves — `telegram_tooltip.dart:200`
-
-- [ ] [MAJOR] `AnimatedBuilder` at line 334 wraps a raw `Opacity` widget, which forces a composited layer on every frame without a `RepaintBoundary` — replace `Opacity`/`Transform.translate` with `FadeTransition`/`SlideTransition` (driven by `_curvedAnim`) to keep animation on the compositor thread, or wrap `tooltipContent` in `RepaintBoundary` — `telegram_tooltip.dart:334`
-
 ## theme_editor — cleanup
 
 - [ ] [CRITICAL] `_currentBackground` is never set during `_handleImport` (line 382–413). `parseThemeFile` returns `backgroundImage` for zip themes, but the result is never stored in `_currentBackground`. When the user imports a `.tdesktop-theme` with a background and then exports it, the background is silently dropped. Fix: `_currentBackground = parsed.backgroundImage;` inside the `setState` block in `_handleImport`. — `theme_editor.dart:400`
