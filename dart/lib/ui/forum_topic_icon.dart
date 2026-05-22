@@ -264,6 +264,7 @@ class _BubbleIconPainter extends CustomPainter {
   static Path? _rawHighlight;
   static final _scaledPaths = <double, (Path, Path)>{};
   static final _textCache = <(String, double), TextPainter>{};
+  static final _paintCache = <(double, TopicIconPalette), (Paint, Paint, Paint)>{};
 
   _BubbleIconPainter({
     required this.palette,
@@ -289,35 +290,31 @@ class _BubbleIconPainter extends CustomPainter {
       return (_rawBubble!.transform(mat), _rawHighlight!.transform(mat));
     });
 
-    canvas.drawPath(
-      bubble,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(42 * s, 84 * palette.fillY1Frac * s),
-          Offset(42 * s, 84 * palette.fillY2Frac * s),
-          [palette.fillTop, palette.fillBottom],
-        )
-        ..style = PaintingStyle.fill,
-    );
+    final (fillPaint, strokePaint, highlightPaint) =
+        _paintCache.putIfAbsent((s, palette), () => (
+          Paint()
+            ..shader = ui.Gradient.linear(
+              Offset(42 * s, 84 * palette.fillY1Frac * s),
+              Offset(42 * s, 84 * palette.fillY2Frac * s),
+              [palette.fillTop, palette.fillBottom],
+            )
+            ..style = PaintingStyle.fill,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              Offset(42 * s, 84 * palette.strokeY1Frac * s),
+              Offset(42 * s, 84 * palette.strokeY2Frac * s),
+              [palette.strokeTop, palette.strokeBottom],
+            )
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.94736842 * s,
+          Paint()
+            ..color = palette.highlight.withValues(alpha: 0.375)
+            ..style = PaintingStyle.fill,
+        ));
 
-    canvas.drawPath(
-      bubble,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(42 * s, 84 * palette.strokeY1Frac * s),
-          Offset(42 * s, 84 * palette.strokeY2Frac * s),
-          [palette.strokeTop, palette.strokeBottom],
-        )
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.94736842 * s,
-    );
-
-    canvas.drawPath(
-      highlight,
-      Paint()
-        ..color = palette.highlight.withValues(alpha: 0.375)
-        ..style = PaintingStyle.fill,
-    );
+    canvas.drawPath(bubble, fillPaint);
+    canvas.drawPath(bubble, strokePaint);
+    canvas.drawPath(highlight, highlightPaint);
 
     if (letter.isNotEmpty) {
       final tp = _textCache.putIfAbsent((letter, fontSize), () {
