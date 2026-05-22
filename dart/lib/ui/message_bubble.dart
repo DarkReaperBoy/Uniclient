@@ -209,6 +209,7 @@ class _MessageBubbleState extends State<MessageBubble> {
   Timer? _showTimer;
   Timer? _hideTimer;
 
+  static const _maxCachedAccounts = 10;
   static final Map<String, List<String>> _cachedReactions = {};
   static final Map<String, bool> _loadingReactions = {};
 
@@ -227,8 +228,14 @@ class _MessageBubbleState extends State<MessageBubble> {
     engine.getAvailableReactions(accountId).then((reactions) {
       if (reactions.isNotEmpty) {
         _cachedReactions[accountId] = reactions;
+        while (_cachedReactions.length > _maxCachedAccounts) {
+          _cachedReactions.remove(_cachedReactions.keys.first);
+        }
       }
-      _loadingReactions[accountId] = false;
+      _loadingReactions.remove(accountId);
+      while (_loadingReactions.length > _maxCachedAccounts) {
+        _loadingReactions.remove(_loadingReactions.keys.first);
+      }
     });
   }
 
@@ -383,7 +390,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          reactor.peerName.isNotEmpty ? reactor.peerName : 'User',
+                          reactor.peerName,
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                           style: TextStyle(
@@ -410,7 +417,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                       ],
                     )
                   : Text(
-                      reactor.peerName.isNotEmpty ? reactor.peerName : 'User',
+                      reactor.peerName,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 13,
@@ -1268,22 +1275,20 @@ class _MessageBubbleState extends State<MessageBubble> {
     p.historyPeer8NameFg,
   ];
 
-  /// Extended 64-entry peer color palette fetched at runtime from help.peerColors.
-  /// Key: color_id (0..63), Value: [dayColor, nightColor].
-  /// Populated by calling [loadPeerColors] after auth.
+  static const _maxExtendedPaletteSize = 128;
   static final Map<int, List<Color>> _extendedPalette = {};
 
-  /// Load the extended peer color palette from the engine.
-  /// Called once per account after successful auth.
   static void loadPeerColors(List<PeerColorEntry> entries) {
+    _extendedPalette.clear();
     for (final e in entries) {
-      if (e.dayColors.isEmpty) continue; // indices 0-6 return empty, use hardcoded
+      if (e.dayColors.isEmpty) continue;
       final dayRgb = e.dayColors.first;
       final dayColor = Color(0xFF000000 | (dayRgb & 0xFFFFFF));
       final nightColor = e.nightColors.isNotEmpty
           ? Color(0xFF000000 | (e.nightColors.first & 0xFFFFFF))
-          : dayColor; // fallback to day if no night variant
+          : dayColor;
       _extendedPalette[e.colorId] = [dayColor, nightColor];
+      if (_extendedPalette.length >= _maxExtendedPaletteSize) break;
     }
   }
 
@@ -1640,7 +1645,8 @@ class _ReactionStripState extends State<_ReactionStrip>
     final totalWidth =
         _skip + _reactions.length * (_slotSize + _skip) + expandBtnSize + _skip;
 
-    return FadeTransition(
+    return RepaintBoundary(
+      child: FadeTransition(
       opacity: _fadeScale,
       child: ScaleTransition(
         scale: _fadeScale,
@@ -1744,6 +1750,7 @@ class _ReactionStripState extends State<_ReactionStrip>
           ),
         ),
       ),
+    ),
     );
   }
 }
@@ -1804,7 +1811,7 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
   List<String> get _recentEmoji =>
       widget.availableReactions.isNotEmpty ? widget.availableReactions : _defaultRecentEmoji;
 
-  List<List<String>> get _emojiByCategory => [
+  late final List<List<String>> _emojiByCategory = [
     _recentEmoji,
     ['😀', '😃', '😄', '😁', '😆', '🥹', '😅', '🤣',
      '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍',
@@ -4011,6 +4018,8 @@ class _GifPlayerState extends State<_GifPlayer> {
 
 class _StickerCache {
   static const _maxCompositions = 30;
+  static const _maxProgress = 30;
+  static const _maxWebmPositions = 30;
   static final _compositions = <String, LottieComposition>{};
   static final _progress = <String, double>{};
   static final _webmPositions = <String, Duration>{};
@@ -4030,10 +4039,22 @@ class _StickerCache {
   }
 
   static double? getProgress(String path) => _progress[path];
-  static void putProgress(String path, double value) => _progress[path] = value;
+  static void putProgress(String path, double value) {
+    _progress.remove(path);
+    _progress[path] = value;
+    while (_progress.length > _maxProgress) {
+      _progress.remove(_progress.keys.first);
+    }
+  }
 
   static Duration? getWebmPosition(String path) => _webmPositions[path];
-  static void putWebmPosition(String path, Duration pos) => _webmPositions[path] = pos;
+  static void putWebmPosition(String path, Duration pos) {
+    _webmPositions.remove(path);
+    _webmPositions[path] = pos;
+    while (_webmPositions.length > _maxWebmPositions) {
+      _webmPositions.remove(_webmPositions.keys.first);
+    }
+  }
 }
 
 class _TgsStickerPlayer extends StatefulWidget {
@@ -4128,12 +4149,14 @@ class _TgsStickerPlayerState extends State<_TgsStickerPlayer>
     } else if (!powerSaving && !_animController!.isAnimating) {
       _animController!.repeat();
     }
-    return Lottie(
-      composition: _composition!,
-      controller: _animController,
-      width: widget.width,
-      height: widget.height,
-      fit: BoxFit.contain,
+    return RepaintBoundary(
+      child: Lottie(
+        composition: _composition!,
+        controller: _animController,
+        width: widget.width,
+        height: widget.height,
+        fit: BoxFit.contain,
+      ),
     );
   }
 }
@@ -4211,12 +4234,14 @@ class _WebmStickerPlayerState extends State<_WebmStickerPlayer> {
     } else if (!powerSaving && _player != null && !_player!.state.playing) {
       _player!.play();
     }
-    return Video(
-      controller: _controller!,
-      width: widget.width,
-      height: widget.height,
-      fit: BoxFit.cover,
-      controls: NoVideoControls,
+    return RepaintBoundary(
+      child: Video(
+        controller: _controller!,
+        width: widget.width,
+        height: widget.height,
+        fit: BoxFit.cover,
+        controls: NoVideoControls,
+      ),
     );
   }
 }
@@ -5249,7 +5274,7 @@ class _ContactIndicator extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        fullName.isNotEmpty ? fullName : 'Contact',
+                        fullName.isNotEmpty ? fullName : phone,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -6932,6 +6957,8 @@ class _RichMessageTextState extends State<_RichMessageText> {
   final Set<int> _revealedSpoilers = {};
   final List<TapGestureRecognizer> _recognizers = [];
   List<_TextEntity>? _cachedEntities;
+  String _lastEntitiesJson = '';
+  int _nextRecognizerIdx = 0;
 
   @override
   void initState() {
@@ -6988,16 +7015,30 @@ class _RichMessageTextState extends State<_RichMessageText> {
     }
   }
 
+  TapGestureRecognizer _reuseRecognizer(VoidCallback onTap) {
+    if (_nextRecognizerIdx < _recognizers.length) {
+      _recognizers[_nextRecognizerIdx].onTap = onTap;
+      return _recognizers[_nextRecognizerIdx++];
+    }
+    final r = TapGestureRecognizer()..onTap = onTap;
+    _recognizers.add(r);
+    _nextRecognizerIdx++;
+    return r;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Clean up old recognizers.
-    for (final r in _recognizers) {
-      r.dispose();
-    }
-    _recognizers.clear();
+    _nextRecognizerIdx = 0;
 
-    var entities = _parseEntities();
-    _cachedEntities = entities;
+    if (widget.entitiesJson != _lastEntitiesJson) {
+      for (final r in _recognizers) {
+        r.dispose();
+      }
+      _recognizers.clear();
+      _cachedEntities = _parseEntities();
+      _lastEntitiesJson = widget.entitiesJson;
+    }
+    var entities = _cachedEntities ?? _parseEntities();
     final text = widget.text;
     if (entities.isEmpty) {
       if (widget.trailingPad != null) {
@@ -7148,6 +7189,10 @@ class _RichMessageTextState extends State<_RichMessageText> {
     );
     }
 
+    while (_recognizers.length > _nextRecognizerIdx) {
+      _recognizers.removeLast().dispose();
+    }
+
     if (!hasUnrevealed) return result;
     return GestureDetector(
       onTap: _revealAllSpoilers,
@@ -7247,9 +7292,6 @@ class _RichMessageTextState extends State<_RichMessageText> {
           ),
         );
       case 'url':
-        final recognizer = TapGestureRecognizer()
-          ..onTap = () => _openUrl(text);
-        _recognizers.add(recognizer);
         return TextSpan(
           text: text,
           style: TextStyle(
@@ -7257,12 +7299,9 @@ class _RichMessageTextState extends State<_RichMessageText> {
             decoration: TextDecoration.underline,
             decorationColor: isDark ? const Color(0x6665BDF3) : const Color(0x66168ACD),
           ),
-          recognizer: recognizer,
+          recognizer: _reuseRecognizer(() => _openUrl(text)),
         );
       case 'text_url':
-        final recognizer = TapGestureRecognizer()
-          ..onTap = () => _openUrl(entity.url);
-        _recognizers.add(recognizer);
         return TextSpan(
           text: text,
           style: TextStyle(
@@ -7270,12 +7309,16 @@ class _RichMessageTextState extends State<_RichMessageText> {
             decoration: TextDecoration.underline,
             decorationColor: isDark ? const Color(0x6665BDF3) : const Color(0x66168ACD),
           ),
-          recognizer: recognizer,
+          recognizer: _reuseRecognizer(() => _openUrl(entity.url)),
         );
       case 'mention':
       case 'mention_name':
-        final mentionRecognizer = TapGestureRecognizer()
-          ..onTap = () {
+        return TextSpan(
+          text: text,
+          style: TextStyle(
+            color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
+          ),
+          recognizer: _reuseRecognizer(() {
             final username = text.startsWith('@') ? text.substring(1) : text;
             final engine = context.read<EngineService>();
             final accountId = widget.accountId;
@@ -7286,47 +7329,31 @@ class _RichMessageTextState extends State<_RichMessageText> {
                 }
               });
             }
-          };
-        _recognizers.add(mentionRecognizer);
-        return TextSpan(
-          text: text,
-          style: TextStyle(
-            color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
-          ),
-          recognizer: mentionRecognizer,
+          }),
         );
       case 'hashtag':
       case 'cashtag':
-        final hashRecognizer = TapGestureRecognizer()
-          ..onTap = () {
-            ChatView.openSearchRequest?.call(text);
-          };
-        _recognizers.add(hashRecognizer);
         return TextSpan(
           text: text,
           style: TextStyle(
             color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
           ),
-          recognizer: hashRecognizer,
+          recognizer: _reuseRecognizer(() {
+            ChatView.openSearchRequest?.call(text);
+          }),
         );
       case 'bot_command':
-        final cmdRecognizer = TapGestureRecognizer()
-          ..onTap = () {
-            ChatView.setComposeRequest?.call(text);
-            ChatView.sendComposeRequest?.call();
-          };
-        _recognizers.add(cmdRecognizer);
         return TextSpan(
           text: text,
           style: TextStyle(
             color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
           ),
-          recognizer: cmdRecognizer,
+          recognizer: _reuseRecognizer(() {
+            ChatView.setComposeRequest?.call(text);
+            ChatView.sendComposeRequest?.call();
+          }),
         );
       case 'email':
-        final recognizer = TapGestureRecognizer()
-          ..onTap = () => _openUrl('mailto:$text');
-        _recognizers.add(recognizer);
         return TextSpan(
           text: text,
           style: TextStyle(
@@ -7334,18 +7361,15 @@ class _RichMessageTextState extends State<_RichMessageText> {
             decoration: TextDecoration.underline,
             decorationColor: isDark ? const Color(0x6665BDF3) : const Color(0x66168ACD),
           ),
-          recognizer: recognizer,
+          recognizer: _reuseRecognizer(() => _openUrl('mailto:$text')),
         );
       case 'phone':
-        final recognizer = TapGestureRecognizer()
-          ..onTap = () => _openUrl('tel:$text');
-        _recognizers.add(recognizer);
         return TextSpan(
           text: text,
           style: TextStyle(
             color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
           ),
-          recognizer: recognizer,
+          recognizer: _reuseRecognizer(() => _openUrl('tel:$text')),
         );
       case 'custom_emoji':
         if (entity.documentId == 0) return TextSpan(text: text);
@@ -8646,16 +8670,18 @@ class _PollFireworksState extends State<_PollFireworks>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (context, _) {
-        return CustomPaint(
-          painter: _FireworksPainter(
-            particles: _particles,
-            progress: _ctrl.value,
-          ),
-        );
-      },
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (context, _) {
+          return CustomPaint(
+            painter: _FireworksPainter(
+              particles: _particles,
+              progress: _ctrl.value,
+            ),
+          );
+        },
+      ),
     );
   }
 }
