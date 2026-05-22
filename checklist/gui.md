@@ -186,35 +186,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## create_giveaway_box — cleanup
 
-## custom_emoji_cache — cleanup
-
-# edit_forum_topic_box — cleanup
-
-- [ ] [CRITICAL] "View Premium" button (line 645–647) calls `_dismissToast()` then `Navigator.of(context).pop()` — pops the *edit topic dialog* instead of navigating to a Premium subscription screen; label promises navigation that never happens — `edit_forum_topic_box.dart:645`
-
-- [ ] [MAJOR] `_onTitleChanged` (line 162) calls `setState(() { … })` unconditionally on every keystroke, even when `_titleError` is already false; this rebuilds the entire dialog tree (all icon grid cells, tab bar, overlays) on every character typed — should guard: `if (_titleError) setState(() => _titleError = false);` — `edit_forum_topic_box.dart:161`
-
-- [ ] [MAJOR] `_buildFallback` in `CustomEmojiTopicIcon` (forum_topic_icon.dart:635) calls `base64Decode(thumbB64)` inside `build()` on every rebuild, allocating a new `Uint8List` each time; the decoded bytes are never cached at state level — should decode once in `_loadData` / `initState` and store in state — `forum_topic_icon.dart:635`
-
-- [ ] [MAJOR] Fly animation `OverlayEntry` (line 298–328) wraps an `AnimatedBuilder` that repaints the entire overlay on every animation frame with no `RepaintBoundary`; wrapping the `Positioned` child in `RepaintBoundary` isolates the repaints — `edit_forum_topic_box.dart:299`
-
-- [ ] [MAJOR] Toast `OverlayEntry` (line 603–666) wraps a `FadeTransition` with no `RepaintBoundary`; every opacity tick repaints the toast subtree through the overlay — wrap the `Center` child in `RepaintBoundary` — `edit_forum_topic_box.dart:609`
-
-- [ ] [MAJOR] `_getEngine()` (with try/catch + `context.read`) is called separately inside `_buildCustomEmojiPreview` (line 516), `_buildEmojiSetGrid` (line 810), and `_buildServerIconGridCell` (line 933) — three independent lookups per build pass; resolve once at the top of `build()` and thread the result through — `edit_forum_topic_box.dart:516`
-
-# edit_mark_box — cleanup
-
-- [ ] [MAJOR] Hardcoded error border color at line 99 — using `0xFFe53935` instead of `p.activeLineFgError` from palette — breaks theme switching — `edit_mark_box.dart:99`
-- [ ] [MAJOR] Hardcoded focus border color at line 104 — using `0xFF40a7e3` instead of `p.activeLineFg` from palette — breaks theme switching — `edit_mark_box.dart:104`
-
-# ayu_filter — cleanup
-
-- [ ] [CRITICAL] `_mediaTypeNames[12]` is labelled "animated sticker/dice → TYPE_ANIMATED_STICKER (15)" but `engine_models.dart:1021` says `isInvoice => mediaType == 12`. Invoice messages will be tagged as animated-sticker type (15) in the `<type>` blob, and any actual animated-sticker/dice type will map to the wrong bucket. One of these two type-12 assignments is wrong; reconcile against the Go engine's `MediaType` enum and fix whichever side is wrong. — `ayu_filter.dart:163` / `engine_models.dart:1021`
-
-- [ ] [MAJOR] `HttpClient` is never closed in the error paths of `importFromLink` and `publishFilters` — `client.close()` is only called on the happy path; both `FormatException` and generic `catch` blocks return early without closing the client, leaking sockets. Wrap the client in a try/finally or use a local `close()` call before each return. — `ayu_filter.dart:411-431`, `ayu_filter.dart:433-468`
-
-- [ ] [MAJOR] `_chatFilteredCount` is decremented during LRU eviction: the eviction loop at lines 615-618 calls `_removeCacheEntry` for each evicted key, which decrements the per-chat filtered count. Once all filtered-message cache entries for a chat are evicted, `_hasFilteredMessages` returns false and `filteredMessagesShown()` returns `null` — making the "show filtered messages" toggle vanish from the UI until the messages are re-evaluated. The count should not be decremented on eviction (only on `rebuildCache`); split `_chatFilteredCount` into a "total seen" counter that survives eviction, or simply skip the count decrement in `_removeCacheEntry` when it is called from the eviction path. — `ayu_filter.dart:613-638`
-
 ## emoji_panel — cleanup
 
 - [ ] [CRITICAL] `_StickerSetDialogCell._initWebmPlayer` bypasses `_GifPlayerPool` entirely — creates one `Player()` per webm sticker in the dialog with no pool limit. Every other webm path (sticker cell, custom emoji cell) uses `tryAcquire`/`release`. If the dialog shows a large animated set, it spawns unlimited concurrent media_kit players — `emoji_panel.dart:3958`
