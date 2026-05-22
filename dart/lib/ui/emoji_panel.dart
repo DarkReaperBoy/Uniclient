@@ -563,7 +563,7 @@ class _TabContent extends StatelessWidget {
     this.onInlineResultSend,
   });
 
-  Widget _buildTabWidget(int index, Color placeholderColor) {
+  Widget _buildTabWidget(int index) {
     if (index == 0) return _EmojiTab(onEmojiSelected: onEmojiSelected, onCustomEmojiSelected: onCustomEmojiSelected);
     if (index == 1) return _StickerTab(onStickerSend: onStickerSend, onContextMenuToggle: onContextMenuToggle);
     return _GifTab(onGifSend: onGifSend, onContextMenuToggle: onContextMenuToggle, onInlineResultSend: onInlineResultSend);
@@ -571,26 +571,22 @@ class _TabContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final placeholderColor = isDark
-        ? const Color(0xFF7e8b93)
-        : const Color(0xFF999999);
-
     return AnimatedBuilder(
       animation: slideController,
       builder: (context, _) {
         final direction = activeTab > prevTab ? 1.0 : -1.0;
         final slideProgress = slideController.value;
 
-        if (slideProgress >= 1.0 || activeTab == prevTab) {
-          return _buildTabWidget(activeTab, placeholderColor);
-        }
-
         return LayoutBuilder(
           builder: (context, constraints) {
             final panelW = constraints.maxWidth;
-            Widget prevWidget = RepaintBoundary(child: _buildTabWidget(prevTab, placeholderColor));
-            Widget activeWidget = RepaintBoundary(child: _buildTabWidget(activeTab, placeholderColor));
+
+            if (slideProgress >= 1.0 || activeTab == prevTab) {
+              return _buildTabWidget(activeTab);
+            }
+
+            Widget prevWidget = RepaintBoundary(child: _buildTabWidget(prevTab));
+            Widget activeWidget = RepaintBoundary(child: _buildTabWidget(activeTab));
 
             return ClipRect(
               child: Stack(
@@ -623,25 +619,6 @@ class _TabContent extends StatelessWidget {
           },
         );
       },
-    );
-  }
-
-  Widget _buildPlaceholder(String label, IconData icon, Color color) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: color.withValues(alpha: 0.4)),
-          const SizedBox(height: 12),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              color: color.withValues(alpha: 0.6),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1382,20 +1359,22 @@ class _CustomEmojiCellState extends State<_CustomEmojiCell> with SingleTickerPro
       child = _buildThumb(innerSize);
     }
 
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        cursor: SystemMouseCursors.click,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          decoration: BoxDecoration(
-            color: _hovered ? hoverBg : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          cursor: SystemMouseCursors.click,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 100),
+            decoration: BoxDecoration(
+              color: _hovered ? hoverBg : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            alignment: Alignment.center,
+            child: child,
           ),
-          alignment: Alignment.center,
-          child: child,
         ),
       ),
     );
@@ -1551,22 +1530,24 @@ class _EmojiCellState extends State<_EmojiCell> {
         ? const Color(0xFF202b36)
         : const Color(0xFFf0f0f0);
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: PlatformGestureDetector(
-        onTap: () => widget.onEmojiSelected(_shownEmoji),
-        onLongPress: _supportsSkinTone(widget.emoji) ? _handleLongPress : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          decoration: BoxDecoration(
-            color: _hovered ? hoverBg : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            _shownEmoji,
-            style: const TextStyle(fontSize: 26),
+    return RepaintBoundary(
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: PlatformGestureDetector(
+          onTap: () => widget.onEmojiSelected(_shownEmoji),
+          onLongPress: _supportsSkinTone(widget.emoji) ? _handleLongPress : null,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 100),
+            decoration: BoxDecoration(
+              color: _hovered ? hoverBg : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              _shownEmoji,
+              style: const TextStyle(fontSize: 26),
+            ),
           ),
         ),
       ),
@@ -1651,8 +1632,8 @@ class _StickerTabState extends State<_StickerTab> {
   bool _programmaticScroll = false;
   final Set<int> _viewedFeaturedPacks = {};
   Timer? _searchDebounce;
-  final Map<int, CustomEmojiFileData> _stickerFileCache = {};
-  final Set<int> _stickerFileLoading = {};
+  static final Map<int, CustomEmojiFileData> _stickerFileCache = {};
+  static final Set<int> _stickerFileLoading = {};
 
   @override
   void initState() {
@@ -1660,12 +1641,6 @@ class _StickerTabState extends State<_StickerTab> {
     _gridScrollController.addListener(_onGridScroll);
     _searchController.addListener(_onSearchChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
-  }
-
-  @override
-  void deactivate() {
-    _loaded = false;
-    super.deactivate();
   }
 
   @override
@@ -1890,9 +1865,23 @@ class _StickerTabState extends State<_StickerTab> {
           final id = int.tryParse(sticker.fileId) ?? 0;
           final willUnfave = sticker.isFaved;
           engine.faveSticker(acc.id, id, unfave: willUnfave);
+          setState(() {
+            _updateStickerFaved(sticker.fileId, !willUnfave);
+          });
         }
       } else if (value == 'view_set') {
-        _viewStickerSet(context, sticker, setShortName);
+        String? resolvedName = setShortName;
+        if (resolvedName == null || resolvedName.isEmpty) {
+          for (final pack in _packs) {
+            if (pack.stickers.any((s) => s.fileId == sticker.fileId)) {
+              resolvedName = pack.shortName;
+              break;
+            }
+          }
+        }
+        if (resolvedName != null && resolvedName.isNotEmpty) {
+          _viewStickerSet(context, sticker, resolvedName);
+        }
       } else if (value == 'remove_recent') {
         final engine = context.read<EngineService>();
         final appState = context.read<AppState>();
@@ -1910,6 +1899,21 @@ class _StickerTabState extends State<_StickerTab> {
         Clipboard.setData(ClipboardData(text: 'https://t.me/$prefix/$setShortName'));
       }
     });
+  }
+
+  void _updateStickerFaved(String fileId, bool newFaved) {
+    for (int i = 0; i < _recentStickers.length; i++) {
+      if (_recentStickers[i].fileId == fileId) {
+        _recentStickers[i] = _recentStickers[i].copyWith(isFaved: newFaved);
+      }
+    }
+    for (final pack in _packs) {
+      for (int i = 0; i < pack.stickers.length; i++) {
+        if (pack.stickers[i].fileId == fileId) {
+          pack.stickers[i] = pack.stickers[i].copyWith(isFaved: newFaved);
+        }
+      }
+    }
   }
 
   void _showStickerPreview(BuildContext context, Offset position, StickerInfoItem sticker) {
@@ -2571,27 +2575,29 @@ class _StickerCellState extends State<_StickerCell> with SingleTickerProviderSta
 
     final hoverDuration = stickerPanelPowerSave ? Duration.zero : const Duration(milliseconds: 100);
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: PlatformGestureDetector(
-        onTap: widget.onTap,
-        onSecondaryTapUp: widget.onContextMenu != null
-            ? (details) => widget.onContextMenu!(details.globalPosition)
-            : null,
-        onLongPressStart: widget.onLongPress != null
-            ? (details) => widget.onLongPress!(details.globalPosition)
-            : (widget.onContextMenu != null
-                ? (details) => widget.onContextMenu!(details.globalPosition)
-                : null),
-        child: AnimatedContainer(
-          duration: hoverDuration,
-          decoration: BoxDecoration(
-            color: _hovered ? hoverBg : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
+    return RepaintBoundary(
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: PlatformGestureDetector(
+          onTap: widget.onTap,
+          onSecondaryTapUp: widget.onContextMenu != null
+              ? (details) => widget.onContextMenu!(details.globalPosition)
+              : null,
+          onLongPressStart: widget.onLongPress != null
+              ? (details) => widget.onLongPress!(details.globalPosition)
+              : (widget.onContextMenu != null
+                  ? (details) => widget.onContextMenu!(details.globalPosition)
+                  : null),
+          child: AnimatedContainer(
+            duration: hoverDuration,
+            decoration: BoxDecoration(
+              color: _hovered ? hoverBg : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            alignment: Alignment.center,
+            child: child,
           ),
-          alignment: Alignment.center,
-          child: child,
         ),
       ),
     );
@@ -3676,6 +3682,8 @@ class _StickerPreviewOverlay extends StatefulWidget {
 class _StickerPreviewOverlayState extends State<_StickerPreviewOverlay> with SingleTickerProviderStateMixin {
   AnimationController? _lottieController;
   Uint8List? _decompressedLottie;
+  Player? _webmPlayer;
+  VideoController? _webmVideoController;
 
   @override
   void initState() {
@@ -3684,7 +3692,23 @@ class _StickerPreviewOverlayState extends State<_StickerPreviewOverlay> with Sin
       try {
         _decompressedLottie = Uint8List.fromList(gzip.decode(widget.fileData!.fileData));
       } catch (_) {}
+    } else if (widget.fileData != null && widget.fileData!.isWebm) {
+      _initWebmPlayer(widget.fileData!);
     }
+  }
+
+  Future<void> _initWebmPlayer(CustomEmojiFileData file) async {
+    final docId = int.tryParse(widget.sticker.fileId) ?? 0;
+    final dir = Directory.systemTemp;
+    final path = '${dir.path}/uniclient_preview_$docId.webm';
+    await File(path).writeAsBytes(file.fileData);
+    if (!mounted) return;
+    _webmPlayer = Player();
+    _webmVideoController = VideoController(_webmPlayer!);
+    _webmPlayer!.setVolume(0);
+    _webmPlayer!.setPlaylistMode(PlaylistMode.loop);
+    _webmPlayer!.open(Media(path));
+    if (mounted) setState(() {});
   }
 
   void _onLottieLoaded(LottieComposition composition) {
@@ -3699,6 +3723,7 @@ class _StickerPreviewOverlayState extends State<_StickerPreviewOverlay> with Sin
   @override
   void dispose() {
     _lottieController?.dispose();
+    _webmPlayer?.dispose();
     super.dispose();
   }
 
@@ -3719,6 +3744,16 @@ class _StickerPreviewOverlayState extends State<_StickerPreviewOverlay> with Sin
         fit: BoxFit.contain,
         controller: _lottieController,
         onLoaded: _onLottieLoaded,
+      );
+    } else if (file != null && file.isWebm && _webmVideoController != null) {
+      content = SizedBox(
+        width: previewSize - 24,
+        height: previewSize - 24,
+        child: Video(
+          controller: _webmVideoController!,
+          controls: NoVideoControls,
+          fit: BoxFit.contain,
+        ),
       );
     } else if (file != null && file.isWebp) {
       content = Image.memory(
@@ -3927,6 +3962,7 @@ class _StickerSetDialogCellState extends State<_StickerSetDialogCell> with Singl
   Uint8List? _decompressedLottie;
   Player? _webmPlayer;
   VideoController? _webmVideoController;
+  String? _webmFilePath;
 
   @override
   void initState() {
@@ -3961,11 +3997,22 @@ class _StickerSetDialogCellState extends State<_StickerSetDialogCell> with Singl
     final path = '${dir.path}/uniclient_setdlg_$docId.webm';
     await File(path).writeAsBytes(file.fileData);
     if (!mounted) return;
+    _webmFilePath = path;
+    if (_GifPlayerPool.instance.tryAcquire(this, _createWebmPlayer)) {
+      _createWebmPlayer();
+    }
+  }
+
+  void _createWebmPlayer() {
+    if (!mounted || _webmFilePath == null) {
+      _GifPlayerPool.instance.release(this);
+      return;
+    }
     _webmPlayer = Player();
     _webmVideoController = VideoController(_webmPlayer!);
     _webmPlayer!.setVolume(0);
     _webmPlayer!.setPlaylistMode(PlaylistMode.loop);
-    _webmPlayer!.open(Media(path));
+    _webmPlayer!.open(Media(_webmFilePath!));
     if (mounted) setState(() {});
   }
 
@@ -3979,6 +4026,9 @@ class _StickerSetDialogCellState extends State<_StickerSetDialogCell> with Singl
   void dispose() {
     _lottieController?.dispose();
     _webmPlayer?.dispose();
+    _webmPlayer = null;
+    _webmVideoController = null;
+    _GifPlayerPool.instance.release(this);
     super.dispose();
   }
 
