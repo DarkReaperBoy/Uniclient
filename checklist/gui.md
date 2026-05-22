@@ -223,20 +223,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## privacy_settings_screen — cleanup
 
-- [ ] [CRITICAL] Wrong state field key in `_CloudPasswordEmail._setPassword` — reads `state?['unconfirmedEmail']` at line 4221 but the Go engine (telegram.go:18323) serialises the field as `emailUnconfirmedPattern`, which is also what `_fetchPasswordState` at line 131 reads. Result: after setting a 2FA password with a recovery email the unconfirmed email is never detected, `_CloudPasswordEmailConfirm` is never pushed, and the user lands on `_CloudPasswordDone` without ever verifying the email — `privacy_settings_screen.dart:4221`
-
-- [ ] [CRITICAL] `FutureBuilder` in `_showBlockUserPicker` re-fetches contacts on every search keystroke — `_loadContacts(engine, accountId, blockedIds)` is called directly in the `future:` parameter inside `StatefulBuilder`'s builder. Every `setDialogState(() => searchQuery = v)` call triggers a rebuild, creates a new `Future`, and `FutureBuilder` transitions back to `waiting`, causing the list to flash and contacts to be re-fetched from the engine on every typed character — `privacy_settings_screen.dart:7164`
-
-- [ ] [CRITICAL] `_hashPasscodeWithSalt` runs 100 000 SHA-256 iterations synchronously on the UI thread — the `for (var i = 0; i < 99999; i++)` loop at line 5528 blocks the main isolate for ~200–500 ms on every passcode creation (line 5616) and verification (`_LocalPasscodeVerify._verify` line 6039). Must be moved to `compute()` or `Isolate.run()` — `privacy_settings_screen.dart:5528`
-
-- [ ] [CRITICAL] Direct state mutation in `build()` without `setState` in `_BirthdayDayMonthPickerState` — `if (_day > _maxDay) _day = _maxDay;` at line 7802 mutates `_day` during `build`. Flutter does not re-render in response; the dropdown `value` may exceed its `items` list, causing a blank selection or assertion failure when the user picks February with day > 28/29 — `privacy_settings_screen.dart:7802`
-
-- [ ] [MAJOR] Aggressive 15-second polling timer fires 13 engine calls simultaneously — `initState` at line 88 starts a `Timer.periodic` that calls `_fetchPasswordState`, `_fetchGlobalTTL`, `_loadPasscodeState`, `_fetchPasskeys`, `_fetchBlockedCount`, `_fetchSessionsCount`, `_fetchAllPrivacy`, `_fetchMessagesPrivacy`, `_fetchArchiveSettings`, `_fetchAccountTTL`, `_fetchTopPeers`, `_fetchContentSettings`, and `_fetchWebsitesCount` every 15 seconds. Most are network round-trips. On a busy screen this is 52 engine calls/min and will routinely hit FLOOD_WAIT — `privacy_settings_screen.dart:88`
-
-- [ ] [MAJOR] Top peers section renders with wrong default value before data loads — `_buildTopPeersSection` at line 1492 has no `_topPeersLoaded` guard (unlike `_buildArchiveAndMuteSection` which has `if (!_archiveLoaded) return []` and `_buildSensitiveContentSection` which has `if (!_sensitiveLoaded …) return []`). `_topPeersEnabled` defaults to `true`; if the real value is `false` the toggle momentarily shows enabled, and a fast tap can toggle from the wrong initial state — `privacy_settings_screen.dart:1492`
-
-- [ ] [MAJOR] `_openApplyToExisting` fires up to 500 `setHistoryTTL` calls in a tight loop without `await` or rate-limiting — line 5275: `engine.setHistoryTTL(accountId, chat.chatId, _selectedTTL)` inside `for (final chat in chats)` with no await. All 500 requests are dispatched simultaneously; Telegram will return FLOOD_WAIT and the UI reports "applied to N chats" even when most calls failed — `privacy_settings_screen.dart:5275`
-
 ## reactions_detail — cleanup
 
 - [ ] [CRITICAL] `_onTabSelected` line 361 — condition `!isReadTab && _masterReactors.isNotEmpty` fires for both the "All" tab (`tab == null`) AND any specific-emoji tab. For a specific emoji it sets `_allReactors = _masterReactors` (the first-page all-reactions data) and returns early, so `_filteredReactors` local-filters that incomplete set instead of fetching the emoji-specific list. If there are 50 😂 reactors but only 3 appear in the first 20 "All" results, the 😂 tab shows 3. Fix: guard should be `tab == null && _masterReactors.isNotEmpty` — `reactions_detail.dart:361`
