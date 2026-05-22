@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -352,7 +353,6 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final p = context.palette;
     final accentFg = p.windowActiveTextFg;
     final screenWidth = MediaQuery.of(context).size.width;
@@ -459,7 +459,7 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                         SizedBox(
                           width: _kMinFieldWidth,
                           child: _buildFieldColumn(
-                              p.boxTitleAdditionalFg, isDark),
+                              p.boxTitleAdditionalFg, p.boxTextFg, p.inputBorderFg),
                         ),
                       ],
                     ),
@@ -518,11 +518,7 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     return content;
   }
 
-  Widget _buildFieldColumn(Color labelFg, bool isDark) {
-    final textFg =
-        isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
-    final borderColor =
-        isDark ? const Color(0xFF3A4655) : const Color(0xFFD9D9D9);
+  Widget _buildFieldColumn(Color labelFg, Color textFg, Color borderColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -591,10 +587,8 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
       onPointerSignal: (event) {
         if (event is PointerScrollEvent && focusNode.hasFocus) {
           var deltaX = -event.scrollDelta.dx.toInt();
-          var deltaY = -event.scrollDelta.dy.toInt();
+          final deltaY = -event.scrollDelta.dy.toInt();
           if (defaultTargetPlatform == TargetPlatform.macOS) {
-            deltaY = -deltaY;
-          } else {
             deltaX = -deltaX;
           }
           final raw = (deltaX.abs() > deltaY.abs()) ? deltaX : deltaY;
@@ -636,6 +630,9 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                       borderRadius: BorderRadius.circular(4),
                       borderSide: BorderSide(color: borderColor)),
                   enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(color: borderColor)),
+                  focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(4),
                       borderSide: BorderSide(color: borderColor)),
                 ),
@@ -680,6 +677,9 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                     borderRadius: BorderRadius.circular(4),
                     borderSide: BorderSide(color: borderColor)),
                 enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: BorderSide(color: borderColor)),
+                focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(4),
                     borderSide: BorderSide(color: borderColor)),
               ),
@@ -796,7 +796,7 @@ class _GradientSquare extends StatefulWidget {
 }
 
 class _GradientSquareState extends State<_GradientSquare> {
-  Offset? _pointerPos;
+  final ValueNotifier<Offset?> _cursorNotifier = ValueNotifier(null);
 
   void _handle(Offset local) {
     final s = (local.dx / widget.pickerSize).clamp(0.0, 1.0);
@@ -805,19 +805,25 @@ class _GradientSquareState extends State<_GradientSquare> {
   }
 
   @override
+  void dispose() {
+    _cursorNotifier.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MouseRegion(
       cursor: SystemMouseCursors.none,
-      onHover: (e) => setState(() => _pointerPos = e.localPosition),
-      onExit: (_) => setState(() => _pointerPos = null),
+      onHover: (e) => _cursorNotifier.value = e.localPosition,
+      onExit: (_) => _cursorNotifier.value = null,
       child: Listener(
         behavior: HitTestBehavior.opaque,
         onPointerDown: (e) {
-          setState(() => _pointerPos = e.localPosition);
+          _cursorNotifier.value = e.localPosition;
           _handle(e.localPosition);
         },
         onPointerMove: (e) {
-          setState(() => _pointerPos = e.localPosition);
+          _cursorNotifier.value = e.localPosition;
           _handle(e.localPosition);
         },
         child: SizedBox(
@@ -831,7 +837,7 @@ class _GradientSquareState extends State<_GradientSquare> {
               hue: widget.hue,
               saturation: widget.saturation,
               brightness: widget.brightness,
-              cursorPos: _pointerPos,
+              cursorNotifier: _cursorNotifier,
             ),
           ),
         ),
@@ -869,15 +875,15 @@ class _HSBGradientPainter extends CustomPainter {
 class _CrosshairAndCursorPainter extends CustomPainter {
   final double crossX, crossY;
   final double hue, saturation, brightness;
-  final Offset? cursorPos;
+  final ValueNotifier<Offset?> cursorNotifier;
   _CrosshairAndCursorPainter({
     required this.crossX,
     required this.crossY,
     required this.hue,
     required this.saturation,
     required this.brightness,
-    required this.cursorPos,
-  });
+    required this.cursorNotifier,
+  }) : super(repaint: cursorNotifier);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -896,18 +902,19 @@ class _CrosshairAndCursorPainter extends CustomPainter {
           ..strokeWidth = _kCrosshairStroke
           ..color = fg);
 
+    final cursorPos = cursorNotifier.value;
     if (cursorPos != null) {
       const diameter = 16.0;
       const lineW = 1.0;
       canvas.drawCircle(
-          cursorPos!,
+          cursorPos,
           diameter / 2,
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 3 * lineW
             ..color = const Color(0xFFFFFFFF));
       canvas.drawCircle(
-          cursorPos!,
+          cursorPos,
           diameter / 2,
           Paint()
             ..style = PaintingStyle.stroke
@@ -922,8 +929,7 @@ class _CrosshairAndCursorPainter extends CustomPainter {
       old.crossY != crossY ||
       old.hue != hue ||
       old.saturation != saturation ||
-      old.brightness != brightness ||
-      old.cursorPos != cursorPos;
+      old.brightness != brightness;
 }
 
 class _CheckerboardPainter extends CustomPainter {
@@ -1072,6 +1078,10 @@ class _HorizontalOpacityPainter extends CustomPainter {
   final Color color;
   final double value;
   final Color arrowColor;
+
+  static ui.Picture? _checkerCache;
+  static Size? _checkerCacheSize;
+
   _HorizontalOpacityPainter({
     required this.color,
     required this.value,
@@ -1086,18 +1096,26 @@ class _HorizontalOpacityPainter extends CustomPainter {
 
     canvas.save();
     canvas.clipRRect(rrect);
-    const checkSize = 4.0;
-    final cp1 = Paint()..color = const Color(0xFFCCCCCC);
-    final cp2 = Paint()..color = Colors.white;
-    for (var y = _kSliderSkip; y < _kSliderSkip + _kSliderWidth;
-        y += checkSize) {
-      for (var x = 0.0; x < size.width; x += checkSize) {
-        final odd =
-            (x ~/ checkSize + (y - _kSliderSkip) ~/ checkSize) % 2 == 0;
-        canvas.drawRect(Rect.fromLTWH(x, y, checkSize, checkSize),
-            odd ? cp1 : cp2);
+
+    if (_checkerCache == null || _checkerCacheSize != size) {
+      final rec = ui.PictureRecorder();
+      final c = Canvas(rec);
+      const checkSize = 4.0;
+      final cp1 = Paint()..color = const Color(0xFFCCCCCC);
+      final cp2 = Paint()..color = Colors.white;
+      for (var y = _kSliderSkip; y < _kSliderSkip + _kSliderWidth;
+          y += checkSize) {
+        for (var x = 0.0; x < size.width; x += checkSize) {
+          final odd =
+              (x ~/ checkSize + (y - _kSliderSkip) ~/ checkSize) % 2 == 0;
+          c.drawRect(Rect.fromLTWH(x, y, checkSize, checkSize),
+              odd ? cp1 : cp2);
+        }
       }
+      _checkerCache = rec.endRecording();
+      _checkerCacheSize = size;
     }
+    canvas.drawPicture(_checkerCache!);
 
     final gradient = LinearGradient(
       colors: [color.withAlpha(0), color],
