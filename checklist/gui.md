@@ -144,24 +144,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## MAJOR
 
-## chat_settings_screen — cleanup
-
-- [ ] [CRITICAL] `onPaletteChanged: (_) {}` empty callback at lines 634 and 2381 — `ThemeEditorScreen` calls this at lines 212 and 412 of `theme_editor.dart` whenever the user edits colors, but both call-sites in `chat_settings_screen.dart` discard the result. Any palette changes made in the theme editor are silently thrown away and never applied to `AppState`. Needs to call `appState.applyPalette(palette)` or equivalent — `chat_settings_screen.dart:634` and `chat_settings_screen.dart:2381`
-
-- [ ] [CRITICAL] "Use system accent color" checkbox sets hardcoded `#40a7e3` instead of reading any system color — `appState.useSystemAccent` is only ever stored/restored as a preference flag; nothing in the codebase reads it to query a platform accent color. The entire effect of checking this box is `appState.updateAccentColor('#40a7e3')`, which just resets to Telegram's default blue. The flag is effectively dead after being written — `chat_settings_screen.dart:410-413`
-
-- [ ] [CRITICAL] `_EditPeerColorBox` preview swatch shows hardcoded `'Your Name'` / `'Message preview text'` strings — `widget.accountId` is available but the dialog never fetches the user's actual display name from the engine. The preview is supposed to show how the color looks on the user's own name; showing a generic string is a placeholder not a real preview — `chat_settings_screen.dart:1719` and `chat_settings_screen.dart:1729`
-
-- [ ] [MAJOR] Base64 thumbnail decoding runs inside `GridView.builder` itemBuilder — `const Base64Decoder().convert(thumbB64)` is called on every build of each wallpaper tile (line 2769). `GridView.builder` calls itemBuilder during scroll, causing repeated allocations and CPU work per frame. Pre-decode all thumbnails into `Uint8List` once in `_WallpaperBrowser.build` before building the grid — `chat_settings_screen.dart:2766-2772`
-
-- [ ] [MAJOR] Zero-sigma `ImageFilter.blur` applied unconditionally when `_blurred == false` — `ImageFiltered(imageFilter: _blurred ? ImageFilter.blur(...) : ImageFilter.blur(sigmaX: 0, sigmaY: 0), ...)` always wraps the preview image in an `ImageFiltered` widget and compositor layer even when blur is off. Replace with a conditional: only wrap with `ImageFiltered` when `_blurred` is true — `chat_settings_screen.dart:4909-4935`
-
-- [ ] [MAJOR] `_reorder` reads `appState.activeAccount` instead of `widget.accountId` — if the user switches accounts while the sticker pack manager bottom sheet is open, the `reorderStickerSets` call at line 3703 sends the reorder to the newly active account, not the one the pack list was loaded for. Use `widget.accountId` directly — `chat_settings_screen.dart:3699-3703`
-
-- [ ] [MAJOR] Emoji sets load failure silently falls back to sticker packs — when `engine.getInstalledEmojiSets` throws (line 3662), the catch at line 3673 calls `getInstalledStickerPacks` and populates `_packs` with sticker data. The Emoji Sets manager then displays sticker packs to the user without any indication that the emoji load failed. Should show an error state instead of silently substituting sticker packs — `chat_settings_screen.dart:3659-3676`
-
-- [ ] [MAJOR] `_showAllCloudThemes` is always `true`; horizontal scroll grid is dead code — the state field is initialised to `true` and the `onToggleShowAll` callback only sets it to `true` when already `false` (`if (!_showAllCloudThemes) setState(() => _showAllCloudThemes = true)`), so it can never become `false`. The horizontal `ListView` branch in `_buildGrid` (lines 2268-2285) is unreachable. Either wire a real toggle or remove the dead branch — `chat_settings_screen.dart:37` and `chat_settings_screen.dart:437-439`
-
 ## chat_switch_overlay — cleanup
 
 - [ ] [MAJOR] `_onChatStateChanged` returns early on `removed.isEmpty` — when `recentTopicsFor` asynchronously loads topic data it calls `notifyListeners()`, which fires this listener, but the listener exits without `setState` because no chats were removed; forum-topic cells in the overlay never redraw to show the loaded custom emoji icon or correct `colorId` — `chat_switch_overlay.dart:78`
