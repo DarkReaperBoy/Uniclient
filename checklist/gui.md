@@ -268,17 +268,6 @@ All checks passed:
 - Lightness clamping (64/255 dark min, 160/255 light max) — matches
 - Spot-checked dayBlue constant hex values — correct
 
-# theme_file — Palette token coverage and parser gaps
-
-## Summary
-`theme_file.dart` implements `.tdesktop-theme` ZIP parsing, palette text parsing, theme export, cloud-theme metadata read/write, and a JSON+dat disk cache. The logic is structurally sound but is missing 51 of the 580 tokens defined in AyuGram's authoritative `colors.palette`, and the palette parser silently drops `/* */` block comments.
-
----
-
-- [ ] [CRITICAL] `paletteToMap` / `paletteFromMap` are missing 51 tokens that exist in AyuGram's `colors.palette`: `creditsBg1`, `creditsBg2`, `creditsBg3`, `creditsFg`, `creditsStroke`, `currencyFg`, `outdateSoonBg`, `outdatedBg`, `outdatedFg`, `photoEditorItemBaseHandleFg`, `rankAdminFg`, `rankOwnerFg`, `rankUserFg`, `songCoverOverlayFg`, `spellUnderline`, `statisticsChartActive`, `statisticsChartInactive`, `statisticsChartLineBlue`, `statisticsChartLineCyan`, `statisticsChartLineGolden`, `statisticsChartLineGreen`, `statisticsChartLineIndigo`, `statisticsChartLineLightblue`, `statisticsChartLineLightgreen`, `statisticsChartLineOrange`, `statisticsChartLinePurple`, `statisticsChartLineRed`, `walletBalanceFg`, `walletSubBalanceFg`, `walletTitleBg`, `walletTitleBgActive`, `walletTitleButtonBg`, `walletTitleButtonBgActive`, `walletTitleButtonBgActiveOver`, `walletTitleButtonBgOver`, `walletTitleButtonCloseBg`, `walletTitleButtonCloseBgActive`, `walletTitleButtonCloseBgActiveOver`, `walletTitleButtonCloseBgOver`, `walletTitleButtonCloseFg`, `walletTitleButtonCloseFgActive`, `walletTitleButtonCloseFgActiveOver`, `walletTitleButtonCloseFgOver`, `walletTitleButtonFg`, `walletTitleButtonFgActive`, `walletTitleButtonFgActiveOver`, `walletTitleButtonFgOver`, `walletTopBg`, `walletTopIconFg`, `walletTopIconRipple`, `walletTopLabelFg`. Any `.tdesktop-theme` file that customises these tokens will silently fall back to defaults — `dart/lib/theme/theme_file.dart:386–922` (paletteToMap) ← `AyuGram/Telegram/lib_ui/ui/colors.palette:609–692` (51 tokens defined there, absent here)
-
-- [ ] [MAJOR] `parsePaletteText` does not handle `/* ... */` block comments — it only skips full lines that start with `//` (`line.startsWith('//')` check at line 109) and inline `//` trailing comments (line 118). AyuGram's `ReadPaletteValues` calls `base::parse::stripComments` first, which removes both `//` line comments and `/* */` block comments before tokenising. A palette file containing a block comment would cause the parser to attempt to parse the comment text as `key: value`, producing garbage token names and silently corrupting the parsed palette — `dart/lib/theme/theme_file.dart:109,118` ← `AyuGram/Telegram/SourceFiles/window/themes/window_theme.cpp:1522` (`stripComments` call inside `ReadPaletteValues`)
-
 # theme_preview — Avatar & photo dimensions don't match AyuGram
 
 ## Issues Found
