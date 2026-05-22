@@ -894,6 +894,7 @@ class _NotificationMonitorWidgetState
   _ScreenCorner? _hoverCorner;
   _ScreenCorner? _pressCorner;
   late List<AnimationController> _barControllers;
+  late final Listenable _mergedBarAnimation;
   int _oldCount = 0;
   final List<OverlayEntry> _sampleOverlays = [];
 
@@ -930,6 +931,7 @@ class _NotificationMonitorWidgetState
       );
       return ctrl;
     });
+    _mergedBarAnimation = Listenable.merge(_barControllers);
   }
 
   @override
@@ -1084,7 +1086,7 @@ class _NotificationMonitorWidgetState
             _pressCorner = null;
           },
           child: AnimatedBuilder(
-            animation: Listenable.merge(_barControllers),
+            animation: _mergedBarAnimation,
             builder: (context, _) {
               return CustomPaint(
                 size: Size(totalW, totalH),
@@ -2500,7 +2502,98 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
         isDark: Theme.of(context).brightness == Brightness.dark,
       ),
     ).then((seconds) {
-      if (seconds != null) {
+      if (seconds == -1) {
+        _showCustomDurationInput(context);
+      } else if (seconds != null && seconds > 0) {
+        _addRecentDuration(seconds);
+        setState(() => _enabled = false);
+        _muteForDuration(seconds);
+      }
+    });
+  }
+
+  void _showCustomDurationInput(BuildContext parentContext) {
+    final isDark = Theme.of(parentContext).brightness == Brightness.dark;
+    final bgColor =
+        isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = parentContext.palette.windowBgActive;
+
+    final hoursCtrl = TextEditingController(text: '0');
+    final minutesCtrl = TextEditingController(text: '30');
+
+    showDialog<int>(
+      context: parentContext,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: bgColor,
+          title: Text('Custom duration',
+              style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 17)),
+          content: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: hoursCtrl,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: textColor, fontSize: 16),
+                  decoration: InputDecoration(
+                    labelText: 'Hours',
+                    labelStyle: TextStyle(color: subtextColor),
+                    enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(
+                            color:
+                                subtextColor.withValues(alpha: 0.3))),
+                    focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: accentColor)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextField(
+                  controller: minutesCtrl,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: textColor, fontSize: 16),
+                  decoration: InputDecoration(
+                    labelText: 'Minutes',
+                    labelStyle: TextStyle(color: subtextColor),
+                    enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(
+                            color:
+                                subtextColor.withValues(alpha: 0.3))),
+                    focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: accentColor)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child:
+                  Text('Cancel', style: TextStyle(color: accentColor)),
+            ),
+            TextButton(
+              onPressed: () {
+                final h = int.tryParse(hoursCtrl.text) ?? 0;
+                final m = int.tryParse(minutesCtrl.text) ?? 0;
+                final total = h * 3600 + m * 60;
+                if (total > 0) Navigator.of(ctx).pop(total);
+              },
+              child: Text('Mute', style: TextStyle(color: accentColor)),
+            ),
+          ],
+        );
+      },
+    ).then((seconds) {
+      if (seconds != null && mounted) {
         _addRecentDuration(seconds);
         setState(() => _enabled = false);
         _muteForDuration(seconds);
@@ -2568,8 +2661,7 @@ class _MuteDurationPickerDialogState
             color: bgColor,
             onSelected: (value) {
               if (value == 'custom') {
-                Navigator.of(context).pop();
-                _showCustomDurationInput(context);
+                Navigator.of(context).pop(-1);
               }
             },
             itemBuilder: (ctx) => [
@@ -2645,97 +2737,6 @@ class _MuteDurationPickerDialogState
     );
   }
 
-  void _showCustomDurationInput(BuildContext parentContext) {
-    final bgColor =
-        widget.isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
-    final textColor =
-        widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor =
-        widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor =
-        context.palette.windowBgActive;
-
-    final hoursCtrl = TextEditingController(text: '0');
-    final minutesCtrl = TextEditingController(text: '30');
-
-    showDialog<int>(
-      context: parentContext,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: bgColor,
-          title: Text('Custom duration',
-              style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 17)),
-          content: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: hoursCtrl,
-                  keyboardType: TextInputType.number,
-                  style: TextStyle(color: textColor, fontSize: 16),
-                  decoration: InputDecoration(
-                    labelText: 'Hours',
-                    labelStyle: TextStyle(color: subtextColor),
-                    enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(
-                            color:
-                                subtextColor.withValues(alpha: 0.3))),
-                    focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: accentColor)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: TextField(
-                  controller: minutesCtrl,
-                  keyboardType: TextInputType.number,
-                  style: TextStyle(color: textColor, fontSize: 16),
-                  decoration: InputDecoration(
-                    labelText: 'Minutes',
-                    labelStyle: TextStyle(color: subtextColor),
-                    enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(
-                            color:
-                                subtextColor.withValues(alpha: 0.3))),
-                    focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: accentColor)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child:
-                  Text('Cancel', style: TextStyle(color: accentColor)),
-            ),
-            TextButton(
-              onPressed: () {
-                final h = int.tryParse(hoursCtrl.text) ?? 0;
-                final m = int.tryParse(minutesCtrl.text) ?? 0;
-                final total = h * 3600 + m * 60;
-                if (total > 0) Navigator.of(ctx).pop(total);
-              },
-              child: Text('Mute', style: TextStyle(color: accentColor)),
-            ),
-          ],
-        );
-      },
-    ).then((seconds) {
-      if (seconds != null) {
-        final pageState = parentContext
-            .findAncestorStateOfType<_NotificationTypeSubPageState>();
-        if (pageState != null && pageState.mounted) {
-          pageState._addRecentDuration(seconds);
-          pageState.setState(() => pageState._enabled = false);
-        }
-      }
-    });
-  }
 }
 
 class _ToneRow extends StatelessWidget {
