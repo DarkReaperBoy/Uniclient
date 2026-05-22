@@ -188,7 +188,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## emoji_panel — cleanup
 
-- [ ] [MAJOR] Every tab switch destroys and recreates all tab widget elements. `_TabContent.build` returns a bare `_EmojiTab`/`_StickerTab`/`_GifTab` when `slideProgress >= 1.0`, but a `LayoutBuilder → Stack → SizedBox` tree when animating. The structural change causes Flutter to unmatch and teardown the existing element tree, calling `deactivate` (which resets `_loaded = false`) and `dispose`, then rebuild fresh on animation start AND again at animation end. Result: every tab switch triggers two full element lifecycle cycles and a fresh API call for the tab — `emoji_panel.dart:579`
 
 # emoji_status_widget — audit
 
