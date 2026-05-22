@@ -206,10 +206,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 - ✅ Power saving: conditional rendering respects power saving mode
 - ✅ Shader masking: RadialGradient collectible effects properly applied
 
-## forum_topic_icon — cleanup
-
-- [ ] [MAJOR] `_BubbleIconPainter.paint()` allocates `Float64List`, two `Path.transform()` calls, three `Paint` objects with gradient shaders, and a `TextPainter` on every repaint — all should be cached per `(targetSize, palette, letter)` and reused until `shouldRepaint` triggers — `forum_topic_icon.dart:280-336`
-
 ## ghost_settings_page — cleanup
 
 - [ ] [CRITICAL] `localPremium` toggle is dead state — flag is stored and persisted but never read anywhere outside `app_state.dart` getters/setters. No widget checks `appState.localPremium` to unlock premium UI features, and `updateConfig()` has no `localPremium` parameter so the engine never learns about it. Toggling the switch does nothing functional. — `ghost_settings_page.dart:286`, `app_state.dart:389,753,1367`
