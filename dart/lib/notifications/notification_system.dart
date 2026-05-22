@@ -201,8 +201,6 @@ class NotificationSystem {
     ManagerType targetType;
     if (wantNative && nativeNotificationsSupported()) {
       targetType = ManagerType.native;
-    } else if (wantNative && !nativeNotificationsSupported()) {
-      targetType = ManagerType.defaultPopup;
     } else {
       targetType = ManagerType.defaultPopup;
     }
@@ -212,7 +210,15 @@ class NotificationSystem {
     _manager.dispose();
     switch (targetType) {
       case ManagerType.native:
-        _manager = NativeManager();
+        _manager = NativeManager(onInitComplete: () {
+          final nm = nativeManager;
+          if (nm != null && !nm.byDefault) {
+            Debug.log('NOTIF',
+                'Daemon lacks required capabilities, falling back to custom');
+            nm.dispose();
+            _manager = DefaultManager();
+          }
+        });
       case ManagerType.defaultPopup:
         _manager = DefaultManager();
       case ManagerType.dummy:

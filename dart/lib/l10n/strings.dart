@@ -24,6 +24,10 @@ class TrStrings {
       count == 1 ? 'The file exceeds the size limit.' : '$count files exceed the size limit.';
   static String lngFloodError() => 'Too many tries. Please try again later.';
 
+  // Dialog text formatting (dialogs_entry.cpp)
+  static String lngDialogsTextWithFrom(String from, String message) =>
+      '$from: $message';
+
   // Notification grouping (notifications_manager.cpp)
   static String lngForwardMessages(int count) =>
       '$count forwarded message${count == 1 ? '' : 's'}';

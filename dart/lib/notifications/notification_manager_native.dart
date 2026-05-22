@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
+import '../l10n/strings.dart';
 import '../utils/debug.dart';
 import 'notification_manager.dart';
 import 'notification_types.dart';
@@ -38,7 +39,7 @@ typedef NotificationReplyCallback = void Function(
 
 bool nativeNotificationsSupported() {
   if (kIsWeb) return false;
-  return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+  return Platform.isLinux;
 }
 
 class _CachedUserpic {
@@ -163,6 +164,9 @@ class NativeManager extends NotificationManager {
   NotificationActionCallback? onAction;
   NotificationReplyCallback? onReply;
 
+  final Map<String, String> _soundCache = {};
+  String? _soundCacheDir;
+
   final Map<String, Map<String, int>> _notifications = {};
   final Map<int, NotificationData> _nativeIdToData = {};
   final Map<String, Map<String, NotificationData>> _portalNotifData = {};
@@ -182,7 +186,17 @@ class NativeManager extends NotificationManager {
   bool _isFlatpak = false;
   String _desktopEntry = 'uniclient';
 
-  NativeManager() {
+  bool get byDefault {
+    if (!_ready) return false;
+    const required = {'body', 'actions', 'inline-reply'};
+    if (!required.every(_capabilities.contains)) return false;
+    return _capabilities.contains('sound') ||
+        _capabilities.contains('inhibitions');
+  }
+
+  void Function()? onInitComplete;
+
+  NativeManager({this.onInitComplete}) {
     if (!kIsWeb && Platform.isLinux) {
       _initLinuxDBus();
     }
@@ -370,9 +384,11 @@ class NativeManager extends NotificationManager {
 
       _ready = true;
       Debug.log('NOTIF', 'Linux DBus backend initialized');
+      onInitComplete?.call();
     } catch (e) {
       Debug.log('NOTIF', 'Linux DBus init failed: $e');
       _ready = false;
+      onInitComplete?.call();
     }
   }
 
@@ -399,7 +415,13 @@ class NativeManager extends NotificationManager {
     if (signal.values.length < 2) return;
     final nativeId = signal.values[0].asUint32();
     final reason = signal.values[1].asUint32();
-    _removeNativeId(nativeId);
+    // reason 1=expired, 2=user dismissed, 3=CloseNotification called, 4=reserved
+    // Only remove tracking when user dismissed (reason 2). For other reasons,
+    // keep the entry so clearFromHistory can still call CloseNotification to
+    // remove stale entries from the notification center's history.
+    if (reason == 2) {
+      _removeNativeId(nativeId);
+    }
   }
 
   void _evictStaleEntries() {
@@ -553,10 +575,12 @@ class NativeManager extends NotificationManager {
         !data.isSilent &&
         !data.soundNone &&
         _capabilities.contains('sound')) {
-      final soundPath = data.soundDocumentPath.isNotEmpty
+      final rawPath = data.soundDocumentPath.isNotEmpty
           ? data.soundDocumentPath
           : defaultSoundPath;
-      if (soundPath.isNotEmpty) {
+      final soundPath =
+          rawPath.isNotEmpty ? await _cachedSoundPath(rawPath) : null;
+      if (soundPath != null) {
         hints[DBusString('sound-file')] =
             DBusVariant(DBusString(soundPath));
       } else {
@@ -610,9 +634,33 @@ class NativeManager extends NotificationManager {
       return _escapeHtml(data.text);
     }
     if (data.subtitle.isNotEmpty) {
-      return '${data.subtitle}: ${data.text}';
+      return TrStrings.lngDialogsTextWithFrom(data.subtitle, data.text);
     }
     return data.text;
+  }
+
+  Future<String?> _cachedSoundPath(String sourcePath) async {
+    if (sourcePath.isEmpty) return null;
+    final cached = _soundCache[sourcePath];
+    if (cached != null && File(cached).existsSync()) return cached;
+    try {
+      final srcFile = File(sourcePath);
+      if (!await srcFile.exists()) return null;
+      _soundCacheDir ??=
+          p.join(Directory.systemTemp.path, 'uniclient_audio_cache');
+      await Directory(_soundCacheDir!).create(recursive: true);
+      final ext = p.extension(sourcePath).isNotEmpty
+          ? p.extension(sourcePath)
+          : '.wav';
+      final hash = sourcePath.hashCode.toRadixString(16);
+      final outPath = p.join(_soundCacheDir!, 'TD_$hash$ext');
+      await srcFile.copy(outPath);
+      _soundCache[sourcePath] = outPath;
+      return outPath;
+    } catch (e) {
+      Debug.log('NOTIF', 'Sound cache failed: $e');
+      return null;
+    }
   }
 
   static String _escapeHtml(String text) {
@@ -940,6 +988,12 @@ class NativeManager extends NotificationManager {
     _portalActionSub?.cancel();
     clearAll();
     _userpicCache.dispose();
+    for (final path in _soundCache.values) {
+      try {
+        File(path).deleteSync();
+      } catch (_) {}
+    }
+    _soundCache.clear();
     _dbus?.close();
     _dbus = null;
     _notifProxy = null;
