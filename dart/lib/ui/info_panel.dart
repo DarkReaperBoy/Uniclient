@@ -1128,6 +1128,10 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
         return;
       }
       final chatState = context.read<ChatState>();
+      if (value == 'mute_forever') {
+        chatState.muteChat(accountId, chatId, true);
+        return;
+      }
       final seconds = switch (value) {
         'mute_1h' => 3600,
         'mute_4h' => 4 * 3600,
@@ -2372,6 +2376,41 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
   Timer? _snapTimer;
   List<Widget>? _cachedSections;
   int? _sectionsDepsHash;
+  Uint8List? _avatarBytes;
+  String _avatarBytesPath = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvatarBytes();
+  }
+
+  @override
+  void didUpdateWidget(_ChatInfoPage old) {
+    super.didUpdateWidget(old);
+    if (old.chat.avatarPath != widget.chat.avatarPath) {
+      _loadAvatarBytes();
+    }
+  }
+
+  void _loadAvatarBytes() {
+    final path = widget.chat.avatarPath;
+    if (path.isEmpty) {
+      setState(() { _avatarBytes = null; _avatarBytesPath = ''; });
+      return;
+    }
+    if (path == _avatarBytesPath) return;
+    _avatarBytesPath = path;
+    final file = File(path);
+    file.exists().then((exists) {
+      if (!exists || !mounted) return;
+      file.readAsBytes().then((bytes) {
+        if (mounted && _avatarBytesPath == path) {
+          setState(() => _avatarBytes = bytes);
+        }
+      });
+    });
+  }
 
   @override
   void dispose() {
@@ -2688,9 +2727,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                 final engine = context.read<EngineService>();
                 engine.startCall(widget.chat.accountId, widget.chat.chatId);
               },
-              avatarBytes: widget.chat.avatarPath.isNotEmpty && File(widget.chat.avatarPath).existsSync()
-                  ? File(widget.chat.avatarPath).readAsBytesSync()
-                  : null,
+              avatarBytes: _avatarBytes,
               notJoined: widget.chat.notJoined,
               linkedChatId: widget.chatState.linkedChatId,
               isPeerPremium: _isPeerGiftEligible(),
@@ -2851,6 +2888,7 @@ class _UserProfilePageState extends State<_UserProfilePage> {
   int _commonGroupsCount = -1;
   bool _commonGroupsLoaded = false;
   Map<String, int> _mediaCounts = {};
+  List<Map<String, dynamic>> _commonGroupsList = [];
 
   @override
   void didChangeDependencies() {
@@ -2863,36 +2901,40 @@ class _UserProfilePageState extends State<_UserProfilePage> {
   }
 
   void _showCommonGroupsDialog(BuildContext ctx) {
-    final engine = ctx.read<EngineService>();
-    engine.getCommonChats(widget.chat.accountId, widget.member.userId, limit: 100).then((chats) {
-      if (!mounted || chats.isEmpty) return;
-      showDialog(
-        context: ctx,
-        builder: (dialogCtx) => SimpleDialog(
-          title: Text('${chats.length} group${chats.length == 1 ? '' : 's'} in common'),
-          children: chats.map((c) {
-            final title = c['title'] as String? ?? c['chat_id'] as String? ?? '';
-            final chatId = c['chat_id'] as String? ?? '';
-            return SimpleDialogOption(
-              onPressed: () {
-                Navigator.pop(dialogCtx);
-                final chatState = ctx.read<ChatState>();
-                chatState.openChatById(chatId);
-              },
-              child: Text(title),
-            );
-          }).toList(),
-        ),
-      );
-    });
+    final chats = _commonGroupsList;
+    if (chats.isEmpty) return;
+    showDialog(
+      context: ctx,
+      builder: (dialogCtx) => SimpleDialog(
+        title: Text('${chats.length} group${chats.length == 1 ? '' : 's'} in common'),
+        children: chats.map((c) {
+          final title = c['title'] as String? ?? c['chat_id'] as String? ?? '';
+          final chatId = c['chat_id'] as String? ?? '';
+          return SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              final chatState = ctx.read<ChatState>();
+              chatState.openChatById(chatId);
+            },
+            child: Text(title),
+          );
+        }).toList(),
+      ),
+    );
   }
 
   void _loadCommonGroups() {
     final engine = context.read<EngineService>();
     engine.getCommonChats(widget.chat.accountId, widget.member.userId, limit: 100).then((chats) {
-      if (mounted) setState(() => _commonGroupsCount = chats.length);
+      if (mounted) setState(() {
+        _commonGroupsCount = chats.length;
+        _commonGroupsList = chats;
+      });
     }).catchError((_) {
-      if (mounted) setState(() => _commonGroupsCount = 0);
+      if (mounted) setState(() {
+        _commonGroupsCount = 0;
+        _commonGroupsList = [];
+      });
     });
   }
 
@@ -3454,7 +3496,7 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
                 case 'voice': return _VoiceListItem(item: item, theme: widget.theme, accountId: widget.chat.accountId, chatId: widget.chat.chatId);
                 case 'link': return _LinkListItem(item: item, theme: widget.theme);
                 case 'round': return _RoundListItem(item: item, theme: widget.theme, accountId: widget.chat.accountId, chatId: widget.chat.chatId);
-                case 'poll': return _PollListItem(item: item, theme: widget.theme);
+                case 'poll': return _PollListItem(item: item, theme: widget.theme, accountId: widget.chat.accountId, chatId: widget.chat.chatId);
                 default: return _FileListItem(item: item, theme: widget.theme, accountId: widget.chat.accountId, chatId: widget.chat.chatId);
               }
             },
@@ -3593,6 +3635,7 @@ class _ChatDetailsState extends State<_ChatDetails> {
   String? _fetchedFor;
   StreamSubscription<ChatInfo>? _chatUpdatedSub;
   int _commonGroupsCount = -1;
+  List<Map<String, dynamic>> _commonGroupsList = [];
   List<BotCommandInfo> _botCommands = [];
 
   @override
@@ -3659,35 +3702,39 @@ class _ChatDetailsState extends State<_ChatDetails> {
 
   void _loadCommonGroups(EngineService engine) {
     engine.getCommonChats(widget.chat.accountId, widget.chat.chatId, limit: 100).then((chats) {
-      if (mounted) setState(() => _commonGroupsCount = chats.length);
+      if (mounted) setState(() {
+        _commonGroupsCount = chats.length;
+        _commonGroupsList = chats;
+      });
     }).catchError((_) {
-      if (mounted) setState(() => _commonGroupsCount = 0);
+      if (mounted) setState(() {
+        _commonGroupsCount = 0;
+        _commonGroupsList = [];
+      });
     });
   }
 
   void _showCommonGroupsDialog(BuildContext ctx) {
-    final engine = ctx.read<EngineService>();
-    engine.getCommonChats(widget.chat.accountId, widget.chat.chatId, limit: 100).then((chats) {
-      if (!mounted || chats.isEmpty) return;
-      showDialog(
-        context: ctx,
-        builder: (dialogCtx) => SimpleDialog(
-          title: Text('${chats.length} group${chats.length == 1 ? '' : 's'} in common'),
-          children: chats.map((c) {
-            final title = c['title'] as String? ?? c['chat_id'] as String? ?? '';
-            final chatId = c['chat_id'] as String? ?? '';
-            return SimpleDialogOption(
-              onPressed: () {
-                Navigator.pop(dialogCtx);
-                final chatState = ctx.read<ChatState>();
-                chatState.openChatById(chatId);
-              },
-              child: Text(title),
-            );
-          }).toList(),
-        ),
-      );
-    });
+    final chats = _commonGroupsList;
+    if (chats.isEmpty) return;
+    showDialog(
+      context: ctx,
+      builder: (dialogCtx) => SimpleDialog(
+        title: Text('${chats.length} group${chats.length == 1 ? '' : 's'} in common'),
+        children: chats.map((c) {
+          final title = c['title'] as String? ?? c['chat_id'] as String? ?? '';
+          final chatId = c['chat_id'] as String? ?? '';
+          return SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              final chatState = ctx.read<ChatState>();
+              chatState.openChatById(chatId);
+            },
+            child: Text(title),
+          );
+        }).toList(),
+      ),
+    );
   }
 
   void _copy(String value, String label) {
@@ -4013,31 +4060,34 @@ class _BusinessHoursWidgetState extends State<_BusinessHoursWidget> {
             if (_expanded) ...[
               const SizedBox(height: 8),
               for (int d = 0; d < 7; d++)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 90,
-                        child: Text(
-                          _dayName(d),
-                          style: TextStyle(fontSize: 13, color: widget.theme.textTheme.bodyMedium?.color),
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          _daySchedule(d).join(', '),
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: _daySchedule(d).first == 'Closed'
-                                ? widget.theme.colorScheme.onSurface.withValues(alpha: 0.5)
-                                : widget.theme.textTheme.bodyMedium?.color,
+                Builder(builder: (context) {
+                  final schedule = _daySchedule(d);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 90,
+                          child: Text(
+                            _dayName(d),
+                            style: TextStyle(fontSize: 13, color: widget.theme.textTheme.bodyMedium?.color),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
+                        Expanded(
+                          child: Text(
+                            schedule.join(', '),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: schedule.first == 'Closed'
+                                  ? widget.theme.colorScheme.onSurface.withValues(alpha: 0.5)
+                                  : widget.theme.textTheme.bodyMedium?.color,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
             ],
           ],
         ),
@@ -6183,7 +6233,7 @@ class _MediaListView extends StatelessWidget {
       case 'voice': return _VoiceListItem(item: item, theme: theme, accountId: accountId, chatId: chatId);
       case 'link': return _LinkListItem(item: item, theme: theme);
       case 'round': return _RoundListItem(item: item, theme: theme, accountId: accountId, chatId: chatId);
-      case 'poll': return _PollListItem(item: item, theme: theme);
+      case 'poll': return _PollListItem(item: item, theme: theme, accountId: accountId, chatId: chatId);
       default: return _FileListItem(item: item, theme: theme, accountId: accountId, chatId: chatId);
     }
   }
@@ -6671,8 +6721,16 @@ class _RoundListItem extends StatelessWidget {
 class _PollListItem extends StatelessWidget {
   final SharedMediaItem item;
   final ThemeData theme;
+  final String accountId;
+  final String chatId;
 
-  const _PollListItem({required this.item, required this.theme});
+  const _PollListItem({required this.item, required this.theme, this.accountId = '', this.chatId = ''});
+
+  void _onTap(BuildContext context) {
+    if (item.msgId.isEmpty || item.timestamp <= 0) return;
+    final chatState = context.read<ChatState>();
+    chatState.jumpToMessage(item.timestamp, highlightMsgId: item.msgId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -6680,39 +6738,42 @@ class _PollListItem extends StatelessWidget {
     final accentColor = isDark ? const Color(0xFF6AB2F2) : const Color(0xFF40a7e3);
     final subtitleColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: isDark ? 0.25 : 0.12),
-              borderRadius: BorderRadius.circular(8),
+    return InkWell(
+      onTap: () => _onTap(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: isDark ? 0.25 : 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Icon(Icons.poll, size: 22, color: accentColor),
+              ),
             ),
-            child: Center(
-              child: Icon(Icons.poll, size: 22, color: accentColor),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.fileName.isNotEmpty ? item.fileName : 'Poll',
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Poll',
+                    style: TextStyle(fontSize: 12, color: subtitleColor),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.fileName.isNotEmpty ? item.fileName : 'Poll',
-                  maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Poll',
-                  style: TextStyle(fontSize: 12, color: subtitleColor),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -7123,6 +7184,8 @@ class _MembersSectionState extends State<_MembersSection> {
   Timer? _searchDebounce;
   List<MemberInfo>? _serverSearchResults;
   bool _searchLoading = false;
+  List<MemberInfo>? _cachedSortedMembers;
+  List<MemberInfo>? _cachedSortedSource;
 
   static const _kRowHeight = 52.0;
   static const _kMaxVisibleRows = 8;
@@ -7142,7 +7205,14 @@ class _MembersSectionState extends State<_MembersSection> {
     });
     _msgReceivedSub = engine.onMsgReceived.listen((event) {
       if (event.chatId == widget.chatId && event.message.isService && mounted) {
-        _refreshMembers();
+        const nonMembershipActions = {
+          'phone_call', 'set_photo', 'suggest_photo', 'wallpaper',
+          'gift_premium', 'gift_stars', 'giveaway_results', 'boost',
+          'group_call', 'topic_create',
+        };
+        if (!nonMembershipActions.contains(event.message.serviceAction)) {
+          _refreshMembers();
+        }
       }
     });
   }
@@ -7255,11 +7325,16 @@ class _MembersSectionState extends State<_MembersSection> {
   }
 
   List<MemberInfo> _sortedMembers() {
+    if (_cachedSortedSource == widget.members && _cachedSortedMembers != null) {
+      return _cachedSortedMembers!;
+    }
+    _cachedSortedSource = widget.members;
     final list = List<MemberInfo>.from(widget.members!);
     list.sort((a, b) {
       if (a.isOnline != b.isOnline) return a.isOnline ? -1 : 1;
       return a.label.toLowerCase().compareTo(b.label.toLowerCase());
     });
+    _cachedSortedMembers = list;
     return list;
   }
 
