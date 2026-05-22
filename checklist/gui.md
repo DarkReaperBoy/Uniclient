@@ -227,16 +227,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## MAJOR
 
-## shell — cleanup
-
-- [ ] [CRITICAL] group-call `onToggleMute` has no optimistic state update (lines 380–385): personal call version calls `chatState.setActivePersonalCall(personalCall.copyWith(isMuted: !personalCall.isMuted))` immediately so the button reflects the new state while the engine round-trip completes; the group-call branch only fires `engine.setCallMuted(...)` and returns, so the mute icon stays frozen until a `GroupCallStateEvent` arrives — `shell.dart:380`
-
-- [ ] [MAJOR] `isDark` computed but never read in `_buildTwoColumn` (line 512) and `_buildThreeColumn` (line 580) — the dead assignment still calls `Theme.of(context)`, which registers an unnecessary InheritedWidget dependency and causes both helpers to rebuild on every theme change — `shell.dart:512`, `shell.dart:580`
-
-- [ ] [MAJOR] `_saveLayoutPrefs()` is called directly inside `build()` (lines 241 and 249) — this method does synchronous `File.writeAsStringSync` on the UI thread; it fires on every rebuild where `useVerticalFilters` or `forumViewAsMessagesKeys` differs from the cached snapshot, blocking the raster thread for the duration of the JSON encode + disk write — `shell.dart:241`
-
-- [ ] [MAJOR] `_syncVisibility()` is called from `build()` (line 1129) and internally calls `_visibilityAnim.forward()` / `_visibilityAnim.reverse()` / `_slideAnim.forward()` / `_slideAnim.reverse()`; driving animation controllers from inside `build()` schedules extra frame callbacks mid-frame, leading to redundant rebuilds and occasional debug-mode "setState called during build" assertions — move to `addPostFrameCallback` or `didUpdateWidget` — `shell.dart:1129`
-
 ## shortcuts_settings_screen — cleanup
 
 - [ ] [CRITICAL] `_commandGroups` (line 11) omits 22 of the 45 `ShortcutCommand` variants — formatting shortcuts (formatBold/Italic/Underline/Strike/Code/Blockquote/Spoiler/Clear/Link/Date), compose/editing (editLastMessage, replyPrevious, replyNext, openFilePicker, pastePlainText), navigation (cancelSearch, chatSwitchOverlay, chatSwitchOverlayReverse), and support commands (supportReloadTemplates/ToggleMuted/ScrollToCurrent/HistoryBack/HistoryForward) — all have real handlers registered in `ShortcutListener` and real default bindings in `_defaultBindings`, but because they are absent from `_commandGroups` they never appear in the settings screen; users cannot see or remap them — `shortcuts_settings_screen.dart:11`
