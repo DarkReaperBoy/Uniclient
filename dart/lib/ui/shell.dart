@@ -239,14 +239,14 @@ class _UniClientShellState extends State<UniClientShell>
     // Persist when filter tab mode changes (§18.12).
     if (_layoutLoaded && _lastVerticalFilters != chatState.useVerticalFilters) {
       _lastVerticalFilters = chatState.useVerticalFilters;
-      _saveLayoutPrefs();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _saveLayoutPrefs());
     }
 
     // Persist when forum view-as-messages preference changes (§22.10).
     final currentForumPrefs = chatState.forumViewAsMessagesKeys;
     if (_layoutLoaded && _lastForumViewPrefs != null &&
         !setEquals(_lastForumViewPrefs!, currentForumPrefs)) {
-      _saveLayoutPrefs();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _saveLayoutPrefs());
     }
     _lastForumViewPrefs = currentForumPrefs;
 
@@ -382,6 +382,32 @@ class _UniClientShellState extends State<UniClientShell>
               context.read<EngineService>().setCallMuted(
                 accountId, groupCall.callId, !selfMuted);
             }
+            final updatedParticipants = groupCall!.participants.map((p) {
+              if (p.userId == selfUserId) {
+                return GroupCallParticipant(
+                  userId: p.userId, displayName: p.displayName,
+                  isMuted: !p.isMuted, mutedByMe: p.mutedByMe,
+                  isSpeaking: p.isSpeaking, sounding: p.sounding,
+                  hasVideo: p.hasVideo, avatarPath: p.avatarPath,
+                  canSelfUnmute: p.canSelfUnmute,
+                  raisedHandRating: p.raisedHandRating,
+                  volume: p.volume, audioLevel: p.audioLevel,
+                  ssrc: p.ssrc,
+                  additionalSounding: p.additionalSounding,
+                  additionalSpeaking: p.additionalSpeaking,
+                  lastActive: p.lastActive, date: p.date,
+                );
+              }
+              return p;
+            }).toList();
+            chatState.setActiveGroupCall(GroupCallInfo(
+              callId: groupCall.callId, chatId: groupCall.chatId,
+              title: groupCall.title,
+              participantsCount: groupCall.participantsCount,
+              participants: updatedParticipants,
+              active: groupCall.active, isRtmp: groupCall.isRtmp,
+              scheduleDate: groupCall.scheduleDate, origin: groupCall.origin,
+            ));
           },
         );
       }
@@ -509,7 +535,6 @@ class _UniClientShellState extends State<UniClientShell>
 
   Widget _buildTwoColumn(BuildContext context, double bodyWidth,
       bool showFilters, ChatState chatState) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final maxDialogs = bodyWidth - _chatMin;
     final dialogsWidth = (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, maxDialogs);
 
@@ -577,8 +602,6 @@ class _UniClientShellState extends State<UniClientShell>
   /// SessionController::shrinkDialogsAndThirdColumns).
   Widget _buildThreeColumn(BuildContext context, double bodyWidth,
       bool showFilters, ChatState chatState) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     var dw = (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, bodyWidth);
     var tw = _thirdColumnWidth.clamp(_thirdMin, _thirdMax);
 
@@ -1084,8 +1107,11 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
 
     if (wantVisible && !_shouldShow && _showTimer == null) {
       _shouldShow = true;
-      _visibilityAnim.forward();
-      _slideAnim.forward();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _visibilityAnim.forward();
+        _slideAnim.forward();
+      });
     } else if (!wantVisible) {
       _showTimer?.cancel();
       _showTimer = null;
@@ -1093,8 +1119,11 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
       _connectingStartedAt = null;
       if (_shouldShow) {
         _shouldShow = false;
-        _visibilityAnim.reverse();
-        _slideAnim.reverse();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _visibilityAnim.reverse();
+          _slideAnim.reverse();
+        });
       }
     }
 

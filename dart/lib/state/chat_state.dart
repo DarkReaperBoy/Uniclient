@@ -239,6 +239,10 @@ class ChatState extends ChangeNotifier {
     _activePersonalCall = info;
     notifyListeners();
   }
+  void setActiveGroupCall(GroupCallInfo? info) {
+    _activeGroupCall = info;
+    notifyListeners();
+  }
   ConnectedBotInfo? get connectedBot => _connectedBot;
   bool get connectedBotPaused => _connectedBotPaused;
   bool get loadingMessages => _loadingMessages;
