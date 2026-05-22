@@ -75,7 +75,6 @@ All platform implementations (native FFI, web WASM, stub) are complete and funct
 
 # notification_system — Audit findings
 
-- [ ] [CRITICAL] `spoilerLoginCode` detection uses string-matching on `senderName` against a hardcoded set `{'notifications', 'verifycodes'}` — C++ checks `peer->isNotificationsUser() || peer->isVerifyCodes()`, which are protocol-level peer type flags set by the Telegram API (not derived from display names). The string approach false-positives on any user/group named "notifications" or "verifycodes", and false-negatives when usernames are localised or changed. C++ also gates on `!item->out()`, which the Dart omits (spoiler applied to own outgoing OTP messages when it shouldn't be). Fix: have Go backend set `spoilerLoginCode=true` in NotificationData when peer is isNotificationsUser/isVerifyCodes, or add `isNotificationsUser`/`isVerifyCodes` bool fields to NotificationData and use them in _dispatch instead of senderName string matching. — `notification_system.dart:463-489` ← `notifications_manager.cpp:1104-1108`
 
 # notification_types — Notification composition and settings
 
