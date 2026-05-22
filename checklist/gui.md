@@ -186,12 +186,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## create_giveaway_box — cleanup
 
-- [ ] [CRITICAL] random-giveaway "Start Giveaway" button calls `_openBoostLink()` (line 539), which just pops the dialog and calls `engine.openPremiumSubscription(..., ref: 'boosts__channel')` — it does NOT start a random giveaway. The entire random-type flow (fetched `_options`, winners/duration chip selection, `_selectedOptionIndex`) is dead state that is silently discarded; no engine call for random giveaway creation exists in engine_service.dart. Needs a real `launchRandomGiveaway` engine call passing the selected option, `_onlyNewSubscribers`, `_showWinners`, `_untilDate`, and `_prizeController.text` — `create_giveaway_box.dart:131-135,539`
-
-- [ ] [MAJOR] no retry button in `_buildError` (line 203) — once `getGiftCodeOptions` fails the user sees the error and can only close the dialog; `_loadOptions` is never re-invokable from the UI — `create_giveaway_box.dart:203`
-
-- [ ] [MAJOR] `uniqueMonths` and `uniqueUsers` sets are recomputed and re-sorted on every `build()` call (lines 352-353 inside `_buildRandomSection`); should be derived once in `_loadOptions` and stored — `create_giveaway_box.dart:352-353`
-
 ## create_group_wizard — cleanup
 
 - [ ] [CRITICAL] `_probeUsernameAvailability()` at line 245 passes the hardcoded string `'preston'` to `checkChannelUsername` as a throwaway probe to trigger `CHANNELS_ADMIN_PUBLIC_TOO_MUCH` / `CHANNEL_PUBLIC_GROUP_NA` errors. If the server responds with any other error (e.g. `FLOOD_WAIT`, rate-limit, network failure) the catch block silently ignores it, leaving `_isPublic` in the wrong state with no feedback. Replace with a random/uuid-like string that is guaranteed syntactically invalid (so it always errors before the username-availability check) or add a dedicated engine method for limit probing. — `create_group_wizard.dart:245`
