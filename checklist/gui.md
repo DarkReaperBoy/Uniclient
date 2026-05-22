@@ -188,21 +188,7 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## emoji_panel — cleanup
 
-- [ ] [CRITICAL] `_StickerSetDialogCell._initWebmPlayer` bypasses `_GifPlayerPool` entirely — creates one `Player()` per webm sticker in the dialog with no pool limit. Every other webm path (sticker cell, custom emoji cell) uses `tryAcquire`/`release`. If the dialog shows a large animated set, it spawns unlimited concurrent media_kit players — `emoji_panel.dart:3958`
-
-- [ ] [CRITICAL] "View Set" context menu item silently does nothing for stickers in the Recent section — `_buildSectionSlivers` for recent omits `setShortName` (line 2160-2167), so it defaults to `null`. `_viewStickerSet` then calls `engine.getStickerSetInfo(acc.id, shortName: '')`, which returns null, and the method returns early with no user feedback. The menu item exists but is dead for recent stickers — `emoji_panel.dart:1894, 2159`
-
-- [ ] [CRITICAL] `_StickerPreviewOverlay` has no webm rendering branch — handles TGS (Lottie) and WebP, but silently falls through to thumbnail for `video/webm` stickers. Video stickers show a static thumbnail in the long-press preview instead of animating — `emoji_panel.dart:3712`
-
-- [ ] [CRITICAL] `faveSticker`/unfave does not update `isFaved` on visible sticker cells — after the engine call at line 1892, neither `_recentStickers` nor pack stickers are updated. The next time the context menu opens for that sticker, `sticker.isFaved` still holds the old value so the label "Fave"/"Unfave" is wrong until the tab is fully reloaded — `emoji_panel.dart:1892`
-
-- [ ] [CRITICAL] Dead code: `_TabContent._buildPlaceholder` (lines 629–646) is never called and `_buildTabWidget`'s `placeholderColor` parameter (line 566) is passed in but never used inside the function body — `emoji_panel.dart:566, 629`
-
 - [ ] [MAJOR] Every tab switch destroys and recreates all tab widget elements. `_TabContent.build` returns a bare `_EmojiTab`/`_StickerTab`/`_GifTab` when `slideProgress >= 1.0`, but a `LayoutBuilder → Stack → SizedBox` tree when animating. The structural change causes Flutter to unmatch and teardown the existing element tree, calling `deactivate` (which resets `_loaded = false`) and `dispose`, then rebuild fresh on animation start AND again at animation end. Result: every tab switch triggers two full element lifecycle cycles and a fresh API call for the tab — `emoji_panel.dart:579`
-
-- [ ] [MAJOR] `_stickerFileCache` is instance state on `_StickerTabState` (line 1654), which is destroyed on every tab switch due to the above element teardown. Every time the user returns to the sticker tab, all previously fetched sticker file data is gone and must be re-fetched from the engine — `emoji_panel.dart:1654`
-
-- [ ] [MAJOR] No `RepaintBoundary` around individual animated emoji/sticker cells (`_EmojiCell`, `_CustomEmojiCell`, `_StickerCell`). Each cell has an `AnimatedContainer` that updates on hover. Without isolation, hovering over any cell can trigger repaints of all neighbouring cells in the grid row — `emoji_panel.dart:1391, 1560, 2587`
 
 # emoji_status_widget — audit
 
