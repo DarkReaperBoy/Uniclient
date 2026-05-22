@@ -225,14 +225,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # send_files_box — cleanup
 
-## CRITICAL
-
-- [ ] [CRITICAL] `_onAiCaptionTap()` is a full stub — shows "Generating AI caption…" toast then exits, never calls any engine method and never updates `_captionController`. Variables `currentCaption` and `accountId` are fetched and immediately discarded. The AI caption button exists in the UI but does nothing for Premium users. — `send_files_box.dart:2098`
-
-- [ ] [CRITICAL] `_tryClipboardImageWindows()` has a timestamp race: the PowerShell command string is interpolated with `DateTime.now().millisecondsSinceEpoch` at call-site, then after `Process.run` returns (ms later) a **second** `DateTime.now()` is used to construct `tmpFile` — the two timestamps will never match so the saved file is never found, and the method silently returns `false` every time. Fix: capture one `final ts = DateTime.now().millisecondsSinceEpoch` before the call and reuse it for both the command and `tmpFile`. — `send_files_box.dart:954`
-
-- [ ] [CRITICAL] `_SendMenuButton` is passed `widget.starsPerMessage` (the immutable constructor prop, frozen at dialog open) instead of `_starsPerMessage` (the mutable state updated by `_showEditPriceDialog`). After the user edits the price, the send button label still shows the original total. Fix: change `starsPerMessage: widget.starsPerMessage` → `starsPerMessage: _starsPerMessage`. — `send_files_box.dart:2682`
-
 ## MAJOR
 
 - [ ] [MAJOR] All `Image.file()` calls decode photos at full resolution despite displaying at small sizes — no `cacheWidth`/`cacheHeight` hints provided. Specific locations: `_SingleMediaPreview` (308 px wide preview, line 2866), `_GifPreview` (line 3111), `_FileCard` thumbnail (`_fileThumbSize = 64`, line 4160). Album thumbs at line 3512 also lack hints but have variable widths. Fix: add `cacheWidth: _previewWidth.toInt()` / `cacheWidth: _fileThumbSize.toInt()` to each.
