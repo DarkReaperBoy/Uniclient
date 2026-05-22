@@ -154,18 +154,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 ## choose_datetime_box — cleanup
 
 
-## color_picker_box — cleanup
-
-- [ ] [MAJOR] `onHover` in `_GradientSquareState` calls `setState` on every mouse move (line 811) — causes a full widget rebuild on every hover event just to update `_pointerPos`. Should pass a `ValueNotifier<Offset?>` as the `repaint` argument to `_CrosshairAndCursorPainter` and update the notifier directly, so only the canvas layer repaints without rebuilding the widget tree — `color_picker_box.dart:811`
-
-- [ ] [MAJOR] `_HorizontalOpacityPainter.paint()` redraws its checkerboard tile-by-tile in a double loop on every call (lines 1092-1100). `shouldRepaint` returns true whenever `color` changes (i.e. every gradient-square drag), so the checkerboard is redrawn from scratch during every opacity slider interaction. The checkerboard is static — cache it as a `ui.Picture` or `ui.Image` on first paint and composite it with `canvas.drawImage`/`canvas.drawPicture` — `color_picker_box.dart:1092`
-
-- [ ] [MAJOR] `_buildFieldColumn` hardcodes text and border colors instead of reading from palette (lines 523–525): `Color(0xFFE0E3EA)` / `Color(0xFF000000)` for text and `Color(0xFF3A4655)` / `Color(0xFFD9D9D9)` for borders. These bypass the `TelegramPalette` system and will look wrong on any non-standard theme — `color_picker_box.dart:523`
-
-- [ ] [MAJOR] All `TextField` decorations in `_numField` and `_hexField` set `border` and `enabledBorder` but omit `focusedBorder` (lines 635–640, 679–683). When a field is focused Flutter falls back to the theme's default blue focus ring instead of the themed border color — `color_picker_box.dart:635`
-
-- [ ] [MAJOR] Wheel scroll direction inconsistency across platforms (lines 593–599): `deltaY` starts as `-event.scrollDelta.dy` (scroll-down = negative), then on macOS it is negated again (`deltaY = -deltaY`), while on other platforms `deltaX` is re-negated instead. Result: scrolling down over a focused field increments the value on macOS but decrements it on Linux/Windows. The platform branch should negate `deltaX` on macOS (where horizontal natural scrolling is reversed) and leave `deltaY` consistent — `color_picker_box.dart:595`
-
 # compose_entities — wiring issue
 
 - [CRITICAL] Emoji placeholder replacement doesn't adjust entity lengths for overlapping formatting — `compose_entities.dart:367-373`
