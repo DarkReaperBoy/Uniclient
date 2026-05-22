@@ -315,9 +315,11 @@ class AudioService extends ChangeNotifier {
 
     final accountId = _currentAccountId;
     final accessHash = _currentAccessHash;
-    final fileRef = List<int>.from(_currentFileRef);
+    final usedFileRef = List<int>.from(_currentFileRef);
+    final chatId = _currentChatId;
+    final msgId = _currentMsgId;
 
-    try {
+    Future<void> send(List<int> fileRef) async {
       await _engine.reportMusicListen(
         accountId,
         docIdInt,
@@ -325,9 +327,34 @@ class AudioService extends ChangeNotifier {
         fileRef,
         duration,
       );
-    } catch (e) {
-      debugPrint('AudioService: reportMusicListen failed: $e');
     }
+
+    try {
+      await send(usedFileRef);
+    } catch (e) {
+      final errStr = e.toString();
+      if (errStr.contains('FILE_REFERENCE_')) {
+        try {
+          final newRef = await _engine.refreshDocumentFileRef(
+            accountId, docIdInt, chatId, msgId,
+          );
+          if (newRef.isNotEmpty && !_listEquals(newRef, usedFileRef)) {
+            _currentFileRef = newRef;
+            await send(newRef);
+          }
+        } catch (_) {}
+      } else {
+        debugPrint('AudioService: reportMusicListen failed: $e');
+      }
+    }
+  }
+
+  static bool _listEquals(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   @override

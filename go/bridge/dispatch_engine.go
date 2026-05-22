@@ -575,6 +575,23 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ReportMusicListen(req.AccountId, req.DocId, req.AccessHash, req.FileRef, int(req.DurationSec))
 
+	case "RefreshDocumentFileRef":
+		var data struct {
+			AccountID string `json:"account_id"`
+			DocID     int64  `json:"doc_id"`
+			ChatID    string `json:"chat_id"`
+			MsgID     string `json:"msg_id"`
+		}
+		if err := json.Unmarshal(payload, &data); err != nil {
+			return nil, err
+		}
+		newRef, err := e.RefreshDocumentFileRef(data.AccountID, data.DocID, data.ChatID, data.MsgID)
+		if err != nil {
+			return nil, err
+		}
+		resp, _ := json.Marshal(map[string]interface{}{"file_ref": newRef})
+		return resp, nil
+
 	case "SetUserNoForwardsFlags":
 		var req pb.EngineSetUserNoForwardsFlagsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

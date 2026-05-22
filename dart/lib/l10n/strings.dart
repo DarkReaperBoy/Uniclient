@@ -79,4 +79,14 @@ class TrStrings {
       '$emoji to your invoice';
   static String lngNotifReactedToText(String emoji, String text) =>
       '$emoji to: $text';
+
+  // AyuForward status strings (ayu_forward.cpp:64-89)
+  static String lngAyuForwardStatusPreparing() => 'Preparing...';
+  static String lngAyuForwardStatusForwarding() => 'Forwarding messages';
+  static String lngAyuForwardStatusLoadingMedia() => 'Loading media';
+  static String lngAyuForwardStatusFinished() => 'Done';
+  static String lngAyuForwardStatusSentCount(int sent, int total) =>
+      'sent $sent of $total';
+  static String lngAyuForwardStatusChunkCount(int chunk, int total) =>
+      'chunk $chunk of $total';
 }

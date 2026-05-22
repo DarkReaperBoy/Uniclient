@@ -691,6 +691,21 @@ class EngineService {
     await _callAsync('__engine', 'ReportMusicListen', req.writeToBuffer());
   }
 
+  Future<List<int>> refreshDocumentFileRef(String accountId, int docId, String chatId, String msgId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'doc_id': docId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+    }));
+    final respBytes = await _callAsync('__engine', 'RefreshDocumentFileRef', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return [];
+    final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    final ref = resp['file_ref'];
+    if (ref is List) return ref.cast<int>();
+    return [];
+  }
+
   /// Fetch forum topics for a chat. Returns empty list if the platform
   /// doesn't support forum topics. Topics are cached in the engine DB.
   Future<List<ForumTopic>> getForumTopics(String accountId, String chatId) async {

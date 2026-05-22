@@ -1641,6 +1641,21 @@ func (e *Engine) ReportMusicListen(accountID string, docID int64, accessHash int
 	return retryErr
 }
 
+func (e *Engine) RefreshDocumentFileRef(accountID string, docID int64, chatID, msgID string) ([]byte, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	refresher, ok := acc.Core.(FileRefRefresher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support file reference refresh")
+	}
+	return refresher.RefreshDocumentFileRef(docID, chatID, msgID)
+}
+
 func (e *Engine) ReadMessageContents(accountID, chatID, msgID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

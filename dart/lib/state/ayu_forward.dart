@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../bridge/engine_service.dart';
+import '../l10n/strings.dart';
 import '../models/engine_models.dart';
 
 enum ForwardMethod { native, resendAsOwn }
@@ -14,12 +15,12 @@ class ForwardChunk {
 }
 
 class AyuForwardStrings {
-  static String statusPreparing() => 'Preparing...';
-  static String statusForwarding() => 'Forwarding messages';
-  static String statusLoadingMedia() => 'Loading media';
-  static String statusFinished() => 'Done';
-  static String sentCount(int sent, int total) => 'sent $sent of $total';
-  static String chunkCount(int chunk, int total) => 'chunk $chunk of $total';
+  static String statusPreparing() => TrStrings.lngAyuForwardStatusPreparing();
+  static String statusForwarding() => TrStrings.lngAyuForwardStatusForwarding();
+  static String statusLoadingMedia() => TrStrings.lngAyuForwardStatusLoadingMedia();
+  static String statusFinished() => TrStrings.lngAyuForwardStatusFinished();
+  static String sentCount(int sent, int total) => TrStrings.lngAyuForwardStatusSentCount(sent, total);
+  static String chunkCount(int chunk, int total) => TrStrings.lngAyuForwardStatusChunkCount(chunk, total);
 }
 
 class ForwardProgress extends ChangeNotifier {
@@ -161,10 +162,6 @@ class AyuForward {
     ChatInfo sourceChat,
   ) {
     if (isChatRestricted(sourceChat)) {
-      return [ForwardChunk(ForwardMethod.resendAsOwn, messages)];
-    }
-
-    if (messages.any((m) => m.senderNoForwards)) {
       return [ForwardChunk(ForwardMethod.resendAsOwn, messages)];
     }
 
