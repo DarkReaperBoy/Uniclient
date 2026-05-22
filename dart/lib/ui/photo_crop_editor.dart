@@ -9,6 +9,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
@@ -167,6 +168,42 @@ class _TextAnnotation {
   });
 
   bool get isSticker => imageBytes != null;
+
+  TextPainter? _cachedPainter;
+  String? _cachedPainterKey;
+
+  TextPainter getOrCreatePainter() {
+    final key = '$text|$fontSize|$scale|${color.value}';
+    if (_cachedPainterKey == key && _cachedPainter != null) {
+      return _cachedPainter!;
+    }
+    _cachedPainter?.dispose();
+    _cachedPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: fontSize * scale,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    _cachedPainterKey = key;
+    return _cachedPainter!;
+  }
+
+  (double, double) get cachedSize {
+    if (isSticker && _decodedImage != null) {
+      final img = _decodedImage!;
+      final stickerSize = fontSize * scale;
+      final aspect = img.width / img.height;
+      if (aspect >= 1) return (stickerSize, stickerSize / aspect);
+      return (stickerSize * aspect, stickerSize);
+    }
+    final tp = getOrCreatePainter();
+    return (tp.width, tp.height);
+  }
 
   Future<void> decodeImage() async {
     if (imageBytes == null || _decodedImage != null) return;
@@ -331,6 +368,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   final List<_TextAnnotation> _undoneAnnotations = [];
   final List<_UndoKind> _undoTracker = [];
   final List<_UndoKind> _redoTracker = [];
+  int _paintVersion = 0;
   late final Map<_PaintTool, _ToolBrush> _toolBrushes;
   List<_PaintStroke>? _paintSnapshot;
   List<_TextAnnotation>? _textSnapshot;
@@ -531,6 +569,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
         _canvasZoom = 1.0;
         _canvasOffset = Offset.zero;
         _editorMode = _EditorMode.transform;
+        _paintVersion++;
       });
       _focusNode.requestFocus();
       return;
@@ -548,6 +587,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
       } else if (kind == _UndoKind.text && _textAnnotations.isNotEmpty) {
         _undoneAnnotations.add(_textAnnotations.removeLast());
       }
+      _paintVersion++;
     });
   }
 
@@ -561,6 +601,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
       } else if (kind == _UndoKind.text && _undoneAnnotations.isNotEmpty) {
         _textAnnotations.add(_undoneAnnotations.removeLast());
       }
+      _paintVersion++;
     });
   }
 
@@ -587,6 +628,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
       _undoTracker.add(_UndoKind.stroke);
       _redoTracker.clear();
       _undoneAnnotations.clear();
+      _paintVersion++;
     });
   }
 
@@ -660,6 +702,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
         setState(() {
           _textAnnotations[_editingAnnotationIndex].text = text;
           _textAnnotations[_editingAnnotationIndex].color = _brushColor;
+          _paintVersion++;
         });
       } else {
         _addTextAnnotation(text);
@@ -669,6 +712,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
       setState(() {
         _textAnnotations.removeAt(_editingAnnotationIndex);
         _selectedAnnotation = -1;
+        _paintVersion++;
       });
     }
     _dismissInlineText();
@@ -707,6 +751,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
       _redoTracker.clear();
       _undoneStrokes.clear();
       _undoneAnnotations.clear();
+      _paintVersion++;
     });
   }
 
@@ -787,6 +832,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
       _redoTracker.clear();
       _undoneStrokes.clear();
       _undoneAnnotations.clear();
+      _paintVersion++;
     });
   }
 
@@ -825,6 +871,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
       _redoTracker.clear();
       _undoneStrokes.clear();
       _undoneAnnotations.clear();
+      _paintVersion++;
     });
   }
 
@@ -858,6 +905,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
     if (index < 0 || index >= _textAnnotations.length) return;
     setState(() {
       _textAnnotations[index].position += delta;
+      _paintVersion++;
     });
   }
 
@@ -868,6 +916,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
       ann.scale = (ann.scale * scaleDelta).clamp(
         _kAnnotationMinScale, _kAnnotationMaxScale,
       );
+      _paintVersion++;
     });
   }
 
@@ -875,6 +924,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
     if (index < 0 || index >= _textAnnotations.length) return;
     setState(() {
       _textAnnotations[index].rotation += angleDelta;
+      _paintVersion++;
     });
   }
 
@@ -883,6 +933,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
     setState(() {
       _textAnnotations.removeAt(_selectedAnnotation);
       _selectedAnnotation = -1;
+      _paintVersion++;
     });
   }
 
@@ -1006,21 +1057,64 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
       -cropRect.top - cropRect.height / 2 + outH / 2,
     );
 
-    for (final stroke in _paintStrokes) {
-      if (stroke.tool == _PaintTool.blur) continue;
-      if (stroke.tool == _PaintTool.eraser) continue;
-      _CropPainter.drawSingleStroke(canvas, stroke, exportOffset);
+    void drawExportImage() {
+      canvas.drawImageRect(
+        _image!,
+        Rect.fromLTWH(0, 0, imgW, imgH),
+        Rect.fromLTWH(
+          offsetX + (displaySize.width - dstW) / 2,
+          offsetY + (displaySize.height - dstH) / 2,
+          dstW,
+          dstH,
+        ),
+        Paint()..filterQuality = FilterQuality.high,
+      );
     }
 
-    final hasEraser = _paintStrokes.any((s) => s.tool == _PaintTool.eraser);
-    if (hasEraser) {
+    final blurStrokes = _paintStrokes.where((s) => s.tool == _PaintTool.blur).toList();
+    if (blurStrokes.isNotEmpty) {
+      final bounds = Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble());
+      for (final stroke in blurStrokes) {
+        if (stroke.points.isEmpty) continue;
+        canvas.saveLayer(bounds, Paint());
+        final maskPaint = Paint()
+          ..color = Colors.white
+          ..strokeWidth = stroke.width * _kBlurSizeMultiplier
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..style = PaintingStyle.stroke;
+        final rawPts = stroke.points.map((p) => p + exportOffset).toList();
+        final smoothed = _CropPainter._smoothPoints(rawPts);
+        if (smoothed.length == 1) {
+          canvas.drawCircle(smoothed[0], stroke.width * _kBlurSizeMultiplier / 2,
+              maskPaint..style = PaintingStyle.fill);
+        } else {
+          final path = _CropPainter._buildBezierPath(smoothed);
+          canvas.drawPath(path, maskPaint);
+        }
+        canvas.saveLayer(bounds, Paint()
+          ..blendMode = BlendMode.srcIn
+          ..imageFilter = ui.ImageFilter.blur(
+            sigmaX: _kBlurRadius,
+            sigmaY: _kBlurRadius,
+          ));
+        drawExportImage();
+        canvas.restore();
+        canvas.restore();
+      }
+    }
+
+    final regularStrokes = _paintStrokes.where(
+      (s) => s.tool != _PaintTool.blur && s.tool != _PaintTool.eraser,
+    ).toList();
+    final eraserStrokes = _paintStrokes.where((s) => s.tool == _PaintTool.eraser).toList();
+
+    if (eraserStrokes.isNotEmpty) {
       canvas.saveLayer(null, Paint());
-      for (final stroke in _paintStrokes.where(
-        (s) => s.tool != _PaintTool.blur && s.tool != _PaintTool.eraser,
-      )) {
+      for (final stroke in regularStrokes) {
         _CropPainter.drawSingleStroke(canvas, stroke, exportOffset);
       }
-      for (final stroke in _paintStrokes.where((s) => s.tool == _PaintTool.eraser)) {
+      for (final stroke in eraserStrokes) {
         final erasePaint = Paint()
           ..blendMode = BlendMode.clear
           ..strokeWidth = stroke.width
@@ -1036,6 +1130,10 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
         canvas.drawPath(path, erasePaint);
       }
       canvas.restore();
+    } else {
+      for (final stroke in regularStrokes) {
+        _CropPainter.drawSingleStroke(canvas, stroke, exportOffset);
+      }
     }
 
     for (final ann in _textAnnotations) {
@@ -1087,8 +1185,9 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
     outImage.dispose();
     if (byteData == null) return widget.imageFile;
 
+    final tempDir = await getTemporaryDirectory();
     final outFile = File(
-      '/tmp/crop_${DateTime.now().millisecondsSinceEpoch}.png',
+      '${tempDir.path}/crop_${DateTime.now().millisecondsSinceEpoch}.png',
     );
     await outFile.writeAsBytes(Uint8List.view(byteData.buffer));
     return outFile;
@@ -1194,6 +1293,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
                                 forumCornerMultiplier: _forumCornerMultiplier,
                                 paintStrokes: _paintStrokes,
                                 textAnnotations: _textAnnotations,
+                                paintVersion: _paintVersion,
                                 brushColor: _brushColor,
                                 brushWidth: _brushWidth,
                                 currentPaintTool: _currentPaintTool,
@@ -1481,6 +1581,7 @@ class _ImageCropArea extends StatefulWidget {
   final double forumCornerMultiplier;
   final List<_PaintStroke> paintStrokes;
   final List<_TextAnnotation> textAnnotations;
+  final int paintVersion;
   final Color brushColor;
   final double brushWidth;
   final _PaintTool currentPaintTool;
@@ -1510,6 +1611,7 @@ class _ImageCropArea extends StatefulWidget {
     this.forumCornerMultiplier = _kForumRadiusMultiplier,
     this.paintStrokes = const [],
     this.textAnnotations = const [],
+    this.paintVersion = 0,
     this.brushColor = const Color(0xFFEA2739),
     this.brushWidth = 4.0,
     this.currentPaintTool = _PaintTool.pen,
@@ -1714,21 +1816,7 @@ class _ImageCropAreaState extends State<_ImageCropArea>
   }
 
   (double, double) _annotationItemSize(_TextAnnotation ann) {
-    if (ann.isSticker && ann._decodedImage != null) {
-      final img = ann._decodedImage!;
-      final stickerSize = ann.fontSize * ann.scale;
-      final aspect = img.width / img.height;
-      if (aspect >= 1) return (stickerSize, stickerSize / aspect);
-      return (stickerSize * aspect, stickerSize);
-    }
-    final tp = TextPainter(
-      text: TextSpan(
-        text: ann.text,
-        style: TextStyle(fontSize: ann.fontSize * ann.scale, fontWeight: FontWeight.w600),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    return (tp.width, tp.height);
+    return ann.cachedSize;
   }
 
   int _hitTestAnnotations(Offset pos) {
@@ -2090,6 +2178,7 @@ class _ImageCropAreaState extends State<_ImageCropArea>
                       forumCornerMultiplier: widget.forumCornerMultiplier,
                       paintStrokes: widget.paintStrokes,
                       textAnnotations: widget.textAnnotations,
+                      paintVersion: widget.paintVersion,
                       currentStroke: _currentStrokePoints != null
                           ? _PaintStroke(
                               points: _currentStrokePoints!,
@@ -2133,6 +2222,7 @@ class _CropPainter extends CustomPainter {
   final double forumCornerMultiplier;
   final List<_PaintStroke> paintStrokes;
   final List<_TextAnnotation> textAnnotations;
+  final int paintVersion;
   final _PaintStroke? currentStroke;
   final bool isPaintMode;
   final int selectedAnnotation;
@@ -2151,6 +2241,7 @@ class _CropPainter extends CustomPainter {
     this.forumCornerMultiplier = _kForumRadiusMultiplier,
     this.paintStrokes = const [],
     this.textAnnotations = const [],
+    this.paintVersion = 0,
     this.currentStroke,
     this.isPaintMode = false,
     this.selectedAnnotation = -1,
@@ -2408,18 +2499,7 @@ class _CropPainter extends CustomPainter {
           Paint()..filterQuality = FilterQuality.high,
         );
       } else {
-        final effectiveFontSize = ann.fontSize * ann.scale;
-        final tp = TextPainter(
-          text: TextSpan(
-            text: ann.text,
-            style: TextStyle(
-              fontSize: effectiveFontSize,
-              color: ann.color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        final tp = ann.getOrCreatePainter();
         itemW = tp.width;
         itemH = tp.height;
         tp.paint(canvas, Offset(-itemW / 2, -itemH / 2));
@@ -2601,8 +2681,7 @@ class _CropPainter extends CustomPainter {
       old.shape != shape ||
       old.gridOpacity != gridOpacity ||
       old.forumCornerMultiplier != forumCornerMultiplier ||
-      old.paintStrokes != paintStrokes ||
-      old.textAnnotations != textAnnotations ||
+      old.paintVersion != paintVersion ||
       old.currentStroke != currentStroke ||
       old.isPaintMode != isPaintMode ||
       old.selectedAnnotation != selectedAnnotation ||
@@ -3538,6 +3617,7 @@ class _EditorStickerPickerState extends State<_EditorStickerPicker> {
   List<StickerPackSummary>? _packs;
   bool _loadingPacks = false;
   int _selectedPack = -1;
+  final Map<String, Uint8List> _thumbCache = {};
 
   static const _emojiGroups = [
     ['😀', '😂', '🥹', '😍', '🥰', '😎', '🤩', '🥳',
@@ -3686,8 +3766,11 @@ class _EditorStickerPickerState extends State<_EditorStickerPicker> {
                         padding: const EdgeInsets.all(4),
                         child: sticker.thumbB64.isNotEmpty
                             ? Image.memory(
-                                Uint8List.fromList(
-                                  _decodeThumb(sticker.thumbB64),
+                                _thumbCache.putIfAbsent(
+                                  sticker.thumbB64,
+                                  () => Uint8List.fromList(
+                                    _decodeThumb(sticker.thumbB64),
+                                  ),
                                 ),
                                 fit: BoxFit.contain,
                                 errorBuilder: (_, __, ___) => Center(
@@ -4088,8 +4171,9 @@ class _EmojiAvatarBuilderState extends State<EmojiAvatarBuilder> {
     image.dispose();
     if (byteData == null) throw Exception('Failed to render emoji avatar');
 
+    final tempDir = await getTemporaryDirectory();
     final file = File(
-      '/tmp/emoji_avatar_${DateTime.now().millisecondsSinceEpoch}.png',
+      '${tempDir.path}/emoji_avatar_${DateTime.now().millisecondsSinceEpoch}.png',
     );
     await file.writeAsBytes(Uint8List.view(byteData.buffer));
     return file;

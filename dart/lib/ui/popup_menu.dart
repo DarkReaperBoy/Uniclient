@@ -15,7 +15,13 @@ const Duration _kCloseDuration = Duration(milliseconds: 150);
 Color _menuBg(Brightness b) =>
     b == Brightness.dark ? const Color(0xFF17212b) : const Color(0xFFffffff);
 
-Color _shadowColor(Brightness b) => const Color(0xFF000000);
+Color _shadowColor(Brightness b) =>
+    b == Brightness.dark ? const Color(0xFF000000) : const Color(0x59000000);
+
+double _panelCurve(double t, double portion) {
+  if (t >= portion) return 1.0;
+  return t / portion;
+}
 
 Future<T?> showTelegramMenu<T>({
   required BuildContext context,
@@ -202,11 +208,14 @@ class _TelegramMenuOverlay<T> extends StatefulWidget {
 
 class _TelegramMenuOverlayState<T> extends State<_TelegramMenuOverlay<T>>
     with WidgetsBindingObserver {
-  Alignment _origin = Alignment.topLeft;
+  late Alignment _origin;
 
   @override
   void initState() {
     super.initState();
+    final xFlip = widget.position.dx > widget.screenSize.width / 2;
+    final yFlip = widget.position.dy > widget.screenSize.height / 2;
+    _origin = Alignment(xFlip ? 1.0 : -1.0, yFlip ? 1.0 : -1.0);
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -325,11 +334,6 @@ class _TelegramMenuOverlayState<T> extends State<_TelegramMenuOverlay<T>>
         ],
       );
     });
-  }
-
-  static double _panelCurve(double t, double portion) {
-    if (t >= portion) return 1.0;
-    return t / portion;
   }
 }
 
@@ -490,11 +494,6 @@ class _AnimatedSubmenuRevealState extends State<_AnimatedSubmenuReveal>
       },
       child: widget.child,
     );
-  }
-
-  static double _panelCurve(double t, double portion) {
-    if (t >= portion) return 1.0;
-    return t / portion;
   }
 }
 
@@ -976,30 +975,32 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
         onTapDown: _onTapDown,
         onTapUp: _onTapUp,
         onTapCancel: _onTapCancel,
-        child: AnimatedBuilder(
-          animation: _rippleController,
-          builder: (context, child) {
-            return CustomPaint(
-              foregroundPainter: _rippleController.value > 0
-                  ? _RippleCirclePainter(
-                      progress: _rippleController.value,
-                      center: _tapPosition,
-                      color: rippleColor,
-                    )
-                  : null,
-              child: Container(
-                height: hasIcon ? 29 : 28,
-                color: highlighted ? hoverColor : null,
-                padding: hasIcon
-                    ? const EdgeInsets.only(
-                        left: 54, top: 8, right: 17, bottom: 8)
-                    : const EdgeInsets.only(
-                        left: 17, top: 8, right: 17, bottom: 7),
-                child: child,
-              ),
-            );
-          },
-          child: contentChild,
+        child: RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: _rippleController,
+            builder: (context, child) {
+              return CustomPaint(
+                foregroundPainter: _rippleController.value > 0
+                    ? _RippleCirclePainter(
+                        progress: _rippleController.value,
+                        center: _tapPosition,
+                        color: rippleColor,
+                      )
+                    : null,
+                child: Container(
+                  height: hasIcon ? 29 : 28,
+                  color: highlighted ? hoverColor : null,
+                  padding: hasIcon
+                      ? const EdgeInsets.only(
+                          left: 54, top: 8, right: 17, bottom: 8)
+                      : const EdgeInsets.only(
+                          left: 17, top: 8, right: 17, bottom: 7),
+                  child: child,
+                ),
+              );
+            },
+            child: contentChild,
+          ),
         ),
       ),
     );
