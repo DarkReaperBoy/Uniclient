@@ -293,6 +293,8 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
             excludeArchived: result.excludeArchived,
             excludeChatIds: result.excludeChatIds,
             staticTitle: result.staticTitle,
+            colorIndex: result.colorIndex,
+            emoticon: result.emoticon,
           ).then((_) {
             if (mounted) {
               setState(() => _folders = List.of(chatState.folders));
@@ -309,6 +311,8 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
             channels: result.channels,
             bots: result.bots,
             staticTitle: result.staticTitle,
+            colorIndex: result.colorIndex,
+            emoticon: result.emoticon,
           ).then((_) {
             if (mounted) {
               chatState.loadFoldersForAccount(account.id).then((_) {
@@ -1763,6 +1767,9 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       );
       return;
     }
+    final emoticon = _selectedIconName != null
+        ? (_kFilterIconEmoji[_selectedIconName] ?? '')
+        : '';
     Navigator.of(context).pop(FolderInfo(
       id: existing?.id ?? '',
       name: name,
@@ -1780,6 +1787,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       excludeRead: _excludeRead,
       excludeArchived: _excludeArchived,
       colorIndex: _colorIndex,
+      emoticon: emoticon,
       isChatList: existing?.isChatList ?? false,
       staticTitle: _staticTitle,
     ));
@@ -1980,6 +1988,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                         isDark: widget.isDark,
                         textColor: textColor,
                         onRemove: (id) => setState(() => _includedChatIds.remove(id)),
+                        accountId: context.read<AppState>().activeAccount?.id ?? '',
                       ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
@@ -2018,6 +2027,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                           isDark: widget.isDark,
                           textColor: textColor,
                           onRemove: (id) => setState(() => _excludedChatIds.remove(id)),
+                          accountId: context.read<AppState>().activeAccount?.id ?? '',
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
@@ -3008,6 +3018,8 @@ class _PeerAvatar extends StatelessWidget {
           width: 44,
           height: 44,
           fit: BoxFit.cover,
+          cacheWidth: 88,
+          cacheHeight: 88,
           errorBuilder: (ctx, __, ___) => _fallbackAvatar(ctx),
         ),
       );
@@ -3475,9 +3487,8 @@ class _IconCellState extends State<_IconCell> {
           child: Center(
             child: Text(
               emoji,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 22,
-                color: widget.isSelected ? null : (_hovering ? null : null),
               ),
             ),
           ),
@@ -4293,10 +4304,11 @@ class _ChatToggleRow extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: isDark ? const Color(0xFF3A4A5A) : const Color(0xFFE0E0E0),
                   ),
-                  child: chat.avatarPath.isNotEmpty && File(chat.avatarPath).existsSync()
+                  child: chat.avatarPath.isNotEmpty
                       ? ClipOval(child: Image.file(
                           File(chat.avatarPath),
                           fit: BoxFit.cover, width: 34, height: 34,
+                          cacheWidth: 68, cacheHeight: 68,
                           errorBuilder: (_, __, ___) => Icon(_chatIcon, size: 18, color: subtextColor),
                         ))
                       : Icon(_chatIcon, size: 18, color: subtextColor),
@@ -4334,19 +4346,21 @@ class _SelectedChatsPreview extends StatelessWidget {
   final bool isDark;
   final Color textColor;
   final ValueChanged<String> onRemove;
+  final String accountId;
 
   const _SelectedChatsPreview({
     required this.chatIds,
     required this.isDark,
     required this.textColor,
     required this.onRemove,
+    required this.accountId,
   });
 
   @override
   Widget build(BuildContext context) {
     if (chatIds.isEmpty) return const SizedBox.shrink();
     final chatState = context.watch<ChatState>();
-    final accountChats = chatState.chats;
+    final accountChats = chatState.chatsForAccount(accountId);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -826,6 +826,8 @@ class EngineService {
     bool channels = false,
     bool bots = false,
     bool staticTitle = false,
+    int colorIndex = -1,
+    String emoticon = '',
   }) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -837,6 +839,8 @@ class EngineService {
       'channels': channels,
       'bots': bots,
       'static_title': staticTitle,
+      'color_index': colorIndex,
+      'emoticon': emoticon,
     }));
     try {
       final respBytes = await _callAsync('__engine', 'CreateFolder', Uint8List.fromList(payload));
@@ -889,6 +893,8 @@ class EngineService {
     bool excludeArchived = false,
     List<String> excludeChatIds = const [],
     bool staticTitle = false,
+    int colorIndex = -1,
+    String emoticon = '',
   }) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -905,6 +911,8 @@ class EngineService {
       'exclude_archived': excludeArchived,
       'exclude_chat_ids': excludeChatIds,
       'static_title': staticTitle,
+      'color_index': colorIndex,
+      'emoticon': emoticon,
     }));
     try {
       await _callAsync('__engine', 'EditFolder', Uint8List.fromList(payload));
