@@ -72,6 +72,8 @@ class CustomTitlebar extends StatefulWidget {
 }
 
 class _CustomTitlebarState extends State<CustomTitlebar> {
+  static final Set<_CustomTitlebarState> _instances = {};
+
   bool _isMaximized = false;
   bool _isActive = true;
   bool _oneSideControls = false;
@@ -82,18 +84,32 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
   @override
   void initState() {
     super.initState();
+    _instances.add(this);
+    if (_instances.length == 1) {
+      CustomTitlebar.channel.setMethodCallHandler(_onNativeCallStatic);
+    }
     _queryMaximized();
     _queryButtonLayout();
-    CustomTitlebar.channel.setMethodCallHandler(_onNativeCall);
+    _queryOneSideControls();
+    _queryResizeEnabled();
   }
 
   @override
   void dispose() {
-    CustomTitlebar.channel.setMethodCallHandler(null);
+    _instances.remove(this);
+    if (_instances.isEmpty) {
+      CustomTitlebar.channel.setMethodCallHandler(null);
+    }
     super.dispose();
   }
 
-  Future<dynamic> _onNativeCall(MethodCall call) async {
+  static Future<dynamic> _onNativeCallStatic(MethodCall call) async {
+    for (final instance in List.of(_instances)) {
+      instance._handleNativeCall(call);
+    }
+  }
+
+  void _handleNativeCall(MethodCall call) {
     switch (call.method) {
       case 'maximizeChanged':
         if (mounted) setState(() => _isMaximized = call.arguments as bool);
@@ -130,6 +146,22 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
       if (result != null && mounted) {
         setState(() => _layout = _ButtonLayout.parse(result));
       }
+    } catch (_) {}
+  }
+
+  Future<void> _queryOneSideControls() async {
+    try {
+      final result =
+          await CustomTitlebar.channel.invokeMethod<bool>('getOneSideControls');
+      if (mounted) setState(() => _oneSideControls = result ?? false);
+    } catch (_) {}
+  }
+
+  Future<void> _queryResizeEnabled() async {
+    try {
+      final result =
+          await CustomTitlebar.channel.invokeMethod<bool>('getResizeEnabled');
+      if (mounted) setState(() => _resizeEnabled = result ?? true);
     } catch (_) {}
   }
 

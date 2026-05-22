@@ -739,6 +739,14 @@ static void window_method_call_handler(FlMethodChannel* /*channel*/,
       gdk_device_get_position(device, NULL, &x, &y);
       gtk_window_begin_move_drag(self->window, 1, x, y, GDK_CURRENT_TIME);
     }
+  } else if (g_strcmp0(method, "getResizeEnabled") == 0) {
+    gboolean resizable =
+        self->window ? gtk_window_get_resizable(self->window) : TRUE;
+    g_autoptr(FlValue) result = fl_value_new_bool(resizable);
+    fl_method_call_respond_success(method_call, result, nullptr);
+  } else if (g_strcmp0(method, "getOneSideControls") == 0) {
+    g_autoptr(FlValue) result = fl_value_new_bool(FALSE);
+    fl_method_call_respond_success(method_call, result, nullptr);
   } else if (g_strcmp0(method, "getButtonLayout") == 0) {
     // Spec §1: read button layout from desktop environment at runtime.
     // 1. GTK's gtk-decoration-layout (aggregates XSettings on X11 and
