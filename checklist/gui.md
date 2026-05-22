@@ -166,14 +166,8 @@ The notification composition system is production-ready. Data flows correctly fr
 
 ## Findings
 
-- [ ] [CRITICAL] `_reportListenIfNeeded` catches `FILE_REFERENCE` errors and silently drops the listen report instead of refreshing the file reference and retrying — AyuGram wraps the `MTPmessages_ReportMusicListen` call in a self-referential lambda (`send(send)`) that, on `FILE_REFERENCE_*` 400 errors, calls `refreshFileReference` and retries if the reference actually changed — `audio_service.dart:316-320` ← `media/player/media_player_listen_tracker.cpp:77-95`
-
 
 # ayu_forward — Forward chunking & progress tracking
-
-- [ ] [MAJOR] `buildChunks` applies `senderNoForwards` as a blanket batch check: if **any** message has `senderNoForwards=true`, **all** messages in the batch are routed through `resendAsOwn` — `ayu_forward.dart:167-169`. C++ `intelligentForward` chunks by per-item `isAyuForwardNeeded(item)` which checks only `MessageFlag::AyuNoForwards` (message-level), not sender restriction — `ayu_forward.cpp:270`. The sender-level check (`isFullAyuForwardNeeded`) is applied by the call-site (context menu) only for a **single** selected item, not across a multi-message selection — `context_menu.cpp:842`. Result: a batch containing even one sender-restricted message forces the entire batch to resendAsOwn in Dart, while C++ would chunk it per-item, potentially forwarding non-restricted messages natively.
-
-- [ ] [MAJOR] `AyuForwardStrings` hardcodes English UI strings (`'Preparing...'`, `'Forwarding messages'`, `'Loading media'`, `'Done'`, `'sent $sent of $total'`, `'chunk $chunk of $total'`) — `ayu_forward.dart:17-23`. AyuGram uses the localization system throughout: `tr::ayu_AyuForwardStatusPreparing(tr::now)`, `tr::ayu_AyuForwardStatusForwarding(tr::now)`, `tr::ayu_AyuForwardStatusLoadingMedia(tr::now)`, `tr::ayu_AyuForwardStatusFinished(tr::now)`, `tr::ayu_AyuForwardStatusSentCount(tr::now, lt_count1, …, lt_count2, …)`, `tr::ayu_AyuForwardStatusChunkCount(tr::now, …)` — `ayu_forward.cpp:64-89`.
 
 # bridge_ffi.dart — FFI bridge audit
 
