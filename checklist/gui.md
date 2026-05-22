@@ -215,27 +215,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # language_box — cleanup
 
-## my_profile_page — cleanup
-
-- [ ] [CRITICAL] `_getClipboardImage` wl-paste path decodes binary PNG stdout as `String` then calls `.codeUnits` (line 1269–1271) — produces garbage UTF-16 code units instead of raw bytes; clipboard paste is always broken on Wayland Linux — `my_profile_page.dart:1268`
-
-- [ ] [CRITICAL] `_getClipboardImage` xclip path checks `result.stdout is List<int>` (line 1277) but `Process.run` returns `String` stdout by default (no `stdoutEncoding: null` passed) — this check is always false, so xclip clipboard paste always returns `null` on X11 — `my_profile_page.dart:1274`
-  - Fix for both: pass `stdoutEncoding: null` to `Process.run` so stdout comes back as `List<int>`, then cast directly
-
-- [ ] [CRITICAL] `_emojiPlaceholder` returns a spinning `CircularProgressIndicator` (lines 2145–2154) as a permanent fallback when an emoji thumbnail is absent — but this is called only after `_loadingEmojis == false`, so the spinner never stops; should show a static fallback (e.g. small icon using the emoji ID) — `my_profile_page.dart:2145`
-
-- [ ] [CRITICAL] Avatar context menu (`_showAvatarMenu`, lines 1119–1175) offers View / Upload / From Clipboard / Set Emoji but has no "Remove Photo" / "Delete Photo" option — once a photo is set there is no way to remove it; Telegram Desktop has this option — `my_profile_page.dart:1119`
-
-- [ ] [CRITICAL] `_SettingsAccountRow._avatarFallback` (lines 2709–2722) always uses `CircleAvatar` (forced circular shape), ignoring `AppState.avatarCorners` — every other avatar in the file (`_ProfilePhotoAreaState._clipAvatar`, `_ProfilePhotoAreaState._avatarFallback`) reads `appState.avatarCorners` and applies the correct radius; account-list avatars are always circular regardless of user's corner setting — `my_profile_page.dart:2709`
-
-- [ ] [MAJOR] `Image.file` in `_ProfilePhotoArea` (line 1029) and `_SettingsAccountRow` (line 2634) has no `cacheWidth`/`cacheHeight` — Flutter decodes avatars at full disk resolution; should set `cacheWidth: 200, cacheHeight: 200` for the 100 px avatar and `cacheWidth: 60, cacheHeight: 60` for the 30 px account-row avatars — `my_profile_page.dart:1029`, `my_profile_page.dart:2634`
-
-- [ ] [MAJOR] `_openProfilePhotoViewer` fetches profile photos in a serial `for` loop (lines 1357–1364) — up to 20 sequential `await engine.getUserPhotoAtIndex(...)` calls before the viewer opens; should use `Future.wait` or a batch engine method — `my_profile_page.dart:1357`
-
-- [ ] [MAJOR] `_BioInputState._handleEmojiKey` intercepts `arrowLeft`/`arrowRight` keys and returns `KeyEventResult.handled` when emoji autocomplete is open (lines 772–782) — these keys never reach the `TextField`, so the cursor cannot be moved while suggestions are visible; only Tab/Enter/Escape should be consumed; arrow keys should navigate suggestions but also fall through to the text field — `my_profile_page.dart:772`
-
-- [ ] [MAJOR] Double rebuild per bio keystroke: parent `_onBioChanged` calls `setState(() {})` unconditionally (line 311), which rebuilds `_MyProfilePageState` and causes `_BioInput` to rebuild; `_checkEmojiAutocomplete()` then independently calls `setState` inside `_BioInputState` if suggestions change — two separate rebuild passes of `_BioInputState` per keystroke; the parent setState is only needed to update the character counter, which could be driven by a `ValueListenableBuilder` on the controller instead — `my_profile_page.dart:311`
-
 ## notification_popup — cleanup
 
 - [ ] [CRITICAL] `_onHoverExit` sets `popup.hovered = false` but never calls `setState` — `AnimatedOpacity(opacity: popup.hovered ? 1.0 : 0.0)` doesn't rebuild, so the reply button stays at opacity 1.0 for ~3 seconds after mouse exit until `_startSlowHide` eventually calls `setState`. Fix: add `setState(() { popup.hovered = false; });` at the start of `_onHoverExit` — `notification_popup.dart:269`
