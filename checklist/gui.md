@@ -227,16 +227,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## MAJOR
 
-- [ ] [MAJOR] All `Image.file()` calls decode photos at full resolution despite displaying at small sizes — no `cacheWidth`/`cacheHeight` hints provided. Specific locations: `_SingleMediaPreview` (308 px wide preview, line 2866), `_GifPreview` (line 3111), `_FileCard` thumbnail (`_fileThumbSize = 64`, line 4160). Album thumbs at line 3512 also lack hints but have variable widths. Fix: add `cacheWidth: _previewWidth.toInt()` / `cacheWidth: _fileThumbSize.toInt()` to each.
-
-- [ ] [MAJOR] `_AlbumPreviewState` registers `_shrinkAnim.addListener(() => setState(() {}))` — this triggers a full subtree rebuild on every animation frame during drag-shrink. Replace with `AnimatedBuilder` wrapping only the animated subtree. — `send_files_box.dart:3209`
-
-- [ ] [MAJOR] Scroll shadow update is registered twice: `_scrollController.addListener(_updateScrollShadows)` at line 411 AND a `NotificationListener` in `build()` schedules an extra `addPostFrameCallback` call to the same function on every `ScrollNotification` (lines 2238–2244). Every scroll fires the shadow check twice — once inline, once deferred. Remove the `NotificationListener` path; the controller listener is sufficient.
-
-- [ ] [MAJOR] `context.read<AppState>().photoEditorHintCount` is called inside `build()` (line 2388) — `read` does not register a dependency, so when `incrementPhotoEditorHintCount()` bumps the counter past 5, the hint text won't disappear until some unrelated `setState` triggers a rebuild. Replace with `context.watch<AppState>().photoEditorHintCount` or wrap in a `Selector`.
-
-- [ ] [MAJOR] `_FileListPreviewState.build()` constructs all file rows in a `Column` with a `for` loop (line 3965) — all widgets are eagerly built. When many documents are attached (no hard cap in non-slow mode) this wastes build time. Convert to `ListView.builder` with `shrinkWrap: true` and `physics: NeverScrollableScrollPhysics()`.
-
 ## settings_screen — cleanup
 
 - [ ] [CRITICAL] `_callsDisabled` never loaded from engine — `getCallsDisabledHere` exists in EngineService but is never called in `_loadSettings()`. The state field defaults to `false`, so "Accept calls on this device" always opens as ON regardless of the actual server setting. Fix: add `engine.getCallsDisabledHere(accountId)` to the `Future.wait` list at line 2138 and read it in the setState block. — `settings_screen.dart:2122-2161`
