@@ -215,18 +215,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # language_box — cleanup
 
-## message_bubble — cleanup
-
-- [ ] [CRITICAL] Hardcoded fallback `'User'` in `_showWhoReactedMenu` reactor name display — reactor with no name shows fake "User" label instead of empty/omitted — `message_bubble.dart:386,413`
-- [ ] [CRITICAL] Hardcoded fallback `'Contact'` in `_ContactIndicator.build()` — `fullName.isNotEmpty ? fullName : 'Contact'` shows fake name when contact has no display name — `message_bubble.dart:5252`
-- [ ] [CRITICAL] `_cachedReactions` and `_loadingReactions` are static Maps on `_MessageBubbleState` with no eviction — accumulate entries for every message across all chats and sessions, unbounded memory growth — `message_bubble.dart:211-213`
-- [ ] [CRITICAL] `_extendedPalette` is a static Map on `_MessageBubbleState` with no eviction — grows with every unique peer color id loaded via `loadPeerColors`, never cleared — `message_bubble.dart:1274`
-- [ ] [CRITICAL] `_StickerCache._progress` and `_StickerCache._webmPositions` are unbounded static Maps — only `_compositions` has the 30-entry LRU cap; these two grow without limit as new stickers are seen — `message_bubble.dart:4015-4016`
-- [ ] [MAJOR] `_parseEntities()` (JSON decode + entity construction) called on every `build()` — `_cachedEntities` field exists but is only consulted in `_revealAllSpoilers()`, not used to skip re-parsing in the main build path — `message_bubble.dart:6999`
-- [ ] [MAJOR] `TapGestureRecognizer` objects are disposed and recreated on every `build()` call inside `_RichMessageTextState` — expensive for messages with many links, mentions, or hashtags — `message_bubble.dart:6993-6997`
-- [ ] [MAJOR] `_emojiByCategory` is a non-static instance getter on `_ReactionEmojiOverlayState` that reconstructs a large nested list of emoji arrays on every access — should be a static const — `message_bubble.dart:1806`
-- [ ] [MAJOR] Missing `RepaintBoundary` around continuously-animating widgets: `_PollFireworks`, `_TgsStickerPlayer`, `_WebmStickerPlayer`, `_ReactionStrip` — all animate on every frame and force full parent subtree repaints — `message_bubble.dart:8592,4039,4141,1546`
-
 ## my_profile_page — cleanup
 
 - [ ] [CRITICAL] `_getClipboardImage` wl-paste path decodes binary PNG stdout as `String` then calls `.codeUnits` (line 1269–1271) — produces garbage UTF-16 code units instead of raw bytes; clipboard paste is always broken on Wayland Linux — `my_profile_page.dart:1268`
