@@ -167,7 +167,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _showChatNameInTitle = true;
   bool _showAccountNameInTitle = true;
   bool _showUnreadCountInTitle = true;
-  int _windowCloseBehavior = 0; // 0=Run in Background, 1=Close to Taskbar, 2=Quit
+  int _windowCloseBehavior = 0; // 0=Quit, 1=Close to Taskbar, 2=Run in Background
   bool _showTrayIcon = true;
   bool _showTaskbarIcon = true;
   bool _monochromeTrayIcon = false;
@@ -301,7 +301,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _adaptiveCoverColor = true;
   bool _simpleQuotesAndReplies = false;
   bool _semiTransparentDeleted = false;
-  double _wideMultiplier = 1.0; // §54.3: 1.00–4.00 in 0.05 steps
+  double _wideMultiplier = 1.0; // §54.3: 0.50–4.00 in 0.05 steps
   double _uiScalePercent = 100.0; // §14.4 / §57: Interface scale, 100–300%
   double _ivZoom = 1.0;
   bool _showNightModeToggleInDrawer = true;
@@ -979,7 +979,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void setWideMultiplier(double v) {
     v = (v * 20).round() / 20.0; // snap to 0.05 increments
-    v = v.clamp(1.0, 4.0);
+    v = v.clamp(0.5, 4.0);
     if ((_wideMultiplier - v).abs() < 0.001) return;
     _wideMultiplier = v;
     notifyListeners();
@@ -3339,7 +3339,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _adaptiveCoverColor = data['adaptiveCoverColor'] as bool? ?? true;
       _simpleQuotesAndReplies = data['simpleQuotesAndReplies'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
-      _wideMultiplier = ((data['wideMultiplier'] as num?)?.toDouble() ?? 1.0).clamp(1.0, 4.0);
+      _wideMultiplier = ((data['wideMultiplier'] as num?)?.toDouble() ?? 1.0).clamp(0.5, 4.0);
       _uiScalePercent = (data['uiScalePercent'] as num?)?.toDouble() ?? 100.0;
       _ivZoom = (data['ivZoom'] as num?)?.toDouble() ?? 1.0;
       _showNightModeToggleInDrawer = data['showNightModeToggleInDrawer'] as bool? ?? true;
@@ -3398,7 +3398,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _showAddFilterInContextMenu = data['showAddFilterInContextMenu'] as int? ?? 1;
       _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
       // §54.14: AyuGram General settings.
-      _translationProvider = data['translationProvider'] as int? ?? 0;
+      final rawTp = data['translationProvider'];
+      if (rawTp is String) {
+        _translationProvider = const {'telegram': 0, 'google': 1, 'yandex': 2, 'native': 3}[rawTp] ?? 0;
+      } else {
+        _translationProvider = (rawTp as int?) ?? 0;
+      }
       _disableStories = data['disableStories'] as bool? ?? false;
       _disableOpenLinkWarning = data['disableOpenLinkWarning'] as bool? ?? false;
       _collapseSimilarChannels = data['collapseSimilarChannels'] as bool? ?? true;
@@ -3644,7 +3649,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showMessageDetailsInContextMenu': _showMessageDetailsInContextMenu,
         'showAddFilterInContextMenu': _showAddFilterInContextMenu,
         'showMessageSeconds': _showMessageSeconds,
-        'translationProvider': _translationProvider,
+        'translationProvider': const ['telegram', 'google', 'yandex', 'native'][_translationProvider.clamp(0, 3)],
         'disableStories': _disableStories,
         'disableOpenLinkWarning': _disableOpenLinkWarning,
         'collapseSimilarChannels': _collapseSimilarChannels,

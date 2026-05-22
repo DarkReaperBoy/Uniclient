@@ -716,7 +716,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
-    const labels = ['Run in background', 'Close to the taskbar', 'Quit'];
+    const labels = ['Quit', 'Close to the taskbar', 'Run in background'];
     return [
       _SubsectionTitle(title: 'When Closing Window', color: accentColor),
       for (var i = 0; i < labels.length; i++)

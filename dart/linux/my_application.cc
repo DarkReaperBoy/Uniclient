@@ -32,7 +32,7 @@ struct _MyApplication {
   GList* account_items;
   GtkWidget* accounts_separator;
 #endif
-  int close_behavior; // 0=Run in Background, 1=Close to Taskbar, 2=Quit
+  int close_behavior; // 0=Quit, 1=Close to Taskbar, 2=Run in Background
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -557,14 +557,14 @@ static void tray_method_call_handler(FlMethodChannel* channel,
 }
 
 // Intercept window close to hide instead of destroy.
-// Respects close_behavior: 0=Run in Background, 1=Close to Taskbar, 2=Quit.
+// Respects close_behavior: 0=Quit, 1=Close to Taskbar, 2=Run in Background.
 static gboolean on_window_delete(GtkWidget* /*widget*/,
                                  GdkEvent* /*event*/,
                                  gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
 
-  // Behavior 2 = Quit: allow normal close (destroy window).
-  if (self->close_behavior == 2) {
+  // Behavior 0 = Quit: allow normal close (destroy window).
+  if (self->close_behavior == 0) {
     return FALSE;
   }
 
@@ -574,7 +574,7 @@ static gboolean on_window_delete(GtkWidget* /*widget*/,
       // Behavior 1 = Close to Taskbar: iconify (minimize) instead of hiding.
       gtk_window_iconify(self->window);
     } else {
-      // Behavior 0 = Run in Background: hide to tray.
+      // Behavior 2 = Run in Background: hide to tray.
       gtk_widget_hide(GTK_WIDGET(self->window));
       if (self->show_hide_item)
         gtk_menu_item_set_label(GTK_MENU_ITEM(self->show_hide_item), "Show");
