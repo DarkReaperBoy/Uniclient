@@ -138,18 +138,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # ayu_toggle — clean
 
-## chat_export — cleanup
-
-- [ ] [CRITICAL] dead branch in `_buildPerChatSettings`: `if (!_isPerChat) _buildSectionHeader('Media export settings', ...)` at line 1851 — `_buildPerChatSettings` is only ever called when `_isPerChat == true` (line 1298–1300), so this condition is always false and the "Media export settings" header is **never rendered** in per-chat mode — media checkboxes appear with no section header above them — `chat_export.dart:1851`
-
-- [ ] [CRITICAL] `_buildErrorPlaceholder` has zero interactive elements in its content area (lines 2520–2553) — error screen shows only a text message; no "Try Again", no "Close" button — user can only escape via the tiny title-bar X — disk IO errors and API errors should offer a retry or at minimum a visible dismiss button inside the content — `chat_export.dart:2520`
-
-- [ ] [MAJOR] direct field mutation outside `setState` throughout `_onExportProgress` (lines 880–933) and `_skipCurrentFile` (lines 1059–1063): `_exportSteps[i].label`, `.progress`, `.info`, `.opacity`, `.wasReported`, plus `_currentStepIndex`, `_totalFiles`, `_totalSizeBytes`, `_fileRandomId`, `_showSkipFile` are all mutated directly, then `setState(() {})` with an empty body is called to trigger rebuild — if any mutation throws before reaching that setState call, state is corrupted with no rebuild scheduled; move all mutations inside the setState callback — `chat_export.dart:880`
-
-- [ ] [MAJOR] `DateTime.now()` is called inside the inner cell-building loop in `_buildDayGrid` (line 2783) — the loop runs up to 42 iterations (6 rows × 7 cols) per build, calling `DateTime.now()` for each cell — hoist it to a single variable before the outer loop — `chat_export.dart:2783`
-
-- [ ] [MAJOR] `_loadExportSettings` (sync, runs at initState) and `_loadEngineSettings` (async, completes later) both set overlapping fields (`_personalInfo`, `_contacts`, `_stories`, `_profileMusic`, `_personalChats`, `_botChats`, `_privateGroups`, `_privateChannels`, `_publicGroups`, `_publicChannels`, `_exportLocation`, `_format`) — when the engine response arrives it calls `setState` and overwrites the already-rendered local values, causing a visible settings jitter on every panel open if engine and local JSON ever diverge — load engine settings first and fall back to local JSON, or merge them once after both resolve — `chat_export.dart:482`
-
 # chat_list_panel — cleanup
 
 ## CRITICAL
