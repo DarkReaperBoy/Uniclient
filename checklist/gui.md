@@ -72,14 +72,6 @@ All platform implementations (native FFI, web WASM, stub) are complete and funct
   - **Fix:** Change line 204-205 to `return false` for both file types, OR track success of both files and return `dicSuccess && affSuccess`
 
 
-# system_tray — Audit findings
-
-## system_tray — Double-click interval and accounts separator
-
-- [ ] [MAJOR] `_kDoubleClickIntervalMs` hardcoded to 400ms instead of reading the system double-click interval — AyuGram uses `QApplication::doubleClickInterval()` which is user-configurable per OS. The Dart constant will mismatch on systems where the user has changed the double-click speed. — `system_tray.dart:411` ← `tray.cpp:70`
-
-- [ ] [MAJOR] `updateAccountsMenu` sends the accounts list to native without a separator marker. AyuGram calls `tray.addSeparator()` before populating account entries, visually separating them from the "Quit" item. The `setAccountsMenu` payload has no `hasSeparator` field, so the native Linux runner has no signal to insert the separator — accounts will run directly after Quit in the tray menu. — `system_tray.dart:434` ← `tray_accounts_menu.cpp:52`
-
 # web_drop_web — Web drag-and-drop zone (Flutter Web)
 
 - [ ] [MAJOR] `_kMaxFileSizeBytes` hardcoded to 2 GiB silently rejects files valid for premium users — `web_drop_web.dart:52` ← `storage/localimageloader.h:22` (`kFileSizeLimit = 2'000 MiB` non-premium) + `chat_view.dart:17958` (`_kMaxDragFileSize = 4 GiB` premium limit). Files 2 GiB–4 GiB are silently filtered to `null` at line 168 before they ever reach the classification logic in `chat_view.dart:18029`. Premium users cannot drop files in the 2–4 GiB range even though `_kMaxDragFileSize` explicitly permits them. Fix: raise to `4 * 1024 * 1024 * 1024` (matching `_kMaxDragFileSize`) or remove the size gate entirely and let the upload pipeline enforce limits.
