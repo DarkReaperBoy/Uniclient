@@ -172,16 +172,17 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     }
 
     final items = <_ListItem>[];
+    var idx = 0;
     if (existing.isNotEmpty) {
       items.add(_ListItem.header('Existing'));
       for (final e in existing) {
-        items.add(_ListItem.entry(e));
+        items.add(_ListItem.entry(e, idx++));
       }
     }
     if (newTokens.isNotEmpty) {
       items.add(_ListItem.header('New color scheme keys'));
       for (final e in newTokens) {
-        items.add(_ListItem.entry(e));
+        items.add(_ListItem.entry(e, idx++));
       }
     }
     _cachedItems = items;
@@ -259,7 +260,12 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
 
   Color? _parseHexColor(String hex) {
     var h = hex.replaceAll('#', '');
-    if (h.length == 6) h = 'FF$h';
+    if (h.length == 6) {
+      h = 'FF$h';
+    } else if (h.length == 8) {
+      // _colorToHexString emits RRGGBBAA; Color() expects AARRGGBB
+      h = h.substring(6) + h.substring(0, 6);
+    }
     if (h.length == 8) {
       final v = int.tryParse(h, radix: 16);
       if (v != null) return Color(v);
@@ -404,6 +410,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
       _explicitTokens = parsed.explicitTokens.isNotEmpty
           ? parsed.explicitTokens
           : _colorMap.keys.toSet();
+      _currentBackground = parsed.backgroundImage;
       _isDirty = true;
       _sortedByAccent = false;
       _cachedItems = null;
@@ -506,10 +513,9 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
           : 400.0;
       const defaultHeight = _kRowMarginTop + _kSwatchHeight + _kDescriptionSkip + 14.0 + _kRowMarginBottom;
       final skipCount = max(1, (viewport / defaultHeight).ceil());
-      for (var i = 0; i < skipCount; i++) {
-        if (_focusedIndex >= entryItems.length - 1) break;
-        setState(() => _focusedIndex++);
-      }
+      setState(() {
+        _focusedIndex = (_focusedIndex + skipCount).clamp(0, entryItems.length - 1);
+      });
       _ensureVisible(_focusedIndex, items);
     } else if (event.logicalKey == LogicalKeyboardKey.pageUp) {
       final viewport = _scrollController.hasClients
@@ -517,10 +523,9 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
           : 400.0;
       const defaultHeight = _kRowMarginTop + _kSwatchHeight + _kDescriptionSkip + 14.0 + _kRowMarginBottom;
       final skipCount = max(1, (viewport / defaultHeight).ceil());
-      for (var i = 0; i < skipCount; i++) {
-        if (_focusedIndex <= 0) break;
-        setState(() => _focusedIndex--);
-      }
+      setState(() {
+        _focusedIndex = (_focusedIndex - skipCount).clamp(0, entryItems.length - 1);
+      });
       _ensureVisible(_focusedIndex, items);
     } else if (event.logicalKey == LogicalKeyboardKey.enter) {
       if (_focusedIndex >= 0 && _focusedIndex < entryItems.length) {
@@ -679,8 +684,6 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     final shadowColor = _currentPalette.shadowFg;
     final items = _listItems;
 
-    int entryIndex = -1;
-
     return Scaffold(
       backgroundColor: bgColor,
       body: Column(
@@ -797,9 +800,9 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                       palette: _currentPalette,
                     );
                   }
-                  entryIndex++;
+                  final eIdx = item.entryIndex;
                   final entry = item.entry!;
-                  final isFocused = entryIndex == _focusedIndex;
+                  final isFocused = eIdx == _focusedIndex;
                   final isEditing = _editingToken == entry.key;
                   final desc = _tokenDescription(entry.key);
 
@@ -817,8 +820,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                     accentColor: accentColor,
                     dimOverlay: dimmed ? _currentPalette.layerBg : null,
                     onTap: () {
-                      final idx = entryIndex;
-                      setState(() => _focusedIndex = idx);
+                      setState(() => _focusedIndex = eIdx);
                       _listFocusNode.requestFocus();
                       _openColorPicker(entry.key, entry.value);
                     },
@@ -874,11 +876,13 @@ class _ListItem {
   final _ListItemType type;
   final MapEntry<String, Color>? entry;
   final String? headerTitle;
+  final int entryIndex;
 
   _ListItem.header(this.headerTitle)
       : type = _ListItemType.header,
-        entry = null;
-  _ListItem.entry(this.entry)
+        entry = null,
+        entryIndex = -1;
+  _ListItem.entry(this.entry, this.entryIndex)
       : type = _ListItemType.entry,
         headerTitle = null;
 }
@@ -1340,7 +1344,7 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
     setState(() => _nameError = null);
 
     final slug = _slugController.text.trim();
-    if (!_validateSlug(slug)) return;
+    if (widget.cloudSave && !_validateSlug(slug)) return;
 
     Uint8List? bgBytes;
     if (_backgroundImage != null) {
@@ -1440,43 +1444,45 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                   },
                 ),
               ),
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 22),
-                child: TextField(
-                  controller: _slugController,
-                  style: TextStyle(color: textFg, fontSize: 14),
-                  decoration: InputDecoration(
-                    prefixText: 'addtheme/',
-                    prefixStyle: TextStyle(color: subFg, fontSize: 14),
-                    labelText: 'Link',
-                    labelStyle: TextStyle(color: subFg, fontSize: 14),
-                    errorText: _slugError,
-                    errorStyle: TextStyle(color: errorFg, fontSize: 12),
-                    filled: true,
-                    fillColor: inputBg,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide.none,
+              if (widget.cloudSave) ...[
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  child: TextField(
+                    controller: _slugController,
+                    style: TextStyle(color: textFg, fontSize: 14),
+                    decoration: InputDecoration(
+                      prefixText: 'addtheme/',
+                      prefixStyle: TextStyle(color: subFg, fontSize: 14),
+                      labelText: 'Link',
+                      labelStyle: TextStyle(color: subFg, fontSize: 14),
+                      errorText: _slugError,
+                      errorStyle: TextStyle(color: errorFg, fontSize: 12),
+                      filled: true,
+                      fillColor: inputBg,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide:
+                            BorderSide(color: accent, width: 1.5),
+                      ),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide:
-                          BorderSide(color: accent, width: 1.5),
-                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                          RegExp(r'[a-zA-Z0-9_]')),
+                      LengthLimitingTextInputFormatter(_kMaxSlugSize),
+                    ],
+                    onChanged: (v) {
+                      if (_slugError != null) _validateSlug(v);
+                    },
                   ),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(
-                        RegExp(r'[a-zA-Z0-9_]')),
-                    LengthLimitingTextInputFormatter(_kMaxSlugSize),
-                  ],
-                  onChanged: (v) {
-                    if (_slugError != null) _validateSlug(v);
-                  },
                 ),
-              ),
+              ],
               const SizedBox(height: 16),
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
