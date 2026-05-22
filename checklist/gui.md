@@ -215,20 +215,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # language_box — cleanup
 
-## notification_popup — cleanup
-
-- [ ] [CRITICAL] `_onHoverExit` sets `popup.hovered = false` but never calls `setState` — `AnimatedOpacity(opacity: popup.hovered ? 1.0 : 0.0)` doesn't rebuild, so the reply button stays at opacity 1.0 for ~3 seconds after mouse exit until `_startSlowHide` eventually calls `setState`. Fix: add `setState(() { popup.hovered = false; });` at the start of `_onHoverExit` — `notification_popup.dart:269`
-
-- [ ] [CRITICAL] `onReplySend` is nullable but `shouldHideReplyButton` never checks it — if a caller omits `onReplySend`, the reply button still appears for eligible messages, user types a reply and hits send, `widget.onReplySend?.call(...)` silently drops the text, and the popup dismisses (convincing the user it worked). Fix: hide the reply button when `widget.onReplySend == null`, or make the param required — `notification_popup.dart:81, 324, 577 (notification_types.dart)`
-
-- [ ] [MAJOR] `_onUpdateDisplay` ignores its `item` parameter entirely and calls `setState(() {})` unconditionally. `DefaultManager.updateAll()` calls this once per active notification, so with N popups you get N separate full-overlay rebuilds. Should either diff the incoming item against its popup state and skip if unchanged, or at minimum call `setState` once after the loop, not once per item — `notification_popup.dart:158`
-
-- [ ] [MAJOR] `Image.file` in `_Avatar.build` has no `cacheWidth`/`cacheHeight` — the image is decoded at full file resolution and scaled to 62×62 at paint time. Add `cacheWidth: (_photoSize * MediaQuery.devicePixelRatioOf(context)).round()` (or a hardcoded `cacheWidth: 124`) to decode at display size — `notification_popup.dart:741`
-
-- [ ] [MAJOR] `_buildBodySpan` and `_buildEntitySpans` are called inside `_NotificationPopupWidget.build()` on every rebuild. Entity building involves list sorting + repeated `text.substring` calls. The popup overlay rebuilds constantly during position/opacity animations. Cache the result in `_PopupState` (keyed on `item.data` identity) so it is only recomputed when the notification data actually changes — `notification_popup.dart:617, 670, 685`
-
-- [ ] [MAJOR] No `RepaintBoundary` around each `_NotificationPopupWidget`. `AnimatedPositioned` and `AnimatedOpacity` on one popup drive repaints of the entire `Stack`, including all sibling popups. Wrap each `_NotificationPopupWidget` in a `RepaintBoundary` so only the animating popup repaints — `notification_popup.dart:426`
-
 ## notifications_settings_screen — cleanup
 
 - [ ] [CRITICAL] `_showCustomDurationInput` custom mute duration is completely non-functional — two bugs: (1) `parentContext.findAncestorStateOfType<_NotificationTypeSubPageState>()` is called from inside a dialog's `BuildContext`; Flutter dialogs live in the Navigator overlay, not in the calling page's widget subtree, so this always returns `null` and the `if (pageState != null)` guard is always false; (2) even if the ancestor were found, `_muteForDuration(seconds)` is never called — only `setState(() => pageState._enabled = false)` is set, so the engine never receives the mute request. Compare with `_showMuteDurationPicker` (same class) which correctly calls `_muteForDuration(seconds)`. Fix: remove `findAncestorStateOfType`, pass a callback from the subpage to the dialog, and add the `_muteForDuration(seconds)` call — `notifications_settings_screen.dart:2728`
