@@ -6401,6 +6401,17 @@ class EngineService {
     await _callAsync('__engine', 'LaunchPrepaidGiveaway', Uint8List.fromList(payload));
   }
 
+  Future<Map<String, dynamic>> launchRandomGiveaway(String accountId, String chatId, Map<String, dynamic> params) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'params': params,
+    }));
+    final resp = await _callAsync('__engine', 'LaunchRandomGiveaway', Uint8List.fromList(payload));
+    if (resp.isEmpty) return {};
+    return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+  }
+
   // ── Notification Settings ──
 
   Future<bool> getContactSignUpNotification(String accountId) async {

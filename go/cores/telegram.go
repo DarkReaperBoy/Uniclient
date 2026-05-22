@@ -16426,6 +16426,113 @@ func (t *TelegramCore) LaunchPrepaidGiveaway(chatID string, giveawayID int64, pa
 	return err
 }
 
+func (t *TelegramCore) LaunchRandomGiveaway(chatID string, params map[string]interface{}) (map[string]interface{}, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return nil, err }
+	inputPeer, err := t.toInputPeer(peer); if err != nil { return nil, err }
+
+	users, _ := params["users"].(float64)
+	months, _ := params["months"].(float64)
+	currency, _ := params["currency"].(string)
+	amount, _ := params["amount"].(float64)
+	onlyNew, _ := params["only_new_subscribers"].(bool)
+	winnersVisible, _ := params["winners_are_visible"].(bool)
+	prizeDesc, _ := params["prize_description"].(string)
+	untilDate, _ := params["until_date"].(float64)
+	randomID, _ := params["random_id"].(float64)
+	storeProduct, _ := params["store_product"].(string)
+	storeQuantity, _ := params["store_quantity"].(float64)
+
+	var countries []string
+	if cs, ok := params["countries"].([]interface{}); ok {
+		for _, c := range cs {
+			if s, ok := c.(string); ok {
+				countries = append(countries, s)
+			}
+		}
+	}
+
+	var additionalPeers []tg.InputPeerClass
+	if aps, ok := params["additional_peers"].([]interface{}); ok {
+		for _, ap := range aps {
+			if apStr, ok := ap.(string); ok {
+				p, err := t.resolvePeer(apStr)
+				if err != nil { continue }
+				ip, err := t.toInputPeer(p)
+				if err != nil { continue }
+				additionalPeers = append(additionalPeers, ip)
+			}
+		}
+	}
+
+	purpose := &tg.InputStorePaymentPremiumGiveaway{
+		BoostPeer: inputPeer,
+		Currency:  currency,
+		Amount:    int64(amount),
+	}
+	if onlyNew {
+		purpose.SetOnlyNewSubscribers(true)
+	}
+	if winnersVisible {
+		purpose.SetWinnersAreVisible(true)
+	}
+	if len(additionalPeers) > 0 {
+		purpose.SetAdditionalPeers(additionalPeers)
+	}
+	if len(countries) > 0 {
+		purpose.SetCountriesISO2(countries)
+	}
+	if prizeDesc != "" {
+		purpose.SetPrizeDescription(prizeDesc)
+	}
+	if untilDate > 0 {
+		purpose.UntilDate = int(untilDate)
+	}
+	if randomID > 0 {
+		purpose.RandomID = int64(randomID)
+	}
+
+	option := tg.PremiumGiftCodeOption{
+		Users:    int(users),
+		Months:   int(months),
+		Currency: currency,
+		Amount:   int64(amount),
+	}
+	if storeProduct != "" {
+		option.SetStoreProduct(storeProduct)
+	}
+	if storeQuantity > 0 {
+		option.SetStoreQuantity(int(storeQuantity))
+	}
+
+	invoice := &tg.InputInvoicePremiumGiftCode{
+		Purpose: purpose,
+		Option:  option,
+	}
+
+	rawForm, err := t.api.PaymentsGetPaymentForm(t.ctx, &tg.PaymentsGetPaymentFormRequest{
+		Invoice: invoice,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get payment form: %w", err)
+	}
+	form, ok := rawForm.(*tg.PaymentsPaymentForm)
+	if !ok {
+		return nil, fmt.Errorf("unexpected payment form type: %T", rawForm)
+	}
+
+	result := map[string]interface{}{
+		"form_id": form.FormID,
+		"bot_id":  form.BotID,
+		"title":   form.Title,
+	}
+	if form.URL != "" {
+		result["url"] = form.URL
+	}
+	return result, nil
+}
+
 func (t *TelegramCore) EditChannelTitle(chatID string, title string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ErrAuth }

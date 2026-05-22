@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../state/app_state.dart';
 import '../bridge/engine_service.dart';
@@ -53,6 +54,8 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   String? _error;
 
   List<Map<String, dynamic>> _options = [];
+  List<int> _uniqueMonths = [];
+  List<int> _uniqueUsers = [];
   int _selectedOptionIndex = 0;
   int _selectedPrepaidIndex = 0;
 
@@ -83,6 +86,8 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
       if (!mounted) return;
       setState(() {
         _options = opts;
+        _uniqueMonths = opts.map((o) => o['months'] as int).toSet().toList()..sort();
+        _uniqueUsers = opts.map((o) => o['users'] as int).toSet().toList()..sort();
         _loading = false;
       });
     } catch (e) {
@@ -128,10 +133,52 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
     }
   }
 
-  void _openBoostLink() {
-    Navigator.of(context).pop();
+  Future<void> _launchRandomGiveaway() async {
+    if (_launching || _options.isEmpty) return;
+    setState(() => _launching = true);
+
+    final selectedOpt = _selectedOptionIndex < _options.length
+        ? _options[_selectedOptionIndex]
+        : _options.first;
     final engine = Provider.of<AppState>(context, listen: false).engine;
-    engine.openPremiumSubscription(widget.accountId, ref: 'boosts__channel');
+
+    try {
+      final result = await engine.launchRandomGiveaway(
+        widget.accountId,
+        widget.chatId,
+        {
+          'users': selectedOpt['users'],
+          'months': selectedOpt['months'],
+          'currency': selectedOpt['currency'] ?? 'USD',
+          'amount': selectedOpt['amount'] ?? 0,
+          if (selectedOpt['store_product'] != null)
+            'store_product': selectedOpt['store_product'],
+          if (selectedOpt['store_quantity'] != null)
+            'store_quantity': selectedOpt['store_quantity'],
+          'only_new_subscribers': _onlyNewSubscribers,
+          'winners_are_visible': _showWinners,
+          'until_date': _untilDate.millisecondsSinceEpoch ~/ 1000,
+          'random_id': Random().nextInt(1 << 31),
+          if (_prizeController.text.isNotEmpty)
+            'prize_description': _prizeController.text,
+        },
+      );
+      if (!mounted) return;
+      final url = result['url'] as String?;
+      if (url != null && url.isNotEmpty) {
+        Navigator.of(context).pop();
+        launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        Navigator.of(context).pop();
+        showTelegramToast(context, 'Giveaway launched!');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _launching = false;
+        _error = e.toString();
+      });
+    }
   }
 
   @override
@@ -220,6 +267,18 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
             textAlign: TextAlign.center,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 16),
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _error = null;
+                _loading = true;
+              });
+              _loadOptions();
+            },
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('Retry'),
           ),
         ],
       ),
@@ -349,9 +408,6 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
       ];
     }
 
-    final uniqueMonths = _options.map((o) => o['months'] as int).toSet().toList()..sort();
-    final uniqueUsers = _options.map((o) => o['users'] as int).toSet().toList()..sort();
-
     final selectedOpt = _selectedOptionIndex < _options.length
         ? _options[_selectedOptionIndex]
         : _options.first;
@@ -373,7 +429,7 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
       Wrap(
         spacing: 6,
         runSpacing: 4,
-        children: uniqueUsers.map((u) {
+        children: _uniqueUsers.map((u) {
           final isSelected = selectedOpt['users'] == u;
           return ChoiceChip(
             label: Text('$u'),
@@ -397,7 +453,7 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
       Wrap(
         spacing: 6,
         runSpacing: 4,
-        children: uniqueMonths.map((m) {
+        children: _uniqueMonths.map((m) {
           final isSelected = selectedOpt['months'] == m;
           return ChoiceChip(
             label: Text('$m mo'),
@@ -536,14 +592,17 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
       width: double.infinity,
       height: 44,
       child: ElevatedButton(
-        onPressed: _openBoostLink,
+        onPressed: _launching ? null : _launchRandomGiveaway,
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        child: const Text('Start Giveaway', style: TextStyle(
-          fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white,
-        )),
+        child: _launching
+            ? const SizedBox(width: 20, height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Text('Start Giveaway', style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white,
+              )),
       ),
     );
   }

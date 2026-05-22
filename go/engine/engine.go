@@ -1690,6 +1690,20 @@ func (e *Engine) LaunchPrepaidGiveaway(accountID, chatID string, giveawayID int6
 	return fmt.Errorf("platform does not support prepaid giveaways")
 }
 
+func (e *Engine) LaunchRandomGiveaway(accountID, chatID string, params map[string]interface{}) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type randomGiveawayLauncher interface {
+		LaunchRandomGiveaway(chatID string, params map[string]interface{}) (map[string]interface{}, error)
+	}
+	if l, ok := acc.Core.(randomGiveawayLauncher); ok {
+		return l.LaunchRandomGiveaway(chatID, params)
+	}
+	return nil, fmt.Errorf("platform does not support random giveaways")
+}
+
 func (e *Engine) GetFullChat(accountID, chatID string) (*cores.Dialog, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
