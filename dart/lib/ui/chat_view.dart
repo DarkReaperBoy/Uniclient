@@ -58,6 +58,7 @@ import 'emoji_status_widget.dart';
 import 'choose_datetime_box.dart';
 import 'emoji_panel.dart';
 import '../utils/web_drop.dart';
+import '../l10n/strings.dart';
 
 final _hiddenPinnedMessages = <String>{};
 
@@ -4635,6 +4636,18 @@ class _ChatViewState extends State<ChatView>
           if (paths.isNotEmpty) {
             _uploadFiles(context.read<ChatState>(), paths,
                 overrideSendAsDocuments: asDocuments);
+          }
+        },
+        onDropRejected: (count) {
+          setState(() {
+            _isDragOver = false;
+            _dragHoveredCard = 0;
+          });
+          _dragOverlayAnimCtrl.reverse();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(TrStrings.lngFileTooLarge(count))),
+            );
           }
         },
       );

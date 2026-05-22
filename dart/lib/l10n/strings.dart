@@ -20,6 +20,8 @@ class TrStrings {
   static String lngPasscodeEmpty() => 'Please enter your passcode';
   static String lngPasscodeLogoutSure() => 'Are you sure you want to log out?';
   static String lngCancel() => 'Cancel';
+  static String lngFileTooLarge(int count) =>
+      count == 1 ? 'The file exceeds the size limit.' : '$count files exceed the size limit.';
   static String lngFloodError() => 'Too many tries. Please try again later.';
 
   // Notification grouping (notifications_manager.cpp)

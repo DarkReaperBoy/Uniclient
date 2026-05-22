@@ -15,7 +15,7 @@ typedef NotificationUpdateDisplayCallback = void Function(
 
 class DefaultNotificationItem {
   final String id;
-  final NotificationData data;
+  NotificationData data;
   final DateTime shownAt;
   bool waitingForInput;
 
@@ -33,8 +33,6 @@ const _inputCheckInterval = Duration(milliseconds: 300);
 class DefaultManager extends NotificationManager {
   @override
   ManagerType get type => ManagerType.defaultPopup;
-
-  static const _kMaxQueueSize = 6;
 
   final List<DefaultNotificationItem> _active = [];
   final Queue<DefaultNotificationItem> _queue = Queue();
@@ -80,9 +78,6 @@ class DefaultManager extends NotificationManager {
     );
 
     if (_active.length >= _maxVisible) {
-      if (_queue.length >= _kMaxQueueSize) {
-        _queue.removeFirst();
-      }
       _queue.addLast(item);
       onHideAllChanged?.call();
       return;
@@ -179,8 +174,13 @@ class DefaultManager extends NotificationManager {
     _active.clear();
     _queue.clear();
     for (final id in ids) {
-      onDismiss?.call(id);
+      onStartHiding?.call(id);
     }
+    Timer(const Duration(milliseconds: 150), () {
+      for (final id in ids) {
+        onDismiss?.call(id);
+      }
+    });
     onHideAllChanged?.call();
   }
 
@@ -272,6 +272,22 @@ class DefaultManager extends NotificationManager {
   void updateAll() {
     for (final item in _active) {
       onUpdateDisplay?.call(item);
+    }
+  }
+
+  void updateAvatar(String notifId, String newPath) {
+    final item = _active.where((n) => n.id == notifId).firstOrNull;
+    if (item == null) return;
+    item.data = item.data.copyWith(avatarPath: newPath);
+    onUpdateDisplay?.call(item);
+  }
+
+  void updateAvatarForPeer(String accountId, String chatId, String newPath) {
+    for (final item in _active) {
+      if (item.data.accountId == accountId && item.data.chatId == chatId) {
+        item.data = item.data.copyWith(avatarPath: newPath);
+        onUpdateDisplay?.call(item);
+      }
     }
   }
 

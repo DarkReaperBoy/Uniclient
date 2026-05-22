@@ -2184,9 +2184,9 @@ class _UniClientAppState extends State<UniClientApp>
         final scaleFactor = appState.uiScaleFactor;
         Widget content = Listener(
           behavior: HitTestBehavior.translucent,
-          onPointerDown: (_) => appState.updateNonIdle(),
-          onPointerMove: (_) => appState.updateNonIdle(),
-          onPointerSignal: (_) => appState.updateNonIdle(),
+          onPointerDown: (_) { appState.updateNonIdle(); _defaultNotifManager?.onUserInput(); },
+          onPointerMove: (_) { appState.updateNonIdle(); _defaultNotifManager?.onUserInput(); },
+          onPointerSignal: (_) { appState.updateNonIdle(); _defaultNotifManager?.onUserInput(); },
           child: Stack(
           children: [
             RepaintBoundary(

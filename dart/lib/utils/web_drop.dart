@@ -24,6 +24,7 @@ Widget buildWebDropZone({
   void Function()? onDragLeave,
   void Function(Offset localPosition)? onDragUpdate,
   void Function(List<WebDroppedFile> files)? onDrop,
+  void Function(int rejectedCount)? onDropRejected,
 }) {
   return impl.buildWebDropZone(
     child: child,
@@ -31,5 +32,6 @@ Widget buildWebDropZone({
     onDragLeave: onDragLeave,
     onDragUpdate: onDragUpdate,
     onDrop: onDrop,
+    onDropRejected: onDropRejected,
   );
 }

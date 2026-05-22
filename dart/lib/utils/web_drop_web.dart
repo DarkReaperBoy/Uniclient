@@ -14,12 +14,14 @@ Widget buildWebDropZone({
   void Function()? onDragLeave,
   void Function(Offset localPosition)? onDragUpdate,
   void Function(List<WebDroppedFile> files)? onDrop,
+  void Function(int rejectedCount)? onDropRejected,
 }) {
   return _WebDropZone(
     onDragEnter: onDragEnter,
     onDragLeave: onDragLeave,
     onDragUpdate: onDragUpdate,
     onDrop: onDrop,
+    onDropRejected: onDropRejected,
     child: child,
   );
 }
@@ -30,6 +32,7 @@ class _WebDropZone extends StatefulWidget {
   final void Function()? onDragLeave;
   final void Function(Offset localPosition)? onDragUpdate;
   final void Function(List<WebDroppedFile> files)? onDrop;
+  final void Function(int rejectedCount)? onDropRejected;
 
   const _WebDropZone({
     required this.child,
@@ -37,6 +40,7 @@ class _WebDropZone extends StatefulWidget {
     this.onDragLeave,
     this.onDragUpdate,
     this.onDrop,
+    this.onDropRejected,
   });
 
   @override
@@ -49,7 +53,7 @@ class _WebDropZoneState extends State<_WebDropZone> {
   DateTime _lastDragUpdate = DateTime.fromMillisecondsSinceEpoch(0);
   static const _kDragUpdateThrottleMs = 16; // ~60Hz max
   static const _kMaxConcurrentReads = 4;
-  static const _kMaxFileSizeBytes = 2 * 1024 * 1024 * 1024; // 2 GB
+  static const _kMaxFileSizeBytes = 4 * 1024 * 1024 * 1024; // 4 GB (premium limit)
 
   late final JSFunction _onDragEnter;
   late final JSFunction _onDragOver;
@@ -161,11 +165,15 @@ class _WebDropZoneState extends State<_WebDropZone> {
 
   Future<void> _readFiles(List<web.File> webFiles) async {
     final results = <WebDroppedFile>[];
+    var sizeRejected = 0;
     for (var i = 0; i < webFiles.length; i += _kMaxConcurrentReads) {
       final batch = webFiles.skip(i).take(_kMaxConcurrentReads);
       final batchResults = await Future.wait(batch.map((wf) async {
         try {
-          if (wf.size > _kMaxFileSizeBytes) return null;
+          if (wf.size > _kMaxFileSizeBytes) {
+            sizeRejected++;
+            return null;
+          }
           final bytes = await _readFileBytes(wf);
           return WebDroppedFile(
             name: wf.name,
@@ -182,6 +190,8 @@ class _WebDropZoneState extends State<_WebDropZone> {
     if (!mounted) return;
     if (results.isNotEmpty) {
       widget.onDrop?.call(results);
+    } else if (sizeRejected > 0) {
+      widget.onDropRejected?.call(sizeRejected);
     } else {
       widget.onDragLeave?.call();
     }
