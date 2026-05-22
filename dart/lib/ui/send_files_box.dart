@@ -952,9 +952,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   Future<bool> _tryClipboardImageWindows() async {
-    final r = await Process.run('powershell', ['-Command', 'Get-Clipboard -Format Image | ForEach-Object { \$_.Save("${Directory.systemTemp.path}\\uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.png") }']);
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final r = await Process.run('powershell', ['-Command', 'Get-Clipboard -Format Image | ForEach-Object { \$_.Save("${Directory.systemTemp.path}\\uniclient_paste_$ts.png") }']);
     if (r.exitCode != 0) return false;
-    final tmpFile = File('${Directory.systemTemp.path}\\uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.png');
+    final tmpFile = File('${Directory.systemTemp.path}\\uniclient_paste_$ts.png');
     if (await tmpFile.exists() && await tmpFile.length() > 0) {
       final name = tmpFile.uri.pathSegments.last;
       final prepared = _PreparedFile(path: tmpFile.path, name: name, size: tmpFile.lengthSync(), type: _detectType(name));
@@ -2095,18 +2096,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     return true;
   }
 
-  void _onAiCaptionTap() {
-    if (!_isPremium) {
-      showTelegramToast(context, 'AI captions require a Telegram Premium subscription');
-      return;
-    }
-    final currentCaption = _captionController.text;
-    if (_files.isEmpty) return;
-    final appState = context.read<AppState>();
-    final accountId = appState.activeAccountId;
-    if (accountId == null) return;
-    showTelegramToast(context, 'Generating AI caption...');
-  }
 
   Future<void> _pickScheduleDate() async {
     final result = await showChooseDateTimeBox(
@@ -2235,14 +2224,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
               ),
             ),
             Flexible(
-              child: NotificationListener<ScrollNotification>(
-                onNotification: (notification) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _updateScrollShadows();
-                  });
-                  return false;
-                },
-                child: Stack(
+              child: Stack(
                   children: [
                     SingleChildScrollView(
                       controller: _scrollController,
@@ -2385,7 +2367,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                             ),
                         ],
                       ),
-                    if (context.read<AppState>().photoEditorHintCount < 5 && showMediaPreview && mediaFiles.any((f) => f.type == _FileType.photo && !f.isSticker))
+                    if (context.watch<AppState>().photoEditorHintCount < 5 && showMediaPreview && mediaFiles.any((f) => f.type == _FileType.photo && !f.isSticker))
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
@@ -2487,7 +2469,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                         ),
                       ),
                   ],
-                ),
               ),
             ),
             Divider(height: 1, color: dividerColor),
@@ -2544,11 +2525,6 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                           ),
                         ),
                       ),
-                    ),
-                    _AiCaptionButton(
-                      accentColor: accentFg,
-                      subColor: subFg,
-                      onPressed: _onAiCaptionTap,
                     ),
                     _EmojiToggleButton(
                       active: _showEmojiPanel,
@@ -2679,7 +2655,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                   const SizedBox(width: 4),
                   _SendMenuButton(
                     accentColor: accentFg,
-                    starsPerMessage: widget.starsPerMessage,
+                    starsPerMessage: _starsPerMessage,
                     fileCount: _files.length,
                     onSend: _send,
                     onShowMenu: _showSendMenu,
@@ -2866,6 +2842,7 @@ class _SingleMediaPreview extends StatelessWidget {
               Image.file(
                 File(file.path),
                 width: _previewWidth,
+                cacheWidth: _previewWidth.toInt(),
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => Container(
                   width: _previewWidth,
@@ -3111,6 +3088,7 @@ class _GifPreview extends StatelessWidget {
             Image.file(
               File(file.path),
               width: _previewWidth,
+              cacheWidth: _previewWidth.toInt(),
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Container(
                 width: _previewWidth,
@@ -3206,7 +3184,7 @@ class _AlbumPreviewState extends State<_AlbumPreview>
     _shrinkAnim = AnimationController(
       duration: const Duration(milliseconds: _shrinkDurationMs),
       vsync: this,
-    )..addListener(() => setState(() {}));
+    );
     _recompute();
   }
 
@@ -3471,13 +3449,16 @@ class _AlbumPreviewState extends State<_AlbumPreview>
       curve: Curves.easeOutCubic,
       width: _previewWidth,
       height: _totalHeight,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          for (int i = 0; i < _layout.length; i++)
-            if (i != _dragIndex) _buildThumb(i, false),
-          if (_dragIndex != null) _buildThumb(_dragIndex!, true),
-        ],
+      child: AnimatedBuilder(
+        animation: _shrinkAnim,
+        builder: (context, _) => Stack(
+          clipBehavior: Clip.none,
+          children: [
+            for (int i = 0; i < _layout.length; i++)
+              if (i != _dragIndex) _buildThumb(i, false),
+            if (_dragIndex != null) _buildThumb(_dragIndex!, true),
+          ],
+        ),
       ),
     );
   }
@@ -3512,6 +3493,8 @@ class _AlbumPreviewState extends State<_AlbumPreview>
               Image.file(
                 File(file.path),
                 fit: BoxFit.cover,
+                cacheWidth: thumbW.toInt(),
+                cacheHeight: thumbH.toInt(),
                 errorBuilder: (_, __, ___) => Container(
                   color: Colors.grey[800],
                   child: const Icon(Icons.broken_image,
@@ -3959,12 +3942,14 @@ class _FileListPreviewState extends State<_FileListPreview> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (int i = 0; i < widget.files.length; i++) ...[
-          if (i > 0) SizedBox(height: _rowSkip),
-          DragTarget<int>(
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: widget.files.length,
+      itemBuilder: (context, i) {
+        return Padding(
+          padding: EdgeInsets.only(top: i > 0 ? _rowSkip : 0),
+          child: DragTarget<int>(
             onWillAcceptWithDetails: (details) {
               final fromIdx = details.data;
               if (fromIdx < 0 || fromIdx >= widget.files.length) return false;
@@ -4072,8 +4057,8 @@ class _FileListPreviewState extends State<_FileListPreview> {
               );
             },
           ),
-        ],
-      ],
+        );
+      },
     );
   }
 }
@@ -4161,6 +4146,8 @@ class _FileCard extends StatelessWidget {
                       File(file.path),
                       width: _fileThumbSize,
                       height: _fileThumbSize,
+                      cacheWidth: _fileThumbSize.toInt(),
+                      cacheHeight: _fileThumbSize.toInt(),
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: Colors.grey[800],
@@ -4425,37 +4412,6 @@ class _SendMenuButton extends StatelessWidget {
             color: accentColor,
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _AiCaptionButton extends StatelessWidget {
-  final Color accentColor;
-  final Color subColor;
-  final VoidCallback onPressed;
-
-  const _AiCaptionButton({
-    required this.accentColor,
-    required this.subColor,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 36,
-      height: 36,
-      child: IconButton(
-        icon: Icon(
-          Icons.auto_awesome_outlined,
-          color: subColor,
-          size: 20,
-        ),
-        onPressed: onPressed,
-        splashRadius: 18,
-        padding: EdgeInsets.zero,
-        tooltip: 'AI caption',
       ),
     );
   }
