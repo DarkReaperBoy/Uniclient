@@ -135,6 +135,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
   int _selectionAnchorIndex = -1;
 
   final Map<DateTime, _DynamicImageState> _dynamicImages = {};
+  final List<DateTime> _loadedMonths = [];
 
   double _dragAccum = 0;
   static const double _dragMonthThreshold = 60;
@@ -161,6 +162,20 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
 
   void _loadDynamicImages() {
     if (widget.dynamicImageForDate == null) return;
+    final monthKey = DateTime(_year, _month);
+    if (!_loadedMonths.contains(monthKey)) {
+      _loadedMonths.add(monthKey);
+      while (_loadedMonths.length > 3) {
+        final evictMonth = _loadedMonths.removeAt(0);
+        _dynamicImages.removeWhere((key, state) {
+          if (key.year == evictMonth.year && key.month == evictMonth.month) {
+            state.fadeController?.dispose();
+            return true;
+          }
+          return false;
+        });
+      }
+    }
     final daysInMonth = DateTime(_year, _month + 1, 0).day;
     for (var d = 1; d <= daysInMonth; d++) {
       final date = DateTime(_year, _month, d);
@@ -269,7 +284,11 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
     final date = DateTime(_year, _month, day);
     if (_isDayDisabled(date)) return;
     if (_selectionMode) {
-      _startSelection(date, day);
+      if (_selectionStart != null) {
+        _updateSelection(date, day);
+      } else {
+        _startSelection(date, day);
+      }
       return;
     }
     Navigator.of(context).pop(date);
@@ -1223,6 +1242,8 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   late AnimationController _errorBorderController;
   late AnimationController _premiumToastController;
   Timer? _premiumToastTimer;
+  late final double _cachedAtWidth;
+  final _repeatRowKey = GlobalKey();
 
   @override
   void initState() {
@@ -1247,6 +1268,10 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
       duration: const Duration(milliseconds: 200),
       reverseDuration: const Duration(milliseconds: 1000),
       vsync: this,
+    );
+    _cachedAtWidth = _measureTextWidth(
+      'at',
+      const TextStyle(fontSize: 14),
     );
   }
 
@@ -1363,7 +1388,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   }
 
   void _showRepeatMenu() {
-    final box = context.findRenderObject() as RenderBox;
+    final box = _repeatRowKey.currentContext!.findRenderObject() as RenderBox;
     final position = box.localToGlobal(Offset(0, box.size.height));
     showTelegramMenu<int>(
       context: context,
@@ -1476,10 +1501,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
             child: LayoutBuilder(
               builder: (context, constraints) {
                 const atText = 'at';
-                final atWidth = _measureTextWidth(
-                  atText,
-                  TextStyle(fontSize: 14, color: separatorFg),
-                );
+                final atWidth = _cachedAtWidth;
                 final totalWidth = _scheduleDateWidth +
                     _scheduleAtSkip +
                     atWidth +
@@ -1567,6 +1589,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
           ),
           if (widget.showRepeat)
             Padding(
+              key: _repeatRowKey,
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
               child: GestureDetector(
                 onTap: _onRepeatTap,
@@ -1638,6 +1661,14 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
                                 fontWeight: FontWeight.w600,
                                 decoration: TextDecoration.underline,
                               ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () {
+                                  final appState = context.read<AppState>();
+                                  final accountId = appState.activeAccount?.id;
+                                  if (accountId != null) {
+                                    appState.engine.openPremiumSubscription(accountId, ref: 'schedule_repeat');
+                                  }
+                                },
                             ),
                             const TextSpan(text: ' to schedule repeating messages.', style: toastNormal),
                           ],
@@ -1751,12 +1782,14 @@ class _TimePickerBoxWidgetState extends State<_TimePickerBoxWidget>
   late Animation<double> _snapAnimation;
   double _snapFrom = 0;
   double _snapTo = 0;
+  late final double _cachedDrumWidth;
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
     _scrollOffset = widget.initialIndex * _drumItemHeight;
+    _cachedDrumWidth = _maxLabelWidth(const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)) + 32;
     _snapController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
@@ -1793,6 +1826,9 @@ class _TimePickerBoxWidgetState extends State<_TimePickerBoxWidget>
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowUp) {
       _goToIndex(_selectedIndex - 1);
@@ -1827,7 +1863,7 @@ class _TimePickerBoxWidgetState extends State<_TimePickerBoxWidget>
     final bandColor = context.palette.windowBgActive;
     final centerY = (_drumHeight - _drumItemHeight) / 2;
     final labelStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.w500);
-    final drumWidth = _maxLabelWidth(labelStyle) + 32;
+    final drumWidth = _cachedDrumWidth;
 
     return TelegramBox(
       title: widget.title,
