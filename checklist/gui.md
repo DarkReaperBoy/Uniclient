@@ -146,12 +146,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## chat_switch_overlay — cleanup
 
-- [ ] [MAJOR] `_onChatStateChanged` returns early on `removed.isEmpty` — when `recentTopicsFor` asynchronously loads topic data it calls `notifyListeners()`, which fires this listener, but the listener exits without `setState` because no chats were removed; forum-topic cells in the overlay never redraw to show the loaded custom emoji icon or correct `colorId` — `chat_switch_overlay.dart:78`
-
-- [ ] [MAJOR] `base64Decode` called uncached for parent-badge avatar — lines 490 and 495 call `base64Decode(parentChat.avatarPath)` inline on every rebuild; the main userpic is cached through `_decodeAvatar`/`_avatarCache`, but the 20×20 parent badge for topic cells bypasses the cache entirely, re-decoding a potentially large base64 string on each frame — `chat_switch_overlay.dart:490`
-
-- [ ] [MAJOR] state mutated directly inside `build()` without `setState` — inside the `LayoutBuilder` callback, `_shownPerRow`, `_shownRows`, and `_selected` are all assigned as bare field writes (lines 276–281); Flutter's framework is never notified of the `_selected` clamp, so if a rebuild is triggered by something other than user input (e.g. theme change, ancestor rebuild) before the next keyboard event, the visual selection and the internal field can diverge until the next setState cycle — `chat_switch_overlay.dart:276`
-
 # chat_view — cleanup
 
 ## CRITICAL
