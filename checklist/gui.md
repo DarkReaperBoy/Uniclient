@@ -181,21 +181,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
   }
   ```
 
-## confirm_box — cleanup
-
-- [ ] [CRITICAL] `_ReportOptionPickerBox` Back button pops with `null` (line 1721: `Navigator.of(context).pop()`), which causes `showDynamicReportFlow` to hit the `if (picked == null) return false` guard at line 1545 — the entire report flow exits instead of going back one level. Additionally, `showDynamicReportFlow` only tracks `isSubLevel` (bool) with no option stack, so there is no mechanism to restore the previous level anyway. Back navigation in the multi-step report flow is completely broken. — `confirm_box.dart:1545,1721`
-
-- [ ] [CRITICAL] `enum ReportTarget` (line 1504) is declared but never used anywhere in the codebase — no caller passes a target type, `showDynamicReportFlow` ignores target entirely, and `engine.reportMessage` is always called regardless. The enum is dead code and the report flow makes no distinction between reporting a message vs. a channel/bot/story/profilePhoto. — `confirm_box.dart:1504`
-
-- [ ] [MAJOR] `_captureThumbnails()` runs thumbnail captures sequentially with `await` inside a `for` loop (lines 1294–1300). Each capture has a 3-second timeout (lines 1309, 1314, 1321). With up to 12 sources the dialog can take up to 36 seconds to populate. Should use `Future.wait` to capture all thumbnails in parallel. — `confirm_box.dart:1294`
-
-- [ ] [MAJOR] Each thumbnail that arrives calls `setState` individually (line 1298), causing a full rebuild of the TelegramBox + GridView per thumbnail instead of batching. With parallel capture (see above) this would matter less, but even sequentially it's one rebuild per source. Collect all results first, then call `setState` once. — `confirm_box.dart:1297`
-
-- [ ] [MAJOR] `openSystemSettingsForPermission` on Linux (line 1022) calls `Process.run('xdg-open', ['gnome-control-center://sound'])` — `xdg-open` does not handle `gnome-control-center://` URI scheme; the call silently fails on all desktop Linux environments. The fallback (line 1023) `xdg-open x-settings://sound` is also not a real scheme. Should call `gnome-control-center sound` directly (GNOME) or `systemsettings5` (KDE) or a generic `pavucontrol`. Users who click "Settings" on the microphone permission dialog will get no action on Linux. — `confirm_box.dart:1022`
-
-- [ ] [MAJOR] `_SingleChoiceContentState._select()` always calls `Navigator.of(context).pop(index)` immediately on any radio tap (line 867), making the "OK" button (line 898–901) and the `onConfirm` Enter handler (line 879) dead code that can never be reached in normal usage. The OK button renders but never fires because the dialog is already dismissed. Remove the OK button or change `_select` to not auto-dismiss (depending on intended UX). — `confirm_box.dart:864,879,898`
-
-- [ ] [MAJOR] `Image.file` for screen-share thumbnails (line 1395) specifies no `cacheWidth`/`cacheHeight`. Thumbnails are captured at 160×100 pixels by the capture commands (lines 1313, 1320) but Flutter decodes at full display resolution without size hints, wasting memory for each preview card. Add `cacheWidth: 160, cacheHeight: 100`. — `confirm_box.dart:1395`
 
 ## contacts_screen — cleanup
 
