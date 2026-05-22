@@ -75,7 +75,10 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
     final chatState = context.read<ChatState>();
     final currentIds = chatState.chats.map((c) => c.chatId).toSet();
     final removed = _list.where((c) => !currentIds.contains(c.chatId)).toList();
-    if (removed.isEmpty) return;
+    if (removed.isEmpty) {
+      setState(() {});
+      return;
+    }
     setState(() {
       for (final chat in removed) {
         final idx = _list.indexOf(chat);
@@ -276,8 +279,14 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
         _shownPerRow = perRow;
         _shownRows = rows;
 
-        if (_selected >= visible) {
-          _selected = visible - 1;
+        final effectiveSelected = _selected >= visible ? visible - 1 : _selected;
+        if (_selected != effectiveSelected) {
+          final clamped = effectiveSelected;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _selected != clamped) {
+              setState(() => _selected = clamped);
+            }
+          });
         }
 
         return GestureDetector(
@@ -302,7 +311,22 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
                 child: Wrap(
                   children: List.generate(visible.clamp(0, _list.length), (i) {
                     final chat = _list[i];
-                    final selected = i == _selected;
+                    final selected = i == effectiveSelected;
+
+                    Uint8List? decodedParentAvatar;
+                    if (chat.type == ChatType.topic && chat.parentId.isNotEmpty) {
+                      final chatState = context.read<ChatState>();
+                      final parentChat = chatState.chats.cast<ChatInfo?>().firstWhere(
+                        (c) => c!.chatId == chat.parentId && c.accountId == chat.accountId,
+                        orElse: () => null,
+                      );
+                      if (parentChat != null &&
+                          parentChat.avatarPath.isNotEmpty &&
+                          !parentChat.avatarPath.startsWith('/')) {
+                        decodedParentAvatar = _decodeAvatar(parentChat.avatarPath);
+                      }
+                    }
+
                     return GestureDetector(
                       onTap: () {
                         setState(() => _selected = i);
@@ -320,6 +344,7 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
                                   !chat.avatarPath.startsWith('/')
                               ? _decodeAvatar(chat.avatarPath)
                               : null,
+                          decodedParentAvatar: decodedParentAvatar,
                         ),
                       ),
                     );
@@ -341,6 +366,7 @@ class _ChatSwitchCell extends StatelessWidget {
   final Color nameColor;
   final bool isDark;
   final Uint8List? decodedAvatar;
+  final Uint8List? decodedParentAvatar;
 
   const _ChatSwitchCell({
     required this.chat,
@@ -349,6 +375,7 @@ class _ChatSwitchCell extends StatelessWidget {
     required this.nameColor,
     required this.isDark,
     this.decodedAvatar,
+    this.decodedParentAvatar,
   });
 
   @override
@@ -487,7 +514,8 @@ class _ChatSwitchCell extends StatelessWidget {
       if (parentChat != null && parentChat.avatarPath.isNotEmpty) {
         if (!parentChat.avatarPath.startsWith('/')) {
           parentBadge = ClipOval(
-            child: Image.memory(base64Decode(parentChat.avatarPath),
+            child: Image.memory(
+                decodedParentAvatar ?? base64Decode(parentChat.avatarPath),
                 width: 20, height: 20, fit: BoxFit.cover),
           );
         } else {
