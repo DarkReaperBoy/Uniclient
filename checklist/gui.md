@@ -150,15 +150,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## MAJOR
 
-- [ ] [MAJOR] `_WaveformPainter.shouldRepaint` (line 10316) does not check `bars != old.bars`. If the bars list loads or changes after the initial render while `progress` and colors are unchanged (e.g., at position 0.0), the waveform stays blank. Add `bars != old.bars` to the condition. — `chat_view.dart:10316`
-
-- [ ] [MAJOR] `_AiEditorButton` button tooltip says "AI Editor" (line 21615) and `_openAiEditor` is the handler name, but `_AiMode` has exactly one value (`translate`) and the dialog header reads "Translate". The button is mislabeled — either rename tooltip/button to "Translate" or implement the additional AI modes the name implies. — `chat_view.dart:21689`
-
-- [ ] [MAJOR] `_updateStickyDate` (line 901) uses `const avgHeight = 55.0` to estimate which message index sits at the top of the viewport (`topIndex = (topDistance / avgHeight).floor()`). Message heights vary widely: photos ~160–200 px, stickers ~140 px, plain text ~44 px. The estimated index will frequently point to a message from a different day, showing the wrong date badge. Use `ScrollPosition.extentBefore`/position tracking or render the real sticky date from visible items reported by a `ScrollNotification`. — `chat_view.dart:901`
-
-- [ ] [MAJOR] Service message widget dispatch (line 7547) uses `msg.contentText.contains('created the group')` and `contains('created topic')` to choose between `_GroupAboutServiceMessage` and `_TopicCreatedServiceMessage`. These are raw English strings from the Go bridge. Any change in bridge wording silently falls through to the generic `_ServiceMessage` widget with no error. Should use a typed field (e.g., `msg.serviceType` enum) rather than substring-matching localizable text. — `chat_view.dart:7547`
-
-- [ ] [MAJOR] `AnimatedPadding` inside `ListView.builder` item builder (line 7655) fires on every visible row simultaneously when `inSelectionMode` toggles. In a chat with 50+ visible messages, all rows animate padding in parallel (160 ms, `Curves.easeInOut`). At minimum wrap each row's `AnimatedPadding` in a `RepaintBoundary`, or drive a single animation from the parent and propagate it as a plain offset rather than using implicit per-widget animations. — `chat_view.dart:7655`
 
 ## choose_datetime_box — cleanup
 
