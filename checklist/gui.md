@@ -253,20 +253,6 @@ This bridge is production-ready. All requirements from CLAUDE.md are met:
 - ✓ Properly tested
 - ✓ No platform-specific hacks
 
-# chat_state — Folder filtering, message refresh, and bot cache bugs
-
-- [ ] [MAJOR] `chatsForFolder` excludes ALL muted chats when `excludeMuted` is set, but AyuGram preserves muted chats that have unread mentions — `chat_state.dart:733` ← `AyuGram/data/data_chat_filters.cpp:374-378`
-
-  AyuGram logic: `(!(_flags & Flag::NoMuted) || !history->muted() || (state.mention && history->folderKnown() && !history->folder()))` — muted chats with unread mentions still appear in the folder. Dart uses a flat `if (folder.excludeMuted && c.isMuted) return false;` with no mention exception.
-
-- [ ] [MAJOR] `_refreshMessages` deduplicates by timestamp (`< fresh.last.timestamp`) which silently drops messages that share the same second as the oldest fresh message but were not returned in the fresh batch — `chat_state.dart:2321` ← `AyuGram/data/data_history_messages.cpp` (AyuGram deduplicates by message ID, not timestamp)
-
-  Any message in `_messages` with `timestamp == fresh.last.timestamp` that wasn't fetched in the fresh batch is permanently lost from the active message view until a full reload. Multiple messages routinely share the same timestamp second.
-
-- [ ] [MAJOR] `_connectedBotsCache` is populated once per account and never invalidated on external events — if a business bot is connected or disconnected from another device, the Dart app serves stale cache for every subsequent DM until app restart — `chat_state.dart:2251-2255` ← `AyuGram/history/history_widget.cpp` (AyuGram re-queries on session updates)
-
-  Fix: invalidate `_connectedBotsCache[accountId]` on `onConnState` reconnect (line 161-171) so the next DM open re-fetches.
-
 # telegram_palette — No issues found
 
 Verified against AyuGram Desktop C++ source (`window_themes_embedded.cpp`, `style_palette_colorizer.cpp`).
