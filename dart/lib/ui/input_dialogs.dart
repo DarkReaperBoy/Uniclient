@@ -126,6 +126,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
   bool _checking = false;
   bool _saving = false;
   List<Map<String, dynamic>> _additionalUsernames = [];
+  List<String> _initialUsernameOrder = [];
   Map<String, bool> _pendingToggles = {};
   bool _loadingUsernames = false;
 
@@ -150,6 +151,10 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
             final name = u['username'] as String? ?? '';
             return name != widget.currentUsername;
           }).toList();
+          _initialUsernameOrder = _additionalUsernames
+              .map((u) => u['username'] as String? ?? '')
+              .where((n) => n.isNotEmpty)
+              .toList();
           _loadingUsernames = false;
         });
       }
@@ -295,14 +300,21 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     setState(() => _saving = true);
     try {
       if (_additionalUsernames.isNotEmpty) {
-        final primary = username.isNotEmpty ? username : widget.currentUsername;
-        final newOrder = [
-          if (primary.isNotEmpty) primary,
-          ..._additionalUsernames
-              .map((u) => u['username'] as String? ?? '')
-              .where((n) => n.isNotEmpty),
-        ];
-        await widget.engine.reorderAccountUsernames(widget.accountId, newOrder);
+        final currentOrder = _additionalUsernames
+            .map((u) => u['username'] as String? ?? '')
+            .where((n) => n.isNotEmpty)
+            .toList();
+        final orderChanged = currentOrder.length != _initialUsernameOrder.length ||
+            List.generate(currentOrder.length, (i) => currentOrder[i] != _initialUsernameOrder[i])
+                .any((d) => d);
+        if (orderChanged) {
+          final primary = username.isNotEmpty ? username : widget.currentUsername;
+          final newOrder = [
+            if (primary.isNotEmpty) primary,
+            ...currentOrder,
+          ];
+          await widget.engine.reorderAccountUsernames(widget.accountId, newOrder);
+        }
       }
       for (final entry in _pendingToggles.entries) {
         await widget.engine.toggleAccountUsername(
@@ -610,12 +622,6 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
 
   bool _isValidPhone(String phone) {
     final digits = phone.replaceAll(RegExp(r'\D'), '');
-    if (digits == '333') return true;
-    if (digits.startsWith('42') &&
-        (digits.length == 2 || digits.length == 5 ||
-         digits.length == 6 || digits == '4242')) {
-      return true;
-    }
     return digits.length >= 8;
   }
 
@@ -1367,7 +1373,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
         title: 'Usage Limit',
         onConfirm: () {
           final val = int.tryParse(ctrl.text.trim()) ?? 0;
-          if (val > 0) Navigator.of(ctx).pop(val);
+          if (val > 0 && val <= 200000) Navigator.of(ctx).pop(val);
         },
         content: Padding(
           padding: EdgeInsets.fromLTRB(kBoxPadding.left, 0, kBoxPadding.right, kBoxPadding.bottom),
@@ -1789,6 +1795,8 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   int _durationSeconds = 300;
   int _correctOption = -1;
 
+  final _durationPickerKey = GlobalKey();
+
   List<EmojiEntry> _emojiSuggestions = [];
   int _emojiSelectedIndex = 0;
   int _emojiTriggerOffset = -1;
@@ -1902,9 +1910,20 @@ class _CreatePollContentState extends State<_CreatePollContent> {
       259200: '3 days',
     };
     final p = context.palette;
+    final renderBox = _durationPickerKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final RelativeRect position;
+    if (renderBox != null && overlay != null) {
+      position = RelativeRect.fromRect(
+        renderBox.localToGlobal(Offset.zero) & renderBox.size,
+        Offset.zero & overlay.size,
+      );
+    } else {
+      position = RelativeRect.fromLTRB(200, 300, 200, 300);
+    }
     final result = await showMenu<int>(
       context: context,
-      position: RelativeRect.fromLTRB(200, 300, 200, 300),
+      position: position,
       items: [
         ...durations.entries.map((e) => PopupMenuItem<int>(
           value: e.key,
@@ -1945,13 +1964,24 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     }
   }
 
-  Future<void> _pickOptionMedia(int index) async {
+  Future<void> _pickOptionMedia(int index, BuildContext tapContext) async {
     final p = context.palette;
     final textColor = p.boxTextFg;
     final hasMedia = _optionMediaPaths[index] != null;
+    final renderBox = tapContext.findRenderObject() as RenderBox?;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final RelativeRect position;
+    if (renderBox != null && overlay != null) {
+      position = RelativeRect.fromRect(
+        renderBox.localToGlobal(Offset.zero) & renderBox.size,
+        Offset.zero & overlay.size,
+      );
+    } else {
+      position = RelativeRect.fromLTRB(200, 300, 200, 300);
+    }
     final choice = await showMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(200, 300, 200, 300),
+      position: position,
       items: [
         PopupMenuItem(value: 'photo_video', child: Text('Choose Photo or Video', style: TextStyle(color: textColor))),
         PopupMenuItem(value: 'file', child: Text('Choose File', style: TextStyle(color: textColor))),
@@ -2242,6 +2272,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               Padding(
                 padding: const EdgeInsets.only(left: 8, top: 4, bottom: 8),
                 child: InkWell(
+                  key: _durationPickerKey,
                   onTap: _showDurationPicker,
                   borderRadius: BorderRadius.circular(4),
                   child: Padding(
@@ -2326,7 +2357,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     final isImage = hasMedia && _isImagePath(mediaPath);
 
     return Padding(
-      key: ValueKey(i),
+      key: ValueKey(_optionCtrls[i]),
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2364,9 +2395,9 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               ),
               Padding(
                 padding: const EdgeInsets.only(left: 4),
-                child: hasMedia
+                child: Builder(builder: (btnCtx) => hasMedia
                     ? GestureDetector(
-                        onTap: () => _pickOptionMedia(i),
+                        onTap: () => _pickOptionMedia(i, btnCtx),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: SizedBox(
@@ -2390,9 +2421,10 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                           icon: Icon(Icons.attach_file, size: 16, color: subColor),
                           padding: EdgeInsets.zero,
                           tooltip: 'Attach media',
-                          onPressed: () => _pickOptionMedia(i),
+                          onPressed: () => _pickOptionMedia(i, btnCtx),
                         ),
                       ),
+                ),
               ),
               if (_optionCtrls.length > 2)
                 SizedBox(
@@ -2494,10 +2526,10 @@ class _PollEmojiSuggestionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf7f7f7);
-    final hoverColor = isDark ? const Color(0xFF2b3d4f) : const Color(0xFFe8e8e8);
-    final borderColor = isDark ? const Color(0xFF101a23) : const Color(0xFFdadada);
+    final p = context.palette;
+    final bgColor = p.menuBg;
+    final hoverColor = p.menuBgOver;
+    final borderColor = p.menuSeparatorFg;
 
     return Container(
       height: 44,
