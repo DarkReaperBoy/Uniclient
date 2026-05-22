@@ -78,6 +78,8 @@ PaletteParseResult? parsePaletteText(
   int? serviceId;
   int? serviceHash;
 
+  text = _stripBlockComments(text);
+
   for (final rawLine in text.split('\n')) {
     final line = rawLine.trim();
 
@@ -224,6 +226,22 @@ CloudThemeMeta? readCloudMeta(String text) {
 }
 
 // ── Private helpers ──
+
+String _stripBlockComments(String text) {
+  final buf = StringBuffer();
+  var i = 0;
+  while (i < text.length) {
+    if (i + 1 < text.length && text[i] == '/' && text[i + 1] == '*') {
+      final end = text.indexOf('*/', i + 2);
+      if (end < 0) break;
+      i = end + 2;
+    } else {
+      buf.writeCharCode(text.codeUnitAt(i));
+      i++;
+    }
+  }
+  return buf.toString();
+}
 
 bool _looksLikeZip(Uint8List bytes) =>
     bytes.length >= 4 &&
@@ -919,6 +937,57 @@ Map<String, Color> paletteToMap(TelegramPalette p) => {
   'groupCallLeaveBgRipple': p.groupCallLeaveBgRipple,
   'groupCallVideoTextFg': p.groupCallVideoTextFg,
   'groupCallVideoSubTextFg': p.groupCallVideoSubTextFg,
+  'outdatedFg': p.outdatedFg,
+  'outdateSoonBg': p.outdateSoonBg,
+  'outdatedBg': p.outdatedBg,
+  'spellUnderline': p.spellUnderline,
+  'walletTitleBg': p.walletTitleBg,
+  'walletTitleBgActive': p.walletTitleBgActive,
+  'walletTitleButtonBg': p.walletTitleButtonBg,
+  'walletTitleButtonFg': p.walletTitleButtonFg,
+  'walletTitleButtonBgOver': p.walletTitleButtonBgOver,
+  'walletTitleButtonFgOver': p.walletTitleButtonFgOver,
+  'walletTitleButtonBgActive': p.walletTitleButtonBgActive,
+  'walletTitleButtonFgActive': p.walletTitleButtonFgActive,
+  'walletTitleButtonBgActiveOver': p.walletTitleButtonBgActiveOver,
+  'walletTitleButtonFgActiveOver': p.walletTitleButtonFgActiveOver,
+  'walletTitleButtonCloseBg': p.walletTitleButtonCloseBg,
+  'walletTitleButtonCloseFg': p.walletTitleButtonCloseFg,
+  'walletTitleButtonCloseBgOver': p.walletTitleButtonCloseBgOver,
+  'walletTitleButtonCloseFgOver': p.walletTitleButtonCloseFgOver,
+  'walletTitleButtonCloseBgActive': p.walletTitleButtonCloseBgActive,
+  'walletTitleButtonCloseFgActive': p.walletTitleButtonCloseFgActive,
+  'walletTitleButtonCloseBgActiveOver': p.walletTitleButtonCloseBgActiveOver,
+  'walletTitleButtonCloseFgActiveOver': p.walletTitleButtonCloseFgActiveOver,
+  'walletTopBg': p.walletTopBg,
+  'walletBalanceFg': p.walletBalanceFg,
+  'walletSubBalanceFg': p.walletSubBalanceFg,
+  'walletTopLabelFg': p.walletTopLabelFg,
+  'walletTopIconFg': p.walletTopIconFg,
+  'walletTopIconRipple': p.walletTopIconRipple,
+  'songCoverOverlayFg': p.songCoverOverlayFg,
+  'photoEditorItemBaseHandleFg': p.photoEditorItemBaseHandleFg,
+  'statisticsChartInactive': p.statisticsChartInactive,
+  'statisticsChartActive': p.statisticsChartActive,
+  'statisticsChartLineBlue': p.statisticsChartLineBlue,
+  'statisticsChartLineGreen': p.statisticsChartLineGreen,
+  'statisticsChartLineRed': p.statisticsChartLineRed,
+  'statisticsChartLineGolden': p.statisticsChartLineGolden,
+  'statisticsChartLineLightblue': p.statisticsChartLineLightblue,
+  'statisticsChartLineLightgreen': p.statisticsChartLineLightgreen,
+  'statisticsChartLineOrange': p.statisticsChartLineOrange,
+  'statisticsChartLineIndigo': p.statisticsChartLineIndigo,
+  'statisticsChartLinePurple': p.statisticsChartLinePurple,
+  'statisticsChartLineCyan': p.statisticsChartLineCyan,
+  'creditsBg1': p.creditsBg1,
+  'creditsBg2': p.creditsBg2,
+  'creditsBg3': p.creditsBg3,
+  'creditsFg': p.creditsFg,
+  'creditsStroke': p.creditsStroke,
+  'currencyFg': p.currencyFg,
+  'rankAdminFg': p.rankAdminFg,
+  'rankOwnerFg': p.rankOwnerFg,
+  'rankUserFg': p.rankUserFg,
 };
 
 TelegramPalette paletteFromMap(Map<String, Color> m, TelegramPalette fb) =>
@@ -1452,6 +1521,57 @@ TelegramPalette paletteFromMap(Map<String, Color> m, TelegramPalette fb) =>
       groupCallLeaveBgRipple: m['groupCallLeaveBgRipple'] ?? fb.groupCallLeaveBgRipple,
       groupCallVideoTextFg: m['groupCallVideoTextFg'] ?? fb.groupCallVideoTextFg,
       groupCallVideoSubTextFg: m['groupCallVideoSubTextFg'] ?? fb.groupCallVideoSubTextFg,
+      outdatedFg: m['outdatedFg'] ?? fb.outdatedFg,
+      outdateSoonBg: m['outdateSoonBg'] ?? fb.outdateSoonBg,
+      outdatedBg: m['outdatedBg'] ?? fb.outdatedBg,
+      spellUnderline: m['spellUnderline'] ?? fb.spellUnderline,
+      walletTitleBg: m['walletTitleBg'] ?? fb.walletTitleBg,
+      walletTitleBgActive: m['walletTitleBgActive'] ?? fb.walletTitleBgActive,
+      walletTitleButtonBg: m['walletTitleButtonBg'] ?? fb.walletTitleButtonBg,
+      walletTitleButtonFg: m['walletTitleButtonFg'] ?? fb.walletTitleButtonFg,
+      walletTitleButtonBgOver: m['walletTitleButtonBgOver'] ?? fb.walletTitleButtonBgOver,
+      walletTitleButtonFgOver: m['walletTitleButtonFgOver'] ?? fb.walletTitleButtonFgOver,
+      walletTitleButtonBgActive: m['walletTitleButtonBgActive'] ?? fb.walletTitleButtonBgActive,
+      walletTitleButtonFgActive: m['walletTitleButtonFgActive'] ?? fb.walletTitleButtonFgActive,
+      walletTitleButtonBgActiveOver: m['walletTitleButtonBgActiveOver'] ?? fb.walletTitleButtonBgActiveOver,
+      walletTitleButtonFgActiveOver: m['walletTitleButtonFgActiveOver'] ?? fb.walletTitleButtonFgActiveOver,
+      walletTitleButtonCloseBg: m['walletTitleButtonCloseBg'] ?? fb.walletTitleButtonCloseBg,
+      walletTitleButtonCloseFg: m['walletTitleButtonCloseFg'] ?? fb.walletTitleButtonCloseFg,
+      walletTitleButtonCloseBgOver: m['walletTitleButtonCloseBgOver'] ?? fb.walletTitleButtonCloseBgOver,
+      walletTitleButtonCloseFgOver: m['walletTitleButtonCloseFgOver'] ?? fb.walletTitleButtonCloseFgOver,
+      walletTitleButtonCloseBgActive: m['walletTitleButtonCloseBgActive'] ?? fb.walletTitleButtonCloseBgActive,
+      walletTitleButtonCloseFgActive: m['walletTitleButtonCloseFgActive'] ?? fb.walletTitleButtonCloseFgActive,
+      walletTitleButtonCloseBgActiveOver: m['walletTitleButtonCloseBgActiveOver'] ?? fb.walletTitleButtonCloseBgActiveOver,
+      walletTitleButtonCloseFgActiveOver: m['walletTitleButtonCloseFgActiveOver'] ?? fb.walletTitleButtonCloseFgActiveOver,
+      walletTopBg: m['walletTopBg'] ?? fb.walletTopBg,
+      walletBalanceFg: m['walletBalanceFg'] ?? fb.walletBalanceFg,
+      walletSubBalanceFg: m['walletSubBalanceFg'] ?? fb.walletSubBalanceFg,
+      walletTopLabelFg: m['walletTopLabelFg'] ?? fb.walletTopLabelFg,
+      walletTopIconFg: m['walletTopIconFg'] ?? fb.walletTopIconFg,
+      walletTopIconRipple: m['walletTopIconRipple'] ?? fb.walletTopIconRipple,
+      songCoverOverlayFg: m['songCoverOverlayFg'] ?? fb.songCoverOverlayFg,
+      photoEditorItemBaseHandleFg: m['photoEditorItemBaseHandleFg'] ?? fb.photoEditorItemBaseHandleFg,
+      statisticsChartInactive: m['statisticsChartInactive'] ?? fb.statisticsChartInactive,
+      statisticsChartActive: m['statisticsChartActive'] ?? fb.statisticsChartActive,
+      statisticsChartLineBlue: m['statisticsChartLineBlue'] ?? fb.statisticsChartLineBlue,
+      statisticsChartLineGreen: m['statisticsChartLineGreen'] ?? fb.statisticsChartLineGreen,
+      statisticsChartLineRed: m['statisticsChartLineRed'] ?? fb.statisticsChartLineRed,
+      statisticsChartLineGolden: m['statisticsChartLineGolden'] ?? fb.statisticsChartLineGolden,
+      statisticsChartLineLightblue: m['statisticsChartLineLightblue'] ?? fb.statisticsChartLineLightblue,
+      statisticsChartLineLightgreen: m['statisticsChartLineLightgreen'] ?? fb.statisticsChartLineLightgreen,
+      statisticsChartLineOrange: m['statisticsChartLineOrange'] ?? fb.statisticsChartLineOrange,
+      statisticsChartLineIndigo: m['statisticsChartLineIndigo'] ?? fb.statisticsChartLineIndigo,
+      statisticsChartLinePurple: m['statisticsChartLinePurple'] ?? fb.statisticsChartLinePurple,
+      statisticsChartLineCyan: m['statisticsChartLineCyan'] ?? fb.statisticsChartLineCyan,
+      creditsBg1: m['creditsBg1'] ?? fb.creditsBg1,
+      creditsBg2: m['creditsBg2'] ?? fb.creditsBg2,
+      creditsBg3: m['creditsBg3'] ?? fb.creditsBg3,
+      creditsFg: m['creditsFg'] ?? fb.creditsFg,
+      creditsStroke: m['creditsStroke'] ?? fb.creditsStroke,
+      currencyFg: m['currencyFg'] ?? fb.currencyFg,
+      rankAdminFg: m['rankAdminFg'] ?? fb.rankAdminFg,
+      rankOwnerFg: m['rankOwnerFg'] ?? fb.rankOwnerFg,
+      rankUserFg: m['rankUserFg'] ?? fb.rankUserFg,
     );
 
 // ── §25.10 Theme Caching ──
