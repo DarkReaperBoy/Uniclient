@@ -8,6 +8,7 @@ import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
@@ -197,7 +198,15 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
   void _sendSticker(StickerInfoItem sticker) {
     final chatState = context.read<ChatState>();
     final chat = chatState.activeChat;
-    if (chat == null) return;
+    if (chat == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Open a chat first'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
     widget.engine.sendSticker(chat.accountId, chat.chatId, sticker.fileId);
     Navigator.pop(context);
   }
@@ -235,11 +244,9 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
   }
 
   void _showPremiumRequired() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Subscribe to Telegram Premium to unlock this pack'),
-        duration: Duration(seconds: 3),
-      ),
+    url_launcher.launchUrl(
+      Uri.parse('https://t.me/premium'),
+      mode: url_launcher.LaunchMode.externalApplication,
     );
   }
 
@@ -387,24 +394,26 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
       itemCount: stickers.length,
       itemBuilder: (context, index) {
         final sticker = stickers[index];
-        return _StickerTile(
-          sticker: sticker,
-          accountId: widget.accountId,
-          engine: widget.engine,
-          onTap: () => _sendSticker(sticker),
-          isCreator: info?.isCreator ?? false,
-          onFaveToggled: (nowFaved) {
-            if (_setInfo == null) return;
-            final updated = List<StickerInfoItem>.of(_setInfo!.stickers);
-            updated[index] = sticker.copyWith(isFaved: nowFaved);
-            setState(() => _setInfo = _setInfo!.copyWithStickers(updated));
-          },
-          onDeleted: () {
-            if (_setInfo == null) return;
-            final updated = List<StickerInfoItem>.of(_setInfo!.stickers);
-            updated.removeAt(index);
-            setState(() => _setInfo = _setInfo!.copyWithStickers(updated));
-          },
+        return RepaintBoundary(
+          child: _StickerTile(
+            sticker: sticker,
+            accountId: widget.accountId,
+            engine: widget.engine,
+            onTap: () => _sendSticker(sticker),
+            isCreator: info?.isCreator ?? false,
+            onFaveToggled: (nowFaved) {
+              if (_setInfo == null) return;
+              final updated = List<StickerInfoItem>.of(_setInfo!.stickers);
+              updated[index] = sticker.copyWith(isFaved: nowFaved);
+              setState(() => _setInfo = _setInfo!.copyWithStickers(updated));
+            },
+            onDeleted: () {
+              if (_setInfo == null) return;
+              final updated = List<StickerInfoItem>.of(_setInfo!.stickers);
+              updated.removeAt(index);
+              setState(() => _setInfo = _setInfo!.copyWithStickers(updated));
+            },
+          ),
         );
       },
     );
@@ -513,7 +522,10 @@ class _StickerTileState extends State<_StickerTile>
     if (_loadingFile) return;
     _loadingFile = true;
     final docId = int.tryParse(widget.sticker.fileId);
-    if (docId == null) return;
+    if (docId == null) {
+      _loadingFile = false;
+      return;
+    }
     try {
       final files = await widget.engine.getStickerFiles(
           widget.accountId, [docId]);
@@ -521,8 +533,12 @@ class _StickerTileState extends State<_StickerTile>
       if (fileData != null && fileData.isTgs && mounted) {
         final decompressed = Uint8List.fromList(gzip.decode(fileData.fileData));
         setState(() => _lottieData = decompressed);
+      } else {
+        _loadingFile = false;
       }
-    } catch (_) {}
+    } catch (_) {
+      _loadingFile = false;
+    }
   }
 
   Future<void> _loadVideoSticker() async {
@@ -530,6 +546,7 @@ class _StickerTileState extends State<_StickerTile>
     _loadingFile = true;
     final docId = int.tryParse(widget.sticker.fileId);
     if (docId == null) {
+      _loadingFile = false;
       _releaseSlot();
       return;
     }
@@ -539,7 +556,7 @@ class _StickerTileState extends State<_StickerTile>
       final fileData = files[docId];
       if (fileData != null && fileData.isWebm && mounted) {
         final dir = Directory.systemTemp;
-        final file = File('${dir.path}/sticker_$docId.webm');
+        final file = File('${dir.path}/sticker_${docId}_${identityHashCode(this)}.webm');
         await file.writeAsBytes(fileData.fileData, flush: true);
         _webmTempFile = file;
         final player = Player();
@@ -548,6 +565,7 @@ class _StickerTileState extends State<_StickerTile>
         await player.setPlaylistMode(PlaylistMode.loop);
         if (!mounted) {
           await player.dispose();
+          _loadingFile = false;
           _releaseSlot();
           return;
         }
@@ -556,9 +574,11 @@ class _StickerTileState extends State<_StickerTile>
           _webmController = controller;
         });
       } else {
+        _loadingFile = false;
         _releaseSlot();
       }
     } catch (_) {
+      _loadingFile = false;
       _releaseSlot();
     }
   }
@@ -579,7 +599,10 @@ class _StickerTileState extends State<_StickerTile>
       _VideoPlayerPool.instance.removeListener(_onSlotAvailable);
     }
     _lottieController?.dispose();
-    _webmPlayer?.dispose();
+    final player = _webmPlayer;
+    _webmPlayer = null;
+    _webmController = null;
+    player?.dispose().catchError((_) {});
     _releaseSlot();
     _webmTempFile?.delete().catchError((_) {});
     super.dispose();
