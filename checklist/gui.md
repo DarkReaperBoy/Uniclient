@@ -209,55 +209,11 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # emoji_data — cleanup
 
-- [ ] [CRITICAL] `EmojiKeywords.instance.setCacheDir(cacheDir)` is never called in `main.dart` — `_cacheDir` is always `null`, so `_writeCacheToDisk` (line 2822) is dead code (guarded by `if (_cacheDir != null)` at line 2790) and `loadCacheFromDisk` (line 2831) returns immediately at line 2832. Emoji keyword server data is never persisted to disk; every cold start re-fetches all keywords from the server. Fix: add `EmojiKeywords.instance.setCacheDir(cacheDir);` in `main.dart` alongside the `SpoilerAnimationManager.setCacheDir(cacheDir)` call at line 298 — `emoji_data.dart:2757`, `main.dart:298`
-
-- [ ] [CRITICAL] `EmojiKeywords.instance.loadCacheFromDisk()` is never called anywhere — even if `setCacheDir` is fixed, the cached keyword JSON files on disk are never read back into memory on startup. Users always begin with the legacy fallback only, forcing a full server fetch every session. Fix: call `EmojiKeywords.instance.loadCacheFromDisk()` in `main.dart` after `setCacheDir` and before `startAutoRefresh` — `emoji_data.dart:2831`, `main.dart:300`
-
-- [ ] [MAJOR] `void init() {}` at line 2749 is a no-op stub — called from `main.dart:300` but does nothing. All actual initialization is scattered across three separate `main.dart` calls (`loadState`, `setSaveCallback`, `setCacheDir`). Either fill `init()` to consolidate startup logic (setCacheDir + loadCacheFromDisk + loadState) or delete it — `emoji_data.dart:2749`
-
-- [ ] [MAJOR] `maxQueryLength()` (line 2768) iterates all 2669 legacy `EmojiEntry` objects and their keywords on every call — called from `search()` on every keystroke. `_LangPack` caches `maxKeyLength` as a field, but the legacy list max is recomputed from scratch each time. Fix: compute `_legacyMaxKeyLength` once (e.g. as a `late final int` initialized from `kEmojiSuggestions` at field init time) and return `max(pack.maxKeyLength, _legacyMaxKeyLength)` instead — `emoji_data.dart:2768`
-
 # instant_view — cleanup
-
-- [ ] [CRITICAL] `_InstantViewPageState._error` is never set to a non-null value — the catch block in `_navigateTo` (lines 118–122) calls `_openExternal` and returns silently, never assigning `_error`; the `_buildError` branch at line 247 is therefore dead code and the error UI never renders — `instant_view.dart:45,118,247`
-
-- [ ] [CRITICAL] `TapGestureRecognizer` objects created in `_richTextToSpan` for the `url`, `email`, and `phone` cases (lines 1583, 1600, 1634) are allocated on every call but never disposed — `_IvBlock` is a `StatelessWidget` with no `dispose()`, so each rebuild leaks all recognizers from the previous pass; pages with many links will accumulate unbounded recognizer allocations — `instant_view.dart:1583,1600,1634`
-
-- [ ] [MAJOR] `_IvAudioBlock` subscribes to `player.stream.position` and calls `setState` on every tick (line 2130), rebuilding the entire audio widget at the stream's emission rate (typically 8–30 Hz) for the duration of playback — the progress bar is the only thing that needs updating; split it into a separate widget or use `StreamBuilder` scoped to just the progress row — `instant_view.dart:2129`
-
-- [ ] [MAJOR] `_buildHighlightedCode` runs a full regex pass over the entire code string on every `build()` call of the `_IvBlock` `StatelessWidget` (line 522) — any parent rebuild (zoom change, scroll, theme toggle) re-highlights every visible code block; memoize the result in a stateful wrapper or cache spans by text hash — `instant_view.dart:522`
-
-- [ ] [MAJOR] `_IvSlideshowBlock` uses a hardcoded `SizedBox(height: 300)` (line 2701) regardless of item aspect ratios — portrait photos are cropped, landscape photos get extra dead space; height should be derived from the first item's aspect ratio or from `LayoutBuilder` constraints — `instant_view.dart:2701`
 
 # keyboard_shortcuts — cleanup
 
-- [ ] [CRITICAL] `ctrl+R` is bound to BOTH `readChat` AND `recordVoice` in `_defaultBindings` (lines 864–868). The `readChat` handler always returns `true` (line 1139), so `dispatch()` exits before `recordVoice` is ever tried — `recordVoice` keyboard shortcut is permanently dead. Fix: assign `recordVoice` a distinct binding (e.g. `ctrl+shift+V` or similar) — `keyboard_shortcuts.dart:864`
-
-- [ ] [CRITICAL] `ctrl+1` through `ctrl+8` are each bound to TWO commands: a folder command (`allChats`/`folder1-6`/`lastFolder`) AND a pinned-chat command (`pinnedChat1-8`), lines 884–954. Folder bindings appear first in `_bindings`, so their handlers fire first. `requestSwitchFolderByIndex` returns true when a folder exists, silently eating the key and preventing any pinned-chat shortcut from ever dispatching. Pinned-chat shortcuts ctrl+1–8 are dead for users with folders. Fix: use non-overlapping default bindings (e.g. `alt+1`–`alt+8` for pinned chats) — `keyboard_shortcuts.dart:884`
-
-- [ ] [CRITICAL] Config directory is never created before writing. `_writeDefaultsFile()` (line 528) and `_writeCustomTemplate()` (line 599) call `File.writeAsStringSync()` directly; on a fresh install the directory doesn't exist, `FileSystemException` is silently swallowed, and all custom shortcut persistence is permanently broken. Fix: call `Directory(_configDir).createSync(recursive: true)` before any file write — `keyboard_shortcuts.dart:516`
-
-- [ ] [CRITICAL] `_requestController` is a `final` field initialized once at class declaration (line 415). `dispose()` closes it (line 758) but `init()` never recreates it. If `ShortcutListener` is ever disposed and remounted (hot restart, conditional display, auth screen transitions), `dispatch()` at line 635 calls `_requestController.add(command)` on a closed stream → throws `Bad state: Stream is closed`. Fix: move `StreamController` creation into `init()` (close+replace if already set) — `keyboard_shortcuts.dart:415`
-
-- [ ] [CRITICAL] `ShortcutCommand.mediaViewerVideoFullscreen` is declared (line 78), scoped to `ShortcutScope.mediaViewer` (line 196), but has NO default binding in `_defaultBindings` and NO handler registered in `initState()`. The command can never be triggered and does nothing. Either add a binding + handler (e.g. `F` key when media viewer is open, wired to `MediaViewer.toggleFullscreenRequest`) or remove it — `keyboard_shortcuts.dart:78`
-
-- [ ] [MAJOR] `isComposeFieldFocusedCallback` (lines 1089–1095) returns `true` for ANY `EditableText` in the widget tree (search bar, settings fields, dialogs, etc.), not just the compose field. This means compose-scoped shortcuts (`formatBold`, `formatItalic`, `formatLink`, etc.) fire whenever any text field has focus. Fix: check that the focused context is an ancestor of the specific compose `EditableText` (e.g. check for a `ComposeBar` ancestor widget, or use a dedicated `FocusNode` set only when compose is active) — `keyboard_shortcuts.dart:1089`
-
-- [ ] [MAJOR] `_findCommands` (lines 690–711) does a full linear scan of `_bindings` on every `KeyDownEvent` and `KeyRepeatEvent`. With 50+ bindings this is O(n) per keypress. Fix: build a `Map<(LogicalKeyboardKey, bool ctrl, bool shift, bool alt, bool meta), List<ShortcutCommand>>` in `init()` / `replaceAllBindings()` / `addBinding()` / `removeBindingsFor()` for O(1) lookup — `keyboard_shortcuts.dart:690`
-
-- [ ] [MAJOR] `formatStrike` has a registered handler (line 1343) and a scope/name entry but NO default binding in `_defaultBindings` (omitted entirely from lines 829–1023). In Telegram Desktop the default is `Ctrl+Shift+X`. Users cannot strikethrough by keyboard unless they manually add a custom binding — `keyboard_shortcuts.dart:829`
-
 # language_box — cleanup
-
-- [ ] [MAJOR] `shrinkWrap: true` on main `ListView.builder` at line 484 — forces Flutter to measure all ~400 language items to compute intrinsic height before clipping at 492px; kills lazy rendering entirely. Remove `shrinkWrap` — the `Flexible` + `ConstrainedBox(maxHeight: 492)` already bounds the height — `language_box.dart:484`
-
-- [ ] [MAJOR] `shrinkWrap: true` on `_SkipLanguagesEditor`'s `ListView.builder` at line 990 — same problem; lays out all ~90 translation-language items eagerly. Same fix: remove `shrinkWrap`, rely on `Flexible` + `maxHeight: 320` — `language_box.dart:990`
-
-- [ ] [MAJOR] `context.watch<AppState>()` inside `_languageRow` at line 559, called from `ListView.builder`'s `itemBuilder` — every visible row registers its own AppState listener. When AppState fires (e.g. after `addRecentLanguage` selects a language), all visible rows rebuild individually on top of the parent rebuild already triggered by the parent's `watch` at line 268. Change to `context.read<AppState>()` — `language_box.dart:559`
-
-- [ ] [MAJOR] `_sortedFilteredLangs()` called directly in `_SkipLanguagesEditorState.build()` at line 944 — allocates two filtered sublists (`selectedLangs` + `unselectedLangs`) on every build frame. Result must be cached in a field, invalidated only when `_searchQuery` or `_selected` changes — `language_box.dart:916`
-
-- [ ] [MAJOR] `beta` field populated from engine at line 65 but never rendered — AyuGram shows a "BETA" label next to beta-flag language entries in the list. The field is parsed into `_LangEntry.beta` (line 1083) but `_languageRow` never reads it. Add a beta badge/label to the row for entries where `lang.beta == true` — `language_box.dart:65`
 
 ## media_viewer — cleanup
 
