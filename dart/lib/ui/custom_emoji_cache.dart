@@ -102,7 +102,7 @@ class CustomEmojiCache {
   final List<_PendingRequest> _fileBatchQueue = [];
   final Map<int, int> _failedRetryTime = {};
   final Map<int, int> _fileFailedRetryTime = {};
-  static const int _retryDelayMs = 0;
+  static const int _retryDelayMs = 5000;
 
   Future<void> initDiskCache(String cacheDir) async {
     if (kIsWeb) return;
@@ -220,7 +220,7 @@ class CustomEmojiCache {
     final toRequest = <int>[];
     for (var i = 0; i < documentIds.length && i < EmojiSizeConstants.kDocListCap; i++) {
       final id = documentIds[i];
-      if (!_thumbs.containsKey(id) && !_pending.contains(id) && !_failed.contains(id)) {
+      if (!_thumbs.containsKey(id) && !_paths.containsKey(id) && !_pending.contains(id) && !_failed.contains(id)) {
         toRequest.add(id);
       }
     }
@@ -290,7 +290,7 @@ class CustomEmojiCache {
   }
 
   void request(int documentId, String accountId, EngineService engine) {
-    if (_thumbs.containsKey(documentId) || _pending.contains(documentId)) return;
+    if (_thumbs.containsKey(documentId) || _paths.containsKey(documentId) || _pending.contains(documentId)) return;
     if (_failed.contains(documentId)) {
       final retryAt = _failedRetryTime[documentId] ?? 0;
       if (DateTime.now().millisecondsSinceEpoch < retryAt) return;
@@ -442,6 +442,7 @@ class CustomEmojiCache {
         _pending.remove(id);
         _failed.add(id);
         _failedRetryTime[id] = now + _retryDelayMs;
+        changedIds.add(id);
       }
     }
     _notifyListeners(changedIds);
@@ -472,6 +473,7 @@ class CustomEmojiCache {
         _filePending.remove(id);
         _fileFailed.add(id);
         _fileFailedRetryTime[id] = now + _retryDelayMs;
+        changedIds.add(id);
       }
     }
     _notifyListeners(changedIds);
