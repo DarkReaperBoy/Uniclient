@@ -472,6 +472,8 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
   Player? _webmPlayer;
   VideoController? _webmController;
   File? _webmTempFile;
+  Uint8List? _decodedThumb;
+  String? _decodedThumbB64;
 
   @override
   void initState() {
@@ -486,6 +488,8 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
     if (old.documentId != widget.documentId) {
       _refRelease(old.documentId);
       _disposeWebm();
+      _decodedThumb = null;
+      _decodedThumbB64 = null;
       _refRetain(widget.documentId);
       _lottieController?.dispose();
       _lottieController = null;
@@ -534,6 +538,7 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
   void _loadData() {
     _fetchCustomEmojiData(widget.engine, widget.accountId, widget.documentId).then((_) {
       if (!mounted) return;
+      _updateDecodedThumb();
       final file = _customEmojiFileCache[widget.documentId];
       if (file != null && file.isWebm && _webmPlayer == null) {
         _initWebmPlayer(file.fileData);
@@ -541,6 +546,17 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
         setState(() {});
       }
     });
+  }
+
+  void _updateDecodedThumb() {
+    final thumbB64 = _customEmojiThumbCache[widget.documentId];
+    if (thumbB64 != null && thumbB64.isNotEmpty && thumbB64 != _decodedThumbB64) {
+      _decodedThumbB64 = thumbB64;
+      _decodedThumb = base64Decode(thumbB64);
+    } else if (thumbB64 == null || thumbB64.isEmpty) {
+      _decodedThumbB64 = null;
+      _decodedThumb = null;
+    }
   }
 
   Future<void> _initWebmPlayer(Uint8List data) async {
@@ -630,14 +646,12 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
   }
 
   Widget _buildFallback(double s) {
-    final thumbB64 = _customEmojiThumbCache[widget.documentId];
-    if (thumbB64 != null && thumbB64.isNotEmpty) {
-      final bytes = base64Decode(thumbB64);
+    if (_decodedThumb != null) {
       return SizedBox(
         width: s,
         height: s,
         child: Image.memory(
-          Uint8List.fromList(bytes),
+          _decodedThumb!,
           width: s,
           height: s,
           fit: BoxFit.contain,

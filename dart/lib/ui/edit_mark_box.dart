@@ -96,12 +96,12 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
             hintStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
             border: UnderlineInputBorder(
               borderSide: BorderSide(
-                color: _showError ? const Color(0xFFe53935) : Colors.grey,
+                color: _showError ? p.activeLineFgError : Colors.grey,
               ),
             ),
             focusedBorder: UnderlineInputBorder(
               borderSide: BorderSide(
-                color: _showError ? const Color(0xFFe53935) : const Color(0xFF40a7e3),
+                color: _showError ? p.activeLineFgError : p.activeLineFg,
                 width: 2,
               ),
             ),

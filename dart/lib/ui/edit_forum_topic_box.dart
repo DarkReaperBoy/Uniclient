@@ -159,9 +159,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   }
 
   void _onTitleChanged() {
-    setState(() {
-      if (_titleError) _titleError = false;
-    });
+    if (_titleError) setState(() => _titleError = false);
   }
 
   EngineService? _getEngine() {
@@ -310,14 +308,16 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
           return Positioned(
             left: left,
             top: top,
-            child: IgnorePointer(
-              child: Opacity(
-                opacity: 1.0 - _flyController!.value * 0.3,
-                child: SizedBox(
-                  width: iconSize,
-                  height: iconSize,
-                  child: Center(
-                    child: Text(emoji, style: TextStyle(fontSize: iconSize * 0.85)),
+            child: RepaintBoundary(
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: 1.0 - _flyController!.value * 0.3,
+                  child: SizedBox(
+                    width: iconSize,
+                    height: iconSize,
+                    child: Center(
+                      child: Text(emoji, style: TextStyle(fontSize: iconSize * 0.85)),
+                    ),
                   ),
                 ),
               ),
@@ -353,6 +353,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final boxBg = context.palette.boxBg;
+    final engine = _getEngine();
 
     final String dialogTitle;
     if (widget.isEditing) {
@@ -378,11 +379,11 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildTitleBar(dialogTitle, isDark),
-            _buildPinnedTop(isDark, canCycleColor),
+            _buildPinnedTop(isDark, canCycleColor, engine),
             if (!widget.isGeneral) _buildDividerText(isDark),
             if (!widget.isGeneral) _buildShadowSeparator(isDark),
             if (!widget.isGeneral)
-              Flexible(child: _buildIconSelectorPanel(isDark)),
+              Flexible(child: _buildIconSelectorPanel(isDark, engine)),
             _buildButtons(isDark),
           ],
         ),
@@ -419,7 +420,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     );
   }
 
-  Widget _buildPinnedTop(bool isDark, bool canCycleColor) {
+  Widget _buildPinnedTop(bool isDark, bool canCycleColor, EngineService? engine) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 2, 22, 18),
       child: Row(
@@ -453,7 +454,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                               ),
                             )
                           : (_iconEmojiId != 0 && widget.accountId != null)
-                              ? _buildCustomEmojiPreview()
+                              ? _buildCustomEmojiPreview(engine)
                               : ForumTopicIcon(
                                   colorId: _colorId,
                                   title: _titleController.text,
@@ -512,8 +513,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     );
   }
 
-  Widget _buildCustomEmojiPreview() {
-    final engine = _getEngine();
+  Widget _buildCustomEmojiPreview(EngineService? engine) {
     if (engine == null) {
       return SizedBox(width: _iconButtonSize, height: _iconButtonSize);
     }
@@ -606,56 +606,57 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
         left: 0,
         right: 0,
         child: Center(
-          child: FadeTransition(
-            opacity: fadeAnim,
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                constraints: const BoxConstraints(minWidth: 160, maxWidth: 380),
-                padding: const EdgeInsets.fromLTRB(19, 13, 19, 12),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1B2836) : const Color(0xFFf0f0f0),
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: GestureDetector(
-                  onSecondaryTap: _dismissToast,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(emoji, style: const TextStyle(fontSize: 32)),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          'This icon is available for\nTelegram Premium subscribers.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: () {
-                          _dismissToast();
-                          Navigator.of(context).pop();
-                        },
-                        child: const Text(
-                          'View Premium',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF40a7e3),
-                          ),
-                        ),
+          child: RepaintBoundary(
+            child: FadeTransition(
+              opacity: fadeAnim,
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 160, maxWidth: 380),
+                  padding: const EdgeInsets.fromLTRB(19, 13, 19, 12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1B2836) : const Color(0xFFf0f0f0),
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
+                  ),
+                  child: GestureDetector(
+                    onSecondaryTap: _dismissToast,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(emoji, style: const TextStyle(fontSize: 32)),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            'This icon is available for\nTelegram Premium subscribers.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        GestureDetector(
+                          onTap: () {
+                            _dismissToast();
+                          },
+                          child: const Text(
+                            'View Premium',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF40a7e3),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -679,13 +680,13 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   // ── Tab count: 1 (Topic Icons) + N (installed emoji sets) ──
   int get _tabCount => 1 + _emojiSets.length;
 
-  Widget _buildIconSelectorPanel(bool isDark) {
+  Widget _buildIconSelectorPanel(bool isDark, EngineService? engine) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildCategoryTabBar(isDark),
         Flexible(
-          child: _buildScrollableIconGrid(isDark),
+          child: _buildScrollableIconGrid(isDark, engine),
         ),
       ],
     );
@@ -764,18 +765,18 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
       color: _selectedTab == tabIndex ? activeColor : tabColor);
   }
 
-  Widget _buildScrollableIconGrid(bool isDark) {
+  Widget _buildScrollableIconGrid(bool isDark, EngineService? engine) {
     if (_selectedTab == 0) {
-      return _buildTopicIconsGrid(isDark);
+      return _buildTopicIconsGrid(isDark, engine);
     }
     final setIndex = _selectedTab - 1;
     if (setIndex < 0 || setIndex >= _emojiSets.length) {
       return const SizedBox.shrink();
     }
-    return _buildEmojiSetGrid(_emojiSets[setIndex], isDark);
+    return _buildEmojiSetGrid(_emojiSets[setIndex], isDark, engine);
   }
 
-  Widget _buildTopicIconsGrid(bool isDark) {
+  Widget _buildTopicIconsGrid(bool isDark, EngineService? engine) {
     return SingleChildScrollView(
       padding: EdgeInsets.all(_gridPadding),
       child: Column(
@@ -790,7 +791,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                 _buildGridCell(colorId, isDark),
               if (_serverIcons.isNotEmpty)
                 for (final icon in _serverIcons)
-                  _buildServerIconGridCell(icon, isDark),
+                  _buildServerIconGridCell(icon, isDark, engine),
               if (_loadingServerIcons)
                 const Padding(
                   padding: EdgeInsets.all(8),
@@ -806,8 +807,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     );
   }
 
-  Widget _buildEmojiSetGrid(CustomEmojiSetSummary emojiSet, bool isDark) {
-    final engine = _getEngine();
+  Widget _buildEmojiSetGrid(CustomEmojiSetSummary emojiSet, bool isDark, EngineService? engine) {
     final accountId = widget.accountId;
     final stickers = emojiSet.stickers;
 
@@ -928,9 +928,8 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     );
   }
 
-  Widget _buildServerIconGridCell(_TopicIconEntry icon, bool isDark) {
+  Widget _buildServerIconGridCell(_TopicIconEntry icon, bool isDark, EngineService? engine) {
     final isSelected = _iconEmojiId == icon.documentId;
-    final engine = _getEngine();
     final accountId = widget.accountId;
     return Builder(
       builder: (cellContext) => GestureDetector(

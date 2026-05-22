@@ -160,7 +160,7 @@ const _mediaTypeNames = <int, int>{
   9: 17,  // poll → TYPE_POLL
   10: 4,  // location → TYPE_GEO
   11: 12, // contact → TYPE_CONTACT
-  12: 15, // animated sticker/dice → TYPE_ANIMATED_STICKER
+  // 12 = MediaInvoice in Go engine — no filter bucket for invoices
   13: 19, // emoji-only text → TYPE_EMOJIS
   14: 23, // story → TYPE_STORY
   15: 24, // story mention → TYPE_STORY_MENTION
@@ -409,13 +409,12 @@ class AyuFilterEngine extends ChangeNotifier {
   }
 
   Future<({ImportChanges? changes, String? error})> importFromLink(String url) async {
+    final client = HttpClient();
     try {
-      final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 10);
       final request = await client.getUrl(Uri.parse(url));
       final response = await request.close();
       final body = await response.transform(utf8.decoder).join();
-      client.close();
       final parsed = jsonDecode(body);
       if (parsed is! Map<String, dynamic>) {
         return (changes: null, error: 'Failed to import filters');
@@ -427,14 +426,16 @@ class AyuFilterEngine extends ChangeNotifier {
       return (changes: null, error: 'Failed to import filters');
     } catch (e) {
       return (changes: null, error: 'Failed to fetch filters');
+    } finally {
+      client.close();
     }
   }
 
   Future<({String? url, String? error})> publishFilters({Map<String, String> peers = const {}}) async {
     final data = exportFilters(peers: peers);
     final jsonText = const JsonEncoder.withIndent('  ').convert(data);
+    final client = HttpClient();
     try {
-      final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 10);
       final request = await client.postUrl(Uri.parse('https://dpaste.com/api/v2/'));
       final boundary = '----DartFormBoundary${DateTime.now().millisecondsSinceEpoch}';
@@ -452,7 +453,6 @@ class AyuFilterEngine extends ChangeNotifier {
       request.write(body.toString());
       final response = await request.close();
       await response.drain<void>();
-      client.close();
       String pasteUrl = '';
       if (response.statusCode == 201 &&
           response.headers['location'] != null &&
@@ -465,6 +465,8 @@ class AyuFilterEngine extends ChangeNotifier {
       return (url: pasteUrl, error: null);
     } catch (_) {
       return (url: null, error: 'Failed to publish filters');
+    } finally {
+      client.close();
     }
   }
 
@@ -615,7 +617,7 @@ class AyuFilterEngine extends ChangeNotifier {
       final evictCount = _maxCacheSize ~/ 10;
       final keys = _messageCache.keys.take(evictCount).toList();
       for (final k in keys) {
-        _removeCacheEntry(k);
+        _removeCacheEntry(k, fromEviction: true);
       }
     }
     _messageCache[key] = value;
@@ -625,9 +627,9 @@ class AyuFilterEngine extends ChangeNotifier {
     }
   }
 
-  void _removeCacheEntry(String key) {
+  void _removeCacheEntry(String key, {bool fromEviction = false}) {
     final old = _messageCache.remove(key);
-    if (old == true) {
+    if (old == true && !fromEviction) {
       final chatId = key.substring(0, key.indexOf(':'));
       final count = (_chatFilteredCount[chatId] ?? 1) - 1;
       if (count <= 0) {
