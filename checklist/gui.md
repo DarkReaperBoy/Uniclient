@@ -215,12 +215,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # language_box — cleanup
 
-## notifications_settings_screen — cleanup
-
-- [ ] [CRITICAL] `_showCustomDurationInput` custom mute duration is completely non-functional — two bugs: (1) `parentContext.findAncestorStateOfType<_NotificationTypeSubPageState>()` is called from inside a dialog's `BuildContext`; Flutter dialogs live in the Navigator overlay, not in the calling page's widget subtree, so this always returns `null` and the `if (pageState != null)` guard is always false; (2) even if the ancestor were found, `_muteForDuration(seconds)` is never called — only `setState(() => pageState._enabled = false)` is set, so the engine never receives the mute request. Compare with `_showMuteDurationPicker` (same class) which correctly calls `_muteForDuration(seconds)`. Fix: remove `findAncestorStateOfType`, pass a callback from the subpage to the dialog, and add the `_muteForDuration(seconds)` call — `notifications_settings_screen.dart:2728`
-
-- [ ] [MAJOR] `Listenable.merge(_barControllers)` is created inline as the `animation:` argument to `AnimatedBuilder` — a new `_MergedListenable` object is allocated on every `build()` call, which happens on every mouse hover (each `_hoverCorner` change calls `setState`). This causes the `AnimatedBuilder` to unsubscribe and resubscribe on every hover event. Store the merged listenable as a `late final` field, initialized in `initState` — `notifications_settings_screen.dart:1087`
-
 # payment_panel — cleanup
 
 - [ ] [CRITICAL] WebView `onPaymentDone` always passes `null` (line 2417) — `tg://` redirect URLs from providers like Stripe carry the credential token in query params (e.g. `tg://payment_form?credentials=...`); the code never parses them and always fires `widget.onPaymentDone(null)`. The `onPaymentDone` callback at line 2272 guards on `if (token != null)`, so `_credentialsData` is never set through the web flow. `sendPaymentForm` then sends no `credentials_data`, causing all web-provider payments to fail. Fix: parse the `tg://` URL query params for the credentials token before calling `onPaymentDone`. — `payment_panel.dart:2417`
