@@ -206,14 +206,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 - ✅ Power saving: conditional rendering respects power saving mode
 - ✅ Shader masking: RadialGradient collectible effects properly applied
 
-## info_panel — cleanup
-- [ ] [CRITICAL] `File.readAsBytesSync()` called inside `build()` — blocks UI thread on every rebuild of `_ChatInfoPage`; load bytes async in `initState`/`didUpdateWidget` and store in state — `info_panel.dart:2692`
-- [ ] [CRITICAL] `mute_forever` menu item hits `_ => 0` branch (seconds=0), then calls `data.onTap?.call()` which is the mute toggle — permanently muted chats get unmuted instead; add explicit `'mute_forever'` case that calls `muteChat` with no duration or a sentinel value for permanent mute — `info_panel.dart:1131`
-- [ ] [CRITICAL] `_PollListItem` renders as plain `Padding(child: Row(...))` with no `InkWell`/`onTap` — polls cannot be tapped to navigate to the originating message, unlike every other media list type (`_FileListItem`, `_AudioListItem`, `_VoiceListItem`, `_LinkListItem`, `_RoundListItem`); wrap in `InkWell` and wire navigation — `info_panel.dart:6683`
-- [ ] [MAJOR] `_daySchedule(d)` called twice per row in `_BusinessHoursWidget.build()` — once for `Text` content and once for the color guard; cache in a local variable — `info_panel.dart:4029`
-- [ ] [MAJOR] `_sortedMembers()` allocates a full list copy and O(n log n) sorts it on every `build()` call from `_filteredMembers()`; cache the sorted list and invalidate in `didUpdateWidget` when `widget.members` changes — `info_panel.dart:7257`
-- [ ] [MAJOR] `getCommonChats` called twice: `_loadCommonGroups()` fetches the full list but discards it (stores only the count), then `_showCommonGroupsDialog()` fetches from scratch with identical args; store the list from the first call and reuse it — affects both `_UserProfilePageState` (~line 2866) and `_ChatDetailsState` (~line 3670) — `info_panel.dart:2866`
-- [ ] [MAJOR] `_MembersSectionState` triggers a full `getChatMembers` API call for every service message received in the chat; most service messages (pin notifications, etc.) don't affect membership; narrow the trigger to join/leave/kick/invite service message types — `info_panel.dart:7143`
 
 ## input_dialogs — cleanup
 
