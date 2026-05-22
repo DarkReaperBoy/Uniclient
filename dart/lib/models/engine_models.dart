@@ -479,6 +479,7 @@ class CachedMessage {
   final bool isPinned;
   final bool isOutgoing;
   final bool isService;
+  final String serviceAction;
   final bool hasMedia;
 
   // Media metadata.
@@ -657,6 +658,7 @@ class CachedMessage {
     this.isPinned = false,
     this.isOutgoing = false,
     this.isService = false,
+    this.serviceAction = '',
     this.hasMedia = false,
     this.mediaType = 0,
     this.mediaFileName = '',
@@ -790,6 +792,7 @@ class CachedMessage {
       isPinned: j['is_pinned'] as bool? ?? false,
       isOutgoing: j['is_outgoing'] as bool? ?? false,
       isService: j['is_service'] as bool? ?? false,
+      serviceAction: extra['service_action'] as String? ?? '',
       hasMedia: j['has_media'] as bool? ?? false,
       mediaType: j['media_type'] as int? ?? 0,
       mediaFileName: j['media_file_name'] as String? ?? '',
@@ -1058,6 +1061,7 @@ class CachedMessage {
     bool? isPinned,
     bool? isOutgoing,
     bool? isService,
+    String? serviceAction,
     bool? hasMedia,
     int? mediaType,
     String? mediaFileName,
@@ -1177,6 +1181,7 @@ class CachedMessage {
     isPinned: isPinned ?? this.isPinned,
     isOutgoing: isOutgoing ?? this.isOutgoing,
     isService: isService ?? this.isService,
+    serviceAction: serviceAction ?? this.serviceAction,
     hasMedia: hasMedia ?? this.hasMedia,
     mediaType: mediaType ?? this.mediaType,
     mediaFileName: mediaFileName ?? this.mediaFileName,

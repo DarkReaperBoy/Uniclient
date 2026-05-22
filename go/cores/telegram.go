@@ -11511,6 +11511,10 @@ func serviceActionTag(action tg.MessageActionClass) string {
 		return "boost"
 	case *tg.MessageActionGroupCall, *tg.MessageActionInviteToGroupCall, *tg.MessageActionGroupCallScheduled:
 		return "group_call"
+	case *tg.MessageActionChatCreate, *tg.MessageActionChannelCreate:
+		return "chat_create"
+	case *tg.MessageActionTopicCreate:
+		return "topic_create"
 	default:
 		return ""
 	}

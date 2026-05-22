@@ -5987,6 +5987,7 @@ class EngineService {
       isPinned: p.isPinned,
       isOutgoing: p.isOutgoing,
       isService: p.isService,
+      serviceAction: _strFromExtra(extra, 'service_action') ?? '',
       hasMedia: p.hasMedia,
       groupedId: p.groupedId,
       mediaType: p.mediaType,

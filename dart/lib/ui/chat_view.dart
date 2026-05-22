@@ -898,9 +898,10 @@ class _ChatViewState extends State<ChatView>
       return;
     }
 
-    const avgHeight = 55.0;
-    final topDistance = pos.pixels + pos.viewportDimension;
-    final topIndex = (topDistance / avgHeight).floor().clamp(0, messages.length - 1);
+    final totalExtent = pos.maxScrollExtent + pos.viewportDimension;
+    if (totalExtent <= 0) return;
+    final scrollFraction = (pos.pixels + pos.viewportDimension) / totalExtent;
+    final topIndex = (scrollFraction * messages.length).floor().clamp(0, messages.length - 1);
     final topMsg = messages[topIndex];
     final newText = _formatDateBadge(topMsg.timestamp);
 
@@ -2131,12 +2132,25 @@ class _ChatViewState extends State<ChatView>
   }
 
   // AyuGram §9.6: User's Messages — search messages by this sender in the current chat.
-  void _showUserMessages(ChatState chatState, CachedMessage msg) {
+  void _showUserMessages(ChatState chatState, CachedMessage msg) async {
     final senderMsgs = chatState.messages
         .where((m) => m.senderId == msg.senderId && !m.isService)
         .toList()
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     if (senderMsgs.isEmpty) return;
+
+    final chat = chatState.activeChat;
+    int? totalCount;
+    if (chat != null) {
+      final engine = context.read<EngineService>();
+      try {
+        totalCount = await engine.searchMessagesFromCount(chat.accountId, chat.chatId, msg.senderId);
+      } catch (_) {}
+    }
+    if (!mounted) return;
+
+    final hasMore = totalCount != null && totalCount > senderMsgs.length;
+    final countLabel = hasMore ? '${senderMsgs.length} of $totalCount' : '${senderMsgs.length}';
 
     showDialog(
       context: context,
@@ -2151,9 +2165,17 @@ class _ChatViewState extends State<ChatView>
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Text("${msg.senderName}'s Messages (${senderMsgs.length})",
+                  child: Text("${msg.senderName}'s Messages ($countLabel)",
                       style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                 ),
+                if (hasMore)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Only showing loaded messages. Scroll up in chat to load more.',
+                      style: theme.textTheme.labelSmall?.copyWith(color: theme.hintColor),
+                    ),
+                  ),
                 const Divider(height: 1),
                 Flexible(
                   child: ListView.builder(
@@ -2784,9 +2806,18 @@ class _ChatViewState extends State<ChatView>
       case 'share_contact':
         final phone = profile?.phone ?? '';
         if (phone.isNotEmpty) {
-          Clipboard.setData(ClipboardData(text: phone));
-          if (mounted) {
-            showTelegramToast(context, 'Contact phone copied: $phone');
+          final nameParts = senderName.split(' ');
+          final firstName = nameParts.first;
+          final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+          try {
+            await engine.sendContact(accountId, chat.chatId, phone, firstName, lastName, userId: senderId);
+            if (mounted) {
+              showTelegramToast(context, 'Contact shared');
+            }
+          } catch (_) {
+            if (mounted) {
+              showTelegramToast(context, 'Failed to share contact');
+            }
           }
         } else {
           if (mounted) {
@@ -2863,9 +2894,14 @@ class _ChatViewState extends State<ChatView>
           context, 'Delete All Messages', 'Delete all messages from $senderName in this chat?');
         if (confirmed && mounted) {
           try {
-            await engine.banMember(accountId, chat.chatId, senderId);
+            final senderMsgs = chatState.messages
+                .where((m) => m.senderId == senderId)
+                .toList();
+            for (final m in senderMsgs) {
+              await engine.deleteMessage(accountId, chat.chatId, m.msgId);
+            }
             if (mounted) {
-              showTelegramToast(context, 'All messages from $senderName deleted');
+              showTelegramToast(context, '${senderMsgs.length} messages from $senderName deleted');
             }
           } catch (_) {}
         }
@@ -7544,9 +7580,9 @@ class _MessageListState extends State<_MessageList> {
           final serviceText = msg.isDeleted
               ? '${msg.contentText} (${context.read<AppState>().deletedMark})'
               : msg.contentText;
-          if (msg.contentText.contains('created the group')) {
+          if (msg.serviceAction == 'chat_create') {
             serviceWidget = const _GroupAboutServiceMessage();
-          } else if (msg.contentText.contains('created topic')) {
+          } else if (msg.serviceAction == 'topic_create') {
             serviceWidget = _TopicCreatedServiceMessage(
               isOwn: msg.isOutgoing,
               topicColorId: msg.topicColorId,
@@ -7652,11 +7688,13 @@ class _MessageListState extends State<_MessageList> {
                 behavior: inSelectionMode ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
                 onLongPress: () => onLongPress(msg.msgId),
                 onTap: inSelectionMode ? () => onToggleSelect(msg.msgId) : null,
-                child: AnimatedPadding(
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeInOut,
-                  padding: EdgeInsets.only(right: inSelectionMode ? 30.0 : 0.0),
-                  child: rowContent,
+                child: RepaintBoundary(
+                  child: AnimatedPadding(
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeInOut,
+                    padding: EdgeInsets.only(right: inSelectionMode ? 30.0 : 0.0),
+                    child: rowContent,
+                  ),
                 ),
               ),
             ),
@@ -10314,7 +10352,7 @@ class _WaveformPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_WaveformPainter old) =>
-      progress != old.progress || activeColor != old.activeColor || inactiveColor != old.inactiveColor;
+      progress != old.progress || activeColor != old.activeColor || inactiveColor != old.inactiveColor || bars != old.bars;
 }
 
 class _WriteRestrictionBar extends StatelessWidget {
@@ -21612,7 +21650,7 @@ class _AiEditorButtonState extends State<_AiEditorButton> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: TelegramTooltip(
-        message: 'AI Editor',
+        message: 'Translate',
         child: InkResponse(
           onTap: widget.onPressed,
           radius: 20,
