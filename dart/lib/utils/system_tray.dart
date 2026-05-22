@@ -95,8 +95,18 @@ class SystemTray {
       _available = false;
     }
 
-    if (_available && showTrayIcon) {
-      await _createIcon();
+    if (_available) {
+      try {
+        final interval =
+            await _channel.invokeMethod<int>('getDoubleClickInterval');
+        if (interval != null && interval > 0) {
+          _doubleClickIntervalMs = interval;
+        }
+      } catch (_) {}
+
+      if (showTrayIcon) {
+        await _createIcon();
+      }
     }
 
     hideWindowRequest = hideWindow;
@@ -396,7 +406,7 @@ class SystemTray {
     if (!isAvailable) return;
     final now = DateTime.now().millisecondsSinceEpoch;
     if (_lastTrayClickTime > 0 &&
-        (now - _lastTrayClickTime) < _kDoubleClickIntervalMs) {
+        (now - _lastTrayClickTime) < _doubleClickIntervalMs) {
       return;
     }
     _lastTrayClickTime = now;
@@ -408,7 +418,7 @@ class SystemTray {
     }
   }
 
-  static const _kDoubleClickIntervalMs = 400;
+  int _doubleClickIntervalMs = 400;
 
   /// Populate the tray context menu with per-account entries for switching.
   /// Only shown when multiple accounts are logged in, matching AyuGram's
@@ -433,6 +443,7 @@ class SystemTray {
     try {
       await _channel.invokeMethod<void>('setAccountsMenu', {
         'accounts': truncated,
+        'hasSeparator': accounts.length > 1,
       });
     } on MissingPluginException {
       Debug.log('TRAY', 'setAccountsMenu: not implemented on this platform');
@@ -485,7 +496,7 @@ class SystemTray {
       case 'onTrayIconClick':
         final now = DateTime.now().millisecondsSinceEpoch;
         if (_lastTrayClickTime > 0 &&
-            (now - _lastTrayClickTime) < _kDoubleClickIntervalMs) {
+            (now - _lastTrayClickTime) < _doubleClickIntervalMs) {
           return;
         }
         _lastTrayClickTime = now;

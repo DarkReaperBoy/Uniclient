@@ -492,15 +492,20 @@ static void tray_method_call_handler(FlMethodChannel* channel,
       FlValue* args = fl_method_call_get_args(method_call);
       if (fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
         FlValue* accounts_val = fl_value_lookup_string(args, "accounts");
+        FlValue* sep_val = fl_value_lookup_string(args, "hasSeparator");
+        gboolean has_separator = sep_val &&
+            fl_value_get_type(sep_val) == FL_VALUE_TYPE_BOOL &&
+            fl_value_get_bool(sep_val);
         if (accounts_val &&
             fl_value_get_type(accounts_val) == FL_VALUE_TYPE_LIST &&
-            fl_value_get_length(accounts_val) > 1) {
-          self->accounts_separator = gtk_separator_menu_item_new();
-          gtk_menu_shell_prepend(GTK_MENU_SHELL(self->tray_menu),
-                                self->accounts_separator);
-          gtk_widget_show(self->accounts_separator);
+            fl_value_get_length(accounts_val) > 0) {
+          if (has_separator) {
+            self->accounts_separator = gtk_separator_menu_item_new();
+            gtk_menu_shell_prepend(GTK_MENU_SHELL(self->tray_menu),
+                                  self->accounts_separator);
+            gtk_widget_show(self->accounts_separator);
+          }
 
-          // Insert accounts in reverse so prepend results in correct order.
           for (size_t i = fl_value_get_length(accounts_val); i > 0; i--) {
             FlValue* acct = fl_value_get_list_value(accounts_val, i - 1);
             if (fl_value_get_type(acct) != FL_VALUE_TYPE_MAP) continue;
@@ -531,6 +536,14 @@ static void tray_method_call_handler(FlMethodChannel* channel,
       self->close_behavior = (int)fl_value_get_int(args);
     }
     fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "getDoubleClickInterval") == 0) {
+    GtkSettings* settings = gtk_settings_get_default();
+    gint double_click_time = 400;
+    if (settings) {
+      g_object_get(settings, "gtk-double-click-time", &double_click_time, NULL);
+    }
+    g_autoptr(FlValue) result = fl_value_new_int(double_click_time);
+    fl_method_call_respond_success(method_call, result, nullptr);
   } else if (g_strcmp0(method, "isAvailable") == 0) {
 #ifdef HAVE_APPINDICATOR
     g_autoptr(FlValue) result = fl_value_new_bool(TRUE);
