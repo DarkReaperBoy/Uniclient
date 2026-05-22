@@ -230,12 +230,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 
 
-## titlebar — cleanup
-
-- [ ] [MAJOR] `_oneSideControls` and `_resizeEnabled` are never queried at startup — `initState` calls `_queryMaximized()` and `_queryButtonLayout()` but has no equivalent calls for these two fields — they stay at their Dart defaults (`false` / `true`) until the native side pushes a change event — if the platform sets `resizeEnabled=false` at launch the maximize button renders incorrectly until the next native event fires — `titlebar.dart:83-88`
-
-- [ ] [MAJOR] Static `MethodChannel` handler is last-writer-wins — `initState` calls `setMethodCallHandler(_onNativeCall)` and `dispose` sets it to `null` — if two `CustomTitlebar` instances are ever live simultaneously (hot-reload, nested navigation, duplicate mount) the first dispose silences all future native events for every instance — the channel should be wrapped in a reference-counted manager or the widget must be enforced as a strict singleton — `titlebar.dart:87,92`
-
 ## web_app_panel — cleanup
 
 - [ ] [CRITICAL] `_handleOpenPopup` invalid-data guard calls `Navigator.of(context).pop()` at line 1095 — this pops the **web app panel itself** (not a dialog, no dialog is open at that point) instead of just ignoring bad input; any mini app that sends a popup with empty message or buttons crashes the user out of the panel — `web_app_panel.dart:1094`
