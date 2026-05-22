@@ -219,29 +219,7 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # photo_crop_editor — cleanup
 
-- [ ] [CRITICAL] blur strokes silently dropped from export — `_applyCropAndExport` (line 1010) skips every stroke where `tool == _PaintTool.blur` via `continue` and never calls the blur rendering equivalent of `_CropPainter._drawBlurStrokes`; users see blur on-screen but the saved file has none — `photo_crop_editor.dart:1010`
-
-- [ ] [CRITICAL] regular strokes drawn twice in eraser export path — when `hasEraser` is true, lines 1009-1013 draw all pen/arrow/marker strokes directly onto the canvas, then lines 1016-1039 draw them again inside a `saveLayer`; strokes from the first pass are already composited so the `BlendMode.clear` eraser can't reach them, producing doubled stroke artifacts and non-functional erasure on the exported image — `photo_crop_editor.dart:1009`
-
-- [ ] [MAJOR] `shouldRepaint` list-identity check always false for strokes and annotations — `old.paintStrokes != paintStrokes` (line 2604) and `old.textAnnotations != textAnnotations` (line 2605) compare the same `List` object reference on every rebuild (both sides point to the same mutable list in `_PhotoCropEditorState`), so the check is never true; text annotations added while `currentStroke` is null won't trigger a canvas repaint — use a generation counter or copy the list reference on mutation — `photo_crop_editor.dart:2604`
-
-- [ ] [MAJOR] `TextPainter` created and laid out on every pointer-move event — `_annotationItemSize` (line 1724) constructs a full `TextPainter`, calls `layout()`, and discards it just to get widget dimensions; this is called from both `_hitTestAnnotations` and `_hitTestAnnotationHandles` on every `PointerMoveEvent`; cache the size per annotation indexed by text+fontSize+scale — `photo_crop_editor.dart:1724`
-
-- [ ] [MAJOR] `TextPainter` created per annotation per paint frame in `_drawTextAnnotations` — lines 2412-2425 allocate and lay out a new `TextPainter` for every text annotation on every call to `paint()`; with frequent repaints (brush drawing, zoom) this fires many times per second; cache layout results keyed by text+fontSize+scale — `photo_crop_editor.dart:2412`
-
-- [ ] [MAJOR] sticker thumbnail base64-decoded on every `GridView.builder` itemBuilder call — line 3689 calls `_decodeThumb(sticker.thumbB64)` followed by `Uint8List.fromList(...)` inside `itemBuilder`; this runs for every visible sticker on every rebuild; decoded bytes should be cached once per sticker (a `Map<String, Uint8List>` in `_EditorStickerPickerState` keyed by sticker id or b64 hash) — `photo_crop_editor.dart:3689`
-
-- [ ] [MAJOR] export temp files written to `/tmp/` hardcoded — lines 1091 and 4092 use `File('/tmp/crop_...')` and `File('/tmp/emoji_avatar_...')`; `/tmp/` does not exist on Android or iOS; replace with `(await getTemporaryDirectory()).path` from `path_provider` — `photo_crop_editor.dart:1091`
-
 # popup_menu — cleanup
-
-- [ ] [MAJOR] `_shadowColor(Brightness b)` ignores its parameter entirely — always returns `Color(0xFF000000)` regardless of light/dark mode; the `Brightness b` argument is dead code — `popup_menu.dart:18`
-
-- [ ] [MAJOR] First-frame expand-origin mismatch: `_origin` defaults to `Alignment.topLeft` (line 205) but the real origin is only resolved during layout and applied one frame later via `addPostFrameCallback` → `setState`. For clicks near the bottom or right screen edge where the true origin is `bottomRight`, the first animation frame expands from the wrong corner before snapping to the correct one — `popup_menu.dart:205` `popup_menu.dart:273`
-
-- [ ] [MAJOR] `_TelegramRippleItem.build`: the ripple `AnimatedBuilder` (line 979) rebuilds and repaints the full item widget on every frame of the 650ms ripple animation with no `RepaintBoundary` isolating the ripple layer; neighboring siblings in the `Column` receive unnecessary repaint requests each frame — `popup_menu.dart:979`
-
-- [ ] [MAJOR] `_panelCurve` static method is duplicated verbatim in two classes: `_TelegramMenuOverlayState` (line 330) and `_AnimatedSubmenuRevealState` (line 495) — extract to a top-level function — `popup_menu.dart:330` `popup_menu.dart:495`
 
 ## privacy_settings_screen — cleanup
 
