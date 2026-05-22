@@ -229,17 +229,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 
 
-## theme_editor — cleanup
-
-- [ ] [CRITICAL] `_currentBackground` is never set during `_handleImport` (line 382–413). `parseThemeFile` returns `backgroundImage` for zip themes, but the result is never stored in `_currentBackground`. When the user imports a `.tdesktop-theme` with a background and then exports it, the background is silently dropped. Fix: `_currentBackground = parsed.backgroundImage;` inside the `setState` block in `_handleImport`. — `theme_editor.dart:400`
-
-- [ ] [CRITICAL] Hex editor channel mismatch for transparent colors. `_colorToHexString` emits `#RRGGBBAA` for colors with alpha < 255 (line 1176). `_parseHexColor` reads 8-char hex as `AARRGGBB` — `Color(int.parse(h, radix: 16))` (line 265). Applying the displayed hex value of any semi-transparent token through the inline editor (Apply button or Enter) produces completely wrong RGB and alpha values. Fix in `_parseHexColor`: for 8-char input, swap AA to front — `var reordered = h.substring(6) + h.substring(0, 6);` then parse that. — `theme_editor.dart:260`
-
-- [ ] [MAJOR] Slug field shown and validated for local export. `_SaveThemeBoxState._save()` calls `_validateSlug(slug)` unconditionally (line 1343) even when `widget.cloudSave == false`, where the slug is irrelevant and not used in `_ExportResult`. The slug `TextField` is also rendered unconditionally (lines 1444–1479). This confuses users with a cloud-only concept during local save and can block the save if the user edits the field to something invalid. Fix: guard both the slug field and `_validateSlug` call behind `if (widget.cloudSave)`. — `theme_editor.dart:1343`
-
-- [ ] [MAJOR] `entryIndex` mutable closure in `ListView.builder.itemBuilder` (line 682, incremented at line 800). The counter is a `var` declared once per `build()` call and incremented inside `itemBuilder`. `ListView.builder` may call `itemBuilder` for arbitrary visible indices, and if items are re-built individually (e.g. by key changes or framework-driven rebuilds of specific slots), the cumulative counter drifts. The result is that `_focusedIndex` highlighting and `onTap` capture the wrong entry index. Fix: precompute the entry index for each item when building `_cachedItems` and store it in `_ListItem`, or compute it from `index` by counting headers before `index` in the items list. — `theme_editor.dart:682`
-
-- [ ] [MAJOR] `setState` called inside a `for` loop for PageDown/PageUp key handling (lines 509–524). Each iteration fires a separate `setState(() => _focusedIndex++)`, potentially scheduling tens of redundant rebuilds per keystroke. Flutter batches synchronous `setState` within a single frame but still enqueues a mark-needs-rebuild per call. Fix: compute the final `_focusedIndex` before the loop, then call `setState` once with the result. — `theme_editor.dart:509`
 
 ## titlebar — cleanup
 
