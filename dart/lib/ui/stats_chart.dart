@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -1606,17 +1607,10 @@ class _ChartAreaPainter extends CustomPainter {
 
   TextPainter _cachedTP(String text, TextStyle style) {
     final key = '$text|${style.fontSize}|${style.color?.value}';
-    var tp = textCache[key];
-    if (tp == null) {
-      tp = TextPainter(textDirection: TextDirection.ltr);
-      textCache[key] = tp;
-    }
-    final span = TextSpan(text: text, style: style);
-    if (tp.text != span) {
-      tp.text = span;
-      tp.layout();
-    }
-    return tp;
+    return textCache.putIfAbsent(key, () => TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout());
   }
 
   static int _computeRulerLineCount(double mn, double mx) {
@@ -2237,7 +2231,7 @@ class _ChartAreaPainter extends CustomPainter {
     final minScale = maxScale * 0.3;
     const kMinPercentage = 0.039;
     const kPieAngleOffset = 90.0;
-    final pieLabelColor = isDark ? Colors.white : Colors.white;
+    const pieLabelColor = Colors.white;
 
     double startAngleDeg = -180.0;
     final idx = pieDataIndex!;
@@ -2299,8 +2293,8 @@ class _ChartAreaPainter extends CustomPainter {
       rangeStart != old.rangeStart ||
       rangeEnd != old.rangeEnd ||
       selectedIndex != old.selectedIndex ||
-      lineVisible != old.lineVisible ||
-      lineAlphas != old.lineAlphas ||
+      !mapEquals(lineVisible, old.lineVisible) ||
+      !mapEquals(lineAlphas, old.lineAlphas) ||
       rulerCrossfade != old.rulerCrossfade ||
       animatedYMn != old.animatedYMn ||
       animatedYMx != old.animatedYMx ||
@@ -2310,7 +2304,7 @@ class _ChartAreaPainter extends CustomPainter {
       pieProgress != old.pieProgress ||
       pieDataIndex != old.pieDataIndex ||
       pieHoverSlice != old.pieHoverSlice ||
-      pieSliceHoverProgress != old.pieSliceHoverProgress ||
+      !mapEquals(pieSliceHoverProgress, old.pieSliceHoverProgress) ||
       selectionLineColor != old.selectionLineColor;
 }
 
