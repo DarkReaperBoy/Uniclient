@@ -148,14 +148,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # chat_view — cleanup
 
-## CRITICAL
-
-- [ ] [CRITICAL] `delete_all` case (line 2866) calls `engine.banMember(accountId, chat.chatId, senderId)` — but the menu label is "Delete All from User" and the success toast says "All messages from $senderName deleted". The user gets banned, zero messages are deleted. Should iterate visible messages and call `engine.deleteMessage` for each, or add a dedicated bulk-delete method to the engine. — `chat_view.dart:2861`
-
-- [ ] [CRITICAL] `share_contact` case (lines 2784–2795) copies `profile.phone` to the system clipboard with a toast "Contact phone copied: $phone" — but the menu item is "Share Contact". In Telegram Desktop, Share Contact sends the person as a contact message (vCard) in the current chat. Should call `engine.sendContact(accountId, chatId, phone, firstName, lastName)` instead of `Clipboard.setData`. — `chat_view.dart:2784`
-
-- [ ] [CRITICAL] `_showUserMessages` (line 2134) filters `chatState.messages` — the currently loaded in-memory page (~50–100 items). Older messages are invisible to this dialog. The real "User's Messages" feature searches the full history server-side and opens a filtered search/scroll view. The current dialog silently shows a fraction of all messages with no indication anything is missing. — `chat_view.dart:2134`
-
 ## MAJOR
 
 - [ ] [MAJOR] `_WaveformPainter.shouldRepaint` (line 10316) does not check `bars != old.bars`. If the bars list loads or changes after the initial render while `progress` and colors are unchanged (e.g., at position 0.0), the waveform stays blank. Add `bars != old.bars` to the condition. — `chat_view.dart:10316`
