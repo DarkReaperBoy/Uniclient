@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -294,7 +295,6 @@ class _ContactsBoxState extends State<_ContactsBox> {
   }
 
   void _throttledRefresh() {
-    if (_sortMode != _SortMode.online) return;
     if (_sortThrottleTimer?.isActive == true) return;
     _sortThrottleTimer = Timer(_sortByOnlineThrottle, () {
       if (mounted) setState(() { _sortedCache = null; });
@@ -503,11 +503,9 @@ class _ContactsBoxState extends State<_ContactsBox> {
                               ),
                             )
                           : Column(
-                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Flexible(
+                                Expanded(
                                   child: ListView.builder(
-                                    shrinkWrap: true,
                                     itemCount: _filteredContacts.length,
                                     itemBuilder: (context, index) {
                                       final contact = _filteredContacts[index];
@@ -861,6 +859,26 @@ class _ContactRow extends StatefulWidget {
 
 class _ContactRowState extends State<_ContactRow> {
   bool _hovered = false;
+  Uint8List? _avatarBytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _decodeAvatar();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ContactRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.contact.avatarB64 != widget.contact.avatarB64) {
+      _decodeAvatar();
+    }
+  }
+
+  void _decodeAvatar() {
+    final b64 = widget.contact.avatarB64;
+    _avatarBytes = b64.isNotEmpty ? base64Decode(b64) : null;
+  }
 
   static const _rowHeight = 56.0;
   static const _rowHeightStory = 52.0;
@@ -1082,12 +1100,14 @@ class _ContactRowState extends State<_ContactRow> {
     final statusLeft = hasStories ? _statusLeftStory : _statusLeft;
     final statusTop = hasStories ? _statusTopStory : _statusTop;
 
-    Widget avatarWidget = contact.avatarB64.isNotEmpty
+    Widget avatarWidget = _avatarBytes != null
         ? ClipOval(
             child: Image.memory(
-              base64Decode(contact.avatarB64),
+              _avatarBytes!,
               width: _avatarSize,
               height: _avatarSize,
+              cacheWidth: (_avatarSize * MediaQuery.devicePixelRatioOf(context)).toInt(),
+              cacheHeight: (_avatarSize * MediaQuery.devicePixelRatioOf(context)).toInt(),
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => _avatarFallback(avatarColor, initials),
             ),
@@ -1440,6 +1460,7 @@ class _EditContactBoxState extends State<_EditContactBox> {
   static const _notesMaxLength = 70;
   bool _hasPersonalPhoto = false;
   bool _hasBirthday = false;
+  Uint8List? _avatarBytes;
 
   String get _liveName {
     final first = _firstNameCtrl.text.trim();
@@ -1457,6 +1478,8 @@ class _EditContactBoxState extends State<_EditContactBox> {
     _notesCtrl = TextEditingController(text: widget.contact.note);
     _hasPersonalPhoto = widget.contact.hasPersonalPhoto;
     _hasBirthday = widget.contact.hasBirthday;
+    final b64 = widget.contact.avatarB64;
+    _avatarBytes = b64.isNotEmpty ? base64Decode(b64) : null;
     _firstNameFocus = FocusNode();
     _lastNameFocus = FocusNode();
     _notesFocus = FocusNode();
@@ -1691,12 +1714,14 @@ class _EditContactBoxState extends State<_EditContactBox> {
                   Positioned(
                     left: 19,
                     top: 18,
-                    child: contact.avatarB64.isNotEmpty
+                    child: _avatarBytes != null
                         ? ClipOval(
                             child: Image.memory(
-                              base64Decode(contact.avatarB64),
+                              _avatarBytes!,
                               width: 72,
                               height: 72,
+                              cacheWidth: (72 * MediaQuery.devicePixelRatioOf(context)).toInt(),
+                              cacheHeight: (72 * MediaQuery.devicePixelRatioOf(context)).toInt(),
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) =>
                                   _coverAvatarFallback(avatarColor, initials),
@@ -2115,7 +2140,10 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
   }
 
   int _columnsForWidth(double screenWidth) {
-    return 4;
+    if (screenWidth < 300) return 2;
+    if (screenWidth < 500) return 3;
+    if (screenWidth < 700) return 4;
+    return 5;
   }
 
   static Color avatarColor(String id, TelegramPalette palette) {
