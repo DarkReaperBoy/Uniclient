@@ -217,16 +217,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # payment_panel — cleanup
 
-- [ ] [CRITICAL] WebView `onPaymentDone` always passes `null` (line 2417) — `tg://` redirect URLs from providers like Stripe carry the credential token in query params (e.g. `tg://payment_form?credentials=...`); the code never parses them and always fires `widget.onPaymentDone(null)`. The `onPaymentDone` callback at line 2272 guards on `if (token != null)`, so `_credentialsData` is never set through the web flow. `sendPaymentForm` then sends no `credentials_data`, causing all web-provider payments to fail. Fix: parse the `tg://` URL query params for the credentials token before calling `onPaymentDone`. — `payment_panel.dart:2417`
-
-- [ ] [CRITICAL] WebView URL intercept `.contains('done')` and `.contains('success')` (lines 2415–2416) matches too broadly — any URL with those substrings anywhere (e.g. `https://3ds.provider.com/process?order_id=123done`, `https://success.payment.com/landing`) fires `onPaymentDone(null)` and closes the WebView mid-flow. Fix: restrict to `tg://` scheme only, or use a specific regex for known terminal patterns. — `payment_panel.dart:2414`
-
-- [ ] [MAJOR] `accentFg = isDark ? Colors.white : Colors.white` — both branches are identical, always produces `Colors.white` regardless of theme (line 660). On a light theme with a pale accent color, white text on the PAY button will be invisible. — `payment_panel.dart:660`
-
-- [ ] [MAJOR] `Image.network` for product thumbnail has no `cacheWidth`/`cacheHeight` (line 944) — product photos are displayed at 80×80 px but decoded and memory-cached at full resolution. Add `cacheWidth: _kThumbSize.toInt()` and `cacheHeight: _kThumbSize.toInt()`. — `payment_panel.dart:944`
-
-- [ ] [MAJOR] `_buildTipsSection` allocates a redundant list copy (`allItems = [..._suggestedTips]`) and recomputes row chunking on every `build()` call (lines 1088–1095) — `_suggestedTips` only changes at form load. Precompute rows in `_fetchForm`/`setState` and store as a field. — `payment_panel.dart:1088`
-
 ## peer_short_info — cleanup
 
 - [ ] [CRITICAL] `TapGestureRecognizer` instances created inline in `_parseTextWithEntities` are never stored or disposed — every `setState` rebuild (status update, photo nav, buffering) that re-invokes `_buildInfoRows` leaks all recognizers from the previous render; Flutter's `RenderParagraph` does not auto-dispose inline recognizers — store them as state fields and dispose in `dispose()` — `peer_short_info.dart:1065-1079`
