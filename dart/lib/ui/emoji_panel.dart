@@ -563,12 +563,6 @@ class _TabContent extends StatelessWidget {
     this.onInlineResultSend,
   });
 
-  Widget _buildTabWidget(int index) {
-    if (index == 0) return _EmojiTab(onEmojiSelected: onEmojiSelected, onCustomEmojiSelected: onCustomEmojiSelected);
-    if (index == 1) return _StickerTab(onStickerSend: onStickerSend, onContextMenuToggle: onContextMenuToggle);
-    return _GifTab(onGifSend: onGifSend, onContextMenuToggle: onContextMenuToggle, onInlineResultSend: onInlineResultSend);
-  }
-
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -576,44 +570,58 @@ class _TabContent extends StatelessWidget {
       builder: (context, _) {
         final direction = activeTab > prevTab ? 1.0 : -1.0;
         final slideProgress = slideController.value;
+        final animating = slideProgress < 1.0 && activeTab != prevTab;
 
         return LayoutBuilder(
           builder: (context, constraints) {
             final panelW = constraints.maxWidth;
 
-            if (slideProgress >= 1.0 || activeTab == prevTab) {
-              return _buildTabWidget(activeTab);
-            }
-
-            Widget prevWidget = RepaintBoundary(child: _buildTabWidget(prevTab));
-            Widget activeWidget = RepaintBoundary(child: _buildTabWidget(activeTab));
-
             return ClipRect(
               child: Stack(
-                children: [
-                  Transform.translate(
-                    offset: Offset(-direction * slideProgress * panelW, 0),
-                    child: Opacity(
-                      opacity: 1.0 - slideProgress,
-                      child: SizedBox(
-                        width: panelW,
-                        height: constraints.maxHeight,
-                        child: prevWidget,
+                children: List.generate(3, (i) {
+                  final bool isActive = i == activeTab;
+                  final bool isPrev = animating && i == prevTab;
+                  final bool visible = isActive || isPrev;
+
+                  double dx = 0.0;
+                  double opacity = visible ? 1.0 : 0.0;
+                  if (animating) {
+                    if (isActive) {
+                      dx = direction * (1.0 - slideProgress) * panelW;
+                      opacity = slideProgress;
+                    } else if (isPrev) {
+                      dx = -direction * slideProgress * panelW;
+                      opacity = 1.0 - slideProgress;
+                    }
+                  }
+
+                  Widget tab;
+                  if (i == 0) {
+                    tab = _EmojiTab(onEmojiSelected: onEmojiSelected, onCustomEmojiSelected: onCustomEmojiSelected);
+                  } else if (i == 1) {
+                    tab = _StickerTab(onStickerSend: onStickerSend, onContextMenuToggle: onContextMenuToggle);
+                  } else {
+                    tab = _GifTab(onGifSend: onGifSend, onContextMenuToggle: onContextMenuToggle, onInlineResultSend: onInlineResultSend);
+                  }
+
+                  return Offstage(
+                    offstage: !visible,
+                    child: TickerMode(
+                      enabled: visible,
+                      child: Transform.translate(
+                        offset: Offset(dx, 0),
+                        child: Opacity(
+                          opacity: opacity,
+                          child: SizedBox(
+                            width: panelW,
+                            height: constraints.maxHeight,
+                            child: tab,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  Transform.translate(
-                    offset: Offset(direction * (1.0 - slideProgress) * panelW, 0),
-                    child: Opacity(
-                      opacity: slideProgress,
-                      child: SizedBox(
-                        width: panelW,
-                        height: constraints.maxHeight,
-                        child: activeWidget,
-                      ),
-                    ),
-                  ),
-                ],
+                  );
+                }),
               ),
             );
           },
