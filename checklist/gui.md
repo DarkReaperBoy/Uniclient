@@ -142,12 +142,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## CRITICAL
 
-- [ ] [CRITICAL] Forum "Delete Topic" calls `deleteForumTopicHistory` (clears messages only) instead of `editForumTopic(deleted=true)` — the topic stays in the list after "deletion" — `chat_list_panel.dart:5611`
-
-- [ ] [CRITICAL] `_SavedSublistRow` is constructed at line 6199 without a `tags` argument — the `tags` field defaults to `const []`, `hasTags` is always false, and the `_buildTagPills` method is permanently dead code; per-sublist reaction tag pills are never shown — `chat_list_panel.dart:6199`
-
-- [ ] [CRITICAL] "Public Posts" search tab calls synchronous `chatState.searchGlobalPostMessages` (local cache read, no network) — no live network search is triggered when user types in the Public Posts tab; results are limited to whatever was already cached locally — `chat_list_panel.dart:532`
-
 ## MAJOR
 
 - [ ] [MAJOR] `_StoriesBarState._storyRefreshTimer` calls `chatState.loadChats()` (full 500-chat engine sync) every 60 seconds just to refresh story counts — should call a story-specific update path or be removed in favour of engine-pushed events — `chat_list_panel.dart:2847`
