@@ -228,20 +228,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 ## MAJOR
 
 
-## sticker_pack_viewer — cleanup
-
-- [ ] [CRITICAL] `_showPremiumRequired()` is a stub — "Unlock" button (line 331) calls this, which only shows a SnackBar with text "Subscribe to Telegram Premium". No navigation, no URL open, no real upsell flow. Visible button does nothing actionable. Should open `https://t.me/premium` or a premium subscription dialog — `sticker_pack_viewer.dart:237`
-
-- [ ] [CRITICAL] Silent fail in `_sendSticker` when `activeChat == null` (line 199-200) — returns early with no user feedback, sheet stays open. Reachable via `StickerPackViewer.showByName()` called outside a chat context. Should show a snackbar ("Open a chat first") or disable the send tap when no chat is active — `sticker_pack_viewer.dart:199`
-
-- [ ] [MAJOR] No `RepaintBoundary` around animated `_StickerTile` widgets — Lottie (`_lottieData != null`) and Video (`_webmController != null`) tiles repaint on every animation frame, dirtying the entire grid repaint layer. `GridView.builder` at line 379 should wrap each tile's return in `RepaintBoundary` — `sticker_pack_viewer.dart:379`
-
-- [ ] [MAJOR] WebM temp file path collision (line 542) — writes to `Directory.systemTemp/sticker_$docId.webm` with no unique suffix per instance. Opening the same pack twice simultaneously (or after a crash before dispose cleans up) causes two `_StickerTileState` instances to write concurrently to the same path, corrupting the file or causing playback errors — `sticker_pack_viewer.dart:542`
-
-- [ ] [MAJOR] `Player.dispose()` called fire-and-forget in `dispose()` (line 582) — `media_kit`'s `Player.dispose()` is `async`; calling it without `await` in `dispose()` means audio/video resources (native threads, file handles) may not be released before the widget unmounts. Schedule via `player.dispose().catchError((_){})` assigned to a local before nulling the field — `sticker_pack_viewer.dart:582`
-
-- [ ] [MAJOR] `_loadingFile` never reset to `false` after a failed/type-mismatch load (lines 514, 530) — if `getStickerFiles` returns an entry whose `mimeType` matches neither `isTgs` nor `isWebm`, the flag stays `true` permanently. The guard `if (_loadingFile) return` at line 513/529 then blocks any future retry. Should be reset to `false` in the else branch and catch — `sticker_pack_viewer.dart:514`
-
 ## story_editor — cleanup
 
 - [ ] [CRITICAL] `_continueStroke` (line 899-903) mutates `_currentStrokePoints` in-place and then pings `_strokesNotifier`, but `_StrokePainter.shouldRepaint` (line 2182-2184) compares `old.currentPoints != currentPoints` — since it's the **same list object** (only mutated, never reassigned), this is always `false`. Result: `CustomPainter.paint()` is never scheduled during drawing. The live stroke does not render until the user lifts their finger (`_endStroke` calls `setState` which triggers a full rebuild). Fix: in `_continueStroke`, assign a new list (`_currentStrokePoints = [..._currentStrokePoints!, pos/scale]`) so the reference changes and `shouldRepaint` returns true. — `story_editor.dart:899`
