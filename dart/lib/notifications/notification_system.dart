@@ -481,18 +481,18 @@ class NotificationSystem {
       );
     }
 
-    // ITEM 14: spoilerLoginCode for OTP bot messages
     var effectiveData = data;
-    if (!data.spoilerLoginCode && data.senderName.isNotEmpty) {
+    if (!data.spoilerLoginCode && !data.isOutgoing && data.senderName.isNotEmpty) {
       final lower = data.senderName.toLowerCase().replaceAll('@', '');
       if (_otpBotUsernames.contains(lower)) {
         effectiveData = data.copyWith(spoilerLoginCode: true);
       }
     }
 
-    // ITEM 15: hideMarkAsRead / hideReplyButton for broadcast/slowmode/stars/reaction/poll
     if (!effectiveData.hideMarkAsRead) {
-      final shouldHide = effectiveData.isChannel ||
+      final hideMessageText = !effectiveSettings.previewText || _passcodeLocked;
+      final shouldHide = hideMessageText ||
+          effectiveData.isChannel ||
           effectiveData.slowmodeActive ||
           effectiveData.requiresStars ||
           effectiveData.isReaction ||
@@ -511,15 +511,15 @@ class NotificationSystem {
       avatarPath: forceHideDetails ? '' : effectiveData.avatarPath,
     );
 
-    final dnd = _dndChecker.isActive;
+    // DND: DefaultManager (custom toast) is NEVER suppressed by DND on Linux.
+    // NativeManager handles DND internally per-call via Inhibited property.
+    // Use fresh inhibited value from NativeManager, not stale 30s poll.
+    final isNative = _manager is NativeManager;
+    final dnd = isNative ? (nativeManager!.inhibited) : false;
 
-    if (_manager is DefaultManager && dnd) {
-      Debug.log('NOTIF', 'DND active, skipping custom toast');
-    } else {
-      _manager.showNotification(display, effectiveSettings);
-    }
+    _manager.showNotification(display, effectiveSettings);
 
-    final forceSilent = effectiveData.isSilent || effectiveData.soundNone || dnd;
+    final forceSilent = effectiveData.isSilent || effectiveData.soundNone || (isNative && dnd);
 
     final threadKey = '${effectiveData.accountId}:${effectiveData.chatId}';
     final now = DateTime.now();
@@ -546,7 +546,7 @@ class NotificationSystem {
       );
     }
 
-    if (_settings.flashBounce && !dnd && alertAllowed && !forceSilent) {
+    if (_settings.flashBounce && alertAllowed && !forceSilent) {
       onFlashBounce?.call();
     }
 

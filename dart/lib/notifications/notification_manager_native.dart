@@ -175,6 +175,7 @@ class NativeManager extends NotificationManager {
   DBusRemoteObject? _notifProxy;
   Set<String> _capabilities = {};
   bool _inhibited = false;
+  bool get inhibited => _inhibited;
   String _imageDataKey = 'icon_data';
   bool _ready = false;
 
