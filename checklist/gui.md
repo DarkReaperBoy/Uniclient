@@ -209,10 +209,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 ## forum_topic_icon — cleanup
 
 - [ ] [MAJOR] `_BubbleIconPainter.paint()` allocates `Float64List`, two `Path.transform()` calls, three `Paint` objects with gradient shaders, and a `TextPainter` on every repaint — all should be cached per `(targetSize, palette, letter)` and reused until `shouldRepaint` triggers — `forum_topic_icon.dart:280-336`
-- [ ] [MAJOR] `_GeneralIconPainter.paint()` allocates a new `Float64List` and calls `Path.transform()` every repaint — the scaled path should be cached per `targetSize` — `forum_topic_icon.dart:399-406`
-- [ ] [MAJOR] WebM temp file path `topic_icon_${widget.documentId}.webm` is not unique per instance — two `CustomEmojiTopicIcon` widgets with the same `documentId` mounted simultaneously (e.g. same topic visible twice) will race-write the same file, corrupting the one already being played — use a unique suffix (e.g. `_${identityHashCode(this)}`) — `forum_topic_icon.dart:548`
-- [ ] [MAJOR] `Uint8List.fromList(bytes)` in `_buildFallback` is a redundant copy — `base64Decode` already returns `Uint8List`, pass it directly — `forum_topic_icon.dart:640`
-- [ ] [MAJOR] `Lottie.memory` and `Video` widgets are animated but have no `RepaintBoundary` wrapper — their per-frame repaints propagate into ancestor layers unnecessarily — wrap each animated branch in `RepaintBoundary` — `forum_topic_icon.dart:584-627`
 
 ## ghost_settings_page — cleanup
 
