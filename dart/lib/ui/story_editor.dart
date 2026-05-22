@@ -22,7 +22,7 @@ const double _canvasRadius = 8;
 const double _barHeight = 48;
 const double _barMaxWidth = 422;
 const double _barRadius = 24;
-const double _barAnimDuration = 200; // ms
+const int _barAnimDurationMs = 200;
 const double _contentMarginH = 20;
 const double _contentMarginBottom = 146;
 const double _minCanvasZoom = 1.0;
@@ -249,7 +249,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     super.initState();
     _barAnimController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: _barAnimDurationMs),
     );
     _barAnim = CurvedAnimation(
       parent: _barAnimController,
@@ -584,8 +584,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     for (final item in _sceneItems) {
       canvas.save();
       canvas.translate(
-        item.position.dx * _canvasWidth,
-        item.position.dy * _canvasHeight,
+        item.position.dx,
+        item.position.dy,
       );
       canvas.scale(item.scale);
       canvas.rotate(item.rotation);
@@ -778,7 +778,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
                       fit: StackFit.expand,
                       children: [
                         _buildCanvasContent(scale),
-                        ..._buildBlurLayers(scale),
+                        RepaintBoundary(child: Stack(fit: StackFit.expand, children: _buildBlurLayers(scale))),
                         if (_mode == _EditorMode.paint) _buildPaintLayer(scale),
                         ..._buildSceneItems(scale),
                       ],
@@ -898,7 +898,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
 
   void _continueStroke(Offset pos, double scale) {
     if (_currentStrokePoints != null) {
-      _currentStrokePoints!.add(pos / scale);
+      _currentStrokePoints = [..._currentStrokePoints!, pos / scale];
       _strokesNotifier.value = List.from(_strokesNotifier.value);
     }
   }
@@ -993,6 +993,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           item.stickerImageBytes!,
           width: 120,
           height: 120,
+          cacheWidth: 120,
+          cacheHeight: 120,
           fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => Text(
             item.text.isNotEmpty ? item.text : '?',
@@ -2063,14 +2065,21 @@ class _StrokePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.saveLayer(Offset.zero & size, Paint());
+    final needsLayer = strokes.any((s) => s.tool == _BrushTool.marker || s.tool == _BrushTool.eraser) ||
+        (currentPoints != null && currentPoints!.isNotEmpty &&
+            (currentTool == _BrushTool.marker || currentTool == _BrushTool.eraser));
+    if (needsLayer) {
+      canvas.saveLayer(Offset.zero & size, Paint());
+    }
     for (final stroke in strokes) {
       paintStroke(canvas, stroke.points, stroke.color, stroke.width, stroke.tool, scale);
     }
     if (currentPoints != null && currentPoints!.isNotEmpty) {
       paintStroke(canvas, currentPoints!, currentColor, currentWidth, currentTool, scale);
     }
-    canvas.restore();
+    if (needsLayer) {
+      canvas.restore();
+    }
   }
 
   static void paintStroke(Canvas canvas, List<Offset> points, Color color, double width, _BrushTool tool, double scale) {
@@ -2455,13 +2464,21 @@ class _ContactPickerDialogState extends State<_ContactPickerDialog> {
   void initState() {
     super.initState();
     _selected = Set<String>.from(widget.selectedIds);
+    _decodeAvatars();
+  }
+
+  Future<void> _decodeAvatars() async {
     for (final c in widget.contacts) {
       if (c.avatarB64.isNotEmpty) {
         try {
           _avatarCache[c.userId] = Uint8List.fromList(base64Decode(c.avatarB64));
         } catch (_) {}
       }
+      if (_avatarCache.length % 50 == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
     }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -2974,6 +2991,7 @@ class _StickerPickerPanel extends StatefulWidget {
 class _StickerPickerPanelState extends State<_StickerPickerPanel> {
   int _activeTab = 0;
   List<StickerPackSummary>? _stickerPacks;
+  List<(StickerInfoItem, String)>? _allStickers;
   bool _loadingPacks = false;
   final Map<String, Uint8List> _stickerThumbCache = {};
 
@@ -3012,8 +3030,15 @@ class _StickerPickerPanelState extends State<_StickerPickerPanel> {
             }
           }
         }
+        final flat = <(StickerInfoItem, String)>[];
+        for (final pack in packs) {
+          for (final sticker in pack.stickers) {
+            flat.add((sticker, pack.title));
+          }
+        }
         setState(() {
           _stickerPacks = packs;
+          _allStickers = flat;
           _loadingPacks = false;
         });
       }
@@ -3021,6 +3046,7 @@ class _StickerPickerPanelState extends State<_StickerPickerPanel> {
       if (mounted) {
         setState(() {
           _stickerPacks = [];
+          _allStickers = [];
           _loadingPacks = false;
         });
       }
@@ -3130,12 +3156,7 @@ class _StickerPickerPanelState extends State<_StickerPickerPanel> {
       );
     }
 
-    final allStickers = <(StickerInfoItem, String)>[];
-    for (final pack in packs) {
-      for (final sticker in pack.stickers) {
-        allStickers.add((sticker, pack.title));
-      }
-    }
+    final allStickers = _allStickers ?? const [];
 
     return GridView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -3152,6 +3173,8 @@ class _StickerPickerPanelState extends State<_StickerPickerPanel> {
         if (cachedThumb != null) {
           stickerWidget = Image.memory(
             cachedThumb,
+            cacheWidth: 120,
+            cacheHeight: 120,
             fit: BoxFit.contain,
             errorBuilder: (_, __, ___) => Center(
               child: Text(
