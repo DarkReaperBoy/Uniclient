@@ -188,12 +188,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## custom_emoji_cache — cleanup
 
-- [ ] [MAJOR] `_retryDelayMs = 0` at line 105 — every failed emoji fetch has a retry window of exactly 0 ms, so the next `request()` call (e.g. next frame rebuild) immediately clears `_failed` and re-queues the fetch. On a broken connection or missing document this becomes a per-frame hammer loop with zero backoff. Change to a real delay (e.g. 5000 ms). — `custom_emoji_cache.dart:105`
-
-- [ ] [MAJOR] `_notifyListeners(changedIds)` is called outside the try/catch at lines 447 and 477 with `changedIds = {}` on the error path — doc-specific listeners for the failed IDs are never called (empty set skips the inner loop), so any widget subscribed only via `addListenerForDoc` will hang in the loading/pending state forever and never learn the fetch failed. Fix: populate `changedIds` with `ids` in the catch block before falling through to `_notifyListeners`. — `custom_emoji_cache.dart:439,469`
-
-- [ ] [MAJOR] `preloadBatch()` (line 223) and `request()` (line 293) guard only on `_thumbs.containsKey(id)`, not `_paths.containsKey(id)`. An emoji that was fetched with a path (SVG vector) but no bitmap thumb passes both guards and is re-queued on every `preloadBatch` call, generating redundant engine calls each time the chat list scrolls. Fix: treat `_paths.containsKey` as "already have preview", matching `hasAnyPreview()` semantics. — `custom_emoji_cache.dart:223,293`
-
 # edit_forum_topic_box — cleanup
 
 - [ ] [CRITICAL] "View Premium" button (line 645–647) calls `_dismissToast()` then `Navigator.of(context).pop()` — pops the *edit topic dialog* instead of navigating to a Premium subscription screen; label promises navigation that never happens — `edit_forum_topic_box.dart:645`
