@@ -227,12 +227,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## MAJOR
 
-## shortcuts_settings_screen — cleanup
-
-- [ ] [CRITICAL] `_commandGroups` (line 11) omits 22 of the 45 `ShortcutCommand` variants — formatting shortcuts (formatBold/Italic/Underline/Strike/Code/Blockquote/Spoiler/Clear/Link/Date), compose/editing (editLastMessage, replyPrevious, replyNext, openFilePicker, pastePlainText), navigation (cancelSearch, chatSwitchOverlay, chatSwitchOverlayReverse), and support commands (supportReloadTemplates/ToggleMuted/ScrollToCurrent/HistoryBack/HistoryForward) — all have real handlers registered in `ShortcutListener` and real default bindings in `_defaultBindings`, but because they are absent from `_commandGroups` they never appear in the settings screen; users cannot see or remap them — `shortcuts_settings_screen.dart:11`
-
-- [ ] [MAJOR] all `_ShortcutRow` and separator widgets are eagerly instantiated inside `build()` before being handed to `ListView.builder` (lines 382–448) — `ListView.builder` only virtualises layout, not object creation; with ~100 items every `setState` (triggered on each row-tap to begin recording) tears down and rebuilds the full widget list — store command-group data and defer widget construction to `itemBuilder` so only visible rows are built — `shortcuts_settings_screen.dart:382`
-
 ## spoiler_animation — cleanup
 
 - [ ] [MAJOR] `_generateSheet` has no error handling — if `_renderSpriteSheet` throws (OOM, compute-isolate crash), the `async` exception is swallowed by the fire-and-forget call at line 114/120 (`_generateSheet(type)` is never awaited), `_textGenerating`/`_imageGenerating` stays `true` permanently, all pending completers in `_textCompleters`/`_imageCompleters` are never resolved or rejected, and every subsequent `getSheet()` call silently queues a completer that can never complete — spoiler sprites stop loading for the entire app session. Fix: wrap `_generateSheet` body in try/catch, complete all queued completers with an error (or a fallback sheet), and reset the generating flag in a `finally` block. `spoiler_animation.dart:126`
