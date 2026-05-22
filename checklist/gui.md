@@ -230,26 +230,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 
 
-## web_app_panel — cleanup
-
-- [ ] [CRITICAL] `_handleOpenPopup` invalid-data guard calls `Navigator.of(context).pop()` at line 1095 — this pops the **web app panel itself** (not a dialog, no dialog is open at that point) instead of just ignoring bad input; any mini app that sends a popup with empty message or buttons crashes the user out of the panel — `web_app_panel.dart:1094`
-
-- [ ] [CRITICAL] `_handleOpenScanQrPopup` shows an AlertDialog but never sends `scan_qr_popup_closed` back to the web view — the mini app JS is waiting for either `qr_text_received` or `scan_qr_popup_closed` and will hang in "scanning" state permanently after the user clicks OK — `web_app_panel.dart:519`
-
-- [ ] [CRITICAL] `iconCustomEmojiId` is stored in `WebAppButtonConfig` (line 1042), drives `effectiveVisible` at line 1034 (button becomes visible even with empty text when emoji is set), but is never passed to `_WebAppButton` and `_WebAppButton.build()` renders nothing for it — a button made visible solely via emoji icon appears as a blank active button; the icon never shows — `web_app_panel.dart:1034,1654,1777`
-
-- [ ] [CRITICAL] `_handleRequestEmojiStatusAccess` (line 853) directly calls `BotRequestEmojiStatusAccess` on the engine with no user-facing confirmation dialog — Telegram spec: "Prompts the user to grant permission for the mini app to manage emoji status" — compare `_handleRequestWriteAccess` which correctly shows a dialog first; user never sees the permission prompt — `web_app_panel.dart:853`
-
-- [ ] [CRITICAL] `_handleSwitchInlineQuery` fires `BotSwitchInlineQuery` on the engine (line 484) but never calls `_close()` afterward — per Telegram Mini App spec `web_app_switch_inline_query` must close the mini app and switch to inline query; the panel stays open after the engine call completes — `web_app_panel.dart:483`
-
-- [ ] [MAJOR] `_handleShareToStory` (line 535) shows a blocking AlertDialog saying "not supported" — `web_app_share_to_story` is fire-and-forget per Telegram spec (no response event expected); the dialog blocks the web app's UI thread and is wrong UX — should silently drop — `web_app_panel.dart:535`
-
-- [ ] [MAJOR] Loading overlay is dismissed on `onPageFinished` (line 207) not on `web_app_ready` — Telegram spec: the native app must hide the loading screen only when the mini app sends `web_app_ready` (the app is render-ready, not just DOM-parsed); currently `web_app_ready` handler is a no-op `break` at line 271 — content can flash before the web app has finished its own initialization — `web_app_panel.dart:207,270`
-
-- [ ] [MAJOR] `_SpinnerPainter.shouldRepaint` (line 1915) only checks `progress != oldDelegate.progress` — ignores `color` and `strokeWidth`; if theme changes while spinner is visible the old colors/stroke persist until progress ticks — `web_app_panel.dart:1915`
-
-- [ ] [MAJOR] `_kProgressOpacity` constant (line 23) is defined as `0.3` but never referenced anywhere in the file — spinner color is set directly to `palette.windowSubTextFg` with no opacity applied — dead constant — `web_app_panel.dart:23`
-
 ## engine_models — cleanup
 
 - [ ] [MAJOR] `CachedMessage.fromJson` decodes `content_raw` twice: `_decodeContentRawExtra` (line 900) and `_decodeContentRawTop` (line 911) both independently call `base64Decode` + `utf8.decode` + `json.decode` on the same string, then return `parsed['extra']` vs `parsed` respectively. Called back-to-back at lines 766–767 for every message parsed. Fix: merge into one decode that returns the top-level map, then extract `extra` from it at the call site. — `engine_models.dart:766`
