@@ -161,10 +161,6 @@ The notification composition system is production-ready. Data flows correctly fr
 
 # app_state — Audit Findings
 
-## app_state — TranslationProvider serialized as int vs string
-
-- [ ] [CRITICAL] AyuGram serializes `TranslationProvider` as strings (`"telegram"`, `"google"`, `"yandex"`, `"native"`) via `NLOHMANN_JSON_SERIALIZE_ENUM`, but Dart stores and persists it as int (`0/1/2/3`). If a user's `window_prefs.json` is ever read by AyuGram or compared against AyuGram's format, the values will be unrecognizable. More importantly, the internal Dart representation diverges from the spec source of truth. — `app_state.dart:347` ← `ayu_settings.h:72-77`
-
 ## app_state — wideMultiplier minimum clamp wrong (1.0 vs 0.5)
 
 - [ ] [MAJOR] `setWideMultiplier` clamps to `1.0–4.0` but AyuGram's `validate()` uses `validateRange(_wideMultiplier, 0.5, 4.0, ...)` — the minimum is `0.5`, not `1.0`. Users cannot set values below 1.0 that AyuGram allows. The load path also enforces `clamp(1.0, 4.0)` at line 3342, so existing persisted values < 1.0 would be silently bumped up on load. — `app_state.dart:982,3342` ← `ayu_settings.cpp:518`
