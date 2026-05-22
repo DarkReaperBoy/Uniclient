@@ -20,6 +20,7 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
+import 'custom_emoji_cache.dart';
 import 'emoji_panel.dart';
 import 'info_panel.dart';
 import 'photo_crop_editor.dart';
@@ -403,6 +404,7 @@ class _MediaViewerState extends State<MediaViewer>
   String _chapterToastText = '';
   int _chapterToastDirection = 0;
   late final TapGestureRecognizer _downloadsLinkRecognizer;
+  List<TapGestureRecognizer> _captionRecognizers = [];
 
   List<_OcrBlock> _ocrBlocks = [];
   bool _showOcrOverlay = false;
@@ -509,6 +511,8 @@ class _MediaViewerState extends State<MediaViewer>
     _autoHideTimer?.cancel();
     _saveToastHoldTimer?.cancel();
     _chapterToastTimer?.cancel();
+    for (final r in _captionRecognizers) { r.dispose(); }
+    _captionRecognizers.clear();
     _downloadsLinkRecognizer.dispose();
     _saveToastAnim.dispose();
     _chapterToastAnim.dispose();
@@ -2530,13 +2534,26 @@ class _MediaViewerState extends State<MediaViewer>
     );
   }
 
+  String? _elideCache;
+  String? _elideCacheInput;
+  double _elideCacheWidth = 0;
+
   String _middleElide(String text, double maxWidth, TextStyle style) {
+    if (text == _elideCacheInput && maxWidth == _elideCacheWidth && _elideCache != null) {
+      return _elideCache!;
+    }
+    _elideCacheInput = text;
+    _elideCacheWidth = maxWidth;
+
     final tp = TextPainter(
       text: TextSpan(text: text, style: style),
       maxLines: 1,
       textDirection: TextDirection.ltr,
     )..layout();
-    if (tp.width <= maxWidth) return text;
+    if (tp.width <= maxWidth) {
+      _elideCache = text;
+      return text;
+    }
     const ellipsis = '\u2026';
     int lo = 1, hi = text.length - 1;
     while (lo < hi) {
@@ -2556,7 +2573,8 @@ class _MediaViewerState extends State<MediaViewer>
     }
     final keep = (lo - 1).clamp(2, text.length - 1);
     final half = keep ~/ 2;
-    return '${text.substring(0, half)}$ellipsis${text.substring(text.length - (keep - half))}';
+    _elideCache = '${text.substring(0, half)}$ellipsis${text.substring(text.length - (keep - half))}';
+    return _elideCache!;
   }
 
   Widget _buildFooter(CachedMessage msg, int photoIndex, int totalPhotos) {
@@ -2681,6 +2699,8 @@ class _MediaViewerState extends State<MediaViewer>
       fontSize: 14,
       height: 1.35,
     );
+    for (final r in _captionRecognizers) { r.dispose(); }
+    _captionRecognizers = [];
     if (entitiesJson.isEmpty) {
       return SelectableText(text, style: baseStyle);
     }
@@ -2695,7 +2715,7 @@ class _MediaViewerState extends State<MediaViewer>
       return SelectableText(text, style: baseStyle);
     }
     entities.sort((a, b) => a.offset.compareTo(b.offset));
-    final spans = _buildCaptionSpans(text, entities, baseStyle);
+    final spans = _buildCaptionSpans(text, entities, baseStyle, _captionRecognizers);
     return SelectableText.rich(
       TextSpan(children: spans),
       style: baseStyle,
@@ -2883,9 +2903,7 @@ class _MediaViewerState extends State<MediaViewer>
         },
         hasSender: msg.forwardFrom.isNotEmpty || msg.senderName.isNotEmpty,
         hasCaption: msg.contentText.isNotEmpty,
-        messageLink: msg.chatId.isNotEmpty && msg.msgId.isNotEmpty
-            ? 'https://t.me/c/${msg.chatId}/${msg.msgId}'
-            : null,
+        messageLink: _messageLink(msg),
       ),
     );
   }
@@ -2912,7 +2930,13 @@ class _MediaViewerState extends State<MediaViewer>
                 Navigator.of(context).pop();
               } else {
                 setState(() {
-                  if (_currentIndex > 0) {
+                  final removedIdx = widget.mediaMessages.indexOf(msg);
+                  if (removedIdx >= 0) {
+                    widget.mediaMessages.removeAt(removedIdx);
+                    if (_currentIndex >= widget.mediaMessages.length) {
+                      _currentIndex = widget.mediaMessages.length - 1;
+                    }
+                  } else if (_currentIndex > 0) {
                     _currentIndex--;
                   }
                 });
@@ -3007,13 +3031,25 @@ class _MediaViewerState extends State<MediaViewer>
     }
   }
 
+  String? _messageLink(CachedMessage msg) {
+    if (msg.chatId.isEmpty || msg.msgId.isEmpty) return null;
+    final chatState = context.read<ChatState>();
+    final chat = chatState.chats.where((c) => c.chatId == msg.chatId).firstOrNull;
+    if (chat != null && chat.username.isNotEmpty) {
+      return 'https://t.me/${chat.username}/${msg.msgId}';
+    }
+    if (chat == null || chat.type == ChatType.channel || chat.type == ChatType.group) {
+      return 'https://t.me/c/${msg.chatId}/${msg.msgId}';
+    }
+    return null;
+  }
+
   void _shareAtTime(CachedMessage msg) {
     if (!_isVideo || _player == null || _duration == Duration.zero) return;
     final seconds = _position.inSeconds;
-    final chatState = context.read<ChatState>();
-    final chatId = msg.chatId;
-    final msgId = msg.msgId;
-    final shareUrl = 'https://t.me/c/$chatId/$msgId?t=$seconds';
+    final link = _messageLink(msg);
+    if (link == null) return;
+    final shareUrl = '$link?t=$seconds';
     Clipboard.setData(ClipboardData(text: shareUrl));
     if (mounted) showTelegramToast(context, 'Link copied to clipboard');
   }
@@ -3445,7 +3481,12 @@ class _CaptionEntity {
   );
 }
 
-List<InlineSpan> _buildCaptionSpans(String text, List<_CaptionEntity> entities, TextStyle baseStyle) {
+List<InlineSpan> _buildCaptionSpans(String text, List<_CaptionEntity> entities, TextStyle baseStyle, List<TapGestureRecognizer> recognizers) {
+  TapGestureRecognizer _r(VoidCallback onTap) {
+    final r = TapGestureRecognizer()..onTap = onTap;
+    recognizers.add(r);
+    return r;
+  }
   final spans = <InlineSpan>[];
   int cursor = 0;
   for (final e in entities) {
@@ -3469,26 +3510,26 @@ List<InlineSpan> _buildCaptionSpans(String text, List<_CaptionEntity> entities, 
         spans.add(TextSpan(
           text: seg,
           style: const TextStyle(color: _kMediaviewCaptionLinkFg, decoration: TextDecoration.underline, decorationColor: _kMediaviewCaptionLinkFg),
-          recognizer: TapGestureRecognizer()..onTap = () { if (e.url.isNotEmpty) url_launcher.launchUrl(Uri.parse(e.url)); },
+          recognizer: _r(() { if (e.url.isNotEmpty) url_launcher.launchUrl(Uri.parse(e.url)); }),
         ));
       case 'url':
         spans.add(TextSpan(
           text: seg,
           style: const TextStyle(color: _kMediaviewCaptionLinkFg, decoration: TextDecoration.underline, decorationColor: _kMediaviewCaptionLinkFg),
-          recognizer: TapGestureRecognizer()..onTap = () { url_launcher.launchUrl(Uri.parse(seg)); },
+          recognizer: _r(() { url_launcher.launchUrl(Uri.parse(seg)); }),
         ));
       case 'mention': case 'text_mention':
         spans.add(TextSpan(
           text: seg,
           style: const TextStyle(color: _kMediaviewCaptionLinkFg),
-          recognizer: TapGestureRecognizer()..onTap = () {
+          recognizer: _r(() {
             final username = e.type == 'text_mention' && e.url.isNotEmpty
                 ? e.url
                 : seg.startsWith('@') ? seg.substring(1) : seg;
             if (username.isNotEmpty) {
               url_launcher.launchUrl(Uri.parse('https://t.me/$username'));
             }
-          },
+          }),
         ));
       case 'spoiler':
         spans.add(TextSpan(text: seg, style: const TextStyle(backgroundColor: Color(0xFFAAAAAA), color: Color(0xFFAAAAAA))));
@@ -5481,6 +5522,7 @@ class _ReactionAreaState extends State<_ReactionArea>
   bool _hovered = false;
   late final AnimationController _scaleCtrl;
   late final Animation<double> _scaleAnim;
+  int? _customDocId;
 
   @override
   void initState() {
@@ -5493,12 +5535,68 @@ class _ReactionAreaState extends State<_ReactionArea>
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.4), weight: 50),
       TweenSequenceItem(tween: Tween(begin: 1.4, end: 1.0), weight: 50),
     ]).animate(CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeInOut));
+    _initCustomEmoji();
+  }
+
+  void _initCustomEmoji() {
+    final emoji = widget.area.reaction;
+    if (!emoji.startsWith('custom:')) return;
+    final docId = int.tryParse(emoji.substring(7));
+    if (docId == null) return;
+    _customDocId = docId;
+    final cache = CustomEmojiCache.instance;
+    cache.acquire(docId, EmojiSizeTag.normal);
+    cache.addListenerForDoc(docId, _onCacheUpdate);
+    if (!cache.hasAnyPreview(docId) && !cache.isPending(docId)) {
+      final appState = context.read<AppState>();
+      final engine = context.read<EngineService>();
+      cache.request(docId, appState.activeAccountId, engine);
+    }
+  }
+
+  void _onCacheUpdate() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    if (_customDocId != null) {
+      CustomEmojiCache.instance.removeListenerForDoc(_customDocId!, _onCacheUpdate);
+      CustomEmojiCache.instance.release(_customDocId!, EmojiSizeTag.normal);
+    }
     _scaleCtrl.dispose();
     super.dispose();
+  }
+
+  Widget _buildCustomEmoji(bool dark) {
+    final docId = _customDocId;
+    if (docId == null) {
+      return Icon(Icons.emoji_emotions,
+          size: _kStoryReactionBubbleSize * 0.45,
+          color: dark ? Colors.white70 : Colors.black54);
+    }
+    final cache = CustomEmojiCache.instance;
+    final thumb = cache.getThumb(docId);
+    if (thumb != null) {
+      return Image.memory(thumb,
+          width: _kStoryReactionBubbleSize * 0.55,
+          height: _kStoryReactionBubbleSize * 0.55,
+          fit: BoxFit.contain);
+    }
+    final file = cache.getFile(docId);
+    if (file != null && file.isWebp) {
+      return Image.memory(file.fileData,
+          width: _kStoryReactionBubbleSize * 0.55,
+          height: _kStoryReactionBubbleSize * 0.55,
+          fit: BoxFit.contain);
+    }
+    return SizedBox(
+      width: _kStoryReactionBubbleSize * 0.45,
+      height: _kStoryReactionBubbleSize * 0.45,
+      child: CircularProgressIndicator(
+          strokeWidth: 1.5,
+          color: dark ? Colors.white54 : Colors.black38),
+    );
   }
 
   @override
@@ -5541,11 +5639,7 @@ class _ReactionAreaState extends State<_ReactionArea>
             ),
             child: Center(
               child: isCustomEmoji
-                  ? Icon(
-                      Icons.emoji_emotions,
-                      size: _kStoryReactionBubbleSize * 0.45,
-                      color: dark ? Colors.white70 : Colors.black54,
-                    )
+                  ? _buildCustomEmoji(dark)
                   : Text(
                       emoji,
                       style: TextStyle(fontSize: _kStoryReactionBubbleSize * 0.5),
@@ -6512,7 +6606,7 @@ class _StoriesViewerState extends State<StoriesViewer>
         !u.startsWith('tg://')) {
       u = 'https://$u';
     }
-    Process.run('xdg-open', [u]);
+    url_launcher.launchUrl(Uri.parse(u));
   }
 
   void _sendStoryReaction(String emoji) {
