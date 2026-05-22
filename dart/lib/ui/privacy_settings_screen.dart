@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
@@ -85,7 +86,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     _fetchTopPeers();
     _fetchContentSettings();
     _fetchWebsitesCount();
-    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 120), (_) {
       _fetchPasswordState();
       _fetchGlobalTTL();
       _loadPasscodeState();
@@ -1496,6 +1497,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     Color accentColor,
     Color hoverBg,
   ) {
+    if (!_topPeersLoaded) return [];
     return [
       InkWell(
         onTap: () => _toggleTopPeers(!_topPeersEnabled),
@@ -4218,7 +4220,7 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
       if (email.isNotEmpty) {
         final state = await widget.engine.getCloudPasswordState(widget.accountId);
         if (!mounted) return;
-        final unconfirmed = state?['unconfirmedEmail'] as String? ?? '';
+        final unconfirmed = state?['emailUnconfirmedPattern'] as String? ?? '';
         if (unconfirmed.isNotEmpty) {
           final effectivePassword = widget.emailOnly ? widget.currentPassword : widget.newPassword;
           Navigator.of(context).pushReplacement(settingsPageRoute(
@@ -5273,6 +5275,7 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
       final chats = await engine.searchChats('', limit: 500);
       for (final chat in chats) {
         engine.setHistoryTTL(accountId, chat.chatId, _selectedTTL);
+        await Future<void>.delayed(const Duration(milliseconds: 200));
       }
       if (mounted) showTelegramToast(context, 'Auto-delete applied to ${chats.length} chats.');
     } catch (e) {
@@ -5522,13 +5525,15 @@ String _generateSalt() {
   return base64Encode(saltBytes);
 }
 
-String _hashPasscodeWithSalt(String passcode, String salt) {
-  final saltedInput = utf8.encode(salt + passcode);
-  var digest = sha256.convert(saltedInput);
-  for (var i = 0; i < 99999; i++) {
-    digest = sha256.convert(digest.bytes + saltedInput);
-  }
-  return digest.toString();
+Future<String> _hashPasscodeWithSalt(String passcode, String salt) {
+  return Isolate.run(() {
+    final saltedInput = utf8.encode(salt + passcode);
+    var digest = sha256.convert(saltedInput);
+    for (var i = 0; i < 99999; i++) {
+      digest = sha256.convert(digest.bytes + saltedInput);
+    }
+    return digest.toString();
+  });
 }
 
 String _hashPasscode(String passcode) {
@@ -5613,8 +5618,9 @@ class _LocalPasscodeCreateState extends State<_LocalPasscodeCreate> {
     });
 
     final salt = _generateSalt();
+    final hash = await _hashPasscodeWithSalt(first, salt);
     await _writePasscodeData(widget.configDir, {
-      'hash': _hashPasscodeWithSalt(first, salt),
+      'hash': hash,
       'salt': salt,
       'autoLockSeconds': 300,
     });
@@ -6036,7 +6042,7 @@ class _LocalPasscodeVerifyState extends State<_LocalPasscodeVerify> {
     final salt = data['salt'] as String? ?? '';
     String hash;
     if (salt.isNotEmpty) {
-      hash = _hashPasscodeWithSalt(entered, salt);
+      hash = await _hashPasscodeWithSalt(entered, salt);
     } else {
       hash = _hashPasscode(entered);
     }
@@ -7118,6 +7124,7 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
     final accountId = appState.activeAccountId;
     final blockedIds = _blockedUsers.map((u) => u['id'] as String? ?? '').toSet();
     var searchQuery = '';
+    final contactsFuture = _loadContacts(engine, accountId, blockedIds);
 
     showDialog<void>(
       context: context,
@@ -7162,7 +7169,7 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
                     const SizedBox(height: 8),
                     Expanded(
                       child: FutureBuilder<List<_BlockPickerContact>>(
-                        future: _loadContacts(engine, accountId, blockedIds),
+                        future: contactsFuture,
                         builder: (ctx, snap) {
                           if (snap.hasError) {
                             return Center(
@@ -7798,8 +7805,7 @@ class _BirthdayDayMonthPickerState extends State<_BirthdayDayMonthPicker> {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor = context.palette.windowBgActive;
-
-    if (_day > _maxDay) _day = _maxDay;
+    final effectiveDay = _day > _maxDay ? _maxDay : _day;
 
     return Dialog(
       backgroundColor: bgColor,
@@ -7838,7 +7844,7 @@ class _BirthdayDayMonthPickerState extends State<_BirthdayDayMonthPicker> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<int>(
-                      value: _day,
+                      value: effectiveDay,
                       decoration: InputDecoration(
                         labelText: 'Day',
                         labelStyle: TextStyle(color: subtextColor),
@@ -7866,7 +7872,7 @@ class _BirthdayDayMonthPickerState extends State<_BirthdayDayMonthPicker> {
                   ),
                   const SizedBox(width: 8),
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop((day: _day, month: _month)),
+                    onPressed: () => Navigator.of(context).pop((day: effectiveDay, month: _month)),
                     child: Text('Save', style: TextStyle(color: accentColor)),
                   ),
                 ],
