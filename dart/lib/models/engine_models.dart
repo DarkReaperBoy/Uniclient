@@ -765,8 +765,8 @@ class CachedMessage {
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) {
     final rawStr = j['content_raw'] as String? ?? '';
-    final extra = _decodeContentRawExtra(rawStr);
     final rawMsg = _decodeContentRawTop(rawStr);
+    final extra = rawMsg['extra'] as Map<String, dynamic>? ?? const {};
     final waveform = _decodeWaveform(extra['waveform'] as String?);
 
     return CachedMessage(
@@ -900,17 +900,6 @@ class CachedMessage {
     );
   }
 
-  static Map<String, dynamic> _decodeContentRawExtra(String rawStr) {
-    if (rawStr.isEmpty) return const {};
-    try {
-      final bytes = base64Decode(rawStr);
-      final parsed = json.decode(utf8.decode(bytes)) as Map<String, dynamic>;
-      return parsed['extra'] as Map<String, dynamic>? ?? const {};
-    } catch (_) {
-      return const {};
-    }
-  }
-
   static Map<String, dynamic> _decodeContentRawTop(String rawStr) {
     if (rawStr.isEmpty) return const {};
     try {
@@ -1010,6 +999,7 @@ class CachedMessage {
   bool get isVideo => mediaType == 2;
   bool get isAudio => mediaType == 3;
   bool get isVoice => mediaType == 4;
+  bool get isVideoNote => mediaType == 5;
   bool get isSticker => mediaType == 6;
   bool get isGif => mediaType == 7;
   bool get isFile => mediaType == 8;
@@ -1088,6 +1078,12 @@ class CachedMessage {
     String? groupedId,
     int? views,
     int? forwards,
+    String? topicId,
+    String? topicName,
+    int? topicColorId,
+    String? stickerSetShortName,
+    int? stickerSetId,
+    int? stickerSetAccessHash,
     bool? stickerPremium,
     String? audioTitle,
     String? audioPerformer,
@@ -1200,9 +1196,9 @@ class CachedMessage {
     reactions: reactions ?? this.reactions,
     isDeleted: isDeleted ?? this.isDeleted,
     deletedAt: deletedAt ?? this.deletedAt,
-    topicId: topicId,
-    topicName: topicName,
-    topicColorId: topicColorId,
+    topicId: topicId ?? this.topicId,
+    topicName: topicName ?? this.topicName,
+    topicColorId: topicColorId ?? this.topicColorId,
     viaBotName: viaBotName ?? this.viaBotName,
     mediaSpoiler: mediaSpoiler ?? this.mediaSpoiler,
     noForwards: noForwards ?? this.noForwards,
@@ -1211,9 +1207,9 @@ class CachedMessage {
     groupedId: groupedId ?? this.groupedId,
     views: views ?? this.views,
     forwards: forwards ?? this.forwards,
-    stickerSetShortName: stickerSetShortName,
-    stickerSetId: stickerSetId,
-    stickerSetAccessHash: stickerSetAccessHash,
+    stickerSetShortName: stickerSetShortName ?? this.stickerSetShortName,
+    stickerSetId: stickerSetId ?? this.stickerSetId,
+    stickerSetAccessHash: stickerSetAccessHash ?? this.stickerSetAccessHash,
     stickerPremium: stickerPremium ?? this.stickerPremium,
     audioTitle: audioTitle ?? this.audioTitle,
     audioPerformer: audioPerformer ?? this.audioPerformer,
