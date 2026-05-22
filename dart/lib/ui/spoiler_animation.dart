@@ -88,7 +88,7 @@ class SpoilerAnimationManager {
     _ticking = false;
     if (_activeCount <= 0 || _listeners.isEmpty) return;
     if (!powerSavingPaused) {
-      final frame = (timestamp.inMilliseconds ~/ 33) % _kFrameCount;
+      final frame = (timestamp.inMilliseconds ~/ _kFrameDurationMs) % _kFrameCount;
       if (frame != _currentFrame) {
         _currentFrame = frame;
         for (final cb in List.of(_listeners)) {
@@ -124,22 +124,37 @@ class SpoilerAnimationManager {
   }
 
   Future<void> _generateSheet(SpoilerType type) async {
-    final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
-    final expectedTileSize = (_kCanvasSize * dpr).roundToDouble();
-    final cached = await _loadSpoilerCache(type, expectedTileSize);
-    final sheet = cached ?? await _renderSpriteSheet(type);
-    if (type == SpoilerType.text) {
-      _textSheet = sheet;
-      for (final c in _textCompleters) {
-        c.complete(sheet);
+    try {
+      final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
+      final expectedTileSize = (_kCanvasSize * dpr).roundToDouble();
+      final cached = await _loadSpoilerCache(type, expectedTileSize);
+      final sheet = cached ?? await _renderSpriteSheet(type);
+      if (type == SpoilerType.text) {
+        _textSheet = sheet;
+        for (final c in _textCompleters) {
+          c.complete(sheet);
+        }
+        _textCompleters.clear();
+      } else {
+        _imageSheet = sheet;
+        for (final c in _imageCompleters) {
+          c.complete(sheet);
+        }
+        _imageCompleters.clear();
       }
-      _textCompleters.clear();
-    } else {
-      _imageSheet = sheet;
-      for (final c in _imageCompleters) {
-        c.complete(sheet);
+    } catch (e) {
+      final completers =
+          type == SpoilerType.text ? _textCompleters : _imageCompleters;
+      for (final c in completers) {
+        c.completeError(e);
       }
-      _imageCompleters.clear();
+      completers.clear();
+    } finally {
+      if (type == SpoilerType.text) {
+        _textGenerating = false;
+      } else {
+        _imageGenerating = false;
+      }
     }
   }
 }
