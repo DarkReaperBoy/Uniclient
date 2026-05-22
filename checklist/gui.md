@@ -228,15 +228,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 ## MAJOR
 
 
-## telegram_toast — cleanup
-
-- [ ] [CRITICAL] double `OverlayEntry.remove()` assertion crash in `showStickerToast` — when replacing an active toast, `Future.delayed(_kFadeOutMs=1000ms, oldEntry.remove)` forcibly yanks the old entry without calling `_startHide()` on it; the old toast's 3 s hold timer + 1 s reverse animation later fires `onDone → entry.remove()` on the already-removed entry, hitting Flutter's `assert(_overlay != null)` — `telegram_toast.dart:290-296` vs `telegram_toast.dart:320-323`
-
-- [ ] [CRITICAL] dead branch in `_buildMessage()` — the `packCount > 1` path (lines 461-468) returns the exact same `TextSpan` list as the final fallback return (lines 470-475); the pack count is never shown in the message, and the branch distinction does nothing — `telegram_toast.dart:461`
-
-- [ ] [MAJOR] `_fadeOut` field is wrong direction and unused — defined as `CurvedAnimation(parent: ReverseAnimation(_ctrl), curve: Curves.easeIn)` which evaluates 0→1 during `_ctrl.reverse()` (increasing opacity, not decreasing); `build()` correctly bypasses it with `Tween<double>(begin:1, end:0).animate(CurvedAnimation(...))` inline, but this allocates a new `Tween` + `CurvedAnimation` on every animation frame during fade-out — `telegram_toast.dart:94,130-131` vs `telegram_toast.dart:203-208` and `telegram_toast.dart:595-598`
-
-- [ ] [MAJOR] `TapGestureRecognizer` memory leak — two recognizers created inline inside `_buildMessage()` (a method called from `build()`) with no disposal path; gesture recognizers hold native resources and must be stored as state fields and disposed in `dispose()` — `telegram_toast.dart:432,446`
 
 ## telegram_tooltip — cleanup
 
