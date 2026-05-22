@@ -799,11 +799,12 @@ class EngineService {
   }
 
   Future<void> deleteForumTopicHistory(String accountId, String chatId, int topicId) async {
-    final req = epb.EngineEditForumTopicRequest()
-      ..accountId = accountId
-      ..chatId = chatId
-      ..topicId = Int64(topicId);
-    await _callAsync('__engine', 'DeleteForumTopicHistory', req.writeToBuffer());
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'topic_id': topicId,
+    }));
+    await _callAsync('__engine', 'DeleteForumTopicHistory', Uint8List.fromList(payload));
   }
 
   // ── Folders ──
@@ -1082,6 +1083,7 @@ class EngineService {
       'offset': offset,
     }));
     final respBytes = await _callAsync('__engine', 'GetChatMembersByRole', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return MembersByRoleResult(members: [], total: 0);
     final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
     final list = data['members'] as List<dynamic>? ?? [];
     final members = list.map((m) {
@@ -2344,7 +2346,7 @@ class EngineService {
       'file_path': filePath,
     }));
     try {
-      await _callAsync(accountId, 'StartCallRecording', Uint8List.fromList(payload));
+      await _callAsync('__engine', 'StartCallRecording', Uint8List.fromList(payload));
     } catch (e) {
       Debug.error('ENGINE', 'startCallRecording failed', e);
     }
@@ -2356,7 +2358,7 @@ class EngineService {
       'call_id': callId,
     }));
     try {
-      final respBytes = await _callAsync(accountId, 'StopCallRecording', Uint8List.fromList(payload));
+      final respBytes = await _callAsync('__engine', 'StopCallRecording', Uint8List.fromList(payload));
       if (respBytes.isEmpty) return 0;
       final result = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
       return (result['frame_count'] as num?)?.toInt() ?? 0;
@@ -2688,6 +2690,7 @@ class EngineService {
       'limit': limit,
     }));
     final respBytes = _callRaw('__engine', 'GetEditRevisions', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return [];
     final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
     return (resp['revisions'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
   }
@@ -2699,6 +2702,7 @@ class EngineService {
       'msg_id': msgId,
     }));
     final respBytes = _callRaw('__engine', 'HasEditRevisions', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return false;
     final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
     return resp['has_revisions'] == true;
   }
@@ -4018,13 +4022,14 @@ class EngineService {
     }
   }
 
-  Future<void> updateProfile(String accountId, String firstName, String lastName) async {
-    final payload = utf8.encode(json.encode({
+  Future<void> updateProfile(String accountId, String firstName, String lastName, {String? about}) async {
+    final map = <String, dynamic>{
       'account_id': accountId,
       'first_name': firstName,
       'last_name': lastName,
-      'about': '',
-    }));
+    };
+    if (about != null) map['about'] = about;
+    final payload = utf8.encode(json.encode(map));
     await _callAsync('__engine', 'UpdateProfile', Uint8List.fromList(payload));
   }
 
@@ -5322,9 +5327,29 @@ class EngineService {
     if (cached != null && DateTime.now().difference(cached.fetchedAt) < _sessionsCountTtl) {
       return cached.count;
     }
-    final sessions = await getSessions(accountId);
-    _sessionsCountCache[accountId] = (count: sessions.length, fetchedAt: DateTime.now());
-    return sessions.length;
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'offset': 0,
+      'limit': 1,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetSessions', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 0;
+      final decoded = json.decode(utf8.decode(respBytes));
+      int total;
+      if (decoded is Map) {
+        total = decoded['total'] as int? ?? (decoded['sessions'] as List?)?.length ?? 0;
+      } else if (decoded is List) {
+        total = decoded.length;
+      } else {
+        total = 0;
+      }
+      _sessionsCountCache[accountId] = (count: total, fetchedAt: DateTime.now());
+      return total;
+    } catch (e) {
+      Debug.error('ENGINE', 'getSessionsCount failed', e);
+      return 0;
+    }
   }
 
   Future<List<Map<String, dynamic>>> getSessions(String accountId) async {
@@ -5983,7 +6008,7 @@ class EngineService {
       replyToId: p.replyToId,
       replyPreview: _safeStr(p.replyPreview),
       forwardFrom: _safeStr(p.forwardFrom),
-      forwardFromId: _strFromExtra(extra, 'forward_from_id') ?? p.forwardFrom,
+      forwardFromId: _strFromExtra(extra, 'forward_from_id') ?? '',
       isPinned: p.isPinned,
       isOutgoing: p.isOutgoing,
       isService: p.isService,
@@ -6147,7 +6172,7 @@ class EngineService {
     return raw
         .whereType<Map<String, dynamic>>()
         .map(MessageReaction.fromJson)
-        .where((r) => r.emoji.isNotEmpty)
+        .where((r) => r.emoji.isNotEmpty || r.documentId != 0)
         .toList(growable: false);
   }
 
@@ -6156,24 +6181,7 @@ class EngineService {
     final wfB64 = extra['waveform'];
     if (wfB64 is! String || wfB64.isEmpty) return const [];
     try {
-      final bytes = base64Decode(wfB64);
-      final samples = <int>[];
-      for (int i = 0; i < 100; i++) {
-        final bitOffset = i * 5;
-        final byteIdx = bitOffset ~/ 8;
-        final bitIdx = bitOffset % 8;
-        if (byteIdx >= bytes.length) break;
-        int val;
-        if (bitIdx + 5 <= 8) {
-          val = (bytes[byteIdx] >> bitIdx) & 0x1F;
-        } else {
-          final lo = bytes[byteIdx] >> bitIdx;
-          final hi = byteIdx + 1 < bytes.length ? bytes[byteIdx + 1] : 0;
-          val = (lo | (hi << (8 - bitIdx))) & 0x1F;
-        }
-        samples.add(val);
-      }
-      return samples;
+      return _decode5BitWaveform(base64Decode(wfB64));
     } catch (_) {
       return const [];
     }
