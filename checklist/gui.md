@@ -193,9 +193,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## Issues Found
 
-- [ ] [MAJOR] Missing cacheWidth/cacheHeight on thumbnail Image.memory() at line 272 — inconsistent with webp handling (line 209-210) — The `cs` variable is computed on line 192 for scaled frame size, but only used in the webp branch. The thumbnail fallback should also cache with same dimensions for consistent performance. Pass `cs` to `_buildThumbOrFallback()` and apply it. — `emoji_status_widget.dart:268-279`
-
-- [ ] [MAJOR] Missing cacheWidth/cacheHeight on userpic Image.file() at line 243-249 — userpic avatar isn't cached at appropriate resolution like emoji images are — `emoji_status_widget.dart:243-249`
 
 ## Clean Areas
 
