@@ -34,7 +34,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   bool _colorLoaded = false;
   List<CloudThemeInfo> _cloudThemes = [];
   bool _cloudThemesLoaded = false;
-  bool _showAllCloudThemes = true;
   int _activeCloudThemeId = 0;
   bool _tileBackground = true;
   String get _sendBy => context.read<AppState>().sendBy;
@@ -409,7 +408,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                       final enabled = v ?? false;
                       appState.useSystemAccent = enabled;
                       if (enabled) {
-                        appState.updateAccentColor('#40a7e3');
+                        appState.updateAccentColor(_readSystemAccent());
                       }
                     },
                     activeColor: accentColor,
@@ -432,11 +431,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           _CloudThemeSection(
             themes: _cloudThemes,
             loaded: _cloudThemesLoaded,
-            showAll: _showAllCloudThemes,
             isDark: isDark,
             accentColor: currentAccent,
             activeThemeId: _activeCloudThemeId,
-            onToggleShowAll: () { if (!_showAllCloudThemes) setState(() => _showAllCloudThemes = true); },
             onThemeSelected: (theme) {
               setState(() => _activeCloudThemeId = theme.id);
               final targetTheme = theme.isDark ? 'night' : 'day_blue';
@@ -627,11 +624,12 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 
   void _openThemeEditor(BuildContext context) {
     final palette = context.palette;
+    final appState = context.read<AppState>();
     Navigator.of(context).push(
       settingsPageRoute(
         ThemeEditorScreen(
           palette: palette,
-          onPaletteChanged: (_) {},
+          onPaletteChanged: (p) => appState.setLivePalette(p),
         ),
       ),
     );
@@ -642,6 +640,29 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     if (hex.length == 6) hex = 'FF$hex';
     final v = int.tryParse(hex, radix: 16);
     return v != null ? Color(v) : null;
+  }
+
+  static String _readSystemAccent() {
+    if (Platform.isLinux) {
+      try {
+        final home = Platform.environment['HOME'] ?? '';
+        final file = File('$home/.config/kdeglobals');
+        if (file.existsSync()) {
+          for (final line in file.readAsLinesSync()) {
+            if (line.startsWith('AccentColor=')) {
+              final parts = line.substring('AccentColor='.length).split(',');
+              if (parts.length >= 3) {
+                final r = int.tryParse(parts[0].trim()) ?? 0;
+                final g = int.tryParse(parts[1].trim()) ?? 0;
+                final b = int.tryParse(parts[2].trim()) ?? 0;
+                return '#${r.toRadixString(16).padLeft(2, '0')}${g.toRadixString(16).padLeft(2, '0')}${b.toRadixString(16).padLeft(2, '0')}';
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    return '#40a7e3';
   }
 }
 
@@ -1563,6 +1584,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   bool _saving = false;
   List<PeerColorEntry>? _serverColors;
   bool _loadingColors = true;
+  String _displayName = '';
 
   static const _fallbackColors = [
     Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
@@ -1574,6 +1596,11 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   void initState() {
     super.initState();
     _selected = widget.currentColorId;
+    final accounts = context.read<AppState>().accounts;
+    _displayName = accounts
+        .where((a) => a.id == widget.accountId)
+        .map((a) => a.displayName)
+        .firstOrNull ?? '';
     _loadColors();
   }
 
@@ -1717,7 +1744,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Your Name',
+                          _displayName.isNotEmpty ? _displayName : 'Your Name',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -1726,7 +1753,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Message preview text',
+                          _displayName.isNotEmpty ? 'Hi there!' : 'Message preview text',
                           style: TextStyle(
                             fontSize: 12,
                             color: textColor.withValues(alpha: 0.6),
@@ -2173,11 +2200,9 @@ class _ChooseFontBoxState extends State<_ChooseFontBox> {
 class _CloudThemeSection extends StatelessWidget {
   final List<CloudThemeInfo> themes;
   final bool loaded;
-  final bool showAll;
   final bool isDark;
   final Color accentColor;
   final int activeThemeId;
-  final VoidCallback onToggleShowAll;
   final ValueChanged<CloudThemeInfo> onThemeSelected;
   final VoidCallback? onEditTheme;
   final VoidCallback? onThemeDeleted;
@@ -2185,11 +2210,9 @@ class _CloudThemeSection extends StatelessWidget {
   const _CloudThemeSection({
     required this.themes,
     required this.loaded,
-    required this.showAll,
     required this.isDark,
     required this.accentColor,
     required this.activeThemeId,
-    required this.onToggleShowAll,
     required this.onThemeSelected,
     this.onEditTheme,
     this.onThemeDeleted,
@@ -2259,32 +2282,11 @@ class _CloudThemeSection extends StatelessWidget {
   }
 
   double _gridHeight(int count) {
-    final rows = showAll ? ((count + 3) ~/ 4) : 1;
+    final rows = (count + 3) ~/ 4;
     return rows * 116.0;
   }
 
   Widget _buildGrid(BuildContext ctx, List<CloudThemeInfo> visible, Color textColor, Color subtextColor) {
-    if (!showAll) {
-      return ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 22),
-        itemCount: visible.length,
-        itemBuilder: (context, i) => Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: _CloudThemeCard(
-            theme: visible[i],
-            isDark: isDark,
-            accentColor: accentColor,
-            textColor: textColor,
-            subtextColor: subtextColor,
-            isActive: visible[i].id == activeThemeId,
-            onTap: () => onThemeSelected(visible[i]),
-            onDeleted: onThemeDeleted,
-          ),
-        ),
-      );
-    }
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22),
       child: LayoutBuilder(
@@ -2374,11 +2376,12 @@ class _CloudThemeCardState extends State<_CloudThemeCard> {
           showTelegramToast(context, 'Link copied');
         case 'edit':
           final palette = context.palette;
+          final appState = context.read<AppState>();
           Navigator.of(context).push(
             settingsPageRoute(
               ThemeEditorScreen(
                 palette: palette,
-                onPaletteChanged: (_) {},
+                onPaletteChanged: (p) => appState.setLivePalette(p),
                 cloudTheme: widget.theme,
               ),
             ),
@@ -2721,6 +2724,16 @@ class _WallpaperBrowser extends StatelessWidget {
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor = context.palette.windowBgActive;
 
+    final decodedThumbs = <int, Uint8List>{};
+    for (var i = 0; i < wallpapers.length; i++) {
+      final b64 = wallpapers[i]['thumb_b64'] as String? ?? '';
+      if (b64.isNotEmpty) {
+        try {
+          decodedThumbs[i] = Uint8List.fromList(const Base64Decoder().convert(b64));
+        } catch (_) {}
+      }
+    }
+
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
       minChildSize: 0.3,
@@ -2757,46 +2770,35 @@ class _WallpaperBrowser extends StatelessWidget {
                     itemBuilder: (ctx, i) {
                       final wp = wallpapers[i];
                       final colors = (wp['colors'] as List<dynamic>?)?.cast<int>() ?? [];
-                      final thumbB64 = wp['thumb_b64'] as String? ?? '';
                       final isPattern = (wp['is_pattern'] as bool? ?? wp['pattern'] as bool? ?? false);
                       final isPhoto = wp['is_photo'] as bool? ?? false;
                       final rotation = wp['rotation'] as int? ?? 0;
 
                       Widget content;
-                      if (thumbB64.isNotEmpty) {
-                        Uint8List? thumbBytes;
-                        try {
-                          thumbBytes = Uint8List.fromList(
-                            const Base64Decoder().convert(thumbB64),
-                          );
-                        } catch (_) {}
-
-                        if (thumbBytes != null && isPattern && colors.isNotEmpty) {
-                          content = ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                _colorTile(colors, rotation),
-                                Opacity(
-                                  opacity: 0.5,
-                                  child: Image.memory(thumbBytes, fit: BoxFit.cover,
-                                      width: double.infinity, height: double.infinity,
-                                      color: Colors.white.withValues(alpha: 0.3),
-                                      colorBlendMode: BlendMode.modulate),
-                                ),
-                              ],
-                            ),
-                          );
-                        } else if (thumbBytes != null) {
-                          content = ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.memory(thumbBytes, fit: BoxFit.cover,
-                                width: double.infinity, height: double.infinity),
-                          );
-                        } else {
-                          content = _colorTile(colors, rotation);
-                        }
+                      final thumbBytes = decodedThumbs[i];
+                      if (thumbBytes != null && isPattern && colors.isNotEmpty) {
+                        content = ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              _colorTile(colors, rotation),
+                              Opacity(
+                                opacity: 0.5,
+                                child: Image.memory(thumbBytes, fit: BoxFit.cover,
+                                    width: double.infinity, height: double.infinity,
+                                    color: Colors.white.withValues(alpha: 0.3),
+                                    colorBlendMode: BlendMode.modulate),
+                              ),
+                            ],
+                          ),
+                        );
+                      } else if (thumbBytes != null) {
+                        content = ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(thumbBytes, fit: BoxFit.cover,
+                              width: double.infinity, height: double.infinity),
+                        );
                       } else {
                         content = _colorTile(colors, rotation);
                       }
@@ -3671,8 +3673,10 @@ class _StickerPackManagerState extends State<_StickerPackManager> {
         )).toList();
         if (mounted) setState(() { _packs = converted; _loading = false; });
       } catch (_) {
-        final packs = await widget.engine.getInstalledStickerPacks(widget.accountId);
-        if (mounted) setState(() { _packs = packs; _loading = false; });
+        if (mounted) {
+          setState(() { _packs = []; _loading = false; });
+          showTelegramToast(context, 'Failed to load emoji sets');
+        }
       }
     } else {
       final packs = await widget.engine.getInstalledStickerPacks(widget.accountId);
@@ -3696,11 +3700,9 @@ class _StickerPackManagerState extends State<_StickerPackManager> {
       final item = _packs!.removeAt(oldIndex);
       _packs!.insert(newIndex, item);
     });
-    final appState = context.read<AppState>();
-    final account = appState.activeAccount;
-    if (account != null && _packs != null) {
+    if (_packs != null) {
       final order = _packs!.map((p) => p.setId).toList();
-      context.read<EngineService>().reorderStickerSets(account.id, order);
+      context.read<EngineService>().reorderStickerSets(widget.accountId, order);
     }
   }
 
@@ -4878,6 +4880,14 @@ class _BackgroundPreviewBoxState extends State<_BackgroundPreviewBox>
 
   Uint8List? get _displayBytes => _fullBytes ?? widget.imageBytes;
 
+  Widget _wrapBlur({required Widget child}) {
+    if (!_blurred) return child;
+    return ImageFiltered(
+      imageFilter: ui_dart.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -4906,10 +4916,7 @@ class _BackgroundPreviewBoxState extends State<_BackgroundPreviewBox>
                   height: 300,
                   width: double.infinity,
                   child: displayBytes != null
-                      ? ImageFiltered(
-                          imageFilter: _blurred
-                              ? ui_dart.ImageFilter.blur(sigmaX: 10, sigmaY: 10)
-                              : ui_dart.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                      ? _wrapBlur(
                           child: Stack(
                             fit: StackFit.expand,
                             children: [

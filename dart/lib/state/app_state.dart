@@ -3071,6 +3071,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   TelegramPalette? get customPalette => _cachedCustomPalette;
   Uint8List? get customThemeBackground => _cachedCustomBackground;
   bool get customThemeTiled => _cachedCustomTiled;
+
+  void setLivePalette(TelegramPalette palette) {
+    _cachedCustomPalette = palette;
+    notifyListeners();
+  }
   String get customThemePath => _customThemePath;
   bool get hasCustomTheme => _customThemePath.isNotEmpty && _cachedCustomPalette != null;
 
