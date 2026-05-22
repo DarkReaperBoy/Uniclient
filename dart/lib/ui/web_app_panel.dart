@@ -11,6 +11,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
+import 'emoji_status_widget.dart';
 
 const _kPanelWidth = 384.0;
 const _kPanelHeight = 694.0;
@@ -20,7 +21,6 @@ const _kMainButtonHeight = 40.0;
 const _kButtonTextTop = 11.0;
 const _kProgressSize = 24.0;
 const _kProgressStroke = 4.0;
-const _kProgressOpacity = 0.3;
 const _kProgressFadeDuration = Duration(milliseconds: 200);
 const _kMenuMaxHeight = 360.0;
 const _kBottomPadding = 12.0;
@@ -204,9 +204,6 @@ class _WebAppPanelState extends State<WebAppPanel>
           },
           onPageFinished: (url) {
             if (mounted) {
-              setState(() => _loadingState = WebAppLoadingState.ready);
-              _progressFade.animateTo(0.0,
-                  duration: _kProgressFadeDuration * 2);
               _injectBridgeScript();
             }
           },
@@ -268,7 +265,10 @@ class _WebAppPanelState extends State<WebAppPanel>
       case 'web_app_close':
         Navigator.of(context).pop();
       case 'web_app_ready':
-        break;
+        if (mounted) {
+          setState(() => _loadingState = WebAppLoadingState.ready);
+          _progressFade.animateTo(0.0, duration: _kProgressFadeDuration * 2);
+        }
       case 'web_app_setup_main_button':
         _handleSetupButton(data, isMain: true);
       case 'web_app_setup_secondary_button':
@@ -487,6 +487,7 @@ class _WebAppPanelState extends State<WebAppPanel>
         {'bot_id': _botId, 'query': query, 'chat_types': types},
       ).catchError((_) {});
     }
+    if (mounted) Navigator.of(context).pop();
   }
 
   void _handleOpenInvoice(Map<String, dynamic> data) {
@@ -529,23 +530,13 @@ class _WebAppPanelState extends State<WebAppPanel>
           ),
         ],
       ),
-    );
+    ).then((_) {
+      _postEventToWebView('scan_qr_popup_closed');
+    });
   }
 
   void _handleShareToStory() {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        content: const Text('Sharing to stories is not supported on this platform.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+    // fire-and-forget per spec — no response event, silently unsupported
   }
 
   void _handleRequestWriteAccess() {
@@ -851,29 +842,67 @@ class _WebAppPanelState extends State<WebAppPanel>
   }
 
   void _handleRequestEmojiStatusAccess() {
-    final engine = _engine;
-    if (engine == null || _accountId.isEmpty) {
+    if (!mounted) return;
+    if (_inBlockingRequest) {
       _postEventToWebView('emoji_status_access_requested', {
         'status': 'cancelled',
       });
       return;
     }
-    engine.callGeneric(
-      _accountId,
-      'BotRequestEmojiStatusAccess',
-      {'bot_id': _botId},
-    ).then((result) {
-      if (!mounted) return;
-      final allowed = result != null && result['allowed'] == true;
+    _inBlockingRequest = true;
+    final engine = _engine;
+    if (engine == null || _accountId.isEmpty) {
+      _inBlockingRequest = false;
       _postEventToWebView('emoji_status_access_requested', {
-        'status': allowed ? 'allowed' : 'cancelled',
+        'status': 'cancelled',
       });
-    }).catchError((_) {
-      if (mounted) {
+      return;
+    }
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Emoji status'),
+        content: Text(
+            'Do you want to allow ${widget.data.botName} to manage your emoji status?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Allow'),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (!mounted) return;
+      if (confirmed != true) {
+        _inBlockingRequest = false;
         _postEventToWebView('emoji_status_access_requested', {
           'status': 'cancelled',
         });
+        return;
       }
+      engine.callGeneric(
+        _accountId,
+        'BotRequestEmojiStatusAccess',
+        {'bot_id': _botId},
+      ).then((result) {
+        _inBlockingRequest = false;
+        if (!mounted) return;
+        final allowed = result != null && result['allowed'] == true;
+        _postEventToWebView('emoji_status_access_requested', {
+          'status': allowed ? 'allowed' : 'cancelled',
+        });
+      }).catchError((_) {
+        _inBlockingRequest = false;
+        if (mounted) {
+          _postEventToWebView('emoji_status_access_requested', {
+            'status': 'cancelled',
+          });
+        }
+      });
     });
   }
 
@@ -1092,7 +1121,7 @@ class _WebAppPanelState extends State<WebAppPanel>
         (data['buttons'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
     if (message.isEmpty || buttons.isEmpty) {
-      Navigator.of(context).pop();
+      _postEventToWebView('popup_closed', {'button_id': ''});
       return;
     }
 
@@ -1660,6 +1689,8 @@ class _WebAppPanelState extends State<WebAppPanel>
             showProgress: _mainButton.showProgress,
             rippleColor: _buttonRippleColor(mainBg),
             onPressed: () => _postEventToWebView('main_button_pressed'),
+            iconCustomEmojiId: _mainButton.iconCustomEmojiId,
+            accountId: _accountId,
           )
         : null;
 
@@ -1673,6 +1704,8 @@ class _WebAppPanelState extends State<WebAppPanel>
             rippleColor: _buttonRippleColor(secBg),
             onPressed: () =>
                 _postEventToWebView('secondary_button_pressed'),
+            iconCustomEmojiId: _secondaryButton.iconCustomEmojiId,
+            accountId: _accountId,
           )
         : null;
 
@@ -1782,6 +1815,8 @@ class _WebAppButton extends StatelessWidget {
   final bool showProgress;
   final Color rippleColor;
   final VoidCallback onPressed;
+  final String? iconCustomEmojiId;
+  final String accountId;
 
   const _WebAppButton({
     required this.text,
@@ -1791,6 +1826,8 @@ class _WebAppButton extends StatelessWidget {
     required this.showProgress,
     required this.rippleColor,
     required this.onPressed,
+    this.iconCustomEmojiId,
+    this.accountId = '',
   });
 
   @override
@@ -1810,22 +1847,38 @@ class _WebAppButton extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                if (text.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: _kButtonTextTop - 8),
-                    child: Text(
-                      text,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: active
-                            ? textColor
-                            : textColor.withValues(alpha: 0.5),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (iconCustomEmojiId != null && iconCustomEmojiId!.isNotEmpty && accountId.isNotEmpty)
+                      Padding(
+                        padding: EdgeInsets.only(right: text.isNotEmpty ? 6 : 0),
+                        child: EmojiStatusWidget(
+                          emojiStatusId: iconCustomEmojiId!,
+                          accountId: accountId,
+                          size: 20,
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
+                    if (text.isNotEmpty)
+                      Flexible(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: _kButtonTextTop - 8),
+                          child: Text(
+                            text,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: active
+                                  ? textColor
+                                  : textColor.withValues(alpha: 0.5),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
                 if (showProgress)
                   Positioned(
                     right: 0,
@@ -1913,7 +1966,9 @@ class _SpinnerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SpinnerPainter oldDelegate) =>
-      progress != oldDelegate.progress;
+      progress != oldDelegate.progress ||
+      color != oldDelegate.color ||
+      strokeWidth != oldDelegate.strokeWidth;
 }
 
 void showWebAppDisclaimerDialog(
