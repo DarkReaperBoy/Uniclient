@@ -227,18 +227,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## MAJOR
 
-## settings_screen — cleanup
-
-- [ ] [CRITICAL] `_callsDisabled` never loaded from engine — `getCallsDisabledHere` exists in EngineService but is never called in `_loadSettings()`. The state field defaults to `false`, so "Accept calls on this device" always opens as ON regardless of the actual server setting. Fix: add `engine.getCallsDisabledHere(accountId)` to the `Future.wait` list at line 2138 and read it in the setState block. — `settings_screen.dart:2122-2161`
-
-- [ ] [CRITICAL] New Quick Reply is added with no `shortcut_id` — `_showAddQuickReplyDialog` appends `{'shortcut': ..., 'message': ...}` to `_data['replies']` (line 3385) with no `shortcut_id` key. The delete handler checks `shortcutId > 0` (line 3326) before calling `deleteQuickReplyShortcut`, so newly created replies can never be deleted — the delete button silently no-ops. Fix: after adding, call `setBusinessFeature` immediately to persist and reload to get the server-assigned `shortcut_id`, or call a dedicated `createQuickReplyShortcut` engine method and capture the returned ID. — `settings_screen.dart:3381-3390, 3325-3336`
-
-- [ ] [MAJOR] `base64Decode` called inside `GridView.builder` itemBuilder — In `_GiftCatalogScreen.build` (line 3731) and inside `_showEmojiAvatarPicker` / `_showEmojiStatusPanel` grid builders (lines 1040, 1191), `base64Decode(thumbB64)` runs on every rebuild for each visible item. This is heavy allocation in hot widget code. Fix: decode once into a `List<Uint8List>` when the data is first fetched and pass the decoded bytes down. — `settings_screen.dart:3731, 1040, 1191`
-
-- [ ] [MAJOR] `_sameDevice` preference not persisted — `_sameDevice` defaults to `false` (line 2123) and is never loaded from any engine call or local storage. It resets to "off" every time the Calls tab is opened. Fix: persist the value via `AppState.setCallSameDevice` / a local pref and load it in `_loadSettings`. — `settings_screen.dart:2123`
-
-- [ ] [MAJOR] Missing `RepaintBoundary` on scale-preview animation inner child — `_buildFloatingPreview` wraps its content in `AnimatedBuilder` with per-frame `Opacity` and `Transform.scale` changes (line 1675). The `child:` argument of `AnimatedBuilder` is correctly separated, but the inner `Container` with `_ScalePreviewContent` has no `RepaintBoundary`, so every animation tick dirties the entire preview subtree instead of just the transform layer. Add `RepaintBoundary` around `_ScalePreviewContent`. — `settings_screen.dart:1675-1729`
-
 ## shell — cleanup
 
 - [ ] [CRITICAL] group-call `onToggleMute` has no optimistic state update (lines 380–385): personal call version calls `chatState.setActivePersonalCall(personalCall.copyWith(isMuted: !personalCall.isMuted))` immediately so the button reflects the new state while the engine round-trip completes; the group-call branch only fires `engine.setCallMuted(...)` and returns, so the mute icon stays frozen until a `GroupCallStateEvent` arrives — `shell.dart:380`
