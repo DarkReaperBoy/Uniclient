@@ -227,34 +227,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## MAJOR
 
-## spoiler_animation — cleanup
-
-- [ ] [MAJOR] `_generateSheet` has no error handling — if `_renderSpriteSheet` throws (OOM, compute-isolate crash), the `async` exception is swallowed by the fire-and-forget call at line 114/120 (`_generateSheet(type)` is never awaited), `_textGenerating`/`_imageGenerating` stays `true` permanently, all pending completers in `_textCompleters`/`_imageCompleters` are never resolved or rejected, and every subsequent `getSheet()` call silently queues a completer that can never complete — spoiler sprites stop loading for the entire app session. Fix: wrap `_generateSheet` body in try/catch, complete all queued completers with an error (or a fallback sheet), and reset the generating flag in a `finally` block. `spoiler_animation.dart:126`
-
-- [ ] [MAJOR] Frame timing uses magic number `33` instead of `_kFrameDurationMs` — line 91: `timestamp.inMilliseconds ~/ 33`. The constant `_kFrameDurationMs = 33` is defined at line 27 and used correctly everywhere else (cache header write/read, particle lifetime calculations), but the live frame-index calculation ignores it. If `_kFrameDurationMs` is ever changed, the animation advances at the wrong speed while the cache stores frames timed differently, causing the particle motion to look wrong. Fix: `timestamp.inMilliseconds ~/ _kFrameDurationMs`. `spoiler_animation.dart:91`
-
-# main — cleanup
-
-- [ ] [CRITICAL] `_closeBehaviorSyncListener` is added to `appState` at line 353 but never removed in `dispose()` (lines 2023–2060) — all other seven sync-listeners are cleaned up, but this one is missing, leaking the closure and preventing `appState` from being garbage-collected — `main.dart:353`
-
-- [ ] [CRITICAL] Anonymous passcode-lock listener at line 510 (`appState.addListener(() { _notifSystem.passcodeLocked = ... })`) is never stored in a variable, so it cannot be removed in `dispose()` — permanent listener leak for the lifetime of the object — `main.dart:510`
-
-- [ ] [CRITICAL] Hardcoded English strings in the logout confirm dialog — `'Log out'` (title), `'Are you sure you want to log out?'` (body), `'Cancel'`, `'Log out'` (buttons) — must use `TrStrings` like every other string in this file — `main.dart:2786–2805`
-
-- [ ] [CRITICAL] Hardcoded English string `'Please enter your passcode'` in `_submit()` — breaks all non-English locales; rest of passcode UI uses `TrStrings.lngPasscodePh()` etc. — `main.dart:2541`
-
-- [ ] [CRITICAL] Duplicate unreachable `ctrl+r` handler at line 1519 — the identical handler at lines 1403–1406 already calls `ChatView.requestMarkActiveChatRead()` and `return`s, so the second block is dead code and will never execute — `main.dart:1519`
-
-- [ ] [MAJOR] `_ThemeRevertOverlay` countdown timer fires every 100 ms and always calls `setState(() {})`, but the displayed countdown value (`seconds = ceil(remainingMs / 1000)`) only changes ~once per second — 90 % of rebuilds render identical content; track last-displayed seconds and only `setState` when the value actually changes — `main.dart:2261–2267`
-
-- [ ] [MAJOR] `_waitForText` creates a `Timer.periodic` with no way to cancel it if the widget is disposed mid-poll — timer keeps running after unmount, walks the (already-torn-down) widget tree via `_findTextOnScreen`, and writes to a tmp file; the `Timer` reference is never stored — `main.dart:2004–2019`
-
-- [ ] [MAJOR] `_dispatchHover` dispatches `PointerHoverEvent` with `pointer: _hoverPointer` (999999) without a preceding `PointerAddedEvent` for that device/pointer — compare `_dispatchScroll` which explicitly sends `PointerAddedEvent` first; hover may silently no-op or assert in the gesture binding — `main.dart:1339–1342`
-
-- [ ] [MAJOR] `build()` in `_UniClientAppState` recomputes the full palette every rebuild: `palette.colorize(accentColor)` and `palette.adjustServiceColorsForWallpaper(appState.wallpaper)` are called unconditionally on every `context.watch<AppState>()` change (including unrelated state changes like unread count), even though the palette inputs only change when the user edits theme/accent/wallpaper — cache the result keyed on `(themeId, accentHex, wallpaper)` — `main.dart:2067–2087`
-
-- [ ] [MAJOR] `listChats` debug command uses `chatState.chats.indexOf(c)` inside a `map()` over `take(20)`, making it O(n×m) where n is the full chat list size — use `enumerate`/`asMap().entries` on the already-taken slice instead — `main.dart:628`
-
 ## stats_chart — cleanup
 
 - [ ] [MAJOR] `_cachedTP` calls `layout()` on every access — text painter cache only prevents allocation, not layout — `stats_chart.dart:1614`
