@@ -184,18 +184,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## contacts_screen — cleanup
 
-- [ ] [CRITICAL] `_columnsForWidth` always returns 4, ignoring the `screenWidth` parameter — stub method; on a 400px mobile screen 4 columns produces ~100px cells that are too cramped — `contacts_screen.dart:2117`
-
-- [ ] [CRITICAL] online status updates silently dropped in alphabetical sort mode — `_throttledRefresh()` returns early at line 297 when `_sortMode != _SortMode.online`, so the mutation to `_contacts[idx]` (and the `_sortedCache = null` at line 331) never triggers `setState`; the contact row keeps stale status text and online dot indefinitely while in alphabetical mode — `contacts_screen.dart:297`
-
-- [ ] [MAJOR] `base64Decode(contact.avatarB64)` called inside `_ContactRowState.build()` — every hover enter/exit fires `setState(() => _hovered = true/false)` which rebuilds and re-decodes the avatar bytes from scratch; should be decoded once and cached as a `Uint8List?` field, updated in `initState`/`didUpdateWidget` — `contacts_screen.dart:1088`
-
-- [ ] [MAJOR] `base64Decode(contact.avatarB64)` called inside `_EditContactBoxState.build()` — same issue; decodes on every setState (saving, name change, _hasBirthday update); decode once in initState — `contacts_screen.dart:1697`
-
-- [ ] [MAJOR] `ListView.builder(shrinkWrap: true)` inside `Flexible` — `shrinkWrap: true` forces the ListView to lay out all items eagerly, defeating lazy rendering; contacts lists of 200–500 entries will build all rows at once; wrap the parent `Column` in a fixed-height `SizedBox` or use `Expanded` with `shrinkWrap: false` — `contacts_screen.dart:509`
-
-- [ ] [MAJOR] `Image.memory` used without `cacheWidth`/`cacheHeight` — Flutter's image cache stores the full-resolution decoded bitmap for each avatar; with 200 contacts each with a 40×40 display size but a 200×200 source JPEG, memory use is 10× what it should be; add `cacheWidth: _avatarSize.toInt(), cacheHeight: _avatarSize.toInt()` — `contacts_screen.dart:1088`
-
 ## create_giveaway_box — cleanup
 
 - [ ] [CRITICAL] random-giveaway "Start Giveaway" button calls `_openBoostLink()` (line 539), which just pops the dialog and calls `engine.openPremiumSubscription(..., ref: 'boosts__channel')` — it does NOT start a random giveaway. The entire random-type flow (fetched `_options`, winners/duration chip selection, `_selectedOptionIndex`) is dead state that is silently discarded; no engine call for random giveaway creation exists in engine_service.dart. Needs a real `launchRandomGiveaway` engine call passing the selected option, `_onlyNewSubscribers`, `_showWinners`, `_untilDate`, and `_prizeController.text` — `create_giveaway_box.dart:131-135,539`
