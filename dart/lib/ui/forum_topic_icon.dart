@@ -262,6 +262,8 @@ class _BubbleIconPainter extends CustomPainter {
 
   static Path? _rawBubble;
   static Path? _rawHighlight;
+  static final _scaledPaths = <double, (Path, Path)>{};
+  static final _textCache = <(String, double), TextPainter>{};
 
   _BubbleIconPainter({
     required this.palette,
@@ -277,14 +279,15 @@ class _BubbleIconPainter extends CustomPainter {
     _rawHighlight ??= _parseSvgPath(_highlightPathD);
 
     final s = targetSize / 84.0;
-    final mat = Float64List.fromList([
-      s, 0, 0, 0, //
-      0, s, 0, 0,
-      0, 0, 1, 0,
-      0, 0, 0, 1,
-    ]);
-    final bubble = _rawBubble!.transform(mat);
-    final highlight = _rawHighlight!.transform(mat);
+    final (bubble, highlight) = _scaledPaths.putIfAbsent(s, () {
+      final mat = Float64List.fromList([
+        s, 0, 0, 0,
+        0, s, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+      ]);
+      return (_rawBubble!.transform(mat), _rawHighlight!.transform(mat));
+    });
 
     canvas.drawPath(
       bubble,
@@ -317,18 +320,20 @@ class _BubbleIconPainter extends CustomPainter {
     );
 
     if (letter.isNotEmpty) {
-      final tp = TextPainter(
-        text: TextSpan(
-          text: letter,
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-            height: 1.0,
+      final tp = _textCache.putIfAbsent((letter, fontSize), () {
+        return TextPainter(
+          text: TextSpan(
+            text: letter,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              height: 1.0,
+            ),
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+          textDirection: TextDirection.ltr,
+        )..layout();
+      });
       tp.paint(
         canvas,
         Offset((targetSize - tp.width) / 2, textTop),
@@ -389,6 +394,7 @@ class _GeneralIconPainter extends CustomPainter {
   final double targetSize;
 
   static Path? _rawPath;
+  static final _scaledPaths = <double, Path>{};
 
   _GeneralIconPainter({required this.color, required this.targetSize});
 
@@ -396,13 +402,15 @@ class _GeneralIconPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     _rawPath ??= _parseSvgPath(generalTopicPathD);
     final s = targetSize / 20.0;
-    final mat = Float64List.fromList([
-      s, 0, 0, 0,
-      0, s, 0, 0,
-      0, 0, 1, 0,
-      0, 0, 0, 1,
-    ]);
-    final path = _rawPath!.transform(mat);
+    final path = _scaledPaths.putIfAbsent(s, () {
+      final mat = Float64List.fromList([
+        s, 0, 0, 0,
+        0, s, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+      ]);
+      return _rawPath!.transform(mat);
+    });
     canvas.drawPath(path, Paint()..color = color);
   }
 
@@ -431,7 +439,8 @@ Future<void> _fetchCustomEmojiData(EngineService engine, String accountId, int d
       _customEmojiFileCache[documentId] = file;
       if (file.isTgs) {
         try {
-          _customEmojiLottieCache[documentId] = Uint8List.fromList(gzip.decode(file.fileData));
+          final decoded = gzip.decode(file.fileData);
+          _customEmojiLottieCache[documentId] = decoded is Uint8List ? decoded : Uint8List.fromList(decoded);
         } catch (_) {}
       }
     } else {
@@ -561,7 +570,7 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
 
   Future<void> _initWebmPlayer(Uint8List data) async {
     final dir = Directory.systemTemp;
-    final tempFile = File('${dir.path}/topic_icon_${widget.documentId}.webm');
+    final tempFile = File('${dir.path}/topic_icon_${widget.documentId}_${identityHashCode(this)}.webm');
     await tempFile.writeAsBytes(data, flush: true);
     if (!mounted) {
       tempFile.delete().ignore();
@@ -600,14 +609,16 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
       return SizedBox(
         width: s,
         height: s,
-        child: Lottie.memory(
-          lottieBytes,
-          width: s,
-          height: s,
-          fit: BoxFit.contain,
-          controller: _lottieController,
-          onLoaded: _onLottieLoaded,
-          errorBuilder: (_, __, ___) => _buildFallback(s),
+        child: RepaintBoundary(
+          child: Lottie.memory(
+            lottieBytes,
+            width: s,
+            height: s,
+            fit: BoxFit.contain,
+            controller: _lottieController,
+            onLoaded: _onLottieLoaded,
+            errorBuilder: (_, __, ___) => _buildFallback(s),
+          ),
         ),
       );
     }
@@ -630,14 +641,16 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
       return SizedBox(
         width: s,
         height: s,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(s / 4),
-          child: Video(
-            controller: _webmController!,
-            width: s,
-            height: s,
-            fit: BoxFit.contain,
-            controls: NoVideoControls,
+        child: RepaintBoundary(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(s / 4),
+            child: Video(
+              controller: _webmController!,
+              width: s,
+              height: s,
+              fit: BoxFit.contain,
+              controls: NoVideoControls,
+            ),
           ),
         ),
       );
