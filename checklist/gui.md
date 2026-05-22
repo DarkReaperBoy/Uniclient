@@ -228,24 +228,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 ## MAJOR
 
 
-## story_editor — cleanup
-
-- [ ] [CRITICAL] `_continueStroke` (line 899-903) mutates `_currentStrokePoints` in-place and then pings `_strokesNotifier`, but `_StrokePainter.shouldRepaint` (line 2182-2184) compares `old.currentPoints != currentPoints` — since it's the **same list object** (only mutated, never reassigned), this is always `false`. Result: `CustomPainter.paint()` is never scheduled during drawing. The live stroke does not render until the user lifts their finger (`_endStroke` calls `setState` which triggers a full rebuild). Fix: in `_continueStroke`, assign a new list (`_currentStrokePoints = [..._currentStrokePoints!, pos/scale]`) so the reference changes and `shouldRepaint` returns true. — `story_editor.dart:899`
-
-- [ ] [CRITICAL] `_renderCanvasToBytes` places scene items at `canvas.translate(item.position.dx * _canvasWidth, item.position.dy * _canvasHeight)` (line 586-590). But `item.position.dx` is already in canvas-pixel units (0.._canvasWidth ≈ 0..540) — multiplying by `_canvasWidth` (540) translates to coordinates like 291600px on a 540px-wide canvas. All stickers and text items land far outside the export bounds and are clipped out. The exported story image contains background + paint strokes only — no text or sticker overlays. Fix: remove the multiplication: `canvas.translate(item.position.dx, item.position.dy)`. — `story_editor.dart:586`
-
-- [ ] [MAJOR] `_ContactPickerDialogState.initState` (line 2458-2464) iterates ALL contacts and base64-decodes their avatar bytes synchronously on the main thread inside `initState`. For accounts with 200+ contacts this blocks the UI thread for tens of milliseconds, causing a visible freeze when the privacy dialog opens. Fix: do the decoding in a microtask or use `compute()`. — `story_editor.dart:2458`
-
-- [ ] [MAJOR] `_StrokePainter.paint()` (line 2066) calls `canvas.saveLayer(Offset.zero & size, Paint())` unconditionally for ALL strokes. A `saveLayer` forces GPU off-screen compositing even for simple opaque pen strokes. Only the marker tool (needs `BlendMode.src` layer) and eraser (needs `BlendMode.clear` layer) actually require a layer. Move `saveLayer`/`restore` inside the `isMarker` and eraser branches; remove the outer one. — `story_editor.dart:2066`
-
-- [ ] [MAJOR] `Image.memory` for sticker widgets (line 992) and in `_buildStickerGrid` (line 3153) provides no `cacheWidth`/`cacheHeight` hint. Flutter decodes the full-resolution sticker PNG on every widget rebuild instead of decoding once at display size. Add `cacheWidth: 120, cacheHeight: 120` to both `Image.memory` calls. — `story_editor.dart:992`
-
-- [ ] [MAJOR] `_buildBlurLayers` (line 841) creates one `BackdropFilter` widget per committed blur stroke with no `RepaintBoundary` isolating them. Every `setState` (including routine pan/drag updates) causes all blur compositing layers to repaint together with the rest of the Stack. Add a single `RepaintBoundary` wrapping the blur layers list, or combine all blur paths into one `ClipPath`+`BackdropFilter`. — `story_editor.dart:841`
-
-- [ ] [MAJOR] `_StickerPickerPanelState._buildStickerGrid` (line 3133-3138) rebuilds `allStickers` by iterating all packs and their stickers on **every** `build()` call. For large sticker collections this is O(N×M) work per frame. Cache the flat list (e.g., compute in `_loadStickerPacks` and store as `_allStickers`). — `story_editor.dart:3133`
-
-- [ ] [MAJOR] `_barAnimDuration` constant (line 25, value `200`) is declared but never referenced. The `AnimationController` (line 252) hardcodes `Duration(milliseconds: 200)` independently. Remove the dead constant or use it. — `story_editor.dart:25`
-
 ## telegram_toast — cleanup
 
 - [ ] [CRITICAL] double `OverlayEntry.remove()` assertion crash in `showStickerToast` — when replacing an active toast, `Future.delayed(_kFadeOutMs=1000ms, oldEntry.remove)` forcibly yanks the old entry without calling `_startHide()` on it; the old toast's 3 s hold timer + 1 s reverse animation later fires `onDone → entry.remove()` on the already-removed entry, hitting Flutter's `assert(_overlay != null)` — `telegram_toast.dart:290-296` vs `telegram_toast.dart:320-323`
