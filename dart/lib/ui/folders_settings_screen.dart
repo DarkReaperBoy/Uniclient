@@ -211,7 +211,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
   int get _folderLimitPremium => context.read<ChatState>().folderLimitPremium;
 
   void _onCreateFolder(bool isDark, Color accentColor) {
-    final isPremium = context.read<AppState>().activeAccount?.isPremium ?? false;
+    final isPremium = context.read<AppState>().effectivePremium;
     final currentCount = _folders.length;
     final limit = isPremium ? _folderLimitPremium : _folderLimitFree;
     if (currentCount >= limit) {
@@ -423,7 +423,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
-            child: (_recommended.isNotEmpty && _folders.length < ((context.read<AppState>().activeAccount?.isPremium ?? false) ? _folderLimitPremium : _folderLimitFree))
+            child: (_recommended.isNotEmpty && _folders.length < ((context.read<AppState>().effectivePremium) ? _folderLimitPremium : _folderLimitFree))
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -453,7 +453,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
           if ((context.read<AppState>().activeAccount?.platform ?? '') == 'telegram') ...[
             _TagsToggle(
               value: context.read<ChatState>().showFolderTags,
-              isPremium: context.read<AppState>().activeAccount?.isPremium ?? false,
+              isPremium: context.read<AppState>().effectivePremium,
               isDark: isDark,
               textColor: textColor,
               subtextColor: subtextColor,
@@ -1523,7 +1523,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     final folderId = int.tryParse(f.id);
     if (folderId == null) return;
     final appState = context.read<AppState>();
-    final isPremium = appState.activeAccount?.isPremium ?? false;
+    final isPremium = appState.effectivePremium;
     final isDark = widget.isDark;
 
     final chatState = context.read<ChatState>();
@@ -1746,7 +1746,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     }
     final existing = widget.existingFolder;
     final chatCount = _includedChatIds.length;
-    final isPremium = context.read<AppState>().activeAccount?.isPremium ?? false;
+    final isPremium = context.read<AppState>().effectivePremium;
     final cs = context.read<ChatState>();
     final chatLimit = isPremium ? cs.chatsPerFolderPremium : cs.chatsPerFolderFree;
     if (chatCount > chatLimit) {
@@ -2039,7 +2039,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                       ],
                       Builder(builder: (context) {
                         final appState = context.read<AppState>();
-                        final isPremium = appState.activeAccount?.isPremium ?? false;
+                        final isPremium = appState.effectivePremium;
                         final chatState = context.read<ChatState>();
                         final tagsEnabled = chatState.showFolderTags;
                         final premiumPossible = appState.activeAccount?.platform == 'telegram';

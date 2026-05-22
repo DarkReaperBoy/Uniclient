@@ -329,8 +329,7 @@ class _FilterColumnState extends State<FilterColumn> {
   void _onFolderTap(FolderInfo folder, String? activeFolderId) {
     final chatState = context.read<ChatState>();
     final appState = context.read<AppState>();
-    final account = appState.activeAccount;
-    final isPremium = account?.isPremium ?? false;
+    final isPremium = appState.effectivePremium;
     final folders = chatState.folders;
     final folderIndex = folders.indexOf(folder);
     final folderLimit = isPremium
@@ -566,7 +565,7 @@ class _FilterColumnState extends State<FilterColumn> {
 
     _syncTabKeys(folders.length);
 
-    final isPremium = appState.activeAccount?.isPremium ?? false;
+    final isPremium = appState.effectivePremium;
     final premiumFrom = isPremium
         ? chatState.folderLimitPremium
         : chatState.folderLimitFree;

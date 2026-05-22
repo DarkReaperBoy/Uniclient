@@ -557,7 +557,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           _StickersEmojiSection(
             isDark: isDark,
             accentColor: currentAccent,
-            isPremium: appState.activeAccount?.isPremium ?? false,
+            isPremium: appState.effectivePremium,
             largeEmoji: appState.chatLargeEmoji,
             replaceEmojis: appState.chatReplaceEmojis,
             suggestEmoji: appState.chatSuggestEmoji,

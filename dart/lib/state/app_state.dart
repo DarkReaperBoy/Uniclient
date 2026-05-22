@@ -758,7 +758,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String get editedMark => _editedMark;
   bool get replaceMarksWithIcons => _replaceMarksWithIcons;
   bool get localPremium => _localPremium;
+  bool get effectivePremium => (activeAccount?.isPremium ?? false) || _localPremium;
   bool get disableAds => _disableAds;
+  bool get shouldSuppressSponsoredContent => _disableAds;
   bool get crashReporting => _crashReporting;
 
   // §54.16: AyuGram Filters settings getters.

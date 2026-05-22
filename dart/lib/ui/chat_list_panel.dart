@@ -5018,7 +5018,7 @@ class _ForumTopicListViewState extends State<_ForumTopicListView> {
   void _showCreateTopicDialog(BuildContext ctx, ChatInfo parent, EngineService engine) async {
     final chatState = widget.chatState;
     final result = await showEditForumTopicBox(ctx,
-      isPremium: ctx.read<AppState>().activeAccount?.isPremium ?? false,
+      isPremium: ctx.read<AppState>().effectivePremium,
       accountId: parent.accountId,
     );
     if (result == null) return;
@@ -5202,7 +5202,7 @@ class _ForumTopicHeaderState extends State<_ForumTopicHeader>
 
   void _showCreateTopicDialog(BuildContext ctx) async {
     final result = await showEditForumTopicBox(ctx,
-      isPremium: ctx.read<AppState>().activeAccount?.isPremium ?? false,
+      isPremium: ctx.read<AppState>().effectivePremium,
       accountId: widget.accountId,
     );
     if (result == null) return;
@@ -5629,7 +5629,7 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
       existingIconEmojiId: topic.iconEmojiId,
       isGeneral: topic.isGeneral,
       isEditing: true,
-      isPremium: ctx.read<AppState>().activeAccount?.isPremium ?? false,
+      isPremium: ctx.read<AppState>().effectivePremium,
       accountId: widget.accountId,
     );
     if (result == null) return;

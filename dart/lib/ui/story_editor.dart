@@ -218,7 +218,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   // Video thumbnails for trim slider
   List<ui.Image?> _videoThumbnails = [];
 
-  bool get _hasPremium => context.read<AppState>().activeAccount?.isPremium ?? false;
+  bool get _hasPremium => context.read<AppState>().effectivePremium;
 
   // Gesture state for item manipulation
   Offset? _dragStart;

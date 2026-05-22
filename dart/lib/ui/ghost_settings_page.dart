@@ -706,25 +706,60 @@ class _GlobalSettingsAvatar extends StatelessWidget {
   }
 }
 
-class _AccountAvatar extends StatelessWidget {
+class _AccountAvatar extends StatefulWidget {
   final AccountInfo account;
   const _AccountAvatar({required this.account});
 
   @override
+  State<_AccountAvatar> createState() => _AccountAvatarState();
+}
+
+class _AccountAvatarState extends State<_AccountAvatar> {
+  bool _fileExists = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFile();
+  }
+
+  @override
+  void didUpdateWidget(_AccountAvatar old) {
+    super.didUpdateWidget(old);
+    if (old.account.avatarPath != widget.account.avatarPath) {
+      _checkFile();
+    }
+  }
+
+  void _checkFile() {
+    if (widget.account.avatarPath.isEmpty) {
+      if (_fileExists) setState(() => _fileExists = false);
+      return;
+    }
+    File(widget.account.avatarPath).exists().then((exists) {
+      if (mounted && exists != _fileExists) setState(() => _fileExists = exists);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (account.avatarPath.isNotEmpty) {
-      final file = File(account.avatarPath);
-      if (file.existsSync()) {
-        return ClipOval(
-          child: Image.file(file, width: 30, height: 30, fit: BoxFit.cover),
-        );
-      }
+    if (_fileExists) {
+      return ClipOval(
+        child: Image.file(
+          File(widget.account.avatarPath),
+          width: 30,
+          height: 30,
+          fit: BoxFit.cover,
+          cacheWidth: 60,
+          cacheHeight: 60,
+        ),
+      );
     }
     final palette = context.palette;
-    final name = _AccountPickerButton.accountLabel(account);
+    final name = _AccountPickerButton.accountLabel(widget.account);
     final initial = name.characters.first.toUpperCase();
     const colorRemap = [0, 7, 4, 1, 6, 3, 5];
-    final numId = int.tryParse(account.selfUserId) ?? account.selfUserId.hashCode.abs();
+    final numId = int.tryParse(widget.account.selfUserId) ?? widget.account.selfUserId.hashCode.abs();
     final avatarColor = palette.peerUserpicBg(colorRemap[numId.abs() % 7]);
     return Container(
       width: 30,

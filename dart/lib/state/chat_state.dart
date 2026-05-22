@@ -204,6 +204,8 @@ class ChatState extends ChangeNotifier {
 
   // ── Getters ──
 
+  bool canShowSponsoredMessages(String chatId) => !_appState.shouldSuppressSponsoredContent;
+
   List<ChatInfo> get chats => _chats;
   ChatInfo? get activeChat => _activeChat;
   List<String> get chatOpenHistory => List.unmodifiable(_chatOpenHistory);

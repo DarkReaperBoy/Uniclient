@@ -412,7 +412,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Navigator.of(context).push(
                   settingsPageRoute(_PremiumInfoScreen(
                     accountId: appState.activeAccountId,
-                    isPremium: account?.isPremium ?? false,
+                    isPremium: appState.effectivePremium,
                   )),
                 );
               },

@@ -335,7 +335,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
     }
   }
 
-  bool get _isPremium => context.read<AppState>().activeAccount?.isPremium ?? false;
+  bool get _isPremium => context.read<AppState>().effectivePremium;
 
   @override
   Widget build(BuildContext context) {

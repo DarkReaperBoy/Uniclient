@@ -816,7 +816,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       } catch (_) {}
     }
 
-    final isPremium = appState.activeAccount?.isPremium ?? false;
+    final isPremium = appState.effectivePremium;
 
     bool initialAllowPremium = false;
     if (key == 'chat_invite') {
@@ -907,7 +907,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     final accountId = appState.activeAccountId;
     if (accountId.isEmpty) return;
 
-    final isPremium = appState.activeAccount?.isPremium ?? false;
+    final isPremium = appState.effectivePremium;
     final config = await engine.getPaidMessagesConfig(accountId);
 
     if (!mounted) return;

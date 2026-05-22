@@ -2189,7 +2189,7 @@ class _TopicInfoMenuButton extends StatelessWidget {
           existingIconEmojiId: topic.iconEmojiId,
           isGeneral: topic.isGeneral,
           isEditing: true,
-          isPremium: context.read<AppState>().activeAccount?.isPremium ?? false,
+          isPremium: context.read<AppState>().effectivePremium,
           accountId: chat.accountId,
         );
         if (result == null || !context.mounted) return;
@@ -2758,7 +2758,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                 existingIconEmojiId: topic.iconEmojiId,
                 isGeneral: topic.isGeneral,
                 isEditing: true,
-                isPremium: context.read<AppState>().activeAccount?.isPremium ?? false,
+                isPremium: context.read<AppState>().effectivePremium,
                 accountId: widget.chat.accountId,
               );
               if (result == null || !context.mounted) return;

@@ -6502,7 +6502,7 @@ class _ChatTopBar extends StatelessWidget {
   static void _createTopicFromBurger(BuildContext ctx, ChatState chatState, ChatInfo? parentChat) async {
     if (parentChat == null) return;
     final result = await showEditForumTopicBox(ctx,
-      isPremium: ctx.read<AppState>().activeAccount?.isPremium ?? false,
+      isPremium: ctx.read<AppState>().effectivePremium,
       accountId: parentChat.accountId,
     );
     if (result == null) return;

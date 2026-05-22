@@ -7456,7 +7456,7 @@ Future<void> showStoryStealthModeDialog(
   DateTime? cooldownTill,
   VoidCallback? onActivate,
 }) {
-  final resolvedPremium = isPremium ?? context.read<AppState>().activeAccount?.isPremium ?? false;
+  final resolvedPremium = isPremium ?? context.read<AppState>().effectivePremium;
   return showDialog<void>(
     context: context,
     builder: (ctx) => _StealthModeDialog(

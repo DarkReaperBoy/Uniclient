@@ -1405,7 +1405,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
 
   bool get _isPremium {
     try {
-      return context.read<AppState>().activeAccount?.isPremium ?? false;
+      return context.read<AppState>().effectivePremium;
     } catch (_) {
       return false;
     }
