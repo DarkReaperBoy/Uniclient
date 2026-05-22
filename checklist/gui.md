@@ -206,26 +206,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 - ✅ Power saving: conditional rendering respects power saving mode
 - ✅ Shader masking: RadialGradient collectible effects properly applied
 
-## hamburger_drawer — cleanup
-
-- [ ] [CRITICAL] Status line always shows hardcoded "Uniclient Preferences" — `_buildStatusLine` receives `AccountInfo? account` but ignores `account.phone` / `account.username` entirely; spec §3 shows phone number / username below the display name — `hamburger_drawer.dart:1051`
-
-- [ ] [CRITICAL] Menu bot `requestBotWebView` call uses `_activeChat` as context — if no chat is open when the drawer is visible, `_activeChat` is null and `requestBotWebView` returns `''` immediately (chat_state.dart:1701-1702), so bot web view silently does nothing; drawer bots need to open via the bot's own peer ID, not the active chat — `hamburger_drawer.dart:207`
-
-- [ ] [CRITICAL] `botUsername: ''` hardcoded when opening menu bot WebAppPanel — `MenuBotInfo` has no `username` field, so the bot's username is never passed to `WebAppPanelData`; if `WebAppPanel` displays or uses `botUsername` anywhere it will always be blank — `hamburger_drawer.dart:215`
-
-- [ ] [MAJOR] Missing `RepaintBoundary` on `_SnowflakeOverlay` — the snowflake `AnimationController` repeats every 10 s at full frame rate; without a boundary, every animation tick invalidates and repaints the entire 274×134 profile cover Stack including avatar, text, and badge widgets — `hamburger_drawer.dart:799`
-
-- [ ] [MAJOR] `ctx.watch<AppState>()` in Profile Cover avatar `Builder` watches the entire AppState just to read `avatarCorners`; any unrelated AppState change (account list update, ghost mode toggle, etc.) rebuilds the avatar — use `Selector<AppState, double>` — `hamburger_drawer.dart:812`
-
-- [ ] [MAJOR] Chevron `Builder` at line 934 calls `ctx.watch<AppState>()` + `ctx.watch<ChatState>()` — iterates all accounts and sums unread counts on every ChatState notification (i.e. every incoming message); should use `Selector` that only triggers when the collapsed-unread aggregate actually changes — `hamburger_drawer.dart:935-936`
-
-- [ ] [MAJOR] `_AccountRow` avatar `Builder` calls `ctx.watch<AppState>()` per account row to read `avatarCorners`; with N accounts this creates N full-AppState listeners, each rebuilding on any AppState change — use `Selector<AppState, double>` — `hamburger_drawer.dart:1499`
-
-- [ ] [MAJOR] `Image.file` for bot menu icon has no `cacheWidth`/`cacheHeight` — the image is decoded at full resolution (potentially 512×512+) then scaled to 24×24 on every drawer open; pass `cacheWidth: 48, cacheHeight: 48` (2× logical pixels) — `hamburger_drawer.dart:1695`
-
-- [ ] [MAJOR] `FileImage` for profile-cover avatar (48×48) and account-row avatars (26×26) has no resize hint — wrap with `ResizeImage(FileImage(File(path)), width: 96, height: 96)` / `ResizeImage(FileImage(File(path)), width: 52, height: 52)` to avoid decoding full-res avatars on every frame — `hamburger_drawer.dart:821`, `hamburger_drawer.dart:1509`
-
 ## info_panel — cleanup
 - [ ] [CRITICAL] `File.readAsBytesSync()` called inside `build()` — blocks UI thread on every rebuild of `_ChatInfoPage`; load bytes async in `initState`/`didUpdateWidget` and store in state — `info_panel.dart:2692`
 - [ ] [CRITICAL] `mute_forever` menu item hits `_ => 0` branch (seconds=0), then calls `data.onTap?.call()` which is the mute toggle — permanently muted chats get unmuted instead; add explicit `'mute_forever'` case that calls `muteChat` with no duration or a sentinel value for permanent mute — `info_panel.dart:1131`
