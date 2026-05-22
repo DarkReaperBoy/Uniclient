@@ -153,27 +153,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## choose_datetime_box — cleanup
 
-# engine_service — cleanup
-
-- [ ] [CRITICAL] `startCallRecording`/`stopCallRecording` pass `accountId` as the `coreId` argument instead of `'__engine'` — routes to the wrong bridge handler, both methods silently fail at runtime — `engine_service.dart:2347` `engine_service.dart:2359`
-
-- [ ] [CRITICAL] `_cachedMsgFromProto` sets `forwardFromId` to `p.forwardFrom` (the display name string) when `forward_from_id` is absent from the extra JSON — contaminates the ID field with a human-readable name; should fall back to `''` — `engine_service.dart:5985`
-
-- [ ] [CRITICAL] `getChatMembersByRole` has no empty-response guard before `json.decode(utf8.decode(respBytes))` — if the engine returns an empty payload (ok=true, no body), `json.decode('')` throws `FormatException` that propagates unhandled — `engine_service.dart:1085`
-
-- [ ] [CRITICAL] `getEditRevisions` has no empty-response guard — same crash path as above (`json.decode(utf8.decode(respBytes))` with no `isEmpty` check) — `engine_service.dart:2691`
-
-- [ ] [CRITICAL] `hasEditRevisions` has no empty-response guard — same crash path — `engine_service.dart:2701`
-
-- [ ] [CRITICAL] `updateProfile` hardcodes `'about': ''` in the payload — every call to change the display name silently overwrites the user's Telegram bio with an empty string — `engine_service.dart:4027`
-
-- [ ] [CRITICAL] `_reactionsFromParsed` filters `.where((r) => r.emoji.isNotEmpty)` — custom emoji reactions (where `emoji` is `''` and `documentId` is the identifier) are dropped entirely and never shown — `engine_service.dart:6147`
-
-- [ ] [MAJOR] `deleteForumTopicHistory` reuses `epb.EngineEditForumTopicRequest` as the proto message type for a delete operation — semantically wrong and fragile; only `account_id`, `chat_id`, `topicId` fields are set, no explicit delete payload — `engine_service.dart:802`
-
-- [ ] [MAJOR] `getSessionsCount` fetches the full session list to get a count, then discards the data — `getBlockedUsersCount` correctly uses `limit: 1` + total field from the paged API; `getSessionsCount` should do the same or expose a dedicated count endpoint — `engine_service.dart:5325`
-
-- [ ] [MAJOR] `_waveformFromParsed` (line 6152) and `_decode5BitWaveform` (line 6279) are identical 5-bit unpackers with different input types (base64 string vs raw bytes) — the base64 path in `_waveformFromParsed` should call `_decode5BitWaveform` after decoding, not duplicate the loop
 
 ## color_picker_box — cleanup
 
