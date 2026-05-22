@@ -2712,27 +2712,52 @@ class _ChatBackgroundSectionState extends State<_ChatBackgroundSection> {
   }
 }
 
-class _WallpaperBrowser extends StatelessWidget {
+class _WallpaperBrowser extends StatefulWidget {
   final List<Map<String, dynamic>> wallpapers;
   final bool isDark;
 
   const _WallpaperBrowser({required this.wallpapers, required this.isDark});
 
   @override
-  Widget build(BuildContext context) {
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = context.palette.windowBgActive;
+  State<_WallpaperBrowser> createState() => _WallpaperBrowserState();
+}
 
-    final decodedThumbs = <int, Uint8List>{};
-    for (var i = 0; i < wallpapers.length; i++) {
-      final b64 = wallpapers[i]['thumb_b64'] as String? ?? '';
+class _WallpaperBrowserState extends State<_WallpaperBrowser> {
+  Map<int, Uint8List> _decodedThumbs = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _decodeAllThumbs();
+  }
+
+  @override
+  void didUpdateWidget(_WallpaperBrowser old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.wallpapers, widget.wallpapers)) {
+      _decodeAllThumbs();
+    }
+  }
+
+  void _decodeAllThumbs() {
+    final thumbs = <int, Uint8List>{};
+    for (var i = 0; i < widget.wallpapers.length; i++) {
+      final b64 = widget.wallpapers[i]['thumb_b64'] as String? ?? '';
       if (b64.isNotEmpty) {
         try {
-          decodedThumbs[i] = Uint8List.fromList(const Base64Decoder().convert(b64));
+          thumbs[i] = Uint8List.fromList(const Base64Decoder().convert(b64));
         } catch (_) {}
       }
     }
+    _decodedThumbs = thumbs;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
@@ -2756,7 +2781,7 @@ class _WallpaperBrowser extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: wallpapers.isEmpty
+            child: widget.wallpapers.isEmpty
                 ? Center(child: Text('No wallpapers available', style: TextStyle(color: subtextColor)))
                 : GridView.builder(
                     controller: scrollController,
@@ -2766,16 +2791,16 @@ class _WallpaperBrowser extends StatelessWidget {
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 8,
                     ),
-                    itemCount: wallpapers.length,
+                    itemCount: widget.wallpapers.length,
                     itemBuilder: (ctx, i) {
-                      final wp = wallpapers[i];
+                      final wp = widget.wallpapers[i];
                       final colors = (wp['colors'] as List<dynamic>?)?.cast<int>() ?? [];
                       final isPattern = (wp['is_pattern'] as bool? ?? wp['pattern'] as bool? ?? false);
                       final isPhoto = wp['is_photo'] as bool? ?? false;
                       final rotation = wp['rotation'] as int? ?? 0;
 
                       Widget content;
-                      final thumbBytes = decodedThumbs[i];
+                      final thumbBytes = _decodedThumbs[i];
                       if (thumbBytes != null && isPattern && colors.isNotEmpty) {
                         content = ClipRRect(
                           borderRadius: BorderRadius.circular(8),
@@ -2830,6 +2855,7 @@ class _WallpaperBrowser extends StatelessWidget {
   }
 
   Widget _colorTile(List<int> colors, int rotation) {
+    final isDark = widget.isDark;
     if (colors.isEmpty) {
       return Container(
         decoration: BoxDecoration(
