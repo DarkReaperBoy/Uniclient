@@ -61,6 +61,16 @@ class _PopupState {
     this.replyHeight = _replyFieldMinH,
   });
 
+  InlineSpan? _cachedBodySpan;
+  NotificationContent? _cachedContent;
+  int _spanColorKey = 0;
+
+  void invalidateSpanCache() {
+    _cachedBodySpan = null;
+    _cachedContent = null;
+    _spanColorKey = 0;
+  }
+
   double get totalHeight {
     final base = _notifyMinHeight;
     if (replyOpen) return base + replyHeight + _borderWidth;
@@ -103,6 +113,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
   final List<_PopupState> _popups = [];
   bool _showHideAll = false;
   bool _hasReceivedInput = false;
+  bool _updateDisplayScheduled = false;
 
   @override
   void initState() {
@@ -157,7 +168,18 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
 
   void _onUpdateDisplay(DefaultNotificationItem item) {
     if (!mounted) return;
-    setState(() {});
+    final popup = _popups.where((p) => p.id == item.id).firstOrNull;
+    if (popup != null) {
+      popup.invalidateSpanCache();
+    }
+    if (!_updateDisplayScheduled) {
+      _updateDisplayScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _updateDisplayScheduled = false;
+        setState(() {});
+      });
+    }
   }
 
   void _onUserInput() {
@@ -267,7 +289,9 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
   }
 
   void _onHoverExit(_PopupState popup) {
-    popup.hovered = false;
+    setState(() {
+      popup.hovered = false;
+    });
     if (_anyReplyOpen()) return;
     widget.manager.startAllHiding();
     for (final p in _popups) {
@@ -417,43 +441,46 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
         yPos = popup.targetY;
       }
 
-      final hideReply = shouldHideReplyButton(
-        popup.item.data,
-        widget.settings,
-        isPasscodeLocked: widget.isPasscodeLocked,
-      );
+      final hideReply = widget.onReplySend == null ||
+          shouldHideReplyButton(
+            popup.item.data,
+            widget.settings,
+            isPasscodeLocked: widget.isPasscodeLocked,
+          );
 
       children.add(
-        _NotificationPopupWidget(
-          key: ValueKey(popup.id),
-          popup: popup,
-          x: xPos,
-          y: yPos,
-          width: width,
-          hideReply: hideReply,
-          bgColor: bgColor,
-          borderColor: borderColor,
-          titleColor: titleColor,
-          bodyColor: bodyColor,
-          closeColor: closeColor,
-          accentColor: accentColor,
-          settings: widget.settings,
-          onHoverEnter: () => _onHoverEnter(popup),
-          onHoverExit: () => _onHoverExit(popup),
-          onTap: () => _onTapNotification(popup),
-          onRightClick: () => _onRightClickDismiss(popup),
-          onClose: () => _onCloseClick(popup),
-          onReplyClick: () => _onReplyClick(popup),
-          onReplySend: () => _onReplySend(popup),
-          onReplyCancel: () => _onReplyCancel(popup),
-          onReplyHeightChanged: (h) {
-            if (popup.replyHeight != h) {
-              setState(() {
-                popup.replyHeight = h;
-                _recalcPositions();
-              });
-            }
-          },
+        RepaintBoundary(
+          child: _NotificationPopupWidget(
+            key: ValueKey(popup.id),
+            popup: popup,
+            x: xPos,
+            y: yPos,
+            width: width,
+            hideReply: hideReply,
+            bgColor: bgColor,
+            borderColor: borderColor,
+            titleColor: titleColor,
+            bodyColor: bodyColor,
+            closeColor: closeColor,
+            accentColor: accentColor,
+            settings: widget.settings,
+            onHoverEnter: () => _onHoverEnter(popup),
+            onHoverExit: () => _onHoverExit(popup),
+            onTap: () => _onTapNotification(popup),
+            onRightClick: () => _onRightClickDismiss(popup),
+            onClose: () => _onCloseClick(popup),
+            onReplyClick: () => _onReplyClick(popup),
+            onReplySend: () => _onReplySend(popup),
+            onReplyCancel: () => _onReplyCancel(popup),
+            onReplyHeightChanged: (h) {
+              if (popup.replyHeight != h) {
+                setState(() {
+                  popup.replyHeight = h;
+                  _recalcPositions();
+                });
+              }
+            },
+          ),
         ),
       );
     }
@@ -536,7 +563,14 @@ class _NotificationPopupWidget extends StatelessWidget {
         popup.hiding
             ? (popup.fastHiding ? _fastHideDuration : _slowHideDuration)
             : _fadeInDuration;
-    final content = composeNotificationContent(data, settings);
+    final colorKey = titleColor.value ^ bodyColor.value;
+    if (popup._cachedBodySpan == null || popup._spanColorKey != colorKey) {
+      final c = composeNotificationContent(data, settings);
+      popup._cachedContent = c;
+      popup._cachedBodySpan = _buildBodySpan(c, titleColor, bodyColor);
+      popup._spanColorKey = colorKey;
+    }
+    final content = popup._cachedContent!;
     final nameHidden = !settings.previewName;
 
     return AnimatedPositioned(
@@ -614,7 +648,7 @@ class _NotificationPopupWidget extends StatelessWidget {
                             },
                             blendMode: BlendMode.dstIn,
                             child: Text.rich(
-                              _buildBodySpan(content, titleColor, bodyColor),
+                              popup._cachedBodySpan!,
                               maxLines: 2,
                               overflow: TextOverflow.clip,
                             ),
@@ -742,6 +776,8 @@ class _Avatar extends StatelessWidget {
           File(avatarPath),
           width: _photoSize,
           height: _photoSize,
+          cacheWidth: 124,
+          cacheHeight: 124,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _initialsFallback(),
         ),
