@@ -95,6 +95,41 @@ const _commandGroups = <List<(ShortcutCommand, String)>>[
     (ShortcutCommand.mediaPrevious, 'Previous Track'),
     (ShortcutCommand.mediaNext, 'Next Track'),
   ],
+  // 12. Formatting
+  [
+    (ShortcutCommand.formatBold, 'Bold'),
+    (ShortcutCommand.formatItalic, 'Italic'),
+    (ShortcutCommand.formatUnderline, 'Underline'),
+    (ShortcutCommand.formatStrike, 'Strikethrough'),
+    (ShortcutCommand.formatCode, 'Monospace'),
+    (ShortcutCommand.formatBlockquote, 'Blockquote'),
+    (ShortcutCommand.formatSpoiler, 'Spoiler'),
+    (ShortcutCommand.formatClear, 'Clear Formatting'),
+    (ShortcutCommand.formatLink, 'Create Link'),
+    (ShortcutCommand.formatDate, 'Insert Date'),
+  ],
+  // 13. Compose / Editing
+  [
+    (ShortcutCommand.editLastMessage, 'Edit Last Message'),
+    (ShortcutCommand.replyPrevious, 'Reply to Previous'),
+    (ShortcutCommand.replyNext, 'Reply to Next'),
+    (ShortcutCommand.openFilePicker, 'Open File Picker'),
+    (ShortcutCommand.pastePlainText, 'Paste as Plain Text'),
+  ],
+  // 14. Navigation
+  [
+    (ShortcutCommand.cancelSearch, 'Cancel Search'),
+    (ShortcutCommand.chatSwitchOverlay, 'Switch Chat'),
+    (ShortcutCommand.chatSwitchOverlayReverse, 'Switch Chat (Reverse)'),
+  ],
+  // 15. Support
+  [
+    (ShortcutCommand.supportReloadTemplates, 'Reload Templates'),
+    (ShortcutCommand.supportToggleMuted, 'Toggle Muted'),
+    (ShortcutCommand.supportScrollToCurrent, 'Scroll to Current'),
+    (ShortcutCommand.supportHistoryBack, 'History Back'),
+    (ShortcutCommand.supportHistoryForward, 'History Forward'),
+  ],
 ];
 
 final _modifierKeys = {
@@ -130,6 +165,30 @@ bool _allowWithoutModifiers(LogicalKeyboardKey key) {
     if (c >= 0x20 && c <= 0x7E) return false;
   }
   return true;
+}
+
+sealed class _ListEntry {
+  const _ListEntry();
+}
+
+class _ResetButtonEntry extends _ListEntry {
+  const _ResetButtonEntry();
+}
+
+class _SeparatorEntry extends _ListEntry {
+  const _SeparatorEntry();
+}
+
+class _PaddingEntry extends _ListEntry {
+  const _PaddingEntry();
+}
+
+class _CmdEntry extends _ListEntry {
+  final ShortcutCommand cmd;
+  final String label;
+  final int bindingIdx;
+  final bool isExtra;
+  const _CmdEntry(this.cmd, this.label, this.bindingIdx, {this.isExtra = false});
 }
 
 class ShortcutsSettingsScreen extends StatefulWidget {
@@ -375,49 +434,25 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
     final goodColor = const Color(0xFF4CAF50);
     final attentionColor =
         isDark ? const Color(0xFFE53935) : const Color(0xFFDF3F40);
-    final items = <Widget>[
-      AnimatedSize(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        alignment: Alignment.topCenter,
-        child: _modified
-            ? Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(height: 1, color: dividerColor),
-                  const SizedBox(height: 7),
-                  _ResetButton(
-                    bgColor: bgColor,
-                    textColor: accentColor,
-                    hoverBg: hoverBg,
-                    onTap: _resetToDefaults,
-                  ),
-                  const SizedBox(height: 7),
-                  Container(height: 1, color: dividerColor),
-                ],
-              )
-            : const SizedBox.shrink(),
-      ),
-    ];
+    final entries = <_ListEntry>[];
+    entries.add(const _ResetButtonEntry());
     for (int gi = 0; gi < _commandGroups.length; gi++) {
-      if (gi > 0) {
-        items.add(const SizedBox(height: 7));
-        items.add(Container(height: 1, color: dividerColor));
-        items.add(const SizedBox(height: 7));
-      }
+      if (gi > 0) entries.add(const _SeparatorEntry());
       for (final (cmd, label) in _commandGroups[gi]) {
-        items.addAll(_buildCommandRows(
-          cmd,
-          label,
-          textColor: textColor,
-          subtextColor: subtextColor,
-          hoverBg: hoverBg,
-          goodColor: goodColor,
-          attentionColor: attentionColor,
-        ));
+        final bindings = _currentBindings[cmd] ?? [];
+        if (bindings.isEmpty) {
+          entries.add(_CmdEntry(cmd, label, 0));
+        } else {
+          for (int i = 0; i < bindings.length; i++) {
+            entries.add(_CmdEntry(cmd, label, i));
+          }
+        }
+        if (_recordingCommand == cmd && _recordingIndex >= bindings.length) {
+          entries.add(_CmdEntry(cmd, label, bindings.length, isExtra: true));
+        }
       }
     }
-    items.add(const SizedBox(height: 24));
+    entries.add(const _PaddingEntry());
 
     return Scaffold(
         backgroundColor: bgColor,
@@ -440,10 +475,111 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
         ),
         body: ListView.builder(
           padding: EdgeInsets.zero,
-          itemCount: items.length,
-          itemBuilder: (_, i) => items[i],
+          itemCount: entries.length,
+          itemBuilder: (_, i) => _buildEntry(entries[i],
+            bgColor: bgColor,
+            textColor: textColor,
+            subtextColor: subtextColor,
+            accentColor: accentColor,
+            dividerColor: dividerColor,
+            hoverBg: hoverBg,
+            goodColor: goodColor,
+            attentionColor: attentionColor,
+          ),
         ),
     );
+  }
+
+  Widget _buildEntry(_ListEntry entry, {
+    required Color bgColor,
+    required Color textColor,
+    required Color subtextColor,
+    required Color accentColor,
+    required Color dividerColor,
+    required Color hoverBg,
+    required Color goodColor,
+    required Color attentionColor,
+  }) {
+    switch (entry) {
+      case _ResetButtonEntry():
+        return AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: _modified
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(height: 1, color: dividerColor),
+                    const SizedBox(height: 7),
+                    _ResetButton(
+                      bgColor: bgColor,
+                      textColor: accentColor,
+                      hoverBg: hoverBg,
+                      onTap: _resetToDefaults,
+                    ),
+                    const SizedBox(height: 7),
+                    Container(height: 1, color: dividerColor),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        );
+      case _SeparatorEntry():
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 7),
+            Container(height: 1, color: dividerColor),
+            const SizedBox(height: 7),
+          ],
+        );
+      case _PaddingEntry():
+        return const SizedBox(height: 24);
+      case _CmdEntry(:final cmd, :final label, :final bindingIdx, :final isExtra):
+        final bindings = _currentBindings[cmd] ?? [];
+        if (isExtra) {
+          return _ShortcutRow(
+            label: label,
+            keyLabel: '',
+            keyColor: subtextColor,
+            isRecording: true,
+            recordingColor: goodColor,
+            textColor: textColor,
+            hoverBg: hoverBg,
+            onTap: () {},
+            onSecondaryTapUp: (_) {},
+          );
+        }
+        if (bindings.isEmpty) {
+          return _ShortcutRow(
+            label: label,
+            keyLabel: '',
+            keyColor: subtextColor,
+            isRecording: _recordingCommand == cmd && _recordingIndex == 0,
+            recordingColor: goodColor,
+            textColor: textColor,
+            hoverBg: hoverBg,
+            onTap: () => _startRecording(cmd, 0),
+            onSecondaryTapUp: (pos) => _showContextMenu(cmd, pos),
+          );
+        }
+        final b = bindings[bindingIdx];
+        final keyStr = ShortcutSystem.displayBindingString(b);
+        final isConflictSource =
+            _removedKeys[cmd]?.contains(bindingToKeyString(b)) ?? false;
+        return _ShortcutRow(
+          label: label,
+          keyLabel: keyStr,
+          keyColor: isConflictSource ? attentionColor : subtextColor,
+          strikethrough: isConflictSource,
+          isRecording: _recordingCommand == cmd && _recordingIndex == bindingIdx,
+          recordingColor: goodColor,
+          textColor: textColor,
+          hoverBg: hoverBg,
+          onTap: () => _startRecording(cmd, bindingIdx),
+          onSecondaryTapUp: (pos) => _showContextMenu(cmd, pos),
+        );
+    }
   }
 
   List<Widget> _buildCommandRows(
