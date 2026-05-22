@@ -72,22 +72,6 @@ All platform implementations (native FFI, web WASM, stub) are complete and funct
   - **Fix:** Change line 204-205 to `return false` for both file types, OR track success of both files and return `dicSuccess && affSuccess`
 
 
-# web_drop_web — Web drag-and-drop zone (Flutter Web)
-
-- [ ] [MAJOR] `_kMaxFileSizeBytes` hardcoded to 2 GiB silently rejects files valid for premium users — `web_drop_web.dart:52` ← `storage/localimageloader.h:22` (`kFileSizeLimit = 2'000 MiB` non-premium) + `chat_view.dart:17958` (`_kMaxDragFileSize = 4 GiB` premium limit). Files 2 GiB–4 GiB are silently filtered to `null` at line 168 before they ever reach the classification logic in `chat_view.dart:18029`. Premium users cannot drop files in the 2–4 GiB range even though `_kMaxDragFileSize` explicitly permits them. Fix: raise to `4 * 1024 * 1024 * 1024` (matching `_kMaxDragFileSize`) or remove the size gate entirely and let the upload pipeline enforce limits.
-
-- [ ] [MAJOR] Oversized files silently call `onDragLeave` instead of surfacing an error — `web_drop_web.dart:185-186` ← `storage/localimageloader.cpp:1064-1066` (shows `FileSizeLimitBox` when file exceeds limit). When every dropped file is above `_kMaxFileSizeBytes`, `_readFiles` produces an empty `results` list and calls `widget.onDragLeave?.call()` — the UI behaves as if the user cancelled the drag with no explanation. AyuGram explicitly shows a file-too-large box in this case. A distinct `onDropRejected` callback or an inline error toast is needed so users understand why their drop was ignored.
-
-# notification_manager_default — Audit
-
-- [ ] [CRITICAL] Queue silently drops oldest queued notification when `_queue.length >= _kMaxQueueSize` (6), discarding notifications users should see; C++ `_queuedNotifications` is an unbounded `std::deque` that never drops items — `notification_manager_default.dart:83-86` ← `notifications_manager_default.cpp:371` (`_queuedNotifications.emplace_back` with no size cap)
-
-- [ ] [MAJOR] `clearAll()` → `hideAll()` fires `onDismiss` directly for all items without first calling `onStartHiding`, bypassing the expected fade animation; C++ `doClearAll()` calls `notification->unlinkHistory()` which triggers `hideFast()` (150 ms fade via `st::notifyFastAnim`), and `removeWidget` fires only after the animation — `notification_manager_default.dart:279,173-185` ← `notifications_manager_default.cpp:375-381` + `notifications_manager_default.cpp:570-572`
-
-- [ ] [MAJOR] No userpic lazy-load update: C++ calls `subscribeToSession()` per shown notification and refreshes every notification's userpic in `updatePeerPhoto()` when `downloaderTaskFinished` fires; Dart provides only a static `avatarPath` string in `NotificationData` with no mechanism to propagate a finished-download event back to active notifications, so notifications shown before the avatar is cached will permanently display a placeholder — `notification_manager_default.dart:16-28` (entire `DefaultNotificationItem`, no update path) ← `notifications_manager_default.cpp:269-295` (`subscribeToSession`) + `notifications_manager_default.cpp:1052-1079` (`updatePeerPhoto`)
-
-- [ ] [MAJOR] `onUserInput()` call is undocumented and has no enforcement path: `_lastInputTimeSupported` defaults to `false`, which means on any platform that supports "last input time" tracking the "wait for user input before dismiss" feature is silently disabled unless the widget layer explicitly calls `onUserInput()` on every pointer/keyboard event; C++ queries `base::Platform::LastUserInputTimeSupported()` and `Core::App().lastNonIdleTime()` automatically at check time without requiring any external call — `notification_manager_default.dart:66-69,105-113` ← `notifications_manager_default.cpp:186-199` (`checkLastInput` reads OS last-input time directly)
-
 # notification_manager_native — Audit
 
 ## notification_manager_native — Linux DBus / Flatpak notification backend
