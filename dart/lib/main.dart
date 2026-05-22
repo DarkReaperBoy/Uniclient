@@ -145,10 +145,12 @@ class _UniClientAppState extends State<UniClientApp>
   VoidCallback? _monochromeSyncListener;
   VoidCallback? _appIconSyncListener;
   VoidCallback? _closeBehaviorSyncListener;
+  VoidCallback? _passcodeLockSyncListener;
   String _lastAppIcon = '';
   AppState? _appStateRef;
   ChatState? _chatStateRef;
   Timer? _debugCmdTimer;
+  Timer? _waitForTextTimer;
   final _navigatorKey = GlobalKey<NavigatorState>();
 
   // §37.1: Three-tier notification system.
@@ -162,6 +164,13 @@ class _UniClientAppState extends State<UniClientApp>
   final _themeBoundaryKey = GlobalKey();
   ui.Image? _themeCrossFadeImage;
   AnimationController? _themeFadeCtrl;
+
+  // Palette cache — avoid recomputing colorize/adjustServiceColors on every rebuild.
+  String? _cachedPaletteThemeId;
+  TelegramPalette? _cachedPaletteCustom;
+  String _cachedPaletteAccentHex = '';
+  WallpaperData? _cachedPaletteWallpaper;
+  TelegramPalette? _cachedPalette;
 
   @override
   void initState() {
@@ -516,9 +525,10 @@ class _UniClientAppState extends State<UniClientApp>
         enabled: _notifSystem.settings.desktopNotify);
 
     // §37.12: Sync passcode lock state into notification system.
-    appState.addListener(() {
+    _passcodeLockSyncListener = () {
       _notifSystem.passcodeLocked = appState.passcodeLocked;
-    });
+    };
+    appState.addListener(_passcodeLockSyncListener!);
     _notifSystem.passcodeLocked = appState.passcodeLocked;
 
     final dm = _notifSystem.defaultManager;
@@ -644,13 +654,17 @@ class _UniClientAppState extends State<UniClientApp>
           }
         case 'listChats':
           // Dump chat list to /tmp/uniclient_debug_out.json.
-          final out = chatState.chats.take(20).map((c) => {
-            'index': chatState.chats.indexOf(c),
-            'chatId': c.chatId,
-            'title': c.title,
-            'unread': c.unreadCount,
-            'accountId': c.accountId,
-          }).toList();
+          final slice = chatState.chats.take(20).toList();
+          final out = [
+            for (var i = 0; i < slice.length; i++)
+              {
+                'index': i,
+                'chatId': slice[i].chatId,
+                'title': slice[i].title,
+                'unread': slice[i].unreadCount,
+                'accountId': slice[i].accountId,
+              },
+          ];
           File('/tmp/uniclient_debug_out.json').writeAsStringSync(
             const JsonEncoder.withIndent('  ').convert(out),
           );
@@ -1219,6 +1233,7 @@ class _UniClientAppState extends State<UniClientApp>
     });
   }
 
+  bool _hoverDeviceAdded = false;
   bool _scrollDeviceAdded = false;
 
   void _dispatchScroll(double x, double y, double dx, double dy) {
@@ -1356,9 +1371,19 @@ class _UniClientAppState extends State<UniClientApp>
   }
 
   static const _hoverPointer = 999999;
+  static const _hoverDevice = 998;
   void _dispatchHover(double x, double y) {
-    GestureBinding.instance.handlePointerEvent(PointerHoverEvent(
-      pointer: _hoverPointer, position: Offset(x, y), kind: PointerDeviceKind.mouse,
+    final binding = GestureBinding.instance;
+    if (!_hoverDeviceAdded) {
+      binding.handlePointerEvent(const PointerAddedEvent(
+        pointer: _hoverPointer,
+        device: _hoverDevice,
+        kind: PointerDeviceKind.mouse,
+      ));
+      _hoverDeviceAdded = true;
+    }
+    binding.handlePointerEvent(PointerHoverEvent(
+      pointer: _hoverPointer, device: _hoverDevice, position: Offset(x, y), kind: PointerDeviceKind.mouse,
     ));
   }
 
@@ -1534,10 +1559,6 @@ class _UniClientAppState extends State<UniClientApp>
     if (lc == 'ctrl+]' || lc == 'control+]' ||
         lc == 'ctrl+bracketright' || lc == 'control+bracketright') {
       ChatView.requestShowChatPreview();
-      return;
-    }
-    if (lc == 'ctrl+r' || lc == 'control+r') {
-      ChatView.requestMarkActiveChatRead();
       return;
     }
     // Telegram Desktop spec §24.4 line 2978 — Ctrl+Shift+Enter always sends
@@ -2022,16 +2043,19 @@ class _UniClientAppState extends State<UniClientApp>
 
   /// Poll for text to appear on screen, write result when found or timed out.
   void _waitForText(String query, int timeoutSec) {
+    _waitForTextTimer?.cancel();
     final deadline = DateTime.now().add(Duration(seconds: timeoutSec));
-    Timer.periodic(const Duration(milliseconds: 200), (timer) {
+    _waitForTextTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
       final found = _findTextOnScreen(query);
       if (found.isNotEmpty) {
         timer.cancel();
+        _waitForTextTimer = null;
         File('/tmp/uniclient_debug_out.json').writeAsStringSync(
           const JsonEncoder.withIndent('  ').convert({'found': true, 'matches': found}),
         );
       } else if (DateTime.now().isAfter(deadline)) {
         timer.cancel();
+        _waitForTextTimer = null;
         File('/tmp/uniclient_debug_out.json').writeAsStringSync(
           jsonEncode({'found': false, 'query': query}),
         );
@@ -2043,6 +2067,7 @@ class _UniClientAppState extends State<UniClientApp>
   void dispose() {
     _notifSystem.dispose();
     _debugCmdTimer?.cancel();
+    _waitForTextTimer?.cancel();
     if (_unreadListener != null && _chatStateRef != null) {
       _chatStateRef!.removeListener(_unreadListener!);
     }
@@ -2064,6 +2089,12 @@ class _UniClientAppState extends State<UniClientApp>
     if (_appIconSyncListener != null && _appStateRef != null) {
       _appStateRef!.removeListener(_appIconSyncListener!);
     }
+    if (_closeBehaviorSyncListener != null && _appStateRef != null) {
+      _appStateRef!.removeListener(_closeBehaviorSyncListener!);
+    }
+    if (_passcodeLockSyncListener != null && _appStateRef != null) {
+      _appStateRef!.removeListener(_passcodeLockSyncListener!);
+    }
     if (_chatStateRef != null) _chatStateRef!.onNotification = null;
     // Persist emoji keywords state (recent emojis, variant prefs).
     if (!kIsWeb && _appStateRef != null && _appStateRef!.configDir.isNotEmpty) {
@@ -2084,26 +2115,43 @@ class _UniClientAppState extends State<UniClientApp>
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
 
-    var palette = appState.customPalette ?? switch (appState.themeId) {
-      'classic_day' => TelegramPalette.classicDay,
-      'day_blue' => TelegramPalette.dayBlue,
-      'night_green' => TelegramPalette.nightGreen,
-      _ => TelegramPalette.night,
-    };
-    final accentHex = appState.accentColorHex;
-    if (accentHex.length >= 7) {
-      final hex = accentHex.replaceFirst('#', '');
-      final v = int.tryParse(hex.length == 6 ? 'FF$hex' : hex, radix: 16);
-      if (v != null) {
-        final accentColor = Color(v);
-        if (!TelegramPalette.colorEq(accentColor, palette.windowBgActive)) {
-          palette = palette.colorize(accentColor);
+    final curThemeId = appState.themeId;
+    final curCustom = appState.customPalette;
+    final curAccent = appState.accentColorHex;
+    final curWallpaper = appState.wallpaper;
+
+    TelegramPalette palette;
+    if (_cachedPalette != null &&
+        identical(curCustom, _cachedPaletteCustom) &&
+        curThemeId == _cachedPaletteThemeId &&
+        curAccent == _cachedPaletteAccentHex &&
+        identical(curWallpaper, _cachedPaletteWallpaper)) {
+      palette = _cachedPalette!;
+    } else {
+      palette = curCustom ?? switch (curThemeId) {
+        'classic_day' => TelegramPalette.classicDay,
+        'day_blue' => TelegramPalette.dayBlue,
+        'night_green' => TelegramPalette.nightGreen,
+        _ => TelegramPalette.night,
+      };
+      if (curAccent.length >= 7) {
+        final hex = curAccent.replaceFirst('#', '');
+        final v = int.tryParse(hex.length == 6 ? 'FF$hex' : hex, radix: 16);
+        if (v != null) {
+          final accentColor = Color(v);
+          if (!TelegramPalette.colorEq(accentColor, palette.windowBgActive)) {
+            palette = palette.colorize(accentColor);
+          }
         }
       }
-    }
-
-    if (appState.wallpaper.backgroundColors.isNotEmpty || appState.wallpaper.imageBytes != null) {
-      palette = palette.adjustServiceColorsForWallpaper(appState.wallpaper);
+      if (curWallpaper.backgroundColors.isNotEmpty || curWallpaper.imageBytes != null) {
+        palette = palette.adjustServiceColorsForWallpaper(curWallpaper);
+      }
+      _cachedPaletteThemeId = curThemeId;
+      _cachedPaletteCustom = curCustom;
+      _cachedPaletteAccentHex = curAccent;
+      _cachedPaletteWallpaper = curWallpaper;
+      _cachedPalette = palette;
     }
 
     return WallpaperProvider(
@@ -2256,6 +2304,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
   final _stopwatch = Stopwatch();
   Timer? _countdownTimer;
   int _remainingMs = _totalMs;
+  int _lastDisplayedSeconds = -1;
   bool _visible = false;
   bool _mounted = false;
 
@@ -2278,12 +2327,17 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
     _stopwatch.start();
     _escapeFocus.requestFocus();
     _countdownTimer?.cancel();
+    _lastDisplayedSeconds = -1;
     _countdownTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       _remainingMs = _totalMs - _stopwatch.elapsedMilliseconds;
       if (_remainingMs <= 0) {
         _revert();
       } else {
-        setState(() {});
+        final seconds = (_remainingMs / 1000).ceil();
+        if (seconds != _lastDisplayedSeconds) {
+          _lastDisplayedSeconds = seconds;
+          setState(() {});
+        }
       }
     });
   }
@@ -2558,7 +2612,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     final appState = context.read<AppState>();
     final entered = _controller.text;
     if (entered.isEmpty) {
-      _showError('Please enter your passcode');
+      _showError(TrStrings.lngPasscodeEmpty());
       return;
     }
     if (!appState.passcodeCanTry()) {
@@ -2803,12 +2857,12 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Log out',
+                                        TrStrings.lngPasscodeLogout(),
                                         style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
                                       ),
                                       const SizedBox(height: 12),
                                       Text(
-                                        'Are you sure you want to log out?',
+                                        TrStrings.lngPasscodeLogoutSure(),
                                         style: TextStyle(fontSize: 14, color: subtextColor),
                                       ),
                                       const SizedBox(height: 16),
@@ -2817,12 +2871,12 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                                         children: [
                                           TextButton(
                                             onPressed: () => setState(() => _showLogoutConfirm = false),
-                                            child: Text('Cancel', style: TextStyle(color: accentColor)),
+                                            child: Text(TrStrings.lngCancel(), style: TextStyle(color: accentColor)),
                                           ),
                                           const SizedBox(width: 8),
                                           TextButton(
                                             onPressed: _doLogout,
-                                            child: Text('Log out', style: TextStyle(color: errorColor)),
+                                            child: Text(TrStrings.lngPasscodeLogout(), style: TextStyle(color: errorColor)),
                                           ),
                                         ],
                                       ),

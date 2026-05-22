@@ -17,6 +17,9 @@ class TrStrings {
   static String lngPasscodeSubmit() => 'Submit';
   static String lngPasscodeLogout() => 'Log out';
   static String lngPasscodeWrong() => 'Wrong passcode';
+  static String lngPasscodeEmpty() => 'Please enter your passcode';
+  static String lngPasscodeLogoutSure() => 'Are you sure you want to log out?';
+  static String lngCancel() => 'Cancel';
   static String lngFloodError() => 'Too many tries. Please try again later.';
 
   // Notification grouping (notifications_manager.cpp)
