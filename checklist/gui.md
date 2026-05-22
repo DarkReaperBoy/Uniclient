@@ -72,19 +72,6 @@ All platform implementations (native FFI, web WASM, stub) are complete and funct
   - **Fix:** Change line 204-205 to `return false` for both file types, OR track success of both files and return `dicSuccess && affSuccess`
 
 
-# notification_manager_native — Audit
-
-## notification_manager_native — Linux DBus / Flatpak notification backend
-
-- [ ] [CRITICAL] `nativeNotificationsSupported()` returns `true` for macOS and Windows, but `showNotification` only executes on Linux — macOS and Windows users get zero notifications despite the platform claiming support — `notification_manager_native.dart:39-42` (declares support) ← `notification_manager_native.dart:469-473` (Linux-only branch); compare `platform/mac/notifications_manager_mac.h` and `platform/win/notifications_manager_win.cpp` which are full separate platform implementations in AyuGram
-
-- [ ] [CRITICAL] `_onNotificationClosed` removes notification tracking unconditionally for every close reason — AyuGram only removes on `reason == 2` (user dismissed from screen); for all other reasons (1=expired, 3=CloseNotification called, 4=reserved) AyuGram keeps the tracking entry so a later `clearFromHistory` can still call `CloseNotification` to remove stale entries from the notification center's history — `notification_manager_native.dart:398-403` ← `notifications_manager_linux.cpp:490-519` (`if (nid && id == *nid && reason == 2) { clearNotification(...); }`)
-
-- [ ] [MAJOR] No `ByDefault()` capability gate — AyuGram only defaults to native notifications when the daemon exposes `body + actions + inline-reply + (sound OR inhibitions)`; the Dart unconditionally uses native on Linux regardless of daemon capabilities, resulting in degraded (buttonless, silent) notifications on minimal daemons — `notification_manager_native.dart:152-189` (no capability check before activating) ← `notifications_manager_linux.cpp:213-233` (`ByDefault()`)
-
-- [ ] [MAJOR] Non-markup body fallback uses hardcoded `subtitle: text` colon separator — AyuGram uses `tr::lng_dialogs_text_with_from` for proper i18n formatting (handles RTL and language-specific word order); colon format breaks for all non-English locales — `notification_manager_native.dart:613-615` ← `notifications_manager_linux.cpp:783-792`
-
-- [ ] [MAJOR] Custom notification sounds passed as raw `data.soundDocumentPath` / `defaultSoundPath` directly in the `sound-file` hint — AyuGram uses `Media::Audio::LocalDiskCache` (`_sounds`) to cache and transcode audio to a daemon-accessible format before passing the path; raw paths (e.g. inside app data dirs, FUSE mounts, sandboxed paths) may not be readable by the notification daemon — `notification_manager_native.dart:556-563` ← `notifications_manager_linux.cpp:337,641-658`
 
 # notification_system — Audit findings
 
