@@ -308,7 +308,6 @@ class _MyProfilePageState extends State<MyProfilePage> {
         }
       }
     }
-    setState(() {});
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 1000), () {
       _saveBio(_bioController.text);
@@ -773,13 +772,13 @@ class _BioInputState extends State<_BioInput> {
       setState(() {
         _emojiSelectedIndex = (_emojiSelectedIndex + 1).clamp(0, _emojiSuggestions.length - 1);
       });
-      return true;
+      return false;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
       setState(() {
         _emojiSelectedIndex = (_emojiSelectedIndex - 1).clamp(0, _emojiSuggestions.length - 1);
       });
-      return true;
+      return false;
     }
     if (event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.tab) {
@@ -803,10 +802,6 @@ class _BioInputState extends State<_BioInput> {
         ? const Color(0xFF6C7883)
         : const Color(0xFF999999);
     final maxLen = widget.isPremium ? 140 : 70;
-    final remaining = maxLen - widget.controller.text.length;
-    final counterColor = remaining < 0
-        ? const Color(0xFFE53935)
-        : subtextColor;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -849,9 +844,18 @@ class _BioInputState extends State<_BioInput> {
             Positioned(
               top: 6,
               right: 22,
-              child: Text(
-                '$remaining',
-                style: TextStyle(fontSize: 13, color: counterColor),
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: widget.controller,
+                builder: (context, value, _) {
+                  final remaining = maxLen - value.text.length;
+                  final counterColor = remaining < 0
+                      ? const Color(0xFFE53935)
+                      : subtextColor;
+                  return Text(
+                    '$remaining',
+                    style: TextStyle(fontSize: 13, color: counterColor),
+                  );
+                },
               ),
             ),
           ],
@@ -1031,6 +1035,8 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
                               width: 100,
                               height: 100,
                               fit: BoxFit.cover,
+                              cacheWidth: 200,
+                              cacheHeight: 200,
                               errorBuilder: (_, __, ___) =>
                                   _avatarFallback(color, initials),
                             ),
@@ -1159,6 +1165,17 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
             ],
           ),
         ),
+        if (hasAvatar)
+          const PopupMenuItem<String>(
+            value: 'remove',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline, size: 20, color: Color(0xFFE53935)),
+                SizedBox(width: 12),
+                Text('Remove Photo', style: TextStyle(color: Color(0xFFE53935))),
+              ],
+            ),
+          ),
       ],
     ).then((value) {
       if (value == 'view') {
@@ -1171,8 +1188,27 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
         _pastePhotoFromClipboard(context);
       } else if (value == 'emoji') {
         _openEmojiBuilder(context);
+      } else if (value == 'remove') {
+        _removeProfilePhoto(context);
       }
     });
+  }
+
+  void _removeProfilePhoto(BuildContext context) async {
+    final account = widget.account;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    try {
+      await engine.deleteProfilePhotos(account.id);
+      if (mounted) {
+        setState(() => _optimisticAvatarPath = null);
+        showTelegramToast(context, 'Photo removed');
+      }
+    } catch (e) {
+      if (mounted) {
+        showTelegramToast(context, 'Failed to remove photo: $e');
+      }
+    }
   }
 
   void _pickAndUploadPhoto(BuildContext context) async {
@@ -1265,18 +1301,18 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
   Future<Uint8List?> _getClipboardImage() async {
     if (Platform.isLinux) {
       try {
-        final result = await Process.run('wl-paste', ['--type', 'image/png']);
-        if (result.exitCode == 0 && (result.stdout as String).isNotEmpty) {
-          return Uint8List.fromList((result.stdout as String).codeUnits);
+        final result = await Process.run('wl-paste', ['--type', 'image/png'],
+            stdoutEncoding: null);
+        if (result.exitCode == 0 && (result.stdout as List<int>).isNotEmpty) {
+          return Uint8List.fromList(result.stdout as List<int>);
         }
       } catch (_) {}
       try {
         final result = await Process.run('xclip',
-            ['-selection', 'clipboard', '-t', 'image/png', '-o']);
-        if (result.exitCode == 0) {
-          return result.stdout is List<int>
-              ? Uint8List.fromList(result.stdout as List<int>)
-              : null;
+            ['-selection', 'clipboard', '-t', 'image/png', '-o'],
+            stdoutEncoding: null);
+        if (result.exitCode == 0 && (result.stdout as List<int>).isNotEmpty) {
+          return Uint8List.fromList(result.stdout as List<int>);
         }
       } catch (_) {}
     } else if (Platform.isMacOS) {
@@ -1353,10 +1389,13 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
       final count = await engine.getUserPhotoCount(account.id, account.selfUserId);
       if (!mounted) return;
       if (count > 0) {
+        final fetchCount = count < 20 ? count : 20;
+        final results = await Future.wait(
+          List.generate(fetchCount, (i) => engine.getUserPhotoAtIndex(account.id, account.selfUserId, i)),
+        );
         final messages = <CachedMessage>[];
-        for (int i = 0; i < count && i < 20; i++) {
-          final result = await engine.getUserPhotoAtIndex(account.id, account.selfUserId, i);
-          final path = result.path;
+        for (int i = 0; i < results.length; i++) {
+          final path = results[i].path;
           if (path != null && path.isNotEmpty) {
             messages.add(CachedMessage(
               accountId: account.id,
@@ -2146,9 +2185,12 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
     return SizedBox(
       width: 20,
       height: 20,
-      child: CircularProgressIndicator(
-        strokeWidth: 1.5,
-        color: textColor.withValues(alpha: 0.3),
+      child: Center(
+        child: Icon(
+          Icons.emoji_emotions_outlined,
+          size: 16,
+          color: textColor.withValues(alpha: 0.3),
+        ),
       ),
     );
   }
@@ -2635,12 +2677,14 @@ class _SettingsAccountRow extends StatelessWidget {
                                   width: avatarSize,
                                   height: avatarSize,
                                   fit: BoxFit.cover,
+                                  cacheWidth: 60,
+                                  cacheHeight: 60,
                                   errorBuilder: (_, __, ___) =>
-                                      _avatarFallback(avatarSize),
+                                      _avatarFallback(context, avatarSize),
                                 ),
                                 avatarSize,
                               )
-                            : _avatarFallback(avatarSize),
+                            : _avatarFallback(context, avatarSize),
                       ),
                     ),
                   ),
@@ -2706,7 +2750,7 @@ class _SettingsAccountRow extends StatelessWidget {
     );
   }
 
-  Widget _avatarFallback(double size) {
+  Widget _avatarFallback(BuildContext context, double size) {
     final colorIndex = account.id.hashCode.abs() % 7;
     const colors = [
       Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
@@ -2714,9 +2758,21 @@ class _SettingsAccountRow extends StatelessWidget {
       Color(0xFF6ec9cb),
     ];
     final icon = _AccountsSection._platformIcons[account.platform] ?? Icons.chat;
-    return CircleAvatar(
-      radius: size / 2,
-      backgroundColor: colors[colorIndex],
+    final appState = context.read<AppState>();
+    final corners = appState.avatarCorners;
+    final shape = corners >= 23 ? BoxShape.circle : BoxShape.rectangle;
+    final borderRadius = corners < 23 && corners > 0
+        ? BorderRadius.circular(corners / 23.0 * size / 2.0)
+        : null;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: colors[colorIndex],
+        shape: shape,
+        borderRadius: shape == BoxShape.rectangle ? borderRadius : null,
+      ),
+      alignment: Alignment.center,
       child: Icon(icon, size: size * 0.55, color: Colors.white),
     );
   }
