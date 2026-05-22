@@ -161,10 +161,6 @@ The notification composition system is production-ready. Data flows correctly fr
 
 # app_state — Audit Findings
 
-## app_state — CloseBehavior enum values inverted
-
-- [ ] [CRITICAL] `_windowCloseBehavior` comment and mapping is wrong: Dart labels `0=Run in Background, 1=Close to Taskbar, 2=Quit` but AyuGram defines `CloseBehavior::Quit=0, CloseToTaskbar=1, RunInBackground=2`. The default `_windowCloseBehavior = 0` in Dart says "Run in Background" but should be "Quit" per AyuGram default (`_closeBehavior = CloseBehavior::Quit`). All UI using these integer constants will map to the wrong behavior — app defaults to "Run in Background" when it should default to "Quit", and every mapped label is wrong. — `app_state.dart:170` ← `core_settings.h:117-121,1158`
-
 ## app_state — TranslationProvider serialized as int vs string
 
 - [ ] [CRITICAL] AyuGram serializes `TranslationProvider` as strings (`"telegram"`, `"google"`, `"yandex"`, `"native"`) via `NLOHMANN_JSON_SERIALIZE_ENUM`, but Dart stores and persists it as int (`0/1/2/3`). If a user's `window_prefs.json` is ever read by AyuGram or compared against AyuGram's format, the values will be unrecognizable. More importantly, the internal Dart representation diverges from the spec source of truth. — `app_state.dart:347` ← `ayu_settings.h:72-77`
