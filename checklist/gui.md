@@ -207,24 +207,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 - ✅ Shader masking: RadialGradient collectible effects properly applied
 
 
-## input_dialogs — cleanup
-
-- [ ] [CRITICAL] `_isValidPhone` has hardcoded test-DC bypasses at lines 613–618: `digits == '333'` returns true, and `digits.startsWith('42')` with lengths 2/5/6 or equal to `'4242'` also returns true — these are Telegram test-server phone shortcuts that were never removed; they silently let invalid phones pass validation in production — `input_dialogs.dart:613`
-
-- [ ] [CRITICAL] `chatState.loadChats()` at line 698 is fire-and-forget (not awaited) before `chatState.openChatById(userId)` at line 699 — the chat list hasn't refreshed yet when `openChatById` runs, so the newly-added contact's chat may not be in state and the open call silently does nothing — `input_dialogs.dart:698`
-
-- [ ] [CRITICAL] `_showDurationPicker` passes `RelativeRect.fromLTRB(200, 300, 200, 300)` as the popup menu position (line 1907) — a hardcoded zero-size rect at (200, 300) that is not anchored to the "Limit Duration" row; the menu always spawns at the same fixed screen coordinate regardless of viewport size or scroll position — `input_dialogs.dart:1907`
-
-- [ ] [CRITICAL] `_pickOptionMedia` passes the same hardcoded `RelativeRect.fromLTRB(200, 300, 200, 300)` at line 1954 — the "Choose Photo / File / Remove" context menu always appears at a fixed point rather than near the attachment icon that was tapped — `input_dialogs.dart:1954`
-
-- [ ] [MAJOR] `_UsernameBoxContentState._save` calls `reorderAccountUsernames` unconditionally whenever `_additionalUsernames` is non-empty (lines 297–305), even when the user changed nothing but the primary username or a toggle — sends a redundant API call on every save; should only call if the list order actually changed relative to the loaded order — `input_dialogs.dart:297`
-
-- [ ] [MAJOR] `_showCustomUsageLimit`'s `onConfirm` callback (line 1368–1371, triggered by the Enter key via `TelegramBox`) only checks `val > 0`, missing the `val <= 200000` upper-bound guard that the explicit "Save" button enforces at line 1385 — pressing Enter submits an arbitrarily large limit — `input_dialogs.dart:1368`
-
-- [ ] [MAJOR] `_buildOptionRow` uses `ValueKey(i)` (the loop index) as the widget key in a `ReorderableListView` (line 2329) — after any reorder or removal, Flutter matches widgets by key and the shifted indices cause wrong `TextEditingController`s to be wired to the wrong fields; should use a stable per-option identity (e.g. the controller's object identity or a generated UUID) — `input_dialogs.dart:2329`
-
-- [ ] [MAJOR] `_PollEmojiSuggestionPanel` hardcodes raw hex colors for background, hover, and border (lines 2498–2500) instead of reading from `context.palette` — these colours will not update when the user switches themes and are already inconsistent with the palette values used everywhere else in the file — `input_dialogs.dart:2498`
-
 # emoji_data — cleanup
 
 - [ ] [CRITICAL] `EmojiKeywords.instance.setCacheDir(cacheDir)` is never called in `main.dart` — `_cacheDir` is always `null`, so `_writeCacheToDisk` (line 2822) is dead code (guarded by `if (_cacheDir != null)` at line 2790) and `loadCacheFromDisk` (line 2831) returns immediately at line 2832. Emoji keyword server data is never persisted to disk; every cold start re-fetches all keywords from the server. Fix: add `EmojiKeywords.instance.setCacheDir(cacheDir);` in `main.dart` alongside the `SpoilerAnimationManager.setCacheDir(cacheDir)` call at line 298 — `emoji_data.dart:2757`, `main.dart:298`
