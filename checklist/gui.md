@@ -186,24 +186,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## create_giveaway_box — cleanup
 
-## create_group_wizard — cleanup
-
-- [ ] [CRITICAL] `_probeUsernameAvailability()` at line 245 passes the hardcoded string `'preston'` to `checkChannelUsername` as a throwaway probe to trigger `CHANNELS_ADMIN_PUBLIC_TOO_MUCH` / `CHANNEL_PUBLIC_GROUP_NA` errors. If the server responds with any other error (e.g. `FLOOD_WAIT`, rate-limit, network failure) the catch block silently ignores it, leaving `_isPublic` in the wrong state with no feedback. Replace with a random/uuid-like string that is guaranteed syntactically invalid (so it always errors before the username-availability check) or add a dedicated engine method for limit probing. — `create_group_wizard.dart:245`
-
-- [ ] [CRITICAL] `_navigateToChat()` is called **without await** at lines 836 and 940, immediately followed by `Navigator.of(context).pop()`. The `pop()` unmounts the widget, and the retry loop inside `_navigateToChat` has `if (!mounted) return;` guards — so every retry fires once, sees `mounted == false`, and exits. Navigation to the newly created group/channel only succeeds if the chat already exists in the local cache at the instant of the first synchronous check; if not, the chat is silently never opened. Fix: either `await _navigateToChat(...)` before popping, or call `pop()` first and then navigate via the returned `chatId` in a context that doesn't depend on the wizard widget. — `create_group_wizard.dart:836,940,944`
-
-- [ ] [MAJOR] `base64Decode(contact.avatarB64)` is called directly inside `_ContactRow.build()` at line 1684 with no caching. Every `setState` call in the parent (search typing, selecting/deselecting contacts) causes `O(visible_rows)` base64 decodes. Decode once in a helper or cache the `Uint8List` on `ContactInfo`. — `create_group_wizard.dart:1684`
-
-- [ ] [MAJOR] `base64Decode(channel.avatarB64)` is called inside `_PublicLinksLimitBox._buildChannelRow()` at line 2498 with no caching. Every rebuild re-decodes all channel avatars. Same fix as above. — `create_group_wizard.dart:2498`
-
-- [ ] [MAJOR] `_EditPeerTypeBoxState._onUsernameChanged()` (line 2763) validates against `value.trim().toLowerCase()`, but `_save()` at line 2824 reads `_usernameController.text.trim()` (original case) for the API call. If the user types "MyGroup", validation passes against "mygroup" and reports it available, but the save sends "MyGroup". Telegram APIs normalise usernames, but this inconsistency means the round-trip value differs from the validated one. Fix: lowercase the controller text before saving, or match the case used during validation. — `create_group_wizard.dart:2763,2824`
-
-- [ ] [MAJOR] `_usernamesOrderChanged()` (line 2644) returns `true` when either the list order OR an entry's `active` flag changed. At lines 2878–2885 the code calls `reorderChannelUsernames` whenever this method returns true, including cases where only active-state toggles changed and the order is identical. `reorderChannelUsernames` is a separate API call from `toggleChannelUsername` — split the condition: call `reorderChannelUsernames` only when the username order actually changed (names in different positions), separately from the active-toggle loop above it. — `create_group_wizard.dart:2870`
-
-- [ ] [MAJOR] Dead variable `cutout` in `_BottomClipper.getClip()` at line 2014. The variable computes the top portion of the shape (`height - height` rect) but is never used; the `return Path.combine(...)` at line 2017 creates a fresh inline `Path()` for the bottom band instead. The dead variable is confusing and looks like a leftover from an earlier implementation. Remove it. — `create_group_wizard.dart:2014`
-
-- [ ] [MAJOR] "Invite via Link" row in `_buildMemberPickerStep` (line 1424) renders an `InkWell` that is always visually active (hover cursor, ripple) while `_loadingInviteLink` is true, but its `onTap` at line 1426 is a no-op when `_inviteLink.isEmpty`. The button appears clickable but does nothing while the link is loading. Either hide the row until the link is available, or show a disabled/loading state on the button itself. — `create_group_wizard.dart:1424`
-
 ## custom_emoji_cache — cleanup
 
 - [ ] [MAJOR] `_retryDelayMs = 0` at line 105 — every failed emoji fetch has a retry window of exactly 0 ms, so the next `request()` call (e.g. next frame rebuild) immediately clears `_failed` and re-queues the fetch. On a broken connection or missing document this becomes a per-frame hammer loop with zero backoff. Change to a real delay (e.g. 5000 ms). — `custom_emoji_cache.dart:105`
