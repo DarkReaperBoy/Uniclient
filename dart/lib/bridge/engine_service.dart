@@ -681,14 +681,14 @@ class EngineService {
     _callRaw('__engine', 'ReadMessageContents', req.writeToBuffer());
   }
 
-  void reportMusicListen(String accountId, int docId, int accessHash, List<int> fileRef, int durationSec) {
+  Future<void> reportMusicListen(String accountId, int docId, int accessHash, List<int> fileRef, int durationSec) async {
     final req = epb.EngineReportMusicListenRequest()
       ..accountId = accountId
       ..docId = Int64(docId)
       ..accessHash = Int64(accessHash)
       ..fileRef = fileRef
       ..durationSec = durationSec;
-    _callRaw('__engine', 'ReportMusicListen', req.writeToBuffer());
+    await _callAsync('__engine', 'ReportMusicListen', req.writeToBuffer());
   }
 
   /// Fetch forum topics for a chat. Returns empty list if the platform

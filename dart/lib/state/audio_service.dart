@@ -298,7 +298,7 @@ class AudioService extends ChangeNotifier {
     }
   }
 
-  void _reportListenIfNeeded() {
+  Future<void> _reportListenIfNeeded() async {
     if (!_isSong) {
       _accumulatedMs = 0;
       return;
@@ -313,12 +313,16 @@ class AudioService extends ChangeNotifier {
     final duration = (_accumulatedMs / 1000).round();
     _accumulatedMs = 0;
 
+    final accountId = _currentAccountId;
+    final accessHash = _currentAccessHash;
+    final fileRef = List<int>.from(_currentFileRef);
+
     try {
-      _engine.reportMusicListen(
-        _currentAccountId,
+      await _engine.reportMusicListen(
+        accountId,
         docIdInt,
-        _currentAccessHash,
-        _currentFileRef,
+        accessHash,
+        fileRef,
         duration,
       );
     } catch (e) {
