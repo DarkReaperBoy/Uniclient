@@ -199,7 +199,7 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
           fit: BoxFit.contain,
           controller: _lottieController,
           onLoaded: _onLottieLoaded,
-          errorBuilder: (_, __, ___) => _buildThumbOrFallback(cache),
+          errorBuilder: (_, __, ___) => _buildThumbOrFallback(cache, cacheSize: cs),
         );
       } else if (file.isWebp) {
         content = Image.memory(
@@ -210,13 +210,13 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
           cacheHeight: cs,
           fit: BoxFit.contain,
           gaplessPlayback: true,
-          errorBuilder: (_, __, ___) => _buildThumbOrFallback(cache),
+          errorBuilder: (_, __, ___) => _buildThumbOrFallback(cache, cacheSize: cs),
         );
       } else {
-        content = _buildThumbOrFallback(cache);
+        content = _buildThumbOrFallback(cache, cacheSize: cs);
       }
     } else {
-      content = _buildThumbOrFallback(cache);
+      content = _buildThumbOrFallback(cache, cacheSize: cs);
     }
 
     if (_isCollectible && _collectibleCenterColor != null && _collectibleEdgeColor != null) {
@@ -234,6 +234,7 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
 
   Widget _buildUserpicStatus() {
     final s = widget.size;
+    final cs = (s * MediaQuery.devicePixelRatioOf(context)).round();
     final appState = context.read<AppState>();
     final account = appState.activeAccount;
     if (account != null && account.avatarPath.isNotEmpty) {
@@ -244,6 +245,8 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
             file,
             width: s,
             height: s,
+            cacheWidth: cs,
+            cacheHeight: cs,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => _userpicFallback(s),
           ),
@@ -265,7 +268,7 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
     );
   }
 
-  Widget _buildThumbOrFallback(CustomEmojiCache cache) {
+  Widget _buildThumbOrFallback(CustomEmojiCache cache, {int? cacheSize}) {
     final thumb = cache.getThumb(_documentId!);
     final s = widget.size;
     if (thumb != null) {
@@ -273,6 +276,8 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
         thumb,
         width: s,
         height: s,
+        cacheWidth: cacheSize,
+        cacheHeight: cacheSize,
         fit: BoxFit.contain,
         gaplessPlayback: true,
         errorBuilder: (_, __, ___) => _premiumFallback(s),
