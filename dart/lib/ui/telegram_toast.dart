@@ -127,8 +127,8 @@ class _TelegramToastState extends State<_TelegramToast>
     );
 
     _fadeIn = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _fadeOut = CurvedAnimation(
-        parent: ReverseAnimation(_ctrl), curve: Curves.easeIn);
+    _fadeOut = Tween<double>(begin: 1, end: 0).animate(
+        CurvedAnimation(parent: ReverseAnimation(_ctrl), curve: Curves.easeIn));
 
     final begin = _slideBegin();
     _slideIn = Tween<Offset>(begin: begin, end: Offset.zero)
@@ -200,10 +200,7 @@ class _TelegramToastState extends State<_TelegramToast>
       );
     } else {
       animated = FadeTransition(
-        opacity: _hiding
-            ? Tween<double>(begin: 1, end: 0).animate(CurvedAnimation(
-                parent: ReverseAnimation(_ctrl), curve: Curves.easeIn))
-            : _fadeIn,
+        opacity: _hiding ? _fadeOut : _fadeIn,
         child: toastChild,
       );
     }
@@ -288,11 +285,9 @@ void showStickerToast(
   VoidCallback? onShowPremium,
 }) {
   if (_activeStickerEntry != null) {
-    final oldEntry = _activeStickerEntry;
+    final oldEntry = _activeStickerEntry!;
     _activeStickerEntry = null;
-    Future.delayed(const Duration(milliseconds: _kFadeOutMs), () {
-      oldEntry?.remove();
-    });
+    if (oldEntry.mounted) oldEntry.remove();
   }
 
   final effectiveIsEmoji =
@@ -318,8 +313,8 @@ void showStickerToast(
       onOpenSavedMessages: onOpenSavedMessages,
       onShowPremium: onShowPremium,
       onDone: () {
-        entry.remove();
         if (_activeStickerEntry == entry) _activeStickerEntry = null;
+        if (entry.mounted) entry.remove();
       },
     ),
   );
@@ -365,6 +360,8 @@ class _StickerToast extends StatefulWidget {
 class _StickerToastState extends State<_StickerToast>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
+  late final Animation<double> _fadeOut;
+  TapGestureRecognizer? _packTapRecognizer;
   Timer? _holdTimer;
   bool _hiding = false;
 
@@ -376,6 +373,11 @@ class _StickerToastState extends State<_StickerToast>
       duration: const Duration(milliseconds: _kFadeInMs),
       reverseDuration: const Duration(milliseconds: _kFadeOutMs),
     );
+    _fadeOut = Tween<double>(begin: 1, end: 0).animate(
+        CurvedAnimation(parent: ReverseAnimation(_ctrl), curve: Curves.easeIn));
+    if (widget.onOpenPack != null) {
+      _packTapRecognizer = TapGestureRecognizer()..onTap = widget.onOpenPack;
+    }
     _ctrl.forward().then((_) {
       if (!mounted) return;
       _holdTimer = Timer(const Duration(milliseconds: 3000), _startHide);
@@ -392,6 +394,7 @@ class _StickerToastState extends State<_StickerToast>
 
   @override
   void dispose() {
+    _packTapRecognizer?.dispose();
     _holdTimer?.cancel();
     _ctrl.dispose();
     super.dispose();
@@ -429,7 +432,7 @@ class _StickerToastState extends State<_StickerToast>
         TextSpan(
           text: '${widget.packName} pack',
           style: link,
-          recognizer: TapGestureRecognizer()..onTap = widget.onOpenPack,
+          recognizer: _packTapRecognizer,
         ),
         const TextSpan(text: '.', style: normal),
       ];
@@ -443,7 +446,7 @@ class _StickerToastState extends State<_StickerToast>
         TextSpan(
           text: widget.packName,
           style: link,
-          recognizer: TapGestureRecognizer()..onTap = widget.onOpenPack,
+          recognizer: _packTapRecognizer,
         ),
         const TextSpan(text: ' pack.', style: normal),
       ];
@@ -455,15 +458,6 @@ class _StickerToastState extends State<_StickerToast>
         const TextSpan(text: '\n', style: normal),
         const TextSpan(
             text: 'This set contains premium stickers like this one.', style: normal),
-      ];
-    }
-
-    if (widget.packCount > 1) {
-      return [
-        TextSpan(text: 'Animated Emoji', style: bold),
-        const TextSpan(text: '\n', style: normal),
-        const TextSpan(
-            text: 'Subscribe to Telegram Premium to unlock this emoji.', style: normal),
       ];
     }
 
@@ -593,8 +587,7 @@ class _StickerToastState extends State<_StickerToast>
           onSecondaryTap: _startHide,
           child: FadeTransition(
             opacity: _hiding
-                ? Tween<double>(begin: 1, end: 0).animate(CurvedAnimation(
-                    parent: ReverseAnimation(_ctrl), curve: Curves.easeIn))
+                ? _fadeOut
                 : CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
             child: toastChild,
           ),
