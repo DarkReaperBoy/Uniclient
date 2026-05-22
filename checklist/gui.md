@@ -215,20 +215,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 # language_box — cleanup
 
-## media_viewer — cleanup
-
-- [ ] [CRITICAL] `_handleAreaUrl` calls `Process.run('xdg-open', [u])` — Linux only, silently fails on macOS/Windows. `url_launcher.launchUrl()` is already imported and used everywhere else in the file. — `media_viewer.dart:6515`
-
-- [ ] [CRITICAL] `_deleteMedia` calls `chatState.deleteMessage` then just decrements `_currentIndex`, but `widget.mediaMessages` is a final snapshot list — the deleted item stays in the list. After decrement the user can navigate forward back into the deleted slot and see stale/broken media. Gallery strip still shows the deleted thumbnail. — `media_viewer.dart:2893`
-
-- [ ] [CRITICAL] Custom emoji reaction areas (`isCustomEmoji = emoji.startsWith('custom:')`) in `_ReactionArea` render a generic `Icons.emoji_emotions` placeholder instead of the actual sticker image. The reaction can still be sent but the bubble shows a grey icon. — `media_viewer.dart:5543`
-
-- [ ] [MAJOR] `_buildCaptionSpans` creates `TapGestureRecognizer()` instances inline for `text_url`, `url`, and `mention` entities on every call — they are never disposed. `_buildCaptionRichText` → `_buildCaption` is called from `build()`, which is triggered by the video position stream listener (`setState(() => _position = pos)`) at ~30fps during playback. Recognizers accumulate indefinitely on captioned videos. — `media_viewer.dart:3472`
-
-- [ ] [MAJOR] `_shareAtTime` (line 3016) and `_forwardMedia` (line 2886) always produce `https://t.me/c/$chatId/$msgId` — the private-channel link format. For public channels the correct format is `t.me/@username/msgId`; for regular groups and DMs there is no public link. Both actions silently produce broken/wrong URLs for any non-private-channel context. — `media_viewer.dart:3016`
-
-- [ ] [MAJOR] `_middleElide` runs a binary search that allocates and lays out multiple `TextPainter` instances on every call. It is called from `_buildFooter` which is called from `build()`. Every `setState` (including video position ticks) triggers this O(log n) measurement work. Cache the result or move to a `LayoutBuilder`-aware approach. — `media_viewer.dart:2533`
-
 ## message_bubble — cleanup
 
 - [ ] [CRITICAL] Hardcoded fallback `'User'` in `_showWhoReactedMenu` reactor name display — reactor with no name shows fake "User" label instead of empty/omitted — `message_bubble.dart:386,413`
