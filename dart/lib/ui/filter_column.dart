@@ -167,7 +167,6 @@ class _FilterColumnState extends State<FilterColumn> {
         });
       }
     }
-    if (mounted) setState(() {});
   }
 
   void _syncTabKeys(int count) {
@@ -651,7 +650,9 @@ class _FilterColumnState extends State<FilterColumn> {
               child: SingleChildScrollView(
                 controller: _scrollController,
                 physics: physics,
-                child: Column(
+                child: ValueListenableBuilder<int>(
+                valueListenable: FilterColumn.dropHighlightIndex,
+                builder: (context, dropIdx, _) => Column(
                   mainAxisSize: MainAxisSize.min,
                   children: List.generate(folders.length, (index) {
                     final folder = folders[index];
@@ -659,8 +660,7 @@ class _FilterColumnState extends State<FilterColumn> {
                     final allMuted = chatState.isFolderUnreadAllMuted(folder.id);
                     final isDragged = _dragActive && _dragIndex == index;
                     final shift = _computeShiftForTab(index);
-                    final isDropTarget =
-                        FilterColumn.dropHighlightIndex.value == index;
+                    final isDropTarget = dropIdx == index;
                     final isLocked = index >= premiumFrom;
 
                     return AnimatedContainer(
@@ -714,6 +714,7 @@ class _FilterColumnState extends State<FilterColumn> {
                     );
                   }),
                 ),
+              ),
               ),
             ),
           ),
