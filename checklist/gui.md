@@ -206,16 +206,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 - ✅ Power saving: conditional rendering respects power saving mode
 - ✅ Shader masking: RadialGradient collectible effects properly applied
 
-## ghost_settings_page — cleanup
-
-- [ ] [CRITICAL] `localPremium` toggle is dead state — flag is stored and persisted but never read anywhere outside `app_state.dart` getters/setters. No widget checks `appState.localPremium` to unlock premium UI features, and `updateConfig()` has no `localPremium` parameter so the engine never learns about it. Toggling the switch does nothing functional. — `ghost_settings_page.dart:286`, `app_state.dart:389,753,1367`
-
-- [ ] [CRITICAL] `disableAds` toggle is dead state — same problem as above. The flag is stored and persisted but never consumed to actually filter or suppress sponsored messages anywhere in the codebase. Toggling the switch does nothing functional. — `ghost_settings_page.dart:293`, `app_state.dart:390,754,1374`
-
-- [ ] [MAJOR] `File.existsSync()` called inside `build()` at `_AccountAvatar` — synchronous disk I/O on the UI thread, executed every time the account picker popup opens and for every account in the list. Must be replaced with an async check (e.g. cache the result in state, or use a `FutureBuilder`/`didChangeDependencies` approach). — `ghost_settings_page.dart:717`
-
-- [ ] [MAJOR] `Image.file` at line 719 has no `cacheWidth`/`cacheHeight` — the image is decoded at its full native resolution (potentially a full-size avatar photo) and only scaled down in layout to 30×30. Add `cacheWidth: 60, cacheHeight: 60` (2× for HiDPI) to decode at the display size. — `ghost_settings_page.dart:719`
-
 ## hamburger_drawer — cleanup
 
 - [ ] [CRITICAL] Status line always shows hardcoded "Uniclient Preferences" — `_buildStatusLine` receives `AccountInfo? account` but ignores `account.phone` / `account.username` entirely; spec §3 shows phone number / username below the display name — `hamburger_drawer.dart:1051`
