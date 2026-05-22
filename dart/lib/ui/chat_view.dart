@@ -900,8 +900,23 @@ class _ChatViewState extends State<ChatView>
 
     final totalExtent = pos.maxScrollExtent + pos.viewportDimension;
     if (totalExtent <= 0) return;
-    final scrollFraction = (pos.pixels + pos.viewportDimension) / totalExtent;
-    final topIndex = (scrollFraction * messages.length).floor().clamp(0, messages.length - 1);
+    final viewportTop = pos.pixels + pos.viewportDimension;
+    var totalEstimated = 0.0;
+    for (final m in messages) {
+      totalEstimated += _estimateMsgHeight(m);
+    }
+    final target = totalEstimated > 0
+        ? viewportTop * totalEstimated / totalExtent
+        : viewportTop;
+    var cumHeight = 0.0;
+    var topIndex = messages.length - 1;
+    for (var i = 0; i < messages.length; i++) {
+      cumHeight += _estimateMsgHeight(messages[i]);
+      if (cumHeight >= target) {
+        topIndex = i;
+        break;
+      }
+    }
     final topMsg = messages[topIndex];
     final newText = _formatDateBadge(topMsg.timestamp);
 
@@ -937,6 +952,24 @@ class _ChatViewState extends State<ChatView>
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  }
+
+  static double _estimateMsgHeight(CachedMessage msg) {
+    if (msg.isService) return 32.0;
+    switch (msg.mediaType) {
+      case 1: return 200.0;
+      case 2: return 200.0;
+      case 3: return 56.0;
+      case 4: return 56.0;
+      case 5: return 200.0;
+      case 6: return 160.0;
+      case 7: return 200.0;
+      case 8: return 64.0;
+    }
+    final textLen = msg.contentText.length;
+    if (textLen == 0) return 48.0;
+    final lines = (textLen / 42).ceil().clamp(1, 20);
+    return 44.0 + (lines - 1) * 20.0;
   }
 
   /// §23.8: Check if entering scheduled view with video messages and show tip toast.
@@ -14336,7 +14369,7 @@ class _ComposeAreaState extends State<_ComposeArea>
     );
   }
 
-  void _openAiEditor(BuildContext ctx) {
+  void _openTranslateDialog(BuildContext ctx) {
     final text = widget.controller.text;
     if (text.trim().isEmpty) {
       showTelegramToast(ctx, 'Type a message first');
@@ -14352,7 +14385,7 @@ class _ComposeAreaState extends State<_ComposeArea>
     final engine = ctx.read<EngineService>();
     showDialog<String>(
       context: ctx,
-      builder: (_) => _ComposeAiBox(
+      builder: (_) => _TranslateBox(
         originalText: selectedText,
         accountId: chat.accountId,
         chatId: chat.chatId,
@@ -15382,10 +15415,10 @@ class _ComposeAreaState extends State<_ComposeArea>
               onPressed: () => _showGiftSheet(context),
             ),
           if (fieldPrefs.showAiEditorButton)
-            _AiEditorButton(
+            _TranslateButton(
               iconColor: iconFg,
               hoverColor: iconFgOver,
-              onPressed: () => _openAiEditor(context),
+              onPressed: () => _openTranslateDialog(context),
             ),
           if (fieldPrefs.showEmojiButton)
           _ComposeSlotButton(
@@ -21623,24 +21656,24 @@ class _WhenReadPopupState extends State<_WhenReadPopup> {
   }
 }
 
-// ── §54.9a AI Editor Button ──
+// ── §54.9a Translate Button ──
 
-class _AiEditorButton extends StatefulWidget {
+class _TranslateButton extends StatefulWidget {
   final Color iconColor;
   final Color hoverColor;
   final VoidCallback onPressed;
 
-  const _AiEditorButton({
+  const _TranslateButton({
     required this.iconColor,
     required this.hoverColor,
     required this.onPressed,
   });
 
   @override
-  State<_AiEditorButton> createState() => _AiEditorButtonState();
+  State<_TranslateButton> createState() => _TranslateButtonState();
 }
 
-class _AiEditorButtonState extends State<_AiEditorButton> {
+class _TranslateButtonState extends State<_TranslateButton> {
   bool _hovered = false;
 
   @override
@@ -21662,7 +21695,7 @@ class _AiEditorButtonState extends State<_AiEditorButton> {
                 width: 24,
                 height: 24,
                 child: CustomPaint(
-                  painter: _AiIconPainter(color: color),
+                  painter: _TranslateIconPainter(color: color),
                 ),
               ),
             ),
@@ -21673,9 +21706,9 @@ class _AiEditorButtonState extends State<_AiEditorButton> {
   }
 }
 
-class _AiIconPainter extends CustomPainter {
+class _TranslateIconPainter extends CustomPainter {
   final Color color;
-  _AiIconPainter({required this.color});
+  _TranslateIconPainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -21719,20 +21752,18 @@ class _AiIconPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_AiIconPainter old) => old.color != color;
+  bool shouldRepaint(_TranslateIconPainter old) => old.color != color;
 }
 
-// ── §54.9a ComposeAiBox Modal ──
+// ── §54.9a Translate Modal ──
 
-enum _AiMode { translate }
-
-class _ComposeAiBox extends StatefulWidget {
+class _TranslateBox extends StatefulWidget {
   final String originalText;
   final String accountId;
   final String chatId;
   final EngineService engine;
 
-  const _ComposeAiBox({
+  const _TranslateBox({
     required this.originalText,
     required this.accountId,
     required this.chatId,
@@ -21740,10 +21771,10 @@ class _ComposeAiBox extends StatefulWidget {
   });
 
   @override
-  State<_ComposeAiBox> createState() => _ComposeAiBoxState();
+  State<_TranslateBox> createState() => _TranslateBoxState();
 }
 
-class _ComposeAiBoxState extends State<_ComposeAiBox> {
+class _TranslateBoxState extends State<_TranslateBox> {
   String? _result;
   bool _loading = false;
   String? _error;
@@ -21844,7 +21875,7 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
             width: 24,
             height: 24,
             child: CustomPaint(
-              painter: _AiIconPainter(color: theme.colorScheme.primary),
+              painter: _TranslateIconPainter(color: theme.colorScheme.primary),
             ),
           ),
           const SizedBox(width: 8),
