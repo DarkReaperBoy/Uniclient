@@ -790,7 +790,6 @@ class _ChatListPanelState extends State<ChatListPanel>
               searching: _searching,
               onOpenDrawer: widget.onOpenDrawer,
               onFocused: () => setState(() => _searching = true),
-              onChanged: _onSearchChanged,
               onCancel: _cancelSearch,
             ),
             // Horizontal folder tabs (when active account has folders and vertical sidebar is hidden).
@@ -1937,7 +1936,6 @@ class _SearchBar extends StatelessWidget {
   final bool searching;
   final VoidCallback? onOpenDrawer;
   final VoidCallback onFocused;
-  final ValueChanged<String> onChanged;
   final VoidCallback onCancel;
 
   const _SearchBar({
@@ -1947,7 +1945,6 @@ class _SearchBar extends StatelessWidget {
     required this.searching,
     this.onOpenDrawer,
     required this.onFocused,
-    required this.onChanged,
     required this.onCancel,
   });
 
@@ -1985,7 +1982,6 @@ class _SearchBar extends StatelessWidget {
                 controller: controller,
                 focusNode: focusNode,
                 onTap: onFocused,
-                onChanged: onChanged,
                 style: theme.textTheme.bodyMedium,
                 decoration: InputDecoration(
                   hintText: 'Search',
@@ -2838,6 +2834,7 @@ class _StoriesBarState extends State<_StoriesBar>
   void setExpanded(bool v) => _setExpanded(v);
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
+  late Animation<double> _collapseFade;
 
   @override
   void initState() {
@@ -2851,6 +2848,7 @@ class _StoriesBarState extends State<_StoriesBar>
       parent: _expandController,
       curve: Curves.easeOutCubic,
     );
+    _collapseFade = ReverseAnimation(_expandAnimation);
   }
 
   @override
@@ -2900,20 +2898,21 @@ class _StoriesBarState extends State<_StoriesBar>
             _collapsedHeight + (_expandedHeight - _collapsedHeight) * t;
         return SizedBox(
           height: height,
-          child: Stack(
-            children: [
-              Opacity(
-                opacity: (1.0 - t).clamp(0.0, 1.0),
-                child: collapsed,
-              ),
-              Opacity(
-                opacity: t.clamp(0.0, 1.0),
-                child: expanded,
-              ),
-            ],
-          ),
+          child: child,
         );
       },
+      child: Stack(
+        children: [
+          FadeTransition(
+            opacity: _collapseFade,
+            child: collapsed,
+          ),
+          FadeTransition(
+            opacity: _expandAnimation,
+            child: expanded,
+          ),
+        ],
+      ),
     );
   }
 
