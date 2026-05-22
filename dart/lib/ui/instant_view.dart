@@ -117,8 +117,10 @@ class _InstantViewPageState extends State<InstantViewPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      _openExternal(url);
-      if (!push) Navigator.of(context).pop();
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
     }
   }
 
@@ -357,7 +359,7 @@ class _IvHistoryEntry {
   const _IvHistoryEntry({required this.url, required this.data});
 }
 
-class _IvBlock extends StatelessWidget {
+class _IvBlock extends StatefulWidget {
   final Map<String, dynamic> block;
   final bool isDark;
   final String accountId;
@@ -365,12 +367,44 @@ class _IvBlock extends StatelessWidget {
 
   const _IvBlock({required this.block, required this.isDark, this.accountId = '', this.onNavigateIV});
 
+  @override
+  State<_IvBlock> createState() => _IvBlockState();
+}
+
+class _IvBlockState extends State<_IvBlock> {
+  final _recognizers = <TapGestureRecognizer>[];
+  String? _cachedCodeKey;
+  Widget? _cachedCodeWidget;
+
+  Map<String, dynamic> get block => widget.block;
+  bool get isDark => widget.isDark;
+  String get accountId => widget.accountId;
+  void Function(String url)? get onNavigateIV => widget.onNavigateIV;
+
   Color get _accentColor => isDark ? const Color(0xFF71baf7) : const Color(0xFF168acd);
   Color get _textColor => isDark ? const Color(0xFFe0e4e8) : const Color(0xFF222222);
   Color get _subtleColor => isDark ? const Color(0xFF8a9bab) : const Color(0xFF777777);
 
+  TapGestureRecognizer _makeTapRecognizer(VoidCallback onTap) {
+    final r = TapGestureRecognizer()..onTap = onTap;
+    _recognizers.add(r);
+    return r;
+  }
+
+  @override
+  void dispose() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
     final type = block['type'] as String? ?? '';
     switch (type) {
       case 'title':
@@ -524,14 +558,21 @@ class _IvBlock extends StatelessWidget {
     final plainText = _extractPlainText(block['text']);
     if (plainText.isEmpty) return null;
 
+    final cacheKey = '$lang\n$plainText';
+    if (_cachedCodeKey == cacheKey && _cachedCodeWidget != null) {
+      return _cachedCodeWidget;
+    }
+
     final keywords = _getKeywords(lang);
     if (keywords.isEmpty) return null;
 
     final spans = _highlightSyntax(plainText, keywords, lang);
-    return SelectableText.rich(
+    _cachedCodeKey = cacheKey;
+    _cachedCodeWidget = SelectableText.rich(
       TextSpan(children: spans),
       style: TextStyle(fontSize: 14, fontFamily: 'monospace', color: _textColor, height: 1.5),
     );
+    return _cachedCodeWidget;
   }
 
   Set<String> _getKeywords(String lang) {
@@ -1580,7 +1621,7 @@ class _IvBlock extends StatelessWidget {
         if (child == null) return null;
         return TextSpan(
           style: TextStyle(color: _accentColor, decoration: TextDecoration.underline, decorationColor: _accentColor.withAlpha(100)),
-          recognizer: TapGestureRecognizer()..onTap = () {
+          recognizer: _makeTapRecognizer(() {
             if (href.isNotEmpty) {
               if (onNavigateIV != null && _looksLikeIvUrl(href)) {
                 onNavigateIV!(href);
@@ -1588,7 +1629,7 @@ class _IvBlock extends StatelessWidget {
                 launchUrl(Uri.parse(href), mode: LaunchMode.externalApplication);
               }
             }
-          },
+          }),
           children: [child],
         );
       case 'email':
@@ -1597,11 +1638,11 @@ class _IvBlock extends StatelessWidget {
         if (child == null) return null;
         return TextSpan(
           style: TextStyle(color: _accentColor),
-          recognizer: TapGestureRecognizer()..onTap = () {
+          recognizer: _makeTapRecognizer(() {
             if (addr.isNotEmpty) {
               launchUrl(Uri.parse('mailto:$addr'));
             }
-          },
+          }),
           children: [child],
         );
       case 'concat':
@@ -1631,11 +1672,11 @@ class _IvBlock extends StatelessWidget {
         if (child == null) return null;
         return TextSpan(
           style: TextStyle(color: _accentColor),
-          recognizer: TapGestureRecognizer()..onTap = () {
+          recognizer: _makeTapRecognizer(() {
             if (phone.isNotEmpty) {
               launchUrl(Uri.parse('tel:$phone'));
             }
-          },
+          }),
           children: [child],
         );
       case 'anchor':
@@ -2081,14 +2122,16 @@ class _IvAudioBlockState extends State<_IvAudioBlock> {
   bool _playing = false;
   bool _paused = false;
   String? _error;
-  Duration _position = Duration.zero;
-  Duration _duration = Duration.zero;
+  final _positionNotifier = ValueNotifier<Duration>(Duration.zero);
+  final _durationNotifier = ValueNotifier<Duration>(Duration.zero);
   final List<StreamSubscription> _subs = [];
 
   @override
   void dispose() {
     for (final s in _subs) { s.cancel(); }
     _player?.dispose();
+    _positionNotifier.dispose();
+    _durationNotifier.dispose();
     super.dispose();
   }
 
@@ -2127,10 +2170,10 @@ class _IvAudioBlockState extends State<_IvAudioBlock> {
       if (mounted) setState(() { _playing = v; _paused = !v; });
     }));
     _subs.add(player.stream.position.listen((v) {
-      if (mounted) setState(() => _position = v);
+      if (mounted) _positionNotifier.value = v;
     }));
     _subs.add(player.stream.duration.listen((v) {
-      if (mounted) setState(() => _duration = v);
+      if (mounted) _durationNotifier.value = v;
     }));
     _subs.add(player.stream.completed.listen((v) {
       if (v && mounted) setState(() { _playing = false; _paused = false; });
@@ -2147,10 +2190,6 @@ class _IvAudioBlockState extends State<_IvAudioBlock> {
 
   @override
   Widget build(BuildContext context) {
-    final progress = _duration.inMilliseconds > 0
-        ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
-        : 0.0;
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -2190,11 +2229,17 @@ class _IvAudioBlockState extends State<_IvAudioBlock> {
                     if (_error != null)
                       Text(_error!, style: TextStyle(fontSize: 12, color: widget.subtleColor.withAlpha(180)))
                     else
-                      Text(
-                        _playing || _paused
-                            ? '${_formatDuration(_position)} / ${_formatDuration(_duration)}'
-                            : widget.durationStr.isNotEmpty ? widget.durationStr : '',
-                        style: TextStyle(fontSize: 12, color: widget.subtleColor),
+                      ValueListenableBuilder<Duration>(
+                        valueListenable: _positionNotifier,
+                        builder: (_, pos, __) => ValueListenableBuilder<Duration>(
+                          valueListenable: _durationNotifier,
+                          builder: (_, dur, __) => Text(
+                            _playing || _paused
+                                ? '${_formatDuration(pos)} / ${_formatDuration(dur)}'
+                                : widget.durationStr.isNotEmpty ? widget.durationStr : '',
+                            style: TextStyle(fontSize: 12, color: widget.subtleColor),
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -2203,11 +2248,20 @@ class _IvAudioBlockState extends State<_IvAudioBlock> {
           ),
           if (_playing || _paused) ...[
             const SizedBox(height: 6),
-            LinearProgressIndicator(
-              value: progress,
-              backgroundColor: widget.isDark ? const Color(0xFF2a3a4a) : const Color(0xFFe0e0e0),
-              valueColor: AlwaysStoppedAnimation(widget.accentColor),
-              minHeight: 3,
+            ValueListenableBuilder<Duration>(
+              valueListenable: _positionNotifier,
+              builder: (_, pos, __) {
+                final dur = _durationNotifier.value;
+                final progress = dur.inMilliseconds > 0
+                    ? (pos.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0)
+                    : 0.0;
+                return LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: widget.isDark ? const Color(0xFF2a3a4a) : const Color(0xFFe0e0e0),
+                  valueColor: AlwaysStoppedAnimation(widget.accentColor),
+                  minHeight: 3,
+                );
+              },
             ),
           ],
         ],
@@ -2697,9 +2751,13 @@ class _IvSlideshowBlockState extends State<_IvSlideshowBlock> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: 300,
-          child: Stack(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final w = constraints.maxWidth;
+            final h = (w * 0.625).clamp(200.0, 500.0);
+            return SizedBox(
+              height: h,
+              child: Stack(
             children: [
               PageView.builder(
                 controller: _pageController,
@@ -2744,6 +2802,8 @@ class _IvSlideshowBlockState extends State<_IvSlideshowBlock> {
                 ),
             ],
           ),
+        );
+          },
         ),
         const SizedBox(height: 8),
         Center(

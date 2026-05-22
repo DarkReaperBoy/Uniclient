@@ -298,7 +298,6 @@ class _UniClientAppState extends State<UniClientApp>
     await CustomEmojiCache.instance.initDiskCache(cacheDir);
     SpoilerAnimationManager.setCacheDir(cacheDir);
 
-    EmojiKeywords.instance.init();
     if (!kIsWeb && configDir.isNotEmpty) {
       try {
         final emojiFile = File('$configDir/emoji_state.json');
@@ -307,12 +306,17 @@ class _UniClientAppState extends State<UniClientApp>
           EmojiKeywords.instance.loadState(data);
         }
       } catch (_) {}
-      EmojiKeywords.instance.setSaveCallback(() {
-        try {
-          File('$configDir/emoji_state.json')
-              .writeAsStringSync(jsonEncode(EmojiKeywords.instance.saveState()));
-        } catch (_) {}
-      });
+      EmojiKeywords.instance.init(
+        cacheDir: cacheDir,
+        saveCallback: () {
+          try {
+            File('$configDir/emoji_state.json')
+                .writeAsStringSync(jsonEncode(EmojiKeywords.instance.saveState()));
+          } catch (_) {}
+        },
+      );
+    } else {
+      EmojiKeywords.instance.init();
     }
 
     await appState.initialize(

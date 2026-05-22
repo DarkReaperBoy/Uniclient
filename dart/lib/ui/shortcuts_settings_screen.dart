@@ -86,11 +86,7 @@ const _commandGroups = <List<(ShortcutCommand, String)>>[
   [
     (ShortcutCommand.showAdminLog, 'Admin Log'),
   ],
-  // 11. Media Viewer
-  [
-    (ShortcutCommand.mediaViewerVideoFullscreen, 'Video Fullscreen'),
-  ],
-  // 12. Media Playback
+  // 11. Media Playback
   [
     (ShortcutCommand.mediaPlay, 'Play'),
     (ShortcutCommand.mediaPause, 'Pause'),

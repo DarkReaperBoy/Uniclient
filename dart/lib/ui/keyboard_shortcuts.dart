@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show File, Platform;
+import 'dart:io' show Directory, File, Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -75,7 +75,6 @@ enum ShortcutCommand {
   mediaStop,
   mediaPrevious,
   mediaNext,
-  mediaViewerVideoFullscreen,
   formatBold,
   formatItalic,
   formatUnderline,
@@ -193,7 +192,6 @@ const _commandScopes = <ShortcutCommand, ShortcutScope>{
   ShortcutCommand.formatDate: ShortcutScope.composeRequired,
   ShortcutCommand.openFilePicker: ShortcutScope.chatRequired,
   ShortcutCommand.pastePlainText: ShortcutScope.composeRequired,
-  ShortcutCommand.mediaViewerVideoFullscreen: ShortcutScope.mediaViewer,
   ShortcutCommand.recordRound: ShortcutScope.chatRequired,
 };
 
@@ -251,7 +249,6 @@ const _commandNames = <ShortcutCommand, String>{
   ShortcutCommand.mediaStop: 'media_stop',
   ShortcutCommand.mediaPrevious: 'media_previous',
   ShortcutCommand.mediaNext: 'media_next',
-  ShortcutCommand.mediaViewerVideoFullscreen: 'media_viewer_video_fullscreen',
   ShortcutCommand.formatBold: 'format_bold',
   ShortcutCommand.formatItalic: 'format_italic',
   ShortcutCommand.formatUnderline: 'format_underline',
@@ -412,7 +409,8 @@ class ShortcutSystem {
 
   final _handlers = <ShortcutCommand, List<_Handler>>{};
   final _bindings = <KeyBinding>[];
-  final _requestController = StreamController<ShortcutCommand>.broadcast();
+  final _bindingMap = <(LogicalKeyboardKey, bool, bool, bool, bool), List<ShortcutCommand>>{};
+  StreamController<ShortcutCommand> _requestController = StreamController<ShortcutCommand>.broadcast();
 
   Stream<ShortcutCommand> get requests => _requestController.stream;
 
@@ -487,8 +485,13 @@ class ShortcutSystem {
   void resume() => _paused = false;
 
   void init({String configDir = ''}) {
+    if (_requestController.isClosed) {
+      _requestController = StreamController<ShortcutCommand>.broadcast();
+    }
     _bindings.clear();
+    _bindingMap.clear();
     _bindings.addAll(_defaultBindings);
+    _rebuildBindingMap();
     if (kIsWeb) return;
     if (configDir.isEmpty) {
       configDir = _resolveConfigDir();
@@ -497,6 +500,7 @@ class ShortcutSystem {
     if (_configDir.isNotEmpty) {
       _writeDefaultsFile();
       _loadCustomFile();
+      _rebuildBindingMap();
     }
   }
 
@@ -513,8 +517,15 @@ class ShortcutSystem {
     }
   }
 
+  void _ensureConfigDir() {
+    if (_configDir.isNotEmpty) {
+      Directory(_configDir).createSync(recursive: true);
+    }
+  }
+
   void _writeDefaultsFile() {
     try {
+      _ensureConfigDir();
       final entries = <Map<String, String>>[];
       for (final b in _defaultBindings) {
         final name = _commandNames[b.command];
@@ -582,6 +593,7 @@ class ShortcutSystem {
 
   void _writeCustomTemplate() {
     try {
+      _ensureConfigDir();
       final lines = <String>[];
       if (Platform.isMacOS) {
         lines.add('// NOTE: On macOS, "ctrl" in key strings maps to the Command key,');
@@ -610,10 +622,12 @@ class ShortcutSystem {
   }) {
     _bindings.add(KeyBinding(trigger, command,
         control: control, shift: shift, alt: alt, meta: meta));
+    _rebuildBindingMap();
   }
 
   void removeBindingsFor(ShortcutCommand command) {
     _bindings.removeWhere((b) => b.command == command);
+    _rebuildBindingMap();
   }
 
   void registerHandler(
@@ -687,27 +701,25 @@ class ShortcutSystem {
     return KeyEventResult.ignored;
   }
 
+  void _rebuildBindingMap() {
+    _bindingMap.clear();
+    for (final b in _bindings) {
+      final key = (b.trigger, b.control, b.shift, b.alt, b.meta);
+      (_bindingMap[key] ??= []).add(b.command);
+    }
+  }
+
   List<ShortcutCommand> _findCommands(KeyEvent event) {
     final hwCtrl = HardwareKeyboard.instance.isControlPressed;
     final shift = HardwareKeyboard.instance.isShiftPressed;
     final alt = HardwareKeyboard.instance.isAltPressed;
     final hwMeta = HardwareKeyboard.instance.isMetaPressed;
-    final key = event.logicalKey;
 
     final ctrl = _isMac ? hwMeta : hwCtrl;
     final meta = _isMac ? hwCtrl : hwMeta;
 
-    final result = <ShortcutCommand>[];
-    for (final b in _bindings) {
-      if (b.trigger == key &&
-          b.control == ctrl &&
-          b.shift == shift &&
-          b.alt == alt &&
-          b.meta == meta) {
-        result.add(b.command);
-      }
-    }
-    return result;
+    final key = (event.logicalKey, ctrl, shift, alt, meta);
+    return _bindingMap[key] ?? const [];
   }
 
   List<KeyBinding> get currentBindings => List.unmodifiable(_bindings);
@@ -718,11 +730,13 @@ class ShortcutSystem {
   void replaceAllBindings(List<KeyBinding> newBindings) {
     _bindings.clear();
     _bindings.addAll(newBindings);
+    _rebuildBindingMap();
   }
 
   void saveToCustomFile() {
     if (_configDir.isEmpty) return;
     try {
+      _ensureConfigDir();
       final defaultsByKey = <String, Set<ShortcutCommand>>{};
       for (final b in _defaultBindings) {
         defaultsByKey
@@ -865,7 +879,7 @@ class ShortcutSystem {
           control: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.keyR, ShortcutCommand.recordVoice,
-          control: true),
+          control: true, shift: true),
     const KeyBinding(
         LogicalKeyboardKey.backslash, ShortcutCommand.showChatMenu,
         control: true),
@@ -930,28 +944,28 @@ class ShortcutSystem {
           meta: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.digit1, ShortcutCommand.pinnedChat1,
-          control: true),
+          alt: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.digit2, ShortcutCommand.pinnedChat2,
-          control: true),
+          alt: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.digit3, ShortcutCommand.pinnedChat3,
-          control: true),
+          alt: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.digit4, ShortcutCommand.pinnedChat4,
-          control: true),
+          alt: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.digit5, ShortcutCommand.pinnedChat5,
-          control: true),
+          alt: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.digit6, ShortcutCommand.pinnedChat6,
-          control: true),
+          alt: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.digit7, ShortcutCommand.pinnedChat7,
-          control: true),
+          alt: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.digit8, ShortcutCommand.pinnedChat8,
-          control: true),
+          alt: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.keyL, ShortcutCommand.lockTelegram,
           control: true),
@@ -1008,6 +1022,8 @@ class ShortcutSystem {
         control: true),
     const KeyBinding(LogicalKeyboardKey.keyU, ShortcutCommand.formatUnderline,
         control: true),
+    const KeyBinding(LogicalKeyboardKey.keyX, ShortcutCommand.formatStrike,
+        control: true, shift: true),
     const KeyBinding(LogicalKeyboardKey.keyM, ShortcutCommand.formatCode,
         control: true, shift: true),
     const KeyBinding(LogicalKeyboardKey.period, ShortcutCommand.formatBlockquote,
@@ -1091,7 +1107,8 @@ class _ShortcutListenerState extends State<ShortcutListener>
       if (focus == null) return false;
       final ctx = focus.context;
       if (ctx == null) return false;
-      return ctx.findAncestorWidgetOfExactType<EditableText>() != null;
+      return ctx.findAncestorWidgetOfExactType<EditableText>() != null &&
+          ctx.findAncestorWidgetOfExactType<ChatView>() != null;
     };
     sys.isMediaViewerOpenCallback = () => MediaViewer.isOpen;
 

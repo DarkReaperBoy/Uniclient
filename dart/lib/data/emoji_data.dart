@@ -2746,7 +2746,27 @@ class EmojiKeywords {
 
   static final _badSuggestionChar = RegExp(r'[^a-zA-Z0-9_\-+]');
 
-  void init() {}
+  late final int _legacyMaxKeyLength = _computeLegacyMaxKeyLength();
+
+  static int _computeLegacyMaxKeyLength() {
+    int max = 0;
+    for (final e in kEmojiSuggestions) {
+      for (final kw in e.keywords) {
+        if (kw.length > max) max = kw.length;
+      }
+    }
+    return max;
+  }
+
+  void init({String? cacheDir, void Function()? saveCallback}) {
+    if (cacheDir != null) {
+      _cacheDir = cacheDir;
+      loadCacheFromDisk();
+    }
+    if (saveCallback != null) {
+      _onSave = saveCallback;
+    }
+  }
 
   List<EmojiEntry> get _legacy => kEmojiSuggestions;
 
@@ -2766,14 +2786,9 @@ class EmojiKeywords {
   }
 
   int maxQueryLength() {
-    int max = 0;
+    int max = _legacyMaxKeyLength;
     for (final pack in _langPacks.values) {
       if (pack.maxKeyLength > max) max = pack.maxKeyLength;
-    }
-    for (final e in _legacy) {
-      for (final kw in e.keywords) {
-        if (kw.length > max) max = kw.length;
-      }
     }
     return max;
   }

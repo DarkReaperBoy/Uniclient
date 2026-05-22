@@ -483,7 +483,6 @@ class _LanguageBoxState extends State<LanguageBox> {
 
     return ListView.builder(
       controller: _scrollController,
-      shrinkWrap: true,
       padding: EdgeInsets.zero,
       itemCount: _sectionItemCount(official, recent),
       itemBuilder: (context, index) {
@@ -556,7 +555,7 @@ class _LanguageBoxState extends State<LanguageBox> {
     bool highlighted = false,
   }) {
     final selected = _selectedCode == lang.langCode;
-    final appState = context.watch<AppState>();
+    final appState = context.read<AppState>();
     final isRemoved = appState.removedLanguageCodes.contains(lang.langCode);
     final dimOpacity = isRemoved ? 0.4 : 1.0;
     final showMenu = !lang.official;
@@ -582,20 +581,37 @@ class _LanguageBoxState extends State<LanguageBox> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // §19.16: Title = native name, semiboldTextStyle, windowFg
-                    Text(
-                      lang.nativeName.isNotEmpty ? lang.nativeName : lang.name,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            lang.nativeName.isNotEmpty ? lang.nativeName : lang.name,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (lang.beta) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: accentColor.withAlpha(30),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Text(
+                              'BETA',
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: accentColor),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    // §19.16.1: passportRowSkip = 2px (passport.style:110)
                     const SizedBox(height: 2),
-                    // §19.16: Description = English name, defaultTextStyle, windowSubTextFg
                     Text(
                       lang.name,
                       style: TextStyle(
@@ -867,6 +883,9 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
   late Set<String> _selected;
   String _searchQuery = '';
   final _searchController = TextEditingController();
+  List<_LangEntry>? _cachedLangs;
+  String? _cachedSearchQuery;
+  Set<String>? _cachedSelected;
 
   @override
   void initState() {
@@ -914,6 +933,13 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
   }
 
   List<_LangEntry> _sortedFilteredLangs() {
+    if (_cachedLangs != null &&
+        _cachedSearchQuery == _searchQuery &&
+        _cachedSelected != null &&
+        _cachedSelected!.length == _selected.length &&
+        _cachedSelected!.containsAll(_selected)) {
+      return _cachedLangs!;
+    }
     var langs = _kTranslationLanguages.toList();
     if (_searchQuery.isNotEmpty) {
       final needles = _searchQuery.toLowerCase().split(RegExp(r'\s+'));
@@ -926,10 +952,12 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
         return needles.every((n) => words.any((w) => w.startsWith(n)));
       }).toList();
     }
-    // Stable partition: selected languages first
     final selectedLangs = langs.where((l) => _selected.contains(l.langCode)).toList();
     final unselectedLangs = langs.where((l) => !_selected.contains(l.langCode)).toList();
-    return [...selectedLangs, ...unselectedLangs];
+    _cachedLangs = [...selectedLangs, ...unselectedLangs];
+    _cachedSearchQuery = _searchQuery;
+    _cachedSelected = Set<String>.from(_selected);
+    return _cachedLangs!;
   }
 
   @override
@@ -988,7 +1016,6 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
             ),
             Flexible(
               child: ListView.builder(
-                shrinkWrap: true,
                 padding: EdgeInsets.zero,
                 itemCount: langs.length,
                 itemBuilder: (context, index) {
@@ -1006,17 +1033,37 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  lang.nativeName.isNotEmpty
-                                      ? lang.nativeName
-                                      : lang.name,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: textColor,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        lang.nativeName.isNotEmpty
+                                            ? lang.nativeName
+                                            : lang.name,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: textColor,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (lang.beta) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: accentColor.withAlpha(30),
+                                          borderRadius: BorderRadius.circular(3),
+                                        ),
+                                        child: Text(
+                                          'BETA',
+                                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: accentColor),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
