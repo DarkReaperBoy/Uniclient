@@ -206,20 +206,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 - ✅ Power saving: conditional rendering respects power saving mode
 - ✅ Shader masking: RadialGradient collectible effects properly applied
 
-## folders_settings_screen — cleanup
-
-- [ ] [CRITICAL] Tag color selection is silently dropped on save — `_colorIndex` is correctly tracked in `_EditFilterBoxState` and included in the returned `FolderInfo`, but `ChatState.editFolder()` and `ChatState.createFolder()` have no `colorIndex` parameter, and `EngineService.editFolder`/`createFolder` don't include it in their JSON payloads. The tag color UI is fully visual but persists nothing to the engine. Fix: add `colorIndex` param through the entire call chain (engine_service → chat_state → callers at lines 284 and 304) — `folders_settings_screen.dart:284,304` · `engine_service.dart:880,821`
-
-- [ ] [CRITICAL] Folder icon selection is silently dropped on save — `_selectedIconName` / `_effectiveIconName` is tracked in state but `_onSave()` at line 1766 never sets `emoticon` on the returned `FolderInfo` (field defaults to `''`). `EngineService.editFolder()` and `createFolder()` also have no `emoticon` field in their JSON payloads. The folder icon picker UI is a complete stub. Fix: map `_effectiveIconName` via `_kFilterIconEmoji` to the emoji string, pass as `emoticon` in `FolderInfo` and through the engine call chain — `folders_settings_screen.dart:1766` · `engine_service.dart:880,821`
-
-- [ ] [MAJOR] `_SelectedChatsPreview` uses `chatState.chats` (all accounts) at line 4349 — resolves chatIds to names from the global all-accounts list instead of `chatsForAccount(accountId)`. In multi-account setups a chatId from account A could match a chat from account B. The include/exclude type pickers correctly use `chatsForAccount(accountId)` at lines 1649 and 1679. Fix: pass `accountId` into `_SelectedChatsPreview` and resolve via `chatState.chatsForAccount(accountId)` — `folders_settings_screen.dart:4349`
-
-- [ ] [MAJOR] Synchronous file I/O in `build()` at line 4296 — `_ChatToggleRow.build()` calls `File(chat.avatarPath).existsSync()` which is a blocking disk access on every widget rebuild. This runs on every frame for every visible row while the user scrolls the chat picker. Fix: cache the existence check outside of build (e.g. resolve avatar path once in the parent, or use an `Image.file` with an `errorBuilder` instead of pre-checking) — `folders_settings_screen.dart:4296`
-
-- [ ] [MAJOR] `Image.network` missing `cacheWidth`/`cacheHeight` in `_PeerAvatar` at line 3006 — loads full-resolution images decoded into memory for 44×44 containers with no downscaling hint. Fix: add `cacheWidth: 88, cacheHeight: 88` (2× for HiDPI) — `folders_settings_screen.dart:3006`
-
-- [ ] [MAJOR] Dead ternary always evaluates to `null` at line 3480 — `color: widget.isSelected ? null : (_hovering ? null : null)` — both branches of the inner ternary are `null`, making the entire expression a no-op. Delete the `color` parameter entirely — `folders_settings_screen.dart:3480`
-
 ## forum_topic_icon — cleanup
 
 - [ ] [MAJOR] `_BubbleIconPainter.paint()` allocates `Float64List`, two `Path.transform()` calls, three `Paint` objects with gradient shaders, and a `TextPainter` on every repaint — all should be cached per `(targetSize, palette, letter)` and reused until `shouldRepaint` triggers — `forum_topic_icon.dart:280-336`
