@@ -167,6 +167,7 @@ class ChatState extends ChangeNotifier {
         }
         // Fetch extended peer name color palette (help.peerColors).
         _fetchPeerColors(event.accountId);
+        _connectedBotsCache.remove(event.accountId);
       }
     }));
     // Also reload when auth finishes (finalizeAuth emits account_list).
@@ -730,7 +731,7 @@ class ChatState extends ChangeNotifier {
 
       if (includeSet.contains(c.chatId)) return true;
 
-      if (folder.excludeMuted && c.isMuted) return false;
+      if (folder.excludeMuted && c.isMuted && c.unreadMentionCount == 0) return false;
       if (folder.excludeRead && c.unreadCount == 0 && c.unreadMentionCount == 0) return false;
       if (folder.excludeArchived && c.isArchived) return false;
 
@@ -2316,9 +2317,16 @@ class ChatState extends ChangeNotifier {
     // Merge: replace the newest portion of messages with fresh data.
     // Keep any older paginated messages that aren't in the fresh batch.
     final freshIds = fresh.map((m) => m.msgId).toSet();
+    final oldestFreshId = int.tryParse(fresh.last.msgId);
     final older = _messages.where((m) => !freshIds.contains(m.msgId)).toList();
-    // fresh is newest-first; older are already oldest-last from pagination.
-    _messages = [...fresh, ...older.where((m) => m.timestamp < (fresh.last.timestamp))];
+    if (oldestFreshId != null) {
+      _messages = [...fresh, ...older.where((m) {
+        final mid = int.tryParse(m.msgId);
+        return mid != null && mid < oldestFreshId;
+      })];
+    } else {
+      _messages = [...fresh, ...older.where((m) => m.timestamp <= fresh.last.timestamp)];
+    }
     _autoDownloadMedia(fresh);
     notifyListeners();
   }
