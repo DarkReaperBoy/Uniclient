@@ -144,13 +144,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## MAJOR
 
-- [ ] [MAJOR] `_StoriesBarState._storyRefreshTimer` calls `chatState.loadChats()` (full 500-chat engine sync) every 60 seconds just to refresh story counts — should call a story-specific update path or be removed in favour of engine-pushed events — `chat_list_panel.dart:2847`
-
-- [ ] [MAJOR] `_onSearchChanged` fires both `chatState.searchChats` and `chatState.searchMessages` on every keystroke with no debounce — rapid typing issues multiple concurrent async searches; add a 250–300 ms debounce timer that cancels the previous search before launching a new one — `chat_list_panel.dart:516`
-
-- [ ] [MAJOR] `_ArchivedChatsRow._buildWide()` puts a `Container(width: 46, height: 46)` circle inside a `SizedBox(height: 37)` row — the avatar is constrained/clipped to 37 px and looks wrong; Telegram Desktop spec uses a ~26 px icon for the `dialogsImportantBarHeight` row — `chat_list_panel.dart:4093`
-
-- [ ] [MAJOR] `_buildExpanded` wraps every story item in a top-level `Opacity` widget — forces an offscreen compositing layer for each story while animating; apply opacity directly to the Image/avatar color or use `FadeTransition` to avoid per-item layers — `chat_list_panel.dart:3091`
 
 ## chat_list_row — cleanup
 
