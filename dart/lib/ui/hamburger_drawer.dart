@@ -204,15 +204,15 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           iconPath: bot.iconPath,
                           onTap: () async {
                             Navigator.of(context).pop();
-                            final chatState = context.read<ChatState>();
-                            final url = await chatState.requestBotWebView(bot.id);
+                            final engine = context.read<EngineService>();
+                            final acctId = context.read<AppState>().activeAccountId;
+                            final url = await engine.requestBotWebView(acctId, bot.id, bot.id);
                             if (context.mounted) {
-                              final acctId = context.read<AppState>().activeAccountId;
                               WebAppPanel.open(
                                 context,
                                 data: WebAppPanelData(
                                   botName: bot.name,
-                                  botUsername: '',
+                                  botUsername: bot.username,
                                   url: url,
                                   accountId: acctId,
                                   botId: bot.id,
@@ -797,7 +797,7 @@ class _ProfileCover extends StatelessWidget {
         children: [
           if (isSnowSeason)
             const Positioned.fill(
-              child: _SnowflakeOverlay(),
+              child: RepaintBoundary(child: _SnowflakeOverlay()),
             ),
           // Avatar: 48x48px at left 24, top 20 (spec §3).
           Positioned(
@@ -808,8 +808,10 @@ class _ProfileCover extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Builder(builder: (ctx) {
-                    final aR = 24.0 * (ctx.watch<AppState>().avatarCorners / 23.0);
+                  Selector<AppState, int>(
+                    selector: (_, s) => s.avatarCorners,
+                    builder: (ctx, corners, _) {
+                    final aR = 24.0 * (corners / 23.0);
                     return Container(
                       width: 48,
                       height: 48,
@@ -818,7 +820,7 @@ class _ProfileCover extends StatelessWidget {
                         borderRadius: BorderRadius.circular(aR),
                         image: account?.avatarPath.isNotEmpty == true
                             ? DecorationImage(
-                                image: FileImage(File(account!.avatarPath)),
+                                image: ResizeImage(FileImage(File(account!.avatarPath)), width: 96, height: 96),
                                 fit: BoxFit.cover,
                               )
                             : null,
@@ -932,11 +934,11 @@ class _ProfileCover extends StatelessWidget {
                 onTap: onToggle,
                 behavior: HitTestBehavior.opaque,
                 child: Builder(builder: (ctx) {
-                  final as2 = ctx.watch<AppState>();
-                  final cs = ctx.watch<ChatState>();
+                  final as2 = ctx.read<AppState>();
+                  final cs = ctx.read<ChatState>();
                   int otherUnread = 0;
-                  bool allMuted = true;
                   if (!expanded) {
+                    bool allMuted = true;
                     for (final a in as2.accounts) {
                       if (a.id != as2.activeAccountId) {
                         otherUnread += cs.unreadCountForAccount(a.id);
@@ -1048,7 +1050,11 @@ class _ProfileCover extends StatelessWidget {
         );
       },
       child: Text(
-        'Uniclient Preferences',
+        account.username.isNotEmpty
+            ? '@${account.username}'
+            : account.phone.isNotEmpty
+                ? account.phone
+                : _platformLabel(account.platform),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
@@ -1481,46 +1487,49 @@ class _AccountRow extends StatelessWidget {
               width: 36,
               height: 36,
               child: Center(
-                child: Container(
-                  decoration: isActive
-                      ? BoxDecoration(
-                          borderRadius: BorderRadius.circular(
-                            18.0 * (context.watch<AppState>().avatarCorners / 23.0)),
-                          border: Border.all(
-                            color: context.palette.windowBgActive,
-                            width: 2,
-                          ),
-                        )
-                      : null,
-                  padding: isActive
-                      ? const EdgeInsets.all(2)
-                      : EdgeInsets.zero,
-                  child: Builder(builder: (ctx) {
-                    final aR = 13.0 * (ctx.watch<AppState>().avatarCorners / 23.0);
+                child: Selector<AppState, int>(
+                  selector: (_, s) => s.avatarCorners,
+                  builder: (ctx, corners, _) {
+                    final ringR = 18.0 * (corners / 23.0);
+                    final aR = 13.0 * (corners / 23.0);
                     final hasAvatar = account.avatarPath.isNotEmpty;
                     return Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(aR),
-                        image: hasAvatar
-                            ? DecorationImage(
-                                image: FileImage(File(account.avatarPath)),
-                                fit: BoxFit.cover,
+                      decoration: isActive
+                          ? BoxDecoration(
+                              borderRadius: BorderRadius.circular(ringR),
+                              border: Border.all(
+                                color: ctx.palette.windowBgActive,
+                                width: 2,
+                              ),
+                            )
+                          : null,
+                      padding: isActive
+                          ? const EdgeInsets.all(2)
+                          : EdgeInsets.zero,
+                      child: Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(aR),
+                          image: hasAvatar
+                              ? DecorationImage(
+                                  image: ResizeImage(FileImage(File(account.avatarPath)), width: 52, height: 52),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        alignment: Alignment.center,
+                        child: !hasAvatar
+                            ? Icon(
+                                _AccountList.platformIcons[account.platform] ?? Icons.chat,
+                                size: 14,
+                                color: theme.colorScheme.primary,
                               )
                             : null,
                       ),
-                      alignment: Alignment.center,
-                      child: !hasAvatar
-                          ? Icon(
-                              _AccountList.platformIcons[account.platform] ?? Icons.chat,
-                              size: 14,
-                              color: theme.colorScheme.primary,
-                            )
-                          : null,
                     );
-                  }),
+                  },
                 ),
               ),
             ),
@@ -1696,6 +1705,8 @@ class _MenuRowState extends State<_MenuRow> {
                     File(widget.iconPath!),
                     width: 24,
                     height: 24,
+                    cacheWidth: 48,
+                    cacheHeight: 48,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) =>
                         Icon(widget.icon, size: 24, color: iconColor),
