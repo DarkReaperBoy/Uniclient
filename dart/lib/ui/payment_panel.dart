@@ -111,6 +111,7 @@ class _PaymentPanelState extends State<PaymentPanel>
   Map<String, dynamic> _formData = {};
   List<Map<String, dynamic>> _prices = [];
   List<int> _suggestedTips = [];
+  List<List<int>> _tipRows = [];
   int _maxTip = 0;
   int _selectedTip = 0;
   bool _isReceipt = false;
@@ -206,6 +207,7 @@ class _PaymentPanelState extends State<PaymentPanel>
                 ?.map((t) => (t as num).toInt())
                 .toList() ??
             [];
+        _tipRows = _computeTipRows(_suggestedTips);
         _maxTip = (data['max_tip'] as num?)?.toInt() ?? 0;
         _shippingRequested = data['shipping_requested'] == true;
         _nameRequested = data['name_requested'] == true;
@@ -657,7 +659,7 @@ class _PaymentPanelState extends State<PaymentPanel>
     final subFg = isDark ? const Color(0xFF7e919f) : const Color(0xFF999999);
     final divider = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe7e7e7);
     final accentBg = palette.windowBgActive;
-    final accentFg = isDark ? Colors.white : Colors.white;
+    const accentFg = Colors.white;
 
     return Center(
       child: Material(
@@ -945,6 +947,8 @@ class _PaymentPanelState extends State<PaymentPanel>
       photoUrl,
       width: _kThumbSize,
       height: _kThumbSize,
+      cacheWidth: (_kThumbSize * 2).toInt(),
+      cacheHeight: (_kThumbSize * 2).toInt(),
       fit: BoxFit.cover,
       loadingBuilder: (_, child, loadingProgress) {
         if (loadingProgress == null) return child;
@@ -1083,22 +1087,22 @@ class _PaymentPanelState extends State<PaymentPanel>
     );
   }
 
-  Widget _buildTipsSection(
-      Color accent, Color fg, bool isDark, String currency) {
-    final allItems = [
-      ..._suggestedTips,
-    ];
+  static List<List<int>> _computeTipRows(List<int> tips) {
     const maxPerRow = 3;
     final rows = <List<int>>[];
-    for (var i = 0; i < allItems.length; i += maxPerRow) {
-      rows.add(allItems.sublist(i, (i + maxPerRow).clamp(0, allItems.length)));
+    for (var i = 0; i < tips.length; i += maxPerRow) {
+      rows.add(tips.sublist(i, (i + maxPerRow).clamp(0, tips.length)));
     }
+    return rows;
+  }
 
+  Widget _buildTipsSection(
+      Color accent, Color fg, bool isDark, String currency) {
     return Padding(
       padding: _kTipButtonsPadding,
       child: Column(
         children: [
-          for (final row in rows) ...[
+          for (final row in _tipRows) ...[
             Row(
               children: [
                 for (var i = 0; i < row.length; i++) ...[
@@ -2411,10 +2415,11 @@ class _PaymentWebViewPageState extends State<_PaymentWebViewPage> {
             if (mounted) setState(() => _loading = false);
           },
           onNavigationRequest: (request) {
-            if (request.url.contains('tg://') ||
-                request.url.contains('done') ||
-                request.url.contains('success')) {
-              widget.onPaymentDone(null);
+            final uri = Uri.tryParse(request.url);
+            if (uri != null && uri.scheme == 'tg') {
+              final token = uri.queryParameters['payment_token'] ??
+                  uri.queryParameters['token'];
+              widget.onPaymentDone(token);
               Navigator.of(context).pop();
               return NavigationDecision.prevent;
             }
