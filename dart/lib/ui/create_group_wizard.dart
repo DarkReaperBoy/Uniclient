@@ -242,7 +242,10 @@ class _WizardDialogState extends State<_WizardDialog>
 
   Future<void> _probeUsernameAvailability() async {
     try {
-      await _engine.checkChannelUsername(_accountId, _createdChatId, 'preston');
+      await _engine.checkChannelUsername(
+        _accountId, _createdChatId,
+        'probe${DateTime.now().millisecondsSinceEpoch}',
+      );
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString();
@@ -257,6 +260,8 @@ class _WizardDialogState extends State<_WizardDialog>
           _publicGroupNA = true;
           _isPublic = false;
         });
+      } else if (msg.contains('FLOOD_WAIT')) {
+        debugPrint('Username probe rate-limited: $msg');
       }
     }
   }
@@ -833,7 +838,7 @@ class _WizardDialogState extends State<_WizardDialog>
           }
         }
         if (!mounted) return;
-        _navigateToChat(chatId);
+        await _navigateToChat(chatId);
       }
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -937,7 +942,8 @@ class _WizardDialogState extends State<_WizardDialog>
       }
       if (!mounted) return;
     }
-    _navigateToChat(_createdChatId);
+    await _navigateToChat(_createdChatId);
+    if (!mounted) return;
     Navigator.of(context).pop();
   }
 
@@ -1422,38 +1428,46 @@ class _WizardDialogState extends State<_WizardDialog>
         ),
         // §21.3: "Invite via Link" button above contact list.
         if (_inviteLink.isNotEmpty || _loadingInviteLink)
-          InkWell(
-            onTap: () {
-              if (_inviteLink.isNotEmpty) {
-                Clipboard.setData(ClipboardData(text: _inviteLink));
-                showTelegramToast(context, 'Link copied to clipboard');
-              }
-            },
-            child: SizedBox(
-              height: 56,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 16, right: 16, top: 7),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: accentColor,
+          Opacity(
+            opacity: _loadingInviteLink ? 0.5 : 1.0,
+            child: InkWell(
+              onTap: _loadingInviteLink ? null : () {
+                if (_inviteLink.isNotEmpty) {
+                  Clipboard.setData(ClipboardData(text: _inviteLink));
+                  showTelegramToast(context, 'Link copied to clipboard');
+                }
+              },
+              child: SizedBox(
+                height: 56,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 16, right: 16, top: 7),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: accentColor,
+                        ),
+                        child: _loadingInviteLink
+                            ? const SizedBox(
+                                width: 22, height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.link, color: Colors.white, size: 22),
                       ),
-                      child: const Icon(Icons.link, color: Colors.white, size: 22),
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      'Invite via Link',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: accentColor,
+                      const SizedBox(width: 16),
+                      Text(
+                        'Invite via Link',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: accentColor,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1664,6 +1678,8 @@ class _ContactRow extends StatelessWidget {
   final bool isDark;
   final VoidCallback onTap;
 
+  static final _avatarCache = <String, Uint8List>{};
+
   const _ContactRow({
     required this.contact,
     required this.selected,
@@ -1681,7 +1697,8 @@ class _ContactRow extends StatelessWidget {
     Widget avatar;
     if (contact.avatarB64.isNotEmpty) {
       try {
-        final bytes = base64Decode(contact.avatarB64);
+        final bytes = _avatarCache.putIfAbsent(
+          contact.avatarB64, () => base64Decode(contact.avatarB64));
         avatar = CircleAvatar(
           radius: 21,
           backgroundImage: MemoryImage(bytes),
@@ -2012,8 +2029,6 @@ class _BottomClipper extends CustomClipper<Path> {
     } else {
       path.addOval(Rect.fromLTWH(0, 0, size.width, size.height));
     }
-    final cutout = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height - height));
     return Path.combine(PathOperation.intersect, path, Path()
       ..addRect(Rect.fromLTWH(0, size.height - height, size.width, height)));
   }
@@ -2295,6 +2310,7 @@ class _PublicLinksLimitBoxState extends State<_PublicLinksLimitBox> {
   bool _loading = true;
   String? _revokingChatId;
   bool _revoked = false;
+  final _channelAvatarCache = <String, Uint8List>{};
 
   int get _freeLimit => widget.freeLimit;
   int get _premiumLimit => widget.premiumLimit;
@@ -2496,7 +2512,8 @@ class _PublicLinksLimitBoxState extends State<_PublicLinksLimitBox> {
               height: 42,
               child: channel.avatarB64.isNotEmpty
                   ? Image.memory(
-                      base64Decode(channel.avatarB64),
+                      _channelAvatarCache.putIfAbsent(
+                        channel.avatarB64, () => base64Decode(channel.avatarB64)),
                       width: 42,
                       height: 42,
                       fit: BoxFit.cover,
@@ -2645,6 +2662,14 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
     if (_secondaryUsernames.length != _origSecondaryUsernames.length) return true;
     for (var i = 0; i < _secondaryUsernames.length; i++) {
       if (_secondaryUsernames[i].username != _origSecondaryUsernames[i].username) return true;
+    }
+    return false;
+  }
+
+  bool _usernamesChanged() {
+    if (_secondaryUsernames.length != _origSecondaryUsernames.length) return true;
+    for (var i = 0; i < _secondaryUsernames.length; i++) {
+      if (_secondaryUsernames[i].username != _origSecondaryUsernames[i].username) return true;
       if (_secondaryUsernames[i].active != _origSecondaryUsernames[i].active) return true;
     }
     return false;
@@ -2658,7 +2683,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         _joinRequest != _origJoinRequest ||
         _slowmodeSeconds != _origSlowmodeSeconds ||
         (_isForum && _createTopicsBanned != _origCreateTopicsBanned) ||
-        _usernamesOrderChanged();
+        _usernamesChanged();
   }
 
   @override
@@ -2821,7 +2846,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
 
   Future<void> _save() async {
     final engine = context.read<EngineService>();
-    final newUsername = _isPublic ? _usernameController.text.trim() : '';
+    final newUsername = _isPublic ? _usernameController.text.trim().toLowerCase() : '';
 
     if (_isPublic && newUsername.isEmpty) {
       setState(() => _error = 'Please enter a username');
@@ -2877,8 +2902,8 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
       }
       if (_secondaryUsernames.isNotEmpty && _usernamesOrderChanged()) {
         final order = [
-          if (_isPublic && _usernameController.text.trim().isNotEmpty)
-            _usernameController.text.trim(),
+          if (_isPublic && newUsername.isNotEmpty)
+            newUsername,
           ..._secondaryUsernames.map((e) => e.username),
         ];
         await engine.reorderChannelUsernames(widget.accountId, widget.chatId, order);
