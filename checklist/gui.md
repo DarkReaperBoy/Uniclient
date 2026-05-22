@@ -153,20 +153,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## choose_datetime_box — cleanup
 
-- [ ] [CRITICAL] `_updateSelection` (line 298) is defined but never called — `_selectDay` always calls `_startSelection`, which resets both start and end to the tapped date on every tap; range selection always collapses to a single day. `_selectionAnchorIndex` is written in `_startSelection` (line 293) but never read anywhere, so the intended "first tap = anchor, second tap = extend" logic was never wired. Fix `_selectDay`: when `_selectionStart != null` (anchor already set), call `_updateSelection` instead of `_startSelection`. — `choose_datetime_box.dart:268`
-
-- [ ] [CRITICAL] `_TimePickerBoxWidgetState._handleKey` (line 1795) is missing the `KeyDownEvent`/`KeyRepeatEvent` guard that every other `_handleKey` in this file has. It fires on `KeyUpEvent` too, so every single arrow-key press triggers the handler twice (once on down, once on up), moving the drum by 2 positions instead of 1. Add: `if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;` at the top. — `choose_datetime_box.dart:1795`
-
-- [ ] [CRITICAL] "Telegram Premium" text in the premium toast (line 1637) has `TextDecoration.underline` and `FontWeight.w600` — the visual affordance of a tappable link — but the `TextSpan` has no `recognizer`. Clicking it does nothing. In Telegram Desktop this opens the premium subscription page. Add a `TapGestureRecognizer` that navigates to the premium upsell flow (or at minimum opens a premium info dialog). — `choose_datetime_box.dart:1637`
-
-- [ ] [MAJOR] `_maxLabelWidth()` is called inside `build()` at line 1830. It iterates all labels and calls `TextPainter.layout()` on each one — allocating N TextPainter objects on every single rebuild of `_TimePickerBoxWidget`. The label list never changes after `initState`. Cache the result as a `late final double _drumWidth` in `initState`. — `choose_datetime_box.dart:1830`
-
-- [ ] [MAJOR] `_measureTextWidth('at', ...)` is called inside the `LayoutBuilder` in `_ChooseDateTimeDialogState.build()` (line 1479). The input is a constant string with a constant font size; it will always return the same value. Allocating a fresh `TextPainter` on every rebuild is wasteful. Cache it as a field computed once in `initState`. — `choose_datetime_box.dart:1479`
-
-- [ ] [MAJOR] `_dynamicImages` map (line 137) is never evicted as the user navigates between months. Each new month loads entries for up to 31 days; each loaded entry holds an `AnimationController` (backed by a `Ticker`). Old months' controllers are not disposed until the entire widget closes. If a user scrolls through many months, controllers accumulate. Cap the cache to ~3 months and dispose evicted controllers immediately. — `choose_datetime_box.dart:162`
-
-- [ ] [MAJOR] `_showRepeatMenu()` (line 1366) calls `context.findRenderObject()` where `context` is `_ChooseDateTimeDialogState`'s root context, giving the entire dialog's `RenderBox`. `Offset(0, box.size.height)` is the bottom-left corner of the dialog in global coordinates — not the position of the Repeat button row. The menu opens at the wrong place. Use a `GlobalKey` on the Repeat row widget and call `key.currentContext!.findRenderObject()` to get the button's own `RenderBox`. — `choose_datetime_box.dart:1366`
-
 # engine_service — cleanup
 
 - [ ] [CRITICAL] `startCallRecording`/`stopCallRecording` pass `accountId` as the `coreId` argument instead of `'__engine'` — routes to the wrong bridge handler, both methods silently fail at runtime — `engine_service.dart:2347` `engine_service.dart:2359`
