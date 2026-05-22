@@ -101,7 +101,7 @@ class AuthState extends ChangeNotifier {
 
       if (result?.state == 'error') {
         final rawError = result!.error.isNotEmpty ? result.error : result.message;
-        if (rawError.contains('SRP_ID_INVALID')) {
+        if (rawError == 'SRP_ID_INVALID') {
           final now = DateTime.now();
           if (_lastSrpIdInvalidTime != null &&
               now.difference(_lastSrpIdInvalidTime!) < _kSrpIdInvalidTimeout) {
@@ -163,8 +163,6 @@ class AuthState extends ChangeNotifier {
     _error = null;
     _stopAutoPoll();
     notifyListeners();
-    // Yield to let the engine process the cancel before starting new auth.
-    await Future<void>.delayed(Duration.zero);
     await startAuth(accountId);
     if (_currentAuth?.state == 'choose') {
       await submitInput(method);
@@ -203,12 +201,31 @@ class AuthState extends ChangeNotifier {
     Debug.log('AUTH', 'event: account=${event.accountId} state=${event.state} error=${event.error}');
     if (_currentAuth == null || _currentAuth!.accountId != event.accountId) return;
 
-    _currentAuth = event.fullData ?? AuthStateData(
-      accountId: event.accountId,
-      state: event.state,
-      label: event.prompt,
-      error: event.error,
-    );
+    if (event.fullData != null) {
+      _currentAuth = event.fullData;
+    } else {
+      final existing = _currentAuth;
+      _currentAuth = AuthStateData(
+        accountId: event.accountId,
+        state: event.state,
+        label: event.prompt.isNotEmpty ? event.prompt : (existing?.label ?? ''),
+        error: event.error,
+        platform: existing?.platform ?? '',
+        hint: existing?.hint ?? '',
+        hasRecovery: existing?.hasRecovery ?? false,
+        sentTo: existing?.sentTo ?? '',
+        qrExpiresIn: existing?.qrExpiresIn ?? 0,
+        qrData: existing?.qrData ?? const [],
+        codeLength: existing?.codeLength ?? 0,
+        timeoutSecs: existing?.timeoutSecs ?? 0,
+        canResend: existing?.canResend ?? false,
+        displayName: existing?.displayName ?? '',
+        avatarB64: existing?.avatarB64 ?? '',
+        recoverable: existing?.recoverable ?? false,
+        codeByTelegram: existing?.codeByTelegram ?? false,
+        options: existing?.options ?? const [],
+      );
+    }
     _submitting = false;
     _updateAutoPoll();
     _updateQrExpiryTimer();
@@ -219,16 +236,26 @@ class AuthState extends ChangeNotifier {
     _qrExpiryTimer?.cancel();
     _qrExpiryTimer = null;
     if (_currentAuth?.state == 'qr' && _currentAuth!.qrExpiresIn > 0) {
-      final delaySecs = (_currentAuth!.qrExpiresIn - 1).clamp(1, 300);
+      final left = _currentAuth!.qrExpiresIn - 1;
+      final delaySecs = left < 1 ? 1 : left;
       _qrExpiryTimer = Timer(Duration(seconds: delaySecs), _onQrExpired);
     }
   }
 
-  void _onQrExpired() {
+  Future<void> _onQrExpired() async {
     final auth = _currentAuth;
     if (auth == null || auth.state != 'qr') return;
     Debug.log('AUTH', 'QR code expired, requesting refresh');
-    startAuth(auth.accountId);
+    try {
+      final result = await _engine.startAuth(auth.accountId);
+      if (result != null && result.state == 'qr') {
+        _currentAuth = result;
+        _updateQrExpiryTimer();
+        notifyListeners();
+      }
+    } catch (e) {
+      Debug.log('AUTH', 'QR refresh failed: $e');
+    }
   }
 
   // ── CLI automation polling ──
