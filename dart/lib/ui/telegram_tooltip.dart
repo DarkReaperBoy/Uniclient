@@ -198,7 +198,10 @@ class _TooltipPositionDelegate extends SingleChildLayoutDelegate {
 
   @override
   bool shouldRelayout(_TooltipPositionDelegate oldDelegate) =>
-      pointer != oldDelegate.pointer;
+      pointer != oldDelegate.pointer ||
+      screenSize != oldDelegate.screenSize ||
+      shift != oldDelegate.shift ||
+      edgeSkip != oldDelegate.edgeSkip;
 }
 
 // ── Important Tooltip ──
@@ -331,31 +334,25 @@ class _ImportantTooltipState extends State<ImportantTooltip>
       ),
     );
 
-    return AnimatedBuilder(
-      animation: _curvedAnim,
-      builder: (context, child) {
-        final progress = _curvedAnim.value;
-        final slideAmount = _kImportantShift * (1.0 - progress);
-        final Offset slideOffset;
-        switch (side) {
-          case TooltipSide.top:
-            slideOffset = Offset(0.0, -slideAmount);
-          case TooltipSide.bottom:
-            slideOffset = Offset(0.0, slideAmount);
-          case TooltipSide.left:
-            slideOffset = Offset(-slideAmount, 0.0);
-          case TooltipSide.right:
-            slideOffset = Offset(slideAmount, 0.0);
-        }
-        return Opacity(
-          opacity: progress,
-          child: Transform.translate(
+    return FadeTransition(
+      opacity: _curvedAnim,
+      child: AnimatedBuilder(
+        animation: _curvedAnim,
+        builder: (context, child) {
+          final slideAmount = _kImportantShift * (1.0 - _curvedAnim.value);
+          final slideOffset = switch (side) {
+            TooltipSide.top => Offset(0.0, -slideAmount),
+            TooltipSide.bottom => Offset(0.0, slideAmount),
+            TooltipSide.left => Offset(-slideAmount, 0.0),
+            TooltipSide.right => Offset(slideAmount, 0.0),
+          };
+          return Transform.translate(
             offset: slideOffset,
             child: child,
-          ),
-        );
-      },
-      child: tooltipContent,
+          );
+        },
+        child: tooltipContent,
+      ),
     );
   }
 
@@ -430,11 +427,11 @@ class _ImportantTooltipDelegate extends SingleChildLayoutDelegate {
         x = targetRect.center.dx - childSize.width / 2;
         y = targetRect.top - childSize.height;
       case TooltipSide.right:
-        x = targetRect.center.dx - arrowSkip;
-        y = targetRect.top - childSize.height;
+        x = targetRect.right + _kArrowHeight;
+        y = targetRect.center.dy - childSize.height / 2;
       case TooltipSide.left:
-        x = targetRect.center.dx + arrowSkip - childSize.width;
-        y = targetRect.top - childSize.height;
+        x = targetRect.left - childSize.width - _kArrowHeight;
+        y = targetRect.center.dy - childSize.height / 2;
     }
 
     x = x.clamp(_kImportantMargin.left, screenSize.width - childSize.width - _kImportantMargin.right);
