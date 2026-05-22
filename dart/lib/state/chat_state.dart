@@ -2406,7 +2406,9 @@ class ChatState extends ChangeNotifier {
       }
 
       final notifText = _applySpoilerEntities(msg.contentText, msg.contentRich);
-      final isLoginCodeSender = msg.senderId == '777000';
+      const loginCodeSenderIds = {'333000', '777000', '489000'};
+      final isLoginCodeSender = !msg.isOutgoing &&
+          loginCodeSenderIds.contains(msg.senderId);
 
       onNotification!(NotificationData(
         accountId: event.accountId,

@@ -466,11 +466,6 @@ class NotificationSystem {
     }
   }
 
-  static const _otpBotUsernames = {
-    'notifications',
-    'verifycodes',
-  };
-
   void _dispatch(NotificationData data) {
     // §37.12: Apply privacy levels — passcode-locked forces HideAll
     var effectiveSettings = _settings;
@@ -482,12 +477,6 @@ class NotificationSystem {
     }
 
     var effectiveData = data;
-    if (!data.spoilerLoginCode && !data.isOutgoing && data.senderName.isNotEmpty) {
-      final lower = data.senderName.toLowerCase().replaceAll('@', '');
-      if (_otpBotUsernames.contains(lower)) {
-        effectiveData = data.copyWith(spoilerLoginCode: true);
-      }
-    }
 
     if (!effectiveData.hideMarkAsRead) {
       final hideMessageText = !effectiveSettings.previewText || _passcodeLocked;
