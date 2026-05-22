@@ -227,31 +227,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## MAJOR
 
-## stats_chart — cleanup
-
-- [ ] [MAJOR] `_cachedTP` calls `layout()` on every access — text painter cache only prevents allocation, not layout — `stats_chart.dart:1614`
-
-  `TextSpan` does not override `==`, so `tp.text != span` is always true (reference inequality). Every call to `_cachedTP` re-runs `tp.text = span; tp.layout()` even for a cached painter. During ruler animation or footer drag, this fires ~14 layout() calls per paint frame (7 left labels + 7 right for DoubleLinear/currency). Fix: build and layout the painter once on first insert, and return it directly on cache hit:
-  ```dart
-  TextPainter _cachedTP(String text, TextStyle style) {
-    final key = '$text|${style.fontSize}|${style.color?.value}';
-    return textCache.putIfAbsent(key, () => TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: TextDirection.ltr,
-    )..layout());
-  }
-  ```
-
-- [ ] [MAJOR] `_ChartAreaPainter.shouldRepaint` uses reference equality on two mutable maps that are mutated in-place — the comparisons always return `false` — `stats_chart.dart:2302` and `2313`
-
-  `lineVisible` and `pieSliceHoverProgress` are both state maps that get mutated via `_lineVisible[id] = false` and `_pieSliceHoverProgress[key] = v` without ever replacing the map instance. So `lineVisible != old.lineVisible` (line 2302) and `pieSliceHoverProgress != old.pieSliceHoverProgress` (line 2313) are comparing the same object to itself — always `false`. Currently harmless because no `RepaintBoundary` isolates the painter, so `setState` rebuilds force a repaint anyway. If a `RepaintBoundary` is ever added (which is the obvious next optimization for this heavy painter), line toggles and pie hover animation will silently stop repainting.
-
-- [ ] [MINOR] Dead ternary in `_paintPieLabelsInternal` — `isDark` is checked but both branches are identical — `stats_chart.dart:2240`
-
-  ```dart
-  final pieLabelColor = isDark ? Colors.white : Colors.white;
-  ```
-  The `isDark` parameter is ignored. White-on-slice-color is correct for dark mode but may be illegible on light-colored slices in light mode. Either drop the ternary and keep `Colors.white`, or decide on a light-mode color (e.g. `Colors.black87`).
 
 ## sticker_pack_viewer — cleanup
 
