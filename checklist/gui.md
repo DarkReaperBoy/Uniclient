@@ -144,27 +144,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## MAJOR
 
-
-## chat_list_row — cleanup
-
-- [ ] [CRITICAL] `ForumChatListRow` narrow mode (lines 2120–2141) shows only a bare avatar with no unread indicators — `ChatListRow` narrow mode renders `_UnreadBadge`, `_UnreadDot`, and `@` mention badges in a `Stack` over the avatar, but `ForumChatListRow`'s narrow branch is a plain `Center(child: _ChatAvatar(...))` with nothing else — `chat_list_row.dart:2120`
-
-- [ ] [MAJOR] `base64Decode(chat.lastMsgThumbB64)` called unconditionally inside `build()` on every rebuild — no memoization; decodes the full byte array each time the row redraws (hover, badge change, etc.) — `chat_list_row.dart:405`
-
-- [ ] [MAJOR] `Image.file` for chat avatar missing `cacheWidth`/`cacheHeight` — Flutter caches the full-resolution disk image; for a 46px avatar this wastes significant memory across a long chat list — `chat_list_row.dart:1072`
-
-- [ ] [MAJOR] `context.watch<AppState>()` in `_ChatAvatar.build()` subscribes to the entire `AppState` to read only `avatarCorners` — every AppState notification (unread count update, any setting change, chat arrival) triggers a rebuild of ALL visible chat avatars; replace with `context.select((AppState s) => s.avatarCorners)` — `chat_list_row.dart:1058`
-
-- [ ] [MAJOR] `context.read<AppState>()` used for three UI-affecting flags — `hidePremiumStatuses` (line 224), `experimentalFlags['dialogs_mute_icon']` (line 233), and `experimentalFlags['message_draft_visible']` (line 332) — `context.read` does not subscribe, so the row will not update when the user changes these settings; replace with `context.select` or `context.watch` for each flag — `chat_list_row.dart:224`
-
-- [ ] [MAJOR] `geo_location` action returns `'typing'` (line 1318) and `choose_contact` returns `'typing'` (line 1320) — both should have distinct labels per Telegram's `ChatAction` spec: `geo_location` → `'sending location'`, `choose_contact` → `'sending contact'` — `chat_list_row.dart:1318`
-
-- [ ] [MAJOR] `_formatTime` is implemented identically in both `ChatListRow` (line 473) and `ForumChatListRow` (line 2291) — any future fix to one (e.g. locale, timezone edge-case) must be duplicated manually; extract to a top-level function — `chat_list_row.dart:473`
-
-- [ ] [MAJOR] `_TopicsPreview` wraps its entire `build` in `LayoutBuilder` (line 2330) but the `constraints` parameter is never read inside the builder — `LayoutBuilder` forces an extra layout-constraint measurement pass on every rebuild for no benefit; remove it — `chat_list_row.dart:2330`
-
-- [ ] [MAJOR] `_committed` field (line 656) is set to `true` at line 777 and back to `false` at line 793 but is never read anywhere in the class — dead state that adds noise and suggests the intended commit-lock logic (e.g. block re-trigger during snap-back) was never wired in — `chat_list_row.dart:656`
-
 ## chat_settings_screen — cleanup
 
 - [ ] [CRITICAL] `onPaletteChanged: (_) {}` empty callback at lines 634 and 2381 — `ThemeEditorScreen` calls this at lines 212 and 412 of `theme_editor.dart` whenever the user edits colors, but both call-sites in `chat_settings_screen.dart` discard the result. Any palette changes made in the theme editor are silently thrown away and never applied to `AppState`. Needs to call `appState.applyPalette(palette)` or equivalent — `chat_settings_screen.dart:634` and `chat_settings_screen.dart:2381`
