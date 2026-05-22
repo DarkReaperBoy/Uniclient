@@ -13,6 +13,33 @@ import '../theme/telegram_palette.dart';
 import 'emoji_status_widget.dart';
 import 'forum_topic_icon.dart';
 
+final _thumbBytesCache = <String, Uint8List>{};
+Uint8List _cachedThumbDecode(String b64) =>
+    _thumbBytesCache.putIfAbsent(b64, () => base64Decode(b64));
+
+const _monthAbbr = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
+
+String formatChatListTime(int timestampMs) {
+  if (timestampMs == 0) return '';
+  final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+  final now = DateTime.now();
+  final diff = now.difference(dt);
+
+  if (diff.inDays == 0 && dt.day == now.day) {
+    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+  if (diff.inDays == 1 || (diff.inDays == 0 && dt.day != now.day)) {
+    return 'Yesterday';
+  }
+  if (diff.inDays < 7) {
+    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][dt.weekday - 1];
+  }
+  return '${_monthAbbr[dt.month - 1]} ${dt.day}';
+}
+
 /// Spec §2.7: Data carried during a drag-and-drop forward gesture.
 /// MIME equivalent of Telegram Desktop's `application/x-td-forward`.
 class ForwardDragData {
@@ -67,6 +94,9 @@ class ChatListRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final hidePremiumStatuses = context.select((AppState s) => s.hidePremiumStatuses);
+    final showMuteIcon = context.select((AppState s) => s.experimentalFlags['dialogs_mute_icon']) != false;
+    final showDrafts = context.select((AppState s) => s.experimentalFlags['message_draft_visible']) != false;
 
     final nameColor = isActive ? palette.dialogsNameFgActive : palette.dialogsNameFg;
     final mutedColor = isActive ? palette.dialogsTextFgActive : palette.dialogsTextFg;
@@ -221,7 +251,7 @@ class ChatListRow extends StatelessWidget {
                                   _WarningBadge(label: 'FAKE', isActive: isActive),
                                 ],
                                 if (chat.emojiStatusId.isNotEmpty &&
-                                    !context.read<AppState>().hidePremiumStatuses) ...[
+                                    !hidePremiumStatuses) ...[
                                   const SizedBox(width: 4),
                                   EmojiStatusWidget(
                                     emojiStatusId: chat.emojiStatusId,
@@ -230,7 +260,7 @@ class ChatListRow extends StatelessWidget {
                                     fallbackColor: isActive ? palette.dialogsNameFgActive : null,
                                   ),
                                 ],
-                                if (chat.isMuted && context.read<AppState>().experimentalFlags['dialogs_mute_icon'] != false) ...[
+                                if (chat.isMuted && showMuteIcon) ...[
                                   const SizedBox(width: 4),
                                   Icon(Icons.volume_off, size: 14, color: mutedColor),
                                 ],
@@ -250,7 +280,7 @@ class ChatListRow extends StatelessWidget {
                             ),
                           const SizedBox(width: 5),
                           Text(
-                            _formatTime(chat.lastMsgTime),
+                            formatChatListTime(chat.lastMsgTime),
                             style: TextStyle(
                               fontSize: 13,
                               color: isActive ? palette.dialogsTextFgActive : palette.dialogsDateFg,
@@ -263,7 +293,7 @@ class ChatListRow extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: _buildPreview(context, palette, nameColor, mutedColor),
+                            child: _buildPreview(palette, nameColor, mutedColor, showDrafts),
                           ),
                           // Unread badge or unread dot.
                           if (chat.unreadCount > 0) ...[
@@ -320,7 +350,7 @@ class ChatListRow extends StatelessWidget {
     );
   }
 
-  Widget _buildPreview(BuildContext context, TelegramPalette palette, Color nameColor, Color mutedColor) {
+  Widget _buildPreview(TelegramPalette palette, Color nameColor, Color mutedColor, bool showDrafts) {
     if (typingUser != null) {
       return _TypingDotsIndicator(
         userName: typingUser!,
@@ -329,7 +359,6 @@ class ChatListRow extends StatelessWidget {
       );
     }
 
-    final showDrafts = context.read<AppState>().experimentalFlags['message_draft_visible'] != false;
     if (showDrafts && chat.draftText.isNotEmpty) {
       return Text.rich(
         TextSpan(children: [
@@ -402,7 +431,7 @@ class ChatListRow extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(2),
             child: Image.memory(
-              base64Decode(chat.lastMsgThumbB64),
+              _cachedThumbDecode(chat.lastMsgThumbB64),
               width: 16,
               height: 16,
               fit: BoxFit.cover,
@@ -470,29 +499,6 @@ class ChatListRow extends StatelessWidget {
     };
   }
 
-  static String _formatTime(int timestampMs) {
-    if (timestampMs == 0) return '';
-    final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-
-    if (diff.inDays == 0 && dt.day == now.day) {
-      // Today: show time.
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    }
-    if (diff.inDays == 1 || (diff.inDays == 0 && dt.day != now.day)) {
-      return 'Yesterday';
-    }
-    if (diff.inDays < 7) {
-      return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][dt.weekday - 1];
-    }
-    return '${_monthAbbr[dt.month - 1]} ${dt.day}';
-  }
-
-  static const _monthAbbr = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-  ];
 }
 
 /// Spec §2.7: Swipe quick action types.
@@ -653,7 +659,6 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   /// Spec §2.7: Drives Lottie draw-on animation proportional to swipe progress.
   late final AnimationController _lottieController;
   double _resetFrom = 0.0;
-  bool _committed = false;
 
   /// Spec §2.7: Track whether we've already fired haptic for this gesture.
   /// Fires once on threshold crossing, resets on drag end/cancel.
@@ -774,7 +779,6 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     _dragStartGlobal = null;
     final pastThreshold = _swipeProgress >= 1.0;
     if (pastThreshold) {
-      _committed = true;
       widget.onAction?.call();
     }
     _thresholdCrossed = false;
@@ -788,9 +792,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
       durationMs = 200;
     }
     _resetController.duration = Duration(milliseconds: durationMs);
-    _resetController.forward(from: 0.0).then((_) {
-      _committed = false;
-    });
+    _resetController.forward(from: 0.0);
   }
 
   void _onDragCancel() {
@@ -1055,7 +1057,7 @@ class _ChatAvatar extends StatelessWidget {
     final photoSize = _hasStories ? storyPhotoSize : size;
 
     // §25.15.4: dynamic avatar corner radius from AyuGram prefs.
-    final avatarCorner = context.watch<AppState>().avatarCorners;
+    final avatarCorner = context.select((AppState s) => s.avatarCorners);
     final avatarRadius = photoSize / 2 * (avatarCorner / 23.0);
 
     final Widget avatar;
@@ -1072,6 +1074,8 @@ class _ChatAvatar extends StatelessWidget {
               File(chat.avatarPath),
               width: photoSize,
               height: photoSize,
+              cacheWidth: (photoSize * 2).toInt(),
+              cacheHeight: (photoSize * 2).toInt(),
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => _fallback(color, initials, photoSize, avatarRadius),
             ),
@@ -1315,9 +1319,9 @@ class _TypingDotsIndicator extends StatefulWidget {
       case 'upload_document':
         return 'sending file';
       case 'geo_location':
-        return 'typing';
+        return 'sending location';
       case 'choose_contact':
-        return 'typing';
+        return 'sending contact';
       case 'game_play':
         return 'playing game';
       case 'record_round':
@@ -2118,6 +2122,10 @@ class ForumChatListRow extends StatelessWidget {
     }
 
     if (isNarrow) {
+      final badgeBg = isActive
+          ? (chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive)
+          : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg);
+      final badgeText = isActive ? palette.dialogsUnreadFgActive : palette.dialogsUnreadFg;
       return Container(
         color: rowBg,
         child: Material(
@@ -2127,12 +2135,43 @@ class ForumChatListRow extends StatelessWidget {
             child: SizedBox(
               height: effectiveHeight,
               child: Center(
-                child: _ChatAvatar(
-                  chat: chat,
-                  size: _avatarSize,
-                  isOnline: false,
-                  minified: true,
-                  onStoryTap: onStoryTap,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    _ChatAvatar(
+                      chat: chat,
+                      size: _avatarSize,
+                      isOnline: false,
+                      minified: true,
+                      onStoryTap: onStoryTap,
+                    ),
+                    if (chat.unreadCount > 0)
+                      Positioned(
+                        right: -4,
+                        bottom: -4,
+                        child: _UnreadBadge(
+                          count: chat.unreadCount,
+                          bgColor: badgeBg,
+                          textColor: badgeText,
+                        ),
+                      )
+                    else if (chat.isUnreadMark)
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: _UnreadDot(bgColor: badgeBg),
+                      ),
+                    if (chat.unreadMentionCount > 0)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: _ThreeStateBadgeIcon(
+                          icon: Icons.alternate_email,
+                          color: badgeBg,
+                          isNarrow: true,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -2198,7 +2237,7 @@ class ForumChatListRow extends StatelessWidget {
                             ],
                             const SizedBox(width: 5),
                             Text(
-                              _formatTime(chat.lastMsgTime),
+                              formatChatListTime(chat.lastMsgTime),
                               style: TextStyle(
                                 fontSize: 13,
                                 color: isActive ? palette.dialogsTextFgActive : palette.dialogsDateFg,
@@ -2288,23 +2327,6 @@ class ForumChatListRow extends StatelessWidget {
     return null;
   }
 
-  static String _formatTime(int timestampMs) {
-    if (timestampMs == 0) return '';
-    final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inDays == 0 && dt.day == now.day) {
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    }
-    if (diff.inDays == 1 || (diff.inDays == 0 && dt.day != now.day)) {
-      return 'Yesterday';
-    }
-    if (diff.inDays < 7) {
-      return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][dt.weekday - 1];
-    }
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${months[dt.month - 1]} ${dt.day}';
-  }
 }
 
 /// §22.4: Horizontal row of up to 8 recent topic names. Unread topics bold.
@@ -2327,43 +2349,39 @@ class _TopicsPreview extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final children = <InlineSpan>[];
-        for (var i = 0; i < topics.length; i++) {
-          final topic = topics[i];
-          final hasUnread = topic.unreadCount > 0;
-          if (i > 0) {
-            children.add(const WidgetSpan(child: SizedBox(width: _topicsSkip)));
-          }
-          children.add(WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: topic.isGeneral
-                ? const GeneralForumTopicIcon(size: ForumTopicIcon.defaultSize)
-                : ForumTopicIcon(
-                    colorId: topic.colorId,
-                    title: topic.title,
-                    size: ForumTopicIcon.defaultSize,
-                  ),
-          ));
-          children.add(const WidgetSpan(child: SizedBox(width: 3)));
-          children.add(TextSpan(
-            text: topic.isGeneral ? '# ${topic.title}' : topic.title,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
-              color: isActive
-                  ? palette.dialogsTextFgActive
-                  : (hasUnread ? palette.dialogsNameFg : palette.dialogsTextFg),
-            ),
-          ));
-        }
-        return Text.rich(
-          TextSpan(children: children),
-          maxLines: 1,
-          overflow: TextOverflow.clip,
-        );
-      },
+    final children = <InlineSpan>[];
+    for (var i = 0; i < topics.length; i++) {
+      final topic = topics[i];
+      final hasUnread = topic.unreadCount > 0;
+      if (i > 0) {
+        children.add(const WidgetSpan(child: SizedBox(width: _topicsSkip)));
+      }
+      children.add(WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: topic.isGeneral
+            ? const GeneralForumTopicIcon(size: ForumTopicIcon.defaultSize)
+            : ForumTopicIcon(
+                colorId: topic.colorId,
+                title: topic.title,
+                size: ForumTopicIcon.defaultSize,
+              ),
+      ));
+      children.add(const WidgetSpan(child: SizedBox(width: 3)));
+      children.add(TextSpan(
+        text: topic.isGeneral ? '# ${topic.title}' : topic.title,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+          color: isActive
+              ? palette.dialogsTextFgActive
+              : (hasUnread ? palette.dialogsNameFg : palette.dialogsTextFg),
+        ),
+      ));
+    }
+    return Text.rich(
+      TextSpan(children: children),
+      maxLines: 1,
+      overflow: TextOverflow.clip,
     );
   }
 }
