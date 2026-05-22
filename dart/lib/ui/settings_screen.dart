@@ -942,6 +942,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     final accountId = appState.activeAccountId;
 
     List<StickerInfoItem> stickerItems = [];
+    Map<int, Uint8List> decodedThumbs = {};
     bool loading = true;
     bool loadTriggered = false;
 
@@ -970,8 +971,17 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
             loadTriggered = true;
             loadEmojis().then((items) {
               if (ctx.mounted) {
+                final thumbs = <int, Uint8List>{};
+                for (int i = 0; i < items.length; i++) {
+                  if (items[i].thumbB64.isNotEmpty) {
+                    try {
+                      thumbs[i] = base64Decode(items[i].thumbB64);
+                    } catch (_) {}
+                  }
+                }
                 setDialogState(() {
                   stickerItems = items;
+                  decodedThumbs = thumbs;
                   loading = false;
                 });
               }
@@ -1036,9 +1046,9 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: hasThumb
+                                child: decodedThumbs.containsKey(i)
                                     ? Image.memory(
-                                        base64Decode(s.thumbB64),
+                                        decodedThumbs[i]!,
                                         fit: BoxFit.contain,
                                       )
                                     : Center(
@@ -1093,6 +1103,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
 
     int selectedDuration = 0;
     List<StickerInfoItem> stickerItems = [];
+    Map<int, Uint8List> decodedStatusThumbs = {};
     bool loading = true;
     bool loadTriggered = false;
 
@@ -1121,8 +1132,17 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
             loadTriggered = true;
             loadEmojiStickers().then((items) {
               if (ctx.mounted) {
+                final thumbs = <int, Uint8List>{};
+                for (int i = 0; i < items.length; i++) {
+                  if (items[i].thumbB64.isNotEmpty) {
+                    try {
+                      thumbs[i] = _decodeStrippedThumb(items[i].thumbB64);
+                    } catch (_) {}
+                  }
+                }
                 setDialogState(() {
                   stickerItems = items;
+                  decodedStatusThumbs = thumbs;
                   loading = false;
                 });
               }
@@ -1188,7 +1208,14 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                           borderRadius: BorderRadius.circular(6),
                           child: Padding(
                             padding: const EdgeInsets.all(2),
-                            child: _buildStickerThumb(item),
+                            child: decodedStatusThumbs.containsKey(i)
+                                ? Image.memory(
+                                    decodedStatusThumbs[i]!,
+                                    fit: BoxFit.contain,
+                                    gaplessPlayback: true,
+                                    errorBuilder: (_, __, ___) => _emojiTextFallback(item.emoji),
+                                  )
+                                : _emojiTextFallback(item.emoji),
                           ),
                         );
                       },
@@ -1711,7 +1738,7 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection>
           alignment: Alignment.topLeft,
           child: SizedBox(
             width: previewWidth / scaleFactor - 24 / scaleFactor,
-            child: _ScalePreviewContent(
+            child: RepaintBoundary(child: _ScalePreviewContent(
               isDark: isDark,
               bubbleBg: bubbleBg,
               incomingBg: incomingBg,
@@ -1722,7 +1749,7 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection>
               replyBg: replyBg,
               maxBubbleWidth: (previewWidth / scaleFactor - 24 / scaleFactor) * 0.75,
               appState: widget.appState,
-            ),
+            )),
           ),
         ),
       ),
@@ -2140,6 +2167,7 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
       engine.getAudioDevices(accountId, 'capture'),
       engine.getAudioDevices(accountId, 'camera'),
       engine.getPrivacySetting(accountId, 'phone_p2p'),
+      engine.getCallsDisabledHere(accountId),
     ]);
 
     if (!mounted) return;
@@ -2147,6 +2175,7 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
     final inputDevs = results[1] as List<String>;
     final cameraDevs = results[2] as List<String>;
     final p2pSetting = results[3] as Map<String, dynamic>?;
+    final callsDisabled = results[4] as bool;
 
     setState(() {
       _outputDevices = outputDevs.isNotEmpty ? outputDevs : ['Default'];
@@ -2157,6 +2186,8 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
       _selectedCamera = cameraDevs.isNotEmpty ? cameraDevs.first : 'Default';
       final opt = p2pSetting?['option'] as String? ?? 'contacts';
       _p2pOption = opt;
+      _callsDisabled = callsDisabled;
+      _sameDevice = appState.callSameDevice;
       _loading = false;
     });
   }
@@ -2282,6 +2313,7 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
             final val = !_sameDevice;
             setState(() => _sameDevice = val);
             final appState = context.read<AppState>();
+            appState.setCallSameDevice(val);
             final engine = context.read<EngineService>();
             final accountId = appState.activeAccountId;
             if (val) {
@@ -2305,6 +2337,7 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
                     onChanged: (v) async {
                       setState(() => _sameDevice = v);
                       final appState = context.read<AppState>();
+                      appState.setCallSameDevice(v);
                       final engine = context.read<EngineService>();
                       final accountId = appState.activeAccountId;
                       if (v) {
@@ -3379,12 +3412,17 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('Cancel', style: TextStyle(color: subtextColor))),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               if (shortcutCtrl.text.isNotEmpty && messageCtrl.text.isNotEmpty) {
                 final replies = List<dynamic>.from(_data['replies'] as List<dynamic>? ?? []);
                 replies.add({'shortcut': shortcutCtrl.text, 'message': messageCtrl.text});
                 setState(() => _data['replies'] = replies);
                 Navigator.of(ctx).pop();
+                final engine = context.read<EngineService>();
+                try {
+                  await engine.setBusinessFeature(widget.accountId, widget.featureKey, Map<String, dynamic>.from(_data));
+                  await _loadData();
+                } catch (_) {}
               }
             },
             child: Text('Add', style: TextStyle(color: accentColor)),
@@ -3567,6 +3605,7 @@ class _GiftCatalogScreen extends StatefulWidget {
 
 class _GiftCatalogScreenState extends State<_GiftCatalogScreen> {
   List<StarGiftItem> _gifts = [];
+  Map<int, Uint8List> _decodedThumbs = {};
   bool _loading = true;
 
   @override
@@ -3579,8 +3618,18 @@ class _GiftCatalogScreenState extends State<_GiftCatalogScreen> {
     final engine = context.read<EngineService>();
     final result = await engine.getStarGifts(widget.accountId);
     if (mounted) {
+      final gifts = result?.gifts ?? [];
+      final thumbs = <int, Uint8List>{};
+      for (int i = 0; i < gifts.length; i++) {
+        if (gifts[i].thumbB64.isNotEmpty) {
+          try {
+            thumbs[i] = base64Decode(gifts[i].thumbB64);
+          } catch (_) {}
+        }
+      }
       setState(() {
-        _gifts = result?.gifts ?? [];
+        _gifts = gifts;
+        _decodedThumbs = thumbs;
         _loading = false;
       });
     }
@@ -3726,9 +3775,9 @@ class _GiftCatalogScreenState extends State<_GiftCatalogScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            if (gift.thumbB64.isNotEmpty)
+                            if (_decodedThumbs.containsKey(i))
                               Image.memory(
-                                base64Decode(gift.thumbB64),
+                                _decodedThumbs[i]!,
                                 width: 60,
                                 height: 60,
                                 fit: BoxFit.contain,

@@ -194,6 +194,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String _selectedProxyType = ''; // e.g. 'SOCKS5', 'HTTP', 'MTPROTO'
   bool _proxyIpv6 = false;
   bool _proxyForCalls = false;
+  bool _callSameDevice = false;
   bool _proxyRotationEnabled = false;
   int _proxyRotationTimeout = 60;
   List<Map<String, dynamic>> _proxyList = [];
@@ -526,6 +527,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String get selectedProxyType => _selectedProxyType;
   bool get proxyIpv6 => _proxyIpv6;
   bool get proxyForCalls => _proxyForCalls;
+  bool get callSameDevice => _callSameDevice;
   bool get proxyRotationEnabled => _proxyRotationEnabled;
   int get proxyRotationTimeout => _proxyRotationTimeout;
   List<Map<String, dynamic>> get proxyList => List.unmodifiable(_proxyList);
@@ -2136,6 +2138,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _syncProxyToEngine();
   }
 
+  void setCallSameDevice(bool v) {
+    if (_callSameDevice == v) return;
+    _callSameDevice = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
   void setProxyRotationEnabled(bool v) {
     if (_proxyRotationEnabled == v) return;
     _proxyRotationEnabled = v;
@@ -3236,6 +3245,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _selectedProxyType = data['selectedProxyType'] as String? ?? '';
       _proxyIpv6 = data['proxyIpv6'] as bool? ?? false;
       _proxyForCalls = data['proxyForCalls'] as bool? ?? false;
+      _callSameDevice = data['callSameDevice'] as bool? ?? false;
       _proxyRotationEnabled = data['proxyRotationEnabled'] as bool? ?? false;
       _proxyRotationTimeout = data['proxyRotationTimeout'] as int? ?? 60;
       final pList = data['proxyList'] as List<dynamic>?;
@@ -3530,6 +3540,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'selectedProxyType': _selectedProxyType,
         'proxyIpv6': _proxyIpv6,
         'proxyForCalls': _proxyForCalls,
+        'callSameDevice': _callSameDevice,
         'proxyRotationEnabled': _proxyRotationEnabled,
         'proxyRotationTimeout': _proxyRotationTimeout,
         'proxyList': _proxyList,
