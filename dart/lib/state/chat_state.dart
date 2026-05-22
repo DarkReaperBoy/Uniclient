@@ -1221,6 +1221,12 @@ class ChatState extends ChangeNotifier {
     await refreshForumTopics();
   }
 
+  Future<void> deleteForumTopic(String accountId, String chatId, int topicId) async {
+    await _engine.deleteForumTopicHistory(accountId, chatId, topicId);
+    _forumTopics.removeWhere((t) => t.id == topicId.toString());
+    notifyListeners();
+  }
+
   void closeForum() {
     _forumParentChat = null;
     _forumTopics = [];
@@ -2058,7 +2064,7 @@ class ChatState extends ChangeNotifier {
     return _engine.searchGlobalPosts(accountId, query, limit: limit);
   }
 
-  List<SearchResult> searchGlobalPostMessages(String accountId, String query, {int limit = 20}) {
+  Future<List<SearchResult>> searchGlobalPostMessages(String accountId, String query, {int limit = 20}) {
     return _engine.searchGlobalPostMessages(accountId, query, limit: limit);
   }
 

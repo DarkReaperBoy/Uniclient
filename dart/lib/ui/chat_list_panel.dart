@@ -244,11 +244,19 @@ class _ChatListPanelState extends State<ChatListPanel>
   }
 
   String _lastControllerText = '';
+  Timer? _searchDebounce;
   void _onControllerChanged() {
     final text = _searchController.text;
     if (text == _lastControllerText) return;
     _lastControllerText = text;
-    _onSearchChanged(text);
+    _searchDebounce?.cancel();
+    if (text.isEmpty) {
+      _onSearchChanged(text);
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      _onSearchChanged(text);
+    });
   }
 
   /// Jump to first or last visible chat. Uses the same sorted, non-archived,
@@ -501,6 +509,7 @@ class _ChatListPanelState extends State<ChatListPanel>
     _reorderOverlay?.remove();
     _reorderOverlay = null;
     _forwardHoverTimer?.cancel();
+    _searchDebounce?.cancel();
     _searchController.removeListener(_onControllerChanged);
     _searchController.dispose();
     _searchFocus.dispose();
@@ -529,7 +538,7 @@ class _ChatListPanelState extends State<ChatListPanel>
     if (!mounted) return;
     final List<SearchResult> rawMsgs;
     if (_activeSearchTab == _SearchTab.publicPosts) {
-      rawMsgs = chatState.searchGlobalPostMessages(appState.activeAccountId, query);
+      rawMsgs = await chatState.searchGlobalPostMessages(appState.activeAccountId, query);
     } else {
       rawMsgs = await chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId, topicId: topicId);
     }
@@ -604,7 +613,7 @@ class _ChatListPanelState extends State<ChatListPanel>
       if (!mounted) return;
       final List<SearchResult> rawMsgs;
       if (_activeSearchTab == _SearchTab.publicPosts) {
-        rawMsgs = chatState.searchGlobalPostMessages(appState.activeAccountId, query);
+        rawMsgs = await chatState.searchGlobalPostMessages(appState.activeAccountId, query);
       } else {
         rawMsgs = await chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId);
       }
@@ -630,7 +639,7 @@ class _ChatListPanelState extends State<ChatListPanel>
       if (!mounted) return;
       final List<SearchResult> rawMsgs;
       if (tab == _SearchTab.publicPosts) {
-        rawMsgs = chatState.searchGlobalPostMessages(appState.activeAccountId, query);
+        rawMsgs = await chatState.searchGlobalPostMessages(appState.activeAccountId, query);
       } else {
         rawMsgs = await chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId);
       }
@@ -2829,7 +2838,6 @@ class _StoriesBarState extends State<_StoriesBar>
   void setExpanded(bool v) => _setExpanded(v);
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
-  Timer? _storyRefreshTimer;
 
   @override
   void initState() {
@@ -2843,16 +2851,10 @@ class _StoriesBarState extends State<_StoriesBar>
       parent: _expandController,
       curve: Curves.easeOutCubic,
     );
-    _storyRefreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      if (mounted) {
-        context.read<ChatState>().loadChats();
-      }
-    });
   }
 
   @override
   void dispose() {
-    _storyRefreshTimer?.cancel();
     _expandController.dispose();
     super.dispose();
   }
@@ -3086,44 +3088,42 @@ class _StoriesBarState extends State<_StoriesBar>
           );
         }
         final chat = peers[index - 1];
-        final opacity =
-            chat.hasUnreadStory ? 1.0 : _readOpacity;
-        return Opacity(
-          opacity: opacity,
-          child: SizedBox(
-            width: _fullItemWidth,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 9),
-                _StoryAvatar(
-                  chat: chat,
-                  size: _fullPhoto,
-                  ringWidth: chat.hasUnreadStory
-                      ? _unreadLineFull
-                      : _readLineFull,
-                  hasUnread: chat.hasUnreadStory,
-                  isDark: widget.isDark,
-                  onTap: () => widget.onStoryTap(chat),
-                ),
-                const SizedBox(height: 3),
-                SizedBox(
-                  width: _fullItemWidth - 4,
-                  child: Text(
-                    chat.title.split(RegExp(r'\s+')).first,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: widget.isDark
-                          ? const Color(0xFFaaaaaa)
-                          : const Color(0xFF666666),
-                    ),
+        final isRead = !chat.hasUnreadStory;
+        final nameColor = widget.isDark
+            ? const Color(0xFFaaaaaa)
+            : const Color(0xFF666666);
+        return SizedBox(
+          width: _fullItemWidth,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 9),
+              _StoryAvatar(
+                chat: chat,
+                size: _fullPhoto,
+                ringWidth: chat.hasUnreadStory
+                    ? _unreadLineFull
+                    : _readLineFull,
+                hasUnread: chat.hasUnreadStory,
+                isDark: widget.isDark,
+                onTap: () => widget.onStoryTap(chat),
+                opacity: isRead ? _readOpacity : 1.0,
+              ),
+              const SizedBox(height: 3),
+              SizedBox(
+                width: _fullItemWidth - 4,
+                child: Text(
+                  chat.title.split(RegExp(r'\s+')).first,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isRead ? nameColor.withValues(alpha: _readOpacity) : nameColor,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -3138,6 +3138,7 @@ class _StoryAvatar extends StatelessWidget {
   final bool hasUnread;
   final bool isDark;
   final VoidCallback onTap;
+  final double opacity;
 
   const _StoryAvatar({
     required this.chat,
@@ -3146,6 +3147,7 @@ class _StoryAvatar extends StatelessWidget {
     required this.hasUnread,
     required this.isDark,
     required this.onTap,
+    this.opacity = 1.0,
   });
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
@@ -3182,6 +3184,7 @@ class _StoryAvatar extends StatelessWidget {
                         width: size,
                         height: size,
                         fit: BoxFit.cover,
+                        opacity: opacity < 1.0 ? AlwaysStoppedAnimation(opacity) : null,
                         errorBuilder: (_, __, ___) =>
                             _fallbackAvatar(palette),
                       ),
@@ -4090,15 +4093,15 @@ class _ArchivedChatsRowState extends State<_ArchivedChatsRow> {
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 26,
+            height: 26,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: palette.dialogsBgOver,
             ),
             child: Icon(
               Icons.archive_outlined,
-              size: 22,
+              size: 16,
               color: palette.historyPeerUserpicFg,
             ),
           ),
@@ -5608,8 +5611,7 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
         );
         if (r.confirmed) {
           try {
-            await widget.chatState.deleteForumTopicHistory(widget.accountId, widget.chatId, topicId);
-            await widget.chatState.refreshForumTopics();
+            await widget.chatState.deleteForumTopic(widget.accountId, widget.chatId, topicId);
           } catch (e) {
             if (ctx.mounted) {
               showTelegramToast(ctx, 'Failed: $e');
@@ -6199,6 +6201,7 @@ class _SavedSublistsViewState extends State<_SavedSublistsView> {
                           return _SavedSublistRow(
                             sublist: sub,
                             isDark: isDark,
+                            tags: chatState.savedReactionTags,
                             onTap: () {
                               chatState.openSavedSublist(sub);
                             },
