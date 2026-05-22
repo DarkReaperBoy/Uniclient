@@ -124,6 +124,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   VideoController? _videoController;
   String _statusText = '';
   int _liveMemberCount = 0;
+  final List<TapGestureRecognizer> _linkRecognizers = [];
   StreamSubscription<UserStatusEvent>? _statusSub;
   StreamSubscription<ChatInfo>? _chatUpdateSub;
   String? _currentPhotoPath;
@@ -237,6 +238,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     _durationSub?.cancel();
     _bufferingSub?.cancel();
     _disposeVideoPlayer();
+    _disposeLinkRecognizers();
     _scrollController.dispose();
     _scrollNotifier.dispose();
     _focusNode.dispose();
@@ -519,12 +521,16 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
 
     Widget staticImage;
     if (hasAvatar) {
+      final dpr = MediaQuery.of(context).devicePixelRatio;
+      final cacheExtent = (_kCoverSize * dpr).round();
       staticImage = Image.file(
         File(photoPath),
         key: ValueKey(photoPath),
         fit: BoxFit.cover,
         width: _kCoverSize,
         height: _kCoverSize,
+        cacheWidth: cacheExtent,
+        cacheHeight: cacheExtent,
         errorBuilder: (_, __, ___) => Container(color: Colors.black),
       );
     } else {
@@ -942,8 +948,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     VoidCallback? onTap,
     bool parseEntities = false,
   }) {
-    final displayValue =
-        multiLine ? value : value.replaceAll(' ', ' ');
+    final displayValue = value;
 
     Widget valueWidget;
     if (parseEntities) {
@@ -1040,10 +1045,18 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     return content;
   }
 
+  void _disposeLinkRecognizers() {
+    for (final r in _linkRecognizers) {
+      r.dispose();
+    }
+    _linkRecognizers.clear();
+  }
+
   TextSpan _parseTextWithEntities(
       String text, Color defaultColor, Color linkColor) {
+    _disposeLinkRecognizers();
     final urlRegex = RegExp(
-        r'(https?://[^\s<>\)\]]+)|(@\w+)|(#\w+)',
+        r'(https?://[^\s<>\)\]]+)|(@\w+)',
         caseSensitive: false);
     final matches = urlRegex.allMatches(text).toList();
     if (matches.isEmpty) {
@@ -1062,20 +1075,20 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         ));
       }
       final matchText = m.group(0)!;
+      final recognizer = TapGestureRecognizer()
+        ..onTap = () {
+          String url = matchText;
+          if (matchText.startsWith('@')) {
+            url = 'https://t.me/${matchText.substring(1)}';
+          }
+          launchUrl(Uri.parse(url),
+              mode: LaunchMode.externalApplication);
+        };
+      _linkRecognizers.add(recognizer);
       spans.add(TextSpan(
         text: matchText,
         style: TextStyle(color: linkColor, fontSize: 14),
-        recognizer: TapGestureRecognizer()
-          ..onTap = () {
-            String url = matchText;
-            if (matchText.startsWith('@')) {
-              url = 'https://t.me/${matchText.substring(1)}';
-            } else if (matchText.startsWith('#')) {
-              return;
-            }
-            launchUrl(Uri.parse(url),
-                mode: LaunchMode.externalApplication);
-          },
+        recognizer: recognizer,
       ));
       lastEnd = m.end;
     }
@@ -1251,18 +1264,25 @@ class _PhotoProgressBarsPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (count <= 1) return;
-    final available = size.width - gap * (count - 1);
+    var effectiveGap = gap;
+    var available = size.width - effectiveGap * (count - 1);
+    var barWidth = available / count;
+    if (barWidth < size.height) {
+      effectiveGap = (effectiveGap * barWidth / size.height).clamp(0.5, gap);
+      available = size.width - effectiveGap * (count - 1);
+      barWidth = available / count;
+      if (barWidth < 1.0) return;
+    }
     final smallWidth = available.floor() ~/ count;
-    if (smallWidth < size.height.toInt()) return;
     final largeWidth = smallWidth + 1;
     final single = available / count;
     final radius = Radius.circular(size.height / 2);
     for (int i = 0; i < count; i++) {
-      final left = i * (single + gap);
+      final left = i * (single + effectiveGap);
       final right = left + single;
       final x = left.roundToDouble();
       final isSmall = right.round() == left.round() + smallWidth;
-      final barW = (isSmall ? smallWidth : largeWidth).toDouble();
+      final barW = (isSmall ? smallWidth : largeWidth).toDouble().clamp(1.0, double.infinity);
       final isActive = i == activeIndex;
       final bgPaint = Paint()
         ..color = barColor.withValues(alpha: inactiveOpacity)
