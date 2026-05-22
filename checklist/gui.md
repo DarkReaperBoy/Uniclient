@@ -223,24 +223,6 @@ One blocking bug: `_TiledImage` won't render because async decode doesn't trigge
 
 ## privacy_settings_screen — cleanup
 
-## reactions_detail — cleanup
-
-- [ ] [CRITICAL] `_onTabSelected` line 361 — condition `!isReadTab && _masterReactors.isNotEmpty` fires for both the "All" tab (`tab == null`) AND any specific-emoji tab. For a specific emoji it sets `_allReactors = _masterReactors` (the first-page all-reactions data) and returns early, so `_filteredReactors` local-filters that incomplete set instead of fetching the emoji-specific list. If there are 50 😂 reactors but only 3 appear in the first 20 "All" results, the 😂 tab shows 3. Fix: guard should be `tab == null && _masterReactors.isNotEmpty` — `reactions_detail.dart:361`
-
-- [ ] [CRITICAL] `_loadReactors` line 254 — same root cause: `if (_selectedTab != null && _masterReactors.isNotEmpty)` reuses master data for specific-emoji tabs, setting `_allReactors = _masterReactors` and `_nextOffset = _masterNextOffset` (an all-reactions cursor, not an emoji-specific cursor). Subsequent `_loadMore` calls use the all-reactions offset and will miss later pages of the specific emoji. Fix: this branch should only fire when `_selectedTab == null` — `reactions_detail.dart:254`
-
-- [ ] [CRITICAL] DM read tab shows `"User ${participant.userId}"` instead of the peer's name — `_fetchReadInfo` for DM creates `ReadParticipantInfo(userId: widget.message.chatId, date: result.date)` at line 179 with no `name` field, so `_ReadParticipantRow` line 934 always falls back to the literal `'User ${participant.userId}'` string. Need to resolve the peer name from AppState/chat list (or a `GetUserInfo` engine call) before building the `ReadParticipantInfo` — `reactions_detail.dart:179`
-
-- [ ] [MAJOR] `_groupedByEmoji` getter (line 328) and `_filteredReactors` getter (line 336) are both called inside `build()` (lines 426–428) and recompute from scratch on every rebuild — `_groupedByEmoji` builds a full `Map` by iterating all reactors, `_filteredReactors` allocates a new filtered list. Cache both as computed state fields; invalidate in `setState` calls that modify `_allReactors` or `_selectedTab` — `reactions_detail.dart:328`
-
-- [ ] [MAJOR] `Image.file` at line 1088 loads full-resolution avatar photo with no `cacheWidth`/`cacheHeight`; every `_ReactorAvatar` (46 logical px, so ~92px on 2× display) decodes the full image into memory. Add `cacheWidth: (widget.size * 2).toInt(), cacheHeight: (widget.size * 2).toInt()` — `reactions_detail.dart:1088`
-
-- [ ] [MAJOR] `_InlineCustomEmoji._onCacheUpdate` (line 1352) calls `setState(() {})` unconditionally on every global cache event regardless of whether this widget's `documentId` changed. With N custom-emoji widgets open simultaneously, any single cache write triggers N rebuilds. Guard: only call `setState` when `cache.getFile(widget.documentId) != null || cache.getThumb(widget.documentId) != null` changed since last render — `reactions_detail.dart:1352`
-
-- [ ] [MAJOR] `_LoadingPlaceholder.build` (line 1239) uses `AnimatedBuilder` that rebuilds the entire `Column(3 rows)` subtree on every animation tick (~60fps). Wrap the `AnimatedBuilder`'s child in `RepaintBoundary` to isolate animation repaints from the parent widget tree — `reactions_detail.dart:1239`
-
-- [ ] [MAJOR] Dead variable `wasReadTab` declared at line 359 but never referenced. Remove it — `reactions_detail.dart:359`
-
 # send_files_box — cleanup
 
 ## CRITICAL
