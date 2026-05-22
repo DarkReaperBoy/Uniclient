@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
 import 'custom_emoji_cache.dart';
 import 'info_panel.dart';
@@ -122,6 +123,8 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   ReadPrivacyState _privacyState = ReadPrivacyState.none;
   StreamSubscription<MsgEditedEvent>? _editSub;
   StreamSubscription<MsgStatusEvent>? _statusSub;
+  Map<String, List<ReactorInfo>>? _cachedGroupedByEmoji;
+  List<ReactorInfo>? _cachedFilteredReactors;
 
   @override
   void initState() {
@@ -160,6 +163,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
               .where((id) => id.isNotEmpty)
               .toSet();
         });
+        _invalidateCachedReactorData();
       }
     } catch (_) {}
   }
@@ -175,10 +179,15 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
         if (!mounted) return;
         _cachedPrivacyState = result.privacyState;
         if (result.date > 0) {
+          final chatState = context.read<ChatState>();
+          final peerChat = chatState.chats
+              .where((c) => c.chatId == widget.message.chatId)
+              .firstOrNull;
           _cachedReadParticipants = [
             ReadParticipantInfo(
               userId: widget.message.chatId,
               date: result.date,
+              name: peerChat?.title ?? '',
             ),
           ];
           setState(() => _readCount = 1);
@@ -251,12 +260,13 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
       }
       return;
     }
-    if (_selectedTab != null && _masterReactors.isNotEmpty) {
+    if (_selectedTab == null && _masterReactors.isNotEmpty) {
       setState(() {
         _allReactors = _masterReactors;
         _nextOffset = _masterNextOffset;
         _loading = false;
       });
+      _invalidateCachedReactorData();
       return;
     }
     try {
@@ -274,6 +284,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
           _masterReactors = List.of(result.reactors);
           _masterNextOffset = result.nextOffset;
         }
+        _invalidateCachedReactorData();
         setState(() {
           _allReactors = result.reactors;
           _nextOffset = result.nextOffset;
@@ -312,6 +323,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
           _masterReactors.addAll(newMaster);
           _masterNextOffset = result.nextOffset;
         }
+        _invalidateCachedReactorData();
         setState(() {
           final existingAll = _allReactors.map((r) => '${r.peerId}:${r.reactionKey}').toSet();
           final newAll = result.reactors.where((r) => !existingAll.contains('${r.peerId}:${r.reactionKey}')).toList();
@@ -325,15 +337,23 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
     }
   }
 
+  void _invalidateCachedReactorData() {
+    _cachedGroupedByEmoji = null;
+    _cachedFilteredReactors = null;
+  }
+
   Map<String, List<ReactorInfo>> get _groupedByEmoji {
+    if (_cachedGroupedByEmoji != null) return _cachedGroupedByEmoji!;
     final map = <String, List<ReactorInfo>>{};
     for (final r in _allReactors) {
       map.putIfAbsent(r.reactionKey, () => []).add(r);
     }
+    _cachedGroupedByEmoji = map;
     return map;
   }
 
   List<ReactorInfo> get _filteredReactors {
+    if (_cachedFilteredReactors != null) return _cachedFilteredReactors!;
     List<ReactorInfo> base;
     if (_selectedTab == null) {
       base = _allReactors;
@@ -342,8 +362,11 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
     } else {
       base = _allReactors.where((r) => r.reactionKey == _selectedTab).toList();
     }
-    if (_blockedIds.isEmpty) return base;
-    return base.where((r) => !_blockedIds.contains(r.peerId)).toList();
+    final result = _blockedIds.isEmpty
+        ? base
+        : base.where((r) => !_blockedIds.contains(r.peerId)).toList();
+    _cachedFilteredReactors = result;
+    return result;
   }
 
   List<ReadParticipantInfo> get _filteredReadParticipants {
@@ -356,19 +379,20 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   void _onTabSelected(String? tab) {
     if (tab == _selectedTab) return;
     final isReadTab = tab == _ReactionTabBar.kReadTab;
-    final wasReadTab = _selectedTab == _ReactionTabBar.kReadTab;
 
-    if (!isReadTab && _masterReactors.isNotEmpty) {
+    if (tab == null && _masterReactors.isNotEmpty) {
       setState(() {
         _selectedTab = tab;
         _allReactors = _masterReactors;
         _nextOffset = _masterNextOffset;
         _loading = false;
       });
+      _invalidateCachedReactorData();
       return;
     }
 
     if (isReadTab && _cachedReadParticipants.isNotEmpty) {
+      _invalidateCachedReactorData();
       setState(() {
         _selectedTab = tab;
         _readParticipants = _cachedReadParticipants;
@@ -378,6 +402,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
       return;
     }
 
+    _invalidateCachedReactorData();
     setState(() {
       _selectedTab = tab;
       if (isReadTab) {
@@ -1083,11 +1108,14 @@ class _ReactorAvatarState extends State<_ReactorAvatar> {
     final color = palette.peerUserpicBg(_colorRemap[widget.name.hashCode.abs() % 7]);
 
     if (_loaded && _photoPath != null && _photoPath!.isNotEmpty) {
+      final cacheSize = (widget.size * 2).toInt();
       return ClipOval(
         child: Image.file(
           File(_photoPath!),
           width: widget.size,
           height: widget.size,
+          cacheWidth: cacheSize,
+          cacheHeight: cacheSize,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _fallback(initial, color),
         ),
@@ -1236,55 +1264,57 @@ class _LoadingPlaceholderState extends State<_LoadingPlaceholder>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (ctx, _) {
-        final t = _ctrl.value;
-        final pulse = t < 0.5 ? t * 2 : (1 - t) * 2;
-        final baseColor = widget.palette.windowFg.withValues(alpha: 0.06);
-        final highlightColor = widget.palette.windowFg.withValues(alpha: 0.14);
-        final c = Color.lerp(baseColor, highlightColor, pulse)!;
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (ctx, _) {
+          final t = _ctrl.value;
+          final pulse = t < 0.5 ? t * 2 : (1 - t) * 2;
+          final baseColor = widget.palette.windowFg.withValues(alpha: 0.06);
+          final highlightColor = widget.palette.windowFg.withValues(alpha: 0.14);
+          final c = Color.lerp(baseColor, highlightColor, pulse)!;
 
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (i) => SizedBox(
-            height: 58,
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 12, top: 6,
-                  child: Container(
-                    width: 46, height: 46,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: c),
-                  ),
-                ),
-                Positioned(
-                  left: 68, top: 14,
-                  right: 40 + i * 20.0,
-                  child: Container(
-                    height: 12,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(6),
-                      color: c,
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(3, (i) => SizedBox(
+              height: 58,
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: 12, top: 6,
+                    child: Container(
+                      width: 46, height: 46,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: c),
                     ),
                   ),
-                ),
-                Positioned(
-                  left: 68, top: 34,
-                  right: 80 + i * 30.0,
-                  child: Container(
-                    height: 10,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(5),
-                      color: c,
+                  Positioned(
+                    left: 68, top: 14,
+                    right: 40 + i * 20.0,
+                    child: Container(
+                      height: 12,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        color: c,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          )),
-        );
-      },
+                  Positioned(
+                    left: 68, top: 34,
+                    right: 80 + i * 30.0,
+                    child: Container(
+                      height: 10,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(5),
+                        color: c,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )),
+          );
+        },
+      ),
     );
   }
 }
@@ -1343,13 +1373,23 @@ class _InlineCustomEmojiState extends State<_InlineCustomEmoji>
     super.dispose();
   }
 
+  bool _hadFile = false;
+  bool _hadThumb = false;
+
   void _onCacheUpdate() {
     if (!mounted) return;
-    final file = CustomEmojiCache.instance.getFile(widget.documentId);
+    final cache = CustomEmojiCache.instance;
+    final file = cache.getFile(widget.documentId);
+    final hasFile = file != null;
+    final hasThumb = cache.getThumb(widget.documentId) != null;
     if (file != null && file.isTgs && _decompressedLottie == null) {
       _decompressLottie(file.fileData);
     }
-    setState(() {});
+    if (hasFile != _hadFile || hasThumb != _hadThumb) {
+      _hadFile = hasFile;
+      _hadThumb = hasThumb;
+      setState(() {});
+    }
   }
 
   void _requestIfNeeded() {
