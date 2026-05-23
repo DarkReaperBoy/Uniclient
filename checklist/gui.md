@@ -716,24 +716,6 @@ All numeric constants match AyuGram exactly:
 # create_giveaway_box — Audit findings
 
 
-## create_group_wizard — Setup channel step, noForwards, slowMode placement, invite link button, TTL box, megagroup labels
-
-- [ ] [CRITICAL] "Invite via Link" button in member picker only copies the link to clipboard; AyuGram's equivalent button opens EditPeerTypeBox so the user can manage the invite link properly — `create_group_wizard.dart:1434` ← `AyuGram/boxes/peers/add_participants_box.cpp:936`
-
-- [ ] [CRITICAL] noForwards ("Restrict Saving Content") toggle is hidden for channels in _EditPeerTypeBox (`if (!widget.isChannel)` gates the entire permissions block); AyuGram shows noForwards for both channels and groups unconditionally — `create_group_wizard.dart:3406` ← `AyuGram/boxes/peers/edit_peer_type_box.cpp:280`
-
-- [ ] [MAJOR] TTL auto-delete selection in the Info step title bar uses a PopupMenuButton dropdown; AyuGram opens a proper TTLBox (GenericBox with TimePickerBox, Save/Cancel buttons, Disable button when TTL is set) — `create_group_wizard.dart:1071` ← `AyuGram/boxes/add_contact_box.cpp:645` and `AyuGram/menu/menu_ttl.cpp:160`
-
-- [ ] [MAJOR] Wizard setupChannel step title for megagroup type is "Channel Type"; AyuGram's edit_peer_type_box title for megagroup (isGroup=true) is "Group Type" — `create_group_wizard.dart:1024` ← `AyuGram/boxes/peers/edit_peer_type_box.cpp:71`
-
-- [ ] [MAJOR] _buildSetupChannelStep shows hardcoded "Public Channel" / "Private Channel" radio labels for all wizard types including megagroup; AyuGram uses "Public Group" / "Private Group" for megagroup — `create_group_wizard.dart:1240` ← `AyuGram/boxes/peers/add_contact_box.cpp:984`
-
-- [ ] [MAJOR] _buildSetupChannelStep subtitle text "Anyone can find the channel and join" / "Only accessible via invite link" is hardcoded for channel for all types including megagroup; AyuGram shows group-specific text for megagroup ("Public groups can be found in search…" / "Private groups can only be joined if you were invited…") — `create_group_wizard.dart:1241` ← `AyuGram/boxes/peers/add_contact_box.cpp:1004`
-
-- [ ] [MAJOR] Slowmode slider is placed inside _EditPeerTypeBox alongside privacy/noForwards controls; AyuGram places slowmode exclusively in edit_peer_permissions_box, not in edit_peer_type_box — `create_group_wizard.dart:3042` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:782`
-
-- [ ] [MAJOR] createMegagroup engine call does not pass a TTL period; AyuGram sends `f_ttl_period` flag and the TTL value when creating a megagroup channel via MTPchannels_CreateChannel — `create_group_wizard.dart:770` ← `AyuGram/boxes/add_contact_box.cpp:836`
-
 # custom_emoji_cache — Audit findings
 
 ## Sources compared
