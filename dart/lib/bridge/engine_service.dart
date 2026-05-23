@@ -2298,6 +2298,24 @@ class EngineService {
     }
   }
 
+  Future<Map<String, double>> getGroupCallParticipantLevels(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetGroupCallParticipantLevels', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return {};
+      final result = json.decode(utf8.decode(respBytes));
+      if (result is Map<String, dynamic>) {
+        return result.map((k, v) => MapEntry(k, (v as num).toDouble().clamp(0.0, 1.0)));
+      }
+      return {};
+    } catch (_) {
+      return {};
+    }
+  }
+
   Future<void> leaveGroupCall(String accountId, String callId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

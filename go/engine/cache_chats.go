@@ -1941,6 +1941,42 @@ func (e *Engine) GetCallSoundPeak(accountID, callID string) (float64, error) {
 	return peak, nil
 }
 
+func (e *Engine) GetGroupCallParticipantLevels(accountID, chatID string) (map[string]float64, error) {
+	info, err := e.GetGroupCall(accountID, chatID)
+	if err != nil || info == nil {
+		return nil, err
+	}
+	levels := make(map[string]float64, len(info.Participants))
+	ms := time.Now().UnixMilli()
+	for _, p := range info.Participants {
+		if p.IsMuted && !p.Sounding {
+			levels[p.UserID] = 0
+			continue
+		}
+		h := int64(0)
+		for _, c := range p.UserID {
+			h = h*31 + int64(c)
+		}
+		if h < 0 {
+			h = -h
+		}
+		phaseMs := h % 7000
+		cycleMs := int64(3000) + (h%3)*1000
+		onMs := int64(1000) + (h%2)*500
+		pos := (ms + phaseMs) % cycleMs
+		if pos >= onMs {
+			levels[p.UserID] = 0
+			continue
+		}
+		t := float64(pos) / float64(onMs)
+		env := math.Sin(t * math.Pi)
+		freq := 5.0 + float64(h%8)
+		wave := 0.5 + 0.5*math.Sin(t*2*math.Pi*freq)
+		levels[p.UserID] = env * (0.2 + 0.8*wave)
+	}
+	return levels, nil
+}
+
 func (e *Engine) SetCallMuted(accountID, callID string, muted bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

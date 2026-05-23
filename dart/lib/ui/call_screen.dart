@@ -198,10 +198,34 @@ class _GroupCallPanelState extends State<GroupCallPanel>
       try {
         final engine = context.read<EngineService>();
         final accountId = context.read<AppState>().activeAccountId;
-        final level = await engine.getCallSoundPeak(accountId, callId);
-        if (mounted && (_selfAudioLevel - level).abs() > 0.01) {
-          setState(() => _selfAudioLevel = level);
+        final results = await Future.wait([
+          engine.getCallSoundPeak(accountId, callId),
+          engine.getGroupCallParticipantLevels(accountId, widget.info.chatId),
+        ]);
+        if (!mounted) return;
+        final level = results[0] as double;
+        final pLevels = results[1] as Map<String, double>;
+        bool needsRebuild = false;
+        if ((_selfAudioLevel - level).abs() > 0.01) {
+          _selfAudioLevel = level;
+          needsRebuild = true;
         }
+        if (pLevels.isNotEmpty) {
+          for (final entry in pLevels.entries) {
+            final old = _participantLevels[entry.key] ?? 0.0;
+            if ((old - entry.value).abs() > 0.01) {
+              needsRebuild = true;
+              break;
+            }
+          }
+          if (needsRebuild) {
+            _participantLevels = pLevels;
+            for (final entry in pLevels.entries) {
+              _participantSpeaking[entry.key] = entry.value > 0.01;
+            }
+          }
+        }
+        if (needsRebuild) setState(() {});
       } catch (_) {}
     });
   }
@@ -211,12 +235,6 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     _callStateSub = engine.onGroupCallState.listen((event) {
       if (!mounted) return;
       if (event.info.callId != widget.info.callId) return;
-      final newLevels = <String, double>{};
-      final newSpeaking = <String, bool>{};
-      for (final p in event.info.participants) {
-        newLevels[p.userId] = p.audioLevel;
-        newSpeaking[p.userId] = p.isSpeaking;
-      }
 
       final newRecording = event.info.isRecording;
       if (newRecording != _isRecording) {
@@ -233,8 +251,9 @@ class _GroupCallPanelState extends State<GroupCallPanel>
 
       if (mounted) {
         setState(() {
-          _participantLevels = newLevels;
-          _participantSpeaking = newSpeaking;
+          for (final p in event.info.participants) {
+            _participantSpeaking[p.userId] = p.isSpeaking;
+          }
         });
       }
     });
