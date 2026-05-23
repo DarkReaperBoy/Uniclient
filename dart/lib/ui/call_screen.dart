@@ -42,6 +42,7 @@ class GroupCallPanel extends StatefulWidget {
   final bool isScreenShareActive;
   final bool isMessagesVisible;
   final int scheduleDate;
+  final List<CachedMessage> callMessages;
 
   const GroupCallPanel({
     super.key,
@@ -66,6 +67,7 @@ class GroupCallPanel extends StatefulWidget {
     this.onToggleMessages,
     this.onSendMessage,
     this.videoViewport,
+    this.callMessages = const [],
   });
 
   static const wideModeThreshold = 600.0;
@@ -89,6 +91,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   final _validAvatarPaths = <String>{};
   final _messageController = TextEditingController();
   final _messageFocusNode = FocusNode();
+  final _chatScrollController = ScrollController();
 
   double _selfAudioLevel = 0.0;
   StreamSubscription<GroupCallStateEvent>? _callStateSub;
@@ -120,6 +123,17 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     if (widget.isRecording != old.isRecording) {
       _isRecording = widget.isRecording;
     }
+    if (widget.callMessages.length > old.callMessages.length && widget.isMessagesVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_chatScrollController.hasClients) {
+          _chatScrollController.animateTo(
+            _chatScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
   }
 
   void _cacheAvatarPaths() {
@@ -145,6 +159,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     _callStateSub?.cancel();
     _messageController.dispose();
     _messageFocusNode.dispose();
+    _chatScrollController.dispose();
     super.dispose();
   }
 
@@ -487,8 +502,63 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     );
   }
 
+  Widget _buildChatPanel() {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.bottomCenter,
+      child: widget.isMessagesVisible
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  child: _buildMessagesList(),
+                ),
+                _buildMessageInput(),
+              ],
+            )
+          : const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildMessagesList() {
+    if (widget.callMessages.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        child: Center(
+          child: Text(
+            'No messages yet',
+            style: TextStyle(color: Color(0x60FFFFFF), fontSize: 13),
+          ),
+        ),
+      );
+    }
+    return ShaderMask(
+      shaderCallback: (Rect bounds) {
+        return const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.transparent, Colors.white, Colors.white],
+          stops: [0.0, 0.06, 1.0],
+        ).createShader(bounds);
+      },
+      blendMode: BlendMode.dstIn,
+      child: ListView.builder(
+        controller: _chatScrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        itemCount: widget.callMessages.length,
+        reverse: false,
+        shrinkWrap: true,
+        itemBuilder: (context, index) {
+          final msg = widget.callMessages[index];
+          return _CallChatBubble(message: msg);
+        },
+      ),
+    );
+  }
+
   Widget _buildMessageInput() {
-    if (!widget.isMessagesVisible) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: const BoxDecoration(
@@ -654,7 +724,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           Expanded(child: _buildScheduledOverlay())
         else
           _buildParticipantsList(),
-        _buildMessageInput(),
+        _buildChatPanel(),
         _buildBottomControls(),
       ],
     );
@@ -711,7 +781,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
                 Expanded(child: _buildScheduledOverlay())
               else
                 _buildParticipantsList(),
-              _buildMessageInput(),
+              _buildChatPanel(),
             ],
           ),
         ),
@@ -746,6 +816,86 @@ class _GroupCallPanelState extends State<GroupCallPanel>
               }
             },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CallChatBubble extends StatelessWidget {
+  final CachedMessage message;
+
+  const _CallChatBubble({required this.message});
+
+  static const _nameColors = [
+    Color(0xFFFC5C51), // red
+    Color(0xFFFA790F), // orange
+    Color(0xFF895DD5), // purple
+    Color(0xFF0FB297), // teal
+    Color(0xFF27A8EA), // blue
+    Color(0xFFD554B7), // pink
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final nameColor = _nameColors[message.senderColorId.abs() % _nameColors.length];
+    final time = DateTime.fromMillisecondsSinceEpoch(message.timestamp * 1000);
+    final timeStr = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+        decoration: BoxDecoration(
+          color: const Color(0xCC1E2530),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    message.senderName.isNotEmpty ? message.senderName : 'User',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: nameColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (message.senderRank.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    message.senderRank.toUpperCase(),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 8),
+                Text(
+                  timeStr,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.4),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              message.contentText,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ],
         ),
       ),
     );
@@ -1447,6 +1597,28 @@ void showGroupCallPanel(
   VoidCallback? onToggleVideo,
   Widget? videoViewport,
 }) {
+  final engine = context.read<EngineService>();
+  final accountId = context.read<AppState>().activeAccountId;
+  final chatId = info.chatId;
+  final callMessages = <CachedMessage>[];
+  StateSetter? persistedSetState;
+
+  if (chatId.isNotEmpty) {
+    engine.getMessages(accountId, chatId, limit: 30).then((msgs) {
+      callMessages.addAll(msgs);
+      persistedSetState?.call(() {});
+    });
+  }
+
+  final msgSub = chatId.isNotEmpty
+      ? engine.onMsgReceived.listen((event) {
+          if (event.chatId == chatId && event.accountId == accountId) {
+            callMessages.add(event.message);
+            persistedSetState?.call(() {});
+          }
+        })
+      : null;
+
   showDialog(
     context: context,
     barrierDismissible: false,
@@ -1460,6 +1632,7 @@ void showGroupCallPanel(
       var recording = isRecording;
       var messagesVisible = false;
       var pttActive = false;
+
       final mq = MediaQuery.of(ctx);
       final screenW = mq.size.width;
       final screenH = mq.size.height;
@@ -1475,6 +1648,7 @@ void showGroupCallPanel(
             borderRadius: BorderRadius.circular(12),
             child: StatefulBuilder(
               builder: (sbCtx, setSbState) {
+                persistedSetState = setSbState;
                 return KeyboardListener(
                   focusNode: FocusNode()..requestFocus(),
                   autofocus: true,
@@ -1599,6 +1773,7 @@ void showGroupCallPanel(
                       engine.sendMessage(accountId, chatId, text);
                     }
                   },
+                  callMessages: callMessages,
                 ));
               },
             ),
@@ -1606,7 +1781,9 @@ void showGroupCallPanel(
         ),
       );
     },
-  );
+  ).then((_) {
+    msgSub?.cancel();
+  });
 }
 
 void _showGroupCallMenu(BuildContext context, {String callId = '', bool isRecording = false, ValueChanged<bool>? onRecordingChanged}) {
