@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
@@ -196,6 +198,7 @@ class AyuChatsPage extends StatelessWidget {
         value: item.value,
         items: const {0: 'Hidden', 1: 'Shown', 2: 'Extended Menu'},
         onChanged: item.onChanged,
+        icon: item.icon,
       );
     }
     b.addSkip();
@@ -279,29 +282,58 @@ class AyuChatsPage extends StatelessWidget {
   }
 
   List<_ContextMenuItem> _contextMenuItems(AppState s) => [
-        _ContextMenuItem('Reactions Panel', s.showReactionsPanelInContextMenu,
+        _ContextMenuItem('Reactions Panel', Icons.emoji_emotions_outlined,
+            s.showReactionsPanelInContextMenu,
             (v) => s.setShowReactionsPanelInContextMenu(v)),
-        _ContextMenuItem('Views Panel', s.showViewsPanelInContextMenu,
+        _ContextMenuItem('Views Panel', Icons.visibility_outlined,
+            s.showViewsPanelInContextMenu,
             (v) => s.setShowViewsPanelInContextMenu(v)),
-        _ContextMenuItem('Hide Message', s.showHideMessageInContextMenu,
+        _ContextMenuItem('Hide Message', Icons.clear_all,
+            s.showHideMessageInContextMenu,
             (v) => s.setShowHideMessageInContextMenu(v)),
-        _ContextMenuItem('User Messages', s.showUserMessagesInContextMenu,
+        _ContextMenuItem('User Messages', Icons.timer_outlined,
+            s.showUserMessagesInContextMenu,
             (v) => s.setShowUserMessagesInContextMenu(v)),
-        _ContextMenuItem('Message Details', s.showMessageDetailsInContextMenu,
+        _ContextMenuItem('Message Details', Icons.info_outline,
+            s.showMessageDetailsInContextMenu,
             (v) => s.setShowMessageDetailsInContextMenu(v)),
-        _ContextMenuItem('Repeat Message', s.showRepeatMessageInContextMenu,
+        _ContextMenuItem('Repeat Message', Icons.repeat,
+            s.showRepeatMessageInContextMenu,
             (v) => s.setShowRepeatMessageInContextMenu(v)),
         if (s.filtersEnabled)
-          _ContextMenuItem('Add Filter', s.showAddFilterInContextMenu,
+          _ContextMenuItem('Add Filter', Icons.create_new_folder_outlined,
+              s.showAddFilterInContextMenu,
               (v) => s.setShowAddFilterInContextMenu(v)),
       ];
 }
 
 class _ContextMenuItem {
   final String label;
+  final IconData icon;
   final int value;
   final ValueChanged<int> onChanged;
-  _ContextMenuItem(this.label, this.value, this.onChanged);
+  _ContextMenuItem(this.label, this.icon, this.value, this.onChanged);
+}
+
+void _showRestartPrompt(BuildContext context) {
+  showConfirmBox(
+    context,
+    title: 'Restart Required',
+    text: 'Some settings will be applied after restarting.',
+    confirmText: 'Restart Now',
+    cancelText: 'Later',
+    onConfirm: () {
+      context.read<AppState>().flushSettingsSync();
+      final exe = Platform.resolvedExecutable;
+      Process.start(exe, Platform.executableArguments,
+          mode: ProcessStartMode.detached).then((_) {
+        exit(0);
+      }).catchError((_) {
+        exit(0);
+      });
+    },
+    strictCancel: true,
+  );
 }
 
 class _WideMultiplierSlider extends StatefulWidget {
@@ -386,19 +418,9 @@ class _WideMultiplierSliderState extends State<_WideMultiplierSlider> {
               onChangeEnd: (v) {
                 final snapped = (v * 20).round() / 20.0;
                 if ((snapped - _committedValue).abs() < 0.001) return;
-                showConfirmBox(
-                  context,
-                  title: 'Restart Required',
-                  text: 'Some settings will be applied after restarting.',
-                  confirmText: 'Apply',
-                  cancelText: 'Cancel',
-                  onConfirm: () {
-                    _committedValue = snapped;
-                    widget.onChanged(snapped);
-                  },
-                  onCancel: () =>
-                      setState(() => _localValue = _committedValue),
-                );
+                _committedValue = snapped;
+                widget.onChanged(snapped);
+                _showRestartPrompt(context);
               },
             ),
           ),
@@ -448,7 +470,6 @@ class _BubbleRadiusSliderState extends State<_BubbleRadiusSlider> {
     super.didUpdateWidget(old);
     if (old.value != widget.value) {
       _localValue = widget.value;
-      _committedValue = widget.value;
     }
   }
 
@@ -495,23 +516,14 @@ class _BubbleRadiusSliderState extends State<_BubbleRadiusSlider> {
               onChanged: (v) {
                 final newVal = v.round();
                 setState(() => _localValue = newVal);
+                widget.onChanged(newVal);
               },
               onChangeEnd: (v) {
                 final newVal = v.round();
                 if (newVal == _committedValue) return;
-                showConfirmBox(
-                  context,
-                  title: 'Restart Required',
-                  text: 'Some settings will be applied after restarting.',
-                  confirmText: 'Apply',
-                  cancelText: 'Cancel',
-                  onConfirm: () {
-                    _committedValue = newVal;
-                    widget.onChanged(newVal);
-                  },
-                  onCancel: () =>
-                      setState(() => _localValue = _committedValue),
-                );
+                _committedValue = newVal;
+                widget.onChanged(newVal);
+                _showRestartPrompt(context);
               },
             ),
           ),
@@ -599,6 +611,7 @@ class _EditMarkBoxContent extends StatefulWidget {
 
 class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
   late final TextEditingController _controller;
+  bool _error = false;
 
   @override
   void initState() {
@@ -613,6 +626,10 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
   }
 
   void _save() {
+    if (_controller.text.trim().isEmpty) {
+      setState(() => _error = true);
+      return;
+    }
     widget.onSaved(_controller.text);
     Navigator.of(context).pop();
   }
@@ -629,9 +646,13 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
         child: TextField(
           controller: _controller,
           autofocus: true,
+          onChanged: (_) {
+            if (_error) setState(() => _error = false);
+          },
           style: TextStyle(fontSize: 14, color: p.boxTextFg),
           decoration: InputDecoration(
             hintText: widget.title,
+            errorText: _error ? 'Cannot be empty' : null,
             hintStyle: TextStyle(
                 fontSize: 14, fontWeight: FontWeight.w600, color: p.boxTextFg.withValues(alpha: 0.4)),
             enabledBorder: UnderlineInputBorder(

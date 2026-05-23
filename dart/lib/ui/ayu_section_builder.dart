@@ -82,6 +82,7 @@ class AyuSectionBuilder {
     required int value,
     required Map<int, String> items,
     required ValueChanged<int> onChanged,
+    IconData? icon,
   }) {
     _children.add(_AyuChooseButton(
       label: label,
@@ -89,6 +90,7 @@ class AyuSectionBuilder {
       items: items,
       onChanged: onChanged,
       isDark: isDark,
+      icon: icon,
     ));
   }
 
@@ -469,6 +471,7 @@ class _AyuChooseButton extends StatelessWidget {
   final Map<int, String> items;
   final ValueChanged<int> onChanged;
   final bool isDark;
+  final IconData? icon;
 
   const _AyuChooseButton({
     required this.label,
@@ -476,6 +479,7 @@ class _AyuChooseButton extends StatelessWidget {
     required this.items,
     required this.onChanged,
     required this.isDark,
+    this.icon,
   });
 
   @override
@@ -488,6 +492,13 @@ class _AyuChooseButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
         child: Row(
           children: [
+            if (icon != null) ...[
+              Icon(icon, size: 20,
+                  color: isDark
+                      ? const Color(0xFF8A9AA5)
+                      : const Color(0xFF737373)),
+              const SizedBox(width: 14),
+            ],
             Expanded(
               child: Text(label,
                   style: TextStyle(

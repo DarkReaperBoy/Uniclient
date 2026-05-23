@@ -121,8 +121,9 @@ class AyuFiltersPage extends StatelessWidget {
             const PopupMenuDivider(),
             _menuItem(
                 'import', Icons.archive_outlined, 'Import', isDark),
-            _menuItem('export', Icons.unarchive_outlined, 'Export',
-                isDark),
+            if (appState.filterEngine.hasFilters())
+              _menuItem('export', Icons.unarchive_outlined, 'Export',
+                  isDark),
             const PopupMenuDivider(),
             _menuItem(
                 'clear_all', Icons.clear_all, 'Clear All', isDark),
@@ -287,7 +288,7 @@ class _SelectChatDialogState extends State<_SelectChatDialog> {
   @override
   void initState() {
     super.initState();
-    _results = widget.chatState.chats;
+    _results = _filterChats(widget.chatState.chats);
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -297,11 +298,21 @@ class _SelectChatDialogState extends State<_SelectChatDialog> {
     super.dispose();
   }
 
+  List<ChatInfo> _filterChats(List<ChatInfo> chats) {
+    if (widget.onChatSelected != null) return chats;
+    return chats.where((c) =>
+      c.type == ChatType.group ||
+      c.type == ChatType.channel ||
+      c.type == ChatType.topic ||
+      c.isBot
+    ).toList();
+  }
+
   Future<void> _onSearchChanged() async {
     final query = _searchController.text.trim();
     if (query.isEmpty) {
       setState(() {
-        _results = widget.chatState.chats;
+        _results = _filterChats(widget.chatState.chats);
         _hasQuery = false;
         _loading = false;
       });
@@ -331,7 +342,7 @@ class _SelectChatDialogState extends State<_SelectChatDialog> {
     }
 
     setState(() {
-      _results = merged;
+      _results = _filterChats(merged);
       _loading = false;
     });
 
@@ -1176,7 +1187,7 @@ class _ShadowBanRowState extends State<_ShadowBanRow> {
         offset.dx + box.size.width, offset.dy + box.size.height);
   }
 
-  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+  static const _colorRemap = [0, 2, 4, 1, 6, 3, 5];
 }
 
 class _RegexEditBox extends StatefulWidget {
@@ -1220,10 +1231,16 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
   static final _icuOnlyPatterns = RegExp(
     r'\\[pP]\{|\\[pP][A-Z]|\\[QEGKk]|\[\[:');
 
+  static final _re2Unsupported = RegExp(
+    r'\(\?[=!]|\(\?<[=!]|\(\?P<|\\[1-9]');
+
   String? _validateRegex(String pattern) {
     if (pattern.isEmpty) return null;
     try {
       RegExp(pattern, caseSensitive: !_caseInsensitive);
+      if (_re2Unsupported.hasMatch(pattern)) {
+        return 'Not supported in Go RE2 engine: lookahead, lookbehind, and backreferences are unavailable';
+      }
       if (_icuOnlyPatterns.hasMatch(pattern)) {
         _warning = 'Uses ICU-specific syntax — may behave differently in AyuGram Desktop';
       }
@@ -1278,7 +1295,7 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
     appState.saveFilterEngine();
 
     final dialogId = widget.dialogId;
-    if (isNew && dialogId != null && filter.isShared) {
+    if (dialogId != null && filter.isShared) {
       final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
       messenger.showSnackBar(SnackBar(
@@ -1430,6 +1447,15 @@ class _CheckboxRow extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _extractInviteHash(String value) {
+  if (value.startsWith('+')) return value.substring(1);
+  final joinchat = RegExp(r'joinchat/([A-Za-z0-9_-]+)').firstMatch(value);
+  if (joinchat != null) return joinchat.group(1);
+  final tgJoin = RegExp(r'tg://join\?invite=([A-Za-z0-9_-]+)').firstMatch(value);
+  if (tgJoin != null) return tgJoin.group(1);
+  return null;
 }
 
 class _ImportFiltersBox extends StatefulWidget {
@@ -1596,7 +1622,12 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
         if (accountId.isNotEmpty) {
           for (final entry in peersToResolve.entries) {
             try {
-              await engineSvc.resolveUsername(accountId, entry.value);
+              final hash = _extractInviteHash(entry.value);
+              if (hash != null) {
+                await engineSvc.checkChatInvite(accountId, hash);
+              } else {
+                await engineSvc.resolveUsername(accountId, entry.value);
+              }
             } catch (_) {}
           }
         }
