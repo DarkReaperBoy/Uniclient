@@ -609,14 +609,6 @@ All geometric calculations match:
 
 ## chat_list_panel — Visual/behavioral issues vs AyuGram
 
-- [ ] [MAJOR] `_TopPeersStrip._stripHeight` is 84px but AyuGram `topPeers.height` is 77px (inherited from `dialogsStoriesFull.height: 77px`). Total strip + header is 112px in Dart vs 105px in AyuGram — `chat_list_panel.dart:2593` ← `dialogs/dialogs.style:746`
-
-- [ ] [MAJOR] `_TopPeersStrip` has no expand/collapse feature. AyuGram shows a "More" / "Less" `LinkButton` in the header when the number of entries exceeds two-thirds of the strip width, and expands to a second row via `setExpanded(bool)`. Dart renders a single fixed-height horizontal list with no toggle — `chat_list_panel.dart:2695-2758` ← `dialogs/ui/top_peers_strip.cpp:84-157`
-
-- [ ] [MAJOR] `_TopPeersStrip` header label is `'FREQUENT CONTACTS'` (all-caps). AyuGram uses `tr::lng_recent_frequent()` which renders as `"Frequent contacts"` (title-case, no all-caps) — `chat_list_panel.dart:2686` ← `dialogs/ui/top_peers_strip.cpp:86`
-
-- [ ] [MAJOR] Stories bar collapse trigger uses a fixed pixel threshold (`pos.pixels > 50`) instead of AyuGram's ratio-based `kCollapseAfterRatio = 0.68`. AyuGram derives the collapse trigger from the overscroll ratio, giving consistent behavior regardless of list viewport size. The 50px fixed threshold collapses too early on short viewports and too late on large ones — `chat_list_panel.dart:229` ← `dialogs/ui/dialogs_stories_list.cpp:43`
-
 # chat_list_row — Audit findings
 
 ## CRITICAL
