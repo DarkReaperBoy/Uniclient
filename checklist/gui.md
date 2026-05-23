@@ -606,9 +606,6 @@ All geometric calculations match:
 
 
 
-## call_screen — No in-call chat messages panel
-
-- [ ] [MAJOR] AyuGram's group call panel has a full `MessagesUi` widget and a `MessageField` that can be toggled via a dedicated message button. The Dart panel has no message button, no chat panel, and no in-call message sending — `_messages` and `_message` (the chat/message toggle button) are entirely absent. — `call_screen.dart` (no equivalent widget) ← `AyuGram/calls/group/calls_group_panel.cpp:242-250,492-530,803-815`
 
 ## call_screen — No scheduled group call UI (countdown / "Start Now" / "Set Reminder")
 
