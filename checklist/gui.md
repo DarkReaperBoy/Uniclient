@@ -606,16 +606,6 @@ All geometric calculations match:
 
 
 
-# calls_screen — Audit Findings
-
-## calls_screen — call settings device toggle broken, level meter 60fps setState, silent mic fallback
-
-- [ ] [MAJOR] "Use same devices for calls" toggle is stored in `AppState` but never propagates to engine or hides/shows call-specific device rows. In AyuGram, toggling ON clears `callPlaybackDeviceId`/`callCaptureDeviceId` (falling through to global audio settings) and hides the separate call Output/Microphone rows via `SlideWrap`; toggling OFF copies the current global device IDs into call-specific slots and reveals those rows. The Dart toggle calls only `appState.setCallUseSameDevices(v)` and does nothing else — it has zero effect on actual call audio routing and call-specific device rows are always visible — `calls_screen.dart:2618-2624` ← `AyuGram/settings/sections/settings_calls.cpp:258-325`
-
-- [ ] [MAJOR] `_InputLevelMeterState` uses `AnimationController.repeat()` which drives `_onTick` → `setState()` at ~60fps during microphone capture (lines 3014–3043). AyuGram uses a `base::Timer` firing at `kMicTestUpdateInterval` (~100ms) and an `Ui::Animations::Simple` that interpolates only between ticks. The Dart version triggers 6× more widget rebuilds than needed, burning CPU even when the level is stable at 0 — `calls_screen.dart:3014-3043` ← `AyuGram/settings/sections/settings_calls.cpp:129-151`
-
-- [ ] [MAJOR] `_InputLevelMeter._startCapture()` attempts to spawn external system processes (`parec`, `pw-record`, `ffmpeg`, `rec`) and silently shows nothing if all candidates fail. AyuGram uses `Webrtc::AudioInputTester` directly. When none of the system tools are installed, the level meter widget renders as an empty bar with no explanation — users cannot tell whether the microphone works or whether the meter tool is missing — `calls_screen.dart:3045-3101` ← `AyuGram/settings/sections/settings_calls.cpp:141`
-
 ## chat_export — export panel, settings, progress, and suggest-box
 
 - [ ] [CRITICAL] `full_personal_chats` and `full_bot_chats` are hardcoded `true` in `startExport` params instead of reflecting `_privateGroupsOnlyMy` / `_privateChannelsOnlyMy` state; the correct keys for private groups and private channels (`full_private_groups`, `full_private_channels`) are never sent at all, so the "Only my messages" checkboxes for private groups and channels have zero effect on the actual export — `chat_export.dart:845-846` ← `AyuGram/export/export_settings.h:84,115-118` + `export_controller.cpp:24-29`
