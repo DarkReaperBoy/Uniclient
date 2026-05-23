@@ -601,7 +601,6 @@ All geometric calculations match:
 
 # call_panel — Backend wiring gaps, missing states, wrong device enumeration
 
-- [ ] [MAJOR] Ripple animation on the answer button uses a fixed static color (`Color(0xFF4CAF50)`) and a fixed expansion of 24px (`call_panel.dart:1272`), while AyuGram drives the outer ripple amplitude from `_call->getWaitingSoundPeakValue()` (audio-reactive) updated every `Call::kSoundSampleMs` — `call_panel.dart:1258-1285` ← `calls_panel.cpp:465-473`
 
 # call_screen — Group Call Panel & Minimised Call Bar Audit
 
