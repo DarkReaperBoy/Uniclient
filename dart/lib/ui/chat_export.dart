@@ -175,7 +175,8 @@ void showExportPanelWithOverlay(OverlayState overlay, ExportTarget target) {
 
 class _ExportPanelController {
   static OverlayEntry? _entry;
-  static final ValueNotifier<bool> _visible = ValueNotifier(true);
+  static ValueNotifier<bool> _visible = ValueNotifier(true);
+  static String? _activeAccountId;
 
   static void show(BuildContext context, ExportTarget target) {
     final overlay = Overlay.maybeOf(context) ?? Navigator.maybeOf(context)?.overlay;
@@ -189,7 +190,8 @@ class _ExportPanelController {
 
   static void _showInOverlay(OverlayState overlay, ExportTarget target) {
     close();
-    _visible.value = true;
+    _visible = ValueNotifier(true);
+    _activeAccountId = target.accountId;
     late OverlayEntry entry;
     entry = OverlayEntry(
       builder: (_) => _FloatingExportPanel(
@@ -202,7 +204,7 @@ class _ExportPanelController {
   }
 
   static void showAndActivate(BuildContext context, ExportTarget target) {
-    if (_entry != null) {
+    if (_entry != null && _activeAccountId == target.accountId) {
       _visible.value = true;
       final overlay = Overlay.maybeOf(context) ?? Navigator.maybeOf(context)?.overlay;
       if (overlay != null) {
@@ -222,7 +224,7 @@ class _ExportPanelController {
     if (_entry == null) return;
     try { _entry!.remove(); } catch (_) {}
     _entry = null;
-    _visible.value = true;
+    _activeAccountId = null;
   }
 }
 
@@ -844,6 +846,10 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       'public_channels': _publicChannels,
       'full_personal_chats': true,
       'full_bot_chats': true,
+      'full_private_groups': !_privateGroupsOnlyMy,
+      'full_private_channels': !_privateChannelsOnlyMy,
+      'full_public_groups': !_publicGroupsOnlyMy,
+      'full_public_channels': !_publicChannelsOnlyMy,
       'media_photos': _mediaPhotos,
       'media_video': _mediaVideo,
       'media_voice': _mediaVoice,
@@ -1003,10 +1009,12 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     _totalFiles = event.totalFiles;
     _totalSizeBytes = event.totalSizeBytes;
     _completedStepData = _exportSteps
-        .where((s) => s.wasReported)
+        .where((s) => !s.hidden)
         .map((s) => _ExportStepInfo(
               label: s.label,
-              info: s.info.isNotEmpty ? s.info : 'Done',
+              info: s.wasReported
+                  ? (s.info.isNotEmpty ? s.info : 'Done')
+                  : 'Skipped',
               progress: 1.0,
               opacity: 1.0,
               wasReported: true,
@@ -1104,6 +1112,11 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   void _triggerTakeoutInitDelayError(
       int hoursRemaining, DateTime availableAt) async {
     _cleanupExportSubscriptions();
+    final engine = context.read<EngineService>();
+    final accountId = widget.target.accountId ?? '';
+    engine.saveExportSettings(accountId, {
+      'suggestAvailableAt': availableAt.millisecondsSinceEpoch,
+    }).catchError((_) {});
     const months = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -1867,6 +1880,17 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                 controller: _scrollController,
                 padding: EdgeInsets.zero,
                 children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 12, 22, 4),
+                    child: Text(
+                      widget.target.settingsTitle,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: headerColor,
+                      ),
+                    ),
+                  ),
                   _buildSectionHeader('Media export settings', headerColor),
                   _buildMediaCheckbox('Photos', _mediaPhotos,
                       (v) => _updateSetting(() => _mediaPhotos = v!), textColor),
@@ -3256,7 +3280,15 @@ class _ExportSuggestBox extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () {
+                      try {
+                        final engine = context.read<EngineService>();
+                        engine.callGeneric(
+                          accountId ?? '', 'ClearExportSuggestion', {},
+                        ).catchError((_) {});
+                      } catch (_) {}
+                      Navigator.of(context).pop();
+                    },
                     child: Text(
                       'Not now',
                       style: TextStyle(
