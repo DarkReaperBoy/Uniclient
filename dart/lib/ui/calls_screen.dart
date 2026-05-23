@@ -2607,7 +2607,7 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(60, 8, 22, 12),
-            child: _InputLevelMeter(
+            child: InputLevelMeter(
               isDark: isDark,
               accentColor: accentColor,
               selectedDevice: appState.callInputDevice,
@@ -3035,22 +3035,23 @@ class _CallSettingsActionRowState extends State<_CallSettingsActionRow> {
 }
 
 // §34.14 LevelMeter: 18px height, 3px line width, 5px spacing, 44 lines.
-class _InputLevelMeter extends StatefulWidget {
+class InputLevelMeter extends StatefulWidget {
   final bool isDark;
   final Color accentColor;
   final String selectedDevice;
 
-  const _InputLevelMeter({
+  const InputLevelMeter({
+    super.key,
     required this.isDark,
     required this.accentColor,
     this.selectedDevice = 'Default',
   });
 
   @override
-  State<_InputLevelMeter> createState() => _InputLevelMeterState();
+  State<InputLevelMeter> createState() => _InputLevelMeterState();
 }
 
-class _InputLevelMeterState extends State<_InputLevelMeter>
+class _InputLevelMeterState extends State<InputLevelMeter>
     with SingleTickerProviderStateMixin {
   late final AnimationController _animController;
   Timer? _levelTimer;
@@ -3073,7 +3074,7 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
   }
 
   @override
-  void didUpdateWidget(covariant _InputLevelMeter oldWidget) {
+  void didUpdateWidget(covariant InputLevelMeter oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.selectedDevice != widget.selectedDevice) {
       _stopCapture();
@@ -3224,7 +3225,7 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
     }
     return CustomPaint(
       size: const Size(double.infinity, 18),
-      painter: _LevelMeterPainter(
+      painter: LevelMeterPainter(
         level: (_capturing && !_powerSaving) ? _displayLevel : 0.0,
         activeColor: widget.accentColor,
         inactiveColor: widget.isDark
@@ -3235,7 +3236,7 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
   }
 }
 
-class _LevelMeterPainter extends CustomPainter {
+class LevelMeterPainter extends CustomPainter {
   final double level;
   final Color activeColor;
   final Color inactiveColor;
@@ -3244,7 +3245,7 @@ class _LevelMeterPainter extends CustomPainter {
   static const double _lineWidth = 3;
   static const double _spacing = 5;
 
-  _LevelMeterPainter({
+  LevelMeterPainter({
     required this.level,
     required this.activeColor,
     required this.inactiveColor,
@@ -3279,7 +3280,7 @@ class _LevelMeterPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_LevelMeterPainter oldDelegate) =>
+  bool shouldRepaint(LevelMeterPainter oldDelegate) =>
       level != oldDelegate.level;
 }
 

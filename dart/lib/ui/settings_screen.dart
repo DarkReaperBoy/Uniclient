@@ -21,6 +21,7 @@ import 'confirm_box.dart';
 import 'folders_settings_screen.dart';
 import 'active_sessions_screen.dart';
 import 'ayugram_settings_screen.dart';
+import 'calls_screen.dart' show InputLevelMeter;
 import 'my_profile_page.dart';
 import 'notifications_settings_screen.dart';
 import 'privacy_settings_screen.dart';
@@ -2145,9 +2146,11 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
   String _selectedOutput = 'Default';
   String _selectedInput = 'Default';
   String _selectedCamera = 'Default';
+  String _callSpecificOutput = '';
+  String _callSpecificInput = '';
   String _p2pOption = 'contacts';
   bool _callsDisabled = false;
-  bool _sameDevice = false;
+  bool _sameDevice = true;
   bool _loading = true;
 
   @override
@@ -2187,7 +2190,9 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
       final opt = p2pSetting?['option'] as String? ?? 'contacts';
       _p2pOption = opt;
       _callsDisabled = callsDisabled;
-      _sameDevice = appState.callSameDevice;
+      _sameDevice = appState.callUseSameDevices;
+      _callSpecificOutput = appState.callSpecificOutputDevice;
+      _callSpecificInput = appState.callSpecificInputDevice;
       _loading = false;
     });
   }
@@ -2204,6 +2209,18 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
     final appState = context.read<AppState>();
     final engine = context.read<EngineService>();
     await engine.setCallsDisabledHere(appState.activeAccountId, disabled: disabled);
+  }
+
+  void _toggleSameDevice(bool val) {
+    setState(() => _sameDevice = val);
+    final appState = context.read<AppState>();
+    appState.setCallUseSameDevices(val);
+    if (!val) {
+      setState(() {
+        _callSpecificOutput = appState.callSpecificOutputDevice;
+        _callSpecificInput = appState.callSpecificInputDevice;
+      });
+    }
   }
 
   void _showDevicePicker(String title, List<String> devices, String selected, void Function(String) onSelect) {
@@ -2307,50 +2324,71 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
             await engine.setCallAudioDevice(appState.activeAccountId, 'capture', dev);
           }),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 12),
+          child: InputLevelMeter(
+            isDark: isDark,
+            accentColor: accentColor,
+            selectedDevice: _selectedInput,
+          ),
+        ),
         const SizedBox(height: 4),
         InkWell(
-          onTap: () async {
-            final val = !_sameDevice;
-            setState(() => _sameDevice = val);
-            final appState = context.read<AppState>();
-            appState.setCallSameDevice(val);
-            final engine = context.read<EngineService>();
-            final accountId = appState.activeAccountId;
-            if (val) {
-              await engine.setCallAudioDevice(accountId, 'playback', _selectedOutput);
-              await engine.setCallAudioDevice(accountId, 'capture', _selectedInput);
-            }
-          },
+          onTap: () => _toggleSameDevice(!_sameDevice),
           hoverColor: hoverBg,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
             child: Row(
               children: [
                 Expanded(
-                  child: Text('Use same device for calls', style: TextStyle(fontSize: 14, color: textColor)),
+                  child: Text('Use same devices for calls', style: TextStyle(fontSize: 14, color: textColor)),
                 ),
                 SizedBox(
                   width: 36,
                   height: 20,
                   child: Switch(
                     value: _sameDevice,
-                    onChanged: (v) async {
-                      setState(() => _sameDevice = v);
-                      final appState = context.read<AppState>();
-                      appState.setCallSameDevice(v);
-                      final engine = context.read<EngineService>();
-                      final accountId = appState.activeAccountId;
-                      if (v) {
-                        await engine.setCallAudioDevice(accountId, 'playback', _selectedOutput);
-                        await engine.setCallAudioDevice(accountId, 'capture', _selectedInput);
-                      }
-                    },
+                    onChanged: _toggleSameDevice,
                     activeColor: accentColor,
                   ),
                 ),
               ],
             ),
           ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          clipBehavior: Clip.hardEdge,
+          child: _sameDevice
+              ? const SizedBox.shrink()
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 4),
+                    _DeviceSettingRow(
+                      label: 'Call output device',
+                      value: _callSpecificOutput.isEmpty ? 'Default' : _callSpecificOutput,
+                      isDark: isDark,
+                      onTap: () => _showDevicePicker('Call output device', _outputDevices,
+                          _callSpecificOutput.isEmpty ? 'Default' : _callSpecificOutput, (dev) {
+                        setState(() => _callSpecificOutput = dev);
+                        context.read<AppState>().setCallSpecificOutputDevice(dev);
+                      }),
+                    ),
+                    _DeviceSettingRow(
+                      label: 'Call microphone',
+                      value: _callSpecificInput.isEmpty ? 'Default' : _callSpecificInput,
+                      isDark: isDark,
+                      onTap: () => _showDevicePicker('Call microphone', _inputDevices,
+                          _callSpecificInput.isEmpty ? 'Default' : _callSpecificInput, (dev) {
+                        setState(() => _callSpecificInput = dev);
+                        context.read<AppState>().setCallSpecificInputDevice(dev);
+                      }),
+                    ),
+                  ],
+                ),
         ),
         if (_cameraDevices.isNotEmpty) ...[
           const SizedBox(height: 16),
