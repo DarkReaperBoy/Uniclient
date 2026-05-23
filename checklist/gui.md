@@ -494,43 +494,6 @@ Fallback is only active on unsupported platforms (correct pattern).
 No issues found. The stub is well-designed and serves its purpose correctly.
 
 
-# auth_screen — Auth screen audit vs AyuGram Desktop
-
-## auth_screen — Auth screen audit
-
-- [ ] [CRITICAL] OTP step incorrectly shows a "Next" button — `_showNext` returns true for `'input'` which includes all input states, but the OTP code step (`'otp'`) uses `_OtpCodeInput` which auto-submits on completion; AyuGram's `CodeWidget` has no explicit next-button (code auto-triggers `submitCode` on `codeCollected`). The Dart `_showNext` at line 280 maps `'input'` → true, meaning when the backend sends state `'input'` with an OTP type the next button appears redundantly. More critically, the `'otp'` state itself is separate in Dart but `_showNext` returns false for it — which is correct for `'otp'`, but `'input'` with non-phone types (e.g., email verification code) also gets a plain `TextField` without auto-submit, showing Next. — `auth_screen.dart:280` ← `AyuGram/intro/intro_code.cpp:64-68` (codeCollected auto-submits, no manual button)
-
-- [ ] [CRITICAL] Terms of Service acceptance is completely missing from the signup flow — AyuGram's `SignupWidget::submit()` checks `_termsAccepted || termsLock.text.isEmpty() || !termsLock.popup` and shows a terms acceptance box before sending `auth.signUp`; the Dart `_buildSignUp` and `_submit` have zero ToS handling — `auth_screen.dart:792-878` ← `AyuGram/intro/intro_signup.cpp:197-206`
-
-- [ ] [CRITICAL] QR code token is treated as a UTF-8 string instead of a base64url-encoded tglogin URL — AyuGram's `QrWidget::showToken` encodes raw bytes as `"tg://login?token=" + token.toBase64(Base64UrlEncoding)`; the Dart `_buildQR` at line 948 does `utf8.decode(data.qrData, allowMalformed: true)` and passes the result directly to `QrImageView`, corrupting the QR content — `auth_screen.dart:948` ← `AyuGram/intro/intro_qr.cpp:461-463`
-
-- [ ] [CRITICAL] QR code has no expiry-driven refresh timer — AyuGram's `QrWidget::handleTokenResult` schedules `_refreshTimer.callOnce(std::max(left, 1) * crl::time(1000))` to refresh before the token expires; the Dart QR widget at lines 946-1048 has no timer or expiry tracking at all — the QR will silently expire without updating — `auth_screen.dart:946-1048` ← `AyuGram/intro/intro_qr.cpp:433-448`
-
-- [ ] [CRITICAL] QR screen "login by phone" link navigates via `authState.switchToMethod('phone')` which may or may not exist on the backend state machine, but the real AyuGram flow calls `goReplace<PhoneWidget>(Animate::Forward)` — `submit()` on the QR step goes to Phone; the Dart equivalent at line 1043 calls `authState.switchToMethod('phone')` with no fallback and no guarantee the engine supports this command — `auth_screen.dart:1043` ← `AyuGram/intro/intro_qr.cpp:273-275`
-
-- [ ] [CRITICAL] Language change dialog applies language locally only via `updateConfig(language: val)` but does not download/switch the Telegram cloud language pack — AyuGram calls `Lang::CurrentCloudManager().switchToLanguage(languageId)` which fetches translated strings from Telegram's lang pack servers; the Dart `_LanguagePickerDialog` at line 2255 only calls `engine.updateConfig(language: val)` on the engine, leaving all UI strings untranslated — `auth_screen.dart:2255` ← `AyuGram/intro/intro_widget.cpp:279-308`
-
-- [ ] [CRITICAL] Account reset flow sends `'__reset_account'` as a text input to `authState.submitInput` instead of calling the proper `account.DeleteAccount` MTP method with the confirmation waiting-period logic — AyuGram calls `MTPaccount_DeleteAccount` with flood control and shows a days/hours countdown when `2FA_CONFIRM_WAIT_N` is returned; the Dart dialog at line 456 just calls `authState.submitInput('__reset_account')` with no countdown display or proper error handling for the waiting-period response — `auth_screen.dart:456` ← `AyuGram/intro/intro_widget.cpp:543-624`
-
-- [ ] [MAJOR] Phone-number formatter uses a naive "space every 3 digits" rule instead of country-specific formatting — AyuGram uses `Countries::Groups(s)` to get the country's digit grouping pattern (e.g., US: 3-4, Russia: 3-2-2); the Dart `_PhoneNumberFormatter` at line 2369 groups every 3 digits uniformly regardless of country — `auth_screen.dart:2369` ← `AyuGram/intro/intro_phone.cpp:63` (Countries::Groups passed to PhonePartInput)
-
-- [ ] [MAJOR] OTP call timer on timeout unconditionally calls `onResendCode` (auto-resends) instead of just changing state to "Calling" — AyuGram's `CodeWidget::sendCall` calls `MTPauth_ResendCode` when the countdown reaches 0 and then updates the call label to "Calling…" / "Called" based on `callDone`; the Dart `_startCallTimer` in `_OtpCodeInputState` at line 1625 calls `widget.onResendCode?.call()` automatically when timer hits 0, which resends the code without any request tracking or "Calling…" UI state — `auth_screen.dart:1625` ← `AyuGram/intro/intro_code.cpp:302-320`
-
-- [ ] [MAJOR] "Didn't get the code?" dialog offers only "Resend Code" and "Edit Phone Number" — AyuGram's `noTelegramCode()` sends `auth.ResendCode` and then transitions the UI to show the call countdown label instead of "no Telegram code" link; the Dart `_showDidntGetCodeDialog` at lines 201-244 shows a static dialog with hard-coded text and a simple `submitInput('__resend_code')` call, losing the call-type transition logic — `auth_screen.dart:201-244` ← `AyuGram/intro/intro_code.cpp:440-497`
-
-- [ ] [MAJOR] Signup "Next button" text says "Start Messaging" but AyuGram uses `tr::lng_intro_finish()` (translated as "Start Messaging" in English but should come from translation system, not a hardcoded literal) — `auth_screen.dart:289` ← `AyuGram/intro/intro_signup.cpp:209-211`
-
-- [ ] [MAJOR] Cover gradient uses hardcoded color values `(0xFF0088CC, 0xFF0066AA)` for light theme instead of the theme palette's `introCoverIconsFg`/`introTitleFg` color tokens — `auth_screen.dart:1387-1388` ← `AyuGram/intro/intro.style:16` (introCoverIconsFg)
-
-- [ ] [MAJOR] `_handleTryPassword` ("Can't Access Email?" dialog) shows "OK" and then displays the reset button, but AyuGram's `toPassword()` shows `tr::lng_signin_cant_email_forgot()` infobox and then calls `showReset()` which also re-shows the password field and hides the code field — the Dart path at lines 764-790 toggles `_showResetButton` but leaves `_isRecoveryMode = false` while keeping `_showResetButton = true`; it does not reset `_codeField` / restore the password UI correctly because those are unified in one field — `auth_screen.dart:764-790` ← `AyuGram/intro/intro_password_check.cpp:325-348`
-
-- [ ] [MAJOR] `_buildPhoneFields` country selector is a custom `GestureDetector`+`Container` that cannot detect phone-code-typed country changes from the dial-code field — AyuGram's `_code->codeChanged` reactive stream automatically updates `_country` and `_phone->chooseCode()` when the user types in the code field; the Dart `_onCodeChanged` at line 1356 only updates `_selectedCountry` but does not update the phone formatter's grouping pattern — `auth_screen.dart:1356-1362` ← `AyuGram/intro/intro_phone.cpp:77-86`
-
-- [ ] [MAJOR] QR center logo is `Icons.send` (Material icon) rather than the Telegram plane logo — AyuGram renders the actual Telegram logo via `TelegramLogoImage()` which draws a filled circle with `st::introQrPlane` SVG icon; the Dart center at line 1015 uses `Icons.send_rounded` — `auth_screen.dart:1015-1019` ← `AyuGram/intro/intro_qr.cpp:531-547`
-
-- [ ] [MAJOR] Bottom bar button padding is `EdgeInsets.only(top: 11, bottom: 17)` (asymmetric) instead of matching AyuGram's `introNextButton` style which has `textTop: 11px` on a `height: 42px` button with `radius: 6px` — the bottom padding is 17px vs the expected `42 - 11 - font_height` (≈14px); this visually misaligns the label — `auth_screen.dart:2088` ← `AyuGram/intro/intro.style:87-95`
-
-- [ ] [MAJOR] Next button width is `double.infinity` (full container width) instead of AyuGram's fixed `300px` — `auth_screen.dart:2079` ← `AyuGram/intro/intro.style:88` (width: 300px)
 
 # ayu_appearance_page — Audit
 
