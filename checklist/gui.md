@@ -639,10 +639,6 @@ All numeric constants match AyuGram exactly:
 # engine_service — Bridge service audit
 
 
-## engine_service — getDeletedMessages crashes on empty engine response
-
-- [ ] [MAJOR] `getDeletedMessages` calls `_callRaw` then immediately does `json.decode(utf8.decode(respBytes))` (line 2736) with no empty-response guard. `_callRaw` explicitly returns `Uint8List(0)` on empty/error responses (documented at line 5681–5683). `utf8.decode(Uint8List(0))` returns `""`, and `json.decode("")` throws `FormatException`. Every other adjacent method that uses `_callRaw` with JSON output has an `if (respBytes.isEmpty) return ...` guard — compare `getEditRevisions` at line 2700–2701 which correctly returns `[]` on empty — `engine_service.dart:2735` ← `engine_service.dart:2700` (same file: `getEditRevisions` has the guard that `getDeletedMessages` is missing)
-
 ## engine_service — Per-message JSON decode on main isolate (50 messages default)
 
 - [ ] [MAJOR] `_cachedMsgFromProto` (line 5987) calls `jsonDecode(contentRaw)` synchronously for every message deserialized from protobuf. `getMessages` (default limit=50) calls `resp.messages.map(_cachedMsgFromProto).toList()` on the main isolate after the `await`, meaning 50+ `jsonDecode` calls run back-to-back on the UI thread. For media-heavy chats (`contentRaw` can include full inline keyboards, reactions, alt video qualities, waveforms, poll options, invoice fields, etc.), this is measurable jank on every chat open. Fix: wrap the conversion loop in `Isolate.run` or `compute`. AyuGram processes message data lazily in background threads — `engine_service.dart:5987` ← `AyuGram/Telegram/SourceFiles/data/data_session.h:1` (Session processes updates off the UI thread via `crl::on_main` dispatch)
