@@ -606,10 +606,6 @@ All geometric calculations match:
 
 
 
-## call_screen — No push-to-talk (Space key) support for RTMP calls
-
-- [ ] [MAJOR] AyuGram listens for `Qt::Key_Space` keyboard events on the panel window and calls `_call->pushToTalk()` for RTMP calls. The Dart panel has no keyboard event handler (`RawKeyboardListener`, `HardwareKeyboard`, or `Focus` widget), so push-to-talk is completely absent. — `call_screen.dart` (no keyboard handler) ← `AyuGram/calls/group/calls_group_panel.cpp:403-408`
-
 ## call_screen — Real-time audio level updates not wired to participants list
 
 - [ ] [MAJOR] `audioLevel` on `GroupCallParticipant` is consumed by `_SpeakerBlobAvatar` but is a static field from the initial data model — there is no subscription to live level updates from the engine (`levelUpdates` stream). The blob animations use the stale initial value and never animate dynamically unless the entire participant list is rebuilt. — `call_screen.dart:277` ← `AyuGram/calls/group/calls_group_panel.cpp:663-668` (AyuGram subscribes to `_call->levelUpdates()` and calls `_mute->setLevel(update.value)` on each update)
