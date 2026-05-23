@@ -123,36 +123,42 @@ class _CalendarBoxWidget extends StatefulWidget {
 
 class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
     with TickerProviderStateMixin {
-  late int _year;
-  late int _month;
-  late int _focusDay;
+  late final ScrollController _scrollController;
+  late int _gridStartYear, _gridStartMonth, _gridStartDay;
+  late int _totalWeeks;
+  late int _visibleYear;
+  late int _visibleMonth;
+
   DateTime? _selected;
   Timer? _jumpTimer;
 
   bool _selectionMode = false;
   DateTime? _selectionStart;
   DateTime? _selectionEnd;
-  int _selectionAnchorIndex = -1;
 
   final Map<DateTime, _DynamicImageState> _dynamicImages = {};
-  final List<DateTime> _loadedMonths = [];
+  final List<String> _loadedMonthKeys = [];
 
-  double _dragAccum = 0;
-  static const double _dragMonthThreshold = 60;
+  static const double _scrollViewportHeight = 6 * _cellH;
 
   @override
   void initState() {
     super.initState();
     _selected = widget.selectedDate;
     final base = widget.initialDate ?? widget.selectedDate ?? DateTime.now();
-    _year = base.year;
-    _month = base.month;
-    _focusDay = base.day;
+    _visibleYear = base.year;
+    _visibleMonth = base.month;
+    _computeGrid();
+    final initialWeek = _weekIndexForMonth(_visibleYear, _visibleMonth);
+    _scrollController = ScrollController(initialScrollOffset: initialWeek * _cellH);
+    _scrollController.addListener(_onScroll);
     _loadDynamicImages();
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _jumpTimer?.cancel();
     for (final s in _dynamicImages.values) {
       s.fadeController?.dispose();
@@ -160,28 +166,84 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
     super.dispose();
   }
 
+  void _computeGrid() {
+    final firstOfMinMonth = DateTime(widget.minDate.year, widget.minDate.month, 1);
+    final firstDow = _dayOfWeekIndex(firstOfMinMonth.weekday);
+    final gs = DateTime(widget.minDate.year, widget.minDate.month, 1 - firstDow);
+    _gridStartYear = gs.year;
+    _gridStartMonth = gs.month;
+    _gridStartDay = gs.day;
+    final lastOfMaxMonth = DateTime(widget.maxDate.year, widget.maxDate.month + 1, 0);
+    final lastDow = _dayOfWeekIndex(lastOfMaxMonth.weekday);
+    final ge = DateTime(lastOfMaxMonth.year, lastOfMaxMonth.month, lastOfMaxMonth.day + (6 - lastDow));
+    final gsUtc = DateTime.utc(_gridStartYear, _gridStartMonth, _gridStartDay);
+    final geUtc = DateTime.utc(ge.year, ge.month, ge.day);
+    _totalWeeks = geUtc.difference(gsUtc).inDays ~/ 7;
+  }
+
+  DateTime _dateForGridIndex(int weekIndex, int dayInWeek) {
+    return DateTime(_gridStartYear, _gridStartMonth, _gridStartDay + weekIndex * 7 + dayInWeek);
+  }
+
+  int _weekIndexForMonth(int year, int month) {
+    final firstOfMonth = DateTime(year, month, 1);
+    final dayOffset = _dayOfWeekIndex(firstOfMonth.weekday);
+    final ws = DateTime(year, month, 1 - dayOffset);
+    final gsUtc = DateTime.utc(_gridStartYear, _gridStartMonth, _gridStartDay);
+    final wsUtc = DateTime.utc(ws.year, ws.month, ws.day);
+    return wsUtc.difference(gsUtc).inDays ~/ 7;
+  }
+
+  void _onScroll() {
+    final centerY = _scrollController.offset + _scrollViewportHeight / 2;
+    final centerWeek = (centerY / _cellH).floor().clamp(0, _totalWeeks - 1);
+    final centerDate = _dateForGridIndex(centerWeek, 3);
+    if (centerDate.year != _visibleYear || centerDate.month != _visibleMonth) {
+      setState(() {
+        _visibleYear = centerDate.year;
+        _visibleMonth = centerDate.month;
+      });
+      _loadDynamicImages();
+    }
+  }
+
+  void _scrollToMonth(int year, int month, {bool animate = true}) {
+    final weekIdx = _weekIndexForMonth(year, month);
+    final target = weekIdx * _cellH;
+    if (!_scrollController.hasClients) return;
+    final max = _scrollController.position.maxScrollExtent;
+    final clamped = target.clamp(0.0, max);
+    if (animate) {
+      _scrollController.animateTo(clamped, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+    } else {
+      _scrollController.jumpTo(clamped);
+    }
+  }
+
   void _loadDynamicImages() {
     if (widget.dynamicImageForDate == null) return;
-    final monthKey = DateTime(_year, _month);
-    if (!_loadedMonths.contains(monthKey)) {
-      _loadedMonths.add(monthKey);
-      while (_loadedMonths.length > 3) {
-        final evictMonth = _loadedMonths.removeAt(0);
-        _dynamicImages.removeWhere((key, state) {
-          if (key.year == evictMonth.year && key.month == evictMonth.month) {
-            state.fadeController?.dispose();
-            return true;
-          }
-          return false;
-        });
-      }
+    final key = '$_visibleYear-$_visibleMonth';
+    if (_loadedMonthKeys.contains(key)) return;
+    _loadedMonthKeys.add(key);
+    while (_loadedMonthKeys.length > 3) {
+      final evictKey = _loadedMonthKeys.removeAt(0);
+      final parts = evictKey.split('-');
+      final ey = int.parse(parts[0]);
+      final em = int.parse(parts[1]);
+      _dynamicImages.removeWhere((k, state) {
+        if (k.year == ey && k.month == em) {
+          state.fadeController?.dispose();
+          return true;
+        }
+        return false;
+      });
     }
-    final daysInMonth = DateTime(_year, _month + 1, 0).day;
+    final daysInMonth = DateTime(_visibleYear, _visibleMonth + 1, 0).day;
     for (var d = 1; d <= daysInMonth; d++) {
-      final date = DateTime(_year, _month, d);
-      final key = DateTime(date.year, date.month, date.day);
-      if (_dynamicImages.containsKey(key)) continue;
-      _dynamicImages[key] = _DynamicImageState();
+      final date = DateTime(_visibleYear, _visibleMonth, d);
+      final dateKey = DateTime(date.year, date.month, date.day);
+      if (_dynamicImages.containsKey(dateKey)) continue;
+      _dynamicImages[dateKey] = _DynamicImageState();
       widget.dynamicImageForDate!(date, (rDate, bytes) {
         if (!mounted) return;
         final rKey = DateTime(rDate.year, rDate.month, rDate.day);
@@ -198,56 +260,35 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
   }
 
   bool _canGoPrev() {
-    return _year > widget.minDate.year ||
-        (_year == widget.minDate.year && _month > widget.minDate.month);
+    return _visibleYear > widget.minDate.year ||
+        (_visibleYear == widget.minDate.year && _visibleMonth > widget.minDate.month);
   }
 
   bool _canGoNext() {
-    return _year < widget.maxDate.year ||
-        (_year == widget.maxDate.year && _month < widget.maxDate.month);
+    return _visibleYear < widget.maxDate.year ||
+        (_visibleYear == widget.maxDate.year && _visibleMonth < widget.maxDate.month);
   }
 
-  void _prevMonth() {
+  void _goPrevMonth() {
     if (!_canGoPrev()) return;
-    setState(() {
-      _month--;
-      if (_month < 1) {
-        _month = 12;
-        _year--;
-      }
-      _clampFocusDay();
-    });
-    _loadDynamicImages();
+    var y = _visibleYear, m = _visibleMonth - 1;
+    if (m < 1) { m = 12; y--; }
+    _scrollToMonth(y, m);
   }
 
-  void _nextMonth() {
+  void _goNextMonth() {
     if (!_canGoNext()) return;
-    setState(() {
-      _month++;
-      if (_month > 12) {
-        _month = 1;
-        _year++;
-      }
-      _clampFocusDay();
-    });
-    _loadDynamicImages();
-  }
-
-  void _goToDate(DateTime date) {
-    setState(() {
-      _year = date.year;
-      _month = date.month;
-      _focusDay = date.day;
-    });
-    _loadDynamicImages();
+    var y = _visibleYear, m = _visibleMonth + 1;
+    if (m > 12) { m = 1; y++; }
+    _scrollToMonth(y, m);
   }
 
   void _jumpToMin() {
-    _goToDate(widget.minDate);
+    _scrollToMonth(widget.minDate.year, widget.minDate.month);
   }
 
   void _jumpToMax() {
-    _goToDate(widget.maxDate);
+    _scrollToMonth(widget.maxDate.year, widget.maxDate.month);
   }
 
   void _startJump(bool isPrev) {
@@ -266,11 +307,6 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
     _jumpTimer = null;
   }
 
-  void _clampFocusDay() {
-    final maxDay = DateTime(_year, _month + 1, 0).day;
-    if (_focusDay > maxDay) _focusDay = maxDay;
-  }
-
   bool _isDayDisabled(DateTime date) {
     final dayOnly = DateTime(date.year, date.month, date.day);
     final minOnly =
@@ -280,14 +316,13 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
     return dayOnly.isBefore(minOnly) || dayOnly.isAfter(maxOnly);
   }
 
-  void _selectDay(int day) {
-    final date = DateTime(_year, _month, day);
+  void _selectDay(DateTime date) {
     if (_isDayDisabled(date)) return;
     if (_selectionMode) {
       if (_selectionStart != null) {
-        _updateSelection(date, day);
+        _updateSelection(date);
       } else {
-        _startSelection(date, day);
+        _startSelection(date);
       }
       return;
     }
@@ -300,21 +335,19 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
       if (!_selectionMode) {
         _selectionStart = null;
         _selectionEnd = null;
-        _selectionAnchorIndex = -1;
       }
     });
   }
 
-  void _startSelection(DateTime date, int dayIndex) {
+  void _startSelection(DateTime date) {
     setState(() {
       _selectionStart = date;
       _selectionEnd = date;
-      _selectionAnchorIndex = dayIndex;
     });
     _notifyRangeSelection();
   }
 
-  void _updateSelection(DateTime date, int dayIndex) {
+  void _updateSelection(DateTime date) {
     if (_selectionStart == null) return;
     final anchor = _selectionStart!;
     DateTime min, max;
@@ -350,21 +383,6 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
     return !d.isBefore(s) && !d.isAfter(e);
   }
 
-  void _onHorizontalDrag(DragUpdateDetails details) {
-    _dragAccum += details.delta.dx;
-    if (_dragAccum > _dragMonthThreshold) {
-      _dragAccum = 0;
-      _prevMonth();
-    } else if (_dragAccum < -_dragMonthThreshold) {
-      _dragAccum = 0;
-      _nextMonth();
-    }
-  }
-
-  void _onHorizontalDragEnd(DragEndDetails details) {
-    _dragAccum = 0;
-  }
-
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
@@ -373,12 +391,12 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
     if (key == LogicalKeyboardKey.arrowLeft ||
         key == LogicalKeyboardKey.arrowUp ||
         key == LogicalKeyboardKey.pageUp) {
-      _prevMonth();
+      _goPrevMonth();
       return KeyEventResult.handled;
     } else if (key == LogicalKeyboardKey.arrowRight ||
         key == LogicalKeyboardKey.arrowDown ||
         key == LogicalKeyboardKey.pageDown) {
-      _nextMonth();
+      _goNextMonth();
       return KeyEventResult.handled;
     } else if (key == LogicalKeyboardKey.home) {
       _jumpToMin();
@@ -387,39 +405,35 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
       _jumpToMax();
       return KeyEventResult.handled;
     } else if (key == LogicalKeyboardKey.escape) {
-      Navigator.of(context).pop();
+      if (_selectionMode) {
+        _toggleSelectionMode();
+      } else {
+        Navigator.of(context).pop();
+      }
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
-  }
-
-  void _onMonthScroll(PointerScrollEvent event) {
-    if (event.scrollDelta.dy > 0) {
-      _nextMonth();
-    } else if (event.scrollDelta.dy < 0) {
-      _prevMonth();
-    }
   }
 
   void _showMonthYearPicker() {
     showTelegramBox<DateTime>(
       context: context,
       builder: (ctx) => _MonthYearPickerDialog(
-        currentYear: _year,
-        currentMonth: _month,
+        currentYear: _visibleYear,
+        currentMonth: _visibleMonth,
         minDate: widget.minDate,
         maxDate: widget.maxDate,
       ),
     ).then((result) {
       if (result != null && mounted) {
-        setState(() {
-          _year = result.year;
-          _month = result.month;
-          _clampFocusDay();
-        });
-        _loadDynamicImages();
+        _scrollToMonth(result.year, result.month);
       }
     });
+  }
+
+  int get _selectionDayCount {
+    if (_selectionStart == null || _selectionEnd == null) return 0;
+    return _selectionEnd!.difference(_selectionStart!).inDays + 1;
   }
 
   @override
@@ -432,16 +446,18 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
         context.palette.dialogsBgActive;
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final disabledFg = subtextFg.withValues(alpha: 0.4);
-
-    final daysInMonth = DateTime(_year, _month + 1, 0).day;
-    final startWeekday = DateTime(_year, _month, 1).weekday;
-    final offset = _dayOfWeekIndex(startWeekday);
     final weekDays = _localizedWeekDays();
 
-    return TelegramBox(
-      wide: true,
-      title: null,
-      titleWidget: GestureDetector(
+    // Title: month/year in normal mode, selection count in selection mode
+    Widget titleContent;
+    if (_selectionMode) {
+      final count = _selectionDayCount;
+      titleContent = Text(
+        count == 0 ? 'Select days' : '$count days',
+        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textFg),
+      );
+    } else {
+      titleContent = GestureDetector(
         onTap: _showMonthYearPicker,
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -452,7 +468,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
             ),
             const SizedBox(width: 4),
             Text(
-              '${_monthNames[_month - 1]} $_year',
+              '${_monthNames[_visibleMonth - 1]} $_visibleYear',
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
@@ -461,8 +477,35 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
             ),
           ],
         ),
-      ),
-      titleTrailing: Row(
+      );
+    }
+
+    // Buttons: AyuGram createButtons() logic
+    final List<TelegramBoxButton> buttons;
+    if (!widget.allowsSelection) {
+      buttons = [
+        TelegramBoxButton(text: 'Close', onPressed: () => Navigator.of(context).pop()),
+      ];
+    } else if (!_selectionMode) {
+      buttons = [
+        TelegramBoxButton(text: 'Select days', onPressed: _toggleSelectionMode),
+        TelegramBoxButton(text: 'Close', onPressed: () => Navigator.of(context).pop()),
+      ];
+    } else {
+      buttons = [
+        TelegramBoxButton(text: 'Cancel', onPressed: _toggleSelectionMode),
+      ];
+    }
+
+    // Floating date service bubble colors
+    final serviceBubbleBg = isDark ? const Color(0x7F000000) : const Color(0xB2FFFFFF);
+    final serviceBubbleFg = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+
+    return TelegramBox(
+      wide: true,
+      title: null,
+      titleWidget: titleContent,
+      titleTrailing: _selectionMode ? null : Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           _NavArrow(
@@ -473,10 +516,10 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
             tooltip: 'To the beginning',
             onTap: () {
               _cancelJump();
-              _prevMonth();
+              _goPrevMonth();
             },
-            onLongPressStart: () => _startJump(true),
-            onLongPressEnd: _cancelJump,
+            onPointerDown: () => _startJump(true),
+            onPointerUp: _cancelJump,
           ),
           _NavArrow(
             icon: Icons.chevron_right,
@@ -486,10 +529,10 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
             tooltip: 'To the end',
             onTap: () {
               _cancelJump();
-              _nextMonth();
+              _goNextMonth();
             },
-            onLongPressStart: () => _startJump(false),
-            onLongPressEnd: _cancelJump,
+            onPointerDown: () => _startJump(false),
+            onPointerUp: _cancelJump,
           ),
           const SizedBox(width: 4),
         ],
@@ -497,17 +540,13 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
       content: Focus(
         autofocus: true,
         onKeyEvent: _handleKey,
-        child: GestureDetector(
-          onHorizontalDragUpdate: _onHorizontalDrag,
-          onHorizontalDragEnd: _onHorizontalDragEnd,
-          child: Listener(
-            onPointerSignal: (event) {
-              if (event is PointerScrollEvent) _onMonthScroll(event);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: _calPadH),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: _calPadH),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Weekday header + floating date overlay
+              Stack(
                 children: [
                   SizedBox(
                     height: _daysRowH,
@@ -530,112 +569,90 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
                       }).toList(),
                     ),
                   ),
-                  _buildDayGrid(
-                    offset,
-                    daysInMonth,
-                    textFg,
-                    subtextFg,
-                    accentFg,
-                    hoverBg,
-                    disabledFg,
-                  ),
-                  const SizedBox(height: 8),
+                  if (_selectionMode)
+                    Positioned.fill(
+                      child: Center(
+                        child: IgnorePointer(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: serviceBubbleBg,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${_monthNames[_visibleMonth - 1]} $_visibleYear',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: serviceBubbleFg,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
-            ),
+              // Vertically scrollable all-months grid
+              SizedBox(
+                height: _scrollViewportHeight,
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: _totalWeeks,
+                  itemExtent: _cellH,
+                  itemBuilder: (ctx, weekIndex) => _buildWeekRow(
+                    weekIndex, textFg, subtextFg, accentFg, hoverBg, disabledFg,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
         ),
       ),
-      buttons: [
-        if (widget.allowsSelection)
-          TelegramBoxButton(
-            text: _selectionMode ? 'Single date' : 'Select days',
-            onPressed: _toggleSelectionMode,
-          ),
-        TelegramBoxButton(
-          text: 'Close',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ],
+      buttons: buttons,
     );
   }
 
-  Widget _buildDayGrid(
-    int offset,
-    int daysInMonth,
+  Widget _buildWeekRow(
+    int weekIndex,
     Color textFg,
     Color subtextFg,
     Color accentFg,
     Color hoverBg,
     Color disabledFg,
   ) {
-    final rows = <Widget>[];
-    var day = 1;
-    final prevMonthDays = DateTime(_year, _month, 0).day;
+    return Row(
+      children: List.generate(7, (dayInWeek) {
+        final date = _dateForGridIndex(weekIndex, dayInWeek);
+        final isCurrentMonth = date.year == _visibleYear && date.month == _visibleMonth;
+        final isDisabled = _isDayDisabled(date);
+        final isHighlighted = !_selectionMode && _selected != null &&
+            _selected!.year == date.year &&
+            _selected!.month == date.month &&
+            _selected!.day == date.day;
+        final isInRange = _isInSelectionRange(date);
+        final dateKey = DateTime(date.year, date.month, date.day);
+        final dynImage = _dynamicImages[dateKey];
 
-    for (var row = 0; row < 6 && day <= daysInMonth; row++) {
-      final cells = <Widget>[];
-      for (var col = 0; col < 7; col++) {
-        final cellIndex = row * 7 + col;
-        if (cellIndex < offset) {
-          final prevDay = prevMonthDays - (offset - cellIndex - 1);
-          cells.add(SizedBox(
-            width: _cellW,
-            height: _cellH,
-            child: Center(
-              child: Text(
-                '$prevDay',
-                style: TextStyle(fontSize: 13, color: disabledFg.withValues(alpha: 0.5)),
-              ),
-            ),
-          ));
-        } else if (day > daysInMonth) {
-          final nextDay = day - daysInMonth;
-          cells.add(SizedBox(
-            width: _cellW,
-            height: _cellH,
-            child: Center(
-              child: Text(
-                '$nextDay',
-                style: TextStyle(fontSize: 13, color: disabledFg.withValues(alpha: 0.5)),
-              ),
-            ),
-          ));
-          day++;
-        } else {
-          final thisDay = day;
-          final date = DateTime(_year, _month, thisDay);
-          final isDisabled = _isDayDisabled(date);
-          final isSelected = _selected != null &&
-              _selected!.year == _year &&
-              _selected!.month == _month &&
-              _selected!.day == thisDay;
-          final isFocused = _focusDay == thisDay;
-          final isInRange = _isInSelectionRange(date);
-          final dateKey = DateTime(date.year, date.month, date.day);
-          final dynImage = _dynamicImages[dateKey];
+        final effectiveTextColor = isCurrentMonth ? textFg : disabledFg.withValues(alpha: 0.5);
 
-          cells.add(_DayCell(
-            day: thisDay,
-            isSelected: isSelected,
-            isFocused: isFocused,
-            isDisabled: isDisabled,
-            isInRange: isInRange,
-            dynamicImageBytes: dynImage?.imageBytes,
-            dynamicImageOpacity: dynImage?.fadeController?.value ?? (dynImage?.imageBytes != null ? 1.0 : 0.0),
-            textColor: textFg,
-            accentColor: accentFg,
-            hoverColor: hoverBg,
-            disabledColor: disabledFg,
-            onTap: isDisabled ? null : () => _selectDay(thisDay),
-          ));
-          day++;
-        }
-      }
-      rows.add(Row(children: cells));
-    }
-
-    return Column(mainAxisSize: MainAxisSize.min, children: rows);
+        return _DayCell(
+          day: date.day,
+          isSelected: isHighlighted,
+          isFocused: false,
+          isDisabled: isDisabled,
+          isInRange: isInRange,
+          dynamicImageBytes: dynImage?.imageBytes,
+          dynamicImageOpacity: dynImage?.fadeController?.value ?? (dynImage?.imageBytes != null ? 1.0 : 0.0),
+          textColor: effectiveTextColor,
+          accentColor: accentFg,
+          hoverColor: hoverBg,
+          disabledColor: disabledFg,
+          onTap: isDisabled ? null : () => _selectDay(date),
+        );
+      }),
+    );
   }
 }
 
@@ -1006,8 +1023,8 @@ class _NavArrow extends StatelessWidget {
   final Color color;
   final Color disabledColor;
   final VoidCallback onTap;
-  final VoidCallback onLongPressStart;
-  final VoidCallback onLongPressEnd;
+  final VoidCallback onPointerDown;
+  final VoidCallback onPointerUp;
   final String tooltip;
 
   const _NavArrow({
@@ -1016,8 +1033,8 @@ class _NavArrow extends StatelessWidget {
     required this.color,
     required this.disabledColor,
     required this.onTap,
-    required this.onLongPressStart,
-    required this.onLongPressEnd,
+    required this.onPointerDown,
+    required this.onPointerUp,
     required this.tooltip,
   });
 
@@ -1026,9 +1043,9 @@ class _NavArrow extends StatelessWidget {
     return Tooltip(
       message: enabled ? tooltip : '',
       waitDuration: const Duration(milliseconds: 350),
-      child: GestureDetector(
-        onLongPressStart: enabled ? (_) => onLongPressStart() : null,
-        onLongPressEnd: enabled ? (_) => onLongPressEnd() : null,
+      child: Listener(
+        onPointerDown: enabled ? (_) => onPointerDown() : null,
+        onPointerUp: enabled ? (_) => onPointerUp() : null,
         child: IconButton(
           icon: Icon(icon, color: enabled ? color : disabledColor, size: 24),
           onPressed: enabled ? onTap : null,
