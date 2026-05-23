@@ -493,9 +493,6 @@ Fallback is only active on unsupported platforms (correct pattern).
 
 No issues found. The stub is well-designed and serves its purpose correctly.
 
-## advanced_settings_screen — experimental flags still not wired to engine
-
-- [ ] [MAJOR] Experimental settings flags in `_experimentalFlagDefs` still have two bugs: (1) `'free-type'` should be `'freetype'` — AyuGram defines `kOptionFreeType[] = "freetype"` (no hyphen) in `core/launcher.cpp:311`; (2) flags are stored in `AppState.experimentalFlags` but never wired to any engine call — toggling them does nothing. Need to call `engine.callGeneric('__engine', 'SetExperimentalFlag', {'id': key, 'value': v})` on Save and add the handler in `go/bridge/dispatch_engine.go` + `go/engine/engine.go`. — `advanced_settings_screen.dart:4432` ← `settings/settings_experimental.cpp:284`
 
 # auth_screen — Auth screen audit vs AyuGram Desktop
 
