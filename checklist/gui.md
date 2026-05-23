@@ -495,20 +495,6 @@ No issues found. The stub is well-designed and serves its purpose correctly.
 
 
 
-# ayu_appearance_page — Audit
-
-- [ ] [CRITICAL] "Restart Now" calls `exit(0)` which kills the process without restarting — AyuGram uses `Core::Restart()` which performs a proper application restart — `ayu_appearance_page.dart:289, 971` ← `settings_ayu_utils.cpp:40`
-
-- [ ] [MAJOR] App icon change only fires a MethodChannel IPC event (`com.uniclient.app/tray updateAppIcon`) — AyuGram's `applyIcon()` also calls `Window::OverrideApplicationIcon()`, `Core::App().refreshApplicationIcon()`, `tray().updateIconCounters()`, and `domain().notifyUnreadBadgeChanged()` — if the native platform handler doesn't implement all of these, the running window icon and taskbar icon won't update — `ayu_appearance_page.dart:32-36` ← `icon_picker.cpp:42-51`
-
-- [ ] [MAJOR] Font picker has no loading path for Android or iOS — `_loadSystemFonts` only covers Linux/macOS (`fc-list`), macOS (`osascript`), and Windows (PowerShell); on mobile the list falls through to `['']` (only "Default"), making the Monospace Font setting non-functional on mobile — `ayu_appearance_page.dart:699-721` ← `font_selector.cpp:204-218` (Qt's `QFontDatabase::families()` is cross-platform)
-
-- [ ] [MAJOR] Font search uses plain substring `contains` matching — AyuGram uses `TextUtilities::PrepareSearchWords` + per-word `startsWith` matching so "mo" matches "Monospace" at a word boundary but not mid-word — Dart's `contains` produces broader, incorrect results — `ayu_appearance_page.dart:809-813` ← `font_selector.cpp:355-400`
-
-- [ ] [MAJOR] IconPicker clips icon images to `ClipRRect(borderRadius: 10)` — AyuGram draws icons into a plain `QRect` with no rounding clip (`p.drawImage(rect, icon)`) — icons with squared edges will render differently — `ayu_appearance_page.dart:1074-1076` ← `icon_picker.cpp:85-91`
-
-- [ ] [MAJOR] IconPicker selected-state highlight uses `Positioned.fill` (fills entire grid cell) — AyuGram draws a precisely-sized `68×68` rounded rect at `(x + iconPickerSelectedPadding, y + iconPickerSelectedPadding)` which wraps only the icon area with a 2 px margin, not the whole cell — `ayu_appearance_page.dart:1058-1069` ← `icon_picker.cpp:67-82` + `style_ayu_styles.style:iconPickerSelectedPadding=2px, iconPickerSelectedRounding=12px`
-
 # ayu_chats_page — Audit Findings
 
 - [ ] [CRITICAL] Bubble radius slider does not update the message preview live during drag — `onChanged` only calls `setState(() => _localValue = newVal)` updating the number display, but never calls `widget.onChanged` or notifies the preview widget; AyuGram's `onChanged` calls `previewState->widget->setBubbleRadius(index)` on every drag event — `ayu_chats_page.dart:495-498` ← `settings_chats.cpp:255-259`
