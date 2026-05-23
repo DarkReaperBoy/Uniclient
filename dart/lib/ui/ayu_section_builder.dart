@@ -65,6 +65,7 @@ class AyuSectionBuilder {
     required int Function(int) indexToValue,
     required String Function(int) formatLabel,
     required ValueChanged<int> onChanged,
+    ValueChanged<int>? onFinalChanged,
   }) {
     _children.add(_AyuSlider(
       label: label,
@@ -73,6 +74,7 @@ class AyuSectionBuilder {
       indexToValue: indexToValue,
       formatLabel: formatLabel,
       onChanged: onChanged,
+      onFinalChanged: onFinalChanged,
       isDark: isDark,
     ));
   }
@@ -381,6 +383,7 @@ class _AyuSlider extends StatefulWidget {
   final int Function(int) indexToValue;
   final String Function(int) formatLabel;
   final ValueChanged<int> onChanged;
+  final ValueChanged<int>? onFinalChanged;
   final bool isDark;
 
   const _AyuSlider({
@@ -390,6 +393,7 @@ class _AyuSlider extends StatefulWidget {
     required this.indexToValue,
     required this.formatLabel,
     required this.onChanged,
+    this.onFinalChanged,
     required this.isDark,
   });
 
@@ -457,6 +461,11 @@ class _AyuSliderState extends State<_AyuSlider> {
                 setState(() => _currentIndex = idx);
                 widget.onChanged(widget.indexToValue(idx));
               },
+              onChangeEnd: widget.onFinalChanged == null
+                  ? null
+                  : (d) {
+                      widget.onFinalChanged!(widget.indexToValue(d.round()));
+                    },
             ),
           ),
         ],
@@ -647,11 +656,10 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
     if (widget.masterValue != null) {
       toggleValue = widget.masterValue!;
     } else if (widget.toggledWhenAll) {
-      toggleValue = widget.children
-          .where((c) => !c.isLocked)
-          .every((c) => c.value);
+      final unlocked = widget.children.where((c) => !c.isLocked).toList();
+      toggleValue = unlocked.isNotEmpty && unlocked.every((c) => c.value);
     } else {
-      toggleValue = widget.children.any((c) => c.value);
+      toggleValue = widget.children.any((c) => !c.isLocked && c.value);
     }
 
     final accentColor = context.palette.windowBgActive;
@@ -866,7 +874,7 @@ class _TgCheckboxPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(4));
+    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(2));
 
     if (checked) {
       final fillPaint = Paint()..color = activeColor;
