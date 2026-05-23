@@ -639,21 +639,6 @@ All numeric constants match AyuGram exactly:
 # engine_service — Bridge service audit
 
 
-
-## engine_service — msg_reactions_updated event not dispatched
-
-- [ ] [MAJOR] `_dispatchEngineEvent` has no case for a reaction-change event. When the Go engine fires a reactions update (separate from a full message edit), the event falls through to `default:` and is silently logged as "unhandled" (line 5907). The only way the UI can see a reaction change is if the engine incorrectly reuses `msg_edited` for reactions. AyuGram fires a distinct `messageUpdated` with `PeerUpdate::Flag::MessageReactions` — reactions on a message are a first-class update. Without a handler, tapping a reaction emoji has no visible effect until the next full `chat_updated` event refreshes the whole list — `engine_service.dart:5770` ← `AyuGram/Telegram/SourceFiles/data/data_changes.h:1` (`Changes::messageUpdated` with reactions flag)
-
-# color_picker_box — HSV color picker dialog
-
-- [ ] [MAJOR] Input field labels ("H", "S", "B", "R", "G", "B") are rendered as separate `SizedBox(width: 14)` Text widgets **outside** the text field box, with field `contentPadding: horizontal: 6`. AyuGram renders these labels **inside** the field via `paintAdditionalPlaceholder` at `style::al_topleft`, with `textMargins: margins(16px, 3px, 0px, 2px)` giving 16 px left room for the label — `color_picker_box.dart:607-616` ← `color_editor.cpp:706-718` and `boxes.style:522-524`
-
-- [ ] [MAJOR] Slider position arrows are drawn as plain filled Path triangles (`_kArrowHalf = 4`, `_kSliderSkip = 8`). AyuGram uses dedicated icon sprites (`colorSliderArrowLeft`, `colorSliderArrowRight`, `colorSliderArrowTop`, `colorSliderArrowBottom`) loaded from asset files `color_slider_arrow` / `color_slider_arrow_vertical` with `sliderBgActive` tint, which have a different tapered shape — `color_picker_box.dart:1015-1028` and `1130-1141` ← `boxes.style:515-518` and `color_editor.cpp:394-415`
-
-- [ ] [MAJOR] Hue slider (`_VerticalHueSlider`) and opacity slider (`_HorizontalOpacitySlider`) bars have no shadow. AyuGram's `Slider::paintEvent` draws `Ui::Shadow::paint(p, to, width(), st::defaultRoundShadow)` around every slider bar track before drawing the gradient — `color_picker_box.dart:984-1009` and `1092-1124` ← `color_editor.cpp:384-392`
-
-- [ ] [MAJOR] `_HorizontalOpacityPainter._checkerCache` and `_checkerCacheSize` are `static` fields shared across all painter instances. If two opacity sliders with different sizes exist simultaneously the wrong cached checkerboard picture is drawn for one of them. Should be instance-level fields — `color_picker_box.dart:1082-1117`
-
 # compose_entities.dart — Audit Findings
 
 ## Critical Issues
