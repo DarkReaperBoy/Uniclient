@@ -618,7 +618,6 @@ All geometric calculations match:
 
 # chat_view — Behavioral stubs, missing wiring, broken cycling
 
-- [ ] [CRITICAL] `_scrollToMention()` jumps to the oldest unread mention but never marks it as read afterward — `unreadMentionCount` never decrements and the mention corner button never disappears. The fix must call `engine.readMentions()` (→ `MessagesReadMentions`) after jumping, not `readMessageContents` (→ `MessagesReadMessageContents`) which only marks voice/video content and has no effect on the mention count. AyuGram's `mentionsClick()` additionally marks voice/video media as read when the user is already at the mention position. — `chat_view.dart:1120–1131` ← `AyuGramDesktop/Telegram/SourceFiles/history/view/history_view_corner_buttons.cpp:118–140`
 
 # choose_datetime_box — Calendar/DateTime/TimePicker boxes
 
