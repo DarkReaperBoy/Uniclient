@@ -638,9 +638,6 @@ All numeric constants match AyuGram exactly:
 
 # engine_service — Bridge service audit
 
-## engine_service — searchGlobalPosts blocks UI thread
-
-- [ ] [CRITICAL] `searchGlobalPosts` is a synchronous method using `_callRaw` for a network API call (`messages.searchGlobal` on the Go side) — blocks the main isolate / UI thread until the server responds. All sibling search methods (`searchGlobalChats`, `searchGlobalPostMessages`) are correctly async. AyuGram issues all global search requests asynchronously via `_api.request(...).done(...).send()` — `engine_service.dart:652` ← `AyuGram/Telegram/SourceFiles/boxes/peers/add_participants_box.cpp:1897` (`requestGlobal` / `_api.request MTPcontacts_Search … .send()`)
 
 ## engine_service — sendStoryWithPhoto encodes binary as JSON integer array
 
