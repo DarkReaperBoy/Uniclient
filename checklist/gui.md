@@ -495,10 +495,6 @@ No issues found. The stub is well-designed and serves its purpose correctly.
 
 
 
-# ayu_chats_page — Audit Findings
-
-- [ ] [MAJOR] The message preview is a static hand-drawn fake widget with hardcoded text ("Hey, check this out!", "Sure, looks great to me!", "12:00", "12:01") and does not react to settings changes via reactive streams; AyuGram's `MessagePreview` uses the real `HistoryView` rendering engine and subscribes to all seven settings via `rpl::merge` to refresh on every change — `ayu_chats_page.dart:667-922` ← `message_preview.cpp:122-139`
-
 # ayugram_settings_screen — No issues found
 
 Compared against:
