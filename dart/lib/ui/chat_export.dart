@@ -189,6 +189,10 @@ class _ExportPanelController {
   }
 
   static void _showInOverlay(OverlayState overlay, ExportTarget target) {
+    if (_entry != null && _activeAccountId != null &&
+        _activeAccountId != target.accountId) {
+      return;
+    }
     close();
     _visible = ValueNotifier(true);
     _activeAccountId = target.accountId;
@@ -222,6 +226,7 @@ class _ExportPanelController {
 
   static void close() {
     if (_entry == null) return;
+    _visible.value = false;
     try { _entry!.remove(); } catch (_) {}
     _entry = null;
     _activeAccountId = null;
@@ -403,7 +408,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   bool _showBottomShadow = true;
 
   List<_ExportStepInfo> _exportSteps = [];
-  List<_ExportStepInfo> _completedStepData = [];
+  bool _exportDone = false;
   Timer? _skipFileTimer;
   Timer? _saveSettingsTimer;
   Timer? _fadeOutTimer;
@@ -424,7 +429,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   String get _title {
     switch (_phase) {
       case ExportPhase.processing:
-        return 'Exporting Data...';
+        return _exportDone ? widget.target.settingsTitle : 'Exporting Data...';
       case ExportPhase.completed:
       case ExportPhase.error:
         return widget.target.settingsTitle;
@@ -696,7 +701,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }
 
   Future<void> _handleClose() async {
-    if (_phase == ExportPhase.processing) {
+    if (_phase == ExportPhase.processing && !_exportDone) {
       final confirmed = await _showStopConfirmation();
       if (confirmed && mounted) {
         final accountId = widget.target.accountId;
@@ -1008,19 +1013,21 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     _exportPath = event.exportPath;
     _totalFiles = event.totalFiles;
     _totalSizeBytes = event.totalSizeBytes;
-    _completedStepData = _exportSteps
-        .where((s) => !s.hidden)
-        .map((s) => _ExportStepInfo(
-              label: s.label,
-              info: s.wasReported
-                  ? (s.info.isNotEmpty ? s.info : 'Done')
-                  : 'Skipped',
-              progress: 1.0,
-              opacity: 1.0,
-              wasReported: true,
-            ))
-        .toList();
-    setState(() => _phase = ExportPhase.completed);
+    setState(() {
+      _exportDone = true;
+      _showSkipFile = false;
+      for (final s in _exportSteps) {
+        s.progress = 1.0;
+        s.opacity = 1.0;
+        s.hidden = false;
+        if (!s.wasReported) {
+          s.info = 'Skipped';
+        } else if (s.info.isEmpty) {
+          s.info = 'Done';
+        }
+        s.wasReported = true;
+      }
+    });
     context.read<ChatState>().stopExportBar();
   }
 
@@ -1116,6 +1123,9 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final accountId = widget.target.accountId ?? '';
     engine.saveExportSettings(accountId, {
       'suggestAvailableAt': availableAt.millisecondsSinceEpoch,
+    }).catchError((_) {});
+    engine.callGeneric(accountId, 'SuggestStartExport', {
+      'availableAt': availableAt.millisecondsSinceEpoch,
     }).catchError((_) {});
     const months = [
       'January', 'February', 'March', 'April', 'May', 'June',
@@ -1331,9 +1341,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
             ? _buildPerChatSettings(subtextColor)
             : _buildFullExportSettings(subtextColor);
       case ExportPhase.processing:
-        return _buildProcessingPlaceholder(subtextColor);
       case ExportPhase.completed:
-        return _buildCompletedPlaceholder(subtextColor);
+        return _buildProcessingPlaceholder(subtextColor);
       case ExportPhase.error:
         return _buildErrorPlaceholder(subtextColor);
     }
@@ -1486,7 +1495,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   ),
 
                   // §29.3.5 Output Format section
-                  _buildSectionHeader('Location and format', headerColor),
+                  _buildSectionHeader('Format', headerColor),
                   _buildLocationLabel(accentColor, subtextColor),
                   _buildFormatRadio(
                       'Human-readable HTML', _ExportFormat.html, textColor),
@@ -1880,17 +1889,6 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                 controller: _scrollController,
                 padding: EdgeInsets.zero,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 12, 22, 4),
-                    child: Text(
-                      widget.target.settingsTitle,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: headerColor,
-                      ),
-                    ),
-                  ),
                   _buildSectionHeader('Media export settings', headerColor),
                   _buildMediaCheckbox('Photos', _mediaPhotos,
                       (v) => _updateSetting(() => _mediaPhotos = v!), textColor),
@@ -2248,6 +2246,10 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
 
     final visibleSteps = _exportSteps.where((s) => !s.hidden).toList();
 
+    final aboutText = _exportDone
+        ? 'Your data was successfully exported.'
+        : 'You can close this window now. Please don\'t quit Telegram until the data export is completed.';
+
     return Column(
       children: [
         const SizedBox(height: 10),
@@ -2267,6 +2269,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                       height: 30,
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 200),
+                        transitionBuilder: (child, animation) =>
+                            FadeTransition(opacity: animation, child: child),
                         child: Column(
                           key: ValueKey(visibleSteps[_si].label),
                           children: [
@@ -2330,31 +2334,55 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   ),
                 ),
               ],
+              if (_exportDone && _totalFiles > 0)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Total files: ${_formatFileCount(_totalFiles)}',
+                      style: TextStyle(fontSize: 14, color: subtextColor),
+                    ),
+                  ),
+                ),
+              if (_exportDone && _totalSizeBytes > 0)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Total size: ${_formatSize(_totalSizeBytes)}',
+                      style: TextStyle(fontSize: 14, color: subtextColor),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
-        SizedBox(
-          height: 28,
-          child: AnimatedOpacity(
-            opacity: _showSkipFile ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(22, 6, 22, 0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: GestureDetector(
-                  onTap: _showSkipFile ? _skipCurrentFile : null,
-                  child: MouseRegion(
-                    cursor: _showSkipFile
-                        ? SystemMouseCursors.click
-                        : SystemMouseCursors.basic,
-                    child: Text(
-                      'Skip this file',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: linkColor,
-                        decoration: TextDecoration.underline,
-                        decorationColor: linkColor,
+        if (!_exportDone)
+          SizedBox(
+            height: 28,
+            child: AnimatedOpacity(
+              opacity: _showSkipFile ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(22, 6, 22, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: GestureDetector(
+                    onTap: _showSkipFile ? _skipCurrentFile : null,
+                    child: MouseRegion(
+                      cursor: _showSkipFile
+                          ? SystemMouseCursors.click
+                          : SystemMouseCursors.basic,
+                      child: Text(
+                        'Skip this file',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: linkColor,
+                          decoration: TextDecoration.underline,
+                          decorationColor: linkColor,
+                        ),
                       ),
                     ),
                   ),
@@ -2362,39 +2390,71 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
               ),
             ),
           ),
-        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'You can close this window now. Please don\'t quit Telegram until the data export is completed.',
-              style: TextStyle(fontSize: 14, color: subtextColor),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: Align(
+              key: ValueKey(_exportDone),
+              alignment: Alignment.centerLeft,
+              child: Text(
+                aboutText,
+                style: TextStyle(fontSize: 14, color: subtextColor),
+              ),
             ),
           ),
         ),
         const SizedBox(height: 16),
         Padding(
           padding: const EdgeInsets.only(bottom: 30),
-          child: SizedBox(
-            width: 200,
-            height: 44,
-            child: ElevatedButton(
-              onPressed: _handleClose,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: attentionFg,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                padding: const EdgeInsets.only(top: 12),
-                textStyle: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              child: const Text('Stop'),
-            ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: _exportDone
+                ? SizedBox(
+                    key: const ValueKey('done'),
+                    width: 200,
+                    height: 44,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        _openExportFolder();
+                        _closePanel();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: activeFg,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        padding: const EdgeInsets.only(top: 12),
+                        textStyle: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      child: const Text('Show my data'),
+                    ),
+                  )
+                : SizedBox(
+                    key: const ValueKey('stop'),
+                    width: 200,
+                    height: 44,
+                    child: ElevatedButton(
+                      onPressed: _handleClose,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: attentionFg,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        padding: const EdgeInsets.only(top: 12),
+                        textStyle: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      child: const Text('Stop'),
+                    ),
+                  ),
           ),
         ),
       ],
@@ -2421,143 +2481,6 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-  }
-
-  Widget _buildCompletedPlaceholder(Color subtextColor) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final activeFg =
-        context.palette.mediaPlayerActiveFg;
-    final inactiveFg =
-        context.palette.mediaPlayerInactiveFg;
-
-    final completedSteps = _completedStepData;
-
-    return Column(
-      children: [
-        const SizedBox(height: 10),
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              for (int i = 0; i < completedSteps.length; i++) ...[
-                if (i > 0) const SizedBox(height: 10),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
-                  child: SizedBox(
-                    height: 30,
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  completedSteps[i].label,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: textColor,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                completedSteps[i].info,
-                                style: TextStyle(
-                                    fontSize: 14, color: subtextColor),
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(
-                          height: 3,
-                          child: Stack(
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                height: 3,
-                                color: inactiveFg,
-                              ),
-                              Container(
-                                width: double.infinity,
-                                height: 3,
-                                color: activeFg,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-              if (_totalFiles > 0)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Total files: ${_formatFileCount(_totalFiles)}',
-                      style: TextStyle(fontSize: 14, color: subtextColor),
-                    ),
-                  ),
-                ),
-              if (_totalSizeBytes > 0)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Total size: ${_formatSize(_totalSizeBytes)}',
-                      style: TextStyle(fontSize: 14, color: subtextColor),
-                    ),
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Your data was successfully exported.',
-                    style: TextStyle(fontSize: 14, color: subtextColor),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 30),
-          child: SizedBox(
-            width: 200,
-            height: 44,
-            child: ElevatedButton(
-              onPressed: () {
-                _openExportFolder();
-                _closePanel();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: activeFg,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                padding: const EdgeInsets.only(top: 12),
-                textStyle: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              child: const Text('Show my data'),
-            ),
-          ),
-        ),
-      ],
-    );
   }
 
   void _retryExport() {
@@ -3228,10 +3151,29 @@ class _ChooseFormatBoxState extends State<_ChooseFormatBox> {
   }
 }
 
-class _ExportSuggestBox extends StatelessWidget {
+class _ExportSuggestBox extends StatefulWidget {
   final String? accountId;
 
   const _ExportSuggestBox({this.accountId});
+
+  @override
+  State<_ExportSuggestBox> createState() => _ExportSuggestBoxState();
+}
+
+class _ExportSuggestBoxState extends State<_ExportSuggestBox> {
+  @override
+  void initState() {
+    super.initState();
+    try {
+      final engine = context.read<EngineService>();
+      engine.callGeneric(
+        widget.accountId ?? '', 'ClearExportSuggestion', {},
+      ).catchError((_) {});
+      engine.saveExportSettings(widget.accountId ?? '', {
+        'suggestAvailableAt': 0,
+      }).catchError((_) {});
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3281,12 +3223,6 @@ class _ExportSuggestBox extends StatelessWidget {
                 children: [
                   TextButton(
                     onPressed: () {
-                      try {
-                        final engine = context.read<EngineService>();
-                        engine.callGeneric(
-                          accountId ?? '', 'ClearExportSuggestion', {},
-                        ).catchError((_) {});
-                      } catch (_) {}
                       Navigator.of(context).pop();
                     },
                     child: Text(
@@ -3308,7 +3244,7 @@ class _ExportSuggestBox extends StatelessWidget {
                           overlay,
                           ExportTarget(
                             mode: ExportMode.full,
-                            accountId: accountId,
+                            accountId: widget.accountId,
                           ),
                         );
                       }
