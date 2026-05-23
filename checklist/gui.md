@@ -516,15 +516,6 @@ All checks passed:
 - **Overlay cleanup** — overlay is always removed before fallback URL open or navigation, no leak
 - **No fake data** — icon index/color arrays are presentation-only fallbacks when PNG asset is missing, not mock data
 
-# ayu_section_builder — slider onFinalChanged missing, checkbox radius wrong, toggle logic excludes locked incorrectly
-
-- [ ] [CRITICAL] `addSlider` has no `onFinalChanged` parameter and `_AyuSlider` does not use Flutter's `onChangeEnd` — every drag frame calls `onChanged`, but C++ sliders distinguish between `onChanged` (live preview) and `onFinalChanged` (persist on release); e.g. `recentStickersCount` and `avatarCorners` use `onChanged = nullptr, onFinalChanged = setter`, meaning the Dart equivalent fires the setter on every frame and cannot express the on-release-only pattern — `ayu_section_builder.dart:63` ← `AyuGram/SourceFiles/ayu/ui/settings/ayu_builder.cpp:217`
-
-- [ ] [MAJOR] `_TgCheckboxPainter` uses `Radius.circular(4)` for the checkbox corner radius, but AyuGram's `CheckView::paint` uses `st::roundRadiusSmall - (_st->thickness / 2.)` = `3 - 1 = 2px` inner radius (3px outer), a 33% deviation — `ayu_section_builder.dart:858` ← `AyuGram/lib_ui/ui/basic.style:104` + `AyuGram/lib_ui/ui/widgets/checkbox.cpp:280`
-
-- [ ] [MAJOR] `_AyuCollapsibleToggleState.build` computes `toggleValue` for `toggledWhenAll=true` via `.where((c) => !c.isLocked).every((c) => c.value)` — Dart's `every()` returns `true` on an empty iterable, so when all children are locked the master toggle renders ON; C++ guards with `total > 0 &&` before the equality check — `ayu_section_builder.dart:638` ← `AyuGram/SourceFiles/ayu/ui/settings/settings_ayu_utils.cpp:216`
-
-- [ ] [MAJOR] `_AyuCollapsibleToggleState.build` computes `toggleValue` for `toggledWhenAll=false` via `widget.children.any((c) => c.value)`, which includes locked children; C++ uses `countUnlockedChecked()` which skips entries whose `lockCheck` returns true, so locked-but-checked items incorrectly drive the master toggle ON in the Dart version — `ayu_section_builder.dart:643` ← `AyuGram/SourceFiles/ayu/ui/settings/settings_ayu_utils.cpp:120`
 
 # ayu_toggle — No issues found
 
