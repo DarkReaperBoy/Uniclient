@@ -516,26 +516,6 @@ All checks passed:
 - **Overlay cleanup** — overlay is always removed before fallback URL open or navigation, no leak
 - **No fake data** — icon index/color arrays are presentation-only fallbacks when PNG asset is missing, not mock data
 
-# ayu_other_page — Audit Findings
-
-## ayu_other_page — RC config / donate QR / URL scheme issues
-
-- [ ] [CRITICAL] RC config JSON keys are snake_case in Dart but camelCase in C++: Dart reads `donate_usd`, `donate_ton`, `donate_rub`, `donate_username` — these keys never exist in the server response, so the RC config always fails silently and donate amounts/username permanently show hardcoded defaults — `ayu_other_page.dart:468-471` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/utils/rc_manager.cpp:192-204` (keys: `donateAmountUsd`, `donateAmountTon`, `donateAmountRub`, `donateUsername`)
-
-- [ ] [CRITICAL] macOS URL scheme registration is a stub: Dart shows `SnackBar('URL schemes are registered automatically on macOS')` and exits without registering anything. AyuGram calls `Core::Application::RegisterUrlScheme()` unconditionally on all platforms via `base::Platform::RegisterUrlScheme` — `ayu_other_page.dart:157-159` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_other.cpp:204-206` + `AyuGramDesktop/Telegram/SourceFiles/core/application.cpp:1894-1919`
-
-- [ ] [CRITICAL] Wrong second URL scheme registered on Linux and Windows: Dart registers `tdesktop` (`x-scheme-handler/tdesktop` on Linux, `HKCU\Software\Classes\tdesktop` on Windows). AyuGram registers `tonsite` — `ayu_other_page.dart:189,213-225` ← `AyuGramDesktop/Telegram/SourceFiles/core/application.cpp:1910-1919` (registers `tonsite`, not `tdesktop`)
-
-- [ ] [CRITICAL] Default donate username is wrong: Dart defaults to `'RadianceTG'` (no `@`). AyuGram C++ defaults to `@ayugramOwner` — `ayu_other_page.dart:452` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/utils/rc_manager.h:102`. This wrong default is permanently displayed because the RC config parse always fails (see first item above).
-
-- [ ] [MAJOR] RC config has no fallback endpoint: when `https://update.ayugram.one/rc/current/desktop2` fails, AyuGram retries with `https://api.exteragram.app/api/v1/profiles/compact`. Dart has no retry/fallback at all — `ayu_other_page.dart:456-477` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/utils/rc_manager.cpp:77-86`
-
-- [ ] [MAJOR] QR box dialog title wrong: Dart uses the coin name (e.g. `"Bitcoin"`) as title. AyuGram uses `tr::lng_group_invite_context_qr()` ("QR code") — `ayu_other_page.dart:699` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/boxes/donate_qr_box.cpp:78`
-
-- [ ] [MAJOR] QR box has extra bottom "Close" button: Dart renders both a "Copy" button and a "Close" button in the bottom row. AyuGram has only a single "Copy" button at bottom; close is via a top-right X button (`addTopButton`) — `ayu_other_page.dart:780-800` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/boxes/donate_qr_box.cpp:148-160`
-
-- [ ] [MAJOR] DonateInfoBox missing TON currency icon in donate amounts: AyuGram renders a visual TON emoji/icon via `Ui::Earn::IconCurrencyColored` prepended to the TON amount. Dart renders plain text `${_DonateInfoBox._donateAmountTon} TON` — `ayu_other_page.dart:565` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/boxes/donate_info_box.cpp:169-183`
-
 # ayu_section_builder — slider onFinalChanged missing, checkbox radius wrong, toggle logic excludes locked incorrectly
 
 - [ ] [CRITICAL] `addSlider` has no `onFinalChanged` parameter and `_AyuSlider` does not use Flutter's `onChangeEnd` — every drag frame calls `onChanged`, but C++ sliders distinguish between `onChanged` (live preview) and `onFinalChanged` (persist on release); e.g. `recentStickersCount` and `avatarCorners` use `onChanged = nullptr, onFinalChanged = setter`, meaning the Dart equivalent fires the setter on every frame and cannot express the on-release-only pattern — `ayu_section_builder.dart:63` ← `AyuGram/SourceFiles/ayu/ui/settings/ayu_builder.cpp:217`
