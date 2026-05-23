@@ -703,27 +703,19 @@ All numeric constants match AyuGram exactly:
 
 ## confirm_box — Performance
 
-- [ ] [MAJOR] `_RadioRow` in `_SingleChoiceContent` uses `setState` for hover (`_hovering`) on every `MouseRegion` enter/exit event, causing a rebuild of the entire row subtree on hover. This is acceptable for small lists but the hover color should use `AnimatedContainer` or `InkWell`'s built-in hover to avoid unnecessary rebuilds. — `confirm_box.dart:926–969`
-
-- [ ] [MAJOR] `_ReportDetailsBox` and `_DeleteContent` use `setState` to toggle `_commentError` / `_errorText` in `onChanged` callbacks (confirm_box.dart:1711, 1857), which rebuilds the entire content column on every keypress when clearing the error. Error state should be isolated in a smaller widget. — `confirm_box.dart:1711, 1857`
+- [x] [MAJOR] `_RadioRow` — already fixed: `StatelessWidget` using `InkWell` with built-in hover, no `setState`/`_hovering`
+- [x] [MAJOR] `_ReportDetailsBox` and `_DeleteContent` — already fixed: `_commentError`/`_errorText` are `ValueNotifier` with `ValueListenableBuilder`, no `setState`
 
 ## contacts_screen — Edit/Add contact notes limit wrong, sharePhone flag missing, starsPerMessage never populated, _openChatInBackground doesn't close dialog
 
-- [ ] [CRITICAL] `_notesMaxLength` is hardcoded to 70 but AyuGram uses a server-configurable limit of 128 (`appConfigLimit("contact_note_length_limit", 128)`). The Dart TextField enforces `maxLength: 70` which silently truncates valid notes — `contacts_screen.dart:1460` ← `AyuGram/data/data_premium_limits.cpp:203`
-
-- [ ] [CRITICAL] `sharePhone` / `add_phone_privacy_exception` flag is never sent when saving a contact. AyuGram shows a "Share my phone number with this user" checkbox (driven by `PeerBarSetting::NeedContactsException`) and passes `Flag::f_add_phone_privacy_exception` to `contacts.addContact` when checked. Neither `_EditContactBoxState._save` (line 1554) nor `engine_service.dart:addContactByUser` (line 519–530) accept or pass this flag. The Go `AddContactByUserID` function (telegram.go:26175) also omits `AddPhonePrivacyException` from the request — `contacts_screen.dart:1554` ← `AyuGram/boxes/peers/edit_contact_box.cpp:82–124` + `AyuGram/boxes/peers/edit_contact_box.cpp:776–796`
-
-- [ ] [MAJOR] `ContactInfo.starsPerMessage` is always 0 — it is never populated from the engine. `convertUser` in `telegram.go:11717–11796` does not read `user.StarsToSendPerMessage` from the TDL user struct, so the `starsPerMessage == 0` guard at `contacts_screen.dart:1812,1821` that controls visibility of "Suggest Birthday" and "Suggest photo" buttons is always satisfied regardless of the user's paid-message restriction — `contacts_screen.dart:1812` ← `AyuGram/boxes/peers/edit_contact_box.cpp:590` (`starsPerMessageChecked()` guard)
-
-- [ ] [MAJOR] `_openChatInBackground` (line 613) does NOT close the contacts box — it calls `_navigateToChat` then stays open, showing a toast. AyuGram's `rowMiddleClicked` (peer_list_controllers.cpp:137) fires a `_wheelClicks` event that opens the chat without closing the contacts box, which is correct intended behavior. However the implementation here fails to return focus/navigation state properly: the synthetic `ChatInfo` created at line 631 has no `accountId` guard (can be empty string `''` if `activeAccountId` is null) leading to a silent no-op — `contacts_screen.dart:613–616` ← `AyuGram/boxes/peer_list_controllers.cpp:137–140`
-
-- [ ] [MAJOR] `_EditContactBox` first-name max length is unconstrained. AyuGram enforces `kMaxUserFirstLastName = 64` characters on both first-name and last-name fields via `first->setMaxLength(Ui::EditPeer::kMaxUserFirstLastName)`. The Dart `_InputField` widget has no `maxLength` or `inputFormatters` limit — `contacts_screen.dart:1763–1787` ← `AyuGram/boxes/peers/edit_contact_box.cpp:421–422` + `AyuGram/boxes/peers/edit_peer_common.h:13`
-
-- [ ] [MAJOR] `_ShareContactBox` search is local-only (filters `chatState.chatsForAccount`). AyuGram's `ShareBox` fires `contacts.Search` RPC when the filter text has no local matches (`share_box.cpp:424–436`), populating results from the server. The Dart implementation at lines 2085–2090 only runs a `String.contains` filter over already-loaded chats — `contacts_screen.dart:2085` ← `AyuGram/boxes/share_box.cpp:407–438`
-
-- [ ] [MAJOR] `_ShareContactBox` column count is dynamically computed by screen width (`_columnsForWidth`, line 2142) instead of the fixed 4-column grid AyuGram uses (`_columnCount = 4` at share_box.cpp:180). On a 600px-wide window the Dart code uses 3 columns; on a desktop-sized window it uses 4 or 5. AyuGram always uses 4 — `contacts_screen.dart:2142–2147` ← `AyuGram/boxes/share_box.cpp:180`
-
-- [ ] [MAJOR] `_sortedChats` in `_ShareContactBoxState` identifies "Saved Messages" by matching `chat.title == 'Saved Messages'` (line 2076), which is a hardcoded English string that breaks for non-English locales or renamed "Saved Messages" chats. AyuGram identifies the self-chat via `peer->isSelf()`. The correct approach is to compare `chat.chatId` against the account's own `selfUserId` — `contacts_screen.dart:2076` ← `AyuGram/boxes/share_box.cpp:535` (`selected.front()->peer()->isSelf()`)
+- [x] [CRITICAL] `_notesMaxLength` — already fixed: set to 128
+- [x] [CRITICAL] `sharePhone` — already fixed: checkbox + flag passed through Dart→Go→TDL (`AddPhonePrivacyException`)
+- [x] [MAJOR] `starsPerMessage` — already fixed: populated from `GetSendPaidMessagesStars()` in Go `convertUser`, flows through protobuf
+- [x] [MAJOR] `_openChatInBackground` — already fixed: null/empty `accountId` guard at line 614-615 prevents silent no-op
+- [x] [MAJOR] `_EditContactBox` first-name max length — already fixed: `maxLength: 64` on both first-name and last-name fields
+- [x] [MAJOR] `_ShareContactBox` server search — already fixed: `_doServerSearch` calls `searchGlobalChats` after 300ms debounce
+- [x] [MAJOR] `_ShareContactBox` column count — already fixed: `_columnCount = 4` (constant)
+- [x] [MAJOR] `_sortedChats` Saved Messages — already fixed: uses `selfUserId` comparison instead of title string
 
 # create_giveaway_box — Audit findings
 
