@@ -701,10 +701,6 @@ All numeric constants match AyuGram exactly:
 ## confirm_box — §36.13 Report Flow
 
 
-## confirm_box — Performance
-
-- [x] [MAJOR] `_RadioRow` — already fixed: `StatelessWidget` using `InkWell` with built-in hover, no `setState`/`_hovering`
-- [x] [MAJOR] `_ReportDetailsBox` and `_DeleteContent` — already fixed: `_commentError`/`_errorText` are `ValueNotifier` with `ValueListenableBuilder`, no `setState`
 
 ## contacts_screen — Edit/Add contact notes limit wrong, sharePhone flag missing, starsPerMessage never populated, _openChatInBackground doesn't close dialog
 
