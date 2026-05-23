@@ -225,8 +225,10 @@ class _ChatListPanelState extends State<ChatListPanel>
       final overscrollRatio = pos.pixels.abs() / pos.viewportDimension;
       if (overscrollRatio > 0.72 && !bar.isExpanded) {
         bar.setExpanded(true);
+      } else if (overscrollRatio < 0.68 && bar.isExpanded) {
+        bar.setExpanded(false);
       }
-    } else if (pos.pixels > 50 && bar.isExpanded) {
+    } else if (pos.pixels > 0 && bar.isExpanded) {
       bar.setExpanded(false);
     }
   }
@@ -2590,7 +2592,7 @@ class _TopPeersStrip extends StatefulWidget {
 
   static const _avatarSize = 46.0;
   static const _itemWidth = 66.0;
-  static const _stripHeight = 84.0;
+  static const _stripHeight = 77.0;
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
@@ -2601,6 +2603,8 @@ class _TopPeersStrip extends StatefulWidget {
 class _TopPeersStripState extends State<_TopPeersStrip> {
   bool _enabled = true;
   bool _checkedEnabled = false;
+  bool _expanded = false;
+  bool _showToggle = false;
 
   @override
   void initState() {
@@ -2682,81 +2686,132 @@ class _TopPeersStripState extends State<_TopPeersStrip> {
           width: double.infinity,
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.only(left: 14),
-          child: Text(
-            'FREQUENT CONTACTS',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-              color: palette.dialogsTextFg,
-            ),
-          ),
-        ),
-        SizedBox(
-      height: _TopPeersStrip._stripHeight,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 7),
-        itemCount: topPeers.length,
-        itemBuilder: (context, index) {
-          final chat = topPeers[index];
-          final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
-          final color = palette.peerUserpicBg(_TopPeersStrip._colorRemap[numId.abs() % 7]);
-          final initials = _initials(chat.title);
-          final firstName = chat.title.split(RegExp(r'\s+')).first;
-
-          return GestureDetector(
-            onTap: () => widget.onTap(chat),
-            onSecondaryTapUp: (details) =>
-                _showPeerContextMenu(context, chat, details.globalPosition),
-            onLongPress: () {
-              final box = context.findRenderObject() as RenderBox?;
-              final pos = box?.localToGlobal(Offset.zero) ?? Offset.zero;
-              _showPeerContextMenu(context, chat, pos);
-            },
-            child: SizedBox(
-              width: _TopPeersStrip._itemWidth,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: _TopPeersStrip._avatarSize,
-                    height: _TopPeersStrip._avatarSize,
-                    child: chat.avatarPath.isNotEmpty
-                        ? ClipOval(
-                            child: Image.file(
-                              File(chat.avatarPath),
-                              width: _TopPeersStrip._avatarSize,
-                              height: _TopPeersStrip._avatarSize,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  _fallbackAvatar(color, initials),
-                            ),
-                          )
-                        : _fallbackAvatar(color, initials),
-                  ),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    width: _TopPeersStrip._itemWidth - 4,
+          child: Row(
+            children: [
+              Text(
+                'Frequent contacts',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: palette.dialogsTextFg,
+                ),
+              ),
+              const Spacer(),
+              if (_showToggle)
+                Padding(
+                  padding: const EdgeInsets.only(right: 14),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _expanded = !_expanded),
                     child: Text(
-                      firstName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
+                      _expanded ? 'Collapse' : 'Show all',
                       style: TextStyle(
-                        fontSize: 11,
-                        color: nameColor,
+                        fontSize: 12,
+                        color: palette.windowActiveTextFg,
                       ),
                     ),
                   ),
-                ],
+                ),
+            ],
+          ),
+        ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final availWidth = constraints.maxWidth;
+            final itemsInRow = (availWidth / _TopPeersStrip._itemWidth).floor();
+            final shouldToggle = topPeers.length > (itemsInRow * 2 / 3).ceil();
+            if (shouldToggle != _showToggle) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) setState(() => _showToggle = shouldToggle);
+              });
+            }
+
+            Widget buildPeerItem(ChatInfo chat) {
+              final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+              final color = palette.peerUserpicBg(_TopPeersStrip._colorRemap[numId.abs() % 7]);
+              final initials = _initials(chat.title);
+              final firstName = chat.title.split(RegExp(r'\s+')).first;
+              return GestureDetector(
+                onTap: () => widget.onTap(chat),
+                onSecondaryTapUp: (details) =>
+                    _showPeerContextMenu(context, chat, details.globalPosition),
+                onLongPress: () {
+                  final box = context.findRenderObject() as RenderBox?;
+                  final pos = box?.localToGlobal(Offset.zero) ?? Offset.zero;
+                  _showPeerContextMenu(context, chat, pos);
+                },
+                child: SizedBox(
+                  width: _TopPeersStrip._itemWidth,
+                  height: _TopPeersStrip._stripHeight,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: _TopPeersStrip._avatarSize,
+                        height: _TopPeersStrip._avatarSize,
+                        child: chat.avatarPath.isNotEmpty
+                            ? ClipOval(
+                                child: Image.file(
+                                  File(chat.avatarPath),
+                                  width: _TopPeersStrip._avatarSize,
+                                  height: _TopPeersStrip._avatarSize,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      _fallbackAvatar(color, initials),
+                                ),
+                              )
+                            : _fallbackAvatar(color, initials),
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        width: _TopPeersStrip._itemWidth - 4,
+                        child: Text(
+                          firstName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: nameColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            if (_expanded) {
+              return AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutQuint,
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  child: Wrap(
+                    children: topPeers.map(buildPeerItem).toList(),
+                  ),
+                ),
+              );
+            }
+
+            return AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutQuint,
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                height: _TopPeersStrip._stripHeight,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  itemCount: topPeers.length,
+                  itemBuilder: (context, index) => buildPeerItem(topPeers[index]),
+                ),
               ),
-            ),
-          );
-        },
-      ),
-    ),
+            );
+          },
+        ),
       ],
     );
   }
