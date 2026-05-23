@@ -4115,6 +4115,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetUnreadPollVotes":
+		var req pb.EngineGetMessagesRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		msgs, err := e.GetUnreadPollVotes(req.AccountId, req.ChatId, 1)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetMessagesResponse{}
+		for _, m := range msgs {
+			resp.Messages = append(resp.Messages, cachedMsgToProto(&m))
+		}
+		return proto.Marshal(resp)
+
 	case "GetUnreadReactions":
 		var req pb.EngineGetMessagesRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

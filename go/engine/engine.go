@@ -1067,6 +1067,38 @@ func (e *Engine) GetUnreadMentions(accountID, chatID string, limit int) ([]Cache
 	return result, nil
 }
 
+func (e *Engine) GetUnreadPollVotes(accountID, chatID string, limit int) ([]CachedMessage, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type pollVotesGetter interface {
+		GetUnreadPollVotes(chatID string, limit int) ([]cores.Message, error)
+	}
+	pg, ok := acc.Core.(pollVotesGetter)
+	if !ok {
+		return nil, nil
+	}
+	msgs, err := pg.GetUnreadPollVotes(chatID, limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]CachedMessage, len(msgs))
+	for i, m := range msgs {
+		result[i] = CachedMessage{
+			AccountID:  accountID,
+			ChatID:     chatID,
+			MsgID:      m.ID,
+			SenderID:   m.SenderID,
+			SenderName: m.SenderName,
+			ContentText: m.Text,
+			Timestamp:  m.Timestamp.UnixMilli(),
+			IsOutgoing: m.IsOutgoing,
+		}
+	}
+	return result, nil
+}
+
 func (e *Engine) GetUnreadReactions(accountID, chatID string, limit int) ([]CachedMessage, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

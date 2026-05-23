@@ -300,6 +300,7 @@ class _ChatViewState extends State<ChatView>
   /// Spec §4.4: when the user taps the close button on the pinned bar,
   /// the bar is hidden locally for the current chat until the chat changes.
   bool _pinnedBarDismissed = false;
+  int _currentPinnedIndex = 0;
   bool _showTranslateBar = false;
   String _translateTargetLang = '';
   bool _isTranslating = false;
@@ -747,6 +748,7 @@ class _ChatViewState extends State<ChatView>
             _searchFromUserId = '';
             _searchFromUserName = '';
             _pinnedBarDismissed = false;
+            _currentPinnedIndex = 0;
             _isEditingStarsPrice = false;
             _hiddenMsgIds.clear();
             _activeHighlightId = null;
@@ -773,6 +775,12 @@ class _ChatViewState extends State<ChatView>
       _loadBotMenuText(chatState);
       // §47: Load DM-level restrictions (voice forbidden, premium required).
       _loadDmRestrictions(chatState);
+      _showTranslateBar = false;
+      _isTranslating = false;
+      _translations.clear();
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) _autoDetectTranslateBar();
+      });
     }
   }
 
@@ -1072,6 +1080,33 @@ class _ChatViewState extends State<ChatView>
     _translateTargetLang = locale.languageCode;
   }
 
+  void _autoDetectTranslateBar() {
+    if (_showTranslateBar) return;
+    final chatState = context.read<ChatState>();
+    final msgs = chatState.messages;
+    if (msgs.isEmpty) return;
+    _checkTranslateBar();
+    final userLang = _translateTargetLang;
+    if (userLang.isEmpty) return;
+    final sample = msgs.take(10).where((m) =>
+        m.contentText.isNotEmpty && !m.isOutgoing && !m.isService).take(5);
+    if (sample.isEmpty) return;
+    final foreignCount = sample.where((m) => _isForeignText(m.contentText, userLang)).length;
+    if (foreignCount >= 2) {
+      setState(() => _showTranslateBar = true);
+    }
+  }
+
+  static bool _isForeignText(String text, String userLang) {
+    final cleaned = text.replaceAll(RegExp(r'[\s\d\p{P}\p{S}]', unicode: true), '');
+    if (cleaned.length < 3) return false;
+    final isLatin = RegExp(r'^[\p{Script=Latin}]+$', unicode: true).hasMatch(cleaned);
+    final latinLangs = {'en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'pl', 'ro', 'sv', 'da', 'no', 'fi', 'cs', 'sk', 'hr', 'tr', 'vi', 'id', 'ms'};
+    if (isLatin && latinLangs.contains(userLang)) return false;
+    if (!isLatin && !latinLangs.contains(userLang)) return false;
+    return true;
+  }
+
   void _scrollToBottom() {
     // Spec §49.5: Ctrl held → force jump to position (bypasses reply-return).
     final chatState = context.read<ChatState>();
@@ -1090,6 +1125,7 @@ class _ChatViewState extends State<ChatView>
     engine.getOldestUnreadMention(chat.accountId, chat.chatId).then((msg) {
       if (msg != null && mounted) {
         chatState.jumpToMessage(msg.timestamp, highlightMsgId: msg.msgId);
+        engine.readMessageContents(chat.accountId, chat.chatId, msg.msgId);
       }
     });
   }
@@ -1108,14 +1144,17 @@ class _ChatViewState extends State<ChatView>
 
   void _scrollToFirstUnreadPoll() {
     final chatState = context.read<ChatState>();
-    final msgs = chatState.messages;
-    for (final msg in msgs.reversed) {
-      if (msg.isPoll) {
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    engine.getOldestUnreadPollVote(chat.accountId, chat.chatId).then((msg) {
+      if (msg != null && mounted) {
         chatState.jumpToMessage(msg.timestamp, highlightMsgId: msg.msgId);
-        return;
+        engine.readMessageContents(chat.accountId, chat.chatId, msg.msgId);
+      } else if (mounted) {
+        _scrollToBottom();
       }
-    }
-    _scrollToBottom();
+    });
   }
 
   /// Spec §49.8: Smooth scroll engine.
@@ -1291,11 +1330,27 @@ class _ChatViewState extends State<ChatView>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bot = chatState.connectedBot;
     if (bot == null) return;
+    final manageUrl = chatState.peerBarSettings['business_bot_manage_url'] as String?;
     showDialog(
       context: context,
       builder: (ctx) => SimpleDialog(
         title: Text(bot.botName.isNotEmpty ? bot.botName : 'Business Bot'),
         children: [
+          if (manageUrl != null && manageUrl.isNotEmpty)
+            SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(ctx);
+                url_launcher.launchUrl(Uri.parse(manageUrl),
+                    mode: url_launcher.LaunchMode.externalApplication);
+              },
+              child: Row(
+                children: [
+                  Icon(Icons.settings, color: isDark ? Colors.white70 : Colors.black87, size: 20),
+                  const SizedBox(width: 12),
+                  Text('Manage', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+                ],
+              ),
+            ),
           SimpleDialogOption(
             onPressed: () {
               Navigator.pop(ctx);
@@ -5008,28 +5063,36 @@ class _ChatViewState extends State<ChatView>
           // Pinned message bar (if any pinned messages).
           if (chatState.pinnedMessages.isNotEmpty && !_pinnedBarDismissed &&
               !_isPinnedHidden(chat.accountId, chat.chatId, chatState.pinnedMessages.first.msgId))
-            _PinnedBar(
-              pinned: chatState.pinnedMessages.first,
-              pinnedCount: chatState.pinnedMessages.length,
-              pinnedIndex: 0,
-              onTap: () {
-                final pinned = chatState.pinnedMessages.first;
-                _jumpToAndHighlight(pinned.msgId, pinned.timestamp, reloadMessages: true);
-              },
-              onClose: () {
-                final pinned = chatState.pinnedMessages.first;
-                if (chat.isAdmin) {
-                  final engine = context.read<EngineService>();
-                  engine.pinMessage(chat.accountId, chat.chatId, pinned.msgId, false).catchError((_) {});
-                } else {
-                  _saveHiddenPin('${chat.accountId}:${chat.chatId}:${pinned.msgId}');
-                }
-                setState(() => _pinnedBarDismissed = true);
-              },
-              onShowAll: chatState.pinnedMessages.length > 1
-                  ? () => _showAllPinnedMessages(context, chatState)
-                  : null,
-            ),
+            Builder(builder: (_) {
+              final pins = chatState.pinnedMessages;
+              final idx = _currentPinnedIndex.clamp(0, pins.length - 1);
+              final pinned = pins[idx];
+              return _PinnedBar(
+                pinned: pinned,
+                pinnedCount: pins.length,
+                pinnedIndex: idx,
+                onTap: () {
+                  _jumpToAndHighlight(pinned.msgId, pinned.timestamp, reloadMessages: true);
+                  if (pins.length > 1) {
+                    setState(() {
+                      _currentPinnedIndex = (idx + 1) % pins.length;
+                    });
+                  }
+                },
+                onClose: () {
+                  if (chat.isAdmin) {
+                    final engine = context.read<EngineService>();
+                    engine.pinMessage(chat.accountId, chat.chatId, pinned.msgId, false).catchError((_) {});
+                  } else {
+                    _saveHiddenPin('${chat.accountId}:${chat.chatId}:${pinned.msgId}');
+                  }
+                  setState(() => _pinnedBarDismissed = true);
+                },
+                onShowAll: pins.length > 1
+                    ? () => _showAllPinnedMessages(context, chatState)
+                    : null,
+              );
+            }),
           // Business bot bar (§30.11) — shown when a connected business bot manages this chat.
           if (chatState.connectedBot != null)
             _BusinessBotBar(
@@ -9633,7 +9696,27 @@ class _ContactStatusBar extends StatelessWidget {
                     height: 36,
                     textTop: 10,
                     onTap: () {
-                      chatState.hidePeerSettingsBar(chat.accountId, chat.chatId);
+                      final groupType = isBroadcast ? 'channel' : 'group';
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Text(chatTitle.isNotEmpty ? chatTitle : groupType),
+                          content: Text('This user invited you to the $groupType "$chatTitle".'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                chatState.hidePeerSettingsBar(chat.accountId, chat.chatId);
+                              },
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
+                      );
                     },
                   ),
                 ),
@@ -9858,6 +9941,7 @@ class _ContactStatusBar extends StatelessWidget {
                 firstNameCtrl.text.trim(),
                 lastNameCtrl.text.trim(),
               );
+              chatState.hidePeerSettingsBar(chat.accountId, chat.chatId);
               Navigator.pop(ctx);
             },
             child: const Text('Add'),
@@ -11177,93 +11261,94 @@ class _GroupCallBar extends StatelessWidget {
       });
     final visibleParticipants = sorted.take(3).toList();
 
-    return Container(
-      height: 49,
-      decoration: BoxDecoration(
-        color: barBg,
-        border: Border(bottom: BorderSide(color: shadowColor, width: 1)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 13),
-        child: Row(
-          children: [
-            if (visibleParticipants.isNotEmpty) ...[
-              SizedBox(
-                width: 28.0 + (visibleParticipants.length - 1) * 20.0,
-                height: 28,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    for (var i = 0; i < visibleParticipants.length; i++)
-                      Positioned(
-                        left: i * 20.0,
-                        child: _GroupCallUserpic(
-                          participant: visibleParticipants[i],
-                          isSpeaking: visibleParticipants[i].isSpeaking,
-                          accentGreen: accentGreen,
-                          isDark: isDark,
+    return GestureDetector(
+      onTap: onJoin,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 49,
+        decoration: BoxDecoration(
+          color: barBg,
+          border: Border(bottom: BorderSide(color: shadowColor, width: 1)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 13),
+          child: Row(
+            children: [
+              if (visibleParticipants.isNotEmpty) ...[
+                SizedBox(
+                  width: 28.0 + (visibleParticipants.length - 1) * 20.0,
+                  height: 28,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      for (var i = 0; i < visibleParticipants.length; i++)
+                        Positioned(
+                          left: i * 20.0,
+                          child: _GroupCallUserpic(
+                            participant: visibleParticipants[i],
+                            isSpeaking: visibleParticipants[i].isSpeaking,
+                            accentGreen: accentGreen,
+                            isDark: isDark,
+                          ),
                         ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ] else ...[
+                Icon(Icons.phone_in_talk, size: 22, color: joinBg),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      groupCall.title.isNotEmpty ? groupCall.title : 'Voice Chat',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
                       ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      groupCall.participantsCount > 0
+                          ? '${groupCall.participantsCount} participant${groupCall.participantsCount == 1 ? '' : 's'}'
+                          : 'No participants',
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: subtitleColor,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
-            ] else ...[
-              // No participants yet — show a phone icon.
-              Icon(Icons.phone_in_talk, size: 22, color: joinBg),
-              const SizedBox(width: 10),
-            ],
-            // Title and participant count.
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    groupCall.title.isNotEmpty ? groupCall.title : 'Voice Chat',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    groupCall.participantsCount > 0
-                        ? '${groupCall.participantsCount} participant${groupCall.participantsCount == 1 ? '' : 's'}'
-                        : 'No participants',
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: subtitleColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // "Join" button.
-            Material(
-              color: joinBg,
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
+              Material(
+                color: joinBg,
                 borderRadius: BorderRadius.circular(16),
-                onTap: onJoin,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-                  child: Text(
-                    'Join',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: onJoin,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                    child: Text(
+                      'Join',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -19773,34 +19858,41 @@ void _showChatPreviewPopup(BuildContext ctx, ChatInfo chat, ChatState chatState)
                         separatorBuilder: (_, __) => const SizedBox(height: 4),
                         itemBuilder: (_, i) {
                           final m = msgs[i];
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (m.senderName.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 6),
-                                  child: Text(
-                                    '${m.senderName}:',
-                                    style: TextStyle(
-                                      color: isDark
-                                          ? const Color(0xFF71BFFF)
-                                          : const Color(0xFF168ACD),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
+                          return GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              Navigator.of(dialogCtx).pop();
+                              chatState.jumpToMessage(m.timestamp, highlightMsgId: m.msgId);
+                            },
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (m.senderName.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: Text(
+                                      '${m.senderName}:',
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? const Color(0xFF71BFFF)
+                                            : const Color(0xFF168ACD),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
+                                Expanded(
+                                  child: Text(
+                                    m.contentText.isNotEmpty
+                                        ? m.contentText
+                                        : (m.hasMedia ? '[Media]' : ''),
+                                    style: TextStyle(color: textColor, fontSize: 13),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              Expanded(
-                                child: Text(
-                                  m.contentText.isNotEmpty
-                                      ? m.contentText
-                                      : (m.hasMedia ? '[Media]' : ''),
-                                  style: TextStyle(color: textColor, fontSize: 13),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           );
                         },
                       ),

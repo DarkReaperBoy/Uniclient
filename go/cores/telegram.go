@@ -17873,6 +17873,19 @@ func (t *TelegramCore) GetUnreadMentions(chatID string, limit int) ([]Message, e
 	return t.convertMessages(result), nil
 }
 
+// GetUnreadPollVotes returns messages with unread poll votes in a chat.
+func (t *TelegramCore) GetUnreadPollVotes(chatID string, limit int) ([]Message, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return nil, err }
+	defer unlock()
+	if limit <= 0 { limit = 20 }
+	result, err := t.api.MessagesGetUnreadPollVotes(t.ctx, &tg.MessagesGetUnreadPollVotesRequest{
+		Peer: inputPeer, Limit: limit,
+	})
+	if err != nil { return nil, err }
+	return t.convertMessages(result), nil
+}
+
 // GetUnreadReactions returns messages with unread reactions in a chat.
 func (t *TelegramCore) GetUnreadReactions(chatID string, limit int) ([]Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
@@ -18983,6 +18996,9 @@ func (t *TelegramCore) GetPeerBarSettings(chatID string) (string, error) {
 	}
 	if dist, ok := s.GetGeoDistance(); ok {
 		m["geo_distance"] = dist
+	}
+	if url, ok := s.GetBusinessBotManageURL(); ok && url != "" {
+		m["business_bot_manage_url"] = url
 	}
 	if p, ok := inputPeer.(*tg.InputPeerUser); ok {
 		for _, u := range result.Users {
