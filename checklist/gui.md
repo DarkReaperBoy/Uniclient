@@ -606,11 +606,6 @@ All geometric calculations match:
 
 
 
-
-## call_screen — Window enumeration for screen share falls back to X11 tools only
-
-- [ ] [MAJOR] `_enumerateWindows()` uses `wmctrl -l` then `xdotool search` — both X11-only. On Wayland there is no way to enumerate windows, so the "Windows" tab in the screen-share chooser will always be empty. No PipeWire portal path for window enumeration is attempted. — `call_screen.dart:2701-2744` ← `AyuGram/ui/platform/ui_platform/desktop_capture_choose_source` (uses platform-native source enumeration)
-
 # calls_screen — Audit Findings
 
 ## calls_screen — call settings device toggle broken, level meter 60fps setState, silent mic fallback
