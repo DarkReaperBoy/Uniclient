@@ -605,9 +605,6 @@ All geometric calculations match:
 # call_screen — Group Call Panel & Minimised Call Bar Audit
 
 
-## call_screen — Participant rows have no long-press / context menu (mute, kick, volume)
-
-- [ ] [CRITICAL] AyuGram's Members panel emits `toggleMuteRequests`, `changeVolumeRequests`, and `kickParticipantRequests` on participant row interaction (right-click / long-press context menu). The Dart `_buildParticipantRow` has no `onLongPress`, no `GestureDetector.onSecondaryTap`, and no context menu — participants cannot be muted, kicked, or have their volume changed by an admin. — `call_screen.dart:271-306` ← `AyuGram/calls/group/calls_group_members.cpp:81-83,1382,1569-1578`
 
 ## call_screen — No in-call chat messages panel
 
