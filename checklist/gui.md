@@ -695,7 +695,6 @@ All numeric constants match AyuGram exactly:
 
 ## confirm_box — §36.2 ConfirmBox / showConfirmBox
 
-- [ ] [MAJOR] `strictCancel` semantics differ: AyuGram destroys the cancel-callback lifetime immediately (`lifetime->destroy()` at confirm_box.cpp:106–108), preventing the `boxClosing` signal from firing cancel at all. Dart only suppresses cancel in the barrier-dismiss path (`then` block at confirm_box.dart:341), so explicit Cancel button still calls `onCancel` even when `strictCancel=true`. — `confirm_box.dart:341` ← `AyuGram/ui/boxes/confirm_box.cpp:100–108`
 
 ## confirm_box — §36.5 SingleChoiceBox
 
