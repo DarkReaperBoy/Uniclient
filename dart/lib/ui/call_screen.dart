@@ -3166,12 +3166,14 @@ class ScreenShareSource {
   final String name;
   final bool isScreen;
   final bool withAudio;
+  final Rect? geometry;
 
   const ScreenShareSource({
     required this.id,
     required this.name,
     required this.isScreen,
     this.withAudio = false,
+    this.geometry,
   });
 
   ScreenShareSource copyWith({bool? withAudio}) => ScreenShareSource(
@@ -3179,6 +3181,7 @@ class ScreenShareSource {
     name: name,
     isScreen: isScreen,
     withAudio: withAudio ?? this.withAudio,
+    geometry: geometry,
   );
 }
 
@@ -3381,7 +3384,9 @@ class _ScreenShareChooserDialogState
         final grimResult = await _tryGrimCapture(w, h);
         if (grimResult != null) return grimResult;
 
-        if (_isWayland) return null;
+        if (_isWayland) {
+          return await _tryWaylandScreenCapture();
+        }
         final result = await Process.run(
           'import',
           ['-window', 'root', '-resize', '${w}x$h!', 'png:-'],
@@ -3391,7 +3396,9 @@ class _ScreenShareChooserDialogState
           return Uint8List.fromList(result.stdout as List<int>);
         }
       } else {
-        if (_isWayland) return null;
+        if (_isWayland) {
+          return await _tryWaylandWindowCapture(source);
+        }
         final wid = source.id.replaceFirst('window:', '');
         if (wid.isEmpty || wid == '0') return null;
         final result = await Process.run(
@@ -3421,12 +3428,65 @@ class _ScreenShareChooserDialogState
     return null;
   }
 
-  static Future<List<ScreenShareSource>> _enumerateWindows() async {
-    if (!Platform.isLinux) {
-      return [];
-    }
-    final windows = <ScreenShareSource>[];
+  static Future<Uint8List?> _tryWaylandScreenCapture() async {
+    // gnome-screenshot (GNOME Wayland)
+    try {
+      final path = '/tmp/uniclient_thumb_${DateTime.now().millisecondsSinceEpoch}.png';
+      final result = await Process.run(
+        'gnome-screenshot', ['-f', path],
+      ).timeout(const Duration(seconds: 3));
+      if (result.exitCode == 0) {
+        final file = File(path);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          await file.delete().catchError((_) => file);
+          return bytes;
+        }
+      }
+    } catch (_) {}
+    // spectacle (KDE Wayland)
+    try {
+      final path = '/tmp/uniclient_thumb_${DateTime.now().millisecondsSinceEpoch}.png';
+      final result = await Process.run(
+        'spectacle', ['-b', '-n', '-f', '-o', path],
+      ).timeout(const Duration(seconds: 3));
+      if (result.exitCode == 0) {
+        final file = File(path);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          await file.delete().catchError((_) => file);
+          return bytes;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
 
+  static Future<Uint8List?> _tryWaylandWindowCapture(ScreenShareSource source) async {
+    if (source.geometry == null) return null;
+    // grim -g for wlroots-based compositors (Sway, Hyprland)
+    try {
+      final g = source.geometry!;
+      if (g.width <= 0 || g.height <= 0) return null;
+      final result = await Process.run('grim', [
+        '-g', '${g.left.toInt()},${g.top.toInt()} ${g.width.toInt()}x${g.height.toInt()}',
+        '-t', 'png',
+        '-',
+      ], stdoutEncoding: null).timeout(const Duration(seconds: 3));
+      if (result.exitCode == 0 && (result.stdout as List<int>).isNotEmpty) {
+        return Uint8List.fromList(result.stdout as List<int>);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<List<ScreenShareSource>> _enumerateWindows() async {
+    if (!Platform.isLinux) return [];
+    return _isWayland ? _enumerateWindowsWayland() : _enumerateWindowsX11();
+  }
+
+  static Future<List<ScreenShareSource>> _enumerateWindowsX11() async {
+    final windows = <ScreenShareSource>[];
     try {
       final result = await Process.run('wmctrl', ['-l']);
       if (result.exitCode == 0) {
@@ -3466,8 +3526,13 @@ class _ScreenShareChooserDialogState
         }
       }
     } catch (_) {}
-    if (windows.isNotEmpty) return windows;
+    return windows;
+  }
 
+  static Future<List<ScreenShareSource>> _enumerateWindowsWayland() async {
+    final windows = <ScreenShareSource>[];
+
+    // KDE Wayland
     try {
       final kdResult = await Process.run('kdotool', ['search', '--name', '']);
       if (kdResult.exitCode == 0) {
@@ -3489,7 +3554,7 @@ class _ScreenShareChooserDialogState
     } catch (_) {}
     if (windows.isNotEmpty) return windows;
 
-    // Hyprland: enumerate via hyprctl
+    // Hyprland (with geometry for grim -g window capture)
     try {
       final hyprResult = await Process.run('hyprctl', ['clients', '-j']);
       if (hyprResult.exitCode == 0) {
@@ -3499,17 +3564,27 @@ class _ScreenShareChooserDialogState
             if (client is! Map) continue;
             final title = client['title'] as String? ?? '';
             final addr = client['address'] as String? ?? '';
-            if (title.isNotEmpty && addr.isNotEmpty) {
-              windows.add(ScreenShareSource(
-                  id: 'window:$addr', name: title, isScreen: false));
+            if (title.isEmpty || addr.isEmpty) continue;
+            Rect? geo;
+            final at = client['at'];
+            final size = client['size'];
+            if (at is List && at.length >= 2 && size is List && size.length >= 2) {
+              geo = Rect.fromLTWH(
+                (at[0] as num).toDouble(),
+                (at[1] as num).toDouble(),
+                (size[0] as num).toDouble(),
+                (size[1] as num).toDouble(),
+              );
             }
+            windows.add(ScreenShareSource(
+                id: 'window:$addr', name: title, isScreen: false, geometry: geo));
           }
         }
       }
     } catch (_) {}
     if (windows.isNotEmpty) return windows;
 
-    // Sway: enumerate via swaymsg
+    // Sway (with geometry for grim -g window capture)
     try {
       final swayResult = await Process.run('swaymsg', ['-t', 'get_tree', '-r']);
       if (swayResult.exitCode == 0) {
@@ -3559,8 +3634,21 @@ class _ScreenShareChooserDialogState
       final name = node['name'] as String? ?? '';
       final id = node['id'];
       if (name.isNotEmpty && id != null) {
+        Rect? geo;
+        final rect = node['rect'];
+        if (rect is Map) {
+          final rw = (rect['width'] as num?)?.toDouble() ?? 0;
+          final rh = (rect['height'] as num?)?.toDouble() ?? 0;
+          if (rw > 0 && rh > 0) {
+            geo = Rect.fromLTWH(
+              (rect['x'] as num?)?.toDouble() ?? 0,
+              (rect['y'] as num?)?.toDouble() ?? 0,
+              rw, rh,
+            );
+          }
+        }
         out.add(ScreenShareSource(
-            id: 'window:sway-$id', name: name, isScreen: false));
+            id: 'window:sway-$id', name: name, isScreen: false, geometry: geo));
       }
     }
     final nodes = node['nodes'] as List?;
