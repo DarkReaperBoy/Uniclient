@@ -715,9 +715,6 @@ All numeric constants match AyuGram exactly:
 
 # create_giveaway_box — Audit findings
 
-- [ ] [CRITICAL] Missing Credits/Stars giveaway type entirely — the Dart only has `random` and `prepaid` enum values; the Credits giveaway with star options, slider, and `yearlyBoosts` badge is absent — `create_giveaway_box.dart:13` (`enum _GiveawayType { random, prepaid }`) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:272,458-699` (`GiveawayType::Credits`, `Api::CreditsGiveawayOptions`, `fillCreditsOptions`)
-
-- [ ] [MAJOR] Max date for the date picker is hardcoded to 365 days; should be fetched from the API — `create_giveaway_box.dart:519` (`DateTime.now().add(const Duration(days: 365))`) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:1285-1287` (`state->apiOptions.giveawayPeriodMax()`)
 
 ## create_group_wizard — Setup channel step, noForwards, slowMode placement, invite link button, TTL box, megagroup labels
 
