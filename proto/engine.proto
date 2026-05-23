@@ -912,6 +912,7 @@ message EngineContactInfo {
   string last_seen_kind     = 14;
   int64  last_seen_ts       = 15;
   bool   is_mutual_contact  = 16;
+  int64  stars_per_message   = 17;
 }
 
 message EngineGetContactsRequest {

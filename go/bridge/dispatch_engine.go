@@ -444,16 +444,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "AddContactByUser":
 		var params struct {
-			AccountID string `json:"account_id"`
-			UserID    string `json:"user_id"`
-			FirstName string `json:"first_name"`
-			LastName  string `json:"last_name"`
-			Note      string `json:"note"`
+			AccountID  string `json:"account_id"`
+			UserID     string `json:"user_id"`
+			FirstName  string `json:"first_name"`
+			LastName   string `json:"last_name"`
+			Note       string `json:"note"`
+			SharePhone bool   `json:"share_phone"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		userId, err := e.AddContactByUser(params.AccountID, params.UserID, params.FirstName, params.LastName, params.Note)
+		userId, err := e.AddContactByUser(params.AccountID, params.UserID, params.FirstName, params.LastName, params.Note, params.SharePhone)
 		if err != nil {
 			return nil, err
 		}
@@ -2460,6 +2461,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				IsFake:          c.IsFake,
 				LastSeenKind:    c.LastSeenKind,
 				LastSeenTs:      c.LastSeenTs,
+				StarsPerMessage: c.StarsPerMessage,
 			})
 		}
 		return proto.Marshal(resp)

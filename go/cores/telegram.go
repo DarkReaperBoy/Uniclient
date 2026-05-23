@@ -11904,6 +11904,10 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 		}
 	}
 
+	if stars, ok := user.GetSendPaidMessagesStars(); ok {
+		u.StarsPerMessage = stars
+	}
+
 	return u
 }
 
@@ -16825,6 +16829,7 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 			}
 			cu.VoiceMessagesForbidden = result.FullUser.VoiceMessagesForbidden
 			cu.ContactRequirePremium = result.FullUser.ContactRequirePremium
+			cu.NeedContactsException = result.FullUser.Settings.NeedContactsException
 			if pp, ok := result.FullUser.GetPersonalPhoto(); ok {
 				cu.HasPersonalPhoto = true
 				if photo, ok := pp.(*tg.Photo); ok {
@@ -26311,17 +26316,18 @@ func (t *TelegramCore) AddContactReturnUserID(phone string, firstName string, la
 }
 
 // AddContactWithNote adds a contact with a note field using contacts.addContact.
-func (t *TelegramCore) AddContactWithNote(phone, firstName, lastName, note string) error {
+func (t *TelegramCore) AddContactWithNote(phone, firstName, lastName, note string, sharePhone bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
 		return ErrAuth
 	}
 	req := &tg.ContactsAddContactRequest{
-		ID:        &tg.InputUser{},
-		FirstName: firstName,
-		LastName:  lastName,
-		Phone:     phone,
+		ID:                       &tg.InputUser{},
+		FirstName:                firstName,
+		LastName:                 lastName,
+		Phone:                    phone,
+		AddPhonePrivacyException: sharePhone,
 	}
 	req.SetNote(tg.TextWithEntities{Text: note})
 	_, err := t.api.ContactsAddContact(t.ctx, req)
@@ -26329,7 +26335,7 @@ func (t *TelegramCore) AddContactWithNote(phone, firstName, lastName, note strin
 }
 
 // AddContactByUserID adds a contact using their user ID instead of phone number.
-func (t *TelegramCore) AddContactByUserID(userID, firstName, lastName, note string) error {
+func (t *TelegramCore) AddContactByUserID(userID, firstName, lastName, note string, sharePhone bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -26341,9 +26347,10 @@ func (t *TelegramCore) AddContactByUserID(userID, firstName, lastName, note stri
 	}
 	hash := t.getCachedUserHash(uid)
 	req := &tg.ContactsAddContactRequest{
-		ID:        &tg.InputUser{UserID: uid, AccessHash: hash},
-		FirstName: firstName,
-		LastName:  lastName,
+		ID:                     &tg.InputUser{UserID: uid, AccessHash: hash},
+		FirstName:              firstName,
+		LastName:               lastName,
+		AddPhonePrivacyException: sharePhone,
 	}
 	if note != "" {
 		req.SetNote(tg.TextWithEntities{Text: note})

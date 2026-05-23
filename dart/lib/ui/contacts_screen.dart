@@ -611,6 +611,8 @@ class _ContactsBoxState extends State<_ContactsBox> {
   }
 
   void _openChatInBackground(ContactInfo contact) {
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId == null || accountId.isEmpty) return;
     _navigateToChat(contact);
     if (mounted) showTelegramToast(context, 'Opened chat with ${contact.label}');
   }
@@ -1332,6 +1334,7 @@ class _InputField extends StatelessWidget {
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onSubmitted;
+  final int? maxLength;
 
   const _InputField({
     required this.controller,
@@ -1344,6 +1347,7 @@ class _InputField extends StatelessWidget {
     this.keyboardType,
     this.inputFormatters,
     this.onSubmitted,
+    this.maxLength,
   });
 
   @override
@@ -1353,7 +1357,10 @@ class _InputField extends StatelessWidget {
       focusNode: focusNode,
       style: TextStyle(fontSize: 15, color: textColor),
       keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
+      inputFormatters: [
+        ...?inputFormatters,
+        if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
+      ],
       textInputAction: onSubmitted != null ? TextInputAction.next : null,
       onSubmitted: onSubmitted,
       decoration: InputDecoration(
@@ -1457,9 +1464,11 @@ class _EditContactBoxState extends State<_EditContactBox> {
   late final FocusNode _notesFocus;
   bool _saving = false;
   String? _error;
-  static const _notesMaxLength = 70;
+  static const _notesMaxLength = 128;
   bool _hasPersonalPhoto = false;
   bool _hasBirthday = false;
+  bool _sharePhone = true;
+  bool _showSharePhone = false;
   Uint8List? _avatarBytes;
 
   String get _liveName {
@@ -1506,6 +1515,7 @@ class _EditContactBoxState extends State<_EditContactBox> {
         final bDay = info['birthday_day'] as int? ?? 0;
         final bMonth = info['birthday_month'] as int? ?? 0;
         _hasBirthday = bDay > 0 && bMonth > 0;
+        _showSharePhone = info['need_contacts_exception'] as bool? ?? false;
       });
     } catch (_) {}
   }
@@ -1551,7 +1561,7 @@ class _EditContactBoxState extends State<_EditContactBox> {
           ? widget.contact.phone
           : '+0';
       final note = _notesCtrl.text.trim();
-      await widget.engine.addContact(account.id, phone, firstName, lastName, note: note, userId: widget.contact.userId);
+      await widget.engine.addContact(account.id, phone, firstName, lastName, note: note, userId: widget.contact.userId, sharePhone: _sharePhone && _showSharePhone);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -1769,6 +1779,7 @@ class _EditContactBoxState extends State<_EditContactBox> {
                 labelColor: subtextColor,
                 borderColor: borderColor,
                 focusBorderColor: focusBorderColor,
+                maxLength: 64,
                 onSubmitted: (_) => _lastNameFocus.requestFocus(),
               ),
             ),
@@ -1782,6 +1793,7 @@ class _EditContactBoxState extends State<_EditContactBox> {
                 labelColor: subtextColor,
                 borderColor: borderColor,
                 focusBorderColor: focusBorderColor,
+                maxLength: 64,
                 onSubmitted: (_) => _save(),
               ),
             ),
@@ -1807,6 +1819,32 @@ class _EditContactBoxState extends State<_EditContactBox> {
                 ),
               ),
             ),
+            if (_showSharePhone)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(19, 4, 19, 4),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Checkbox(
+                        value: _sharePhone,
+                        onChanged: (v) => setState(() => _sharePhone = v ?? true),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _sharePhone = !_sharePhone),
+                        child: Text(
+                          'Share my phone number',
+                          style: TextStyle(fontSize: 14, color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (widget.contact.isContact) ...[
               Divider(height: 1, color: dividerColor),
               if (!_hasBirthday && widget.contact.starsPerMessage == 0)
@@ -2063,6 +2101,8 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
   final Set<String> _selected = {};
   final _commentController = TextEditingController();
   bool _sending = false;
+  List<ChatInfo>? _serverResults;
+  Timer? _searchDebounce;
 
   List<ChatInfo> get _chats {
     final activeAccountId = widget.appState.activeAccountId;
@@ -2072,9 +2112,10 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
 
   List<ChatInfo> get _sortedChats {
     final chats = List<ChatInfo>.from(_chats);
-    final selfIdx = chats.indexWhere(
-      (c) => c.title == 'Saved Messages' && c.type == ChatType.dm,
-    );
+    final selfUserId = widget.appState.activeAccount?.selfUserId ?? '';
+    final selfIdx = selfUserId.isNotEmpty
+        ? chats.indexWhere((c) => c.chatId == selfUserId && c.type == ChatType.dm)
+        : -1;
     if (selfIdx > 0) {
       final self = chats.removeAt(selfIdx);
       chats.insert(0, self);
@@ -2086,11 +2127,39 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
     final sorted = _sortedChats;
     if (_query.isEmpty) return sorted;
     final q = _query.toLowerCase();
-    return sorted.where((c) => c.title.toLowerCase().contains(q)).toList();
+    final local = sorted.where((c) => c.title.toLowerCase().contains(q)).toList();
+    if (local.isEmpty && _serverResults != null && _serverResults!.isNotEmpty) {
+      final localIds = sorted.map((c) => c.chatId).toSet();
+      final extra = _serverResults!.where((c) => !localIds.contains(c.chatId)).toList();
+      return [...local, ...extra];
+    }
+    return local;
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() => _query = value);
+    _searchDebounce?.cancel();
+    if (value.trim().length >= 2) {
+      _searchDebounce = Timer(const Duration(milliseconds: 300), () => _doServerSearch(value.trim()));
+    } else {
+      _serverResults = null;
+    }
+  }
+
+  Future<void> _doServerSearch(String query) async {
+    final accountId = widget.appState.activeAccountId;
+    if (accountId == null) return;
+    try {
+      final results = await widget.engine.searchGlobalChats(accountId, query, limit: 20);
+      if (mounted && _query == query) {
+        setState(() => _serverResults = results);
+      }
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _commentController.dispose();
     super.dispose();
   }
@@ -2139,12 +2208,7 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
     }
   }
 
-  int _columnsForWidth(double screenWidth) {
-    if (screenWidth < 300) return 2;
-    if (screenWidth < 500) return 3;
-    if (screenWidth < 700) return 4;
-    return 5;
-  }
+  static const _columnCount = 4;
 
   static Color avatarColor(String id, TelegramPalette palette) {
     final numId = int.tryParse(id) ?? id.hashCode.abs();
@@ -2157,8 +2221,6 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
     final palette = context.palette;
     final boxBg = palette.boxBg;
     final filtered = _filteredChats;
-    final size = MediaQuery.of(context).size;
-    final colCount = _columnsForWidth(size.width);
     final contactName = '${widget.contactFirstName} ${widget.contactLastName}'.trim();
 
     return Material(
@@ -2216,7 +2278,7 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
                       ),
                       contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                     ),
-                    onChanged: (v) => setState(() => _query = v),
+                    onChanged: _onSearchChanged,
                   ),
                 ],
               ),
@@ -2226,7 +2288,7 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
               child: GridView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: colCount,
+                  crossAxisCount: _columnCount,
                   mainAxisExtent: _rowHeight,
                   crossAxisSpacing: _columnSkip,
                 ),

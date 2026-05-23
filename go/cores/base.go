@@ -171,6 +171,8 @@ type User struct {
 	Note                   string `json:"note,omitempty"`
 	BusinessHours          string `json:"business_hours,omitempty"`
 	BannedRights           map[string]bool `json:"banned_rights,omitempty"`
+	StarsPerMessage        int64           `json:"stars_per_message,omitempty"`
+	NeedContactsException  bool            `json:"need_contacts_exception,omitempty"`
 }
 
 // Dialog represents a conversation (DM, group, channel, or topic) in the chat list.

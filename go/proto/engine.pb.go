@@ -7697,6 +7697,7 @@ type EngineContactInfo struct {
 	LastSeenKind    string                 `protobuf:"bytes,14,opt,name=last_seen_kind,json=lastSeenKind,proto3" json:"last_seen_kind,omitempty"`
 	LastSeenTs      int64                  `protobuf:"varint,15,opt,name=last_seen_ts,json=lastSeenTs,proto3" json:"last_seen_ts,omitempty"`
 	IsMutualContact bool                   `protobuf:"varint,16,opt,name=is_mutual_contact,json=isMutualContact,proto3" json:"is_mutual_contact,omitempty"`
+	StarsPerMessage int64                  `protobuf:"varint,17,opt,name=stars_per_message,json=starsPerMessage,proto3" json:"stars_per_message,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -7841,6 +7842,13 @@ func (x *EngineContactInfo) GetIsMutualContact() bool {
 		return x.IsMutualContact
 	}
 	return false
+}
+
+func (x *EngineContactInfo) GetStarsPerMessage() int64 {
+	if x != nil {
+		return x.StarsPerMessage
+	}
+	return 0
 }
 
 type EngineGetContactsRequest struct {
@@ -15111,7 +15119,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\amembers\x18\x03 \x03(\tR\amembers\"J\n" +
 	"\x19EngineCreateGroupResponse\x12-\n" +
-	"\x04chat\x18\x01 \x01(\v2\x19.uniclient.EngineChatInfoR\x04chat\"\x85\x04\n" +
+	"\x04chat\x18\x01 \x01(\v2\x19.uniclient.EngineChatInfoR\x04chat\"\xb1\x04\n" +
 	"\x11EngineContactInfo\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12!\n" +
@@ -15134,7 +15142,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x0elast_seen_kind\x18\x0e \x01(\tR\flastSeenKind\x12 \n" +
 	"\flast_seen_ts\x18\x0f \x01(\x03R\n" +
 	"lastSeenTs\x12*\n" +
-	"\x11is_mutual_contact\x18\x10 \x01(\bR\x0fisMutualContact\"9\n" +
+	"\x11is_mutual_contact\x18\x10 \x01(\bR\x0fisMutualContact\x12*\n" +
+	"\x11stars_per_message\x18\x11 \x01(\x03R\x0fstarsPerMessage\"9\n" +
 	"\x18EngineGetContactsRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"U\n" +

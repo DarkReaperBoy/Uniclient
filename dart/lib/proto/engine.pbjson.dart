@@ -1891,6 +1891,8 @@ const EngineContactInfo$json = {
     {'1': 'is_fake', '3': 13, '4': 1, '5': 8, '10': 'isFake'},
     {'1': 'last_seen_kind', '3': 14, '4': 1, '5': 9, '10': 'lastSeenKind'},
     {'1': 'last_seen_ts', '3': 15, '4': 1, '5': 3, '10': 'lastSeenTs'},
+    {'1': 'is_mutual_contact', '3': 16, '4': 1, '5': 8, '10': 'isMutualContact'},
+    {'1': 'stars_per_message', '3': 17, '4': 1, '5': 3, '10': 'starsPerMessage'},
   ],
 };
 

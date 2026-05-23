@@ -625,7 +625,8 @@ type ContactInfo struct {
 	IsScam           bool   `json:"is_scam,omitempty"`
 	IsFake           bool   `json:"is_fake,omitempty"`
 	LastSeenKind     string `json:"last_seen_kind,omitempty"`
-	LastSeenTs       int64  `json:"last_seen_ts,omitempty"`
+	LastSeenTs        int64  `json:"last_seen_ts,omitempty"`
+	StarsPerMessage  int64  `json:"stars_per_message,omitempty"`
 }
 
 // GetContacts fetches the contact list from the connected core.
@@ -667,6 +668,7 @@ func (e *Engine) GetContacts(accountID string) ([]ContactInfo, error) {
 			IsFake:          u.IsFake,
 			LastSeenKind:    u.LastSeenKind,
 			LastSeenTs:      lastSeenTs,
+			StarsPerMessage: u.StarsPerMessage,
 		})
 	}
 	return contacts, nil
@@ -1031,7 +1033,7 @@ func (e *Engine) AddContact(accountID, phone, firstName, lastName, note string) 
 	return "", acc.Core.AddContact(phone, firstName, lastName)
 }
 
-func (e *Engine) AddContactByUser(accountID, userID, firstName, lastName, note string) (string, error) {
+func (e *Engine) AddContactByUser(accountID, userID, firstName, lastName, note string, sharePhone bool) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return "", fmt.Errorf("account not found: %s", accountID)
@@ -1040,10 +1042,10 @@ func (e *Engine) AddContactByUser(accountID, userID, firstName, lastName, note s
 		return "", fmt.Errorf("account not connected: %s", accountID)
 	}
 	type userContactAdder interface {
-		AddContactByUserID(userID, firstName, lastName, note string) error
+		AddContactByUserID(userID, firstName, lastName, note string, sharePhone bool) error
 	}
 	if ua, ok := acc.Core.(userContactAdder); ok {
-		return "", ua.AddContactByUserID(userID, firstName, lastName, note)
+		return "", ua.AddContactByUserID(userID, firstName, lastName, note, sharePhone)
 	}
 	return "", fmt.Errorf("core does not support adding contacts by user ID")
 }
@@ -1086,6 +1088,7 @@ func (e *Engine) GetContactFullInfo(accountID, userID string) (map[string]interf
 		"last_seen_kind":     u.LastSeenKind,
 		"avatar_b64":         u.AvatarB64,
 		"note":               u.Note,
+		"need_contacts_exception": u.NeedContactsException,
 	}, nil
 }
 

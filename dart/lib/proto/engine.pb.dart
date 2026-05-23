@@ -10485,6 +10485,7 @@ class EngineContactInfo extends $pb.GeneratedMessage {
     $core.String? lastSeenKind,
     $fixnum.Int64? lastSeenTs,
     $core.bool? isMutualContact,
+    $fixnum.Int64? starsPerMessage,
   }) {
     final $result = create();
     if (userId != null) {
@@ -10535,6 +10536,9 @@ class EngineContactInfo extends $pb.GeneratedMessage {
     if (isMutualContact != null) {
       $result.isMutualContact = isMutualContact;
     }
+    if (starsPerMessage != null) {
+      $result.starsPerMessage = starsPerMessage;
+    }
     return $result;
   }
   EngineContactInfo._() : super();
@@ -10558,6 +10562,7 @@ class EngineContactInfo extends $pb.GeneratedMessage {
     ..aOS(14, _omitFieldNames ? '' : 'lastSeenKind')
     ..aInt64(15, _omitFieldNames ? '' : 'lastSeenTs')
     ..aOB(16, _omitFieldNames ? '' : 'isMutualContact')
+    ..aInt64(17, _omitFieldNames ? '' : 'starsPerMessage')
     ..hasRequiredFields = false
   ;
 
@@ -10725,6 +10730,15 @@ class EngineContactInfo extends $pb.GeneratedMessage {
   $core.bool hasIsMutualContact() => $_has(15);
   @$pb.TagNumber(16)
   void clearIsMutualContact() => clearField(16);
+
+  @$pb.TagNumber(17)
+  $fixnum.Int64 get starsPerMessage => $_getI64(16);
+  @$pb.TagNumber(17)
+  set starsPerMessage($fixnum.Int64 v) { $_setInt64(16, v); }
+  @$pb.TagNumber(17)
+  $core.bool hasStarsPerMessage() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearStarsPerMessage() => clearField(17);
 }
 
 class EngineGetContactsRequest extends $pb.GeneratedMessage {
