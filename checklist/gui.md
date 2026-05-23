@@ -635,21 +635,6 @@ All numeric constants match AyuGram exactly:
 
 ---
 
-- [ ] [CRITICAL] Calendar renders one month at a time instead of vertically scrollable all-months view — `choose_datetime_box.dart:101` ← `calendar_box.cpp:1197–1239`
-
-  AyuGram `CalendarBox` uses a `ScrollArea` whose inner widget renders **all months** from `minDate` to `maxDate` stacked vertically. The user scrolls vertically; `processScroll()` at `calendar_box.cpp:1409` detects which month is in the center of the viewport and updates the context. Prev/next buttons call `goPreviousMonth()`/`goNextMonth()` which scroll the area to the adjacent month. The Dart `_CalendarBoxWidget` instead shows **exactly one month** at a time, switched by arrow buttons or horizontal drag — a fundamentally different navigation model.
-
-- [ ] [MAJOR] Selection mode shows an extra "Close" button that must not exist — `choose_datetime_box.dart:549–559` ← `calendar_box.cpp:1431–1443`
-
-  AyuGram `createButtons()`: when `selectionMode=ON` it renders **only one button** — "Cancel" (which calls `toggleSelectionMode(false)`). The "Close" button is removed. Dart shows both `TelegramBoxButton(text: _selectionMode ? 'Single date' : ...)` AND `TelegramBoxButton(text: 'Close')` at all times. In selection mode the "Close" button must disappear and only a cancel-selection button should remain.
-
-- [ ] [MAJOR] Jump-to-min/max fires ~1200 ms after press instead of 700 ms — `choose_datetime_box.dart:478–479` ← `calendar_box.cpp:36,1258–1262`
-
-  AyuGram: `MouseButtonPress` event starts the `_jumpTimer` immediately; `kJumpDelay = 700ms`. Dart uses `onLongPressStart` on `GestureDetector`, which Flutter only fires after the default long-press recognition threshold (~500 ms), then `_startJump` schedules a further 700 ms `Timer`. Effective delay ≈ 1200 ms vs the intended 700 ms.
-
-- [ ] [MAJOR] FloatingDate month/year overlay missing in selection mode — `choose_datetime_box.dart:297–306` ← `calendar_box.cpp:1269–1291`
-
-  When `selectionMode` becomes active, AyuGram creates a `FloatingDate` overlay widget (`calendar_box.cpp:1274`) that displays the current visible month/year as a service-bubble label above the calendar grid. It is repositioned as the user scrolls. The Dart `_toggleSelectionMode()` does nothing analogous — no overlay label is shown.
 
 # engine_service — Bridge service audit
 
