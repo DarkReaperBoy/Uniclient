@@ -156,6 +156,7 @@ class ChatState extends ChangeNotifier {
     _subs.add(_engine.onMsgEdited.listen(_handleMsgEdited));
     _subs.add(_engine.onMsgDeleted.listen(_handleMsgDeleted));
     _subs.add(_engine.onMsgStatus.listen(_handleMsgStatus));
+    _subs.add(_engine.onMsgReactionsUpdated.listen(_handleMsgReactionsUpdated));
     _subs.add(_engine.onTyping.listen(_handleTyping));
     // Reload chats when any account connects (sync may have finished).
     _subs.add(_engine.onConnState.listen((event) {
@@ -2535,6 +2536,16 @@ class ChatState extends ChangeNotifier {
         msgId: event.msgId.isNotEmpty ? event.msgId : null,
         status: MsgStatus.fromInt(event.status),
       );
+      notifyListeners();
+    }
+  }
+
+  void _handleMsgReactionsUpdated(MsgReactionsUpdatedEvent event) {
+    if (_disposed) return;
+    if (_activeChat?.accountId != event.accountId || _activeChat?.chatId != event.chatId) return;
+    final idx = _messages.indexWhere((m) => m.msgId == event.msgId);
+    if (idx >= 0) {
+      _messages[idx] = _messages[idx].copyWith(reactions: event.reactions);
       notifyListeners();
     }
   }
