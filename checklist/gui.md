@@ -606,11 +606,6 @@ All geometric calculations match:
 
 
 
-
-## call_screen — No scheduled group call UI (countdown / "Start Now" / "Set Reminder")
-
-- [ ] [MAJOR] AyuGram renders scheduled call labels (`_startsIn`, `_countdown`, `_startsWhen`) and the mute button changes to "Start Now" / "Set Reminder" / "Cancel Reminder" for scheduled calls. The Dart panel has no `scheduleDate` concept, no countdown widget, and no scheduled-state mute button labels. — `call_screen.dart` (no scheduled handling) ← `AyuGram/calls/group/calls_group_panel.cpp:618-648,942-1007`
-
 ## call_screen — No push-to-talk (Space key) support for RTMP calls
 
 - [ ] [MAJOR] AyuGram listens for `Qt::Key_Space` keyboard events on the panel window and calls `_call->pushToTalk()` for RTMP calls. The Dart panel has no keyboard event handler (`RawKeyboardListener`, `HardwareKeyboard`, or `Focus` widget), so push-to-talk is completely absent. — `call_screen.dart` (no keyboard handler) ← `AyuGram/calls/group/calls_group_panel.cpp:403-408`
