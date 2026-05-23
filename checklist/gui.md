@@ -606,9 +606,6 @@ All geometric calculations match:
 
 
 
-## call_screen — Screen share thumbnail capture uses `import` (ImageMagick) X11 only, silently fails on Wayland
-
-- [ ] [MAJOR] `_captureSourceThumb` calls `Process.run('import', ['-window', 'root', ...])` which is X11-specific ImageMagick. On Wayland (the default for modern Linux desktops), this silently returns an empty thumbnail for all sources. No Wayland-native capture path exists (e.g., XDG screencopy or pipewire frame). — `call_screen.dart:2677-2697` ← `AyuGram/ui/platform/ui_platform_utility` (uses native platform screen capture APIs)
 
 ## call_screen — Window enumeration for screen share falls back to X11 tools only
 
