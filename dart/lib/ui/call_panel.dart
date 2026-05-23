@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
@@ -30,6 +29,7 @@ enum CallPanelState {
   ringing,
   busy,
   active,
+  waitingUserConfirmation,
 }
 
 String callPanelStateLabel(CallPanelState state, {bool isVideo = false}) {
@@ -45,7 +45,14 @@ String callPanelStateLabel(CallPanelState state, {bool isVideo = false}) {
     CallPanelState.ringing => 'ringing...',
     CallPanelState.busy => 'line busy',
     CallPanelState.active => '',
+    CallPanelState.waitingUserConfirmation => 'waiting...',
   };
+}
+
+class ConferenceInviteParticipant {
+  final String name;
+  final String avatarUrl;
+  const ConferenceInviteParticipant({required this.name, this.avatarUrl = ''});
 }
 
 class CallPanelInfo {
@@ -65,6 +72,9 @@ class CallPanelInfo {
   final String callId;
   final DateTime? callStartTime;
   final bool needRating;
+  final bool isConferenceInvite;
+  final List<ConferenceInviteParticipant> conferenceParticipants;
+  final int conferenceParticipantCount;
 
   const CallPanelInfo({
     required this.callerId,
@@ -83,6 +93,9 @@ class CallPanelInfo {
     this.callId = '',
     this.callStartTime,
     this.needRating = false,
+    this.isConferenceInvite = false,
+    this.conferenceParticipants = const [],
+    this.conferenceParticipantCount = 0,
   });
 }
 
@@ -92,6 +105,8 @@ class CallPanel extends StatefulWidget {
   final VoidCallback? onAccept;
   final VoidCallback? onHangup;
   final VoidCallback? onClose;
+  final VoidCallback? onRedial;
+  final void Function(bool video)? onStartCall;
   final Widget? remoteVideoWidget;
   final Widget? selfVideoWidget;
 
@@ -102,6 +117,8 @@ class CallPanel extends StatefulWidget {
     this.onAccept,
     this.onHangup,
     this.onClose,
+    this.onRedial,
+    this.onStartCall,
     this.remoteVideoWidget,
     this.selfVideoWidget,
   });
@@ -129,8 +146,10 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   bool _isCameraOn = false;
   String _selectedCameraDevice = 'Default';
   String _selectedMicDevice = 'Default';
+  String _selectedOutputDevice = 'Default';
   List<String> _cameraDevices = ['Default'];
   List<String> _micDevices = ['Default'];
+  List<String> _outputDevices = ['Default'];
 
   static const _kHideControlsFullscreen = Duration(milliseconds: 5000);
   static const _kHideControlsMouseLeave = Duration(milliseconds: 2000);
@@ -162,88 +181,18 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
 
   Future<void> _enumerateDevices() async {
     try {
-      final cameras = <String>[];
-      final mics = <String>[];
-
-      if (Platform.isLinux) {
-        final v4l2 = await Process.run('v4l2-ctl', ['--list-devices']);
-        if (v4l2.exitCode == 0) {
-          for (final line in (v4l2.stdout as String).split('\n')) {
-            final trimmed = line.trim();
-            if (trimmed.isNotEmpty && !trimmed.startsWith('/dev/')) {
-              final name = trimmed.replaceAll(RegExp(r'\s*\(.*\)\s*:?\s*$'), '');
-              if (name.isNotEmpty) cameras.add(name);
-            }
-          }
-        }
-        final pactl = await Process.run('pactl', ['list', 'sources', 'short']);
-        if (pactl.exitCode == 0) {
-          for (final line in (pactl.stdout as String).split('\n')) {
-            if (line.trim().isEmpty) continue;
-            final parts = line.split('\t');
-            if (parts.length >= 2) {
-              final name = parts[1];
-              if (name.contains('.monitor')) continue;
-              mics.add(name
-                  .replaceAll('alsa_input.', '')
-                  .replaceAll('.analog-stereo', ' (Analog Stereo)')
-                  .replaceAll('_', ' '));
-            }
-          }
-        }
-      } else if (Platform.isMacOS) {
-        final spAudio = await Process.run(
-            'system_profiler', ['SPAudioDataType', '-json']);
-        if (spAudio.exitCode == 0) {
-          try {
-            final data = json.decode(spAudio.stdout as String) as Map<String, dynamic>;
-            final items = (data['SPAudioDataType'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-            for (final item in items) {
-              final name = item['_name'] as String? ?? '';
-              if (name.isEmpty) continue;
-              final inputs = item['coreaudio_input_source'] as String?;
-              if (inputs != null && inputs.isNotEmpty) mics.add(name);
-            }
-          } catch (_) {}
-        }
-        final avCam = await Process.run('system_profiler', ['SPCameraDataType', '-json']);
-        if (avCam.exitCode == 0) {
-          try {
-            final data = json.decode(avCam.stdout as String) as Map<String, dynamic>;
-            final items = (data['SPCameraDataType'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-            for (final item in items) {
-              final name = item['_name'] as String? ?? '';
-              if (name.isNotEmpty) cameras.add(name);
-            }
-          } catch (_) {}
-        }
-      } else if (Platform.isWindows) {
-        final ps = await Process.run('powershell', [
-          '-NoProfile', '-Command',
-          'Get-CimInstance Win32_SoundDevice | Select-Object -ExpandProperty Name',
-        ]);
-        if (ps.exitCode == 0) {
-          for (final line in (ps.stdout as String).split('\n')) {
-            final name = line.trim();
-            if (name.isNotEmpty) mics.add(name);
-          }
-        }
-        final psCam = await Process.run('powershell', [
-          '-NoProfile', '-Command',
-          'Get-CimInstance Win32_PnPEntity | Where-Object { \$_.PNPClass -eq "Camera" } | Select-Object -ExpandProperty Name',
-        ]);
-        if (psCam.exitCode == 0) {
-          for (final line in (psCam.stdout as String).split('\n')) {
-            final name = line.trim();
-            if (name.isNotEmpty) cameras.add(name);
-          }
-        }
-      }
-
+      final engine = context.read<EngineService>();
+      final accountId = context.read<AppState>().activeAccountId;
+      final results = await Future.wait([
+        engine.getAudioDevices(accountId, 'camera'),
+        engine.getAudioDevices(accountId, 'input'),
+        engine.getAudioDevices(accountId, 'output'),
+      ]);
       if (mounted) {
         setState(() {
-          _cameraDevices = ['Default', ...cameras];
-          _micDevices = ['Default', ...mics];
+          _cameraDevices = ['Default', ...results[0]];
+          _micDevices = ['Default', ...results[1]];
+          _outputDevices = ['Default', ...results[2]];
         });
       }
     } catch (_) {}
@@ -504,7 +453,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _showDeviceSelectorMenu(BuildContext btnContext) async {
+  Future<void> _showCameraDeviceMenu(BuildContext btnContext) async {
     final RenderBox box = btnContext.findRenderObject() as RenderBox;
     final offset = box.localToGlobal(Offset(box.size.width / 2, 0));
     final items = <PopupMenuEntry<String>>[
@@ -518,6 +467,38 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
                 const Icon(Icons.check, size: 16, color: Colors.white70),
               if (cam == _selectedCameraDevice) const SizedBox(width: 8),
               Expanded(child: Text(cam, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
+            ],
+          ),
+        ),
+    ];
+    final result = await showMenu<String>(
+      context: btnContext,
+      position: RelativeRect.fromLTRB(offset.dx - 120, offset.dy - 8, offset.dx + 120, offset.dy),
+      items: items,
+    );
+    if (result == null || !mounted) return;
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (result.startsWith('cam_')) {
+      setState(() => _selectedCameraDevice = result.substring(4));
+      engine.setCallAudioDevice(accountId, 'camera', result.substring(4));
+    }
+  }
+
+  Future<void> _showAudioDeviceMenu(BuildContext btnContext) async {
+    final RenderBox box = btnContext.findRenderObject() as RenderBox;
+    final offset = box.localToGlobal(Offset(box.size.width / 2, 0));
+    final items = <PopupMenuEntry<String>>[
+      const PopupMenuItem(enabled: false, child: Text('Output', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+      for (final out in _outputDevices)
+        PopupMenuItem(
+          value: 'out_$out',
+          child: Row(
+            children: [
+              if (out == _selectedOutputDevice)
+                const Icon(Icons.check, size: 16, color: Colors.white70),
+              if (out == _selectedOutputDevice) const SizedBox(width: 8),
+              Expanded(child: Text(out, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
             ],
           ),
         ),
@@ -544,15 +525,13 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     if (result == null || !mounted) return;
     final engine = context.read<EngineService>();
     final accountId = context.read<AppState>().activeAccountId;
-    setState(() {
-      if (result.startsWith('cam_')) {
-        _selectedCameraDevice = result.substring(4);
-        engine.setCallAudioDevice(accountId, 'video_input', result.substring(4));
-      } else if (result.startsWith('mic_')) {
-        _selectedMicDevice = result.substring(4);
-        engine.setCallAudioDevice(accountId, 'audio_input', result.substring(4));
-      }
-    });
+    if (result.startsWith('out_')) {
+      setState(() => _selectedOutputDevice = result.substring(4));
+      engine.setCallAudioDevice(accountId, 'output', result.substring(4));
+    } else if (result.startsWith('mic_')) {
+      setState(() => _selectedMicDevice = result.substring(4));
+      engine.setCallAudioDevice(accountId, 'input', result.substring(4));
+    }
   }
 
   void _extractDominantColors() {
@@ -712,6 +691,83 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildConferenceParticipantsRow() {
+    final participants = widget.info.conferenceParticipants;
+    final totalCount = widget.info.conferenceParticipantCount;
+    if (participants.isEmpty && totalCount <= 0) return const SizedBox.shrink();
+
+    final displayCount = participants.length.clamp(0, 3);
+    final remaining = totalCount - displayCount;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (int i = 0; i < displayCount; i++)
+            Padding(
+              padding: EdgeInsets.only(left: i > 0 ? 0 : 0),
+              child: Transform.translate(
+                offset: Offset(i > 0 ? -6.0 * i : 0, 0),
+                child: _buildParticipantAvatar(participants[i], 28),
+              ),
+            ),
+          if (remaining > 0)
+            Transform.translate(
+              offset: Offset(-6.0 * displayCount, 0),
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '+$remaining',
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParticipantAvatar(ConferenceInviteParticipant participant, double size) {
+    if (participant.avatarUrl.isNotEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+        ),
+        child: ClipOval(
+          child: Image.file(File(participant.avatarUrl), width: size, height: size, fit: BoxFit.cover),
+        ),
+      );
+    }
+    final initials = participant.name.isNotEmpty
+        ? participant.name.split(' ').where((w) => w.isNotEmpty).take(1).map((w) => w[0].toUpperCase()).join()
+        : '?';
+    final hue = (participant.name.hashCode.abs() % 360).toDouble();
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: HSLColor.fromAHSL(1.0, hue, 0.5, 0.45).toColor(),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(color: Colors.white, fontSize: size * 0.36, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
   Widget _buildIncomingState() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -731,6 +787,8 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
           overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 8),
+        if (widget.info.isConferenceInvite)
+          _buildConferenceParticipantsRow(),
         Text(
           callPanelStateLabel(widget.info.state, isVideo: widget.info.isVideo),
           style: const TextStyle(
@@ -861,7 +919,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
           isActive: _isCameraOn,
           onTap: _onCameraTap,
           showDeviceChevron: true,
-          onDeviceChevronTap: _showDeviceSelectorMenu,
+          onDeviceChevronTap: _showCameraDeviceMenu,
         ),
         _CallActionButton(
           icon: Icons.call_end,
@@ -874,6 +932,8 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
           label: _isMuted ? 'Unmute' : 'Mute',
           isActive: _isMuted,
           onTap: _onMuteTap,
+          showDeviceChevron: true,
+          onDeviceChevronTap: _showAudioDeviceMenu,
         ),
         _CallControlButton(
           icon: Icons.person_add_outlined,
@@ -1066,6 +1126,109 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildBusyState() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Spacer(flex: 3),
+        _buildUserpic(160),
+        const SizedBox(height: 20),
+        Text(
+          widget.info.callerName,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 21,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          callPanelStateLabel(CallPanelState.busy, isVideo: widget.info.isVideo),
+          style: const TextStyle(
+            color: Color(0xAAFFFFFF),
+            fontSize: 15,
+          ),
+        ),
+        const Spacer(flex: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _CallActionButton(
+              icon: Icons.close,
+              label: 'Close',
+              backgroundColor: Colors.white.withValues(alpha: 0.12),
+              onTap: widget.onClose,
+            ),
+            const SizedBox(width: 80),
+            _CallActionButton(
+              icon: Icons.call,
+              label: 'Redial',
+              backgroundColor: const Color(0xFF4CAF50),
+              onTap: widget.onRedial,
+            ),
+          ],
+        ),
+        const SizedBox(height: 48),
+      ],
+    );
+  }
+
+  Widget _buildWaitingConfirmationState() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Spacer(flex: 3),
+        _buildUserpic(160),
+        const SizedBox(height: 20),
+        Text(
+          widget.info.callerName,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 21,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'waiting...',
+          style: TextStyle(
+            color: Color(0xAAFFFFFF),
+            fontSize: 15,
+          ),
+        ),
+        const Spacer(flex: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _CallActionButton(
+              icon: Icons.close,
+              label: 'Cancel',
+              backgroundColor: const Color(0xFFE53935),
+              onTap: widget.onDecline,
+            ),
+            const SizedBox(width: 40),
+            _CallActionButton(
+              icon: Icons.call,
+              label: 'Start Call',
+              backgroundColor: const Color(0xFF4CAF50),
+              onTap: () => widget.onStartCall?.call(false),
+            ),
+            const SizedBox(width: 40),
+            _CallActionButton(
+              icon: Icons.videocam,
+              label: 'Start Video',
+              backgroundColor: const Color(0xFF4CAF50),
+              onTap: () => widget.onStartCall?.call(true),
+            ),
+          ],
+        ),
+        const SizedBox(height: 48),
+      ],
+    );
+  }
+
   Widget _buildEndedState() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -1111,6 +1274,8 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     switch (widget.info.state) {
       case CallPanelState.incoming:
         content = _buildIncomingState();
+      case CallPanelState.waitingUserConfirmation:
+        content = _buildWaitingConfirmationState();
       case CallPanelState.connecting:
       case CallPanelState.exchangingKeys:
       case CallPanelState.waiting:
@@ -1119,9 +1284,10 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
         content = _buildConnectingState();
       case CallPanelState.active:
         content = _buildActiveState();
+      case CallPanelState.busy:
+        content = _buildBusyState();
       case CallPanelState.ended:
       case CallPanelState.failed:
-      case CallPanelState.busy:
       case CallPanelState.hangingUp:
         content = _buildEndedState();
     }
@@ -1265,17 +1431,19 @@ class _RippleRingPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final baseRadius = size.width / 2;
+    final breathAmplitude = 12.0 + 16.0 * (0.5 + 0.5 * math.sin(progress * 2 * math.pi * 0.7));
 
     for (int i = 0; i < 3; i++) {
       final phaseOffset = i / 3.0;
       final p = (progress + phaseOffset) % 1.0;
-      final radius = baseRadius + p * 24;
-      final opacity = (1.0 - p) * 0.4;
+      final radius = baseRadius + p * breathAmplitude;
+      final opacity = (1.0 - p) * 0.35;
       if (opacity <= 0) continue;
+      final strokeW = 2.0 + (1.0 - p) * 1.5;
       final paint = Paint()
         ..color = color.withValues(alpha: opacity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0;
+        ..strokeWidth = strokeW;
       canvas.drawCircle(center, radius, paint);
     }
   }
@@ -2312,6 +2480,22 @@ class _LiveCallPanelDialogState extends State<_LiveCallPanelDialog> {
                 engine.endCall(accountId, widget.effectiveCallId);
               }
               _closeAndRate();
+            },
+            onRedial: () {
+              final engine = context.read<EngineService>();
+              final accountId = context.read<AppState>().activeAccountId;
+              final chatId = _currentInfo.callerId;
+              if (chatId.isNotEmpty) {
+                engine.startCall(accountId, chatId, video: _currentInfo.isVideo);
+              }
+            },
+            onStartCall: (video) {
+              final engine = context.read<EngineService>();
+              final accountId = context.read<AppState>().activeAccountId;
+              final chatId = _currentInfo.callerId;
+              if (chatId.isNotEmpty) {
+                engine.startCall(accountId, chatId, video: video);
+              }
             },
             remoteVideoWidget: widget.remoteVideoWidget,
             selfVideoWidget: widget.selfVideoWidget,

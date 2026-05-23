@@ -628,6 +628,7 @@ class _UniClientAppState extends State<UniClientApp>
     'ended' => CallPanelState.ended,
     'failed' => CallPanelState.failed,
     'busy' => CallPanelState.busy,
+    'waitingUserConfirmation' || 'waiting_user_confirmation' => CallPanelState.waitingUserConfirmation,
     _ => CallPanelState.incoming,
   };
 
@@ -973,6 +974,17 @@ class _UniClientAppState extends State<UniClientApp>
             final isVideoFlag = cmd['isVideo'] == true;
             final sigQuality = (cmd['signalQuality'] as num?)?.toInt() ?? -1;
 
+            final isConfInvite = cmd['isConferenceInvite'] == true;
+            final confParticipantsRaw = cmd['conferenceParticipants'];
+            final confParticipants = confParticipantsRaw is List
+                ? confParticipantsRaw.cast<Map<String, dynamic>>().map((p) =>
+                    ConferenceInviteParticipant(
+                      name: p['name'] as String? ?? '',
+                      avatarUrl: p['avatarUrl'] as String? ?? '',
+                    )).toList()
+                : <ConferenceInviteParticipant>[];
+            final confCount = (cmd['conferenceParticipantCount'] as num?)?.toInt() ?? confParticipants.length;
+
             final infoController = StreamController<CallPanelInfo>.broadcast();
             final engine = context.read<EngineService>();
             StreamSubscription<CallStateEvent>? callSub;
@@ -988,6 +1000,9 @@ class _UniClientAppState extends State<UniClientApp>
                 signalQuality: sigQuality,
                 fingerprintEmoji: fpEmoji,
                 callId: event.call.id,
+                isConferenceInvite: isConfInvite,
+                conferenceParticipants: confParticipants,
+                conferenceParticipantCount: confCount,
               ));
               if (newState == CallPanelState.ended ||
                   newState == CallPanelState.failed ||
@@ -1006,6 +1021,9 @@ class _UniClientAppState extends State<UniClientApp>
               signalQuality: sigQuality,
               fingerprintEmoji: fpEmoji,
               callId: callId,
+              isConferenceInvite: isConfInvite,
+              conferenceParticipants: confParticipants,
+              conferenceParticipantCount: confCount,
             ), callId: callId.isEmpty ? null : callId,
                infoStream: infoController.stream);
           }
