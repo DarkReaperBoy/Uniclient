@@ -3872,8 +3872,10 @@ class EngineService {
     try {
       final respBytes = await _callAsync('__engine', 'GetScheduledMessages', req.writeToBuffer());
       if (respBytes.isEmpty) return [];
-      final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
-      return resp.messages.map(_cachedMsgFromProto).toList();
+      return Isolate.run(() {
+        final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
+        return resp.messages.map(_cachedMsgFromProto).toList();
+      });
     } catch (e) {
       return [];
     }
