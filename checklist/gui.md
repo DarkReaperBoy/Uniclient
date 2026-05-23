@@ -613,10 +613,6 @@ All geometric calculations match:
 
 ## CRITICAL
 
-- [ ] [CRITICAL] Draft shown even when chat has unread messages — AyuGram only shows draft when `!badgesState.unread`; if there are unread messages the last message preview is shown instead, but Dart always renders the draft when `draftText.isNotEmpty`. — `chat_list_row.dart:362` ← `dialogs_layout.cpp:1085-1094`
-
-- [ ] [CRITICAL] `_thumbBytesCache` global map has no eviction policy — it grows unboundedly for every unique base64 thumbnail ever seen in the chat list, leaking memory proportional to total chats × media variety over the lifetime of the process. — `chat_list_row.dart:16-18`
-
 ## MAJOR
 
 - [ ] [MAJOR] Sender name shown for broadcast channels — `_buildPreview` renders the sender label when `chat.type == ChatType.channel`, but AyuGram does not show sender names for regular broadcast channel messages in the dialog list preview (channels always use the channel itself as "from"; it is suppressed in the painted text). This produces spurious "Username: message text" for channel rows. — `chat_list_row.dart:392-393` ← `dialogs_layout.cpp:1130-1183` (paintItemCallback omits sender for isBroadcast peers)
