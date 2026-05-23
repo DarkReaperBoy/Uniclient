@@ -1866,6 +1866,40 @@ func (e *Engine) RaiseHand(accountID, callID string, raised bool) error {
 	return fmt.Errorf("core does not support RaiseHand")
 }
 
+func (e *Engine) StartScheduledGroupCall(accountID, callID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type scheduledStarter interface {
+		StartScheduledGroupCall(callID string) error
+	}
+	if ss, ok := acc.Core.(scheduledStarter); ok {
+		return ss.StartScheduledGroupCall(callID)
+	}
+	return fmt.Errorf("core does not support StartScheduledGroupCall")
+}
+
+func (e *Engine) ToggleGroupCallStartSubscription(accountID, callID string, subscribed bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type subscriptionToggler interface {
+		ToggleGroupCallStartSubscription(callID string, subscribed bool) error
+	}
+	if st, ok := acc.Core.(subscriptionToggler); ok {
+		return st.ToggleGroupCallStartSubscription(callID, subscribed)
+	}
+	return fmt.Errorf("core does not support ToggleGroupCallStartSubscription")
+}
+
 func (e *Engine) SetNoiseSuppression(accountID, callID string, enabled bool) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()

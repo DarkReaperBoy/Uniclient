@@ -42,6 +42,7 @@ class GroupCallPanel extends StatefulWidget {
   final bool isScreenShareActive;
   final bool isMessagesVisible;
   final int scheduleDate;
+  final bool scheduleStartSubscribed;
   final List<CachedMessage> callMessages;
 
   const GroupCallPanel({
@@ -58,6 +59,7 @@ class GroupCallPanel extends StatefulWidget {
     this.isScreenShareActive = false,
     this.isMessagesVisible = false,
     this.scheduleDate = 0,
+    this.scheduleStartSubscribed = false,
     this.callStartTime,
     this.onLeave,
     this.onToggleMute,
@@ -604,50 +606,83 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     final now = DateTime.now();
     final diff = scheduleTime.difference(now);
 
-    String countdownText;
-    String whenText;
-    if (diff.isNegative) {
-      final elapsed = now.difference(scheduleTime);
-      countdownText = _formatDuration(elapsed.inSeconds);
-      whenText = 'Late by';
-    } else {
-      countdownText = _formatDuration(diff.inSeconds);
-      whenText = 'Starts in';
-    }
+    final isLate = diff.isNegative;
+    final absDiff = isLate ? now.difference(scheduleTime) : diff;
+    final countdownText = _formatDuration(absDiff.inSeconds);
+    final startsInText = isLate ? 'Late by' : 'Starts in';
 
-    final dateStr = '${scheduleTime.day}/${scheduleTime.month}/${scheduleTime.year} '
-        '${scheduleTime.hour.toString().padLeft(2, '0')}:${scheduleTime.minute.toString().padLeft(2, '0')}';
+    final whenText = _formatScheduleWhen(scheduleTime);
 
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+    return SizedBox(
+      height: 200,
+      child: Stack(
         children: [
-          Text(whenText,
-            style: const TextStyle(color: Color(0xAAFFFFFF), fontSize: 14)),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF667FFF), Color(0xFF3390EC)],
-              ),
-              borderRadius: BorderRadius.circular(24),
-            ),
+          Positioned(
+            left: 0, right: 0, top: 10,
             child: Text(
-              countdownText,
+              startsInText,
+              textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Text(dateStr,
-            style: const TextStyle(color: Color(0x80FFFFFF), fontSize: 13)),
+          Positioned(
+            left: 0, right: 0, top: 52,
+            child: ShaderMask(
+              shaderCallback: (bounds) => const LinearGradient(
+                colors: [
+                  Color(0xFFC65493),
+                  Color(0xFF7A6AF1),
+                  Color(0xFF5F95E8),
+                ],
+                stops: [0.0, 0.7, 1.0],
+              ).createShader(bounds),
+              child: Text(
+                countdownText,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 64,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0, right: 0, top: 160,
+            child: Text(
+              whenText,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  String _formatScheduleWhen(DateTime scheduleTime) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    final scheduleDay = DateTime(scheduleTime.year, scheduleTime.month, scheduleTime.day);
+    final time = '${scheduleTime.hour.toString().padLeft(2, '0')}:${scheduleTime.minute.toString().padLeft(2, '0')}';
+
+    if (scheduleDay == today) {
+      return 'Today at $time';
+    } else if (scheduleDay == tomorrow) {
+      return 'Tomorrow at $time';
+    }
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[scheduleTime.month - 1]} ${scheduleTime.day} at $time';
   }
 
   Widget _buildParticipantsList() {
@@ -710,6 +745,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
             onTap: widget.onToggleMute,
             scheduleDate: widget.scheduleDate,
             isCanManage: widget.isCanManage,
+            scheduleStartSubscribed: widget.scheduleStartSubscribed,
           ),
         ],
       ),
@@ -1219,12 +1255,14 @@ class _BigMuteButton extends StatefulWidget {
   final VoidCallback? onTap;
   final int scheduleDate;
   final bool isCanManage;
+  final bool scheduleStartSubscribed;
 
   const _BigMuteButton({
     required this.state,
     this.onTap,
     this.scheduleDate = 0,
     this.isCanManage = false,
+    this.scheduleStartSubscribed = false,
   });
 
   @override
@@ -1339,7 +1377,8 @@ class _BigMuteButtonState extends State<_BigMuteButton>
 
   String get _label {
     if (_isScheduled) {
-      return widget.isCanManage ? 'Start Now' : 'Remind';
+      if (widget.isCanManage) return 'Start Now';
+      return widget.scheduleStartSubscribed ? 'Cancel Reminder' : 'Set Reminder';
     }
     switch (widget.state) {
       case MuteButtonState.unmuted:
@@ -1353,7 +1392,8 @@ class _BigMuteButtonState extends State<_BigMuteButton>
 
   IconData get _icon {
     if (_isScheduled) {
-      return widget.isCanManage ? Icons.play_arrow : Icons.notifications_outlined;
+      if (widget.isCanManage) return Icons.play_arrow;
+      return widget.scheduleStartSubscribed ? Icons.notifications_active : Icons.notifications_outlined;
     }
     switch (widget.state) {
       case MuteButtonState.unmuted:
@@ -1632,6 +1672,7 @@ void showGroupCallPanel(
       var recording = isRecording;
       var messagesVisible = false;
       var pttActive = false;
+      var scheduleSubscribed = false;
 
       final mq = MediaQuery.of(ctx);
       final screenW = mq.size.width;
@@ -1680,6 +1721,7 @@ void showGroupCallPanel(
                   isScreenShareActive: screenShareEnabled,
                   isMessagesVisible: messagesVisible,
                   scheduleDate: info.scheduleDate,
+                  scheduleStartSubscribed: scheduleSubscribed,
                   callStartTime: callStartTime,
                   videoViewport: videoViewport,
                   onLeave: () {
@@ -1710,6 +1752,49 @@ void showGroupCallPanel(
                     final engine = sbCtx.read<EngineService>();
                     final accountId = sbCtx.read<AppState>().activeAccountId;
                     final callId = info.callId;
+                    if (info.scheduleDate > 0) {
+                      if (isCanManage) {
+                        final scheduleTime = DateTime.fromMillisecondsSinceEpoch(info.scheduleDate * 1000);
+                        final secsUntil = scheduleTime.difference(DateTime.now()).inSeconds;
+                        if (secsUntil <= 10) {
+                          if (callId.isNotEmpty) {
+                            engine.startScheduledGroupCall(accountId, callId);
+                          }
+                        } else {
+                          showDialog(
+                            context: sbCtx,
+                            builder: (dCtx) => AlertDialog(
+                              backgroundColor: const Color(0xFF1E2530),
+                              title: const Text('Start Now?', style: TextStyle(color: Colors.white)),
+                              content: const Text('Are you sure you want to start this scheduled voice chat now?',
+                                style: TextStyle(color: Color(0xAAFFFFFF))),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(dCtx).pop(),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(dCtx).pop();
+                                    if (callId.isNotEmpty) {
+                                      engine.startScheduledGroupCall(accountId, callId);
+                                    }
+                                  },
+                                  child: const Text('Start'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      } else {
+                        final newSubscribed = !scheduleSubscribed;
+                        setSbState(() => scheduleSubscribed = newSubscribed);
+                        if (callId.isNotEmpty) {
+                          engine.toggleGroupCallStartSubscription(accountId, callId, newSubscribed);
+                        }
+                      }
+                      return;
+                    }
                     if (forceMuted && raisedHand) {
                       setSbState(() => raisedHand = false);
                       if (callId.isNotEmpty) {

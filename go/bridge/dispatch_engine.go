@@ -5019,6 +5019,33 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "StartScheduledGroupCall":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.StartScheduledGroupCall(params.AccountID, params.CallID); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "ToggleGroupCallStartSubscription":
+		var params struct {
+			AccountID  string `json:"account_id"`
+			CallID     string `json:"call_id"`
+			Subscribed bool   `json:"subscribed"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.ToggleGroupCallStartSubscription(params.AccountID, params.CallID, params.Subscribed); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	case "SetCallMuted":
 		var params struct {
 			AccountID string `json:"account_id"`

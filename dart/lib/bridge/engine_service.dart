@@ -2310,6 +2310,31 @@ class EngineService {
     }
   }
 
+  Future<void> startScheduledGroupCall(String accountId, String callId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+    }));
+    try {
+      await _callAsync('__engine', 'StartScheduledGroupCall', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'startScheduledGroupCall failed', e);
+    }
+  }
+
+  Future<void> toggleGroupCallStartSubscription(String accountId, String callId, bool subscribed) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'subscribed': subscribed,
+    }));
+    try {
+      await _callAsync('__engine', 'ToggleGroupCallStartSubscription', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'toggleGroupCallStartSubscription failed', e);
+    }
+  }
+
   Future<void> raiseHand(String accountId, String callId, bool raised) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

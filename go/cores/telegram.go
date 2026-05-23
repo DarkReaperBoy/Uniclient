@@ -9397,6 +9397,39 @@ func (t *TelegramCore) StartScheduledGroupCall(callID string) error {
 	return nil
 }
 
+func (t *TelegramCore) ToggleGroupCallStartSubscription(callID string, subscribed bool) error {
+	t.mu.RLock()
+	if !t.authed || t.api == nil {
+		t.mu.RUnlock()
+		return ErrAuth
+	}
+	t.mu.RUnlock()
+
+	cid, err := strconv.ParseInt(callID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid call ID: %w", err)
+	}
+
+	t.mu.RLock()
+	call := t.activeCalls[cid]
+	t.mu.RUnlock()
+	if call == nil || !call.isGroupCall {
+		return fmt.Errorf("no active group call %s", callID)
+	}
+
+	_, err = t.api.PhoneToggleGroupCallStartSubscription(t.ctx,
+		&tg.PhoneToggleGroupCallStartSubscriptionRequest{
+			Call:       &tg.InputGroupCall{ID: cid, AccessHash: call.accessHash},
+			Subscribed: subscribed,
+		})
+	if err != nil {
+		return fmt.Errorf("phone.toggleGroupCallStartSubscription: %w", err)
+	}
+
+	fmt.Printf("[tg-group] Toggled scheduled call %d subscription=%v\n", cid, subscribed)
+	return nil
+}
+
 // GetGroupCallStreamRtmpURL returns the RTMP URL and stream key for a group call livestream.
 // revoke=true generates a new stream key, false returns the existing one.
 func (t *TelegramCore) GetGroupCallStreamRtmpURL(chatID string, revoke bool) (string, string, error) {
