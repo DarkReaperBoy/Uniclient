@@ -717,12 +717,15 @@ class _MessagePreviewStandalone extends StatelessWidget {
     final radiusSmall = showTail
         ? (radiusLarge * 6 / 16).clamp(0.0, 6.0)
         : radiusLarge;
-    final nameColor = simpleQuotesAndReplies
+    final senderColor = simpleQuotesAndReplies
         ? p.windowBgActive
         : p.historyPeer4NameFg;
+    final replyAuthorColor = simpleQuotesAndReplies
+        ? p.windowBgActive
+        : p.historyPeer1NameFg;
     final quoteBarColor = simpleQuotesAndReplies
         ? p.windowBgActive
-        : p.msgOutReplyBarColor;
+        : p.msgInReplyBarColor;
     final deletedOpacity = semiTransparentDeleted ? 0.7 : 1.0;
 
     return Padding(
@@ -739,166 +742,116 @@ class _MessagePreviewStandalone extends StatelessWidget {
                 : const Color(0xFFF0F0F0),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 240),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 11, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: p.msgInBg,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(radiusLarge),
-                      topRight: Radius.circular(radiusLarge),
-                      bottomLeft: Radius.circular(radiusSmall),
-                      bottomRight: Radius.circular(radiusLarge),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: p.msgInShadow,
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Opacity(
+              opacity: deletedOpacity,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Flexible(
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 280),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 11, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: p.msgInBg,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(radiusLarge),
+                          topRight: Radius.circular(radiusLarge),
+                          bottomLeft: Radius.circular(radiusSmall),
+                          bottomRight: Radius.circular(radiusLarge),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: p.msgInShadow,
+                            blurRadius: 2,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(userName,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: nameColor)),
-                      const SizedBox(height: 2),
-                      Text('Hey, check this out!',
-                          style: TextStyle(
-                              fontSize: 13, color: p.historyTextInFg)),
-                      const SizedBox(height: 2),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Text('12:00',
-                            style: TextStyle(
-                                fontSize: 11, color: p.msgInDateFg)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Opacity(
-                  opacity: deletedOpacity,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Flexible(
-                        child: Container(
-                          constraints: const BoxConstraints(maxWidth: 260),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 11, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: p.msgOutBg,
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(radiusLarge),
-                              topRight: Radius.circular(radiusLarge),
-                              bottomLeft: Radius.circular(radiusLarge),
-                              bottomRight: Radius.circular(radiusSmall),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('AyuGram Releases',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: senderColor)),
+                          const SizedBox(height: 2),
+                          Container(
+                            padding: const EdgeInsets.only(
+                                left: 8, top: 3, bottom: 3, right: 6),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                left: BorderSide(
+                                    width: 2, color: quoteBarColor),
+                              ),
+                              color: simpleQuotesAndReplies
+                                  ? Colors.transparent
+                                  : quoteBarColor.withValues(alpha: 0.1),
+                              borderRadius: const BorderRadius.only(
+                                topRight: Radius.circular(4),
+                                bottomRight: Radius.circular(4),
+                              ),
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: p.msgOutShadow,
-                                blurRadius: 2,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(userName,
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: replyAuthorColor)),
+                                Text('Update wehn?',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: p.historyTextInFg
+                                            .withValues(alpha: 0.7))),
+                              ],
+                            ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          const SizedBox(height: 4),
+                          Text(
+                              'You need to go outside and touch some grass...',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: p.historyTextInFg)),
+                          const SizedBox(height: 2),
+                          Row(
                             mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.end,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.only(
-                                    left: 8, top: 3, bottom: 3, right: 6),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    left: BorderSide(
-                                        width: 2, color: quoteBarColor),
-                                  ),
-                                  color: simpleQuotesAndReplies
-                                      ? Colors.transparent
-                                      : quoteBarColor.withValues(alpha: 0.1),
-                                  borderRadius: const BorderRadius.only(
-                                    topRight: Radius.circular(4),
-                                    bottomRight: Radius.circular(4),
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(userName,
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: nameColor)),
-                                    Text('Hey, check this out!',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: p.historyTextOutFg
-                                                .withValues(alpha: 0.7))),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                  'Sure, looks great to me!',
+                              const Spacer(),
+                              ..._buildMarks(p.msgInDateFg),
+                              Text('12:00',
                                   style: TextStyle(
-                                      fontSize: 13,
-                                      color: p.historyTextOutFg)),
-                              const SizedBox(height: 2),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  const Spacer(),
-                                  ..._buildMarks(p.msgOutDateFg),
-                                  Text('12:01',
-                                      style: TextStyle(
-                                          fontSize: 11,
-                                          color: p.msgOutDateFg)),
-                                  const SizedBox(width: 3),
-                                  Icon(Icons.done_all,
-                                      size: 14, color: p.msgOutDateFg),
-                                ],
-                              ),
+                                      fontSize: 11,
+                                      color: p.msgInDateFg)),
                             ],
                           ),
-                        ),
+                        ],
                       ),
-                      if (!hideFastShare) ...[
-                        const SizedBox(width: 4),
-                        Container(
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: p.msgServiceBg,
-                          ),
-                          child: Icon(Icons.shortcut,
-                              size: 16, color: p.msgServiceFg),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
-                ),
+                  if (!hideFastShare) ...[
+                    const SizedBox(width: 4),
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: p.msgServiceBg,
+                      ),
+                      child: Icon(Icons.shortcut,
+                          size: 16, color: p.msgServiceFg),
+                    ),
+                  ],
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
