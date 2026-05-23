@@ -558,7 +558,9 @@ SwipeAction resolveSwipeAction(String baseAction, ChatInfo chat) {
           ? SwipeAction.read
           : SwipeAction.unread;
     case 'archive':
-      if (chat.isSelf || _isNotificationsUser(chat.chatId)) return SwipeAction.disabled;
+      if (chat.isSelf || _isNotificationsUser(chat.chatId)) {
+        if (!chat.isArchived) return SwipeAction.disabled;
+      }
       return chat.isArchived ? SwipeAction.unarchive : SwipeAction.archive;
     case 'delete':
       return SwipeAction.delete;
@@ -960,7 +962,7 @@ class _SwipeRipplePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const iconSize = 20.0;
     const offset = iconSize + iconSize / 2;
-    final center = Offset(swipeOffset - offset, offset);
+    final center = Offset(size.width / 2, offset);
 
     if (reachRatio > 0) {
       final r = swipeOffset * reachRatio;
