@@ -273,6 +273,24 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
     });
   }
 
+  void _openCountryPicker() async {
+    final p = context.palette;
+    final result = await showTelegramBox<List<String>>(
+      context: context,
+      builder: (ctx) => _CountryPickerBox(
+        selectedCodes: List.from(_selectedCountries),
+        palette: p,
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _selectedCountries
+          ..clear()
+          ..addAll(result);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -779,6 +797,36 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
         onTap: () => setState(() => _memberFilter = _MemberFilter.onlyNew),
       ),
       const SizedBox(height: 8),
+      InkWell(
+        onTap: _openCountryPicker,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Row(
+            children: [
+              Icon(Icons.public, size: 18, color: primary),
+              const SizedBox(width: 10),
+              Expanded(child: Text(
+                _selectedCountries.isEmpty
+                    ? 'From all countries'
+                    : '${_selectedCountries.length} countr${_selectedCountries.length == 1 ? 'y' : 'ies'} selected',
+                style: TextStyle(fontSize: 13, color: primary, fontWeight: FontWeight.w500),
+              )),
+              if (_selectedCountries.isNotEmpty)
+                InkWell(
+                  onTap: () => setState(() => _selectedCountries.clear()),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.clear, size: 14, color: subColor),
+                  ),
+                ),
+              Icon(Icons.chevron_right, size: 18, color: subColor),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 4),
       Text(
         'Choose who among the subscribers of the selected channels will be able to participate in the giveaway.',
         style: TextStyle(fontSize: 11, color: subColor),
@@ -1237,6 +1285,197 @@ class _ChannelPickerBox extends StatelessWidget {
         ),
       ),
       buttons: const [],
+    );
+  }
+}
+
+// ─── Country Picker Box ────────────────────────────────────────────────────
+
+class _CountryPickerBox extends StatefulWidget {
+  final List<String> selectedCodes;
+  final TelegramPalette palette;
+
+  const _CountryPickerBox({
+    required this.selectedCodes,
+    required this.palette,
+  });
+
+  @override
+  State<_CountryPickerBox> createState() => _CountryPickerBoxState();
+}
+
+class _CountryPickerBoxState extends State<_CountryPickerBox> {
+  late final Set<String> _selected;
+  String _query = '';
+  final _searchController = TextEditingController();
+
+  static const _countries = <String, String>{
+    'AF': 'Afghanistan', 'AL': 'Albania', 'DZ': 'Algeria', 'AR': 'Argentina',
+    'AM': 'Armenia', 'AU': 'Australia', 'AT': 'Austria', 'AZ': 'Azerbaijan',
+    'BD': 'Bangladesh', 'BY': 'Belarus', 'BE': 'Belgium', 'BR': 'Brazil',
+    'BG': 'Bulgaria', 'CA': 'Canada', 'CL': 'Chile', 'CN': 'China',
+    'CO': 'Colombia', 'HR': 'Croatia', 'CZ': 'Czech Republic', 'DK': 'Denmark',
+    'EG': 'Egypt', 'EE': 'Estonia', 'FI': 'Finland', 'FR': 'France',
+    'GE': 'Georgia', 'DE': 'Germany', 'GR': 'Greece', 'HU': 'Hungary',
+    'IN': 'India', 'ID': 'Indonesia', 'IR': 'Iran', 'IQ': 'Iraq',
+    'IE': 'Ireland', 'IL': 'Israel', 'IT': 'Italy', 'JP': 'Japan',
+    'KZ': 'Kazakhstan', 'KR': 'South Korea', 'KW': 'Kuwait', 'LV': 'Latvia',
+    'LT': 'Lithuania', 'MY': 'Malaysia', 'MX': 'Mexico', 'MD': 'Moldova',
+    'NL': 'Netherlands', 'NZ': 'New Zealand', 'NG': 'Nigeria', 'NO': 'Norway',
+    'PK': 'Pakistan', 'PE': 'Peru', 'PH': 'Philippines', 'PL': 'Poland',
+    'PT': 'Portugal', 'QA': 'Qatar', 'RO': 'Romania', 'RU': 'Russia',
+    'SA': 'Saudi Arabia', 'RS': 'Serbia', 'SG': 'Singapore', 'SK': 'Slovakia',
+    'ZA': 'South Africa', 'ES': 'Spain', 'SE': 'Sweden', 'CH': 'Switzerland',
+    'TW': 'Taiwan', 'TH': 'Thailand', 'TR': 'Turkey', 'UA': 'Ukraine',
+    'AE': 'United Arab Emirates', 'GB': 'United Kingdom', 'US': 'United States',
+    'UZ': 'Uzbekistan', 'VN': 'Vietnam',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set.from(widget.selectedCodes);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  static String _countryFlag(String code) {
+    return String.fromCharCodes(
+      code.toUpperCase().codeUnits.map((c) => c - 0x41 + 0x1F1E6),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.palette;
+    final textFg = p.boxTextFg;
+    final subColor = p.windowSubTextFg;
+
+    final filtered = _countries.entries.where((e) =>
+      _query.isEmpty ||
+      e.value.toLowerCase().contains(_query.toLowerCase()) ||
+      e.key.toLowerCase().contains(_query.toLowerCase())
+    ).toList();
+
+    return TelegramBox(
+      title: 'Select Countries',
+      showClose: true,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _query = v),
+              style: TextStyle(fontSize: 14, color: textFg),
+              decoration: InputDecoration(
+                hintText: 'Filter participants',
+                hintStyle: TextStyle(fontSize: 14, color: subColor),
+                prefixIcon: Icon(Icons.search, size: 20, color: subColor),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: p.windowBgRipple),
+                ),
+              ),
+            ),
+          ),
+          if (_selected.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: _selected.map((code) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: p.windowBgActive,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${_countryFlag(code)} ${_countries[code] ?? code}',
+                          style: const TextStyle(fontSize: 12, color: Colors.white),
+                        ),
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () => setState(() => _selected.remove(code)),
+                          child: const Icon(Icons.close, size: 14, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          SizedBox(
+            height: min(filtered.length * 44.0, 300),
+            child: ListView.builder(
+              itemCount: filtered.length,
+              itemBuilder: (ctx, i) {
+                final entry = filtered[i];
+                final isSelected = _selected.contains(entry.key);
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      if (isSelected) {
+                        _selected.remove(entry.key);
+                      } else {
+                        _selected.add(entry.key);
+                      }
+                    });
+                  },
+                  hoverColor: p.windowBgOver,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isSelected ? Icons.check_box : Icons.check_box_outline_blank,
+                          size: 20,
+                          color: isSelected ? p.windowBgActive : subColor,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(_countryFlag(entry.key),
+                            style: const TextStyle(fontSize: 20)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            entry.value,
+                            style: TextStyle(fontSize: 14, color: textFg),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'Save',
+          onPressed: () => Navigator.of(context).pop(_selected.toList()),
+        ),
+        TelegramBoxButton(
+          text: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(null),
+        ),
+      ],
+      onConfirm: () => Navigator.of(context).pop(_selected.toList()),
     );
   }
 }
