@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:fixnum/fixnum.dart';
@@ -41,6 +42,7 @@ class EngineService {
   final _msgEditedController = StreamController<MsgEditedEvent>.broadcast();
   final _msgDeletedController = StreamController<MsgDeletedEvent>.broadcast();
   final _msgStatusController = StreamController<MsgStatusEvent>.broadcast();
+  final _msgReactionsUpdatedController = StreamController<MsgReactionsUpdatedEvent>.broadcast();
   final _typingController = StreamController<TypingEvent>.broadcast();
   final _downloadProgressController = StreamController<DownloadProgressEvent>.broadcast();
   final _downloadCompleteController = StreamController<DownloadCompleteEvent>.broadcast();
@@ -63,6 +65,7 @@ class EngineService {
   Stream<MsgEditedEvent> get onMsgEdited => _msgEditedController.stream;
   Stream<MsgDeletedEvent> get onMsgDeleted => _msgDeletedController.stream;
   Stream<MsgStatusEvent> get onMsgStatus => _msgStatusController.stream;
+  Stream<MsgReactionsUpdatedEvent> get onMsgReactionsUpdated => _msgReactionsUpdatedController.stream;
   Stream<TypingEvent> get onTyping => _typingController.stream;
   Stream<DownloadProgressEvent> get onDownloadProgress => _downloadProgressController.stream;
   Stream<DownloadCompleteEvent> get onDownloadComplete => _downloadCompleteController.stream;
@@ -649,13 +652,13 @@ class EngineService {
     return list.map((e) => ChatInfo.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  List<ChatInfo> searchGlobalPosts(String accountId, String query, {int limit = 20}) {
+  Future<List<ChatInfo>> searchGlobalPosts(String accountId, String query, {int limit = 20}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'query': query,
       'limit': limit,
     }));
-    final respBytes = _callRaw('__engine', 'SearchGlobalPosts', Uint8List.fromList(payload));
+    final respBytes = await _callAsync('__engine', 'SearchGlobalPosts', Uint8List.fromList(payload));
     if (respBytes.isEmpty) return [];
     final list = json.decode(utf8.decode(respBytes)) as List<dynamic>;
     return list.map((e) => ChatInfo.fromJson(e as Map<String, dynamic>)).toList();
@@ -1381,7 +1384,7 @@ class EngineService {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'caption': caption,
-      'photo_data': photoData.toList(),
+      'photo_data': base64.encode(photoData),
       'privacy': privacy,
       'duration_hours': durationHours,
       'save_to_profile': saveToProfile,
@@ -1422,7 +1425,7 @@ class EngineService {
       'account_id': accountId,
       'caption': caption,
       'video_file_path': videoFilePath,
-      if (overlayData != null) 'overlay_data': overlayData.toList(),
+      if (overlayData != null) 'overlay_data': base64.encode(overlayData),
       'privacy': privacy,
       'duration_hours': durationHours,
       'save_to_profile': saveToProfile,
@@ -2785,8 +2788,10 @@ class EngineService {
       ..beforeMs = Int64(beforeMs)
       ..limit = limit;
     final respBytes = await _callAsync('__engine', 'GetMessages', req.writeToBuffer());
-    final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
-    return resp.messages.map(_cachedMsgFromProto).toList();
+    return Isolate.run(() {
+      final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
+      return resp.messages.map(_cachedMsgFromProto).toList();
+    });
   }
 
   /// Fetch live messages directly from the core (not cache).
@@ -2797,8 +2802,10 @@ class EngineService {
       ..chatId = chatId
       ..limit = limit;
     final respBytes = await _callAsync('__engine', 'FetchLiveMessages', req.writeToBuffer());
-    final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
-    return resp.messages.map(_cachedMsgFromProto).toList();
+    return Isolate.run(() {
+      final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
+      return resp.messages.map(_cachedMsgFromProto).toList();
+    });
   }
 
   /// Get all pinned messages for a chat from the cache.
@@ -2855,6 +2862,7 @@ class EngineService {
       'limit': limit,
     }));
     final respBytes = _callRaw('__engine', 'GetDeletedMessages', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return [];
     final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
     final list = resp['messages'] as List<dynamic>? ?? [];
     return list.map((m) {
@@ -5993,6 +6001,11 @@ class EngineService {
       case 'msg_status':
         if (data is Map<String, dynamic>) {
           _msgStatusController.add(MsgStatusEvent.fromJson(data));
+        }
+
+      case 'msg_reactions_updated':
+        if (data is Map<String, dynamic>) {
+          _msgReactionsUpdatedController.add(MsgReactionsUpdatedEvent.fromJson(data));
         }
 
       case 'typing':

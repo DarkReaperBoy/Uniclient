@@ -2220,6 +2220,23 @@ class MsgStatusEvent {
   );
 }
 
+class MsgReactionsUpdatedEvent {
+  final String accountId;
+  final String chatId;
+  final String msgId;
+  final List<MessageReaction> reactions;
+  const MsgReactionsUpdatedEvent({this.accountId = '', this.chatId = '', this.msgId = '', this.reactions = const []});
+
+  factory MsgReactionsUpdatedEvent.fromJson(Map<String, dynamic> j) => MsgReactionsUpdatedEvent(
+    accountId: j['account_id'] as String? ?? '',
+    chatId: j['chat_id'] as String? ?? '',
+    msgId: j['msg_id'] as String? ?? '',
+    reactions: (j['reactions'] as List<dynamic>?)
+        ?.map((r) => MessageReaction.fromJson(r as Map<String, dynamic>))
+        .toList() ?? const [],
+  );
+}
+
 class TypingEvent {
   final String chatId;
   final String userId;
