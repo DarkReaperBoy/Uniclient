@@ -604,9 +604,6 @@ All geometric calculations match:
 
 # call_screen — Group Call Panel & Minimised Call Bar Audit
 
-## call_screen — No recording-started / recording-stopped toast feedback
-
-- [ ] [MAJOR] When recording starts or stops, AyuGram shows a toast ("Recording started", "Recording saved"). The Dart code shows a SnackBar only with the file path when recording starts (`call_screen.dart:1298-1302`), and shows nothing when recording stops. There is no engine event listener for `recordStartDateChanges` — the `isRecording` flag is a static prop passed at open time and never updated reactively. — `call_screen.dart:1169` ← `AyuGram/calls/group/calls_group_panel.cpp:1362-1367`
 
 ## call_screen — Participant rows have no long-press / context menu (mute, kick, volume)
 
