@@ -601,22 +601,6 @@ All geometric calculations match:
 
 # call_panel — Backend wiring gaps, missing states, wrong device enumeration
 
-- [ ] [CRITICAL] Device enumeration uses raw OS shell commands (v4l2-ctl, pactl, powershell, system_profiler) instead of calling `engine.getAudioDevices()` which exists in EngineService — `call_panel.dart:163-250` ← `calls_panel.cpp:1036-1094` (uses `Webrtc::DeviceType` values via `cameraDeviceIdValue()`/`playbackDeviceIdValue()`/`captureDeviceIdValue()`)
-
-- [ ] [CRITICAL] Audio output (playback/speaker) device is entirely missing from the device selector — the menu only shows Camera and Microphone (`call_panel.dart:510-538`), but AyuGram's mute button corner toggle exposes both Playback AND Capture device selection — `call_panel.dart:510-538` ← `calls_panel.cpp:1050-1056`
-
-- [ ] [CRITICAL] `Busy` state has no redial button — when state is `busy` the Dart code renders `_buildEndedState()` with only a Close button (`call_panel.dart:1124`), but AyuGram transitions the main answer/hangup button into a Redial button and keeps controls visible — `call_panel.dart:1124-1126` ← `calls_panel.cpp:1437-1444`
-
-- [ ] [CRITICAL] `WaitingUserConfirmation` state ("Are you sure?") is missing entirely — AyuGram has a distinct state where the outgoing call shows a "Start Call" button and a separate "Start Video" button, mute/screencast/addPeople are hidden — there is no corresponding `CallPanelState` value in Dart — `call_panel.dart:21-33` ← `calls_panel.cpp:1385-1407`
-
-- [ ] [CRITICAL] Conference-invite participant avatars widget is missing — when an incoming call is a conference invite, AyuGram renders a row of participant userpics with a member count above the status text; Dart has no such widget — `call_panel.dart:715-762` ← `calls_panel.cpp:504-560`
-
-- [ ] [MAJOR] Remote mute/battery pills are wrapped inside `FadeTransition` tied to `_controlsFadeController` in audio-only active state (`call_panel.dart:1046`), meaning they hide with controls. AyuGram shows them independently of controls visibility — opacity is linked to `_controlsShownAnimation` only for visual fade, but they are always shown when video is active (`calls_panel.cpp:1006-1009`). In Dart's audio-only path (`_buildActiveState`), pills are children of the same `FadeTransition` as the controls row — `call_panel.dart:1046-1055` ← `calls_panel.cpp:865-963`
-
-- [ ] [MAJOR] Device selector menu is attached only to the Camera button's chevron (`call_panel.dart:864`); AyuGram attaches a separate corner button to the Mute button for audio device (playback+capture) selection, distinct from the camera corner button — `call_panel.dart:858-865` ← `calls_panel.cpp:1040-1056`
-
-- [ ] [MAJOR] `setCallAudioDevice` is called with type strings `'video_input'` and `'audio_input'` (`call_panel.dart:550,553`), but other call sites in the codebase use `'camera'`, `'input'`, `'output'`, `'playback'`, `'capture'` inconsistently — no single agreed type string for video input, making device switching silently broken — `call_panel.dart:548-554` ← `calls_panel.cpp:1065-1077`
-
 - [ ] [MAJOR] Ripple animation on the answer button uses a fixed static color (`Color(0xFF4CAF50)`) and a fixed expansion of 24px (`call_panel.dart:1272`), while AyuGram drives the outer ripple amplitude from `_call->getWaitingSoundPeakValue()` (audio-reactive) updated every `Call::kSoundSampleMs` — `call_panel.dart:1258-1285` ← `calls_panel.cpp:465-473`
 
 # call_screen — Group Call Panel & Minimised Call Bar Audit
