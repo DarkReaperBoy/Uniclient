@@ -1125,7 +1125,7 @@ class _ChatViewState extends State<ChatView>
     engine.getOldestUnreadMention(chat.accountId, chat.chatId).then((msg) {
       if (msg != null && mounted) {
         chatState.jumpToMessage(msg.timestamp, highlightMsgId: msg.msgId);
-        engine.readMessageContents(chat.accountId, chat.chatId, msg.msgId);
+        engine.readMentions(chat.accountId, chat.chatId);
       }
     });
   }

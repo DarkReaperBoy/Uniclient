@@ -1676,6 +1676,25 @@ func (e *Engine) ReadMessageContents(accountID, chatID, msgID string) error {
 	return err
 }
 
+type MentionsReader interface {
+	ReadMentions(chatID string) error
+}
+
+func (e *Engine) ReadMentions(accountID, chatID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	reader, ok := acc.Core.(MentionsReader)
+	if !ok {
+		return fmt.Errorf("platform does not support ReadMentions")
+	}
+	return reader.ReadMentions(chatID)
+}
+
 type PollVoter interface {
 	VotePoll(chatID string, msgID string, optionIndex int) error
 }

@@ -681,6 +681,13 @@ class EngineService {
     _callRaw('__engine', 'ReadMessageContents', req.writeToBuffer());
   }
 
+  void readMentions(String accountId, String chatId) {
+    final req = epb.EngineReportSpamRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    _callRaw('__engine', 'ReadMentions', req.writeToBuffer());
+  }
+
   Future<void> reportMusicListen(String accountId, int docId, int accessHash, List<int> fileRef, int durationSec) async {
     final req = epb.EngineReportMusicListenRequest()
       ..accountId = accountId

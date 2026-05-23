@@ -568,6 +568,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ReadMessageContents(req.AccountId, req.ChatId, req.MsgId)
 
+	case "ReadMentions":
+		var req pb.EngineReportSpamRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ReadMentions(req.AccountId, req.ChatId)
+
 	case "ReportMusicListen":
 		var req pb.EngineReportMusicListenRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
