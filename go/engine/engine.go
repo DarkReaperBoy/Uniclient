@@ -111,6 +111,9 @@ type Engine struct {
 	localStorageTotalMB  int
 	localStorageMediaMB  int
 	localStorageTimeDays int
+
+	experimentalFlagsMu sync.RWMutex
+	experimentalFlags   map[string]bool
 }
 
 // Init initializes the engine: opens vault+DB, loads accounts, starts connections.
@@ -279,6 +282,20 @@ func (e *Engine) SetAutoDownloadSettings(source string, settings map[string]inte
 func (e *Engine) SetPowerSaving(flags int) {
 	e.powerSavingFlags = flags
 	log.Printf("[engine] SetPowerSaving: flags=0x%X", flags)
+}
+
+func (e *Engine) SetExperimentalFlag(id string, value bool) {
+	e.experimentalFlagsMu.Lock()
+	if e.experimentalFlags == nil {
+		e.experimentalFlags = make(map[string]bool)
+	}
+	if value {
+		e.experimentalFlags[id] = true
+	} else {
+		delete(e.experimentalFlags, id)
+	}
+	e.experimentalFlagsMu.Unlock()
+	log.Printf("[engine] SetExperimentalFlag: %s=%v", id, value)
 }
 
 // SetLocalStorageLimits stores cache eviction limits from the Dart UI.

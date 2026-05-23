@@ -1263,6 +1263,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		e.SetPowerSaving(params.Flags)
 		return nil, nil
 
+	case "SetExperimentalFlag":
+		var params struct {
+			ID    string `json:"id"`
+			Value bool   `json:"value"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		e.SetExperimentalFlag(params.ID, params.Value)
+		return nil, nil
+
 	case "SetLocalStorageLimits":
 		var params struct {
 			TotalLimitMB  int `json:"total_limit_mb"`

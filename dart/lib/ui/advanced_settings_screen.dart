@@ -4440,7 +4440,7 @@ const _experimentalFlagDefs = <(String, String)>[
   ('disable-autoplay-next', 'Disable auto-play of the next track'),
   ('webview-debug-enabled', 'Enable webview debugging'),
   ('custom-notification', 'Force non-native notifications availability'),
-  ('free-type', 'FreeType font engine'),
+  ('freetype', 'FreeType font engine'),
   ('prefer-ipv6', 'Prefer IPv6 connections'),
   ('auto-scroll-inactive-chat', 'Mark as read of inactive chat'),
   ('hide-reply-button', 'Hide reply button in notifications'),
@@ -4638,7 +4638,18 @@ class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
                   const SizedBox(width: 8),
                   TextButton(
                     onPressed: () {
-                      context.read<AppState>().setExperimentalFlags(_flags);
+                      final appState = context.read<AppState>();
+                      appState.setExperimentalFlags(_flags);
+                      for (final (key, _) in _experimentalFlagDefs) {
+                        final value = _flags[key] == true;
+                        if (value != (_originalFlags[key] == true)) {
+                          appState.engine.callGeneric(
+                            '__engine',
+                            'SetExperimentalFlag',
+                            {'id': key, 'value': value},
+                          ).catchError((_) {});
+                        }
+                      }
                       Navigator.of(context).pop();
                     },
                     child: Text(
