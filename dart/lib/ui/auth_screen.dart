@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../bridge/engine_service.dart';
+import '../l10n/strings.dart';
 import '../utils/debug.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
@@ -72,7 +73,9 @@ class _AuthScreenState extends State<AuthScreen>
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   late CountryInfo _selectedCountry;
+  late _PhoneNumberFormatter _phoneFormatter;
   Uint8List? _signupAvatarBytes;
+  bool _termsAccepted = false;
 
   @override
   void initState() {
@@ -87,6 +90,7 @@ class _AuthScreenState extends State<AuthScreen>
       });
     _selectedCountry = countries.firstWhere((c) => c.iso == 'US');
     _codeController.text = _selectedCountry.dialCode;
+    _phoneFormatter = _PhoneNumberFormatter(dialCode: _selectedCountry.dialCode);
   }
 
   @override
@@ -168,6 +172,11 @@ class _AuthScreenState extends State<AuthScreen>
       final firstName = _firstNameController.text.trim();
       if (firstName.isEmpty) return;
       final lastName = _lastNameController.text.trim();
+      final tosText = data?.tosText ?? '';
+      if (tosText.isNotEmpty && !_termsAccepted) {
+        _showTermsDialog(authState, tosText);
+        return;
+      }
       setState(() => _showErrorBorder = false);
       if (_signupAvatarBytes != null) {
         final avatarBytes = _signupAvatarBytes!;
@@ -214,7 +223,7 @@ class _AuthScreenState extends State<AuthScreen>
               ),
               const SizedBox(height: 12),
               Text(
-                'You can also wait for Telegram to call you and dictate the code.',
+                'You can also request a code via a phone call.',
                 style: theme.textTheme.bodyMedium,
               ),
             ],
@@ -232,11 +241,7 @@ class _AuthScreenState extends State<AuthScreen>
                 Navigator.of(ctx).pop();
                 await authState.submitInput('__resend_code');
               },
-              child: const Text('Resend Code'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
+              child: const Text('Request a Call'),
             ),
           ],
         );
@@ -286,7 +291,7 @@ class _AuthScreenState extends State<AuthScreen>
   String _nextButtonText(AuthStateData? data) {
     if (data == null) return 'Next';
     return switch (data.state) {
-      'signup' => 'Start Messaging',
+      'signup' => TrStrings.lngIntroFinish(),
       _ => 'Next',
     };
   }
@@ -366,7 +371,7 @@ class _AuthScreenState extends State<AuthScreen>
             curve: Curves.easeOutCirc,
             height: showCover ? _kCoverHeight : 0,
             child: showCover
-                ? _CoverGradient(isDark: theme.brightness == Brightness.dark)
+                ? const _CoverGradient()
                 : const SizedBox.shrink(),
           ),
           Expanded(
@@ -442,7 +447,8 @@ class _AuthScreenState extends State<AuthScreen>
         content: Text(
           'Since this account has no recovery email, you can reset it. '
           'This will delete your account after a 7-day waiting period. '
-          'Your chats, messages, and contacts will be permanently lost.',
+          'Your chats, messages, and contacts will be permanently lost.\n\n'
+          'Are you sure you want to proceed?',
           style: theme.textTheme.bodyMedium,
         ),
         actions: [
@@ -455,13 +461,29 @@ class _AuthScreenState extends State<AuthScreen>
               Navigator.of(ctx).pop();
               await authState.submitInput('__reset_account');
               if (!mounted) return;
-              final msg = authState.currentAuth?.message ?? '';
-              if (msg == 'password_reset_requested') {
-                _showResetConfirmation(context, 'Password reset requested. Your password will be removed after the waiting period.');
-              } else if (msg == 'password_reset_done') {
-                _showResetConfirmation(context, 'Password has been reset. You can now log in without a password.');
-              } else if (authState.error != null) {
-                _showResetConfirmation(context, 'Reset failed: ${authState.error}');
+              final err = authState.error;
+              if (err != null && err.contains('2FA_CONFIRM_WAIT_')) {
+                final match = RegExp(r'2FA_CONFIRM_WAIT_(\d+)').firstMatch(err);
+                final waitSecs = match != null ? int.parse(match.group(1)!) : 0;
+                final days = waitSecs ~/ 86400;
+                final hours = (waitSecs % 86400) ~/ 3600;
+                final timeStr = days > 0
+                    ? '$days day${days == 1 ? '' : 's'}${hours > 0 ? ' $hours hour${hours == 1 ? '' : 's'}' : ''}'
+                    : '$hours hour${hours == 1 ? '' : 's'}';
+                _showResetConfirmation(context,
+                    'You can reset your account in $timeStr. '
+                    'After this period, your password will be removed.');
+              } else {
+                final msg = authState.currentAuth?.message ?? '';
+                if (msg == 'password_reset_requested') {
+                  _showResetConfirmation(context,
+                      'Password reset requested. Your password will be removed after the waiting period.');
+                } else if (msg == 'password_reset_done') {
+                  _showResetConfirmation(context,
+                      'Password has been reset. You can now log in without a password.');
+                } else if (err != null) {
+                  _showResetConfirmation(context, 'Reset failed: $err');
+                }
               }
             },
             style: TextButton.styleFrom(
@@ -486,6 +508,40 @@ class _AuthScreenState extends State<AuthScreen>
           ),
         ],
       ),
+    );
+  }
+
+  void _showTermsDialog(AuthState authState, String tosText) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          title: const Text('Terms of Service'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 300,
+            child: SingleChildScrollView(
+              child: Text(tosText, style: theme.textTheme.bodyMedium),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Decline'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                setState(() => _termsAccepted = true);
+                _submit(authState);
+              },
+              child: const Text('Accept'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -762,15 +818,13 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   void _handleTryPassword() {
-    final theme = Theme.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Can\'t Access Email?'),
         content: Text(
-          'If you can\'t restore access to your email, your remaining options are '
-          'either to remember your password or to reset your account.',
-          style: theme.textTheme.bodyMedium,
+          TrStrings.lngSigninCantEmailForgot(),
+          style: Theme.of(ctx).textTheme.bodyMedium,
         ),
         actions: [
           TextButton(
@@ -780,11 +834,13 @@ class _AuthScreenState extends State<AuthScreen>
         ],
       ),
     ).then((_) {
+      if (!mounted) return;
       setState(() {
         _isRecoveryMode = false;
         _showErrorBorder = false;
         _showResetButton = true;
         _recoveryCodeController.clear();
+        _passwordController.clear();
       });
     });
   }
@@ -945,7 +1001,9 @@ class _AuthScreenState extends State<AuthScreen>
 
   Widget _buildQR(AuthStateData? data, AuthState authState, ThemeData theme) {
     final hasQr = data != null && data.qrData.isNotEmpty;
-    final payload = hasQr ? utf8.decode(data.qrData, allowMalformed: true) : '';
+    final payload = hasQr
+        ? 'tg://login?token=${base64Url.encode(data.qrData)}'
+        : '';
     const qrSize = 180.0;
     const cardPadding = 12.0;
     const cardSize = qrSize + cardPadding * 2;
@@ -1012,10 +1070,11 @@ class _AuthScreenState extends State<AuthScreen>
                           color: context.palette.windowBgActive,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
-                          Icons.send,
-                          color: Colors.white,
-                          size: 20,
+                        child: Center(
+                          child: CustomPaint(
+                            size: const Size(20, 20),
+                            painter: _TelegramPlanePainter(color: Colors.white),
+                          ),
                         ),
                       ),
                     ],
@@ -1215,7 +1274,7 @@ class _AuthScreenState extends State<AuthScreen>
                   focusNode: _phoneFocusNode,
                   keyboardType: TextInputType.phone,
                   autofocus: true,
-                  inputFormatters: [_PhoneNumberFormatter()],
+                  inputFormatters: [_phoneFormatter],
                   onSubmitted: (_) => _submit(authState),
                   decoration: InputDecoration(
                     hintText: 'Phone number',
@@ -1355,9 +1414,28 @@ class _AuthScreenState extends State<AuthScreen>
   void _onCodeChanged(String val) {
     final code = val.replaceAll(RegExp(r'\D'), '');
     if (code.isEmpty) return;
-    final match = countries.where((c) => c.dialCode == code).firstOrNull;
+    final match = countryByDialCode(code);
     if (match != null && match != _selectedCountry) {
-      setState(() => _selectedCountry = match);
+      setState(() {
+        _selectedCountry = match;
+        _phoneFormatter.dialCode = match.dialCode;
+        _reformatPhone();
+      });
+    } else if (match == null) {
+      _phoneFormatter.dialCode = code;
+      _reformatPhone();
+    }
+  }
+
+  void _reformatPhone() {
+    final raw = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+    if (raw.isEmpty) return;
+    final formatted = formatPhoneDigits(raw, _phoneFormatter.dialCode);
+    if (formatted != _phoneController.text) {
+      _phoneController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
     }
   }
 
@@ -1370,6 +1448,8 @@ class _AuthScreenState extends State<AuthScreen>
           setState(() {
             _selectedCountry = country;
             _codeController.text = country.dialCode;
+            _phoneFormatter.dialCode = country.dialCode;
+            _reformatPhone();
           });
           Navigator.of(ctx).pop();
         },
@@ -1379,13 +1459,13 @@ class _AuthScreenState extends State<AuthScreen>
 }
 
 class _CoverGradient extends StatelessWidget {
-  final bool isDark;
-  const _CoverGradient({required this.isDark});
+  const _CoverGradient();
 
   @override
   Widget build(BuildContext context) {
-    final topColor = isDark ? const Color(0xFF1B3A4B) : const Color(0xFF0088CC);
-    final bottomColor = isDark ? const Color(0xFF0D2637) : const Color(0xFF0066AA);
+    final palette = context.palette;
+    final topColor = palette.introCoverTopBg;
+    final bottomColor = palette.introCoverBottomBg;
 
     return ClipRect(
       child: Container(
@@ -1406,7 +1486,7 @@ class _CoverGradient extends StatelessWidget {
               child: Icon(
                 Icons.chat_bubble_outline_rounded,
                 size: 70,
-                color: Colors.white.withValues(alpha: 0.12),
+                color: palette.introCoverIconsFg.withValues(alpha: 0.12),
               ),
             ),
             Positioned(
@@ -1415,7 +1495,7 @@ class _CoverGradient extends StatelessWidget {
               child: Icon(
                 Icons.forum_outlined,
                 size: 60,
-                color: Colors.white.withValues(alpha: 0.12),
+                color: palette.introCoverIconsFg.withValues(alpha: 0.12),
               ),
             ),
             Positioned(
@@ -1423,14 +1503,15 @@ class _CoverGradient extends StatelessWidget {
               top: 46,
               right: 50,
               child: Center(
-                child: Icon(
-                  Icons.send_rounded,
-                  size: 60,
-                  color: Colors.white.withValues(alpha: 0.9),
+                child: CustomPaint(
+                  size: const Size(60, 60),
+                  painter: _TelegramPlanePainter(
+                    color: palette.introCoverPlaneTop,
+                  ),
                 ),
               ),
             ),
-            const Positioned(
+            Positioned(
               top: 136,
               left: 0,
               right: 0,
@@ -1440,7 +1521,7 @@ class _CoverGradient extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: palette.introTitleFg,
                   letterSpacing: 0.2,
                 ),
               ),
@@ -1455,7 +1536,7 @@ class _CoverGradient extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w400,
-                  color: Colors.white.withValues(alpha: 0.7),
+                  color: palette.introDescriptionFg,
                   height: 24 / 15,
                 ),
               ),
@@ -1622,7 +1703,6 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
         if (_callSecondsLeft <= 0) {
           t.cancel();
           _calling = true;
-          widget.onResendCode?.call();
         }
       });
     });
@@ -2077,7 +2157,7 @@ class _AuthBottomBarState extends State<_AuthBottomBar>
                 );
               },
               child: SizedBox(
-                width: double.infinity,
+                width: 300,
                 height: 42,
                 child: FilledButton(
                   onPressed: widget.submitting ? null : widget.onNext,
@@ -2085,7 +2165,6 @@ class _AuthBottomBarState extends State<_AuthBottomBar>
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    padding: const EdgeInsets.only(top: 11, bottom: 17),
                   ),
                   child: widget.submitting
                       ? const SizedBox(
@@ -2352,6 +2431,10 @@ class _CountryPickerDialogState extends State<_CountryPickerDialog> {
 }
 
 class _PhoneNumberFormatter extends TextInputFormatter {
+  String dialCode;
+
+  _PhoneNumberFormatter({this.dialCode = '1'});
+
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
@@ -2364,12 +2447,7 @@ class _PhoneNumberFormatter extends TextInputFormatter {
         selection: TextSelection.collapsed(offset: 0),
       );
     }
-    final buf = StringBuffer();
-    for (var i = 0; i < digits.length; i++) {
-      if (i > 0 && i % 3 == 0) buf.write(' ');
-      buf.write(digits[i]);
-    }
-    final formatted = buf.toString();
+    final formatted = formatPhoneDigits(digits, dialCode);
     final digitsBeforeCursor = newValue.text
         .substring(0, newValue.selection.end.clamp(0, newValue.text.length))
         .replaceAll(RegExp(r'\D'), '')
@@ -2390,3 +2468,32 @@ class _PhoneNumberFormatter extends TextInputFormatter {
 
 
 enum _PhoneErrorType { invalid, banned, flood }
+
+class _TelegramPlanePainter extends CustomPainter {
+  final Color color;
+  _TelegramPlanePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    final w = size.width;
+    final h = size.height;
+
+    path.moveTo(w * 0.95, h * 0.12);
+    path.lineTo(w * 0.12, h * 0.45);
+    path.lineTo(w * 0.35, h * 0.52);
+    path.lineTo(w * 0.42, h * 0.88);
+    path.lineTo(w * 0.56, h * 0.66);
+    path.lineTo(w * 0.80, h * 0.82);
+    path.close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_TelegramPlanePainter old) => old.color != color;
+}

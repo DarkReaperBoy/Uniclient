@@ -123,6 +123,7 @@ class AuthStateData {
   final String message;
   final bool recoverable;
   final bool codeByTelegram;
+  final String tosText;
   final List<AuthOption> options;
 
   const AuthStateData({
@@ -145,6 +146,7 @@ class AuthStateData {
     this.message = '',
     this.recoverable = false,
     this.codeByTelegram = false,
+    this.tosText = '',
     this.options = const [],
   });
 
@@ -168,6 +170,7 @@ class AuthStateData {
     message: j['message'] as String? ?? '',
     recoverable: j['recoverable'] as bool? ?? false,
     codeByTelegram: j['code_by_telegram'] as bool? ?? false,
+    tosText: j['tos_text'] as String? ?? '',
     options: (j['options'] as List<dynamic>?)
         ?.map((o) => AuthOption.fromJson(o as Map<String, dynamic>))
         .toList() ?? [],

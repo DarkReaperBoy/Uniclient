@@ -4,6 +4,13 @@
 class TrStrings {
   TrStrings._();
 
+  // Auth intro (intro_signup.cpp, intro_code.cpp, intro_widget.cpp)
+  static String lngIntroFinish() => 'Start Messaging';
+  static String lngIntroNext() => 'Next';
+  static String lngSigninCantEmailForgot() =>
+      "If you can't restore access to your email, your remaining options are "
+      "either to remember your password or to reset your account.";
+
   // Theme confirmation overlay (window_theme_warning.cpp)
   static String lngThemeSureKeep() => 'Keep this theme?';
   static String lngThemeReverting(int count) =>

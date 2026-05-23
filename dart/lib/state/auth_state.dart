@@ -223,6 +223,7 @@ class AuthState extends ChangeNotifier {
         avatarB64: existing?.avatarB64 ?? '',
         recoverable: existing?.recoverable ?? false,
         codeByTelegram: existing?.codeByTelegram ?? false,
+        tosText: existing?.tosText ?? '',
         options: existing?.options ?? const [],
       );
     }
