@@ -123,6 +123,9 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   bool _loadingEmojiSets = false;
   final Map<String, Uint8List> _decodedThumbCache = {};
 
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   final GlobalKey _iconButtonKey = GlobalKey();
   OverlayEntry? _flyOverlay;
   AnimationController? _flyController;
@@ -138,6 +141,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     _iconEmojiId = widget.existingIconEmojiId ?? 0;
     _remainingColors = List.of(_topicColorIds)..remove(_colorId);
     _titleController.addListener(_onTitleChanged);
+    _searchController.addListener(_onSearchChanged);
     _fetchServerIcons();
     _fetchInstalledEmojiSets();
   }
@@ -146,6 +150,8 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   void dispose() {
     _titleController.removeListener(_onTitleChanged);
     _titleController.dispose();
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
     _flyOverlay?.remove();
     _flyOverlay = null;
     _flyController?.stop();
@@ -160,6 +166,10 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
 
   void _onTitleChanged() {
     if (_titleError) setState(() => _titleError = false);
+  }
+
+  void _onSearchChanged() {
+    setState(() => _searchQuery = _searchController.text.toLowerCase().trim());
   }
 
   EngineService? _getEngine() {
@@ -645,6 +655,13 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                         GestureDetector(
                           onTap: () {
                             _dismissToast();
+                            final accountId = widget.accountId;
+                            if (accountId != null && accountId.isNotEmpty) {
+                              _getEngine()?.openPremiumSubscription(
+                                accountId,
+                                ref: 'forum_topic_icon',
+                              );
+                            }
                           },
                           child: const Text(
                             'View Premium',
@@ -685,10 +702,62 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildCategoryTabBar(isDark),
+        _buildSearchBar(isDark),
         Flexible(
           child: _buildScrollableIconGrid(isDark, engine),
         ),
       ],
+    );
+  }
+
+  Widget _buildSearchBar(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(1, 10, 2, 6),
+      child: SizedBox(
+        height: 30,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: TextField(
+            controller: _searchController,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? Colors.white : Colors.black,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Search emoji',
+              hintStyle: TextStyle(
+                fontSize: 13,
+                color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
+              ),
+              prefixIcon: Padding(
+                padding: const EdgeInsets.only(left: 8, right: 4),
+                child: Icon(Icons.search, size: 18,
+                  color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999)),
+              ),
+              prefixIconConstraints: const BoxConstraints(minWidth: 30, minHeight: 20),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? GestureDetector(
+                      onTap: () => _searchController.clear(),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: Icon(Icons.close, size: 16,
+                          color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999)),
+                      ),
+                    )
+                  : null,
+              suffixIconConstraints: const BoxConstraints(minWidth: 24, minHeight: 20),
+              contentPadding: const EdgeInsets.symmetric(vertical: 4),
+              isDense: true,
+              filled: true,
+              fillColor: isDark ? const Color(0xFF1B2836) : const Color(0xFFEEEEEE),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -766,6 +835,9 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   }
 
   Widget _buildScrollableIconGrid(bool isDark, EngineService? engine) {
+    if (_searchQuery.isNotEmpty) {
+      return _buildSearchResultsGrid(isDark, engine);
+    }
     if (_selectedTab == 0) {
       return _buildTopicIconsGrid(isDark, engine);
     }
@@ -776,7 +848,140 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     return _buildEmojiSetGrid(_emojiSets[setIndex], isDark, engine);
   }
 
+  Widget _buildSearchResultsGrid(bool isDark, EngineService? engine) {
+    final accountId = widget.accountId;
+    final matchingIcons = _serverIcons
+        .where((icon) => icon.emoji.toLowerCase().contains(_searchQuery))
+        .toList();
+    final matchingSets = <(CustomEmojiSetSummary, List<StickerInfoItem>)>[];
+    for (final emojiSet in _emojiSets) {
+      final matches = emojiSet.stickers
+          .where((s) => s.emoji.toLowerCase().contains(_searchQuery))
+          .toList();
+      if (matches.isNotEmpty) {
+        matchingSets.add((emojiSet, matches));
+      }
+    }
+
+    if (matchingIcons.isEmpty && matchingSets.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'No emoji found',
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return CustomScrollView(
+      slivers: [
+        if (matchingIcons.isNotEmpty)
+          SliverPadding(
+            padding: EdgeInsets.all(_gridPadding),
+            sliver: SliverToBoxAdapter(
+              child: Wrap(
+                spacing: 2,
+                runSpacing: 2,
+                children: [
+                  for (final icon in matchingIcons)
+                    _buildServerIconGridCell(icon, isDark, engine),
+                ],
+              ),
+            ),
+          ),
+        for (final (emojiSet, matches) in matchingSets) ...[
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(_gridPadding, _gridPadding, _gridPadding, 0),
+            sliver: SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 6, left: 4),
+                child: Text(
+                  emojiSet.title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(_gridPadding, 0, _gridPadding, _gridPadding),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: _gridCellSize + 2,
+                mainAxisSpacing: 2,
+                crossAxisSpacing: 2,
+                childAspectRatio: 1,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final sticker = matches[index];
+                  final docId = int.tryParse(sticker.fileId) ?? 0;
+                  final isSelected = _iconEmojiId == docId && docId != 0;
+                  return Builder(
+                    builder: (cellContext) => GestureDetector(
+                      onTap: () {
+                        if (docId != 0) {
+                          _selectCustomEmoji(cellContext, docId, sticker.emoji);
+                        } else if (sticker.emoji.isNotEmpty) {
+                          _selectEmoji(cellContext, sticker.emoji, documentId: 0);
+                        }
+                      },
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: Container(
+                          decoration: isSelected
+                              ? BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: isDark
+                                      ? const Color(0xFF2b5278)
+                                      : const Color(0xFFE3F2FD),
+                                )
+                              : null,
+                          child: Center(
+                            child: (engine != null && accountId != null && docId != 0)
+                                ? CustomEmojiTopicIcon(
+                                    documentId: docId,
+                                    accountId: accountId,
+                                    engine: engine,
+                                    size: _gridIconSize,
+                                  )
+                                : (sticker.thumbB64.isNotEmpty && _decodedThumbCache.containsKey(sticker.thumbB64))
+                                    ? Image.memory(
+                                        _decodedThumbCache[sticker.thumbB64]!,
+                                        width: _gridIconSize,
+                                        height: _gridIconSize,
+                                        fit: BoxFit.contain,
+                                        gaplessPlayback: true,
+                                      )
+                                    : Text(sticker.emoji, style: const TextStyle(fontSize: 22)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                childCount: matches.length,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildTopicIconsGrid(bool isDark, EngineService? engine) {
+    final filteredIcons = _searchQuery.isEmpty
+        ? _serverIcons
+        : _serverIcons.where((icon) => icon.emoji.toLowerCase().contains(_searchQuery)).toList();
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(_gridPadding),
       child: Column(
@@ -786,11 +991,13 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
             spacing: 2,
             runSpacing: 2,
             children: [
-              _buildDefaultResetCell(isDark),
-              for (final colorId in _topicColorIds)
-                _buildGridCell(colorId, isDark),
-              if (_serverIcons.isNotEmpty)
-                for (final icon in _serverIcons)
+              if (_searchQuery.isEmpty) ...[
+                _buildDefaultResetCell(isDark),
+                for (final colorId in _topicColorIds)
+                  _buildGridCell(colorId, isDark),
+              ],
+              if (filteredIcons.isNotEmpty)
+                for (final icon in filteredIcons)
                   _buildServerIconGridCell(icon, isDark, engine),
               if (_loadingServerIcons)
                 const Padding(
@@ -809,7 +1016,9 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
 
   Widget _buildEmojiSetGrid(CustomEmojiSetSummary emojiSet, bool isDark, EngineService? engine) {
     final accountId = widget.accountId;
-    final stickers = emojiSet.stickers;
+    final stickers = _searchQuery.isEmpty
+        ? emojiSet.stickers
+        : emojiSet.stickers.where((s) => s.emoji.toLowerCase().contains(_searchQuery)).toList();
 
     return CustomScrollView(
       slivers: [
@@ -917,10 +1126,10 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                 )
               : null,
           child: Center(
-            child: Icon(
-              Icons.close,
+            child: ForumTopicIcon(
+              colorId: _colorId,
+              title: _titleController.text,
               size: _gridIconSize * 0.7,
-              color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
             ),
           ),
         ),
