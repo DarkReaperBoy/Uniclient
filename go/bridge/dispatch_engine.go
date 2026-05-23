@@ -2408,11 +2408,12 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			Name        string `json:"name"`
 			Description string `json:"description"`
 			Forum       bool   `json:"forum"`
+			TTLSeconds  int    `json:"ttl_seconds"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		chat, err := e.CreateMegagroup(params.AccountID, params.Name, params.Description, params.Forum)
+		chat, err := e.CreateMegagroup(params.AccountID, params.Name, params.Description, params.Forum, params.TTLSeconds)
 		if err != nil {
 			return nil, err
 		}

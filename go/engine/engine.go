@@ -851,14 +851,14 @@ func (e *Engine) CreateGroupWithTTL(accountID, name string, members []string, tt
 	}, nil
 }
 
-func (e *Engine) CreateMegagroup(accountID, name, description string, forum bool) (*ChatInfo, error) {
+func (e *Engine) CreateMegagroup(accountID, name, description string, forum bool, ttlPeriod int) (*ChatInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account %q not found or not connected", accountID)
 	}
 
 	type fullCreator interface {
-		RawCreateChannelFull(name, description string, broadcast, megagroup, forum bool) (*cores.Dialog, error)
+		RawCreateChannelFull(name, description string, broadcast, megagroup, forum bool, ttlPeriod int) (*cores.Dialog, error)
 	}
 	type rawCreator interface {
 		RawCreateChannel(name, description string, broadcast, megagroup bool) (*cores.Dialog, error)
@@ -867,7 +867,7 @@ func (e *Engine) CreateMegagroup(accountID, name, description string, forum bool
 	var dialog *cores.Dialog
 	var err error
 	if fc, ok := acc.Core.(fullCreator); ok {
-		dialog, err = fc.RawCreateChannelFull(name, description, false, true, forum)
+		dialog, err = fc.RawCreateChannelFull(name, description, false, true, forum, ttlPeriod)
 	} else if rc, ok := acc.Core.(rawCreator); ok {
 		dialog, err = rc.RawCreateChannel(name, description, false, true)
 	} else {

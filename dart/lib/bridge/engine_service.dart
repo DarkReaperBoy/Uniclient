@@ -3036,12 +3036,13 @@ class EngineService {
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> createMegagroup(String accountId, String name, String description, {bool forum = false}) async {
+  Future<Map<String, dynamic>> createMegagroup(String accountId, String name, String description, {bool forum = false, int ttlSeconds = 0}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'name': name,
       'description': description,
       'forum': forum,
+      if (ttlSeconds > 0) 'ttl_seconds': ttlSeconds,
     }));
     final respBytes = await _callAsync('__engine', 'CreateMegagroup', Uint8List.fromList(payload));
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;

@@ -157,7 +157,7 @@ class _WizardDialogState extends State<_WizardDialog>
     ));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _nameFocus.requestFocus();
-      if (widget.type == _WizardType.group) _loadDefaultTTL();
+      if (widget.type != _WizardType.channel) _loadDefaultTTL();
     });
   }
 
@@ -167,6 +167,21 @@ class _WizardDialogState extends State<_WizardDialog>
       if (!mounted || ttl <= 0) return;
       setState(() => _ttlSeconds = ttl);
     } catch (_) {}
+  }
+
+  void _showTTLPickerBox() {
+    final entries = _ttlOptions.entries.toList();
+    final currentIdx = entries.indexWhere((e) => e.key == _ttlSeconds);
+    final options = entries.map((e) => e.key == 0 ? 'Off' : e.value).toList();
+    showSingleChoiceBox(
+      context,
+      title: 'Auto-Delete Messages',
+      options: options,
+      initialSelection: currentIdx >= 0 ? currentIdx : 0,
+      onChanged: (index) {
+        setState(() => _ttlSeconds = entries[index].key);
+      },
+    );
   }
 
   void _showChannelsLimitDialog() {
@@ -770,6 +785,7 @@ class _WizardDialogState extends State<_WizardDialog>
           megagroupResult = await _engine.createMegagroup(
             _accountId, name, desc,
             forum: widget.type == _WizardType.forum,
+            ttlSeconds: _ttlSeconds,
           );
           if (!mounted) return;
           _createdChatId = megagroupResult['chat_id'] as String? ?? '';
@@ -1021,7 +1037,11 @@ class _WizardDialogState extends State<_WizardDialog>
           _WizardType.channel => 'New Channel',
         };
       case _WizardStep.setupChannel:
-        title = widget.type == _WizardType.forum ? 'Forum Type' : 'Channel Type';
+        title = switch (widget.type) {
+          _WizardType.forum => 'Forum Type',
+          _WizardType.megagroup => 'Group Type',
+          _ => 'Channel Type',
+        };
       case _WizardStep.memberPicker:
         title = widget.type == _WizardType.group ? 'Add Members' : 'Add Subscribers';
     }
@@ -1048,50 +1068,26 @@ class _WizardDialogState extends State<_WizardDialog>
               ),
             ),
           ),
-          if (_step == _WizardStep.info && widget.type == _WizardType.group)
-            PopupMenuButton<int>(
-              icon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_ttlSeconds > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: Text(
-                        _ttlOptions[_ttlSeconds] ?? '',
-                        style: TextStyle(fontSize: 12, color: subtextColor),
-                      ),
-                    ),
-                  Icon(Icons.timer_outlined, color: subtextColor, size: 20),
-                ],
-              ),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              tooltip: 'Auto-delete messages',
-              onSelected: (ttl) => setState(() => _ttlSeconds = ttl),
-              itemBuilder: (ctx) => _ttlOptions.entries.map((e) {
-                final selected = _ttlSeconds == e.key;
-                return PopupMenuItem<int>(
-                  value: e.key,
-                  child: Row(
-                    children: [
-                      Expanded(
+          if (_step == _WizardStep.info && widget.type != _WizardType.channel)
+            GestureDetector(
+              onTap: () => _showTTLPickerBox(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_ttlSeconds > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
                         child: Text(
-                          e.key == 0
-                              ? 'Auto-delete off'
-                              : 'Auto-delete in ${e.value}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: textColor,
-                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                          ),
+                          _ttlOptions[_ttlSeconds] ?? '',
+                          style: TextStyle(fontSize: 12, color: subtextColor),
                         ),
                       ),
-                      if (selected)
-                        Icon(Icons.check, size: 18, color: isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD)),
-                    ],
-                  ),
-                );
-              }).toList(),
+                    Icon(Icons.timer_outlined, color: subtextColor, size: 20),
+                  ],
+                ),
+              ),
             ),
           if (_step == _WizardStep.memberPicker)
             Text(
@@ -1232,13 +1228,17 @@ class _WizardDialogState extends State<_WizardDialog>
     final goodColor = p.boxTextFgGood;
     final errorColor = p.boxTextFgError;
 
+    final isGroup = widget.type == _WizardType.megagroup || widget.type == _WizardType.forum;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         _RadioRow(
-          label: 'Public Channel',
-          subtitle: 'Anyone can find the channel and join',
+          label: isGroup ? 'Public Group' : 'Public Channel',
+          subtitle: isGroup
+              ? 'Public groups can be found in search, their chat history is available to everyone and anyone can join.'
+              : 'Anyone can find the channel and join',
           selected: _isPublic,
           onTap: () {
             if (_publicGroupNA) return;
@@ -1252,8 +1252,10 @@ class _WizardDialogState extends State<_WizardDialog>
         ),
         const SizedBox(height: 27),
         _RadioRow(
-          label: 'Private Channel',
-          subtitle: 'Only accessible via invite link',
+          label: isGroup ? 'Private Group' : 'Private Channel',
+          subtitle: isGroup
+              ? 'Private groups can only be joined if you were invited or have an invite link.'
+              : 'Only accessible via invite link',
           selected: !_isPublic,
           onTap: () {
             if (_isPublic) {
@@ -1432,9 +1434,13 @@ class _WizardDialogState extends State<_WizardDialog>
             opacity: _loadingInviteLink ? 0.5 : 1.0,
             child: InkWell(
               onTap: _loadingInviteLink ? null : () {
-                if (_inviteLink.isNotEmpty) {
-                  Clipboard.setData(ClipboardData(text: _inviteLink));
-                  showTelegramToast(context, 'Link copied to clipboard');
+                if (_createdChatId.isNotEmpty) {
+                  showEditPeerTypeBox(
+                    context,
+                    accountId: _accountId,
+                    chatId: _createdChatId,
+                    isChannel: widget.type == _WizardType.channel,
+                  );
                 }
               },
               child: SizedBox(
@@ -2977,7 +2983,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
 
   // Flag changes and slowmode are now batched in _save() — no live application.
 
-  List<Widget> _buildPermissionToggles(bool isDark, Color textColor, Color subtextColor, Color accentColor) {
+  List<Widget> _buildGroupPermissionToggles(bool isDark, Color textColor, Color subtextColor, Color accentColor) {
     final separatorColor = isDark ? const Color(0xFF0F1820) : const Color(0xFFE0E0E0);
     final toggleActiveColor = context.palette.windowBgActive;
 
@@ -2985,6 +2991,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
 
     return [
       if (showWhoSend) ...[
+        Container(height: 1, color: separatorColor),
         _PermissionToggleRow(
           icon: Icons.chat_bubble_outline,
           label: 'Only members can send',
@@ -3019,58 +3026,6 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         if (_joinToSend)
           Container(height: 1, color: separatorColor),
       ],
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Icon(Icons.slow_motion_video, size: 24, color: isDark ? const Color(0xFFAABBC8) : const Color(0xFF707579)),
-                  const SizedBox(width: 16),
-                  Text('Slow Mode', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
-                  const Spacer(),
-                  Text(
-                    _slowmodeLabel(_slowmodeSeconds),
-                    style: TextStyle(fontSize: 13, color: accentColor),
-                  ),
-                ],
-              ),
-            ),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                activeTrackColor: accentColor,
-                inactiveTrackColor: isDark ? const Color(0xFF2B3E50) : const Color(0xFFDADADA),
-                thumbColor: accentColor,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.5),
-                trackHeight: 2,
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-              ),
-              child: Slider(
-                value: _slowmodeIndex().toDouble(),
-                min: 0,
-                max: (_slowmodeValues.length - 1).toDouble(),
-                divisions: _slowmodeValues.length - 1,
-                onChanged: (v) {
-                  setState(() => _slowmodeSeconds = _slowmodeValues[v.round()]);
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: _slowmodeValues.map((s) => Text(
-                  _slowmodeLabel(s),
-                  style: TextStyle(fontSize: 10, color: subtextColor),
-                )).toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
       if (_isForum) ...[
         Container(height: 1, color: separatorColor),
         _PermissionToggleRow(
@@ -3086,19 +3041,6 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
           },
         ),
       ],
-      Container(height: 1, color: separatorColor),
-      _PermissionToggleRow(
-        icon: Icons.no_photography_outlined,
-        label: 'Restrict Saving Content',
-        subtitle: 'Members won\'t be able to forward or save content.',
-        value: _noForwards,
-        activeColor: toggleActiveColor,
-        textColor: textColor,
-        subtextColor: subtextColor,
-        onChanged: (v) {
-          setState(() => _noForwards = v);
-        },
-      ),
     ];
   }
 
@@ -3403,14 +3345,28 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
                               style: TextStyle(fontSize: 13, color: subtextColor),
                             ),
                           ],
+                          const SizedBox(height: 16),
+                          Container(
+                            height: 1,
+                            color: isDark ? const Color(0xFF0F1820) : const Color(0xFFE0E0E0),
+                          ),
+                          const SizedBox(height: 12),
+                          _PermissionToggleRow(
+                            icon: Icons.no_photography_outlined,
+                            label: 'Restrict Saving Content',
+                            subtitle: widget.isChannel
+                                ? 'Subscribers won\'t be able to forward or save content.'
+                                : 'Members won\'t be able to forward or save content.',
+                            value: _noForwards,
+                            activeColor: context.palette.windowBgActive,
+                            textColor: textColor,
+                            subtextColor: subtextColor,
+                            onChanged: (v) {
+                              setState(() => _noForwards = v);
+                            },
+                          ),
                           if (!widget.isChannel) ...[
-                            const SizedBox(height: 16),
-                            Container(
-                              height: 1,
-                              color: isDark ? const Color(0xFF0F1820) : const Color(0xFFE0E0E0),
-                            ),
-                            const SizedBox(height: 12),
-                            ..._buildPermissionToggles(isDark, textColor, subtextColor, accentColor),
+                            ..._buildGroupPermissionToggles(isDark, textColor, subtextColor, accentColor),
                           ],
                           if (_error != null) ...[
                             const SizedBox(height: 12),

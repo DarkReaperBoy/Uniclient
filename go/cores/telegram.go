@@ -10232,24 +10232,28 @@ func (t *TelegramCore) CreateChannel(name string, description string) (*Dialog, 
 
 // RawCreateChannel creates a channel, megagroup (supergroup), or forum.
 func (t *TelegramCore) RawCreateChannel(name, description string, broadcast, megagroup bool) (*Dialog, error) {
-	return t.RawCreateChannelFull(name, description, broadcast, megagroup, false)
+	return t.RawCreateChannelFull(name, description, broadcast, megagroup, false, 0)
 }
 
 // RawCreateChannelFull creates a channel, megagroup, or forum with all flags.
-func (t *TelegramCore) RawCreateChannelFull(name, description string, broadcast, megagroup, forum bool) (*Dialog, error) {
+func (t *TelegramCore) RawCreateChannelFull(name, description string, broadcast, megagroup, forum bool, ttlPeriod int) (*Dialog, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
 		return nil, ErrAuth
 	}
 
-	result, err := t.api.ChannelsCreateChannel(t.ctx, &tg.ChannelsCreateChannelRequest{
+	req := &tg.ChannelsCreateChannelRequest{
 		Title:     name,
 		About:     description,
 		Broadcast: broadcast,
 		Megagroup: megagroup,
 		Forum:     forum,
-	})
+	}
+	if ttlPeriod > 0 {
+		req.SetTTLPeriod(ttlPeriod)
+	}
+	result, err := t.api.ChannelsCreateChannel(t.ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("create channel: %w", err)
 	}
