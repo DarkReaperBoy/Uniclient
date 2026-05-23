@@ -615,11 +615,6 @@ All geometric calculations match:
 
 ## MAJOR
 
-## chat_switch_overlay — Ctrl+Tab account/chat switcher overlay
-
-- [ ] [MAJOR] External removal selects next item instead of previous: `_onChatStateChanged` at line 94 does `_selected = _selected.clamp(0, _list.length - 1)` which keeps `_selected` at the same index (now pointing to the *next* item). AyuGram's `remove()` explicitly sets `_selected = -1` then calls `setSelected(std::min(selected - 1, _shownCount - 1))` — selecting the *previous* item when the selected chat is removed externally. — `chat_switch_overlay.dart:94` ← `window/window_chat_switch_process.cpp:288`
-
-- [ ] [MAJOR] Layout-state mutation inside `build`: `_shownPerRow` and `_shownRows` are written inside `LayoutBuilder.builder` (a build callback) at lines 279–280 without `setState`. Key-navigation handlers (`_moveDown`, `_moveUp`) read `_shownCount` which is `_shownPerRow * _shownRows`. Any key event that fires between two builds (e.g. rapid Tab/arrow presses during resize) will use stale row/column counts from the previous layout pass, producing wrong wrap-around targets. AyuGram recomputes and assigns these synchronously inside `layout()` which is only called from `sizeValue()` reactive updates. — `chat_switch_overlay.dart:279-280` ← `window/window_chat_switch_process.cpp:layout() ~line 317`
 
 # chat_view — Behavioral stubs, missing wiring, broken cycling
 
