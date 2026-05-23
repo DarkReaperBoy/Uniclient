@@ -457,40 +457,6 @@ The `wallpaper.dart` file implements wallpaper rendering (solid, gradient, patte
   - `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/ui/chat/chat_theme.h` (API definitions)
 - **Research**: `/home/nako/Documents/uniclient/research/telegram_desktop_ui.md` (spec for animated gradients)
 
-# admin_tools — Audit Findings
-
-## _EditPeerInfoBox / _EditPeerPermissionsBox / _EditRestrictedBox / _EditAdminBox / _AdminLogScreen / _InviteLinksBox / _MemberListScreen
-
-- [ ] [CRITICAL] `_noForwards`, `_joinToSend`, `_joinRequest` are loaded and saved but never shown as toggle rows in `_buildSettingsSection` — the user cannot toggle "Restrict Saving Content", "Members Must Subscribe to Send", or "Approval Required to Join" — `admin_tools.dart:68-70,465-581` ← `AyuGram/boxes/peers/edit_peer_type_box.cpp:226-265` (joinToWrite/requestToJoin toggles rendered inside the type box; noForwards rendered at line 280)
-
-- [ ] [CRITICAL] `_showColorPickerDialog` only shows a flat color swatch grid; it completely omits emoji status selection (`statusId`) and background emoji selection (`backgroundEmojiId`) — users cannot pick a custom emoji badge for their channel — `admin_tools.dart:1060-1110` ← `AyuGram/boxes/peers/edit_peer_color_box.cpp:489-612` (full state includes `backgroundEmojiId`, `statusId`, separate emoji picker panels)
-
-- [ ] [CRITICAL] Permissions box `_EditPeerPermissionsBox._mediaFlags` list is missing `send_gifs` and `send_games`/`send_inline` flags. AyuGram groups `SendStickers | SendGifs | SendGames | SendInline` as a single "Send stickers & GIFs" row with interdependencies (SendGifs↔SendStickers, SendGames↔SendStickers, SendInline↔SendStickers). The Dart implementation omits `send_gifs` entirely and has no interdependency logic for games/inline — `admin_tools.dart:1998-2008` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:88-91` (Flag::SendStickers | Flag::SendGifs | Flag::SendGames | Flag::SendInline grouped as one item)
-
-- [ ] [CRITICAL] `_EditPeerPermissionsBox._otherFlags` includes `edit_rank` as a group-wide ban restriction. `EditRank` is NOT a standard `ChatRestriction` ban flag applied via `DefaultBannedRights` — it is a separate `ChatRestriction` flag (bit 26) that cannot be set through `setDefaultBannedRights`. Sending it will be silently ignored or rejected — `admin_tools.dart:2013` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:99-101` (EditRank shown only for `isUserSpecific` context, not as a default group restriction)
-
-- [ ] [CRITICAL] `_EditRestrictedBox._mediaFlags` also omits `send_gifs` — same issue as the group permissions box. The Telegram API tracks `SendGifs` separately from `SendStickers` and they are individually settable per-user — `admin_tools.dart:2733-2741` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:88-91`
-
-- [ ] [CRITICAL] `_showAffiliateProgramDialog` is read-only — it displays the current affiliate program info but provides no way to create or configure a new affiliate program. AyuGram opens a dedicated `starref_setup_widget` (via `info_bot_starref_setup_widget.h`) for this — `admin_tools.dart:1339-1390` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:54` (`#include "info/bot/starref/info_bot_starref_setup_widget.h"`, used for full setup flow)
-
-- [ ] [CRITICAL] "Statistics" / "Boosts" / "Monetize" (channel earn) sections are completely absent from `_buildAdminControlsSection`. AyuGram shows dedicated Statistics, Boosts, and Earn/Monetize buttons that open full info sections — `admin_tools.dart:1513-1638` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:50-57` (`#include "info/channel_statistics/boosts/info_boosts_widget.h"`, `info_channel_earn_widget.h`, `api_statistics.h`)
-
-- [ ] [MAJOR] `_EditAdminBox` group section `_section3` contains `manage_ranks` key. The correct Telegram API admin right key is `manage_call` (for voice chats) and the rank management is implicit — there is no `manage_ranks` admin right in the MTProto spec. AyuGram uses `ManageRanks` (bit flag) but this is a data_channel field, not a promotable admin right sent via `editAdmin` — `admin_tools.dart:3376` ← `AyuGram/boxes/peers/edit_participant_box.cpp:327` (`Flag::ManageRanks` is in `defaultRights()` for group but not sent as a grantable right in `editAdmin` payload)
-
-- [ ] [MAJOR] `_AdminLogFilterDialog._labelToFilterKeys` maps "Removed members" to `['kick', 'leave']` — but AyuGram uses only `Flag::Leave` for removed-members filter (kick is separately in the Restrictions category). Mapping kick into both "Restrictions" and "Removed members" causes double-counting and incorrect filter behavior — `admin_tools.dart:4710` ← `AyuGram/history/admin_log/history_admin_log_filter.cpp:27-33` (`membersRemoved = Flag::Leave` only; restrictions = `Flag::Ban | Flag::Unban | Flag::Kick | Flag::Unkick`)
-
-- [ ] [MAJOR] `_AdminLogFilterDialog` "Topics" filter is shown unconditionally (for both channels and groups). AyuGram only shows the Topics filter entry when `!isChannel` — `admin_tools.dart:4715,4749` ← `AyuGram/history/admin_log/history_admin_log_filter.cpp:63-70` (`if (!isChannel) { settings.push_back({ Flag::Topics, ... }) }`)
-
-- [ ] [MAJOR] `_AdminLogFilterDialog` "Pinned messages" filter is shown unconditionally. AyuGram only includes pinned messages in the filter when `!isChannel` — `admin_tools.dart:4718,4752` ← `AyuGram/history/admin_log/history_admin_log_filter.cpp:78-84` (`if (!isChannel) { messages.push_back({ pinned, ... }) }`)
-
-- [ ] [MAJOR] `_EditAdminBox` group section `_section3` contains `manage_direct` for channels only (correctly in `_section4`), but for groups `_section3` uses `manage_ranks` instead. AyuGram groups do not have a `manage_direct` or `manage_ranks` grantable admin right — `admin_tools.dart:3374-3379` ← `AyuGram/boxes/peers/edit_participant_box.cpp:314-338` (group `defaultRights()` = `ChangeInfo | DeleteMessages | PostStories | EditStories | DeleteStories | BanUsers | InviteUsers | ManageTopics | PinMessages | ManageCall | ManageRanks`)
-
-- [ ] [MAJOR] `_showStickerSetPicker` accepts only a text input for a sticker set name/link. AyuGram opens a full `StickersBox` UI that shows your existing sticker sets for selection — `admin_tools.dart:1716-1771` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:819-829` (`Box<StickersBox>(controller->uiShow(), channel, isEmoji)` — dedicated sticker picker box)
-
-- [ ] [MAJOR] `_EditPeerPermissionsBox._onSave` calls both `setDefaultBannedRights` AND `setSlowMode` as separate calls. In AyuGram, slowmode is included in the `DefaultBannedRights` payload (the `MTPchannels_SetDefaultHistoryTTL` / `slow_mode_delay` field is part of `EditChatDefaultBannedRights`). Making two separate calls can result in a race condition or duplicate API calls — `admin_tools.dart:2058-2060` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:279-302` (`SaveBoostsUnrestrict` is saved separately but slowmode is embedded in `MTPchannels_EditBannedRights` default rights call)
-
-- [ ] [MAJOR] `_AdminLogEventTile._actionDescription` has no case for `change_pay_messages` / `change_stars_price`, `toggle_bot_membership`, `change_peer_wallpaper`, or `toggle_forum_topics` actions — these will fall through to the generic `event.detail` or `event.action` display instead of a human-readable description — `admin_tools.dart:4563-4677` ← `AyuGram/history/admin_log/history_admin_log_item.cpp` (full action type enum)
-
 # bridge_stub — No issues found
 
 **File:** `dart/lib/bridge/bridge_stub.dart`
