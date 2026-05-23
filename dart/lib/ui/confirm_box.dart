@@ -718,8 +718,7 @@ class _DeleteContentState extends State<_DeleteContent> {
   bool get _showAutoDeleteLink =>
       widget.mode == DeleteBoxMode.clearHistory &&
       (widget.chatType == ChatType.dm ||
-       widget.chatType == ChatType.group ||
-       widget.chatType == ChatType.topic);
+       widget.chatType == ChatType.group);
 
   String get _autoDeleteLinkText =>
       widget.messagesTTL > 0
