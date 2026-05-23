@@ -399,6 +399,7 @@ class _UniClientAppState extends State<UniClientApp>
         if (appState.appIcon != _lastAppIcon) {
           _lastAppIcon = appState.appIcon;
           _tray.updateAppIcon(appState.appIcon);
+          _tray.updateIconCounters();
         }
       };
       appState.addListener(_appIconSyncListener!);

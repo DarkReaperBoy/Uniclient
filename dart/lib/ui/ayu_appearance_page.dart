@@ -28,13 +28,7 @@ class AyuAppearancePage extends StatelessWidget {
     b.addSectionTitle('App Icon');
     b.addWidget(_AppIconPicker(
       selectedIcon: appState.appIcon,
-      onChanged: (v) {
-        appState.setAppIcon(v);
-        const MethodChannel('com.uniclient.app/tray')
-            .invokeMethod<void>('updateAppIcon', {
-          'icon': v.isEmpty ? 'default' : v,
-        }).catchError((_) {});
-      },
+      onChanged: (v) => appState.setAppIcon(v),
       isDark: isDark,
     ));
     if (Platform.isWindows || Platform.isMacOS) {
@@ -286,7 +280,13 @@ class _AvatarCornersSectionState extends State<_AvatarCornersSection> {
             onPressed: () {
               Navigator.of(ctx).pop();
               context.read<AppState>().flushSettingsSync();
-              exit(0);
+              final exe = Platform.resolvedExecutable;
+              Process.start(exe, Platform.executableArguments,
+                  mode: ProcessStartMode.detached).then((_) {
+                exit(0);
+              }).catchError((_) {
+                exit(0);
+              });
             },
             child: Text('Restart Now',
                 style: TextStyle(
@@ -708,6 +708,9 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
       if (families == null && Platform.isWindows) {
         families = await _loadViaWindowsPowerShell();
       }
+      if (families == null && (Platform.isAndroid || Platform.isIOS)) {
+        families = await _loadViaMobileFontDir();
+      }
     } catch (_) {}
     if (families != null && families.isNotEmpty) {
       if (mounted) setState(() { _systemFonts = ['', ...families!]; _loadingFonts = false; _cachedFilteredFonts = null; });
@@ -791,6 +794,32 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
     return null;
   }
 
+  Future<List<String>?> _loadViaMobileFontDir() async {
+    final families = <String>{};
+    final fontDirs = Platform.isAndroid
+        ? ['/system/fonts', '/system/font']
+        : ['/System/Library/Fonts', '/Library/Fonts'];
+    for (final dirPath in fontDirs) {
+      try {
+        final dir = Directory(dirPath);
+        if (!await dir.exists()) continue;
+        await for (final entity in dir.list()) {
+          if (entity is! File) continue;
+          final name = entity.uri.pathSegments.last;
+          if (!name.endsWith('.ttf') && !name.endsWith('.otf') && !name.endsWith('.ttc')) continue;
+          var family = name.replaceAll(RegExp(r'\.(ttf|otf|ttc)$'), '');
+          family = family.replaceAll(RegExp(r'-(Regular|Bold|Italic|Light|Medium|Thin|Black|SemiBold|ExtraBold|ExtraLight|BoldItalic|LightItalic|MediumItalic)$'), '');
+          family = family.replaceAll(RegExp(r'_'), ' ');
+          if (family.isNotEmpty) families.add(family);
+        }
+      } catch (_) {}
+    }
+    if (families.isNotEmpty) {
+      return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    }
+    return null;
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -806,10 +835,14 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
       return _cachedFilteredFonts!;
     }
     _cachedFilterQuery = _searchQuery;
+    final needles = _searchQuery.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
     _cachedFilteredFonts = _systemFonts
-        .where((f) => f.isEmpty
-            ? 'default'.contains(_searchQuery)
-            : f.toLowerCase().contains(_searchQuery))
+        .where((f) {
+          final haystack = f.isEmpty ? 'default' : f.toLowerCase();
+          final words = haystack.split(RegExp(r'[\s\-_]+'));
+          return needles.every((needle) =>
+              words.any((w) => w.startsWith(needle)));
+        })
         .toList();
     return _cachedFilteredFonts!;
   }
@@ -968,7 +1001,13 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
             onPressed: () {
               Navigator.of(ctx).pop();
               context.read<AppState>().flushSettingsSync();
-              exit(0);
+              final exe = Platform.resolvedExecutable;
+              Process.start(exe, Platform.executableArguments,
+                  mode: ProcessStartMode.detached).then((_) {
+                exit(0);
+              }).catchError((_) {
+                exit(0);
+              });
             },
             child: Text('Restart Now',
                 style: TextStyle(
@@ -1054,38 +1093,33 @@ class _AppIconPickerState extends State<_AppIconPicker> {
               widget.onChanged(newIcon);
             },
             child: Stack(
+              alignment: Alignment.center,
               children: [
-                Positioned.fill(
-                  child: AnimatedOpacity(
-                    opacity: isSelected ? 1.0 : 0.0,
-                    duration: Duration(milliseconds: (isSelected || wasPrev) ? 200 : 0),
-                    curve: Curves.easeOutCubic,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: dividerBg,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                AnimatedOpacity(
+                  opacity: isSelected ? 1.0 : 0.0,
+                  duration: Duration(milliseconds: (isSelected || wasPrev) ? 200 : 0),
+                  curve: Curves.easeOutCubic,
+                  child: Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      color: dividerBg,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
                 Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.asset(
-                        'assets/icons/ayu/$name.png',
-                        width: 64,
-                        height: 64,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 64,
-                          height: 64,
-                          color: const Color(0xFF40A7E3),
-                          child: const Icon(Icons.image_not_supported,
-                              color: Colors.white, size: 24),
-                        ),
-                      ),
+                  child: Image.asset(
+                    'assets/icons/ayu/$name.png',
+                    width: 64,
+                    height: 64,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 64,
+                      height: 64,
+                      color: const Color(0xFF40A7E3),
+                      child: const Icon(Icons.image_not_supported,
+                          color: Colors.white, size: 24),
                     ),
                   ),
                 ),
