@@ -12758,7 +12758,7 @@ class _ComposeCustomEmojiState extends State<_ComposeCustomEmoji>
       duration: const Duration(milliseconds: 120),
     );
     CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.normal);
-    CustomEmojiCache.instance.addListener(_onCacheUpdate);
+    CustomEmojiCache.instance.addListenerForDoc(widget.documentId, _onCacheUpdate);
     _requestIfNeeded();
     _updatePhase();
   }
@@ -12767,8 +12767,10 @@ class _ComposeCustomEmojiState extends State<_ComposeCustomEmoji>
   void didUpdateWidget(_ComposeCustomEmoji oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.documentId != widget.documentId) {
+      CustomEmojiCache.instance.removeListenerForDoc(oldWidget.documentId, _onCacheUpdate);
       CustomEmojiCache.instance.release(oldWidget.documentId, EmojiSizeTag.normal);
       CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.normal);
+      CustomEmojiCache.instance.addListenerForDoc(widget.documentId, _onCacheUpdate);
       _cached = false;
       _decompressedLottie = null;
       _lottieController?.dispose();
@@ -12780,7 +12782,7 @@ class _ComposeCustomEmojiState extends State<_ComposeCustomEmoji>
 
   @override
   void dispose() {
-    CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    CustomEmojiCache.instance.removeListenerForDoc(widget.documentId, _onCacheUpdate);
     CustomEmojiCache.instance.release(widget.documentId, EmojiSizeTag.normal);
     _lottieController?.dispose();
     _fadeController.dispose();

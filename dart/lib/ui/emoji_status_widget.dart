@@ -45,8 +45,8 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
     _parseEmojiStatusId();
     if (_documentId != null) {
       CustomEmojiCache.instance.acquire(_documentId!, EmojiSizeTag.setIcon);
+      CustomEmojiCache.instance.addListenerForDoc(_documentId!, _onCacheUpdate);
     }
-    CustomEmojiCache.instance.addListener(_onCacheUpdate);
     _requestIfNeeded();
   }
 
@@ -58,12 +58,16 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
       _lottieController?.dispose();
       _lottieController = null;
       _decompressedLottie = null;
+      if (oldDocId != null) {
+        CustomEmojiCache.instance.removeListenerForDoc(oldDocId, _onCacheUpdate);
+      }
       _parseEmojiStatusId();
       if (oldDocId != null) {
         CustomEmojiCache.instance.release(oldDocId, EmojiSizeTag.setIcon);
       }
       if (_documentId != null) {
         CustomEmojiCache.instance.acquire(_documentId!, EmojiSizeTag.setIcon);
+        CustomEmojiCache.instance.addListenerForDoc(_documentId!, _onCacheUpdate);
       }
       _requestIfNeeded();
     }
@@ -71,8 +75,8 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
 
   @override
   void dispose() {
-    CustomEmojiCache.instance.removeListener(_onCacheUpdate);
     if (_documentId != null) {
+      CustomEmojiCache.instance.removeListenerForDoc(_documentId!, _onCacheUpdate);
       CustomEmojiCache.instance.release(_documentId!, EmojiSizeTag.setIcon);
     }
     _lottieController?.dispose();

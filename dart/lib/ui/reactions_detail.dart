@@ -1349,7 +1349,7 @@ class _InlineCustomEmojiState extends State<_InlineCustomEmoji>
   void initState() {
     super.initState();
     CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.normal);
-    CustomEmojiCache.instance.addListener(_onCacheUpdate);
+    CustomEmojiCache.instance.addListenerForDoc(widget.documentId, _onCacheUpdate);
     _requestIfNeeded();
   }
 
@@ -1357,8 +1357,10 @@ class _InlineCustomEmojiState extends State<_InlineCustomEmoji>
   void didUpdateWidget(covariant _InlineCustomEmoji old) {
     super.didUpdateWidget(old);
     if (old.documentId != widget.documentId) {
+      CustomEmojiCache.instance.removeListenerForDoc(old.documentId, _onCacheUpdate);
       CustomEmojiCache.instance.release(old.documentId, EmojiSizeTag.normal);
       CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.normal);
+      CustomEmojiCache.instance.addListenerForDoc(widget.documentId, _onCacheUpdate);
       _decompressedLottie = null;
       _requested = false;
       _requestIfNeeded();
@@ -1367,7 +1369,7 @@ class _InlineCustomEmojiState extends State<_InlineCustomEmoji>
 
   @override
   void dispose() {
-    CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    CustomEmojiCache.instance.removeListenerForDoc(widget.documentId, _onCacheUpdate);
     CustomEmojiCache.instance.release(widget.documentId, EmojiSizeTag.normal);
     _lottieCtrl?.dispose();
     super.dispose();

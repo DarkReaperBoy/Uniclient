@@ -10,6 +10,7 @@ import '../utils/debug.dart';
 import '../notifications/notification_types.dart';
 import '../state/app_state.dart';
 import '../state/ayu_forward.dart';
+import '../ui/custom_emoji_cache.dart';
 import '../ui/message_bubble.dart';
 import '../ui/spoiler_animation.dart';
 
@@ -2134,10 +2135,30 @@ class ChatState extends ChangeNotifier {
     _messages.addAll(newMsgs);
     _isFirstLoad = false;
     _loadingMessages = false;
+    _preloadCustomEmoji(newMsgs, chat.accountId);
     _autoDownloadMedia(newMsgs);
     notifyListeners();
     if (_selectedReactionTagIds.isNotEmpty) {
       _ensureEnoughTaggedMessages();
+    }
+  }
+
+  void _preloadCustomEmoji(List<CachedMessage> msgs, String accountId) {
+    final ids = <int>[];
+    for (final msg in msgs) {
+      if (msg.contentRich.isEmpty) continue;
+      try {
+        final entities = jsonDecode(msg.contentRich) as List;
+        for (final e in entities) {
+          if (e is Map<String, dynamic> && e['type'] == 'custom_emoji') {
+            final docId = (e['document_id'] as num?)?.toInt() ?? 0;
+            if (docId > 0) ids.add(docId);
+          }
+        }
+      } catch (_) {}
+    }
+    if (ids.isNotEmpty) {
+      CustomEmojiCache.instance.preloadBatch(ids, accountId, _engine);
     }
   }
 

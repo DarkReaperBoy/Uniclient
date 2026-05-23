@@ -46,9 +46,6 @@ class EmojiSizeConstants {
     EmojiSizeTag.setIcon: 21.0,
   };
 
-  static const int kPerRow = 16;
-  static const int kMaxFrames = 180;
-  static const int kPreloadFrames = 3;
   static const int kMaxPerRequest = 100;
   static const int kDocPreloadBatch = 48;
   static const int kDocListCap = 200;
@@ -489,6 +486,7 @@ class CustomEmojiCache {
           }
         }
       }
+      return;
     }
     for (final cb in Set<VoidCallback>.from(_globalListeners)) {
       cb();
