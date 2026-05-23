@@ -91,7 +91,8 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
             widget.onCancel();
             return;
           }
-          _selected = _selected.clamp(0, _list.length - 1);
+          _selected = (_selected > 0 ? _selected - 1 : 0)
+              .clamp(0, _list.length - 1);
         }
       }
       if (_list.isEmpty) {
@@ -276,8 +277,19 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
         final visible = (perRow * rows).clamp(1, count);
         final innerW = perRow * _cellWidth;
 
-        _shownPerRow = perRow;
-        _shownRows = rows;
+        if (_shownPerRow != perRow || _shownRows != rows) {
+          final newPerRow = perRow;
+          final newRows = rows;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted &&
+                (_shownPerRow != newPerRow || _shownRows != newRows)) {
+              setState(() {
+                _shownPerRow = newPerRow;
+                _shownRows = newRows;
+              });
+            }
+          });
+        }
 
         final effectiveSelected = _selected >= visible ? visible - 1 : _selected;
         if (_selected != effectiveSelected) {
