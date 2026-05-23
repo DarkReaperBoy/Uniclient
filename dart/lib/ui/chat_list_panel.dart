@@ -1094,8 +1094,13 @@ class _ChatListPanelState extends State<ChatListPanel>
             chatType: chat.type,
             peerName: chat.title,
             canRevoke: chat.type == ChatType.dm,
+            isBot: chat.isBot,
+            peerAvatarPath: chat.avatarPath,
           ).then((r) {
             if (!r.confirmed) return;
+            if (r.blockBot && chat.isBot) {
+              cs.blockUser(chat.accountId, chat.chatId);
+            }
             if (chat.type == ChatType.dm) {
               cs.deleteChat(chat.accountId, chat.chatId);
             } else {
@@ -1608,8 +1613,20 @@ class _ChatListPanelState extends State<ChatListPanel>
               chatType: chat.type,
               peerName: chat.title,
               isSavedMessages: chat.title == 'Saved Messages',
+              messagesTTL: chat.ttlPeriod,
             ).then((r) {
-              if (r.confirmed) chatState2.clearHistory(chat.accountId, chat.chatId);
+              if (r.openAutoDelete && context.mounted) {
+                final appState = context.read<AppState>();
+                showAutoDeleteTimerBox(
+                  context,
+                  engine: appState.engine,
+                  accountId: chat.accountId,
+                  chatId: chat.chatId,
+                  currentTTL: chat.ttlPeriod,
+                );
+              } else if (r.confirmed) {
+                chatState2.clearHistory(chat.accountId, chat.chatId);
+              }
             });
           }
         case 'delete_chat':
@@ -1621,8 +1638,14 @@ class _ChatListPanelState extends State<ChatListPanel>
               chatType: chat.type,
               peerName: chat.title,
               canRevoke: chat.type == ChatType.dm,
+              isBot: chat.isBot,
+              peerAvatarPath: chat.avatarPath,
             ).then((r) {
-              if (r.confirmed) chatState2.deleteChat(chat.accountId, chat.chatId);
+              if (!r.confirmed) return;
+              if (r.blockBot && chat.isBot) {
+                chatState2.blockUser(chat.accountId, chat.chatId);
+              }
+              chatState2.deleteChat(chat.accountId, chat.chatId);
             });
           }
         case 'leave':
@@ -1633,8 +1656,14 @@ class _ChatListPanelState extends State<ChatListPanel>
               mode: DeleteBoxMode.leaveChat,
               chatType: chat.type,
               peerName: chat.title,
+              isBot: chat.isBot,
+              peerAvatarPath: chat.avatarPath,
             ).then((r) {
-              if (r.confirmed) chatState2.leaveChat(chat.accountId, chat.chatId);
+              if (!r.confirmed) return;
+              if (r.blockBot && chat.isBot) {
+                chatState2.blockUser(chat.accountId, chat.chatId);
+              }
+              chatState2.leaveChat(chat.accountId, chat.chatId);
             });
           }
       }
@@ -5061,6 +5090,7 @@ class _ForumTopicListViewState extends State<_ForumTopicListView> {
           mode: DeleteBoxMode.leaveChat,
           chatType: parent.type,
           peerName: parent.title,
+          peerAvatarPath: parent.avatarPath,
         ).then((r) {
           if (r.confirmed) {
             chatState.leaveChat(parent.accountId, parent.chatId);

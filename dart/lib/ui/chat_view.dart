@@ -6453,8 +6453,20 @@ class _ChatTopBar extends StatelessWidget {
             chatType: chat.type,
             peerName: chat.title,
             isSavedMessages: chat.title == 'Saved Messages',
+            messagesTTL: chat.ttlPeriod,
           ).then((r) {
-            if (r.confirmed) chatState.clearHistory(chat.accountId, chat.chatId);
+            if (r.openAutoDelete && btnCtx.mounted) {
+              final appState = btnCtx.read<AppState>();
+              showAutoDeleteTimerBox(
+                btnCtx,
+                engine: appState.engine,
+                accountId: chat.accountId,
+                chatId: chat.chatId,
+                currentTTL: chat.ttlPeriod,
+              );
+            } else if (r.confirmed) {
+              chatState.clearHistory(chat.accountId, chat.chatId);
+            }
           });
         case 'delete_chat':
           showDeleteConfirmBox(
@@ -6463,8 +6475,14 @@ class _ChatTopBar extends StatelessWidget {
             chatType: chat.type,
             peerName: chat.title,
             canRevoke: chat.type == ChatType.dm,
+            isBot: chat.isBot,
+            peerAvatarPath: chat.avatarPath,
           ).then((r) {
-            if (r.confirmed) chatState.deleteChat(chat.accountId, chat.chatId);
+            if (!r.confirmed) return;
+            if (r.blockBot && chat.isBot) {
+              chatState.blockUser(chat.accountId, chat.chatId);
+            }
+            chatState.deleteChat(chat.accountId, chat.chatId);
           });
         case 'leave':
           showDeleteConfirmBox(
@@ -6472,8 +6490,14 @@ class _ChatTopBar extends StatelessWidget {
             mode: DeleteBoxMode.leaveChat,
             chatType: chat.type,
             peerName: chat.title,
+            isBot: chat.isBot,
+            peerAvatarPath: chat.avatarPath,
           ).then((r) {
-            if (r.confirmed) chatState.leaveChat(chat.accountId, chat.chatId);
+            if (!r.confirmed) return;
+            if (r.blockBot && chat.isBot) {
+              chatState.blockUser(chat.accountId, chat.chatId);
+            }
+            chatState.leaveChat(chat.accountId, chat.chatId);
           });
       }
     });

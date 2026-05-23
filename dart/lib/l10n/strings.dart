@@ -87,6 +87,31 @@ class TrStrings {
   static String lngNotifReactedToText(String emoji, String text) =>
       '$emoji to: $text';
 
+  // Report reactions (info_profile_actions.cpp:1302-1339)
+  static String lngReportReactionTitle() => 'Report Reaction';
+  static String lngReportReactionAbout() =>
+      'Are you sure you want to report this reaction?';
+  static String lngReportAndBanButton() => 'Report and ban user';
+
+  // Auto-delete (delete_messages_box.cpp:306-315)
+  static String lngEnableAutoDelete() => 'Enable auto-delete';
+  static String lngEditAutoDeleteSettings() => 'Edit auto-delete settings';
+
+  // Paid post types (delete_messages_box.cpp:563-576)
+  static String lngSuggestWarnTitleTon() => 'Delete TON Suggested Post';
+  static String lngSuggestWarnTitleStars() => 'Delete Stars Suggested Post';
+  static String lngSuggestWarnTextTon() =>
+      'This is a paid suggested post. The TON payment will be lost if you delete it. Are you sure you want to delete it anyway?';
+  static String lngSuggestWarnTextStars() =>
+      'This is a paid suggested post. The Stars payment will be lost if you delete it. Are you sure you want to delete it anyway?';
+  static String lngSuggestWarnDeleteAnyway() => 'Delete Anyway';
+
+  // Delete chat box (moderate_messages_box.cpp:1020-1066)
+  static String lngProfileBlockBot() => 'Block bot';
+  static String lngFiltersCheckboxRemoveBot() => 'Remove from chat folders';
+  static String lngFiltersCheckboxRemoveChannel() => 'Remove from chat folders';
+  static String lngFiltersCheckboxRemoveGroup() => 'Remove from chat folders';
+
   // AyuForward status strings (ayu_forward.cpp:64-89)
   static String lngAyuForwardStatusPreparing() => 'Preparing...';
   static String lngAyuForwardStatusForwarding() => 'Forwarding messages';

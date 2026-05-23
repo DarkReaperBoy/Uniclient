@@ -10,6 +10,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../bridge/engine_service.dart';
 import '../theme/telegram_palette.dart';
+import '../l10n/strings.dart';
 import 'telegram_toast.dart';
 
 // ─── §36.1 Box/Dialog Infrastructure Constants ───────────────────────────────
@@ -301,7 +302,7 @@ Future<void> showConfirmBox(
       void cancel() {
         explicitCancel = true;
         Navigator.of(ctx).pop();
-        onCancel?.call();
+        if (!strictCancel) onCancel?.call();
       }
 
       final defaultPadding = title != null
@@ -398,6 +399,8 @@ class DeleteConfirmResult {
   final bool deleteAll;
   final bool rememberRevoke;
   final bool openAutoDelete;
+  final bool blockBot;
+  final bool removeFromFolders;
 
   const DeleteConfirmResult({
     this.confirmed = false,
@@ -407,8 +410,12 @@ class DeleteConfirmResult {
     this.deleteAll = false,
     this.rememberRevoke = false,
     this.openAutoDelete = false,
+    this.blockBot = false,
+    this.removeFromFolders = false,
   });
 }
+
+enum PaidPostType { stars, ton }
 
 Future<DeleteConfirmResult> showDeleteConfirmBox(
   BuildContext context, {
@@ -422,6 +429,10 @@ Future<DeleteConfirmResult> showDeleteConfirmBox(
   bool isSavedMusic = false,
   bool isScheduled = false,
   bool isPaidPost = false,
+  PaidPostType paidPostType = PaidPostType.stars,
+  int messagesTTL = 0,
+  bool isBot = false,
+  String peerAvatarPath = '',
   String? moderateFromId,
   String? moderateFromName,
   String? chatId,
@@ -442,6 +453,10 @@ Future<DeleteConfirmResult> showDeleteConfirmBox(
       isSavedMusic: isSavedMusic,
       isScheduled: isScheduled,
       isPaidPost: isPaidPost,
+      paidPostType: paidPostType,
+      messagesTTL: messagesTTL,
+      isBot: isBot,
+      peerAvatarPath: peerAvatarPath,
       moderateFromId: moderateFromId,
       moderateFromName: moderateFromName,
       chatId: chatId,
@@ -463,6 +478,10 @@ class _DeleteContent extends StatefulWidget {
   final bool isSavedMusic;
   final bool isScheduled;
   final bool isPaidPost;
+  final PaidPostType paidPostType;
+  final int messagesTTL;
+  final bool isBot;
+  final String peerAvatarPath;
   final String? moderateFromId;
   final String? moderateFromName;
   final String? chatId;
@@ -481,6 +500,10 @@ class _DeleteContent extends StatefulWidget {
     this.isSavedMusic = false,
     this.isScheduled = false,
     this.isPaidPost = false,
+    this.paidPostType = PaidPostType.stars,
+    this.messagesTTL = 0,
+    this.isBot = false,
+    this.peerAvatarPath = '',
     this.moderateFromId,
     this.moderateFromName,
     this.chatId,
@@ -504,6 +527,8 @@ class _DeleteContentState extends State<_DeleteContent> {
   bool _confirmedPaidPost = false;
   int _totalFromSender = 0;
   bool _countLoading = false;
+  bool _blockBot = false;
+  bool _removeFromFolders = false;
 
   @override
   void didChangeDependencies() {
@@ -630,6 +655,7 @@ class _DeleteContentState extends State<_DeleteContent> {
   String? get _revokeLabel {
     if (!widget.canRevoke) return null;
     if (widget.isScheduled || widget.isSavedMusic) return null;
+    if (_revokeJustClearForChannel) return null;
     if (widget.mode == DeleteBoxMode.singleMessage ||
         widget.mode == DeleteBoxMode.bulkMessages) {
       if (widget.chatType == ChatType.dm) {
@@ -653,21 +679,33 @@ class _DeleteContentState extends State<_DeleteContent> {
       final appState = context.read<AppState>();
       appState.deleteOnlyForYouRemembered = !_revoke;
     }
+    final isChannel = widget.chatType == ChatType.channel;
     Navigator.of(context).pop(DeleteConfirmResult(
       confirmed: true,
-      revoke: _revoke,
+      revoke: _revokeJustClearForChannel ? true : _revoke,
       banUser: _banUser,
       reportSpam: _reportSpam,
       deleteAll: _deleteAll,
       rememberRevoke: _revokeRemember,
+      blockBot: _blockBot,
+      removeFromFolders: _removeFromFolders,
     ));
   }
 
+  bool get _revokeJustClearForChannel =>
+      widget.mode == DeleteBoxMode.clearHistory &&
+      widget.chatType == ChatType.channel;
+
   void _showPaidPostWarning() {
+    final isTon = widget.paidPostType == PaidPostType.ton;
     showConfirmBox(
       context,
-      title: 'Delete Suggested Post',
-      text: 'This is a paid suggested post. The payment will be lost if you delete it. Are you sure you want to delete it anyway?',
+      title: isTon
+          ? 'Delete TON Suggested Post'
+          : 'Delete Stars Suggested Post',
+      text: isTon
+          ? 'This is a paid suggested post. The TON payment will be lost if you delete it. Are you sure you want to delete it anyway?'
+          : 'This is a paid suggested post. The Stars payment will be lost if you delete it. Are you sure you want to delete it anyway?',
       confirmText: 'Delete Anyway',
       isDestructive: true,
       onConfirm: () {
@@ -683,6 +721,11 @@ class _DeleteContentState extends State<_DeleteContent> {
        widget.chatType == ChatType.group ||
        widget.chatType == ChatType.topic);
 
+  String get _autoDeleteLinkText =>
+      widget.messagesTTL > 0
+          ? 'Edit auto-delete settings'
+          : 'Enable auto-delete';
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -695,12 +738,50 @@ class _DeleteContentState extends State<_DeleteContent> {
         widget.mode == DeleteBoxMode.deleteTopic ||
         widget.mode == DeleteBoxMode.dateRange;
 
+    final showUserpic = widget.mode == DeleteBoxMode.leaveChat && !widget.isSavedMessages;
+
     return TelegramBox(
       onConfirm: blockEnter ? null : _confirm,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (showUserpic) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundImage: widget.peerAvatarPath.isNotEmpty
+                        ? FileImage(File(widget.peerAvatarPath))
+                        : null,
+                    backgroundColor: p.windowBgActive,
+                    child: widget.peerAvatarPath.isEmpty
+                        ? Text(
+                            widget.peerName.isNotEmpty ? widget.peerName[0].toUpperCase() : '?',
+                            style: const TextStyle(fontSize: 18, color: Colors.white),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Text(
+                      widget.peerName,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: textFg,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Padding(
             padding: kBoxPadding,
             child: Text(
@@ -732,11 +813,25 @@ class _DeleteContentState extends State<_DeleteContent> {
             const SizedBox(height: kBoxMediumSkip),
             _checkbox(_revokeLabel!, _revoke,
                 (v) => setState(() => _revoke = v ?? false), checkClr, textFg),
-            if (_revoke != _revokeDefault) ...[
-              const SizedBox(height: kBoxLittleSkip),
-              _checkbox('Remember this choice', _revokeRemember,
-                  (v) => setState(() => _revokeRemember = v ?? false), checkClr, textFg),
-            ],
+            AnimatedSize(
+              duration: kBoxDuration,
+              alignment: Alignment.topCenter,
+              child: _revoke != _revokeDefault
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: kBoxLittleSkip),
+                      child: _checkbox('Remember this choice', _revokeRemember,
+                          (v) => setState(() => _revokeRemember = v ?? false), checkClr, textFg),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+          if (widget.isBot && widget.mode == DeleteBoxMode.leaveChat) ...[
+            const SizedBox(height: kBoxMediumSkip),
+            _checkbox('Block bot', _blockBot,
+                (v) => setState(() => _blockBot = v ?? false), checkClr, textFg),
+            const SizedBox(height: kBoxLittleSkip),
+            _checkbox('Remove from chat folders', _removeFromFolders,
+                (v) => setState(() => _removeFromFolders = v ?? false), checkClr, textFg),
           ],
           if (_showAutoDeleteLink) ...[
             const SizedBox(height: kBoxMediumSkip),
@@ -749,7 +844,7 @@ class _DeleteContentState extends State<_DeleteContent> {
                   );
                 },
                 child: Text(
-                  'Enable auto-delete',
+                  _autoDeleteLinkText,
                   style: TextStyle(
                     fontSize: 14,
                     color: linkFg,
@@ -862,8 +957,8 @@ class _SingleChoiceContentState extends State<_SingleChoiceContent> {
   }
 
   void _select(int index) {
-    setState(() => _selected = index);
     widget.onChanged?.call(index);
+    Navigator.of(context).pop(index);
   }
 
   @override
@@ -875,7 +970,6 @@ class _SingleChoiceContentState extends State<_SingleChoiceContent> {
 
     return TelegramBox(
       title: widget.title,
-      onConfirm: () => Navigator.of(context).pop(_selected),
       content: Padding(
         padding: const EdgeInsets.only(top: 4, bottom: 8),
         child: Column(
@@ -892,17 +986,12 @@ class _SingleChoiceContentState extends State<_SingleChoiceContent> {
           }),
         ),
       ),
-      buttons: [
-        TelegramBoxButton(
-          text: 'OK',
-          onPressed: () => Navigator.of(context).pop(_selected),
-        ),
-      ],
+      buttons: const [],
     );
   }
 }
 
-class _RadioRow extends StatefulWidget {
+class _RadioRow extends StatelessWidget {
   final String label;
   final bool selected;
   final Color textColor;
@@ -920,52 +1009,69 @@ class _RadioRow extends StatefulWidget {
   });
 
   @override
-  State<_RadioRow> createState() => _RadioRowState();
-}
-
-class _RadioRowState extends State<_RadioRow> {
-  bool _hovering = false;
-
-  @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: Container(
-          color: _hovering ? widget.hoverColor : null,
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: Radio<bool>(
-                  value: true,
-                  groupValue: widget.selected,
-                  onChanged: (_) => widget.onTap(),
-                  activeColor: widget.accentColor,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.compact,
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverColor,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Radio<bool>(
+                value: true,
+                groupValue: selected,
+                onChanged: (_) => onTap(),
+                activeColor: accentColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: textColor,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: widget.textColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
+  }
+}
+
+// ─── Auto-Delete Timer Box ──────────────────────────────────────────────────
+
+Future<void> showAutoDeleteTimerBox(
+  BuildContext context, {
+  required EngineService engine,
+  required String accountId,
+  required String chatId,
+  int currentTTL = 0,
+}) async {
+  const options = [
+    'Off',
+    '1 day',
+    '1 week',
+    '1 month',
+  ];
+  const values = [0, 86400, 604800, 2592000];
+
+  final currentIndex = values.indexOf(currentTTL).clamp(0, values.length - 1);
+  final selected = await showSingleChoiceBox(
+    context,
+    title: currentTTL > 0 ? 'Edit Auto-Delete Timer' : 'Auto-Delete Messages',
+    options: options,
+    initialSelection: currentIndex,
+  );
+  if (selected != null && selected >= 0 && selected < values.length) {
+    engine.setHistoryTTL(accountId, chatId, values[selected]);
   }
 }
 
@@ -1644,18 +1750,19 @@ class _ReportOptionPickerBox extends StatefulWidget {
 class _ReportOptionPickerBoxState extends State<_ReportOptionPickerBox> {
   final _commentController = TextEditingController();
   final _commentFocus = FocusNode();
-  String? _commentError;
+  final _commentError = ValueNotifier<String?>(null);
 
   @override
   void dispose() {
     _commentController.dispose();
     _commentFocus.dispose();
+    _commentError.dispose();
     super.dispose();
   }
 
   void _submitComment() {
     if (!widget.commentOptional && _commentController.text.trim().isEmpty) {
-      setState(() => _commentError = 'This field is required');
+      _commentError.value = 'This field is required';
       _commentFocus.requestFocus();
       return;
     }
@@ -1687,13 +1794,24 @@ class _ReportOptionPickerBoxState extends State<_ReportOptionPickerBox> {
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(24, 11, 24, 11),
-                  child: Text(
-                    opt.text,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: textFg,
-                    ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          opt.text,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: textFg,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 20,
+                        color: textFg.withValues(alpha: 0.5),
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -1702,24 +1820,27 @@ class _ReportOptionPickerBoxState extends State<_ReportOptionPickerBox> {
               const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: TextField(
-                  controller: _commentController,
-                  focusNode: _commentFocus,
-                  maxLines: 3,
-                  maxLength: 512,
-                  onChanged: (_) {
-                    if (_commentError != null) setState(() => _commentError = null);
-                  },
-                  onSubmitted: (_) => _submitComment(),
-                  decoration: InputDecoration(
-                    hintText: widget.commentOptional
-                        ? 'Add Comment (Optional)'
-                        : 'Add Comment',
-                    errorText: _commentError,
-                    border: const OutlineInputBorder(),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+                child: ValueListenableBuilder<String?>(
+                  valueListenable: _commentError,
+                  builder: (context, error, _) => TextField(
+                    controller: _commentController,
+                    focusNode: _commentFocus,
+                    maxLines: 3,
+                    maxLength: 512,
+                    onChanged: (_) {
+                      if (_commentError.value != null) _commentError.value = null;
+                    },
+                    onSubmitted: (_) => _submitComment(),
+                    decoration: InputDecoration(
+                      hintText: widget.commentOptional
+                          ? 'Add Comment (Optional)'
+                          : 'Add Comment',
+                      errorText: error,
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
                   ),
                 ),
@@ -1782,7 +1903,7 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox>
   final _textController = TextEditingController();
   final _focusNode = FocusNode();
   late final AnimationController _lottieController;
-  String? _errorText;
+  final _errorText = ValueNotifier<String?>(null);
 
   @override
   void initState() {
@@ -1795,18 +1916,20 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox>
     _textController.dispose();
     _focusNode.dispose();
     _lottieController.dispose();
+    _errorText.dispose();
     super.dispose();
   }
 
   void _onLottieLoaded(LottieComposition composition) {
-    _lottieController
-      ..duration = composition.duration
-      ..forward();
+    _lottieController.duration = composition.duration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _lottieController.forward();
+    });
   }
 
   void _submit() {
     if (!widget.optional && _textController.text.trim().isEmpty) {
-      setState(() => _errorText = 'This field is required');
+      _errorText.value = 'This field is required';
       _focusNode.requestFocus();
       return;
     }
@@ -1847,24 +1970,27 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox>
               style: TextStyle(fontSize: 14, color: textFg),
             ),
             const SizedBox(height: 16),
-            TextField(
-              controller: _textController,
-              focusNode: _focusNode,
-              maxLines: 3,
-              maxLength: 512,
-              autofocus: true,
-              onChanged: (_) {
-                if (_errorText != null) setState(() => _errorText = null);
-              },
-              decoration: InputDecoration(
-                hintText: widget.optional
-                    ? 'Add Comment (Optional)'
-                    : 'Add Comment',
-                errorText: _errorText,
-                border: const OutlineInputBorder(),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+            ValueListenableBuilder<String?>(
+              valueListenable: _errorText,
+              builder: (context, error, _) => TextField(
+                controller: _textController,
+                focusNode: _focusNode,
+                maxLines: 3,
+                maxLength: 512,
+                autofocus: true,
+                onChanged: (_) {
+                  if (_errorText.value != null) _errorText.value = null;
+                },
+                decoration: InputDecoration(
+                  hintText: widget.optional
+                      ? 'Add Comment (Optional)'
+                      : 'Add Comment',
+                  errorText: error,
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                 ),
               ),
             ),
@@ -1938,7 +2064,7 @@ class _ReportReactionContentState extends State<_ReportReactionContent> {
     final checkClr = p.windowBgActive;
 
     return TelegramBox(
-      title: 'Report Reactions',
+      title: TrStrings.lngReportReactionTitle(),
       onConfirm: () => Navigator.of(context).pop(
         ReportReactionResult(confirmed: true, ban: _banUser && widget.showBanCheckbox),
       ),
@@ -1949,7 +2075,7 @@ class _ReportReactionContentState extends State<_ReportReactionContent> {
           Padding(
             padding: kBoxPadding,
             child: Text(
-              'Are you sure you want to report reactions from this user?',
+              TrStrings.lngReportReactionAbout(),
               style: TextStyle(fontSize: 14, color: textFg),
             ),
           ),
@@ -1975,7 +2101,7 @@ class _ReportReactionContentState extends State<_ReportReactionContent> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Ban user and report',
+                        TrStrings.lngReportAndBanButton(),
                         style: TextStyle(fontSize: 14, color: textFg),
                       ),
                     ),
