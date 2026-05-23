@@ -729,17 +729,17 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 ## Major Issues
 
-- [ ] **[MAJOR]** Missing error visual feedback in active implementation — `ayu_chats_page.dart:_EditMarkBoxContentState` has **no error state, no validation, no error display**. `edit_mark_box.dart` has error handling (`_showError` flag + red border), but that file is dead code. Only the broken version is used. `ayu_chats_page.dart:~1010–1030` ← `edit_mark_box.cpp:73–77` (shows error handling via `_text->showError()`)
+- [x] **[MAJOR]** Missing error visual feedback in active implementation — `ayu_chats_page.dart:_EditMarkBoxContentState` has **no error state, no validation, no error display**. `edit_mark_box.dart` has error handling (`_showError` flag + red border), but that file is dead code. Only the broken version is used. `ayu_chats_page.dart:~1010–1030` ← `edit_mark_box.cpp:73–77` (shows error handling via `_text->showError()`)
 
-- [ ] **[MAJOR]** Missing onSubmitted handler in used implementation — `ayu_chats_page.dart:_EditMarkBoxContentState.build()` has **no `onSubmitted` callback** on the TextField. Pressing Enter doesn't submit. AyuGram wires Enter via `_text->submits() | rpl::on_next()`. `ayu_chats_page.dart:~1013` (TextField has no onSubmitted) ← `edit_mark_box.dart:92` (has `onSubmitted: (_) => _submit()`) vs `edit_mark_box.cpp:65–66`
+- [x] **[MAJOR]** Missing onSubmitted handler in used implementation — `ayu_chats_page.dart:_EditMarkBoxContentState.build()` has **no `onSubmitted` callback** on the TextField. Pressing Enter doesn't submit. AyuGram wires Enter via `_text->submits() | rpl::on_next()`. `ayu_chats_page.dart:~1013` (TextField has no onSubmitted) ← `edit_mark_box.dart:92` (has `onSubmitted: (_) => _submit()`) vs `edit_mark_box.cpp:65–66`
 
-- [ ] **[MAJOR]** Button order mismatch vs AyuGram — Dart has Reset (left), Cancel (middle), Save (right). AyuGram has Reset (left), Save (middle), Cancel (right). Primary action (Save) is in wrong position. `ayu_chats_page.dart:~1021–1027` ← `edit_mark_box.cpp:44–58`
+- [x] **[MAJOR]** Button order mismatch vs AyuGram — Dart has Reset (left), Cancel (middle), Save (right). AyuGram has Reset (left), Save (middle), Cancel (right). Primary action (Save) is in wrong position. `ayu_chats_page.dart:~1021–1027` ← `edit_mark_box.cpp:44–58`
 
-- [ ] **[MAJOR]** Border color inconsistency — `ayu_chats_page.dart` uses `p.windowBgActive` for both normal and focused borders. Focused border has no color change indication (both are same). AyuGram styled via `st::defaultInputField` which includes proper active/inactive states. `ayu_chats_page.dart:~1015–1020` ← `edit_mark_box.cpp:29–33`
+- [x] **[MAJOR]** Border color inconsistency — `ayu_chats_page.dart` uses `p.windowBgActive` for both normal and focused borders. Focused border has no color change indication (both are same). AyuGram styled via `st::defaultInputField` which includes proper active/inactive states. `ayu_chats_page.dart:~1015–1020` ← `edit_mark_box.cpp:29–33`
 
-- [ ] **[MAJOR]** Padding/spacing mismatch — `ayu_chats_page.dart` uses `EdgeInsets.fromLTRB(24, 0, 24, 8)` (top=0). `edit_mark_box.dart` uses `EdgeInsets.fromLTRB(24, 2, 24, 8)` (top=2). AyuGram uses `st::contactPadding` (49px left, 2px top, 0px right, 14px bottom) which neither matches. `ayu_chats_page.dart:~1012` + `edit_mark_box.dart:87` ← `edit_mark_box.cpp:37,93`
+- [x] **[MAJOR]** Padding/spacing mismatch — `ayu_chats_page.dart` uses `EdgeInsets.fromLTRB(24, 0, 24, 8)` (top=0). `edit_mark_box.dart` uses `EdgeInsets.fromLTRB(24, 2, 24, 8)` (top=2). AyuGram uses `st::contactPadding` (49px left, 2px top, 0px right, 14px bottom) which neither matches. `ayu_chats_page.dart:~1012` + `edit_mark_box.dart:87` ← `edit_mark_box.cpp:37,93`
 
-- [ ] **[MAJOR]** Hint text styling mismatch — `ayu_chats_page.dart` adds alpha transparency to hint color: `.withValues(alpha: 0.4)`. `edit_mark_box.dart` uses hardcoded `fontWeight.w600` without alpha. Both deviate from AyuGram's standard InputField styling. `ayu_chats_page.dart:~1017–1018` + `edit_mark_box.dart:96` ← `edit_mark_box.cpp:29–33`
+- [x] **[MAJOR]** Hint text styling mismatch — `ayu_chats_page.dart` adds alpha transparency to hint color: `.withValues(alpha: 0.4)`. `edit_mark_box.dart` uses hardcoded `fontWeight.w600` without alpha. Both deviate from AyuGram's standard InputField styling. `ayu_chats_page.dart:~1017–1018` + `edit_mark_box.dart:96` ← `edit_mark_box.cpp:29–33`
 
 ---
 
