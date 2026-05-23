@@ -94,12 +94,16 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   final _messageController = TextEditingController();
   final _messageFocusNode = FocusNode();
   final _chatScrollController = ScrollController();
+  final _panelFocusNode = FocusNode();
 
   double _selfAudioLevel = 0.0;
   StreamSubscription<GroupCallStateEvent>? _callStateSub;
   Map<String, double> _participantLevels = {};
   Map<String, bool> _participantSpeaking = {};
   bool _isRecording = false;
+  bool _isPushToTalk = false;
+  Timer? _pushToTalkTimer;
+  static const _kSpacePushToTalkDelay = Duration(milliseconds: 250);
 
   @override
   void initState() {
@@ -124,6 +128,11 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     }
     if (widget.isRecording != old.isRecording) {
       _isRecording = widget.isRecording;
+    }
+    if (_isPushToTalk && (widget.isForceMuted || widget.isSelfMuted)) {
+      _isPushToTalk = false;
+      _pushToTalkTimer?.cancel();
+      _pushToTalkTimer = null;
     }
     if (widget.callMessages.length > old.callMessages.length && widget.isMessagesVisible) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -158,10 +167,12 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   void dispose() {
     _durationTimer?.cancel();
     _audioLevelTimer?.cancel();
+    _pushToTalkTimer?.cancel();
     _callStateSub?.cancel();
     _messageController.dispose();
     _messageFocusNode.dispose();
     _chatScrollController.dispose();
+    _panelFocusNode.dispose();
     super.dispose();
   }
 
@@ -239,6 +250,36 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     final m = seconds ~/ 60;
     final s = seconds % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (!widget.isRtmp) return KeyEventResult.ignored;
+    if (event.logicalKey != LogicalKeyboardKey.space) {
+      return KeyEventResult.ignored;
+    }
+    if (widget.isForceMuted) return KeyEventResult.handled;
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      _pushToTalkTimer?.cancel();
+      _pushToTalkTimer = null;
+      if (!_isPushToTalk && widget.isSelfMuted) {
+        _isPushToTalk = true;
+        widget.onToggleMute?.call();
+      }
+      return KeyEventResult.handled;
+    }
+    if (event is KeyUpEvent && _isPushToTalk) {
+      _pushToTalkTimer?.cancel();
+      _pushToTalkTimer = Timer(_kSpacePushToTalkDelay, () {
+        if (_isPushToTalk && mounted) {
+          _isPushToTalk = false;
+          if (!widget.isSelfMuted) {
+            widget.onToggleMute?.call();
+          }
+        }
+      });
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   MuteButtonState get _muteState {
@@ -827,30 +868,35 @@ class _GroupCallPanelState extends State<GroupCallPanel>
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(
-        minWidth: GroupCallPanel.minWidth,
-      ),
-      child: Material(
-        type: MaterialType.transparency,
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF1A1A2E), Color(0xFF0F0F1A)],
+    return Focus(
+      focusNode: _panelFocusNode,
+      autofocus: true,
+      onKeyEvent: _handleKeyEvent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          minWidth: GroupCallPanel.minWidth,
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF1A1A2E), Color(0xFF0F0F1A)],
+              ),
             ),
-          ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final mode = _resolveMode(constraints.maxWidth);
-              switch (mode) {
-                case GroupCallMode.narrow:
-                  return _buildNarrowMode();
-                case GroupCallMode.wide:
-                  return _buildWideMode();
-              }
-            },
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final mode = _resolveMode(constraints.maxWidth);
+                switch (mode) {
+                  case GroupCallMode.narrow:
+                    return _buildNarrowMode();
+                  case GroupCallMode.wide:
+                    return _buildWideMode();
+                }
+              },
+            ),
           ),
         ),
       ),
