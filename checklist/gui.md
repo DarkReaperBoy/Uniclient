@@ -725,12 +725,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 ## Critical Issues
 
-- [ ] **[CRITICAL]** Dead code — `edit_mark_box.dart` defines `showEditMarkBox()` but zero callers exist. The entire file is unreferenced. Meanwhile, `ayu_chats_page.dart` reimplements `_EditMarkBoxContent` inline with different (broken) logic. `edit_mark_box.dart:1–131` ← **UNUSED** (no imports found)
-
-- [ ] **[CRITICAL]** Missing input validation in the ONLY used implementation — `ayu_chats_page.dart:_EditMarkBoxContentState._save()` calls `widget.onSaved()` unconditionally, allowing empty mark strings. AyuGram validates via `_text->getLastText().trimmed().isEmpty()` before save. `ayu_chats_page.dart:~1004–1008` ← `edit_mark_box.cpp:73–79` (shows proper validation)
-
-- [ ] **[CRITICAL]** Hardcoded UI strings (no i18n) — Both implementations use hardcoded 'Reset', 'Save', 'Cancel' instead of localization keys. AyuGram uses `tr::ayu_BoxActionReset()`, `tr::lng_settings_save()`, `tr::lng_cancel()`. `edit_mark_box.dart:114,121,125` + `ayu_chats_page.dart:~1021,1024,1027` ← `edit_mark_box.cpp:44,50,55`
-
 ---
 
 ## Major Issues
