@@ -27,25 +27,34 @@ enum _DeviceType {
 
 class _DeviceInfo {
   final _DeviceType type;
-  final Color gradientTop;
-  final Color gradientBottom;
   final String iconAsset;
 
-  const _DeviceInfo(this.type, this.gradientTop, this.gradientBottom, this.iconAsset);
+  const _DeviceInfo(this.type, this.iconAsset);
 }
 
-const _kGreen1 = Color(0xFF67B84D);
-const _kGreen2 = Color(0xFF4DB847);
-const _kOrange1 = Color(0xFFDE8C3E);
-const _kOrange2 = Color(0xFFE67429);
-const _kPurple1 = Color(0xFF8C79D2);
-const _kPurple2 = Color(0xFF6B5EBF);
-const _kCyan1 = Color(0xFF60C5E2);
-const _kCyan2 = Color(0xFF41B5D8);
-const _kRed1 = Color(0xFFDE6B6B);
-const _kRed2 = Color(0xFFD45050);
-const _kPink1 = Color(0xFFCB79D2);
-const _kPink2 = Color(0xFFBF5EBF);
+({Color top, Color bottom}) _gradientForType(_DeviceType type, TelegramPalette palette) {
+  switch (type) {
+    case _DeviceType.windows:
+    case _DeviceType.mac:
+    case _DeviceType.other:
+      return (top: palette.historyPeer4UserpicBg, bottom: palette.historyPeer4UserpicBg2);
+    case _DeviceType.ubuntu:
+      return (top: palette.historyPeer8UserpicBg, bottom: palette.historyPeer8UserpicBg2);
+    case _DeviceType.linux:
+      return (top: palette.historyPeer5UserpicBg, bottom: palette.historyPeer5UserpicBg2);
+    case _DeviceType.iphone:
+    case _DeviceType.ipad:
+      return (top: palette.historyPeer7UserpicBg, bottom: palette.historyPeer7UserpicBg2);
+    case _DeviceType.android:
+      return (top: palette.historyPeer2UserpicBg, bottom: palette.historyPeer2UserpicBg2);
+    case _DeviceType.web:
+    case _DeviceType.chrome:
+    case _DeviceType.edge:
+    case _DeviceType.firefox:
+    case _DeviceType.safari:
+      return (top: palette.historyPeer6UserpicBg, bottom: palette.historyPeer6UserpicBg2);
+  }
+}
 
 const _kDeviceIconDir = 'assets/icons/devices';
 
@@ -106,69 +115,69 @@ _DeviceInfo _classifyDevice(String device, String platform, String appName, {int
   const kiOS = {1, 7, 10840, 16352};
   const kWeb = {2496, 739222, 1025907};
 
-  _DeviceInfo make(_DeviceType t, Color c1, Color c2) => _DeviceInfo(t, c1, c2, _iconPath(t));
+  _DeviceInfo make(_DeviceType t) => _DeviceInfo(t, _iconPath(t));
 
   _DeviceInfo? detectBrowser() {
     if (d.contains('edg/') || d.contains('edgios/') || d.contains('edga/')) {
-      return make(_DeviceType.edge, _kPink1, _kPink2);
+      return make(_DeviceType.edge);
     } else if (d.contains('chrome')) {
-      return make(_DeviceType.chrome, _kPink1, _kPink2);
+      return make(_DeviceType.chrome);
     } else if (d.contains('safari')) {
-      return make(_DeviceType.safari, _kPink1, _kPink2);
+      return make(_DeviceType.safari);
     } else if (d.contains('firefox')) {
-      return make(_DeviceType.firefox, _kPink1, _kPink2);
+      return make(_DeviceType.firefox);
     }
     return null;
   }
 
   _DeviceInfo? detectDesktop() {
     if (p.contains('windows') || s.contains('windows')) {
-      return make(_DeviceType.windows, _kGreen1, _kGreen2);
+      return make(_DeviceType.windows);
     } else if (p.contains('macos') || s.contains('macos')) {
-      return make(_DeviceType.mac, _kGreen1, _kGreen2);
+      return make(_DeviceType.mac);
     } else if (p.contains('ubuntu') || s.contains('ubuntu') || p.contains('unity') || s.contains('unity')) {
-      return make(_DeviceType.ubuntu, _kOrange1, _kOrange2);
+      return make(_DeviceType.ubuntu);
     } else if (p.contains('linux') || s.contains('linux')) {
-      return make(_DeviceType.linux, _kPurple1, _kPurple2);
+      return make(_DeviceType.linux);
     }
     return null;
   }
 
   if (apiId != null) {
     if (kAndroid.contains(apiId)) {
-      return make(_DeviceType.android, _kRed1, _kRed2);
+      return make(_DeviceType.android);
     } else if (kDesktop.contains(apiId)) {
-      return detectDesktop() ?? make(_DeviceType.linux, _kPurple1, _kPurple2);
+      return detectDesktop() ?? make(_DeviceType.linux);
     } else if (kMac.contains(apiId)) {
-      return make(_DeviceType.mac, _kGreen1, _kGreen2);
+      return make(_DeviceType.mac);
     } else if (kWeb.contains(apiId)) {
-      return detectBrowser() ?? make(_DeviceType.web, _kPink1, _kPink2);
+      return detectBrowser() ?? make(_DeviceType.web);
     }
   }
 
   if (d.contains('chromebook')) {
-    return make(_DeviceType.other, _kGreen1, _kGreen2);
+    return make(_DeviceType.other);
   }
   final browser = detectBrowser();
   if (browser != null) return browser;
   if (d.contains('iphone')) {
-    return make(_DeviceType.iphone, _kCyan1, _kCyan2);
+    return make(_DeviceType.iphone);
   }
   if (d.contains('ipad')) {
-    return make(_DeviceType.ipad, _kCyan1, _kCyan2);
+    return make(_DeviceType.ipad);
   }
   if (apiId != null && kiOS.contains(apiId)) {
-    return make(_DeviceType.iphone, _kCyan1, _kCyan2);
+    return make(_DeviceType.iphone);
   }
   final desktop = detectDesktop();
   if (desktop != null) return desktop;
   if (p.contains('android') || s.contains('android')) {
-    return make(_DeviceType.android, _kRed1, _kRed2);
+    return make(_DeviceType.android);
   }
   if (p.contains('ios') || s.contains('ios')) {
-    return make(_DeviceType.iphone, _kCyan1, _kCyan2);
+    return make(_DeviceType.iphone);
   }
-  return make(_DeviceType.other, _kGreen1, _kGreen2);
+  return make(_DeviceType.other);
 }
 
 class ActiveSessionsScreen extends StatefulWidget {
@@ -325,14 +334,10 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   static String _formatDaysLabel(int days) {
     if (days <= 0) return '';
     if (days > 25) {
-      final months = (days / 30).round().clamp(1, 999);
-      if (months >= 12) {
-        final years = (months / 12).round().clamp(1, 999);
-        return years == 1 ? '1 year' : '$years years';
-      }
+      final months = (days ~/ 30).clamp(1, 999);
       return months == 1 ? '1 month' : '$months months';
     }
-    final weeks = (days / 7).round().clamp(1, 999);
+    final weeks = (days ~/ 7).clamp(1, 999);
     return weeks == 1 ? '1 week' : '$weeks weeks';
   }
 
@@ -1209,50 +1214,57 @@ class _SessionRow extends StatelessWidget {
       onTap: onTap,
       child: SizedBox(
         height: 84,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(21, 10, 11, 10),
-          child: Row(
-            children: [
-              _DeviceUserpic(info: info, size: 42),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      device,
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (status.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        status,
-                        style: TextStyle(color: textColor, fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                    if (locationLine.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        locationLine,
-                        style: TextStyle(color: subtextColor, fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
+        child: Stack(
+          children: [
+            Positioned(
+              left: 21,
+              top: 10,
+              child: _DeviceUserpic(info: info, size: 42),
+            ),
+            Positioned(
+              left: 78,
+              top: 11,
+              right: showTerminate ? 45 : 11,
+              child: Text(
+                device,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (status.isNotEmpty)
+              Positioned(
+                left: 78,
+                top: 32,
+                right: showTerminate ? 45 : 11,
+                child: Text(
+                  status,
+                  style: TextStyle(color: textColor, fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (showTerminate)
-                SizedBox(
+            if (locationLine.isNotEmpty)
+              Positioned(
+                left: 78,
+                top: 54,
+                right: showTerminate ? 45 : 11,
+                child: Text(
+                  locationLine,
+                  style: TextStyle(color: subtextColor, fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            if (showTerminate)
+              Positioned(
+                right: 11,
+                top: 8,
+                child: SizedBox(
                   width: 34,
                   height: 34,
                   child: IconButton(
@@ -1262,8 +1274,8 @@ class _SessionRow extends StatelessWidget {
                     onPressed: onTerminate,
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
@@ -1278,6 +1290,8 @@ class _DeviceUserpic extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+    final gradient = _gradientForType(info.type, palette);
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheSize = (size * 0.52 * dpr).round();
     return Container(
@@ -1288,7 +1302,7 @@ class _DeviceUserpic extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [info.gradientTop, info.gradientBottom],
+          colors: [gradient.top, gradient.bottom],
         ),
       ),
       child: Center(
@@ -1298,7 +1312,7 @@ class _DeviceUserpic extends StatelessWidget {
           height: size * 0.52,
           cacheWidth: cacheSize,
           cacheHeight: cacheSize,
-          color: Colors.white,
+          color: palette.historyPeerUserpicFg,
           colorBlendMode: BlendMode.srcIn,
         ),
       ),
@@ -1364,6 +1378,9 @@ class _DeviceUserpicBigState extends State<_DeviceUserpicBig> with SingleTickerP
   @override
   Widget build(BuildContext context) {
     const size = 70.0;
+    final palette = context.palette;
+    final gradient = _gradientForType(widget.info.type, palette);
+    final fgColor = palette.historyPeerUserpicFg;
     final lottieAsset = _lottiePath(widget.info.type);
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheSize = (size * 0.52 * dpr).round();
@@ -1376,7 +1393,7 @@ class _DeviceUserpicBigState extends State<_DeviceUserpicBig> with SingleTickerP
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [widget.info.gradientTop, widget.info.gradientBottom],
+          colors: [gradient.top, gradient.bottom],
         ),
       ),
       child: lottieAsset != null && widget.useLottie
@@ -1391,7 +1408,7 @@ class _DeviceUserpicBigState extends State<_DeviceUserpicBig> with SingleTickerP
                 values: [
                   ValueDelegate.color(
                     const ['**'],
-                    value: Colors.white,
+                    value: fgColor,
                   ),
                 ],
               ),
@@ -1403,7 +1420,7 @@ class _DeviceUserpicBigState extends State<_DeviceUserpicBig> with SingleTickerP
                 height: size * 0.52,
                 cacheWidth: cacheSize,
                 cacheHeight: cacheSize,
-                color: Colors.white,
+                color: fgColor,
                 colorBlendMode: BlendMode.srcIn,
               ),
             ),
