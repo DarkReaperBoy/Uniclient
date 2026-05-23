@@ -640,10 +640,6 @@ All numeric constants match AyuGram exactly:
 
 
 
-## engine_service — sendStoryWithVideoFile also encodes overlayData as integer array
-
-- [ ] [MAJOR] `sendStoryWithVideoFile` has the same binary-as-integer-array bug for `overlayData` (line 1403): `'overlay_data': overlayData.toList()`. Should be `base64.encode(overlayData)` consistent with `createCloudTheme` pattern at line 4526 — `engine_service.dart:1403` ← `AyuGram/Telegram/SourceFiles/data/data_stories.h:1` (binary overlay / sticker data uses proper binary encoding)
-
 ## engine_service — msg_reactions_updated event not dispatched
 
 - [ ] [MAJOR] `_dispatchEngineEvent` has no case for a reaction-change event. When the Go engine fires a reactions update (separate from a full message edit), the event falls through to `default:` and is silently logged as "unhandled" (line 5907). The only way the UI can see a reaction change is if the engine incorrectly reuses `msg_edited` for reactions. AyuGram fires a distinct `messageUpdated` with `PeerUpdate::Flag::MessageReactions` — reactions on a message are a first-class update. Without a handler, tapping a reaction emoji has no visible effect until the next full `chat_updated` event refreshes the whole list — `engine_service.dart:5770` ← `AyuGram/Telegram/SourceFiles/data/data_changes.h:1` (`Changes::messageUpdated` with reactions flag)
