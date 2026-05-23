@@ -615,18 +615,6 @@ All geometric calculations match:
 
 ## MAJOR
 
-- [ ] [MAJOR] Sender name shown for broadcast channels — `_buildPreview` renders the sender label when `chat.type == ChatType.channel`, but AyuGram does not show sender names for regular broadcast channel messages in the dialog list preview (channels always use the channel itself as "from"; it is suppressed in the painted text). This produces spurious "Username: message text" for channel rows. — `chat_list_row.dart:392-393` ← `dialogs_layout.cpp:1130-1183` (paintItemCallback omits sender for isBroadcast peers)
-
-- [ ] [MAJOR] Active-row sender name rendered at 70% opacity instead of full white — `_buildPreview` uses `palette.dialogsTextFgActive.withValues(alpha: 0.7)` for the sender prefix in active rows, but AyuGram maps `dialogsTextFgServiceActive = dialogsTextFgActive` (full opacity white), so the sender name in the selected chat row is incorrectly dimmed. — `chat_list_row.dart:413-414` ← `colors.palette:223`
-
-- [ ] [MAJOR] Premium subscriber badge not rendered — AyuGram `PeerBadge::drawGetWidth` draws `st::dialogsPremiumIcon` for premium users in the name row. The Dart `ChatListRow` only shows verified/scam/fake/emoji-status badges; premium users have no star badge in the chat list. — `chat_list_row.dart:238-262` ← `dialogs_layout.cpp:827-850`
-
-- [ ] [MAJOR] Archive swipe action not blocked for `isNotificationsUser` (Telegram Notify service account) — `resolveSwipeAction` only disables archive for `chat.isSelf`; AyuGram's `CanArchive` also returns false for `peer->isNotificationsUser() && !history->folder()`. If such an account appears in the list, archiving it would call the engine on a peer that can't be archived. — `chat_list_row.dart:537-538` ← `window_peer_menu.cpp:4236`
-
-- [ ] [MAJOR] `_SwipeRipplePainter` ripple center uses hardcoded `iconSize + iconSize/2 = 30px` offset from right edge instead of the spec-correct `dialogsQuickActionSize + dialogsQuickActionSize/2 = 30px` — the offset arithmetic happens to be correct numerically for the 20px icon, but the center is placed at `(width-30, 30)` in absolute coordinates. In AyuGram, the ellipse is drawn at `(geometry.width() - offset, offset)` relative to the row width, not the 80px ripple area — meaning as row width changes the center shifts correctly, whereas the Dart paints it relative to the 80×80 `CustomPaint` size (always `50, 30`), which is only correct when the row width matches the ripple area. — `chat_list_row.dart:938-946` ← `dialogs_layout.cpp:982-986`
-
-- [ ] [MAJOR] `ForumChatListRow` `isNarrow` mode hard-codes `isActive: false` for `_ChatAvatar`, losing the active-state online-dot and story-ring color changes that a collapsed forum row should still reflect. — `chat_list_row.dart:2144`
-
 ## chat_settings_screen — backend wiring gaps, behavioral deviations, and loading state bugs
 
 - [ ] [CRITICAL] `_loadCloudThemes()` has no error handler: if `engine.getCloudThemes()` throws (network/auth error) the `.then()` callback is never called, `_cloudThemesLoaded` stays `false`, and the section silently disappears with no user feedback — `chat_settings_screen.dart:114` ← `AyuGram/settings/sections/settings_chat.cpp:2746` (uses reactive `CloudList` that exposes `empty()` stream and shows/hides wrap automatically)
