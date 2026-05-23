@@ -276,6 +276,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String _callInputDevice = 'Default';
   String _callCameraDevice = 'Default';
   bool _callUseSameDevices = true;
+  String _callSpecificOutputDevice = '';
+  String _callSpecificInputDevice = '';
   bool _callNoiseSuppression = true;
   bool _notifAllAccountsNotify = true;
   bool _notifIncludeMutedChats = true;
@@ -559,6 +561,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String get callInputDevice => _callInputDevice;
   String get callCameraDevice => _callCameraDevice;
   bool get callUseSameDevices => _callUseSameDevices;
+  String get callSpecificOutputDevice => _callSpecificOutputDevice;
+  String get callSpecificInputDevice => _callSpecificInputDevice;
   bool get callNoiseSuppression => _callNoiseSuppression;
   bool get notifAllAccountsNotify => _notifAllAccountsNotify;
   bool get notifIncludeMutedChats => _notifIncludeMutedChats;
@@ -918,8 +922,43 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setCallUseSameDevices(bool v) {
     if (_callUseSameDevices == v) return;
     _callUseSameDevices = v;
+    if (v) {
+      _callSpecificOutputDevice = '';
+      _callSpecificInputDevice = '';
+    } else {
+      _callSpecificOutputDevice =
+          _callOutputDevice.isEmpty ? 'Default' : _callOutputDevice;
+      _callSpecificInputDevice =
+          _callInputDevice.isEmpty ? 'Default' : _callInputDevice;
+    }
     notifyListeners();
     _saveWindowPrefs();
+    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
+      'type': 'call_output', 'device': _callSpecificOutputDevice,
+    }).catchError((_) {});
+    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
+      'type': 'call_input', 'device': _callSpecificInputDevice,
+    }).catchError((_) {});
+  }
+
+  void setCallSpecificOutputDevice(String v) {
+    if (_callSpecificOutputDevice == v) return;
+    _callSpecificOutputDevice = v;
+    notifyListeners();
+    _saveWindowPrefs();
+    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
+      'type': 'call_output', 'device': v,
+    }).catchError((_) {});
+  }
+
+  void setCallSpecificInputDevice(String v) {
+    if (_callSpecificInputDevice == v) return;
+    _callSpecificInputDevice = v;
+    notifyListeners();
+    _saveWindowPrefs();
+    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
+      'type': 'call_input', 'device': v,
+    }).catchError((_) {});
   }
 
   void setCallNoiseSuppression(bool v) {
@@ -3329,6 +3368,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _callInputDevice = data['callInputDevice'] as String? ?? 'Default';
       _callCameraDevice = data['callCameraDevice'] as String? ?? 'Default';
       _callUseSameDevices = data['callUseSameDevices'] as bool? ?? true;
+      _callSpecificOutputDevice = data['callSpecificOutputDevice'] as String? ?? '';
+      _callSpecificInputDevice = data['callSpecificInputDevice'] as String? ?? '';
       _callNoiseSuppression = data['callNoiseSuppression'] as bool? ?? true;
       _notifAllAccountsNotify = data['notifAllAccountsNotify'] as bool? ?? true;
       _notifIncludeMutedChats = data['notifIncludeMutedChats'] as bool? ?? true;
@@ -3611,6 +3652,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'callInputDevice': _callInputDevice,
         'callCameraDevice': _callCameraDevice,
         'callUseSameDevices': _callUseSameDevices,
+        'callSpecificOutputDevice': _callSpecificOutputDevice,
+        'callSpecificInputDevice': _callSpecificInputDevice,
         'callNoiseSuppression': _callNoiseSuppression,
         'notifAllAccountsNotify': _notifAllAccountsNotify,
         'notifIncludeMutedChats': _notifIncludeMutedChats,

@@ -2628,6 +2628,46 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
                 'as the rest of the app.',
             color: subtextColor,
           ),
+          if (!appState.callUseSameDevices) ...[
+            Divider(height: 1, color: dividerColor, indent: 60),
+            _CallSettingsSectionHeader(label: 'Call Output', color: accentColor),
+            _CallSettingsDeviceRow(
+              icon: Icons.volume_up,
+              label: appState.callSpecificOutputDevice.isEmpty
+                  ? 'Default'
+                  : appState.callSpecificOutputDevice,
+              textColor: textColor,
+              subtextColor: subtextColor,
+              isDark: isDark,
+              onTap: () => _showDevicePicker(
+                title: 'Call Output Device',
+                current: appState.callSpecificOutputDevice.isEmpty
+                    ? 'Default'
+                    : appState.callSpecificOutputDevice,
+                devices: _outputDevices,
+                onSelected: (d) => appState.setCallSpecificOutputDevice(d),
+              ),
+            ),
+            Divider(height: 1, color: dividerColor, indent: 60),
+            _CallSettingsSectionHeader(label: 'Call Microphone', color: accentColor),
+            _CallSettingsDeviceRow(
+              icon: Icons.mic,
+              label: appState.callSpecificInputDevice.isEmpty
+                  ? 'Default'
+                  : appState.callSpecificInputDevice,
+              textColor: textColor,
+              subtextColor: subtextColor,
+              isDark: isDark,
+              onTap: () => _showDevicePicker(
+                title: 'Call Microphone',
+                current: appState.callSpecificInputDevice.isEmpty
+                    ? 'Default'
+                    : appState.callSpecificInputDevice,
+                devices: _inputDevices,
+                onSelected: (d) => appState.setCallSpecificInputDevice(d),
+              ),
+            ),
+          ],
           Divider(height: 1, color: dividerColor, indent: 60),
           _CallSettingsSectionHeader(label: 'Camera', color: accentColor),
           _CallSettingsDeviceRow(
@@ -3001,20 +3041,23 @@ class _InputLevelMeter extends StatefulWidget {
 
 class _InputLevelMeterState extends State<_InputLevelMeter>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+  late final AnimationController _animController;
+  Timer? _levelTimer;
   Process? _captureProcess;
   double _currentLevel = 0.0;
-  double _targetLevel = 0.0;
+  double _displayLevel = 0.0;
+  double _prevLevel = 0.0;
   bool _capturing = false;
+  bool _captureFailed = false;
   bool _powerSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 100),
-    )..addListener(_onTick);
+      duration: const Duration(milliseconds: 200),
+    )..addListener(_onAnimTick);
     _startCapture();
   }
 
@@ -3028,18 +3071,31 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
     final ps = context.read<AppState>().powerSaving(AppState.kPowerSavingCalls);
     if (ps == _powerSaving) return;
     _powerSaving = ps;
-    if (_powerSaving && _controller.isAnimating) {
-      _controller.stop();
-    } else if (!_powerSaving && _capturing && !_controller.isAnimating) {
-      _controller.repeat();
+    if (_powerSaving) {
+      _levelTimer?.cancel();
+      _levelTimer = null;
+      _animController.stop();
+    } else if (_capturing) {
+      _startLevelTimer();
     }
   }
 
-  void _onTick() {
-    if (!mounted) return;
-    setState(() {
-      _currentLevel = _currentLevel + (_targetLevel - _currentLevel) * 0.3;
+  void _startLevelTimer() {
+    _levelTimer?.cancel();
+    _levelTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (!mounted || _powerSaving) return;
+      _prevLevel = _displayLevel;
+      _animController.forward(from: 0.0);
     });
+  }
+
+  void _onAnimTick() {
+    if (!mounted) return;
+    final t = Curves.easeInOut.transform(_animController.value);
+    final newLevel = _prevLevel + (_currentLevel - _prevLevel) * t;
+    if ((newLevel - _displayLevel).abs() > 0.005) {
+      setState(() => _displayLevel = newLevel);
+    }
   }
 
   Future<void> _startCapture() async {
@@ -3075,10 +3131,13 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
         continue;
       }
     }
-    if (_captureProcess == null) return;
+    if (_captureProcess == null) {
+      if (mounted) setState(() => _captureFailed = true);
+      return;
+    }
     try {
       _capturing = true;
-      _controller.repeat();
+      _startLevelTimer();
       _captureProcess!.stdout.listen(
         (data) {
           if (!mounted || data.length < 2) return;
@@ -3089,7 +3148,7 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
             final abs = sample.abs() / 32768.0;
             if (abs > peak) peak = abs;
           }
-          _targetLevel = peak.clamp(0.0, 1.0);
+          _currentLevel = peak.clamp(0.0, 1.0);
         },
         onError: (_) => _stopCapture(),
         onDone: _stopCapture,
@@ -3097,11 +3156,14 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
       _captureProcess!.stderr.drain<void>();
     } catch (_) {
       _capturing = false;
+      if (mounted) setState(() => _captureFailed = true);
     }
   }
 
   void _stopCapture() {
     _capturing = false;
+    _levelTimer?.cancel();
+    _levelTimer = null;
     _captureProcess?.kill();
     _captureProcess = null;
   }
@@ -3109,16 +3171,32 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
   @override
   void dispose() {
     _stopCapture();
-    _controller.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_captureFailed) {
+      return SizedBox(
+        height: 18,
+        child: Center(
+          child: Text(
+            'Microphone test unavailable',
+            style: TextStyle(
+              fontSize: 12,
+              color: widget.isDark
+                  ? const Color(0x80FFFFFF)
+                  : const Color(0x80000000),
+            ),
+          ),
+        ),
+      );
+    }
     return CustomPaint(
       size: const Size(double.infinity, 18),
       painter: _LevelMeterPainter(
-        level: (_capturing && !_powerSaving) ? _currentLevel : 0.0,
+        level: (_capturing && !_powerSaving) ? _displayLevel : 0.0,
         activeColor: widget.accentColor,
         inactiveColor: widget.isDark
             ? const Color(0xFF3B4654)
