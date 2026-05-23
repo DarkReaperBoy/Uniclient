@@ -90,6 +90,9 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   final _messageFocusNode = FocusNode();
 
   double _selfAudioLevel = 0.0;
+  StreamSubscription<GroupCallStateEvent>? _callStateSub;
+  Map<String, double> _participantLevels = {};
+  Map<String, bool> _participantSpeaking = {};
 
   @override
   void initState() {
@@ -99,7 +102,10 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     if (_durationSeconds < 0) _durationSeconds = 0;
     _startDurationTimer();
     _cacheAvatarPaths();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _startAudioLevelPolling());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startAudioLevelPolling();
+      _subscribeToCallState();
+    });
   }
 
   @override
@@ -130,6 +136,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   void dispose() {
     _durationTimer?.cancel();
     _audioLevelTimer?.cancel();
+    _callStateSub?.cancel();
     _messageController.dispose();
     _messageFocusNode.dispose();
     super.dispose();
@@ -162,6 +169,26 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           setState(() => _selfAudioLevel = level);
         }
       } catch (_) {}
+    });
+  }
+
+  void _subscribeToCallState() {
+    final engine = context.read<EngineService>();
+    _callStateSub = engine.onGroupCallState.listen((event) {
+      if (!mounted) return;
+      if (event.info.callId != widget.info.callId) return;
+      final newLevels = <String, double>{};
+      final newSpeaking = <String, bool>{};
+      for (final p in event.info.participants) {
+        newLevels[p.userId] = p.audioLevel;
+        newSpeaking[p.userId] = p.isSpeaking;
+      }
+      if (mounted) {
+        setState(() {
+          _participantLevels = newLevels;
+          _participantSpeaking = newSpeaking;
+        });
+      }
     });
   }
 
@@ -303,6 +330,9 @@ class _GroupCallPanelState extends State<GroupCallPanel>
       );
     }
 
+    final liveLevel = _participantLevels[p.userId] ?? p.audioLevel;
+    final liveSpeaking = _participantSpeaking[p.userId] ?? p.isSpeaking;
+
     return GestureDetector(
       onLongPress: () => _showParticipantMenu(context, p),
       onSecondaryTapUp: (details) => _showParticipantMenu(context, p, position: details.globalPosition),
@@ -312,8 +342,8 @@ class _GroupCallPanelState extends State<GroupCallPanel>
         child: Row(
           children: [
             _SpeakerBlobAvatar(
-              level: p.isSpeaking ? (p.audioLevel > 0 ? p.audioLevel : 0.5) : 0.0,
-              isSpeaking: p.isSpeaking,
+              level: liveSpeaking ? (liveLevel > 0 ? liveLevel : 0.5) : 0.0,
+              isSpeaking: liveSpeaking,
               child: avatar,
             ),
             const SizedBox(width: 12),
@@ -329,7 +359,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
                 ),
               ),
             ),
-            if (p.isSpeaking)
+            if (liveSpeaking)
               const Icon(Icons.graphic_eq, color: Color(0xFF4DC920), size: 20),
             if (p.isMuted)
               const Icon(Icons.mic_off, color: Color(0x80FFFFFF), size: 18),
@@ -588,6 +618,8 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           _BigMuteButton(
             state: _muteState,
             onTap: widget.onToggleMute,
+            scheduleDate: widget.scheduleDate,
+            isCanManage: widget.isCanManage,
           ),
         ],
       ),
@@ -1015,8 +1047,15 @@ class _TitleBarButton extends StatelessWidget {
 class _BigMuteButton extends StatefulWidget {
   final MuteButtonState state;
   final VoidCallback? onTap;
+  final int scheduleDate;
+  final bool isCanManage;
 
-  const _BigMuteButton({required this.state, this.onTap});
+  const _BigMuteButton({
+    required this.state,
+    this.onTap,
+    this.scheduleDate = 0,
+    this.isCanManage = false,
+  });
 
   @override
   State<_BigMuteButton> createState() => _BigMuteButtonState();
@@ -1103,6 +1142,9 @@ class _BigMuteButtonState extends State<_BigMuteButton>
   }
 
   Color get _stateColor {
+    if (_isScheduled) {
+      return widget.isCanManage ? _greenColor : _purpleColor;
+    }
     switch (widget.state) {
       case MuteButtonState.unmuted:
         return _greenColor;
@@ -1123,7 +1165,12 @@ class _BigMuteButtonState extends State<_BigMuteButton>
     widget.onTap?.call();
   }
 
+  bool get _isScheduled => widget.scheduleDate > 0;
+
   String get _label {
+    if (_isScheduled) {
+      return widget.isCanManage ? 'Start Now' : 'Remind';
+    }
     switch (widget.state) {
       case MuteButtonState.unmuted:
         return 'Mute';
@@ -1135,6 +1182,9 @@ class _BigMuteButtonState extends State<_BigMuteButton>
   }
 
   IconData get _icon {
+    if (_isScheduled) {
+      return widget.isCanManage ? Icons.play_arrow : Icons.notifications_outlined;
+    }
     switch (widget.state) {
       case MuteButtonState.unmuted:
         return Icons.mic;
