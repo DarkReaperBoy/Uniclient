@@ -606,10 +606,6 @@ All geometric calculations match:
 
 
 
-## call_screen — Real-time audio level updates not wired to participants list
-
-- [ ] [MAJOR] `audioLevel` on `GroupCallParticipant` is consumed by `_SpeakerBlobAvatar` but is a static field from the initial data model — there is no subscription to live level updates from the engine (`levelUpdates` stream). The blob animations use the stale initial value and never animate dynamically unless the entire participant list is rebuilt. — `call_screen.dart:277` ← `AyuGram/calls/group/calls_group_panel.cpp:663-668` (AyuGram subscribes to `_call->levelUpdates()` and calls `_mute->setLevel(update.value)` on each update)
-
 ## call_screen — Screen share thumbnail capture uses `import` (ImageMagick) X11 only, silently fails on Wayland
 
 - [ ] [MAJOR] `_captureSourceThumb` calls `Process.run('import', ['-window', 'root', ...])` which is X11-specific ImageMagick. On Wayland (the default for modern Linux desktops), this silently returns an empty thumbnail for all sources. No Wayland-native capture path exists (e.g., XDG screencopy or pipewire frame). — `call_screen.dart:2677-2697` ← `AyuGram/ui/platform/ui_platform_utility` (uses native platform screen capture APIs)
