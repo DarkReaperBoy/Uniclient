@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import 'ayu_section_builder.dart';
 import 'ayu_toggle.dart';
@@ -611,25 +612,37 @@ class _EditMarkBoxContent extends StatefulWidget {
 
 class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
   late final TextEditingController _controller;
-  bool _error = false;
+  final _focusNode = FocusNode();
+  bool _showError = false;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.currentValue);
+    _controller.addListener(() {
+      if (_showError && _controller.text.trim().isNotEmpty) {
+        setState(() => _showError = false);
+      }
+    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
-  void _save() {
+  void _submit() {
     if (_controller.text.trim().isEmpty) {
-      setState(() => _error = true);
-      return;
+      _focusNode.requestFocus();
+      setState(() => _showError = true);
+    } else {
+      _save();
     }
+  }
+
+  void _save() {
     widget.onSaved(_controller.text);
     Navigator.of(context).pop();
   }
@@ -640,45 +653,48 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
 
     return TelegramBox(
       title: widget.title,
-      onConfirm: _save,
+      onConfirm: _submit,
       content: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+        padding: const EdgeInsets.fromLTRB(24, 2, 24, 14),
         child: TextField(
           controller: _controller,
+          focusNode: _focusNode,
           autofocus: true,
-          onChanged: (_) {
-            if (_error) setState(() => _error = false);
-          },
+          onSubmitted: (_) => _submit(),
           style: TextStyle(fontSize: 14, color: p.boxTextFg),
           decoration: InputDecoration(
             hintText: widget.title,
-            errorText: _error ? 'Cannot be empty' : null,
-            hintStyle: TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w600, color: p.boxTextFg.withValues(alpha: 0.4)),
+            hintStyle: TextStyle(fontSize: 14, color: p.placeholderFg),
             enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: p.windowBgActive),
+              borderSide: BorderSide(
+                color: _showError ? p.activeLineFgError : p.inputBorderFg,
+              ),
             ),
             focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: p.windowBgActive, width: 2),
+              borderSide: BorderSide(
+                color: _showError ? p.activeLineFgError : p.activeLineFg,
+                width: 2,
+              ),
             ),
+            contentPadding: const EdgeInsets.symmetric(vertical: 8),
           ),
         ),
       ),
       buttons: [
         TelegramBoxButton(
-          text: 'Reset',
+          text: TrStrings.lngAyuBoxActionReset(),
           isLeft: true,
           onPressed: () {
             _controller.text = widget.defaultValue;
           },
         ),
         TelegramBoxButton(
-          text: 'Cancel',
-          onPressed: () => Navigator.of(context).pop(),
+          text: TrStrings.lngSettingsSave(),
+          onPressed: _submit,
         ),
         TelegramBoxButton(
-          text: 'Save',
-          onPressed: _save,
+          text: TrStrings.lngCancel(),
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ],
     );

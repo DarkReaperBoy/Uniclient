@@ -112,6 +112,10 @@ class TrStrings {
   static String lngFiltersCheckboxRemoveChannel() => 'Remove from chat folders';
   static String lngFiltersCheckboxRemoveGroup() => 'Remove from chat folders';
 
+  // Common dialog buttons (edit_mark_box.cpp:44-58, layers.style)
+  static String lngSettingsSave() => 'Save';
+  static String lngAyuBoxActionReset() => 'Reset';
+
   // AyuForward status strings (ayu_forward.cpp:64-89)
   static String lngAyuForwardStatusPreparing() => 'Preparing...';
   static String lngAyuForwardStatusForwarding() => 'Forwarding messages';
