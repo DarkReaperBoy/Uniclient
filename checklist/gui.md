@@ -700,11 +700,6 @@ All numeric constants match AyuGram exactly:
 
 ## confirm_box — §36.13 Report Flow
 
-## confirm_box — §36.12 Screen Share Chooser
-
-- [ ] [CRITICAL] AyuGram's screen share chooser does not exist as a Flutter/Dart widget — the C++ implementation uses `tgcalls` / WebRTC screen capture APIs directly integrated into the calling infrastructure. The Dart `_ScreenShareChooser` spawns external OS processes (`grim`, `import`, `wmctrl`, `xdotool`, `kdotool`, `xrandr`) to enumerate sources and capture thumbnails (`confirm_box.dart:1195–1339`), but **never calls the engine/bridge** to actually start screen sharing. The selected `ScreenShareResult` is returned to callers but the engine's screen-share API is not invoked here — the wiring must exist in the caller. This is correct as a data-return dialog, but if any caller fails to wire the result to the engine, screen sharing silently does nothing. — `confirm_box.dart:1503–1512` ← `AyuGram/boxes/delete_messages_box.cpp` (structural reference — no direct C++ equivalent for this dialog)
-
-- [ ] [MAJOR] For Wayland, the `_ScreenShareChooser` falls back to `portal:screen` as a single "Entire Screen" source and enumerates windows via `kdotool` (`confirm_box.dart:1188–1213`). No thumbnail is captured on Wayland (only `grim` for the screen itself, not per-window). AyuGram uses the XDG Desktop Portal (`xdg-desktop-portal`) for Wayland screen sharing — this is the correct approach but is not implemented here. The fallback is functional as a degraded experience but does not match the spec. — `confirm_box.dart:1319–1323`
 
 ## confirm_box — Performance
 
