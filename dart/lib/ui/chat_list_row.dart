@@ -13,9 +13,21 @@ import '../theme/telegram_palette.dart';
 import 'emoji_status_widget.dart';
 import 'forum_topic_icon.dart';
 
+const _thumbCacheMaxSize = 200;
 final _thumbBytesCache = <String, Uint8List>{};
-Uint8List _cachedThumbDecode(String b64) =>
-    _thumbBytesCache.putIfAbsent(b64, () => base64Decode(b64));
+Uint8List _cachedThumbDecode(String b64) {
+  final cached = _thumbBytesCache.remove(b64);
+  if (cached != null) {
+    _thumbBytesCache[b64] = cached;
+    return cached;
+  }
+  final decoded = base64Decode(b64);
+  _thumbBytesCache[b64] = decoded;
+  while (_thumbBytesCache.length > _thumbCacheMaxSize) {
+    _thumbBytesCache.remove(_thumbBytesCache.keys.first);
+  }
+  return decoded;
+}
 
 const _monthAbbr = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -259,6 +271,14 @@ class ChatListRow extends StatelessWidget {
                                     size: 16,
                                     fallbackColor: isActive ? palette.dialogsNameFgActive : null,
                                   ),
+                                ] else if (chat.isPremium &&
+                                    chat.type == ChatType.dm &&
+                                    !hidePremiumStatuses) ...[
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.star_rounded,
+                                    size: 16,
+                                    color: isActive ? palette.dialogsNameFgActive : palette.dialogsVerifiedIconBg,
+                                  ),
                                 ],
                                 if (chat.isMuted && showMuteIcon) ...[
                                   const SizedBox(width: 4),
@@ -359,7 +379,8 @@ class ChatListRow extends StatelessWidget {
       );
     }
 
-    if (showDrafts && chat.draftText.isNotEmpty) {
+    if (showDrafts && chat.draftText.isNotEmpty &&
+        !chat.isForum && chat.unreadCount == 0 && !chat.isUnreadMark) {
       return Text.rich(
         TextSpan(children: [
           if (chat.draftReplyToMsgId.isNotEmpty)
@@ -390,7 +411,7 @@ class ChatListRow extends StatelessWidget {
     }
 
     final showSender = chat.lastMsgSender.isNotEmpty &&
-        (chat.type == ChatType.group || chat.type == ChatType.channel);
+        chat.type == ChatType.group;
 
     // Spec §2.3: Mini media previews — 16px thumbnail or media-type icon
     // before preview text. Strip the engine's emoji prefix when showing a
@@ -411,7 +432,7 @@ class ChatListRow extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               color: isActive
-                  ? palette.dialogsTextFgActive.withValues(alpha: 0.7)
+                  ? palette.dialogsTextFgActive
                   : palette.dialogsTextFgService,
             ),
           ),
@@ -516,6 +537,9 @@ enum SwipeAction {
   disabled,
 }
 
+bool _isNotificationsUser(String chatId) =>
+    chatId == '333000' || chatId == '777000';
+
 /// Spec §2.7: Resolve base swipe action string to the correct toggle variant
 /// based on the chat's current state (ResolveQuickDialogLabel).
 /// e.g. "archive" → SwipeAction.unarchive if chat is already archived.
@@ -534,7 +558,7 @@ SwipeAction resolveSwipeAction(String baseAction, ChatInfo chat) {
           ? SwipeAction.read
           : SwipeAction.unread;
     case 'archive':
-      if (chat.isSelf) return SwipeAction.disabled;
+      if (chat.isSelf || _isNotificationsUser(chat.chatId)) return SwipeAction.disabled;
       return chat.isArchived ? SwipeAction.unarchive : SwipeAction.archive;
     case 'delete':
       return SwipeAction.delete;
@@ -936,7 +960,7 @@ class _SwipeRipplePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const iconSize = 20.0;
     const offset = iconSize + iconSize / 2;
-    final center = Offset(size.width - offset, offset);
+    final center = Offset(swipeOffset - offset, offset);
 
     if (reachRatio > 0) {
       final r = swipeOffset * reachRatio;
@@ -947,7 +971,7 @@ class _SwipeRipplePainter extends CustomPainter {
     }
 
     if (rippleProgress > 0) {
-      final maxRadius = size.width * 0.6;
+      final maxRadius = swipeOffset * 0.6;
       final radius = maxRadius * Curves.easeOut.transform(rippleProgress);
       final alpha = (1.0 - rippleProgress * 0.8).clamp(0.0, 1.0);
       canvas.drawCircle(
@@ -2141,7 +2165,7 @@ class ForumChatListRow extends StatelessWidget {
                     _ChatAvatar(
                       chat: chat,
                       size: _avatarSize,
-                      isOnline: false,
+                      isActive: isActive,
                       minified: true,
                       onStoryTap: onStoryTap,
                     ),

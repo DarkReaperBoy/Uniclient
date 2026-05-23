@@ -242,6 +242,7 @@ class ChatInfo {
   final bool noForwards;
   final bool isSelf;
   final String username;
+  final bool isPremium;
   final bool isReplies;
   final bool isHiddenAuthor;
   final String draftReplyToMsgId;
@@ -301,6 +302,7 @@ class ChatInfo {
     this.noForwards = false,
     this.isSelf = false,
     this.username = '',
+    this.isPremium = false,
     this.isReplies = false,
     this.isHiddenAuthor = false,
     this.draftReplyToMsgId = '',
@@ -361,6 +363,7 @@ class ChatInfo {
     noForwards: j['no_forwards'] as bool? ?? false,
     isSelf: j['is_self'] as bool? ?? false,
     username: j['username'] as String? ?? '',
+    isPremium: j['is_premium'] as bool? ?? false,
     isReplies: j['is_replies'] as bool? ?? false,
     isHiddenAuthor: j['is_hidden_author'] as bool? ?? false,
     draftReplyToMsgId: j['draft_reply_to_msg_id'] as String? ?? '',

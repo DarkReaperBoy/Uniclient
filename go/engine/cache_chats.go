@@ -63,6 +63,7 @@ type ChatInfo struct {
 	NoForwards           bool   `json:"no_forwards,omitempty"`
 	IsSelf               bool   `json:"is_self,omitempty"`
 	Username             string `json:"username,omitempty"`
+	IsPremium            bool   `json:"is_premium,omitempty"`
 }
 
 // chatTypeToInt converts cores.ChatType to DB integer.
@@ -197,6 +198,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 
 		var hasUnreadStory, isForumInt int
 		var notJoined, joinRequestInt, canPostInt, isAdminInt, noForwardsInt int
+		var isPremiumInt int
 		var writeRestrictionText, usernameN sql.NullString
 		if err := rows.Scan(
 			&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
@@ -211,7 +213,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 			&c.StoryCount, &hasUnreadStory, &isForumInt,
 			&c.WriteRestrictionType, &writeRestrictionText,
 			&notJoined, &joinRequestInt, &canPostInt, &isAdminInt, &noForwardsInt,
-			&usernameN,
+			&usernameN, &isPremiumInt,
 		); err != nil {
 			return chats, err
 		}
@@ -250,6 +252,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		c.IsAdmin = isAdminInt == 1
 		c.NoForwards = noForwardsInt == 1
 		c.Username = usernameN.String
+		c.IsPremium = isPremiumInt == 1
 
 		chats = append(chats, c)
 	}
@@ -1369,7 +1372,8 @@ func (e *Engine) GetTopPeers(accountID string, limit int) ([]ChatInfo, error) {
 			        c.stars_to_send, c.ttl_period, c.emoji_status_id,
 			        c.story_count, c.has_unread_story, c.is_forum,
 			        c.write_restriction_type, c.write_restriction_text,
-			        c.not_joined, c.join_request, c.can_post, c.is_admin, c.no_forwards, c.username
+			        c.not_joined, c.join_request, c.can_post, c.is_admin, c.no_forwards, c.username,
+			        COALESCE(u.is_premium, 0)
 			 FROM chats c
 			 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 			 WHERE c.account_id = ? AND c.chat_id = ?`, accountID, pid)
