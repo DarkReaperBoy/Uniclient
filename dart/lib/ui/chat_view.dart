@@ -6482,6 +6482,9 @@ class _ChatTopBar extends StatelessWidget {
             if (r.blockBot && chat.isBot) {
               chatState.blockUser(chat.accountId, chat.chatId);
             }
+            if (r.removeFromFolders) {
+              chatState.removeChatFromAllFolders(chat.accountId, chat.chatId);
+            }
             chatState.deleteChat(chat.accountId, chat.chatId);
           });
         case 'leave':
@@ -6496,6 +6499,9 @@ class _ChatTopBar extends StatelessWidget {
             if (!r.confirmed) return;
             if (r.blockBot && chat.isBot) {
               chatState.blockUser(chat.accountId, chat.chatId);
+            }
+            if (r.removeFromFolders) {
+              chatState.removeChatFromAllFolders(chat.accountId, chat.chatId);
             }
             chatState.leaveChat(chat.accountId, chat.chatId);
           });

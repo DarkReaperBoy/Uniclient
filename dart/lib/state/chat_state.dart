@@ -868,6 +868,26 @@ class ChatState extends ChangeNotifier {
     await loadFoldersForAccount(accountId);
   }
 
+  Future<void> removeChatFromAllFolders(String accountId, String chatId) async {
+    for (final folder in _folders) {
+      if (folder.chatIds.contains(chatId)) {
+        final updated = List<String>.from(folder.chatIds)..remove(chatId);
+        await _engine.editFolder(accountId, folder.id, folder.name, updated,
+          contacts: folder.contacts,
+          nonContacts: folder.nonContacts,
+          groups: folder.groups,
+          channels: folder.channels,
+          bots: folder.bots,
+          excludeMuted: folder.excludeMuted,
+          excludeRead: folder.excludeRead,
+          excludeArchived: folder.excludeArchived,
+          excludeChatIds: folder.excludeChatIds,
+        );
+      }
+    }
+    await loadFoldersForAccount(accountId);
+  }
+
   /// Reorder folders (drag-and-drop in folder sidebar).
   void reorderFolders(int oldIndex, int newIndex) {
     if (oldIndex < 0 || oldIndex >= _folders.length) return;

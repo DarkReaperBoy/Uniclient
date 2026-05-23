@@ -1922,9 +1922,18 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox>
 
   void _onLottieLoaded(LottieComposition composition) {
     _lottieController.duration = composition.duration;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    final anim = ModalRoute.of(context)?.animation;
+    if (anim != null && !anim.isCompleted) {
+      void listener(AnimationStatus status) {
+        if (status == AnimationStatus.completed && mounted) {
+          _lottieController.forward();
+          anim.removeStatusListener(listener);
+        }
+      }
+      anim.addStatusListener(listener);
+    } else {
       if (mounted) _lottieController.forward();
-    });
+    }
   }
 
   void _submit() {

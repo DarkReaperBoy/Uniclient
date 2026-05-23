@@ -1101,6 +1101,9 @@ class _ChatListPanelState extends State<ChatListPanel>
             if (r.blockBot && chat.isBot) {
               cs.blockUser(chat.accountId, chat.chatId);
             }
+            if (r.removeFromFolders) {
+              cs.removeChatFromAllFolders(chat.accountId, chat.chatId);
+            }
             if (chat.type == ChatType.dm) {
               cs.deleteChat(chat.accountId, chat.chatId);
             } else {
@@ -1645,6 +1648,9 @@ class _ChatListPanelState extends State<ChatListPanel>
               if (r.blockBot && chat.isBot) {
                 chatState2.blockUser(chat.accountId, chat.chatId);
               }
+              if (r.removeFromFolders) {
+                chatState2.removeChatFromAllFolders(chat.accountId, chat.chatId);
+              }
               chatState2.deleteChat(chat.accountId, chat.chatId);
             });
           }
@@ -1662,6 +1668,9 @@ class _ChatListPanelState extends State<ChatListPanel>
               if (!r.confirmed) return;
               if (r.blockBot && chat.isBot) {
                 chatState2.blockUser(chat.accountId, chat.chatId);
+              }
+              if (r.removeFromFolders) {
+                chatState2.removeChatFromAllFolders(chat.accountId, chat.chatId);
               }
               chatState2.leaveChat(chat.accountId, chat.chatId);
             });
