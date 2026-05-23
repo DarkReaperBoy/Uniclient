@@ -715,29 +715,9 @@ All numeric constants match AyuGram exactly:
 
 # create_giveaway_box — Audit findings
 
-- [ ] [CRITICAL] Default end date is 7 days instead of 3 days — `create_giveaway_box.dart:64` (`_untilDate = DateTime.now().add(const Duration(days: 7))`) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:1263` (`state->dateValue = ThreeDaysAfterToday().toSecsSinceEpoch()`) and `create_giveaway_box.cpp:64-73` (`ThreeDaysAfterToday()` rounds to next 5-minute boundary too)
-
-- [ ] [CRITICAL] Missing "Add Channels" section — users cannot select additional channels that subscribers must join to qualify; the `additional_peers` param exists in the Go backend but is never collected from the UI — `create_giveaway_box.dart` (no such section exists) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:862-938` (full `SelectedChannelsListController` peer list + "Add" button + `state->selectedToSubscribe`)
-
-- [ ] [CRITICAL] Missing country filter for subscriber eligibility — `_onlyNewSubscribers` bool toggle (line 62) is a poor substitute for the AllMembers/OnlyNewMembers radio group plus country picker — `create_giveaway_box.dart:62,501-506` ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:940-1016` (`membersGroup`, `countriesValue`, `SelectCountriesBox`)
-
 - [ ] [CRITICAL] Missing Credits/Stars giveaway type entirely — the Dart only has `random` and `prepaid` enum values; the Credits giveaway with star options, slider, and `yearlyBoosts` badge is absent — `create_giveaway_box.dart:13` (`enum _GiveawayType { random, prepaid }`) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:272,458-699` (`GiveawayType::Credits`, `Api::CreditsGiveawayOptions`, `fillCreditsOptions`)
 
-- [ ] [CRITICAL] "Additional Prize" field is always visible; should be hidden behind a toggle button that reveals it — `create_giveaway_box.dart:550-566` (bare `TextField` always rendered) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:1101-1136` (`additionalToggle` SettingsButton toggles `SlideWrap<InputField>`, hidden by default with `additionalInner->hide(anim::type::instant)`)
-
-- [ ] [MAJOR] No confirmation dialog before launching prepaid giveaway — `_launchPrepaid()` calls the engine immediately — `create_giveaway_box.dart:102-133` ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:1524-1535` (`Ui::MakeConfirmBox` with `tr::lng_giveaway_start_sure` shown before `startPrepaid`)
-
-- [ ] [MAJOR] Winner count selection uses ChoiceChip widgets instead of a continuous slider — `create_giveaway_box.dart:429-448` (Wrap of ChoiceChips) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:701-860` (`MediaSliderWheelless` with floating label showing current value)
-
-- [ ] [MAJOR] Duration selection uses ChoiceChip widgets instead of premium gift option cards with pricing — `create_giveaway_box.dart:452-473` (Wrap of ChoiceChips showing "N mo") ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:1059-1085` (`Ui::Premium::AddGiftOptions` with `giveawayGiftCodeGiftOption` style, full price display)
-
 - [ ] [MAJOR] Max date for the date picker is hardcoded to 365 days; should be fetched from the API — `create_giveaway_box.dart:519` (`DateTime.now().add(const Duration(days: 365))`) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:1285-1287` (`state->apiOptions.giveawayPeriodMax()`)
-
-- [ ] [MAJOR] "Show Winners" rendered as a Material Switch instead of a SettingsButton toggle — `create_giveaway_box.dart:508-513` (`_SettingSwitch` with `Switch` widget) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:1322-1338` (`Ui::SettingsButton` with `toggleOn(rpl::single(false))`)
-
-- [ ] [MAJOR] Start Giveaway button missing boost-count badge — button shows plain "Start Giveaway" text with no boost indicator — `create_giveaway_box.dart:585,603` (`Text('Start Giveaway'...)`) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:1349-1372` (`AddLabelWithBadgeToButton` displaying `giveawayBoostsPerPremium() * sliderValue`)
-
-- [ ] [MAJOR] Winner count chips show raw subscriber count with no boost calculation — label shows `'$u'` but should show boosts-per-subscription multiplied count — `create_giveaway_box.dart:435` (`label: Text('$u')`) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:748-756` (`state->apiOptions.giveawayBoostsPerPremium() * v` populates the quantity subtitle)
 
 ## create_group_wizard — Setup channel step, noForwards, slowMode placement, invite link button, TTL box, megagroup labels
 
