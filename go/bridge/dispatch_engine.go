@@ -1253,6 +1253,28 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		})
 		return nil, nil
 
+	case "SetPowerSaving":
+		var params struct {
+			Flags int `json:"flags"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		e.SetPowerSaving(params.Flags)
+		return nil, nil
+
+	case "SetLocalStorageLimits":
+		var params struct {
+			TotalLimitMB  int `json:"total_limit_mb"`
+			MediaLimitMB  int `json:"media_limit_mb"`
+			TimeLimitDays int `json:"time_limit_days"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		e.SetLocalStorageLimits(params.TotalLimitMB, params.MediaLimitMB, params.TimeLimitDays)
+		return nil, nil
+
 	// ── Folders ──
 
 	case "GetFolders":

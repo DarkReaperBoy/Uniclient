@@ -198,6 +198,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _proxyRotationEnabled = false;
   int _proxyRotationTimeout = 60;
   List<Map<String, dynamic>> _proxyList = [];
+  Map<String, dynamic> _selectedProxyData = {};
   Map<String, Map<String, dynamic>> _autoDownloadSettings = {};
   String _cacheDir = '';
   int _localStorageTotalLimit = 8192; // MB
@@ -2168,10 +2169,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _syncProxyToEngine();
   }
 
+  void setSelectedProxy(Map<String, dynamic> proxy) {
+    _selectedProxyData = Map<String, dynamic>.from(proxy);
+    _saveWindowPrefs();
+    _syncProxyToEngine();
+  }
+
   void _syncProxyToEngine() {
-    final activeProxy = (_proxyMode == 2 && _proxyList.isNotEmpty)
-        ? _proxyList.first
-        : <String, dynamic>{};
+    final activeProxy = (_proxyMode == 2 && _selectedProxyData.isNotEmpty)
+        ? _selectedProxyData
+        : (_proxyMode == 2 && _proxyList.isNotEmpty)
+            ? _proxyList.first
+            : <String, dynamic>{};
     final payload = {
       'mode': _proxyMode,
       'ipv6': _proxyIpv6,
@@ -2509,6 +2518,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _powerSavingFlags = updated;
     _saveWindowPrefs();
     notifyListeners();
+    _engine.callGeneric('__engine', 'SetPowerSaving', {
+      'flags': _powerSavingFlags,
+    }).catchError((_) {});
   }
 
   // §19.14: Translation settings
@@ -3250,6 +3262,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _proxyRotationTimeout = data['proxyRotationTimeout'] as int? ?? 60;
       final pList = data['proxyList'] as List<dynamic>?;
       if (pList != null) _proxyList = pList.cast<Map<String, dynamic>>();
+      final selProxy = data['selectedProxyData'] as Map<String, dynamic>?;
+      if (selProxy != null) _selectedProxyData = selProxy;
       final adSettings = data['autoDownloadSettings'] as Map<String, dynamic>?;
       if (adSettings != null) {
         _autoDownloadSettings = adSettings.map((k, v) => MapEntry(k, (v as Map<String, dynamic>)));
@@ -3549,6 +3563,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'proxyRotationEnabled': _proxyRotationEnabled,
         'proxyRotationTimeout': _proxyRotationTimeout,
         'proxyList': _proxyList,
+        'selectedProxyData': _selectedProxyData,
         'autoDownloadSettings': _autoDownloadSettings,
         'localStorageTotalLimit': _localStorageTotalLimit,
         'localStorageMediaLimit': _localStorageMediaLimit,

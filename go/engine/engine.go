@@ -103,6 +103,14 @@ type Engine struct {
 	// Auto-download settings: per-source limits controlled from Dart via SetAutoDownload.
 	autoDownloadMu       sync.RWMutex
 	autoDownloadSettings map[string]map[string]interface{}
+
+	// Power saving flags bitmap from Dart UI.
+	powerSavingFlags int
+
+	// Local storage limits from Dart UI.
+	localStorageTotalMB  int
+	localStorageMediaMB  int
+	localStorageTimeDays int
 }
 
 // Init initializes the engine: opens vault+DB, loads accounts, starts connections.
@@ -265,6 +273,23 @@ func (e *Engine) SetAutoDownloadSettings(source string, settings map[string]inte
 	e.autoDownloadSettings[source] = settings
 	e.autoDownloadMu.Unlock()
 	log.Printf("[engine] SetAutoDownload: source=%s settings=%v", source, settings)
+}
+
+// SetPowerSaving stores the power-saving flags bitmap from the Dart UI.
+func (e *Engine) SetPowerSaving(flags int) {
+	e.powerSavingFlags = flags
+	log.Printf("[engine] SetPowerSaving: flags=0x%X", flags)
+}
+
+// SetLocalStorageLimits stores cache eviction limits from the Dart UI.
+func (e *Engine) SetLocalStorageLimits(totalMB, mediaMB, timeDays int) {
+	e.localStorageTotalMB = totalMB
+	e.localStorageMediaMB = mediaMB
+	e.localStorageTimeDays = timeDays
+	if totalMB > 0 {
+		e.maxCache = int64(totalMB) * 1024 * 1024
+	}
+	log.Printf("[engine] SetLocalStorageLimits: total=%dMB media=%dMB time=%ddays", totalMB, mediaMB, timeDays)
 }
 
 // CheckProxy tests proxy connectivity by connecting to a Telegram DC through it.

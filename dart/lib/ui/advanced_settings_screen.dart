@@ -1206,7 +1206,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
 
   List<Widget> _buildScreenReader(bool isDark) {
     final appState = context.read<AppState>();
-    if (!_screenReaderDetected || appState.screenReaderOptimized) return const [];
+    if (!_screenReaderDetected) return const [];
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor = context.palette.windowBgActive;
@@ -1216,11 +1216,11 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     return [
       _SubsectionTitle(title: 'Screen Reader', color: accentColor),
       _AdvancedToggleRow(
-        label: 'Disable screen reader optimization',
-        value: !appState.screenReaderOptimized,
+        label: 'Screen reader optimization',
+        value: appState.screenReaderOptimized,
         onChanged: (v) {
-          appState.setScreenReaderOptimized(!v);
-          SemanticsService.announce('Screen reader optimization ${!v ? "disabled" : "enabled"}', TextDirection.ltr);
+          appState.setScreenReaderOptimized(v);
+          SemanticsService.announce('Screen reader optimization ${v ? "enabled" : "disabled"}', TextDirection.ltr);
         },
         textColor: textColor,
         accentColor: accentColor,
@@ -1539,26 +1539,36 @@ class _AutoDownloadBoxState extends State<_AutoDownloadBox> {
   void initState() {
     super.initState();
     final appState = context.read<AppState>();
-    final settings = appState.getAutoDownloadForSource(widget.source);
+    final settings = appState.getAutoDownloadForSource(_normalizeSource(widget.source));
     _photos = settings['photos'] as bool? ?? true;
     _files = settings['files'] as bool? ?? false;
-    _downloadLimit = (settings['downloadLimit'] as num?)?.toDouble() ?? 10;
+    final rawDl = (settings['downloadLimit'] as num?)?.toDouble() ?? 10;
+    _downloadLimit = rawDl > 10000 ? rawDl / (1024 * 1024) : rawDl;
     _videoMessages = settings['videoMessages'] as bool? ?? true;
     _videos = settings['videos'] as bool? ?? true;
     _gifs = settings['gifs'] as bool? ?? true;
-    _autoPlayLimit = (settings['autoPlayLimit'] as num?)?.toDouble() ?? 50;
+    final rawAp = (settings['autoPlayLimit'] as num?)?.toDouble() ?? 50;
+    _autoPlayLimit = rawAp > 10000 ? rawAp / (1024 * 1024) : rawAp;
   }
+
+  static String _normalizeSource(String source) => switch (source) {
+    'In private chats' => 'private',
+    'In groups' => 'group',
+    'In channels' => 'channel',
+    _ => source,
+  };
 
   void _save() {
     final appState = context.read<AppState>();
-    appState.setAutoDownloadSettings(widget.source, {
+    const megabyte = 1024 * 1024;
+    appState.setAutoDownloadSettings(_normalizeSource(widget.source), {
       'photos': _photos,
       'files': _files,
-      'downloadLimit': _downloadLimit,
+      'downloadLimit': (_downloadLimit * megabyte).round(),
       'videoMessages': _videoMessages,
       'videos': _videos,
       'gifs': _gifs,
-      'autoPlayLimit': _autoPlayLimit,
+      'autoPlayLimit': (_autoPlayLimit * megabyte).round(),
     });
     Navigator.of(context).pop();
   }
@@ -1925,18 +1935,16 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
         }
       }
     } catch (_) {}
-    if (tagIdx == 5) {
-      try {
-        appState.engine.clearCache(accountId: appState.activeAccountId);
-      } catch (_) {}
-    }
+    try {
+      appState.engine.clearCache(accountId: appState.activeAccountId);
+    } catch (_) {}
     if (mounted) setState(() => _tagSizes[tagIdx] = 0);
   }
 
   void _clearAll() async {
     final appState = context.read<AppState>();
     try {
-      appState.engine.clearCache();
+      appState.engine.clearCache(accountId: appState.activeAccountId);
     } catch (_) {}
     final cacheDir = appState.cacheDir;
     if (cacheDir.isNotEmpty) {
@@ -2583,9 +2591,8 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
 
   void _applyAutoFlags() {
     final appState = context.read<AppState>();
-    const allFlags = 0xFFFF;
-    setState(() => _flags = allFlags);
-    appState.setPowerSaving(allFlags, true);
+    setState(() => _flags = AppState.kPowerSavingAll);
+    appState.setPowerSaving(AppState.kPowerSavingAll, true);
   }
 
   bool get _overlayActive => _autoEnabled && _osPowerSaver;
@@ -2923,25 +2930,26 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
 
   void _syncToAppState() {
     final appState = context.read<AppState>();
-    final proxyType = (_mode == _ProxyMode.custom &&
+    final activeProxy = (_mode == _ProxyMode.custom &&
             _selectedIndex >= 0 &&
-            _selectedIndex < _proxies.length)
-        ? _proxies[_selectedIndex].typeLabel
-        : '';
+            _selectedIndex < _proxies.length &&
+            !_proxies[_selectedIndex].deleted)
+        ? _proxies[_selectedIndex]
+        : null;
+    final proxyType = activeProxy?.typeLabel ?? '';
     appState.setProxyMode(_mode.index, proxyType);
     appState.setProxyIpv6(_ipv6);
     appState.setProxyForCalls(_proxyForCalls);
-    appState.setProxyList(_proxies
-        .where((p) => !p.deleted)
-        .map((p) => {
-              'type': p.type.name,
-              'host': p.host,
-              'port': p.port,
-              'username': p.username,
-              'password': p.password,
-              'secret': p.secret,
-            })
-        .toList());
+    if (activeProxy != null) {
+      appState.setSelectedProxy({
+        'type': activeProxy.type.name,
+        'host': activeProxy.host,
+        'port': activeProxy.port,
+        'username': activeProxy.username,
+        'password': activeProxy.password,
+        'secret': activeProxy.secret,
+      });
+    }
   }
 
   Future<void> _checkAllProxies() async {
@@ -2989,6 +2997,18 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
 
   @override
   void dispose() {
+    final appState = context.read<AppState>();
+    appState.setProxyList(_proxies
+        .where((p) => !p.deleted)
+        .map((p) => {
+              'type': p.type.name,
+              'host': p.host,
+              'port': p.port,
+              'username': p.username,
+              'password': p.password,
+              'secret': p.secret,
+            })
+        .toList());
     _focusNode.dispose();
     super.dispose();
   }
@@ -4410,20 +4430,23 @@ class _DownloadPathOption extends StatelessWidget {
 }
 
 const _experimentalFlagDefs = <(String, String)>[
-  ('tabbed_emoji_panel', 'Use tabbed emoji/sticker panel'),
-  ('forum_chat_list', 'Show forum topics in chat list'),
-  ('dialogs_mute_icon', 'Show mute icon in dialogs'),
-  ('fractional_scaling', 'Enable fractional scaling'),
-  ('profile_in_context', 'Show profile preview in context menus'),
-  ('peer_id_display', 'Show peer IDs and channel info'),
-  ('large_bubble_radius', 'Use large message bubble radius'),
-  ('autoplay_gifs', 'Autoplay GIFs and stickers'),
-  ('webview_debug', 'Enable webview debugging'),
-  ('notification_custom', 'Custom notification sounds'),
-  ('freetype_rendering', 'Use FreeType font rendering'),
-  ('ipv6_preferred', 'Prefer IPv6 connections'),
-  ('smooth_scrolling', 'Use smooth scrolling'),
-  ('message_draft_visible', 'Show message drafts in dialogs'),
+  ('tabbed-panel-show-on-click', 'Show tabbed panel by click'),
+  ('forum-hide-chats-list', 'Hide chat list in forums'),
+  ('dialogs-mute-icon', 'Mute icon in dialogs'),
+  ('fractional-scaling-enabled', 'Enable precise High DPI scaling'),
+  ('view-profile-in-chats-list-context-menu', 'Add "View Profile" to context menu'),
+  ('show-peer-id-below-about', 'Show Peer IDs in Profile'),
+  ('use-small-msg-bubble-radius', 'Use small message bubble radius'),
+  ('disable-autoplay-next', 'Disable auto-play of the next track'),
+  ('webview-debug-enabled', 'Enable webview debugging'),
+  ('custom-notification', 'Force non-native notifications availability'),
+  ('free-type', 'FreeType font engine'),
+  ('prefer-ipv6', 'Prefer IPv6 connections'),
+  ('auto-scroll-inactive-chat', 'Mark as read of inactive chat'),
+  ('hide-reply-button', 'Hide reply button in notifications'),
+  ('hide-ai-button', 'Hide AI button'),
+  ('unlimited-recent-stickers', 'Unlimited recent stickers'),
+  ('fast-buttons-mode', 'Fast buttons mode'),
 ];
 
 const _flagsPrefix = 'tdesktop-flags:';
