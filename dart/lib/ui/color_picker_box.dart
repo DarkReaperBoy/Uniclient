@@ -15,7 +15,7 @@ const double _kCrosshairStroke = 1;
 const double _kSwatchHeight = 34;
 const double _kFieldHeight = 26;
 const double _kSliderTotalWidth = _kSliderSkip + _kSliderWidth + _kSliderSkip;
-const double _kArrowHalf = 4;
+const double _kArrowHalf = 3.5;
 const double _kEditWidth = 390;
 const double _kMinFieldWidth = 60;
 
@@ -603,45 +603,48 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
       },
       child: SizedBox(
         height: _kFieldHeight,
-        child: Row(
+        child: Stack(
           children: [
-            SizedBox(
-              width: 14,
-              child: Text(label,
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: labelFg)),
+            TextField(
+              controller: ctrl,
+              focusNode: focusNode,
+              style: TextStyle(fontSize: 13, color: textFg),
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                isDense: true,
+                contentPadding:
+                    const EdgeInsets.only(left: 16, top: 3, right: 6, bottom: 2),
+                suffixText: suffix,
+                suffixStyle: TextStyle(fontSize: 13, color: labelFg),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: BorderSide(color: borderColor)),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: BorderSide(color: borderColor)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: BorderSide(color: borderColor)),
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                _MaxValueFormatter(max),
+              ],
+              onChanged: (_) => onChanged(),
+              onSubmitted: (_) => _advanceFocus(idx),
             ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: TextField(
-                controller: ctrl,
-                focusNode: focusNode,
-                style: TextStyle(fontSize: 13, color: textFg),
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  suffixText: suffix,
-                  suffixStyle: TextStyle(fontSize: 13, color: labelFg),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: borderColor)),
-                  enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: borderColor)),
-                  focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: borderColor)),
+            Positioned(
+              left: 4,
+              top: 0,
+              bottom: 0,
+              child: IgnorePointer(
+                child: Center(
+                  child: Text(label,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: labelFg)),
                 ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  _MaxValueFormatter(max),
-                ],
-                onChanged: (_) => onChanged(),
-                onSubmitted: (_) => _advanceFocus(idx),
               ),
             ),
           ],
@@ -998,33 +1001,34 @@ class _HueSliderPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final barRect =
         Rect.fromLTWH(_kSliderSkip, 0, _kSliderWidth, size.height);
+    final rrect = RRect.fromRectAndRadius(barRect, const Radius.circular(4));
+
+    final shadowPaint = Paint()
+      ..color = const Color(0x2B000000)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+    canvas.drawRRect(rrect, shadowPaint);
+
     final gradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: List.generate(
           7, (i) => HSVColor.fromAHSV(1, (6 - i) * 60.0, 1, 1).toColor()),
     );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(barRect, const Radius.circular(4)),
-      Paint()..shader = gradient.createShader(barRect),
-    );
+    canvas.drawRRect(rrect, Paint()..shader = gradient.createShader(barRect));
 
     final markY = value * size.height;
-    final paint = Paint()..color = arrowColor;
+    _drawArrow(canvas, 0, markY, _kSliderSkip, true, arrowColor);
+    _drawArrow(canvas, size.width, markY, _kSliderSkip, false, arrowColor);
+  }
 
-    final left = Path()
-      ..moveTo(0, markY - _kArrowHalf)
-      ..lineTo(_kSliderSkip, markY)
-      ..lineTo(0, markY + _kArrowHalf)
+  static void _drawArrow(Canvas canvas, double baseX, double tipY, double depth, bool pointsRight, Color color) {
+    final dir = pointsRight ? 1.0 : -1.0;
+    final path = Path()
+      ..moveTo(baseX, tipY - _kArrowHalf)
+      ..quadraticBezierTo(baseX + dir * depth * 0.5, tipY - _kArrowHalf * 0.3, baseX + dir * depth, tipY)
+      ..quadraticBezierTo(baseX + dir * depth * 0.5, tipY + _kArrowHalf * 0.3, baseX, tipY + _kArrowHalf)
       ..close();
-    canvas.drawPath(left, paint);
-
-    final right = Path()
-      ..moveTo(size.width, markY - _kArrowHalf)
-      ..lineTo(size.width - _kSliderSkip, markY)
-      ..lineTo(size.width, markY + _kArrowHalf)
-      ..close();
-    canvas.drawPath(right, paint);
+    canvas.drawPath(path, Paint()..color = color);
   }
 
   @override
@@ -1079,8 +1083,7 @@ class _HorizontalOpacityPainter extends CustomPainter {
   final double value;
   final Color arrowColor;
 
-  static ui.Picture? _checkerCache;
-  static Size? _checkerCacheSize;
+  static final Map<Size, ui.Picture> _checkerCacheMap = {};
 
   _HorizontalOpacityPainter({
     required this.color,
@@ -1094,10 +1097,18 @@ class _HorizontalOpacityPainter extends CustomPainter {
         Rect.fromLTWH(0, _kSliderSkip, size.width, _kSliderWidth);
     final rrect = RRect.fromRectAndRadius(barRect, const Radius.circular(4));
 
+    final shadowPaint = Paint()
+      ..color = const Color(0x2B000000)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+    canvas.drawRRect(rrect, shadowPaint);
+
     canvas.save();
     canvas.clipRRect(rrect);
 
-    if (_checkerCache == null || _checkerCacheSize != size) {
+    final cached = _checkerCacheMap[size];
+    if (cached != null) {
+      canvas.drawPicture(cached);
+    } else {
       final rec = ui.PictureRecorder();
       final c = Canvas(rec);
       const checkSize = 4.0;
@@ -1112,10 +1123,10 @@ class _HorizontalOpacityPainter extends CustomPainter {
               odd ? cp1 : cp2);
         }
       }
-      _checkerCache = rec.endRecording();
-      _checkerCacheSize = size;
+      final pic = rec.endRecording();
+      _checkerCacheMap[size] = pic;
+      canvas.drawPicture(pic);
     }
-    canvas.drawPicture(_checkerCache!);
 
     final gradient = LinearGradient(
       colors: [color.withAlpha(0), color],
@@ -1124,21 +1135,18 @@ class _HorizontalOpacityPainter extends CustomPainter {
     canvas.restore();
 
     final markX = value * size.width;
-    final paint = Paint()..color = arrowColor;
+    _drawArrow(canvas, markX, 0, _kSliderSkip, true, arrowColor);
+    _drawArrow(canvas, markX, size.height, _kSliderSkip, false, arrowColor);
+  }
 
-    final top = Path()
-      ..moveTo(markX - _kArrowHalf, 0)
-      ..lineTo(markX, _kSliderSkip)
-      ..lineTo(markX + _kArrowHalf, 0)
+  static void _drawArrow(Canvas canvas, double tipX, double baseY, double depth, bool pointsDown, Color color) {
+    final dir = pointsDown ? 1.0 : -1.0;
+    final path = Path()
+      ..moveTo(tipX - _kArrowHalf, baseY)
+      ..quadraticBezierTo(tipX - _kArrowHalf * 0.3, baseY + dir * depth * 0.5, tipX, baseY + dir * depth)
+      ..quadraticBezierTo(tipX + _kArrowHalf * 0.3, baseY + dir * depth * 0.5, tipX + _kArrowHalf, baseY)
       ..close();
-    canvas.drawPath(top, paint);
-
-    final bottom = Path()
-      ..moveTo(markX - _kArrowHalf, size.height)
-      ..lineTo(markX, size.height - _kSliderSkip)
-      ..lineTo(markX + _kArrowHalf, size.height)
-      ..close();
-    canvas.drawPath(bottom, paint);
+    canvas.drawPath(path, Paint()..color = color);
   }
 
   @override
