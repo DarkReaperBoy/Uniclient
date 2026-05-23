@@ -457,30 +457,6 @@ The `wallpaper.dart` file implements wallpaper rendering (solid, gradient, patte
   - `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/ui/chat/chat_theme.h` (API definitions)
 - **Research**: `/home/nako/Documents/uniclient/research/telegram_desktop_ui.md` (spec for animated gradients)
 
-## active_sessions_screen — gradient colors wrong for multiple device types; row layout differs from AyuGram
-
-- [ ] [CRITICAL] Device gradient colors are wrong for Windows, Mac, and Other device types — AyuGram maps Windows/Mac/Other to `historyPeer4` (blue: #5caffa → #408acf), but Dart assigns `_kGreen1/_kGreen2` (#67B84D → #4DB847, green) — `active_sessions_screen.dart:37-48,140-143,170-171` ← `settings_active_sessions.cpp:240-244` + `colors.palette:293-324`
-
-- [ ] [CRITICAL] Device gradient colors are wrong for Android — AyuGram uses `historyPeer2` (#9ad164 → #46ba43, green), Dart uses `_kRed1/_kRed2` (#DE6B6B → #D45050, red) — `active_sessions_screen.dart:45-46,139` ← `settings_active_sessions.cpp:251-253` + `colors.palette:317`
-
-- [ ] [CRITICAL] Device gradient colors are wrong for iPhone/iPad — AyuGram uses `historyPeer7` (#5bcbe3 → #359ad4, sea/teal), Dart uses `_kCyan1/_kCyan2` (#60C5E2 → #41B5D8) — the hue is similar but the secondary color `#41B5D8` diverges significantly from `#359ad4`; also AyuGram uses same peer7 slot for both iOS and iPad — `active_sessions_screen.dart:43-44,154-161` ← `settings_active_sessions.cpp:248-250` + `colors.palette:308-322`
-
-- [ ] [CRITICAL] Device gradient colors are wrong for Ubuntu — AyuGram uses `historyPeer8` (#febb5b → #f68136, orange/amber), Dart uses `_kOrange1/_kOrange2` (#DE8C3E → #E67429) — neither tone nor hue matches — `active_sessions_screen.dart:39-40,128-133` ← `settings_active_sessions.cpp:245-246` + `colors.palette:311-323`
-
-- [ ] [CRITICAL] Device gradient colors are wrong for Linux — AyuGram uses `historyPeer5` (#b694f9 → #6c61df, purple), Dart uses `_kPurple1/_kPurple2` (#8C79D2 → #6B5EBF) — similar hue but both top and bottom tones are significantly darker/different — `active_sessions_screen.dart:41-42` ← `settings_active_sessions.cpp:247` + `colors.palette:302-320`
-
-- [ ] [CRITICAL] Device gradient colors are wrong for all browser/web types — AyuGram uses `historyPeer6` (#ff8aac → #d95574, pink/rose), Dart uses `_kPink1/_kPink2` (#CB79D2 → #BF5EBF, purple-pink) — clearly different hue — `active_sessions_screen.dart:47-48,113-121` ← `settings_active_sessions.cpp:253-258` + `colors.palette:305-321`
-
-- [ ] [MAJOR] Row text layout differs from AyuGram — AyuGram renders three text elements per row: (1) device name at `namePosition: point(78px, 11px)`, (2) app info via `setCustomStatus` at `statusPosition: point(78px, 32px)`, (3) location+date as a third custom-painted line at `sessionLocationTop: 54px`. Dart renders only two text lines stacked in a Column with 2px spacing, omitting the distinct location line at 54px — `active_sessions_screen.dart:1219-1249` ← `settings_active_sessions.cpp:543-605` + `settings.style:408-423`
-
-- [ ] [MAJOR] `_formatDaysLabel` uses `.round()` for month/week conversion instead of integer division — AyuGram's `DaysLabel` uses `std::max(days / 30, 1)` (integer truncation) and `std::max(days / 7, 1)`, but Dart uses `(days / 30).round()` and `(days / 7).round()` — produces different labels at boundary values (e.g. 25 days: Dart rounds to 4 weeks, AyuGram gives 3 weeks) — `active_sessions_screen.dart:327-337` ← `self_destruction_box.cpp:185-193`
-
-- [ ] [MAJOR] Auto-terminate dialog uses an inline custom radio dialog instead of AyuGram's `SelfDestructionBox` — AyuGram opens a `SelfDestructionBox` which calls `_session->api()->authorizations().updateTTL(value)` to persist changes to the server. Dart calls `engine.setSessionAutoTerminateDays()` on OK which is correct wiring, but the description text ("If you don't come online...") differs from AyuGram's `tr::lng_self_destruct_sessions_description` ("If you don't sign in to your account...") — `active_sessions_screen.dart:382-384` ← `self_destruction_box.cpp:147-149`
-
-- [ ] [MAJOR] Session info box shows "Official App: Yes/No" row as an always-visible row even when value is "No" — AyuGram's `AddSessionInfoRow` skips empty values but always renders the official app field via `tr::ayu_SessionInfoOfficialApp()`. The Dart implementation always renders this row unconditionally including for every session type; this is actually correct behavior but uses hardcoded "Official App" label string instead of a localisation key — `active_sessions_screen.dart:649-656` ← `settings_active_sessions.cpp:463-468`
-
-- [ ] [MAJOR] `_DeviceUserpicBig` Lottie animation uses `LottieDelegates` with `ValueDelegate.color(['**'], Colors.white)` to colorize — AyuGram instead renders the lottie frame in black, then calls `style::colorizeImage` with `st::historyPeerUserpicFg` (which is theme-aware white/black). The Dart approach hardcodes white, breaking dark/light theme correctness if `historyPeerUserpicFg` is ever non-white — `active_sessions_screen.dart:1390-1397` ← `settings_active_sessions.cpp:395-406`
-
 # admin_tools — Audit Findings
 
 ## _EditPeerInfoBox / _EditPeerPermissionsBox / _EditRestrictedBox / _EditAdminBox / _AdminLogScreen / _InviteLinksBox / _MemberListScreen
