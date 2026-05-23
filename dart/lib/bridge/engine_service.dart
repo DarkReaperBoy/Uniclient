@@ -6593,6 +6593,41 @@ class EngineService {
     return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
   }
 
+  Future<List<Map<String, dynamic>>> getStarsGiveawayOptions(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    final resp = await _callAsync('__engine', 'GetStarsGiveawayOptions', Uint8List.fromList(payload));
+    final decoded = json.decode(utf8.decode(resp));
+    if (decoded == null) return [];
+    return (decoded as List).cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> launchCreditsGiveaway(String accountId, String chatId, Map<String, dynamic> params) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'params': params,
+    }));
+    final resp = await _callAsync('__engine', 'LaunchCreditsGiveaway', Uint8List.fromList(payload));
+    if (resp.isEmpty) return {};
+    return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+  }
+
+  Future<int> getGiveawayPeriodMax(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final resp = await _callAsync('__engine', 'GetGiveawayPeriodMax', Uint8List.fromList(payload));
+      if (resp.isEmpty) return 604800;
+      final decoded = json.decode(utf8.decode(resp));
+      return (decoded['period_max'] as num?)?.toInt() ?? 604800;
+    } catch (e) {
+      return 604800;
+    }
+  }
+
   // ── Notification Settings ──
 
   Future<bool> getContactSignUpNotification(String accountId) async {

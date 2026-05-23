@@ -1778,6 +1778,48 @@ func (e *Engine) LaunchRandomGiveaway(accountID, chatID string, params map[strin
 	return nil, fmt.Errorf("platform does not support random giveaways")
 }
 
+func (e *Engine) GetStarsGiveawayOptions(accountID string) ([]map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type starsGiveawayOptionsGetter interface {
+		GetStarsGiveawayOptions() ([]map[string]interface{}, error)
+	}
+	if g, ok := acc.Core.(starsGiveawayOptionsGetter); ok {
+		return g.GetStarsGiveawayOptions()
+	}
+	return nil, fmt.Errorf("platform does not support stars giveaway options")
+}
+
+func (e *Engine) LaunchCreditsGiveaway(accountID, chatID string, params map[string]interface{}) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type creditsGiveawayLauncher interface {
+		LaunchCreditsGiveaway(chatID string, params map[string]interface{}) (map[string]interface{}, error)
+	}
+	if l, ok := acc.Core.(creditsGiveawayLauncher); ok {
+		return l.LaunchCreditsGiveaway(chatID, params)
+	}
+	return nil, fmt.Errorf("platform does not support credits giveaways")
+}
+
+func (e *Engine) GetGiveawayPeriodMax(accountID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 604800, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type giveawayPeriodMaxGetter interface {
+		GetGiveawayPeriodMax() (int, error)
+	}
+	if g, ok := acc.Core.(giveawayPeriodMaxGetter); ok {
+		return g.GetGiveawayPeriodMax()
+	}
+	return 604800, nil
+}
+
 func (e *Engine) GetFullChat(accountID, chatID string) (*cores.Dialog, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

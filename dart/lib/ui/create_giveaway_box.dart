@@ -72,6 +72,10 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   int _selectedOptionIndex = 0;
   int _selectedPrepaidIndex = 0;
 
+  List<Map<String, dynamic>> _creditsOptions = [];
+  int _selectedCreditsOptionIndex = 0;
+  int _selectedCreditsWinnerIndex = 0;
+
   _MemberFilter _memberFilter = _MemberFilter.all;
   bool _showWinners = false;
   DateTime _untilDate = _threeDaysAfterToday();
@@ -83,7 +87,7 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   final List<String> _additionalChannelNames = [];
 
   final int _boostsPerPremium = 4;
-  final int _giveawayPeriodMax = 365 * 86400;
+  int _giveawayPeriodMax = 604800;
 
   @override
   void initState() {
@@ -103,13 +107,31 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   Future<void> _loadOptions() async {
     try {
       final engine = Provider.of<AppState>(context, listen: false).engine;
-      final opts = await engine.getGiftCodeOptions(widget.accountId, widget.chatId);
+      final results = await Future.wait([
+        engine.getGiftCodeOptions(widget.accountId, widget.chatId),
+        engine.getStarsGiveawayOptions(widget.accountId),
+        engine.getGiveawayPeriodMax(widget.accountId),
+      ]);
       if (!mounted) return;
 
-      if (!mounted) return;
+      final opts = results[0] as List<Map<String, dynamic>>;
+      final creditsOpts = results[1] as List<Map<String, dynamic>>;
+      final periodMax = results[2] as int;
+
+      int defaultCreditsIdx = 0;
+      for (int i = 0; i < creditsOpts.length; i++) {
+        if (creditsOpts[i]['is_default'] == true) {
+          defaultCreditsIdx = i;
+          break;
+        }
+      }
+
       setState(() {
         _options = opts;
         _uniqueUsers = opts.map((o) => o['users'] as int).toSet().toList()..sort();
+        _creditsOptions = creditsOpts;
+        _selectedCreditsOptionIndex = defaultCreditsIdx;
+        _giveawayPeriodMax = periodMax;
         _loading = false;
       });
     } catch (e) {
@@ -201,6 +223,56 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
             'store_product': selectedOpt['store_product'],
           if (selectedOpt['store_quantity'] != null)
             'store_quantity': selectedOpt['store_quantity'],
+          'only_new_subscribers': _memberFilter == _MemberFilter.onlyNew,
+          'winners_are_visible': _showWinners,
+          'until_date': _untilDate.millisecondsSinceEpoch ~/ 1000,
+          'random_id': Random().nextInt(1 << 31),
+          if (_showAdditionalPrize && _prizeController.text.isNotEmpty)
+            'prize_description': _prizeController.text,
+          if (_selectedCountries.isNotEmpty)
+            'countries': _selectedCountries,
+          if (_additionalChannelIds.isNotEmpty)
+            'additional_peers': _additionalChannelIds,
+        },
+      );
+      if (!mounted) return;
+      final url = result['url'] as String?;
+      if (url != null && url.isNotEmpty) {
+        Navigator.of(context).pop();
+        launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        Navigator.of(context).pop();
+        showTelegramToast(context, 'Giveaway launched!');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _launching = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  Future<void> _launchCreditsGiveaway() async {
+    if (_launching || _creditsOptions.isEmpty) return;
+    setState(() => _launching = true);
+
+    final selectedOpt = _creditsOptions[_selectedCreditsOptionIndex];
+    final winners = (selectedOpt['winners'] as List?) ?? [];
+    final winnerOpt = _selectedCreditsWinnerIndex < winners.length
+        ? winners[_selectedCreditsWinnerIndex] as Map<String, dynamic>
+        : (winners.isNotEmpty ? winners[0] as Map<String, dynamic> : <String, dynamic>{});
+    final engine = Provider.of<AppState>(context, listen: false).engine;
+
+    try {
+      final result = await engine.launchCreditsGiveaway(
+        widget.accountId,
+        widget.chatId,
+        {
+          'stars': selectedOpt['stars'] ?? 0,
+          'users': winnerOpt['users'] ?? 1,
+          'currency': selectedOpt['currency'] ?? 'USD',
+          'amount': selectedOpt['amount'] ?? 0,
           'only_new_subscribers': _memberFilter == _MemberFilter.onlyNew,
           'winners_are_visible': _showWinners,
           'until_date': _untilDate.millisecondsSinceEpoch ~/ 1000,
@@ -401,12 +473,12 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
       shrinkWrap: true,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       children: [
-        if (widget.prepaidGiveaways.isNotEmpty) ...[
-          _buildTypeSelector(isDark, primary, subColor),
-          const SizedBox(height: 16),
-        ],
+        _buildTypeSelector(isDark, primary, subColor),
+        const SizedBox(height: 16),
         if (_type == _GiveawayType.prepaid)
           ..._buildPrepaidSection(isDark, primary, subColor)
+        else if (_type == _GiveawayType.credits)
+          ..._buildCreditsSection(p, isDark, primary, subColor)
         else
           ..._buildRandomSection(p, isDark, primary, subColor),
         const SizedBox(height: 12),
@@ -538,18 +610,15 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
     final selectedOpt = _currentOption;
     final currency = selectedOpt['currency'] as String? ?? 'USD';
     final amount = selectedOpt['amount'] as num? ?? 0;
-    final isCredits = _type == _GiveawayType.credits;
 
     return [
       Text(
-        isCredits ? 'Telegram Stars' : 'Premium Subscription Gifts',
+        'Premium Subscription Gifts',
         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: primary),
       ),
       const SizedBox(height: 4),
       Text(
-        isCredits
-            ? 'Give Telegram Stars to random subscribers of your channel.'
-            : 'Gift Telegram Premium subscriptions to random subscribers.',
+        'Gift Telegram Premium subscriptions to random subscribers.',
         style: TextStyle(fontSize: 12, color: subColor),
       ),
       const SizedBox(height: 12),
@@ -584,15 +653,13 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
       ],
 
       // Duration as gift option cards
-      if (!isCredits) ...[
-        Text(
-          'Duration for $_currentWinners winner${_currentWinners == 1 ? '' : 's'}',
-          style: TextStyle(fontSize: 12, color: subColor),
-        ),
-        const SizedBox(height: 8),
-        ..._buildDurationCards(isDark, primary, subColor, selectedOpt),
-        const SizedBox(height: 12),
-      ],
+      Text(
+        'Duration for $_currentWinners winner${_currentWinners == 1 ? '' : 's'}',
+        style: TextStyle(fontSize: 12, color: subColor),
+      ),
+      const SizedBox(height: 8),
+      ..._buildDurationCards(isDark, primary, subColor, selectedOpt),
+      const SizedBox(height: 12),
 
       // Total price
       Container(
@@ -613,6 +680,212 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
         ),
       ),
     ];
+  }
+
+  List<Widget> _buildCreditsSection(TelegramPalette p, bool isDark, Color primary, Color subColor) {
+    if (_creditsOptions.isEmpty) {
+      return [
+        Text(
+          'No star giveaway options available.',
+          style: TextStyle(fontSize: 13, color: subColor),
+        ),
+      ];
+    }
+
+    final selectedOpt = _creditsOptions[_selectedCreditsOptionIndex];
+    final winners = (selectedOpt['winners'] as List?) ?? [];
+    final winnerOpt = _selectedCreditsWinnerIndex < winners.length
+        ? winners[_selectedCreditsWinnerIndex] as Map<String, dynamic>
+        : (winners.isNotEmpty ? winners[0] as Map<String, dynamic> : <String, dynamic>{});
+    final currentUsers = (winnerOpt['users'] as num?)?.toInt() ?? 0;
+    final perUserStars = (winnerOpt['per_user_stars'] as num?)?.toInt() ?? 0;
+    final yearlyBoosts = (selectedOpt['yearly_boosts'] as num?)?.toInt() ?? 0;
+
+    final uniqueWinnerUsers = winners
+        .map((w) => (w as Map<String, dynamic>)['users'] as int)
+        .toSet()
+        .toList()
+      ..sort();
+
+    return [
+      Text(
+        'Telegram Stars',
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: primary),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        'Give Telegram Stars to random subscribers of your channel.',
+        style: TextStyle(fontSize: 12, color: subColor),
+      ),
+      const SizedBox(height: 12),
+
+      if (uniqueWinnerUsers.length > 1) ...[
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Winners', style: TextStyle(fontSize: 12, color: subColor)),
+            Text(
+              '$currentUsers winners · $perUserStars stars each',
+              style: TextStyle(fontSize: 11, color: primary, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        _WinnerSlider(
+          values: uniqueWinnerUsers,
+          currentValue: currentUsers,
+          primary: primary,
+          subColor: subColor,
+          isDark: isDark,
+          boostsPerPremium: _boostsPerPremium,
+          onChanged: (users) {
+            final idx = winners.indexWhere((w) => (w as Map<String, dynamic>)['users'] == users);
+            if (idx >= 0) setState(() => _selectedCreditsWinnerIndex = idx);
+          },
+        ),
+        const SizedBox(height: 12),
+      ],
+
+      Text(
+        'Star Options',
+        style: TextStyle(fontSize: 12, color: subColor),
+      ),
+      if (yearlyBoosts > 0)
+        Text(
+          '$yearlyBoosts boosts',
+          style: TextStyle(fontSize: 11, color: primary, fontWeight: FontWeight.w500),
+        ),
+      const SizedBox(height: 8),
+      ..._buildCreditsOptionCards(isDark, primary, subColor),
+      const SizedBox(height: 12),
+
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2B3945) : const Color(0xFFF0F2F5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Total', style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87)),
+            Text(
+              _formatAmount((selectedOpt['amount'] as num?)?.toInt() ?? 0, (selectedOpt['currency'] as String?) ?? 'USD'),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: primary),
+            ),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildCreditsOptionCards(bool isDark, Color primary, Color subColor) {
+    return _creditsOptions.asMap().entries.where((entry) {
+      final opt = entry.value;
+      return !(opt['extended'] == true) || opt['is_default'] == true || entry.key == _selectedCreditsOptionIndex;
+    }).map((entry) {
+      final i = entry.key;
+      final opt = entry.value;
+      final stars = (opt['stars'] as num?)?.toInt() ?? 0;
+      final currency = opt['currency'] as String? ?? 'USD';
+      final amount = (opt['amount'] as num?)?.toInt() ?? 0;
+      final yearlyBoosts = (opt['yearly_boosts'] as num?)?.toInt() ?? 0;
+      final isSelected = i == _selectedCreditsOptionIndex;
+
+      final winners = (opt['winners'] as List?) ?? [];
+      final winnerOpt = _selectedCreditsWinnerIndex < winners.length
+          ? winners[_selectedCreditsWinnerIndex] as Map<String, dynamic>
+          : (winners.isNotEmpty ? winners[0] as Map<String, dynamic> : <String, dynamic>{});
+      final perUserStars = (winnerOpt['per_user_stars'] as num?)?.toInt() ?? 0;
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: InkWell(
+          onTap: () => setState(() => _selectedCreditsOptionIndex = i),
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? primary.withValues(alpha: 0.08)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isSelected ? primary : (isDark ? const Color(0xFF3A4A5A) : const Color(0xFFD0D5DB)),
+                width: isSelected ? 2.0 : 1.0,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFA500).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.star, size: 18, color: Color(0xFFFFA500)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$stars Stars',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        '$perUserStars stars per winner',
+                        style: TextStyle(fontSize: 11, color: subColor),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      _formatAmount(amount, currency),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: primary,
+                      ),
+                    ),
+                    if (yearlyBoosts > 0)
+                      Container(
+                        margin: const EdgeInsets.only(top: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.bolt, size: 10, color: primary),
+                            const SizedBox(width: 2),
+                            Text(
+                              '$yearlyBoosts',
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: primary),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }).toList();
   }
 
   List<Widget> _buildDurationCards(bool isDark, Color primary, Color subColor, Map<String, dynamic> selectedOpt) {
@@ -931,14 +1204,26 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   }
 
   Widget _buildActionButton(TelegramPalette p, Color primary) {
-    final boostCount = _type == _GiveawayType.prepaid
-        ? (widget.prepaidGiveaways.isNotEmpty
-            ? (widget.prepaidGiveaways[_selectedPrepaidIndex]['boosts'] as int? ??
-                ((widget.prepaidGiveaways[_selectedPrepaidIndex]['quantity'] as int? ?? 0) * _boostsPerPremium))
-            : 0)
-        : _currentBoosts;
+    final int boostCount;
+    if (_type == _GiveawayType.prepaid) {
+      boostCount = widget.prepaidGiveaways.isNotEmpty
+          ? (widget.prepaidGiveaways[_selectedPrepaidIndex]['boosts'] as int? ??
+              ((widget.prepaidGiveaways[_selectedPrepaidIndex]['quantity'] as int? ?? 0) * _boostsPerPremium))
+          : 0;
+    } else if (_type == _GiveawayType.credits && _creditsOptions.isNotEmpty) {
+      boostCount = (_creditsOptions[_selectedCreditsOptionIndex]['yearly_boosts'] as num?)?.toInt() ?? 0;
+    } else {
+      boostCount = _currentBoosts;
+    }
 
-    final onTap = _type == _GiveawayType.prepaid ? _launchPrepaid : _launchRandomGiveaway;
+    final VoidCallback onTap;
+    if (_type == _GiveawayType.prepaid) {
+      onTap = _launchPrepaid;
+    } else if (_type == _GiveawayType.credits) {
+      onTap = _launchCreditsGiveaway;
+    } else {
+      onTap = _launchRandomGiveaway;
+    }
 
     return SizedBox(
       width: double.infinity,

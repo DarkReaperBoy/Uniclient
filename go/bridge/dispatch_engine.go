@@ -2278,6 +2278,47 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(result)
 
+	case "GetStarsGiveawayOptions":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetStarsGiveawayOptions(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
+	case "LaunchCreditsGiveaway":
+		var params struct {
+			AccountID string                 `json:"account_id"`
+			ChatID    string                 `json:"chat_id"`
+			Params    map[string]interface{} `json:"params"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.LaunchCreditsGiveaway(params.AccountID, params.ChatID, params.Params)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
+	case "GetGiveawayPeriodMax":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetGiveawayPeriodMax(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"period_max": result})
+
 	case "UpdatePaidMessagesPrice":
 		var params struct {
 			AccountID        string `json:"account_id"`
