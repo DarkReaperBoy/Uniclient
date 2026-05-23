@@ -100,6 +100,7 @@ class ImportChanges {
   final List<RegexFilterExclusion> exclusionsToAdd;
   final List<String> filterIdsToRemove;
   final List<RegexFilterExclusion> exclusionsToRemove;
+  final List<String> peersToBeResolved;
 
   const ImportChanges({
     required this.filtersToAdd,
@@ -107,6 +108,7 @@ class ImportChanges {
     required this.exclusionsToAdd,
     required this.filterIdsToRemove,
     required this.exclusionsToRemove,
+    this.peersToBeResolved = const [],
   });
 
   bool get hasChanges =>
@@ -170,6 +172,17 @@ const _mediaTypeNames = <int, int>{
   19: 30, // gift stars → TYPE_GIFT_STARS
 };
 
+int _resolveFilterType(CachedMessage msg) {
+  if (msg.mediaType == 6) {
+    if (msg.mediaMimeType == 'application/x-tgsticker' ||
+        msg.mediaMimeType == 'video/webm') {
+      return 15; // TYPE_ANIMATED_STICKER
+    }
+    return 13; // TYPE_STICKER
+  }
+  return _mediaTypeNames[msg.mediaType] ?? 0;
+}
+
 String _extractSingleText(CachedMessage msg, {Set<String>? extractedUrls}) {
   final buf = StringBuffer();
   buf.write(msg.contentText);
@@ -214,7 +227,11 @@ int _serviceMessageType(CachedMessage msg) {
       case 'set_photo': return 11;
       case 'suggest_photo': return 21;
       case 'wallpaper': return 22;
-      case 'gift_premium': return 18;
+      case 'gift_premium':
+        final extra = _extractExtra(msg.contentRaw);
+        if (extra?['channel'] == true) return 25;
+        return 18;
+      case 'gift_premium_channel': return 25;
       case 'gift_stars': return 30;
       case 'giveaway_results': return 28;
       case 'boost': return 10;
@@ -230,16 +247,19 @@ int _serviceMessageType(CachedMessage msg) {
 
 String _extractServiceAction(String raw) {
   if (raw.isEmpty) return '';
+  final extra = _extractExtra(raw);
+  return extra?['service_action'] as String? ?? '';
+}
+
+Map<String, dynamic>? _extractExtra(String raw) {
+  if (raw.isEmpty) return null;
   try {
     final m = jsonDecode(raw);
     if (m is Map<String, dynamic>) {
-      final extra = m['extra'] as Map<String, dynamic>?;
-      if (extra != null) {
-        return extra['service_action'] as String? ?? '';
-      }
+      return m['extra'] as Map<String, dynamic>?;
     }
   } catch (_) {}
-  return '';
+  return null;
 }
 
 String extractMatchBlob(CachedMessage msg, {List<CachedMessage>? groupMessages}) {
@@ -272,7 +292,7 @@ String extractMatchBlob(CachedMessage msg, {List<CachedMessage>? groupMessages})
     final serviceType = _serviceMessageType(msg);
     buf.write('\n<type>$serviceType</type>');
   } else {
-    final typeId = _mediaTypeNames[msg.mediaType] ?? 0;
+    final typeId = _resolveFilterType(msg);
     buf.write('\n<type>$typeId</type>');
   }
 
@@ -288,6 +308,8 @@ class AyuFilterEngine extends ChangeNotifier {
   final Map<String, bool> _messageCache = {};
   final Map<String, int> _chatFilteredCount = {};
   final Map<String, bool> _filteredMessagesShown = {};
+  final Set<String> _hiddenBlockedChats = {};
+  final Map<String, Set<String>> _groupIndex = {};
 
   List<RegexFilter> _filters = [];
   List<RegexFilterExclusion> _exclusions = [];
@@ -370,6 +392,15 @@ class AyuFilterEngine extends ChangeNotifier {
         ?.map((e) => RegexFilterExclusion.fromJson(e as Map<String, dynamic>))
         .toList() ?? [];
 
+    final peersJson = data['peers'] as Map<String, dynamic>? ?? {};
+    final peersToResolve = <String>[];
+    for (final entry in peersJson.entries) {
+      final hint = entry.value?.toString() ?? '';
+      if (hint.isNotEmpty) {
+        peersToResolve.add(hint);
+      }
+    }
+
     final toAdd = <RegexFilter>[];
     final toUpdate = <RegexFilter>[];
     for (final f in filters) {
@@ -387,6 +418,7 @@ class AyuFilterEngine extends ChangeNotifier {
       exclusionsToAdd: newExcl,
       filterIdsToRemove: removeIds,
       exclusionsToRemove: removeExcl,
+      peersToBeResolved: peersToResolve,
     );
   }
 
@@ -450,7 +482,7 @@ class AyuFilterEngine extends ChangeNotifier {
       addField('syntax', 'json');
       addField('title', 'AyuGram Filters');
       body.write('--$boundary--\r\n');
-      request.write(body.toString());
+      request.add(utf8.encode(body.toString()));
       final response = await request.close();
       await response.drain<void>();
       String pasteUrl = '';
@@ -520,6 +552,8 @@ class AyuFilterEngine extends ChangeNotifier {
     _exclusionsByDialog.clear();
     _messageCache.clear();
     _chatFilteredCount.clear();
+    _hiddenBlockedChats.clear();
+    _groupIndex.clear();
 
     for (final f in _filters) {
       if (!f.enabled) continue;
@@ -545,6 +579,7 @@ class AyuFilterEngine extends ChangeNotifier {
   }
 
   bool _hasFilteredMessages(String chatId) {
+    if (_hiddenBlockedChats.contains(chatId)) return true;
     return (_chatFilteredCount[chatId] ?? 0) > 0;
   }
 
@@ -555,9 +590,22 @@ class AyuFilterEngine extends ChangeNotifier {
 
   void invalidateMessage(String chatId, String msgId, {String? groupedId, List<String>? groupMemberIds}) {
     _removeCacheEntry('$chatId:$msgId');
-    if (groupedId != null && groupedId.isNotEmpty && groupMemberIds != null) {
+    if (groupedId != null && groupedId.isNotEmpty) {
+      final groupKey = '$chatId:$groupedId';
+      final members = _groupIndex[groupKey];
+      if (members != null) {
+        for (final memberId in members) {
+          if (memberId != msgId) {
+            _removeCacheEntry('$chatId:$memberId');
+          }
+        }
+      }
+    }
+    if (groupMemberIds != null) {
       for (final memberId in groupMemberIds) {
-        _removeCacheEntry('$chatId:$memberId');
+        if (memberId != msgId) {
+          _removeCacheEntry('$chatId:$memberId');
+        }
       }
     }
   }
@@ -569,23 +617,44 @@ class AyuFilterEngine extends ChangeNotifier {
     final dialogId = msg.chatId;
     if (_filteredMessagesShown[dialogId] == true) return false;
 
+    final cacheKey = '${msg.chatId}:${msg.msgId}';
+    final cached = _messageCache[cacheKey];
+    if (cached != null) return cached;
+
+    if (groupMessages != null && groupMessages.length > 1 && msg.groupedId.isNotEmpty) {
+      _groupIndex['$dialogId:${msg.groupedId}'] =
+          groupMessages.map((m) => m.msgId).toSet();
+    }
+
     final senderId = _parseSenderId(msg.senderId);
     if (senderId != null && msg.senderId != msg.chatId) {
-      if (appState.isShadowBanned(senderId)) return true;
-      if (appState.hideFromBlocked && appState.isBlocked(senderId)) return true;
+      if (appState.isShadowBanned(senderId)) {
+        _hiddenBlockedChats.add(dialogId);
+        _cacheResult(cacheKey, true);
+        return true;
+      }
+      if (appState.hideFromBlocked && appState.isBlocked(senderId)) {
+        _hiddenBlockedChats.add(dialogId);
+        _cacheResult(cacheKey, true);
+        return true;
+      }
     }
 
     final fwdId = _parseForwardSenderId(msg.forwardFrom);
     if (fwdId != null) {
-      if (appState.isShadowBanned(fwdId)) return true;
-      if (appState.hideFromBlocked && appState.isBlocked(fwdId)) return true;
+      if (appState.isShadowBanned(fwdId)) {
+        _hiddenBlockedChats.add(dialogId);
+        _cacheResult(cacheKey, true);
+        return true;
+      }
+      if (appState.hideFromBlocked && appState.isBlocked(fwdId)) {
+        _hiddenBlockedChats.add(dialogId);
+        _cacheResult(cacheKey, true);
+        return true;
+      }
     }
 
     if (!_isEnabledForChat(chatType, appState)) return false;
-
-    final cacheKey = '${msg.chatId}:${msg.msgId}';
-    final cached = _messageCache[cacheKey];
-    if (cached != null) return cached;
 
     final blob = extractMatchBlob(msg, groupMessages: groupMessages);
 
@@ -617,7 +686,7 @@ class AyuFilterEngine extends ChangeNotifier {
       final evictCount = _maxCacheSize ~/ 10;
       final keys = _messageCache.keys.take(evictCount).toList();
       for (final k in keys) {
-        _removeCacheEntry(k, fromEviction: true);
+        _removeCacheEntry(k);
       }
     }
     _messageCache[key] = value;
@@ -627,9 +696,9 @@ class AyuFilterEngine extends ChangeNotifier {
     }
   }
 
-  void _removeCacheEntry(String key, {bool fromEviction = false}) {
+  void _removeCacheEntry(String key) {
     final old = _messageCache.remove(key);
-    if (old == true && !fromEviction) {
+    if (old == true) {
       final chatId = key.substring(0, key.indexOf(':'));
       final count = (_chatFilteredCount[chatId] ?? 1) - 1;
       if (count <= 0) {
