@@ -497,29 +497,7 @@ No issues found. The stub is well-designed and serves its purpose correctly.
 
 # ayu_chats_page — Audit Findings
 
-- [ ] [CRITICAL] Bubble radius slider does not update the message preview live during drag — `onChanged` only calls `setState(() => _localValue = newVal)` updating the number display, but never calls `widget.onChanged` or notifies the preview widget; AyuGram's `onChanged` calls `previewState->widget->setBubbleRadius(index)` on every drag event — `ayu_chats_page.dart:495-498` ← `settings_chats.cpp:255-259`
-
-- [ ] [CRITICAL] Both sliders use `showConfirmBox` with a Cancel that reverts the slider value, but AyuGram uses `ShowRestartPrompt` which saves the setting first and then offers "Restart Now" / "Later" (never reverts the value); the Dart Cancel path calls `setState(() => _localValue = _committedValue)` which is wrong — the C++ "Later" path keeps the new value saved — `ayu_chats_page.dart:389-401`, `ayu_chats_page.dart:502-514` ← `settings_chats.cpp:260-265`, `settings_chats.cpp:280-285`, `settings_ayu_utils.cpp:36-45`
-
-- [ ] [MAJOR] `_save()` allows saving an empty string without validation; AyuGram's `EditMarkBox::submit()` checks `trimmed().isEmpty()`, sets focus, and calls `showError()` on the field before refusing to save — `ayu_chats_page.dart:615-618` ← `edit_mark_box.cpp:73-79`
-
-- [ ] [MAJOR] All seven context menu choose-buttons are missing icons; AyuGram passes `&st::menuIconReactions`, `&st::menuIconShowInChat`, `&st::menuIconClear`, `&st::menuIconTTL`, `&st::menuIconInfo`, `&st::ayuRepeatMenuIcon`, `&st::menuIconAddToFolder` for each item respectively — `ayu_chats_page.dart:281-297` ← `settings_chats.cpp:314`, `settings_chats.cpp:323`, `settings_chats.cpp:332`, `settings_chats.cpp:341`, `settings_chats.cpp:350`, `settings_chats.cpp:359`, `settings_chats.cpp:369`
-
 - [ ] [MAJOR] The message preview is a static hand-drawn fake widget with hardcoded text ("Hey, check this out!", "Sure, looks great to me!", "12:00", "12:01") and does not react to settings changes via reactive streams; AyuGram's `MessagePreview` uses the real `HistoryView` rendering engine and subscribes to all seven settings via `rpl::merge` to refresh on every change — `ayu_chats_page.dart:667-922` ← `message_preview.cpp:122-139`
-
-# ayu_filters_page — Audit findings
-
-- [ ] [CRITICAL] Regex validation uses Dart's ECMA/V8 `RegExp` engine instead of the execution engine's dialect. Patterns with lookahead `(?=...)`, lookbehind `(?<=...)`, or backreferences `\1` pass Dart's `RegExp()` check but fail silently in Go's RE2 engine at runtime. Users receive no error for invalid filters. AyuGram uses ICU (`icu::RegexPattern::compile`) which is also a different engine — the Go RE2 engine is the correct authority here, not Dart's. — `ayu_filters_page.dart:1226` ← `ayu/ui/settings/filters/edit_filter.cpp:61-98`
-
-- [ ] [MAJOR] `_SelectChatDialog` shows all chat types including DMs. AyuGram's select-chat picker in the top-bar menu restricts to `Bot | Group | Broadcast` only (no user DMs). The Dart dialog shows every entry in `chatState.chats` with no type filter, allowing per-dialog filters to be set on DMs even though AyuGram does not support this. — `ayu_filters_page.dart:290` ← `ayu/ui/settings/settings_filters.cpp:198-202`
-
-- [ ] [MAJOR] Import peer-hint resolution only calls `resolveUsername`; invite-link hints are silently dropped. AyuGram's `ResolveFilterBackupPeers` handles both `PeerResolveHintType::Username` (via `contacts_ResolveUsername`) and `PeerResolveHintType::Invite` (via `checkChatInvite`), covering `+HASH`, `tg://join?invite=HASH`, and `joinchat/HASH` formats. The Dart import loop at line 1596–1602 calls only `engineSvc.resolveUsername(accountId, entry.value)`, so any peer hint that is an invite link is never resolved and the dialog ID remains unknown. — `ayu_filters_page.dart:1596-1602` ← `ayu/features/filters/filters_utils.cpp:229-290`
-
-- [ ] [MAJOR] Restrict-to-dialog toast/snackbar only fires on new filter creation; AyuGram fires it on both add and edit. In AyuGram `RegexEditBox` always passes `showToast = true`, so after saving any filter (new or edited) from a per-dialog screen the toast offering to restrict it appears. The Dart guard `if (isNew && dialogId != null && filter.isShared)` skips this for edits, so editing a shared filter from a per-dialog screen silently discards the "Restrict" offer. — `ayu_filters_page.dart:1281` ← `ayu/ui/settings/filters/edit_filter.cpp:222-245`
-
-- [ ] [MAJOR] Export menu item always visible regardless of whether filters exist. AyuGram adds the Export action only when `AyuDatabase::hasFilters()` is true; the item does not appear in the menu when there are no filters. The Dart menu always includes Export and falls back to a SnackBar message at run-time. — `ayu_filters_page.dart:123-128` ← `ayu/ui/settings/settings_filters.cpp:228-235`
-
-- [ ] [MAJOR] `_ShadowBanRow._colorRemap` contains the value `7` at index 1. AyuGram computes the empty-userpic color as `EmptyUserpic::UserpicColor(realId % 7)`, yielding 0–6. The Dart remap `[0, 7, 4, 1, 6, 3, 5]` maps `id.abs() % 7 == 1` to color index `7`, which is out of the expected 0–6 range and may trigger a RangeError or render the wrong color in `context.palette.peerUserpicBg()`. — `ayu_filters_page.dart:1179,1141` ← `ayu/ui/settings/filters/per_dialog_filter.cpp:51-56`
 
 # ayugram_settings_screen — No issues found
 
