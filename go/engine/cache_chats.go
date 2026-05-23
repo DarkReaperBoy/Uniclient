@@ -1918,6 +1918,63 @@ func (e *Engine) SetCallMuted(accountID, callID string, muted bool) error {
 	return acc.Core.SetCallMuted(callID, muted)
 }
 
+type GroupCallParticipantMuter interface {
+	MuteGroupCallParticipant(callID, userID string, mute bool) error
+}
+
+func (e *Engine) MuteGroupCallParticipant(accountID, callID, userID string, mute bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	m, ok := acc.Core.(GroupCallParticipantMuter)
+	if !ok {
+		return fmt.Errorf("participant muting not supported for this platform")
+	}
+	return m.MuteGroupCallParticipant(callID, userID, mute)
+}
+
+type GroupCallParticipantKicker interface {
+	KickGroupCallParticipant(callID, userID string) error
+}
+
+func (e *Engine) KickGroupCallParticipant(accountID, callID, userID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	k, ok := acc.Core.(GroupCallParticipantKicker)
+	if !ok {
+		return fmt.Errorf("participant kicking not supported for this platform")
+	}
+	return k.KickGroupCallParticipant(callID, userID)
+}
+
+type GroupCallParticipantVolumer interface {
+	SetGroupCallParticipantVolume(callID, userID string, volume int) error
+}
+
+func (e *Engine) SetGroupCallParticipantVolume(accountID, callID, userID string, volume int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	v, ok := acc.Core.(GroupCallParticipantVolumer)
+	if !ok {
+		return fmt.Errorf("participant volume not supported for this platform")
+	}
+	return v.SetGroupCallParticipantVolume(callID, userID, volume)
+}
+
 func (e *Engine) ToggleCamera(accountID, callID string, enabled bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

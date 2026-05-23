@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:dbus/dbus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
@@ -33,9 +34,13 @@ class GroupCallPanel extends StatefulWidget {
   final VoidCallback? onToggleVideo;
   final VoidCallback? onToggleScreenShare;
   final VoidCallback? onOpenMenu;
+  final VoidCallback? onToggleMessages;
+  final ValueChanged<String>? onSendMessage;
   final Widget? videoViewport;
   final bool isVideoActive;
   final bool isScreenShareActive;
+  final bool isMessagesVisible;
+  final int scheduleDate;
 
   const GroupCallPanel({
     super.key,
@@ -49,12 +54,16 @@ class GroupCallPanel extends StatefulWidget {
     this.isCanManage = false,
     this.isVideoActive = false,
     this.isScreenShareActive = false,
+    this.isMessagesVisible = false,
+    this.scheduleDate = 0,
     this.callStartTime,
     this.onLeave,
     this.onToggleMute,
     this.onToggleVideo,
     this.onToggleScreenShare,
     this.onOpenMenu,
+    this.onToggleMessages,
+    this.onSendMessage,
     this.videoViewport,
   });
 
@@ -73,9 +82,14 @@ class GroupCallPanel extends StatefulWidget {
 class _GroupCallPanelState extends State<GroupCallPanel>
     with TickerProviderStateMixin {
   Timer? _durationTimer;
+  Timer? _audioLevelTimer;
   int _durationSeconds = 0;
   late DateTime _callStartTime;
   final _validAvatarPaths = <String>{};
+  final _messageController = TextEditingController();
+  final _messageFocusNode = FocusNode();
+
+  double _selfAudioLevel = 0.0;
 
   @override
   void initState() {
@@ -85,6 +99,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     if (_durationSeconds < 0) _durationSeconds = 0;
     _startDurationTimer();
     _cacheAvatarPaths();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startAudioLevelPolling());
   }
 
   @override
@@ -114,6 +129,9 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   @override
   void dispose() {
     _durationTimer?.cancel();
+    _audioLevelTimer?.cancel();
+    _messageController.dispose();
+    _messageFocusNode.dispose();
     super.dispose();
   }
 
@@ -127,6 +145,23 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           if (_durationSeconds < 0) _durationSeconds = 0;
         });
       }
+    });
+  }
+
+  void _startAudioLevelPolling() {
+    _audioLevelTimer?.cancel();
+    _audioLevelTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
+      if (!mounted) return;
+      final callId = widget.info.callId;
+      if (callId.isEmpty) return;
+      try {
+        final engine = context.read<EngineService>();
+        final accountId = context.read<AppState>().activeAccountId;
+        final level = await engine.getCallSoundPeak(accountId, callId);
+        if (mounted && (_selfAudioLevel - level).abs() > 0.01) {
+          setState(() => _selfAudioLevel = level);
+        }
+      } catch (_) {}
     });
   }
 
@@ -268,38 +303,228 @@ class _GroupCallPanelState extends State<GroupCallPanel>
       );
     }
 
+    return GestureDetector(
+      onLongPress: () => _showParticipantMenu(context, p),
+      onSecondaryTapUp: (details) => _showParticipantMenu(context, p, position: details.globalPosition),
+      child: Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            _SpeakerBlobAvatar(
+              level: p.isSpeaking ? (p.audioLevel > 0 ? p.audioLevel : 0.5) : 0.0,
+              isSpeaking: p.isSpeaking,
+              child: avatar,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                p.displayName.isNotEmpty ? p.displayName : 'User',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            if (p.isSpeaking)
+              const Icon(Icons.graphic_eq, color: Color(0xFF4DC920), size: 20),
+            if (p.isMuted)
+              const Icon(Icons.mic_off, color: Color(0x80FFFFFF), size: 18),
+            if (p.hasVideo)
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: Icon(Icons.videocam, color: Color(0x80FFFFFF), size: 18),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showParticipantMenu(BuildContext context, GroupCallParticipant p, {Offset? position}) {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    final callId = widget.info.callId;
+    if (callId.isEmpty) return;
+
+    final items = <PopupMenuEntry<String>>[];
+
+    if (!p.isMuted && widget.isCanManage) {
+      items.add(const PopupMenuItem(value: 'mute', child: Text('Mute')));
+    } else if (p.isMuted && widget.isCanManage) {
+      items.add(const PopupMenuItem(value: 'unmute', child: Text('Unmute')));
+    }
+
+    items.add(PopupMenuItem(
+      value: 'volume',
+      child: Text('Volume: ${(p.volume / 100).round()}%'),
+    ));
+
+    if (widget.isCanManage) {
+      items.add(const PopupMenuDivider());
+      items.add(const PopupMenuItem(
+        value: 'kick',
+        child: Text('Remove from call', style: TextStyle(color: Colors.redAccent)),
+      ));
+    }
+
+    if (items.isEmpty) return;
+
+    final pos = position ?? Offset.zero;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx + 1, pos.dy + 1),
+      color: const Color(0xFF1E2530),
+      items: items,
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'mute':
+          engine.muteGroupCallParticipant(accountId, callId, p.userId, true);
+        case 'unmute':
+          engine.muteGroupCallParticipant(accountId, callId, p.userId, false);
+        case 'volume':
+          _showVolumeSlider(context, p, callId: callId);
+        case 'kick':
+          engine.kickGroupCallParticipant(accountId, callId, p.userId);
+      }
+    });
+  }
+
+  void _showVolumeSlider(BuildContext context, GroupCallParticipant p, {required String callId}) {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    var volume = p.volume.clamp(0, 20000).toDouble();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setDlgState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E2530),
+          title: Text(p.displayName, style: const TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('${(volume / 100).round()}%',
+                style: const TextStyle(color: Colors.white70, fontSize: 14)),
+              Slider(
+                value: volume,
+                min: 0,
+                max: 20000,
+                divisions: 200,
+                activeColor: const Color(0xFF3390EC),
+                onChanged: (v) => setDlgState(() => volume = v),
+                onChangeEnd: (v) {
+                  engine.setGroupCallParticipantVolume(
+                    accountId, callId, p.userId, v.round(),
+                  );
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx2),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageInput() {
+    if (!widget.isMessagesVisible) return const SizedBox.shrink();
     return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFF151B23),
+        border: Border(top: BorderSide(color: Color(0x20FFFFFF), width: 1)),
+      ),
       child: Row(
         children: [
-          _SpeakerBlobAvatar(
-            level: p.isSpeaking ? (p.audioLevel > 0 ? p.audioLevel : 0.5) : 0.0,
-            isSpeaking: p.isSpeaking,
-            child: avatar,
-          ),
-          const SizedBox(width: 12),
           Expanded(
+            child: TextField(
+              controller: _messageController,
+              focusNode: _messageFocusNode,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: const InputDecoration(
+                hintText: 'Write a message...',
+                hintStyle: TextStyle(color: Color(0x60FFFFFF)),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                isDense: true,
+              ),
+              onSubmitted: (_) => _sendMessage(),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.send, color: Color(0xFF3390EC), size: 20),
+            onPressed: _sendMessage,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _sendMessage() {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+    widget.onSendMessage?.call(text);
+    _messageController.clear();
+  }
+
+  Widget _buildScheduledOverlay() {
+    if (widget.scheduleDate == 0) return const SizedBox.shrink();
+    final scheduleTime = DateTime.fromMillisecondsSinceEpoch(widget.scheduleDate * 1000);
+    final now = DateTime.now();
+    final diff = scheduleTime.difference(now);
+
+    String countdownText;
+    String whenText;
+    if (diff.isNegative) {
+      final elapsed = now.difference(scheduleTime);
+      countdownText = _formatDuration(elapsed.inSeconds);
+      whenText = 'Late by';
+    } else {
+      countdownText = _formatDuration(diff.inSeconds);
+      whenText = 'Starts in';
+    }
+
+    final dateStr = '${scheduleTime.day}/${scheduleTime.month}/${scheduleTime.year} '
+        '${scheduleTime.hour.toString().padLeft(2, '0')}:${scheduleTime.minute.toString().padLeft(2, '0')}';
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(whenText,
+            style: const TextStyle(color: Color(0xAAFFFFFF), fontSize: 14)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF667FFF), Color(0xFF3390EC)],
+              ),
+              borderRadius: BorderRadius.circular(24),
+            ),
             child: Text(
-              p.displayName.isNotEmpty ? p.displayName : 'User',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              countdownText,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
+                fontSize: 28,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
-          if (p.isSpeaking)
-            const Icon(Icons.graphic_eq, color: Color(0xFF4DC920), size: 20),
-          if (p.isMuted)
-            const Icon(Icons.mic_off, color: Color(0x80FFFFFF), size: 18),
-          if (p.hasVideo)
-            const Padding(
-              padding: EdgeInsets.only(left: 8),
-              child: Icon(Icons.videocam, color: Color(0x80FFFFFF), size: 18),
-            ),
+          const SizedBox(height: 12),
+          Text(dateStr,
+            style: const TextStyle(color: Color(0x80FFFFFF), fontSize: 13)),
         ],
       ),
     );
@@ -338,6 +563,12 @@ class _GroupCallPanelState extends State<GroupCallPanel>
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _GroupCallControlButton(
+            icon: Icons.chat_bubble_outline,
+            label: 'Chat',
+            isActive: widget.isMessagesVisible,
+            onTap: widget.onToggleMessages,
+          ),
+          _GroupCallControlButton(
             icon: Icons.screen_share_outlined,
             label: 'Screen',
             isActive: widget.isScreenShareActive,
@@ -367,7 +598,11 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     return Column(
       children: [
         _buildTitleBar(),
-        _buildParticipantsList(),
+        if (widget.scheduleDate > 0)
+          Expanded(child: _buildScheduledOverlay())
+        else
+          _buildParticipantsList(),
+        _buildMessageInput(),
         _buildBottomControls(),
       ],
     );
@@ -420,7 +655,11 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           child: Column(
             children: [
               _buildTitleBar(),
-              _buildParticipantsList(),
+              if (widget.scheduleDate > 0)
+                Expanded(child: _buildScheduledOverlay())
+              else
+                _buildParticipantsList(),
+              _buildMessageInput(),
             ],
           ),
         ),
@@ -1148,6 +1387,9 @@ void showGroupCallPanel(
       var raisedHand = isRaisedHand;
       var cameraEnabled = false;
       var screenShareEnabled = false;
+      var recording = isRecording;
+      var messagesVisible = false;
+      var pttActive = false;
       final mq = MediaQuery.of(ctx);
       final screenW = mq.size.width;
       final screenH = mq.size.height;
@@ -1163,16 +1405,37 @@ void showGroupCallPanel(
             borderRadius: BorderRadius.circular(12),
             child: StatefulBuilder(
               builder: (sbCtx, setSbState) {
-                return GroupCallPanel(
+                return KeyboardListener(
+                  focusNode: FocusNode()..requestFocus(),
+                  autofocus: true,
+                  onKeyEvent: (event) {
+                    if (!info.isRtmp) return;
+                    if (event.logicalKey == LogicalKeyboardKey.space) {
+                      final engine = sbCtx.read<EngineService>();
+                      final accountId = sbCtx.read<AppState>().activeAccountId;
+                      final callId = info.callId;
+                      if (callId.isEmpty) return;
+                      if (event is KeyDownEvent && !pttActive) {
+                        pttActive = true;
+                        engine.setCallMuted(accountId, callId, false);
+                      } else if (event is KeyUpEvent && pttActive) {
+                        pttActive = false;
+                        engine.setCallMuted(accountId, callId, true);
+                      }
+                    }
+                  },
+                  child: GroupCallPanel(
                   info: info,
                   chatTitle: chatTitle,
-                  isRecording: isRecording,
+                  isRecording: recording,
                   isSelfMuted: selfMuted,
                   isForceMuted: forceMuted,
                   isRaisedHand: raisedHand,
                   isCanManage: isCanManage,
                   isVideoActive: cameraEnabled,
                   isScreenShareActive: screenShareEnabled,
+                  isMessagesVisible: messagesVisible,
+                  scheduleDate: info.scheduleDate,
                   callStartTime: callStartTime,
                   videoViewport: videoViewport,
                   onLeave: () {
@@ -1216,7 +1479,7 @@ void showGroupCallPanel(
                     } else if (!forceMuted) {
                       setSbState(() => selfMuted = !selfMuted);
                       if (callId.isNotEmpty) {
-                        engine.setCallMuted(accountId, callId, !selfMuted);
+                        engine.setCallMuted(accountId, callId, selfMuted);
                       }
                     }
                     onToggleMute?.call();
@@ -1246,9 +1509,27 @@ void showGroupCallPanel(
                     }
                   },
                   onOpenMenu: () {
-                    _showGroupCallMenu(ctx, callId: info.callId);
+                    _showGroupCallMenu(ctx, callId: info.callId,
+                      isRecording: recording,
+                      onRecordingChanged: (v) {
+                        recording = v;
+                        setSbState(() {});
+                      },
+                    );
                   },
-                );
+                  onToggleMessages: () {
+                    messagesVisible = !messagesVisible;
+                    setSbState(() {});
+                  },
+                  onSendMessage: (text) {
+                    final engine = sbCtx.read<EngineService>();
+                    final accountId = sbCtx.read<AppState>().activeAccountId;
+                    final chatId = info.chatId;
+                    if (chatId.isNotEmpty) {
+                      engine.sendMessage(accountId, chatId, text);
+                    }
+                  },
+                ));
               },
             ),
           ),
@@ -1258,7 +1539,7 @@ void showGroupCallPanel(
   );
 }
 
-void _showGroupCallMenu(BuildContext context, {String callId = ''}) {
+void _showGroupCallMenu(BuildContext context, {String callId = '', bool isRecording = false, ValueChanged<bool>? onRecordingChanged}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF1E2530),
@@ -1266,6 +1547,7 @@ void _showGroupCallMenu(BuildContext context, {String callId = ''}) {
       borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
     ),
     builder: (ctx) {
+      var recording = isRecording;
       return StatefulBuilder(
         builder: (ctx2, setSheetState) {
           final appState = ctx2.read<AppState>();
@@ -1285,20 +1567,38 @@ void _showGroupCallMenu(BuildContext context, {String callId = ''}) {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.fiber_manual_record, color: Colors.redAccent),
-                  title: const Text('Start Recording',
-                      style: TextStyle(color: Colors.white)),
+                  leading: Icon(
+                    recording ? Icons.stop_circle : Icons.fiber_manual_record,
+                    color: Colors.redAccent,
+                  ),
+                  title: Text(
+                    recording ? 'Stop Recording' : 'Start Recording',
+                    style: const TextStyle(color: Colors.white),
+                  ),
                   onTap: () async {
                     Navigator.pop(ctx2);
                     if (callId.isNotEmpty) {
-                      final timestamp = DateTime.now().millisecondsSinceEpoch;
-                      final tmpDir = await getTemporaryDirectory();
-                      final filePath = '${tmpDir.path}/call_recording_$timestamp.wav';
-                      await engine.startCallRecording(accountId, callId, filePath);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Recording to: $filePath')),
-                        );
+                      if (recording) {
+                        await engine.stopCallRecording(accountId, callId);
+                        recording = false;
+                        onRecordingChanged?.call(false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Recording saved')),
+                          );
+                        }
+                      } else {
+                        final timestamp = DateTime.now().millisecondsSinceEpoch;
+                        final tmpDir = await getTemporaryDirectory();
+                        final filePath = '${tmpDir.path}/call_recording_$timestamp.wav';
+                        await engine.startCallRecording(accountId, callId, filePath);
+                        recording = true;
+                        onRecordingChanged?.call(true);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Recording started')),
+                          );
+                        }
                       }
                     }
                   },
@@ -2673,7 +2973,13 @@ class _ScreenShareChooserDialogState
     try {
       final w = _kThumbW.toInt() * 2;
       final h = _kThumbH.toInt() * 2;
+
+      if (source.id.startsWith('pipewire:')) return null;
+
       if (source.isScreen) {
+        final grimResult = await _tryGrimCapture(w, h);
+        if (grimResult != null) return grimResult;
+
         final result = await Process.run(
           'import',
           ['-window', 'root', '-resize', '${w}x$h!', 'png:-'],
@@ -2698,11 +3004,26 @@ class _ScreenShareChooserDialogState
     return null;
   }
 
+  static Future<Uint8List?> _tryGrimCapture(int w, int h) async {
+    try {
+      final result = await Process.run(
+        'grim',
+        ['-t', 'png', '-s', '${w / 2}', '-'],
+        stdoutEncoding: null,
+      ).timeout(const Duration(seconds: 3));
+      if (result.exitCode == 0 && (result.stdout as List<int>).isNotEmpty) {
+        return Uint8List.fromList(result.stdout as List<int>);
+      }
+    } catch (_) {}
+    return null;
+  }
+
   static Future<List<ScreenShareSource>> _enumerateWindows() async {
     if (!Platform.isLinux) {
       return [];
     }
     final windows = <ScreenShareSource>[];
+
     try {
       final result = await Process.run('wmctrl', ['-l']);
       if (result.exitCode == 0) {
@@ -2722,6 +3043,7 @@ class _ScreenShareChooserDialogState
       }
     } catch (_) {}
     if (windows.isNotEmpty) return windows;
+
     try {
       final result = await Process.run('xdotool', ['search', '--name', '']);
       if (result.exitCode == 0) {
@@ -2741,6 +3063,28 @@ class _ScreenShareChooserDialogState
         }
       }
     } catch (_) {}
+    if (windows.isNotEmpty) return windows;
+
+    try {
+      final kdResult = await Process.run('kdotool', ['search', '--name', '']);
+      if (kdResult.exitCode == 0) {
+        final uuids = (kdResult.stdout as String).trim().split('\n');
+        for (final uuid in uuids.take(20)) {
+          if (uuid.trim().isEmpty) continue;
+          try {
+            final nameResult = await Process.run('kdotool', ['getwindowname', uuid.trim()]);
+            if (nameResult.exitCode == 0) {
+              final name = (nameResult.stdout as String).trim();
+              if (name.isNotEmpty) {
+                windows.add(ScreenShareSource(
+                    id: 'window:$uuid', name: name, isScreen: false));
+              }
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+
     return windows;
   }
 

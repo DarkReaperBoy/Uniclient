@@ -2407,6 +2407,47 @@ class EngineService {
     }
   }
 
+  Future<void> setGroupCallParticipantVolume(String accountId, String callId, String userId, int volume) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'user_id': userId,
+      'volume': volume,
+    }));
+    try {
+      await _callAsync('__engine', 'SetGroupCallParticipantVolume', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'setGroupCallParticipantVolume failed', e);
+    }
+  }
+
+  Future<void> muteGroupCallParticipant(String accountId, String callId, String userId, bool mute) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'user_id': userId,
+      'muted': mute,
+    }));
+    try {
+      await _callAsync('__engine', 'MuteGroupCallParticipant', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'muteGroupCallParticipant failed', e);
+    }
+  }
+
+  Future<void> kickGroupCallParticipant(String accountId, String callId, String userId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'user_id': userId,
+    }));
+    try {
+      await _callAsync('__engine', 'KickGroupCallParticipant', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'kickGroupCallParticipant failed', e);
+    }
+  }
+
   Future<String?> startCall(String accountId, String chatId, {bool video = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

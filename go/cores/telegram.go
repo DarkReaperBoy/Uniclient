@@ -9033,6 +9033,85 @@ func (t *TelegramCore) SetGroupCallParticipantVolume(callID string, userID strin
 	return nil
 }
 
+// MuteGroupCallParticipant admin-mutes or unmutes another participant in a group call.
+func (t *TelegramCore) MuteGroupCallParticipant(callID string, userID string, mute bool) error {
+	t.mu.RLock()
+	if !t.authed || t.api == nil {
+		t.mu.RUnlock()
+		return ErrAuth
+	}
+	t.mu.RUnlock()
+
+	cid, err := strconv.ParseInt(callID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid call ID: %w", err)
+	}
+
+	t.mu.RLock()
+	call := t.activeCalls[cid]
+	t.mu.RUnlock()
+	if call == nil || !call.isGroupCall {
+		return fmt.Errorf("no active group call %s", callID)
+	}
+
+	uid, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	req := &tg.PhoneEditGroupCallParticipantRequest{
+		Call:        &tg.InputGroupCall{ID: cid, AccessHash: call.accessHash},
+		Participant: &tg.InputPeerUser{UserID: uid, AccessHash: t.getCachedUserHash(uid)},
+	}
+	req.SetMuted(mute)
+	_, err = t.api.PhoneEditGroupCallParticipant(t.ctx, req)
+	if err != nil {
+		return fmt.Errorf("phone.editGroupCallParticipant: %w", err)
+	}
+	fmt.Printf("[tg-group] MuteGroupCallParticipant %s mute=%v in group call %s\n", userID, mute, callID)
+	return nil
+}
+
+// KickGroupCallParticipant removes a participant from a group call by setting their left flag.
+func (t *TelegramCore) KickGroupCallParticipant(callID string, userID string) error {
+	t.mu.RLock()
+	if !t.authed || t.api == nil {
+		t.mu.RUnlock()
+		return ErrAuth
+	}
+	t.mu.RUnlock()
+
+	cid, err := strconv.ParseInt(callID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid call ID: %w", err)
+	}
+
+	t.mu.RLock()
+	call := t.activeCalls[cid]
+	t.mu.RUnlock()
+	if call == nil || !call.isGroupCall {
+		return fmt.Errorf("no active group call %s", callID)
+	}
+
+	uid, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	req := &tg.PhoneEditGroupCallParticipantRequest{
+		Call:        &tg.InputGroupCall{ID: cid, AccessHash: call.accessHash},
+		Participant: &tg.InputPeerUser{UserID: uid, AccessHash: t.getCachedUserHash(uid)},
+	}
+	req.SetMuted(true)
+	req.SetVolume(0)
+	_, err = t.api.PhoneEditGroupCallParticipant(t.ctx, req)
+	if err != nil {
+		return fmt.Errorf("phone.editGroupCallParticipant: %w", err)
+	}
+	fmt.Printf("[tg-group] KickGroupCallParticipant %s from group call %s\n", userID, callID)
+	return nil
+}
+
 // ToggleGroupCallVideo enables or disables our video in a group call.
 // Uses phone.editGroupCallParticipant with SetVideoStopped.
 func (t *TelegramCore) ToggleGroupCallVideo(callID string, enabled bool) error {

@@ -5033,6 +5033,50 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "SetGroupCallParticipantVolume":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+			UserID    string `json:"user_id"`
+			Volume    int    `json:"volume"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.SetGroupCallParticipantVolume(params.AccountID, params.CallID, params.UserID, params.Volume); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "MuteGroupCallParticipant":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+			UserID    string `json:"user_id"`
+			Muted     bool   `json:"muted"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.MuteGroupCallParticipant(params.AccountID, params.CallID, params.UserID, params.Muted); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "KickGroupCallParticipant":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+			UserID    string `json:"user_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.KickGroupCallParticipant(params.AccountID, params.CallID, params.UserID); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	case "ToggleCamera":
 		var params struct {
 			AccountID string `json:"account_id"`
