@@ -716,28 +716,6 @@ All numeric constants match AyuGram exactly:
 # create_giveaway_box — Audit findings
 
 
-# custom_emoji_cache — Audit findings
-
-## Sources compared
-- Dart: `dart/lib/ui/custom_emoji_cache.dart`
-- AyuGram: `data/stickers/data_custom_emoji.cpp`, `lib_ui/ui/text/custom_emoji_instance.cpp/.h`
-
----
-
-- [ ] [MAJOR] `preloadBatch()` is defined but never called anywhere in the codebase — it is dead code. AyuGram's `CustomEmojiManager` populates `_pendingForRequest` proactively before rendering so emoji resolve before widgets mount. In Dart, every emoji widget independently calls `request()` on mount; no scene-level prefetch happens. Emoji in newly-scrolled-to chats will always render as blank/preview until the per-widget batch fires. — `custom_emoji_cache.dart:219` ← `data/stickers/data_custom_emoji.cpp:657-660` (resolve queues to `_pendingForRequest` immediately on demand, triggering `request()` on the next main-loop tick)
-
-- [ ] [MAJOR] `_notifyListeners(changedIds)` always fires **all** `_globalListeners` unconditionally (line 493-495), regardless of which `documentId`s changed. Every widget that called `addListener` rebuilds on every batch completion, even if none of its emoji changed. AyuGram uses per-instance `Fn<void()> update` callbacks passed at `create()` time, so only the instances that actually loaded new data repaint. With N emoji widgets open, each batch triggers N `setState()` calls instead of the handful that changed. — `custom_emoji_cache.dart:493` ← `data/stickers/data_custom_emoji.cpp:821-835` (`repaintLater` schedules repaint only for the specific `Instance*` that updated)
-
-- [ ] [MAJOR] Animation-frame constants `kMaxFrames = 180`, `kPreloadFrames = 3`, and `kPerRow = 16` are declared in `EmojiSizeConstants` but are **never referenced anywhere** in the Dart codebase. In AyuGram these constants live in `Cache` (the sprite-sheet renderer) and are actively used to cap frame count, trigger preloading, and compute sprite-sheet geometry. Their presence in Dart without any usage means the sprite-sheet frame-management layer (`Cache::paintCurrentFrame`, preload logic) is entirely absent; the Lottie Flutter package is used directly instead with no frame cap or preload control. — `custom_emoji_cache.dart:49-51` ← `lib_ui/ui/text/custom_emoji_instance.cpp:23-25`, `custom_emoji_instance.h:102` (`kPerRow = 16`, `kMaxFrames = 180`, `kPreloadFrames = 3` all actively used in `Cache::paintCurrentFrame` and `Renderer::renderNextFrame`)
-
-# edit_forum_topic_box — Audit Findings
-
-- [ ] [CRITICAL] "View Premium" button in premium toast is a no-op stub — tapping it only calls `_dismissToast()` instead of navigating to the Premium subscription flow. In AyuGram, `StickerToast` for `Section::TopicIcon` calls `Settings::ShowPremium(window, u"forum_topic_icon"_q)` to open the Premium features page. — `edit_forum_topic_box.dart:646-657` ← `AyuGram/history/view/history_view_sticker_toast.cpp:235-237`
-
-- [ ] [MAJOR] Default reset cell renders `Icons.close` (an X icon) instead of the current default color icon. In AyuGram the first grid entry is `kDefaultIconId` which is rendered by `DefaultIconEmoji::paint` as `Data::ForumTopicIconFrame(_icon.colorId, _icon.title, st)` — the live color circle that reflects the current topic color and title. The Dart's X icon is semantically and visually wrong for this slot. — `edit_forum_topic_box.dart:920-928` ← `AyuGram/boxes/peers/edit_forum_topic_box.cpp:285-289, 93-114`
-
-- [ ] [MAJOR] Icon selector panel lacks search. AyuGram uses `EmojiListWidget::Mode::TopicIcon` backed by `reactPanelEmojiPan` which includes a search bar (`searchMargin: margins(1px, 10px, 2px, 6px)`). The Dart replaces the entire widget with a custom tab bar + grid and has no search input, making large emoji sets unsearchable. — `edit_forum_topic_box.dart:683` ← `AyuGram/boxes/peers/edit_forum_topic_box.cpp:291-299` + `AyuGram/chat_helpers/chat_helpers.style:883-884`
-
 # edit_mark_box.dart — Audit vs AyuGram EditMarkBox
 
 ## Summary
