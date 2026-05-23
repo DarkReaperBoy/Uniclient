@@ -605,27 +605,6 @@ All geometric calculations match:
 # call_screen — Group Call Panel & Minimised Call Bar Audit
 
 
-
-## chat_export — export panel, settings, progress, and suggest-box
-
-- [ ] [CRITICAL] `full_personal_chats` and `full_bot_chats` are hardcoded `true` in `startExport` params instead of reflecting `_privateGroupsOnlyMy` / `_privateChannelsOnlyMy` state; the correct keys for private groups and private channels (`full_private_groups`, `full_private_channels`) are never sent at all, so the "Only my messages" checkboxes for private groups and channels have zero effect on the actual export — `chat_export.dart:845-846` ← `AyuGram/export/export_settings.h:84,115-118` + `export_controller.cpp:24-29`
-
-- [ ] [CRITICAL] `_ExportSuggestBox` "Not now" button only calls `Navigator.of(context).pop()` without clearing the export suggestion from the engine; AyuGram calls `ClearSuggestStart` (which calls `clearExportSuggestion` + writes `availableAt = 0` back to storage) as soon as `SuggestStart` is invoked, ensuring re-appearance only when the engine fires the suggestion again — `chat_export.dart:3258-3263` ← `AyuGram/export/view/export_view_panel_controller.cpp:99-112`
-
-- [ ] [CRITICAL] On `TAKEOUT_INIT_DELAY` error, AyuGram persists `availableAt` to local settings and calls `suggestStartExport` so the app will offer the export again when the delay expires; the Dart code only shows an informational dialog and closes the panel, with no write-back of `availableAt` and no scheduling of the future suggest — `chat_export.dart:1104-1127` ← `AyuGram/export/view/export_view_panel_controller.cpp:228-251`
-
-- [ ] [MAJOR] `_ExportPanelController` is a static singleton with a bare global `OverlayEntry`; AyuGram's `PanelController` is session-scoped (`not_null<Main::Session*>`) and one panel per session can exist; the Dart implementation silently closes any existing panel (`close()`) before opening a new one regardless of session, meaning a second account starting an export while the first is processing will destroy the first panel without cancelling its underlying engine export — `chat_export.dart:190-202` ← `AyuGram/export/view/export_view_panel_controller.cpp:138-152`
-
-- [ ] [MAJOR] `_buildProcessingPlaceholder` renders all steps in a `ListView` using a plain Dart `List.where(...).toList()` snapshot with `AnimatedOpacity` wrappers; AyuGram's `ProgressWidget` uses individual `Row` widgets that maintain an `_old` list with per-instance opacity `Animations::Simple` animating at `exportProgressDuration: 200ms` and a progress bar that animates with `sineInOut` easing from old value; the Dart version uses a flat `AnimatedOpacity` without a separate "old instance" crossfade layer, producing a pop-in instead of a smooth label-swap — `chat_export.dart:2234-2308` ← `AyuGram/export/view/export_view_progress.cpp:73-219`
-
-- [ ] [MAJOR] `ProgressWidget.showDone()` in AyuGram transitions the progress view into a "done" state that replaces the Stop button with a Done/Show-my-data button and changes the about-label text to `lng_export_about_done`; the Dart code uses a separate `_buildCompletedPlaceholder` phase that discards all progress row state and reconstructs from `_completedStepData`, which means any rows that were never marked `wasReported` are silently dropped — `chat_export.dart:996-1016` ← `AyuGram/export/view/export_view_progress.cpp:355-376`
-
-- [ ] [MAJOR] In `_buildFullExportSettings`, the format section inline-embeds three `Radio` buttons below the path/location label; AyuGram's full-export settings widget (`setupPathAndFormat`) only shows the location label and inline format radios for the non-singlePeer case — but for the per-chat (`singlePeer`) case it shows a combined `addFormatAndLocationLabel` with two inline links (format + path) in one `FlatLabel` line, not separate rows; the Dart per-chat path (`_buildCombinedFormatLocation`) correctly uses a `Wrap` with two tappable links but then also still renders format radios (`_buildFormatRadio`) in the full-export view — `chat_export.dart:1475-1483` ← `AyuGram/export/view/export_view_settings.cpp:266-294`
-
-- [ ] [MAJOR] `_buildPerChatSettings` does not include a header section ("Export chat history", "Personal info", etc.) or the account-data checkboxes (personalInfo, contacts, stories, profileMusic, sessions, otherData); AyuGram's `setupOptions` calls `setupFullExportOptions` only when `_singlePeerId == 0`, and for single-peer shows `addMediaOptions` + `addFormatAndLocationLabel` + `addLimitsLabel` — the Dart per-chat settings only shows media + date range, which is correct, but the header label that reads "Export Topic History" / "Export Chat History" is only in the title bar, not in the content pane as AyuGram shows it — `chat_export.dart:1850-1957` ← `AyuGram/export/view/export_view_settings.cpp:159-167`
-
-- [ ] [MAJOR] `_ExportPanelController._visible` starts as `ValueNotifier<bool>(true)` and `close()` resets it to `true` without actually destroying it; if `_entry` is already `null` when `close()` is called no harm is done, but `_visible` leaking across multiple show/close cycles means an `Offstage` child from a previous session may still be listening — `chat_export.dart:178,221-226` ← `AyuGram/export/view/export_view_panel_controller.cpp:154-161` (destructor hides panel on destroy)
-
 # chat_list_panel — Audit findings
 
 ## chat_list_panel — Visual/behavioral issues vs AyuGram
