@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:dbus/dbus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -1247,11 +1249,139 @@ class ScreenShareResult {
   const ScreenShareResult({required this.source, this.withAudio = false});
 }
 
-Future<ScreenShareResult?> showScreenShareChooser(BuildContext context) {
+Future<ScreenShareResult?> showScreenShareChooser(BuildContext context) async {
+  if (Platform.isLinux) {
+    final isWayland = Platform.environment['WAYLAND_DISPLAY']?.isNotEmpty == true ||
+        Platform.environment['XDG_SESSION_TYPE'] == 'wayland';
+    if (isWayland) {
+      final portalSource = await _tryPortalScreenCast();
+      if (portalSource != null) {
+        return ScreenShareResult(source: portalSource);
+      }
+    }
+  }
+  if (!context.mounted) return null;
   return showTelegramBox<ScreenShareResult>(
     context: context,
     builder: (ctx) => const _ScreenShareChooser(),
   );
+}
+
+Future<ScreenShareSource?> _tryPortalScreenCast() async {
+  final client = DBusClient.session();
+  try {
+    final object = DBusRemoteObject(
+      client,
+      name: 'org.freedesktop.portal.Desktop',
+      path: DBusObjectPath('/org/freedesktop/portal/desktop'),
+    );
+
+    final uniqueName = client.uniqueName;
+    if (uniqueName.isEmpty) return null;
+    final senderName = uniqueName.substring(1).replaceAll('.', '_');
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final token = 'uc_$ts';
+    final sessionToken = 'uc_s_$ts';
+
+    final createReqPath = DBusObjectPath(
+        '/org/freedesktop/portal/desktop/request/$senderName/$token');
+    final createCompleter = Completer<DBusSignal>();
+    final createSub = DBusSignalStream(
+      client,
+      interface: 'org.freedesktop.portal.Request',
+      name: 'Response',
+      path: createReqPath,
+    ).listen(createCompleter.complete);
+
+    await object.callMethod(
+      'org.freedesktop.portal.ScreenCast', 'CreateSession',
+      [DBusDict(DBusSignature('s'), DBusSignature('v'), {
+        DBusString('handle_token'): DBusVariant(DBusString(token)),
+        DBusString('session_handle_token'): DBusVariant(DBusString(sessionToken)),
+      })],
+      replySignature: DBusSignature('o'),
+    );
+
+    final createSig = await createCompleter.future.timeout(const Duration(seconds: 5));
+    await createSub.cancel();
+    if ((createSig.values[0] as DBusUint32).value != 0) return null;
+
+    final createOpts = createSig.values[1] as DBusDict;
+    final sessionHandle = ((createOpts.children[DBusString('session_handle')]
+        as DBusVariant).value as DBusObjectPath);
+
+    final selToken = 'uc_sel_$ts';
+    final selReqPath = DBusObjectPath(
+        '/org/freedesktop/portal/desktop/request/$senderName/$selToken');
+    final selCompleter = Completer<DBusSignal>();
+    final selSub = DBusSignalStream(
+      client,
+      interface: 'org.freedesktop.portal.Request',
+      name: 'Response',
+      path: selReqPath,
+    ).listen(selCompleter.complete);
+
+    await object.callMethod(
+      'org.freedesktop.portal.ScreenCast', 'SelectSources',
+      [sessionHandle, DBusDict(DBusSignature('s'), DBusSignature('v'), {
+        DBusString('types'): DBusVariant(DBusUint32(3)),
+        DBusString('multiple'): DBusVariant(DBusBoolean(false)),
+        DBusString('handle_token'): DBusVariant(DBusString(selToken)),
+      })],
+      replySignature: DBusSignature('o'),
+    );
+
+    final selSig = await selCompleter.future.timeout(const Duration(seconds: 120));
+    await selSub.cancel();
+    if ((selSig.values[0] as DBusUint32).value != 0) return null;
+
+    final startToken = 'uc_st_$ts';
+    final startReqPath = DBusObjectPath(
+        '/org/freedesktop/portal/desktop/request/$senderName/$startToken');
+    final startCompleter = Completer<DBusSignal>();
+    final startSub = DBusSignalStream(
+      client,
+      interface: 'org.freedesktop.portal.Request',
+      name: 'Response',
+      path: startReqPath,
+    ).listen(startCompleter.complete);
+
+    await object.callMethod(
+      'org.freedesktop.portal.ScreenCast', 'Start',
+      [sessionHandle, DBusString(''), DBusDict(DBusSignature('s'), DBusSignature('v'), {
+        DBusString('handle_token'): DBusVariant(DBusString(startToken)),
+      })],
+      replySignature: DBusSignature('o'),
+    );
+
+    final startSig = await startCompleter.future.timeout(const Duration(seconds: 120));
+    await startSub.cancel();
+    if ((startSig.values[0] as DBusUint32).value != 0) return null;
+
+    final startOpts = startSig.values[1] as DBusDict;
+    final streamsVar = startOpts.children[DBusString('streams')] as DBusVariant;
+    final streams = streamsVar.value as DBusArray;
+    if (streams.children.isEmpty) return null;
+
+    final first = streams.children.first as DBusStruct;
+    final nodeId = (first.children[0] as DBusUint32).value;
+    final props = first.children[1] as DBusDict;
+    final srcTypeVar = props.children[DBusString('source_type')];
+    final srcType = srcTypeVar is DBusVariant
+        ? (srcTypeVar.value as DBusUint32).value
+        : 1;
+    final isScreen = srcType == 1;
+
+    return ScreenShareSource(
+      id: 'pipewire:$nodeId',
+      name: isScreen ? 'Screen' : 'Window',
+      isScreen: isScreen,
+    );
+  } catch (_) {
+    return null;
+  } finally {
+    await client.close();
+  }
 }
 
 class _ScreenShareChooser extends StatefulWidget {
