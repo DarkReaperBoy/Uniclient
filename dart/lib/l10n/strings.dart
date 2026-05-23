@@ -88,10 +88,10 @@ class TrStrings {
       '$emoji to: $text';
 
   // Report reactions (info_profile_actions.cpp:1302-1339)
-  static String lngReportReactionTitle() => 'Report Reaction';
+  static String lngReportReactionTitle() => 'Report reaction';
   static String lngReportReactionAbout() =>
-      'Are you sure you want to report this reaction?';
-  static String lngReportAndBanButton() => 'Report and ban user';
+      'Are you sure you want to report reactions from this user?';
+  static String lngReportAndBanButton() => 'Ban user';
 
   // Auto-delete (delete_messages_box.cpp:306-315)
   static String lngEnableAutoDelete() => 'Enable auto-delete';
