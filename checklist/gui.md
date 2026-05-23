@@ -604,10 +604,6 @@ All geometric calculations match:
 
 # call_screen — Group Call Panel & Minimised Call Bar Audit
 
-## call_screen — Mute state sent to engine is inverted (wrong value)
-
-- [ ] [CRITICAL] `onToggleMute` callback toggles `selfMuted` via `setSbState` (mutating the local var to the NEW value), then immediately calls `engine.setCallMuted(accountId, callId, !selfMuted)` — but `selfMuted` is already the NEW value at that point, so `!selfMuted` is the OLD value. Engine receives the opposite of the intended mute state on every toggle. — `call_screen.dart:1217-1219` ← `AyuGram/calls/group/calls_group_panel.cpp:590-600` (AyuGram reads `oldState`, computes `newState`, then calls `setMutedAndUpdate(newState)` — no double-negation)
-
 ## call_screen — No "Stop Recording" option in call menu
 
 - [ ] [CRITICAL] The group call menu only has "Start Recording" regardless of whether recording is already active (`isRecording` widget flag exists but is never checked in the menu). AyuGram shows "Stop Recording" when recording is active and toggles via `toggleRecording()`. There is no way for the user to stop a recording once started. — `call_screen.dart:1287-1305` ← `AyuGram/calls/group/calls_group_panel.cpp:335-337` (`tr::lng_group_call_recording_start` / `tr::lng_group_call_recording_stop` toggled based on recording state)
