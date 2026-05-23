@@ -2371,6 +2371,7 @@ class GroupCallInfo {
   final List<GroupCallParticipant> participants;
   final bool active;
   final bool isRtmp;
+  final bool isRecording;
   final int scheduleDate;
   final String origin;
 
@@ -2382,6 +2383,7 @@ class GroupCallInfo {
     this.participants = const [],
     this.active = false,
     this.isRtmp = false,
+    this.isRecording = false,
     this.scheduleDate = 0,
     this.origin = '',
   });
@@ -2396,6 +2398,7 @@ class GroupCallInfo {
         .toList() ?? [],
     active: j['active'] as bool? ?? false,
     isRtmp: j['is_rtmp'] as bool? ?? false,
+    isRecording: j['is_recording'] as bool? ?? false,
     scheduleDate: (j['schedule_date'] as num?)?.toInt() ?? 0,
     origin: j['origin'] as String? ?? '',
   );

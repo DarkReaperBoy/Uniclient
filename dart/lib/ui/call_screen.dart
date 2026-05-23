@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -93,10 +94,12 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   StreamSubscription<GroupCallStateEvent>? _callStateSub;
   Map<String, double> _participantLevels = {};
   Map<String, bool> _participantSpeaking = {};
+  bool _isRecording = false;
 
   @override
   void initState() {
     super.initState();
+    _isRecording = widget.isRecording;
     _callStartTime = widget.callStartTime ?? DateTime.now();
     _durationSeconds = DateTime.now().difference(_callStartTime).inSeconds;
     if (_durationSeconds < 0) _durationSeconds = 0;
@@ -113,6 +116,9 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     super.didUpdateWidget(old);
     if (widget.info.participants != old.info.participants) {
       _cacheAvatarPaths();
+    }
+    if (widget.isRecording != old.isRecording) {
+      _isRecording = widget.isRecording;
     }
   }
 
@@ -183,6 +189,20 @@ class _GroupCallPanelState extends State<GroupCallPanel>
         newLevels[p.userId] = p.audioLevel;
         newSpeaking[p.userId] = p.isSpeaking;
       }
+
+      final newRecording = event.info.isRecording;
+      if (newRecording != _isRecording) {
+        _isRecording = newRecording;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(newRecording ? 'Recording started' : 'Recording saved'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+
       if (mounted) {
         setState(() {
           _participantLevels = newLevels;
@@ -248,7 +268,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (widget.isRecording) ...[
+                    if (_isRecording) ...[
                       _RecordingDot(),
                       const SizedBox(width: 8),
                     ],
@@ -3019,6 +3039,10 @@ class _ScreenShareChooserDialogState
     await Future.wait(futures);
   }
 
+  static bool get _isWayland =>
+      Platform.environment['XDG_SESSION_TYPE'] == 'wayland' ||
+      Platform.environment.containsKey('WAYLAND_DISPLAY');
+
   static Future<Uint8List?> _captureSourceThumb(ScreenShareSource source) async {
     try {
       final w = _kThumbW.toInt() * 2;
@@ -3030,6 +3054,7 @@ class _ScreenShareChooserDialogState
         final grimResult = await _tryGrimCapture(w, h);
         if (grimResult != null) return grimResult;
 
+        if (_isWayland) return null;
         final result = await Process.run(
           'import',
           ['-window', 'root', '-resize', '${w}x$h!', 'png:-'],
@@ -3039,6 +3064,7 @@ class _ScreenShareChooserDialogState
           return Uint8List.fromList(result.stdout as List<int>);
         }
       } else {
+        if (_isWayland) return null;
         final wid = source.id.replaceFirst('window:', '');
         if (wid.isEmpty || wid == '0') return null;
         final result = await Process.run(
@@ -3058,7 +3084,7 @@ class _ScreenShareChooserDialogState
     try {
       final result = await Process.run(
         'grim',
-        ['-t', 'png', '-s', '${w / 2}', '-'],
+        ['-t', 'png', '-s', '0.5', '-'],
         stdoutEncoding: null,
       ).timeout(const Duration(seconds: 3));
       if (result.exitCode == 0 && (result.stdout as List<int>).isNotEmpty) {
@@ -3134,8 +3160,94 @@ class _ScreenShareChooserDialogState
         }
       }
     } catch (_) {}
+    if (windows.isNotEmpty) return windows;
+
+    // Hyprland: enumerate via hyprctl
+    try {
+      final hyprResult = await Process.run('hyprctl', ['clients', '-j']);
+      if (hyprResult.exitCode == 0) {
+        final list = jsonDecode((hyprResult.stdout as String).trim());
+        if (list is List) {
+          for (final client in list.take(20)) {
+            if (client is! Map) continue;
+            final title = client['title'] as String? ?? '';
+            final addr = client['address'] as String? ?? '';
+            if (title.isNotEmpty && addr.isNotEmpty) {
+              windows.add(ScreenShareSource(
+                  id: 'window:$addr', name: title, isScreen: false));
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    if (windows.isNotEmpty) return windows;
+
+    // Sway: enumerate via swaymsg
+    try {
+      final swayResult = await Process.run('swaymsg', ['-t', 'get_tree', '-r']);
+      if (swayResult.exitCode == 0) {
+        _parseSwayNodes(swayResult.stdout as String, windows);
+      }
+    } catch (_) {}
+    if (windows.isNotEmpty) return windows;
+
+    // GNOME Shell introspection via gdbus
+    try {
+      final gnomeResult = await Process.run('gdbus', [
+        'call', '--session',
+        '--dest', 'org.gnome.Shell',
+        '--object-path', '/org/gnome/Shell/Introspect',
+        '--method', 'org.gnome.Shell.Introspect.GetWindows',
+      ]);
+      if (gnomeResult.exitCode == 0) {
+        final out = gnomeResult.stdout as String;
+        final titleMatches = RegExp(r"'title':\s*<'([^']*)'").allMatches(out);
+        final idMatches = RegExp(r"'wmclass':\s*<'([^']*)'").allMatches(out);
+        final titles = titleMatches.map((m) => m.group(1) ?? '').toList();
+        final ids = idMatches.map((m) => m.group(1) ?? '').toList();
+        for (var i = 0; i < titles.length && i < 20; i++) {
+          if (titles[i].isNotEmpty) {
+            windows.add(ScreenShareSource(
+                id: 'window:gnome-${i < ids.length ? ids[i] : i}',
+                name: titles[i],
+                isScreen: false));
+          }
+        }
+      }
+    } catch (_) {}
 
     return windows;
+  }
+
+  static void _parseSwayNodes(String jsonStr, List<ScreenShareSource> out) {
+    try {
+      final tree = jsonDecode(jsonStr);
+      _walkSwayTree(tree, out);
+    } catch (_) {}
+  }
+
+  static void _walkSwayTree(dynamic node, List<ScreenShareSource> out) {
+    if (node is! Map || out.length >= 20) return;
+    if (node['type'] == 'con' || node['type'] == 'floating_con') {
+      final name = node['name'] as String? ?? '';
+      final id = node['id'];
+      if (name.isNotEmpty && id != null) {
+        out.add(ScreenShareSource(
+            id: 'window:sway-$id', name: name, isScreen: false));
+      }
+    }
+    final nodes = node['nodes'] as List?;
+    if (nodes != null) {
+      for (final child in nodes) {
+        _walkSwayTree(child, out);
+      }
+    }
+    final floating = node['floating_nodes'] as List?;
+    if (floating != null) {
+      for (final child in floating) {
+        _walkSwayTree(child, out);
+      }
+    }
   }
 
   static Future<List<ScreenShareSource>> _enumerateScreens() async {

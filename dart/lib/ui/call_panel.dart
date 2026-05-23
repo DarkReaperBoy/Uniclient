@@ -1477,7 +1477,6 @@ class _RippleRingPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (outerValue <= 0) return;
     final center = Offset(size.width / 2, size.height / 2);
-    final bgRadius = size.width / 2;
     final outerPixels = outerValue * _outerRadius;
     final rect = Rect.fromCenter(
       center: center,
