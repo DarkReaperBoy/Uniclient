@@ -154,15 +154,34 @@ class AyuOtherPage extends StatelessWidget {
     if (Platform.isLinux) {
       _registerLinuxUrlScheme(context);
     } else if (Platform.isMacOS) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('URL schemes are registered automatically on macOS')),
-      );
+      _registerMacOsUrlScheme(context);
     } else if (Platform.isWindows) {
       _registerWindowsUrlScheme(context);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('URL scheme registration is not supported on this platform')),
       );
+    }
+  }
+
+  static Future<void> _registerMacOsUrlScheme(BuildContext context) async {
+    try {
+      final bundlePath = Platform.resolvedExecutable
+          .replaceFirst(RegExp(r'/Contents/MacOS/.*$'), '');
+      await Process.run('/System/Library/Frameworks/CoreServices.framework/'
+          'Versions/A/Frameworks/LaunchServices.framework/'
+          'Versions/A/Support/lsregister', ['-R', '-f', bundlePath]);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('URL schemes registered (tg://, tonsite://)')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e')),
+        );
+      }
     }
   }
 
@@ -186,16 +205,16 @@ class AyuOtherPage extends StatelessWidget {
         'Icon=uniclient\n'
         'Terminal=false\n'
         'Type=Application\n'
-        'MimeType=x-scheme-handler/tg;x-scheme-handler/tdesktop;\n';
+        'MimeType=x-scheme-handler/tg;x-scheme-handler/tonsite;\n';
     try {
       await Directory(appDir).create(recursive: true);
       await File(desktopFile).writeAsString(content);
       await Process.run('xdg-mime', ['default', 'uniclient-tg.desktop', 'x-scheme-handler/tg']);
-      await Process.run('xdg-mime', ['default', 'uniclient-tg.desktop', 'x-scheme-handler/tdesktop']);
+      await Process.run('xdg-mime', ['default', 'uniclient-tg.desktop', 'x-scheme-handler/tonsite']);
       await Process.run('update-desktop-database', [appDir]);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('URL schemes registered (tg://, tdesktop://)')),
+          const SnackBar(content: Text('URL schemes registered (tg://, tonsite://)')),
         );
       }
     } catch (e) {
@@ -210,7 +229,7 @@ class AyuOtherPage extends StatelessWidget {
   static Future<void> _registerWindowsUrlScheme(BuildContext context) async {
     final execPath = Platform.resolvedExecutable;
     try {
-      for (final scheme in ['tg', 'tdesktop']) {
+      for (final scheme in ['tg', 'tonsite']) {
         await Process.run('reg', [
           'add', 'HKCU\\Software\\Classes\\$scheme',
           '/ve', '/d', 'URL:$scheme Protocol', '/f',
@@ -226,7 +245,7 @@ class AyuOtherPage extends StatelessWidget {
       }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('URL schemes registered (tg://, tdesktop://)')),
+          const SnackBar(content: Text('URL schemes registered (tg://, tonsite://)')),
         );
       }
     } catch (e) {
@@ -449,7 +468,7 @@ class _DonateInfoBox extends StatefulWidget {
   static String _donateAmountUsd = '5.00';
   static String _donateAmountTon = '3.50';
   static String _donateAmountRub = '386';
-  static String _donateUsername = 'RadianceTG';
+  static String _donateUsername = 'ayugramOwner';
   static bool _rcFetched = false;
   static bool _rcFetching = false;
 
@@ -457,23 +476,49 @@ class _DonateInfoBox extends StatefulWidget {
     if (_rcFetched || _rcFetching) return;
     _rcFetching = true;
     try {
+      final data = await _tryFetchRcFrom(
+              'https://update.ayugram.one/rc/current/desktop2') ??
+          await _tryFetchRcFrom(
+              'https://api.exteragram.app/api/v1/profiles/compact');
+      if (data != null) {
+        _applyRcData(data);
+        _rcFetched = true;
+      }
+    } catch (_) {} finally {
+      _rcFetching = false;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> _tryFetchRcFrom(String url) async {
+    try {
       final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 10);
-      final request = await client.getUrl(
-          Uri.parse('https://update.ayugram.one/rc/current/desktop2'));
+      final request = await client.getUrl(Uri.parse(url));
       final response = await request.close();
       if (response.statusCode == 200) {
         final body = await response.transform(utf8.decoder).join();
-        final data = jsonDecode(body) as Map<String, dynamic>;
-        if (data.containsKey('donate_usd')) _donateAmountUsd = data['donate_usd'].toString();
-        if (data.containsKey('donate_ton')) _donateAmountTon = data['donate_ton'].toString();
-        if (data.containsKey('donate_rub')) _donateAmountRub = data['donate_rub'].toString();
-        if (data.containsKey('donate_username')) _donateUsername = data['donate_username'].toString();
-        _rcFetched = true;
+        client.close();
+        return jsonDecode(body) as Map<String, dynamic>;
       }
       client.close();
-    } catch (_) {} finally {
-      _rcFetching = false;
+    } catch (_) {}
+    return null;
+  }
+
+  static void _applyRcData(Map<String, dynamic> data) {
+    if (data.containsKey('donateAmountUsd')) {
+      _donateAmountUsd = data['donateAmountUsd'].toString();
+    }
+    if (data.containsKey('donateAmountTon')) {
+      _donateAmountTon = data['donateAmountTon'].toString();
+    }
+    if (data.containsKey('donateAmountRub')) {
+      _donateAmountRub = data['donateAmountRub'].toString();
+    }
+    if (data.containsKey('donateUsername')) {
+      var username = data['donateUsername'].toString();
+      if (username.startsWith('@')) username = username.substring(1);
+      _donateUsername = username;
     }
   }
 
@@ -559,13 +604,28 @@ class _DonateInfoBoxState extends State<_DonateInfoBox> {
                     fontWeight: FontWeight.w600,
                     color: textColor)),
             const SizedBox(height: 12),
-            Text(
-              'Support AyuGram development by donating. '
-              'Minimum amounts: \$${_DonateInfoBox._donateAmountUsd}, '
-              '${_DonateInfoBox._donateAmountTon} TON, '
-              '${_DonateInfoBox._donateAmountRub}₽.',
+            Text.rich(
+              TextSpan(
+                style: TextStyle(fontSize: 13, color: subtextColor),
+                children: [
+                  const TextSpan(
+                      text: 'Support AyuGram development by donating. '
+                          'Minimum amounts: \$'),
+                  TextSpan(text: '${_DonateInfoBox._donateAmountUsd}, '),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: SvgPicture.asset(
+                      'assets/icons/ayu/donates/ton.svg',
+                      width: 14,
+                      height: 14,
+                    ),
+                  ),
+                  const TextSpan(text: ' '),
+                  TextSpan(text: '${_DonateInfoBox._donateAmountTon} TON, '),
+                  TextSpan(text: '${_DonateInfoBox._donateAmountRub}₽.'),
+                ],
+              ),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: subtextColor),
             ),
             const SizedBox(height: 16),
             _DonateInfoRow(
@@ -696,11 +756,21 @@ class _DonateQrBox extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(name,
-                style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color: textColor)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const SizedBox(width: 32),
+                Text('QR code',
+                    style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: textColor)),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Icon(Icons.close, size: 20, color: subtextColor),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             Container(
               decoration: BoxDecoration(
@@ -788,16 +858,6 @@ class _DonateQrBox extends StatelessWidget {
                 },
                 child: Text('Copy', style: TextStyle(color: buttonColor)),
               ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Close', style: TextStyle(color: buttonColor)),
-                ),
-              ],
             ),
           ],
         ),
