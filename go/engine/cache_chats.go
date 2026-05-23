@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -1879,6 +1880,8 @@ func (e *Engine) GetAudioDevices(accountID, deviceType string) ([]string, error)
 		devices = e.enumerateAudioDevices("output")
 	case "input":
 		devices = e.enumerateAudioDevices("input")
+	case "camera":
+		devices = e.enumerateAudioDevices("camera")
 	default:
 		return nil, fmt.Errorf("unknown device type: %s", deviceType)
 	}
@@ -1887,6 +1890,21 @@ func (e *Engine) GetAudioDevices(accountID, deviceType string) ([]string, error)
 
 func (e *Engine) enumerateAudioDevices(deviceType string) []string {
 	return []string{}
+}
+
+func (e *Engine) GetCallSoundPeak(accountID, callID string) (float64, error) {
+	ms := time.Now().UnixMilli()
+	ringCycleMs := int64(5000)
+	ringOnMs := int64(1200)
+	pos := ms % ringCycleMs
+	if pos >= ringOnMs {
+		return 0, nil
+	}
+	t := float64(pos) / float64(ringOnMs)
+	env := math.Sin(t * math.Pi)
+	wave := 0.5 + 0.5*math.Sin(t*2*math.Pi*8.0)
+	peak := env * (0.3 + 0.7*wave)
+	return peak, nil
 }
 
 func (e *Engine) SetCallMuted(accountID, callID string, muted bool) error {

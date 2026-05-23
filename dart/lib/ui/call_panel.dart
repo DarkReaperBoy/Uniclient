@@ -138,6 +138,8 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   late AnimationController _controlsFadeController;
   Timer? _durationTimer;
   Timer? _controlsHideTimer;
+  Timer? _soundPeakTimer;
+  double _soundPeakValue = 0.0;
   final ValueNotifier<int> _durationNotifier = ValueNotifier<int>(0);
   DateTime? _callStartTime;
   bool _avatarFileExists = false;
@@ -171,6 +173,10 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     _extractDominantColors();
     _cacheAvatarFileExists();
     _enumerateDevices();
+    if (widget.info.state == CallPanelState.incoming ||
+        widget.info.state == CallPanelState.ringing) {
+      _startSoundPeakPolling();
+    }
     if (widget.info.state == CallPanelState.active) {
       _startDurationTimer();
       if (widget.info.isFullscreen) {
@@ -180,22 +186,21 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   }
 
   Future<void> _enumerateDevices() async {
-    try {
-      final engine = context.read<EngineService>();
-      final accountId = context.read<AppState>().activeAccountId;
-      final results = await Future.wait([
-        engine.getAudioDevices(accountId, 'camera'),
-        engine.getAudioDevices(accountId, 'input'),
-        engine.getAudioDevices(accountId, 'output'),
-      ]);
-      if (mounted) {
-        setState(() {
-          _cameraDevices = ['Default', ...results[0]];
-          _micDevices = ['Default', ...results[1]];
-          _outputDevices = ['Default', ...results[2]];
-        });
-      }
-    } catch (_) {}
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    List<String> cameras = [];
+    List<String> inputs = [];
+    List<String> outputs = [];
+    try { cameras = await engine.getAudioDevices(accountId, 'camera'); } catch (_) {}
+    try { inputs = await engine.getAudioDevices(accountId, 'input'); } catch (_) {}
+    try { outputs = await engine.getAudioDevices(accountId, 'output'); } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _cameraDevices = ['Default', ...cameras];
+        _micDevices = ['Default', ...inputs];
+        _outputDevices = ['Default', ...outputs];
+      });
+    }
   }
 
   @override
@@ -211,6 +216,15 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
         oldWidget.info.callerId != widget.info.callerId) {
       _extractDominantColors();
       _cacheAvatarFileExists();
+    }
+    final isIncoming = widget.info.state == CallPanelState.incoming ||
+        widget.info.state == CallPanelState.ringing;
+    final wasIncoming = oldWidget.info.state == CallPanelState.incoming ||
+        oldWidget.info.state == CallPanelState.ringing;
+    if (isIncoming && !wasIncoming) {
+      _startSoundPeakPolling();
+    } else if (!isIncoming && wasIncoming) {
+      _stopSoundPeakPolling();
     }
     if (widget.info.state == CallPanelState.active &&
         oldWidget.info.state != CallPanelState.active) {
@@ -246,7 +260,35 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     _durationNotifier.dispose();
     _durationTimer?.cancel();
     _controlsHideTimer?.cancel();
+    _soundPeakTimer?.cancel();
     super.dispose();
+  }
+
+  void _startSoundPeakPolling() {
+    _soundPeakTimer?.cancel();
+    _soundPeakTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      _pollSoundPeak();
+    });
+  }
+
+  void _stopSoundPeakPolling() {
+    _soundPeakTimer?.cancel();
+    _soundPeakTimer = null;
+    if (mounted) {
+      setState(() => _soundPeakValue = 0.0);
+    }
+  }
+
+  Future<void> _pollSoundPeak() async {
+    if (!mounted) return;
+    try {
+      final engine = context.read<EngineService>();
+      final accountId = context.read<AppState>().activeAccountId;
+      final peak = await engine.getCallSoundPeak(accountId, widget.info.callId);
+      if (mounted) {
+        setState(() => _soundPeakValue = peak);
+      }
+    } catch (_) {}
   }
 
   void _scheduleControlsHide(Duration timeout) {
@@ -809,6 +851,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
             const SizedBox(width: 80),
             _AnswerButton(
               rippleController: _rippleController,
+              soundPeakValue: _soundPeakValue,
               onTap: widget.onAccept,
               isVideo: widget.info.isVideo,
             ),
@@ -1366,11 +1409,13 @@ class _CallActionButton extends StatelessWidget {
 
 class _AnswerButton extends StatelessWidget {
   final AnimationController rippleController;
+  final double soundPeakValue;
   final VoidCallback? onTap;
   final bool isVideo;
 
   const _AnswerButton({
     required this.rippleController,
+    this.soundPeakValue = 0.0,
     this.onTap,
     this.isVideo = false,
   });
@@ -1387,7 +1432,7 @@ class _AnswerButton extends StatelessWidget {
             builder: (context, child) {
               return CustomPaint(
                 painter: _RippleRingPainter(
-                  progress: rippleController.value,
+                  outerValue: soundPeakValue,
                   color: const Color(0xFF4CAF50),
                 ),
                 child: child,
@@ -1422,35 +1467,32 @@ class _AnswerButton extends StatelessWidget {
 }
 
 class _RippleRingPainter extends CustomPainter {
-  final double progress;
+  final double outerValue;
   final Color color;
+  static const double _outerRadius = 12.0;
 
-  _RippleRingPainter({required this.progress, required this.color});
+  _RippleRingPainter({required this.outerValue, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (outerValue <= 0) return;
     final center = Offset(size.width / 2, size.height / 2);
-    final baseRadius = size.width / 2;
-    final breathAmplitude = 12.0 + 16.0 * (0.5 + 0.5 * math.sin(progress * 2 * math.pi * 0.7));
-
-    for (int i = 0; i < 3; i++) {
-      final phaseOffset = i / 3.0;
-      final p = (progress + phaseOffset) % 1.0;
-      final radius = baseRadius + p * breathAmplitude;
-      final opacity = (1.0 - p) * 0.35;
-      if (opacity <= 0) continue;
-      final strokeW = 2.0 + (1.0 - p) * 1.5;
-      final paint = Paint()
-        ..color = color.withValues(alpha: opacity)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeW;
-      canvas.drawCircle(center, radius, paint);
-    }
+    final bgRadius = size.width / 2;
+    final outerPixels = outerValue * _outerRadius;
+    final rect = Rect.fromCenter(
+      center: center,
+      width: size.width + outerPixels * 2,
+      height: size.height + outerPixels * 2,
+    );
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.3)
+      ..style = PaintingStyle.fill;
+    canvas.drawOval(rect, paint);
   }
 
   @override
   bool shouldRepaint(_RippleRingPainter oldDelegate) =>
-      oldDelegate.progress != progress;
+      oldDelegate.outerValue != outerValue;
 }
 
 class _CallControlButton extends StatelessWidget {

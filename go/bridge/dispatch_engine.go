@@ -5722,6 +5722,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(devices)
 
+	case "GetCallSoundPeak":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		peak, err := e.GetCallSoundPeak(params.AccountID, params.CallID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(peak)
+
 	case "UpdateDefaultNotifySettings":
 		var params struct {
 			AccountID    string `json:"account_id"`

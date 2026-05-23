@@ -2282,6 +2282,22 @@ class EngineService {
     }
   }
 
+  Future<double> getCallSoundPeak(String accountId, String callId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetCallSoundPeak', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 0.0;
+      final result = json.decode(utf8.decode(respBytes));
+      if (result is num) return result.toDouble().clamp(0.0, 1.0);
+      return 0.0;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
   Future<void> leaveGroupCall(String accountId, String callId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
