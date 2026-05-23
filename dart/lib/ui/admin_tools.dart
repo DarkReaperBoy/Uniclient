@@ -534,6 +534,38 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                   : () => _toggleTopics(),
             ),
         ],
+        _EditRow(
+          icon: Icons.block,
+          label: 'Restrict Saving Content',
+          value: '',
+          textColor: textColor,
+          subTextColor: subTextColor,
+          isToggle: true,
+          toggleValue: _noForwards,
+          onTap: () => setState(() => _noForwards = !_noForwards),
+        ),
+        if (!_isChannel) ...[
+          _EditRow(
+            icon: Icons.login,
+            label: 'Members Must Join to Send',
+            value: '',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            isToggle: true,
+            toggleValue: _joinToSend,
+            onTap: () => setState(() => _joinToSend = !_joinToSend),
+          ),
+          _EditRow(
+            icon: Icons.person_add_alt_1,
+            label: 'Approve New Members',
+            value: '',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            isToggle: true,
+            toggleValue: _joinRequest,
+            onTap: () => setState(() => _joinRequest = !_joinRequest),
+          ),
+        ],
         if (_isChannel) ...[
           _EditRow(
             icon: Icons.translate,
@@ -1071,39 +1103,112 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
       return;
     }
 
-    final selected = await showDialog<int>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        title: Text('Color & Emoji', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
-        content: SizedBox(
-          width: 300,
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: colors.map((c) {
-              final color = c.dayColors.isNotEmpty
-                  ? Color(0xFF000000 | c.dayColors.first)
-                  : const Color(0xFF999999);
-              return GestureDetector(
-                onTap: () => Navigator.pop(ctx, c.colorId),
-                child: Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: TextStyle(color: subTextColor))),
-        ],
-      ),
-    );
-    if (selected == null || !mounted) return;
+    Map<String, dynamic> fullInfo = {};
     try {
-      await engine.updateChannelColor(widget.chat.accountId, widget.chat.chatId, selected);
-      if (mounted) showTelegramToast(context, 'Color updated');
+      fullInfo = await engine.getFullChatInfo(widget.chat.accountId, widget.chat.chatId);
+    } catch (_) {}
+
+    final currentColorId = fullInfo['peer_color_id'] as int? ?? -1;
+    final currentStatusId = (fullInfo['emoji_status_id'] as int?) ?? 0;
+    final currentBgEmojiId = (fullInfo['background_emoji_id'] as int?) ?? 0;
+    final statusCtrl = TextEditingController(text: currentStatusId != 0 ? '$currentStatusId' : '');
+    final bgEmojiCtrl = TextEditingController(text: currentBgEmojiId != 0 ? '$currentBgEmojiId' : '');
+
+    final result = await showDialog<(int, int, int)?>(
+      context: context,
+      builder: (ctx) {
+        int selectedColor = currentColorId;
+        return StatefulBuilder(
+          builder: (ctx, setLocalState) => AlertDialog(
+            backgroundColor: bgColor,
+            title: Text('Color & Emoji', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+            content: SizedBox(
+              width: 300,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Name Color', style: TextStyle(color: subTextColor, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: colors.map((c) {
+                      final color = c.dayColors.isNotEmpty
+                          ? Color(0xFF000000 | c.dayColors.first)
+                          : const Color(0xFF999999);
+                      final isSelected = c.colorId == selectedColor;
+                      return GestureDetector(
+                        onTap: () => setLocalState(() => selectedColor = c.colorId),
+                        child: Container(
+                          width: 36, height: 36,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: color,
+                            border: isSelected
+                                ? Border.all(color: accentColor, width: 2.5)
+                                : null,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Emoji Status ID', style: TextStyle(color: subTextColor, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: statusCtrl,
+                    style: TextStyle(color: textColor, fontSize: 14),
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: 'Custom emoji ID (0 to remove)',
+                      hintStyle: TextStyle(color: subTextColor.withValues(alpha: 0.5)),
+                      isDense: true,
+                      border: const UnderlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Background Emoji ID', style: TextStyle(color: subTextColor, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: bgEmojiCtrl,
+                    style: TextStyle(color: textColor, fontSize: 14),
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: 'Background emoji ID (0 to remove)',
+                      hintStyle: TextStyle(color: subTextColor.withValues(alpha: 0.5)),
+                      isDense: true,
+                      border: const UnderlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: TextStyle(color: subTextColor))),
+              TextButton(
+                onPressed: () {
+                  final statusId = int.tryParse(statusCtrl.text.trim()) ?? 0;
+                  final bgEmojiId = int.tryParse(bgEmojiCtrl.text.trim()) ?? 0;
+                  Navigator.pop(ctx, (selectedColor, statusId, bgEmojiId));
+                },
+                child: Text('Save', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    statusCtrl.dispose();
+    bgEmojiCtrl.dispose();
+    if (result == null || !mounted) return;
+    final (colorId, statusId, bgEmojiId) = result;
+    try {
+      if (colorId >= 0) {
+        await engine.updateChannelColor(widget.chat.accountId, widget.chat.chatId, colorId,
+          backgroundEmojiId: bgEmojiId, statusEmojiId: statusId);
+      }
+      if (mounted) showTelegramToast(context, 'Color & emoji updated');
     } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed: $e');
     }
@@ -1353,40 +1458,110 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     if (!mounted) return;
 
     final hasProgram = affiliateInfo.isNotEmpty;
-    final commission = affiliateInfo['commission_permille'] as int? ?? 0;
-    final duration = affiliateInfo['duration_months'] as int? ?? 0;
+    final existingCommission = affiliateInfo['commission_permille'] as int? ?? 0;
+    final existingDuration = affiliateInfo['duration_months'] as int? ?? 0;
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        title: Text('Affiliate Program', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (hasProgram) ...[
-              Text('Commission: ${(commission / 10).toStringAsFixed(1)}%',
-                style: TextStyle(color: textColor, fontSize: 14)),
-              if (duration > 0)
-                Text('Duration: $duration months',
-                  style: TextStyle(color: textColor, fontSize: 14)),
-              if (duration == 0)
-                Text('Duration: Lifetime',
-                  style: TextStyle(color: textColor, fontSize: 14)),
-            ] else
-              Text('No affiliate program configured.',
-                style: TextStyle(color: subTextColor, fontSize: 14)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Close', style: TextStyle(color: subTextColor)),
-          ),
-        ],
-      ),
+    final commissionCtrl = TextEditingController(
+      text: hasProgram ? '${(existingCommission / 10).toStringAsFixed(1)}' : '',
     );
+    final durationValues = [0, 1, 3, 6, 12, 24, 36];
+    final durationLabels = ['Lifetime', '1 month', '3 months', '6 months', '1 year', '2 years', '3 years'];
+
+    final result = await showDialog<(double, int)?>(
+      context: context,
+      builder: (ctx) {
+        int selectedDurationIdx = durationValues.indexOf(existingDuration);
+        if (selectedDurationIdx < 0) selectedDurationIdx = 0;
+        return StatefulBuilder(
+          builder: (ctx, setLocalState) => AlertDialog(
+            backgroundColor: bgColor,
+            title: Text(
+              hasProgram ? 'Edit Affiliate Program' : 'Create Affiliate Program',
+              style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (hasProgram) ...[
+                  Text('Current: ${(existingCommission / 10).toStringAsFixed(1)}% commission, '
+                       '${existingDuration == 0 ? "lifetime" : "$existingDuration months"}',
+                    style: TextStyle(color: subTextColor, fontSize: 13)),
+                  const SizedBox(height: 12),
+                ],
+                Text('Commission (%)', style: TextStyle(color: subTextColor, fontSize: 13)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: commissionCtrl,
+                  style: TextStyle(color: textColor, fontSize: 14),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    hintText: 'e.g. 20.0',
+                    hintStyle: TextStyle(color: subTextColor.withValues(alpha: 0.5)),
+                    isDense: true,
+                    border: const UnderlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text('Duration', style: TextStyle(color: subTextColor, fontSize: 13)),
+                const SizedBox(height: 4),
+                ...List.generate(durationValues.length, (i) {
+                  return InkWell(
+                    onTap: () => setLocalState(() => selectedDurationIdx = i),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            selectedDurationIdx == i ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                            size: 20,
+                            color: selectedDurationIdx == i ? accentColor : subTextColor,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(durationLabels[i], style: TextStyle(color: textColor, fontSize: 14)),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Cancel', style: TextStyle(color: subTextColor)),
+              ),
+              TextButton(
+                onPressed: () {
+                  final pct = double.tryParse(commissionCtrl.text.trim()) ?? 0;
+                  if (pct <= 0 || pct > 100) {
+                    showTelegramToast(ctx, 'Commission must be between 0.1% and 100%');
+                    return;
+                  }
+                  Navigator.pop(ctx, (pct, durationValues[selectedDurationIdx]));
+                },
+                child: Text('Save', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    commissionCtrl.dispose();
+    if (result == null || !mounted) return;
+    final (commissionPct, durationMonths) = result;
+    final commissionPermille = (commissionPct * 10).round();
+    try {
+      await engine.setStarRefProgram(
+        widget.chat.accountId,
+        widget.chat.chatId,
+        commissionPermille: commissionPermille,
+        durationMonths: durationMonths,
+      );
+      if (mounted) showTelegramToast(context, 'Affiliate program updated');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed: $e');
+    }
   }
 
   Future<void> _showVerifyAccountsDialog(Color textColor, Color subTextColor) async {
@@ -1633,6 +1808,31 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             isChannel: _isChannel,
           ),
         ),
+        _EditRow(
+          icon: Icons.bar_chart,
+          label: 'Statistics',
+          value: '',
+          textColor: textColor,
+          subTextColor: subTextColor,
+          onTap: () => _showStatisticsScreen(),
+        ),
+        _EditRow(
+          icon: Icons.rocket_launch_outlined,
+          label: 'Boosts',
+          value: '',
+          textColor: textColor,
+          subTextColor: subTextColor,
+          onTap: () => _showBoostsScreen(textColor, subTextColor),
+        ),
+        if (_isChannel)
+          _EditRow(
+            icon: Icons.monetization_on_outlined,
+            label: 'Monetization',
+            value: '',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            onTap: () => _showMonetizationScreen(textColor, subTextColor),
+          ),
       ],
     );
   }
@@ -1679,6 +1879,197 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     );
   }
 
+  Future<void> _showStatisticsScreen() async {
+    final engine = context.read<EngineService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Statistics', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+        content: SizedBox(
+          width: 320,
+          height: 300,
+          child: FutureBuilder<Map<String, dynamic>>(
+            future: _isChannel
+                ? engine.getBroadcastStats(widget.chat.accountId, widget.chat.chatId)
+                : engine.getMegagroupStats(widget.chat.accountId, widget.chat.chatId),
+            builder: (ctx, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text('Failed to load statistics:\n${snap.error}',
+                    style: TextStyle(color: subTextColor, fontSize: 13), textAlign: TextAlign.center));
+              }
+              final data = snap.data ?? {};
+              if (data.isEmpty) {
+                return Center(child: Text('No statistics available yet.',
+                    style: TextStyle(color: subTextColor, fontSize: 14)));
+              }
+              return ListView(
+                children: data.entries.map((e) {
+                  final val = e.value;
+                  final display = val is Map ? (val['current'] ?? val).toString() : '$val';
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(e.key.replaceAll('_', ' '),
+                            style: TextStyle(color: subTextColor, fontSize: 13))),
+                        Text(display, style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx),
+              child: Text('Close', style: TextStyle(color: subTextColor))),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showBoostsScreen(Color textColor, Color subTextColor) async {
+    final engine = context.read<EngineService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Boosts', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+        content: SizedBox(
+          width: 320,
+          height: 300,
+          child: FutureBuilder<Map<String, dynamic>>(
+            future: engine.getBoosts(widget.chat.accountId, widget.chat.chatId),
+            builder: (ctx, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text('Failed to load boosts:\n${snap.error}',
+                    style: TextStyle(color: subTextColor, fontSize: 13), textAlign: TextAlign.center));
+              }
+              final data = snap.data ?? {};
+              final level = data['my_boost_level'] as int? ?? data['level'] as int? ?? 0;
+              final boosts = data['boosts'] as int? ?? 0;
+              final currentLevelBoosts = data['current_level_boosts'] as int? ?? 0;
+              final nextLevelBoosts = data['next_level_boosts'] as int? ?? 0;
+              final premiumAudience = data['premium_audience'] as Map? ?? {};
+              return ListView(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Column(
+                      children: [
+                        Text('Level $level', style: TextStyle(color: accentColor, fontSize: 24, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text('$boosts boosts', style: TextStyle(color: textColor, fontSize: 15)),
+                        if (nextLevelBoosts > 0) ...[
+                          const SizedBox(height: 8),
+                          LinearProgressIndicator(
+                            value: currentLevelBoosts > 0 && nextLevelBoosts > 0
+                                ? (boosts - currentLevelBoosts) / (nextLevelBoosts - currentLevelBoosts)
+                                : 0,
+                            backgroundColor: subTextColor.withValues(alpha: 0.2),
+                            valueColor: AlwaysStoppedAnimation(accentColor),
+                          ),
+                          const SizedBox(height: 4),
+                          Text('$boosts / $nextLevelBoosts for Level ${level + 1}',
+                              style: TextStyle(color: subTextColor, fontSize: 12)),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (premiumAudience.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text('Premium audience: ${premiumAudience['part'] ?? '?'}%',
+                          style: TextStyle(color: subTextColor, fontSize: 13)),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx),
+              child: Text('Close', style: TextStyle(color: subTextColor))),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showMonetizationScreen(Color textColor, Color subTextColor) async {
+    final engine = context.read<EngineService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Monetization', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+        content: SizedBox(
+          width: 320,
+          height: 250,
+          child: FutureBuilder<Map<String, dynamic>?>(
+            future: engine.getStarsRevenueStats(widget.chat.accountId, widget.chat.chatId),
+            builder: (ctx, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text('Failed to load earnings:\n${snap.error}',
+                    style: TextStyle(color: subTextColor, fontSize: 13), textAlign: TextAlign.center));
+              }
+              final data = snap.data;
+              if (data == null || data.isEmpty) {
+                return Center(child: Text('No monetization data available.\nEnable ads or paid content to start earning.',
+                    style: TextStyle(color: subTextColor, fontSize: 14), textAlign: TextAlign.center));
+              }
+              return ListView(
+                children: data.entries.map((e) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(e.key.replaceAll('_', ' '),
+                            style: TextStyle(color: subTextColor, fontSize: 13))),
+                        Flexible(child: Text('${e.value}',
+                            style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500),
+                            textAlign: TextAlign.end)),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx),
+              child: Text('Close', style: TextStyle(color: subTextColor))),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStickerSection(Color textColor, Color subTextColor, Color accentColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1717,56 +2108,134 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final accentColor = PaletteProvider.of(context).windowBgActive;
-    final ctrl = TextEditingController();
+    final engine = context.read<EngineService>();
+    final searchCtrl = TextEditingController();
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        title: Text(
-          'Group Sticker Set',
-          style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
-        ),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          style: TextStyle(color: textColor, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: 'Enter sticker set link or short name',
-            hintStyle: TextStyle(color: subTextColor),
-            border: const UnderlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: subTextColor)),
-          ),
-          TextButton(
-            onPressed: () async {
-              final name = ctrl.text.trim();
-              if (name.isEmpty) return;
-              Navigator.pop(ctx);
-              final shortName = name
-                  .replaceAll(RegExp(r'https?://t\.me/addstickers/'), '')
-                  .replaceAll(RegExp(r'https?://telegram\.me/addstickers/'), '')
-                  .trim();
-              if (shortName.isEmpty) return;
-              final engine = context.read<EngineService>();
-              try {
-                await engine.setGroupStickerSet(
-                  widget.chat.accountId,
-                  widget.chat.chatId,
-                  shortName,
-                );
-                if (mounted) showTelegramToast(context, 'Sticker set applied');
-              } catch (e) {
-                if (mounted) showTelegramToast(context, 'Failed to set sticker set: $e');
-              }
-            },
-            child: Text('Add', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocalState) {
+            return AlertDialog(
+              backgroundColor: bgColor,
+              title: Text(
+                'Group Sticker Set',
+                style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
+              ),
+              content: SizedBox(
+                width: 320,
+                height: 350,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: searchCtrl,
+                      style: TextStyle(color: textColor, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'Search or paste sticker set link',
+                        hintStyle: TextStyle(color: subTextColor),
+                        prefixIcon: Icon(Icons.search, color: subTextColor, size: 20),
+                        isDense: true,
+                        border: const UnderlineInputBorder(),
+                      ),
+                      onSubmitted: (val) async {
+                        final shortName = val.trim()
+                            .replaceAll(RegExp(r'https?://t\.me/addstickers/'), '')
+                            .replaceAll(RegExp(r'https?://telegram\.me/addstickers/'), '')
+                            .trim();
+                        if (shortName.isEmpty) return;
+                        Navigator.pop(ctx);
+                        try {
+                          await engine.setGroupStickerSet(
+                            widget.chat.accountId, widget.chat.chatId, shortName);
+                          if (mounted) showTelegramToast(context, 'Sticker set applied');
+                        } catch (e) {
+                          if (mounted) showTelegramToast(context, 'Failed: $e');
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Your Sticker Sets', style: TextStyle(color: subTextColor, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    Expanded(
+                      child: FutureBuilder<List<StickerPackSummary>>(
+                        future: engine.getInstalledStickerPacks(widget.chat.accountId),
+                        builder: (ctx, snap) {
+                          if (snap.connectionState != ConnectionState.done) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (snap.hasError || !snap.hasData || snap.data!.isEmpty) {
+                            return Center(child: Text('No sticker sets found.',
+                                style: TextStyle(color: subTextColor, fontSize: 13)));
+                          }
+                          final packs = snap.data!;
+                          return ListView.builder(
+                            itemCount: packs.length,
+                            itemBuilder: (ctx, i) {
+                              final pack = packs[i];
+                              return InkWell(
+                                onTap: () async {
+                                  Navigator.pop(ctx);
+                                  try {
+                                    await engine.setGroupStickerSet(
+                                      widget.chat.accountId, widget.chat.chatId, pack.shortName);
+                                    if (mounted) showTelegramToast(context, 'Sticker set "${pack.title}" applied');
+                                  } catch (e) {
+                                    if (mounted) showTelegramToast(context, 'Failed: $e');
+                                  }
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 6),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 36, height: 36,
+                                        decoration: BoxDecoration(
+                                          color: accentColor.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            pack.count > 0 ? '${pack.count}' : '?',
+                                            style: TextStyle(color: accentColor, fontSize: 12, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(pack.title,
+                                                style: TextStyle(color: textColor, fontSize: 14),
+                                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                                            Text('${pack.count} stickers',
+                                                style: TextStyle(color: subTextColor, fontSize: 12)),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text('Cancel', style: TextStyle(color: subTextColor)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -2003,6 +2472,9 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
       _PermFlag(key: 'send_voices', label: 'Send voice messages'),
       _PermFlag(key: 'send_docs', label: 'Send files'),
       _PermFlag(key: 'send_stickers', label: 'Send stickers & GIFs'),
+      _PermFlag(key: 'send_gifs', label: 'Send GIFs'),
+      _PermFlag(key: 'send_games', label: 'Send games'),
+      _PermFlag(key: 'send_inline', label: 'Use inline bots'),
       _PermFlag(key: 'embed_links', label: 'Send links'),
       _PermFlag(key: 'send_polls', label: 'Send polls'),
     ];
@@ -2010,7 +2482,6 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
       _PermFlag(key: 'invite_users', label: 'Add members'),
       if (widget.isForum) _PermFlag(key: 'manage_topics', label: 'Create topics'),
       _PermFlag(key: 'pin_messages', label: 'Pin messages'),
-      _PermFlag(key: 'edit_rank', label: 'Edit rank'),
       _PermFlag(key: 'change_info', label: 'Change group info'),
     ];
     _loadRights();
@@ -2057,7 +2528,6 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
       }
       rights['slowmode_seconds'] = _slowmodeValues[_slowmodeIndex];
       await engine.setDefaultBannedRights(widget.accountId, widget.chatId, rights);
-      await engine.setSlowMode(widget.accountId, widget.chatId, _slowmodeValues[_slowmodeIndex]);
       await engine.setBoostsUnrestrict(widget.accountId, widget.chatId, _boostsUnrestrict);
       await engine.updatePaidMessagesPrice(
         widget.accountId, widget.chatId, _chargeStars,
@@ -2081,6 +2551,16 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
       }
       if (flag.key == 'embed_links' && !flag.banned) {
         _sendPlain.banned = false;
+      }
+      if (flag.key == 'send_stickers' && flag.banned) {
+        for (final dep in ['send_gifs', 'send_games', 'send_inline']) {
+          final f = _mediaFlags.cast<_PermFlag?>().firstWhere((f) => f!.key == dep, orElse: () => null);
+          if (f != null) f.banned = true;
+        }
+      }
+      if (['send_gifs', 'send_games', 'send_inline'].contains(flag.key) && !flag.banned) {
+        final stickers = _mediaFlags.cast<_PermFlag?>().firstWhere((f) => f!.key == 'send_stickers', orElse: () => null);
+        if (stickers != null) stickers.banned = false;
       }
     });
   }
@@ -2738,6 +3218,9 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
       _PermFlag(key: 'send_voices', label: 'Send voice messages'),
       _PermFlag(key: 'send_docs', label: 'Send files'),
       _PermFlag(key: 'send_stickers', label: 'Send stickers & GIFs'),
+      _PermFlag(key: 'send_gifs', label: 'Send GIFs'),
+      _PermFlag(key: 'send_games', label: 'Send games'),
+      _PermFlag(key: 'send_inline', label: 'Use inline bots'),
     ];
     _otherFlags = [
       _PermFlag(key: 'embed_links', label: 'Send links'),
@@ -3373,7 +3856,6 @@ class _EditAdminBoxState extends State<_EditAdminBox>
       ];
       _section3 = [
         _AdminFlag(key: 'manage_call', label: 'Manage voice chats'),
-        _AdminFlag(key: 'manage_ranks', label: 'Manage ranks'),
         _AdminFlag(key: 'anonymous', label: 'Remain anonymous'),
         _AdminFlag(key: 'add_admins', label: 'Add new admins'),
       ];
@@ -4672,6 +5154,15 @@ class _AdminLogEventTile extends StatelessWidget {
         return '${event.detail == "enabled" ? "enabled" : "disabled"} auto-translation';
       case 'participant_edit_rank':
         return 'changed custom title${event.detail.isNotEmpty ? ": ${event.detail}" : ""}';
+      case 'change_pay_messages':
+      case 'change_stars_price':
+        return 'changed paid messages settings${event.detail.isNotEmpty ? " (${event.detail})" : ""}';
+      case 'toggle_bot_membership':
+        return '${event.detail.isNotEmpty ? event.detail : "changed"} bot membership';
+      case 'change_peer_wallpaper':
+        return 'changed the ${isChannel ? "channel" : "group"} wallpaper';
+      case 'toggle_forum_topics':
+        return '${event.detail.isNotEmpty ? event.detail : "toggled"} forum topics';
       default:
         return event.detail.isNotEmpty ? event.detail : event.action;
     }
@@ -4707,7 +5198,7 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
     'Edit rank': ['edit_rank'],
     'Restrictions': ['ban', 'unban', 'kick', 'unkick'],
     'New members': ['join', 'invite'],
-    'Removed members': ['kick', 'leave'],
+    'Removed members': ['leave'],
     'Info and settings': ['info', 'settings'],
     'Invite links': ['invites'],
     'Voice chats': ['group_call'],
@@ -4740,17 +5231,17 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
     'New members',
     'Removed members',
   ];
-  static const _settingsSection = [
+  List<String> get _settingsSection => [
     'Info and settings',
     'Invite links',
     'Voice chats',
     'Subscription extensions',
-    'Topics',
+    if (!widget.isChannel) 'Topics',
   ];
-  static const _messageSection = [
+  List<String> get _messageSection => [
     'Deleted messages',
     'Edited messages',
-    'Pinned messages',
+    if (!widget.isChannel) 'Pinned messages',
   ];
 
   @override

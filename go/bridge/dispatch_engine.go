@@ -2144,9 +2144,11 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "UpdateChannelColor":
 		var params struct {
-			AccountID  string `json:"account_id"`
-			ChatID     string `json:"chat_id"`
-			ColorIndex int    `json:"color_index"`
+			AccountID         string `json:"account_id"`
+			ChatID            string `json:"chat_id"`
+			ColorIndex        int    `json:"color_index"`
+			BackgroundEmojiID int64  `json:"background_emoji_id"`
+			StatusEmojiID     int64  `json:"status_emoji_id"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err

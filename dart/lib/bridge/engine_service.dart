@@ -3399,11 +3399,16 @@ class EngineService {
     await _callAsync('__engine', 'SetChatReactionsMode', Uint8List.fromList(payload));
   }
 
-  Future<void> updateChannelColor(String accountId, String chatId, int colorIndex) async {
+  Future<void> updateChannelColor(String accountId, String chatId, int colorIndex, {
+    int backgroundEmojiId = 0,
+    int statusEmojiId = 0,
+  }) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'color_index': colorIndex,
+      'background_emoji_id': backgroundEmojiId,
+      'status_emoji_id': statusEmojiId,
     }));
     await _callAsync('__engine', 'UpdateChannelColor', Uint8List.fromList(payload));
   }
@@ -3415,6 +3420,19 @@ class EngineService {
       'boosts': boosts,
     }));
     await _callAsync('__engine', 'SetBoostsUnrestrict', Uint8List.fromList(payload));
+  }
+
+  Future<void> setStarRefProgram(String accountId, String chatId, {
+    required int commissionPermille,
+    required int durationMonths,
+  }) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'commission_permille': commissionPermille,
+      'duration_months': durationMonths,
+    }));
+    await _callAsync('__engine', 'SetStarRefProgram', Uint8List.fromList(payload));
   }
 
   Future<void> updatePaidMessagesPrice(String accountId, String chatId, int stars, {bool broadcastEnabled = false}) async {
