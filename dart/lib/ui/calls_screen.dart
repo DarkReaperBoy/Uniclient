@@ -2628,46 +2628,57 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
                 'as the rest of the app.',
             color: subtextColor,
           ),
-          if (!appState.callUseSameDevices) ...[
-            Divider(height: 1, color: dividerColor, indent: 60),
-            _CallSettingsSectionHeader(label: 'Call Output', color: accentColor),
-            _CallSettingsDeviceRow(
-              icon: Icons.volume_up,
-              label: appState.callSpecificOutputDevice.isEmpty
-                  ? 'Default'
-                  : appState.callSpecificOutputDevice,
-              textColor: textColor,
-              subtextColor: subtextColor,
-              isDark: isDark,
-              onTap: () => _showDevicePicker(
-                title: 'Call Output Device',
-                current: appState.callSpecificOutputDevice.isEmpty
-                    ? 'Default'
-                    : appState.callSpecificOutputDevice,
-                devices: _outputDevices,
-                onSelected: (d) => appState.setCallSpecificOutputDevice(d),
-              ),
-            ),
-            Divider(height: 1, color: dividerColor, indent: 60),
-            _CallSettingsSectionHeader(label: 'Call Microphone', color: accentColor),
-            _CallSettingsDeviceRow(
-              icon: Icons.mic,
-              label: appState.callSpecificInputDevice.isEmpty
-                  ? 'Default'
-                  : appState.callSpecificInputDevice,
-              textColor: textColor,
-              subtextColor: subtextColor,
-              isDark: isDark,
-              onTap: () => _showDevicePicker(
-                title: 'Call Microphone',
-                current: appState.callSpecificInputDevice.isEmpty
-                    ? 'Default'
-                    : appState.callSpecificInputDevice,
-                devices: _inputDevices,
-                onSelected: (d) => appState.setCallSpecificInputDevice(d),
-              ),
-            ),
-          ],
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            clipBehavior: Clip.hardEdge,
+            child: appState.callUseSameDevices
+                ? const SizedBox.shrink()
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Divider(height: 1, color: dividerColor, indent: 60),
+                      _CallSettingsSectionHeader(label: 'Call Output', color: accentColor),
+                      _CallSettingsDeviceRow(
+                        icon: Icons.volume_up,
+                        label: appState.callSpecificOutputDevice.isEmpty
+                            ? 'Default'
+                            : appState.callSpecificOutputDevice,
+                        textColor: textColor,
+                        subtextColor: subtextColor,
+                        isDark: isDark,
+                        onTap: () => _showDevicePicker(
+                          title: 'Call Output Device',
+                          current: appState.callSpecificOutputDevice.isEmpty
+                              ? 'Default'
+                              : appState.callSpecificOutputDevice,
+                          devices: _outputDevices,
+                          onSelected: (d) => appState.setCallSpecificOutputDevice(d),
+                        ),
+                      ),
+                      Divider(height: 1, color: dividerColor, indent: 60),
+                      _CallSettingsSectionHeader(label: 'Call Microphone', color: accentColor),
+                      _CallSettingsDeviceRow(
+                        icon: Icons.mic,
+                        label: appState.callSpecificInputDevice.isEmpty
+                            ? 'Default'
+                            : appState.callSpecificInputDevice,
+                        textColor: textColor,
+                        subtextColor: subtextColor,
+                        isDark: isDark,
+                        onTap: () => _showDevicePicker(
+                          title: 'Call Microphone',
+                          current: appState.callSpecificInputDevice.isEmpty
+                              ? 'Default'
+                              : appState.callSpecificInputDevice,
+                          devices: _inputDevices,
+                          onSelected: (d) => appState.setCallSpecificInputDevice(d),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
           Divider(height: 1, color: dividerColor, indent: 60),
           _CallSettingsSectionHeader(label: 'Camera', color: accentColor),
           _CallSettingsDeviceRow(
@@ -3062,6 +3073,19 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
   }
 
   @override
+  void didUpdateWidget(covariant _InputLevelMeter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedDevice != widget.selectedDevice) {
+      _stopCapture();
+      _captureFailed = false;
+      _currentLevel = 0.0;
+      _displayLevel = 0.0;
+      _prevLevel = 0.0;
+      _startCapture();
+    }
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _syncPowerSaving();
@@ -3178,11 +3202,16 @@ class _InputLevelMeterState extends State<_InputLevelMeter>
   @override
   Widget build(BuildContext context) {
     if (_captureFailed) {
+      final hintText = Platform.isLinux
+          ? 'Microphone test unavailable — install PulseAudio or PipeWire'
+          : Platform.isWindows
+              ? 'Microphone test unavailable — install FFmpeg'
+              : 'Microphone test unavailable';
       return SizedBox(
         height: 18,
         child: Center(
           child: Text(
-            'Microphone test unavailable',
+            hintText,
             style: TextStyle(
               fontSize: 12,
               color: widget.isDark
