@@ -639,10 +639,6 @@ All numeric constants match AyuGram exactly:
 # engine_service — Bridge service audit
 
 
-## engine_service — sendStoryWithPhoto encodes binary as JSON integer array
-
-- [ ] [CRITICAL] `sendStoryWithPhoto` passes `photoData.toList()` directly into `json.encode`, which serialises the `Uint8List` as a JSON array of integers (`[100, 200, 178, ...]`). A 1 MB JPEG becomes a ≈3 MB JSON string with 1 million comma-separated integers before it even reaches the Go bridge. The same file already uses `base64.encode` for binary in `createCloudTheme` (line 4526) and `updateCloudTheme` (line 4545). AyuGram uploads media as raw bytes / mtproto binary, never as a JSON integer list — `engine_service.dart:1362` ← `AyuGram/Telegram/SourceFiles/data/data_stories.h:1` (Stories API operates on binary document/photo data, not JSON arrays)
-
 ## engine_service — getDeletedMessages crashes on empty engine response
 
 - [ ] [MAJOR] `getDeletedMessages` calls `_callRaw` then immediately does `json.decode(utf8.decode(respBytes))` (line 2736) with no empty-response guard. `_callRaw` explicitly returns `Uint8List(0)` on empty/error responses (documented at line 5681–5683). `utf8.decode(Uint8List(0))` returns `""`, and `json.decode("")` throws `FormatException`. Every other adjacent method that uses `_callRaw` with JSON output has an `if (respBytes.isEmpty) return ...` guard — compare `getEditRevisions` at line 2700–2701 which correctly returns `[]` on empty — `engine_service.dart:2735` ← `engine_service.dart:2700` (same file: `getEditRevisions` has the guard that `getDeletedMessages` is missing)
