@@ -639,9 +639,6 @@ All numeric constants match AyuGram exactly:
 # engine_service — Bridge service audit
 
 
-## engine_service — Per-message JSON decode on main isolate (50 messages default)
-
-- [ ] [MAJOR] `_cachedMsgFromProto` (line 5987) calls `jsonDecode(contentRaw)` synchronously for every message deserialized from protobuf. `getMessages` (default limit=50) calls `resp.messages.map(_cachedMsgFromProto).toList()` on the main isolate after the `await`, meaning 50+ `jsonDecode` calls run back-to-back on the UI thread. For media-heavy chats (`contentRaw` can include full inline keyboards, reactions, alt video qualities, waveforms, poll options, invoice fields, etc.), this is measurable jank on every chat open. Fix: wrap the conversion loop in `Isolate.run` or `compute`. AyuGram processes message data lazily in background threads — `engine_service.dart:5987` ← `AyuGram/Telegram/SourceFiles/data/data_session.h:1` (Session processes updates off the UI thread via `crl::on_main` dispatch)
 
 ## engine_service — sendStoryWithVideoFile also encodes overlayData as integer array
 
