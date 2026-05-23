@@ -63,6 +63,25 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     super.dispose();
   }
 
+  static bool _supportsSystemDarkMode() {
+    try {
+      return Platform.isLinux || Platform.isMacOS || Platform.isWindows ||
+             Platform.isAndroid || Platform.isIOS;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _restartApp() {
+    final exe = Platform.resolvedExecutable;
+    final args = Platform.executableArguments;
+    Process.start(exe, args, mode: ProcessStartMode.detached).then((_) {
+      exit(0);
+    }).catchError((_) {
+      exit(0);
+    });
+  }
+
   void _loadSelfColor() {
     final appState = context.read<AppState>();
     final account = appState.activeAccount;
@@ -108,7 +127,14 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       return;
     }
     setState(() => _sensitiveEnabled = true);
-    engine.setContentSettings(account.id, true);
+    try {
+      await engine.setContentSettings(account.id, true);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _sensitiveEnabled = false);
+        showTelegramToast(context, 'Failed to update content settings.');
+      }
+    }
   }
 
   void _loadCloudThemes() {
@@ -120,6 +146,12 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       if (!mounted) return;
       setState(() {
         _cloudThemes = themes;
+        _cloudThemesLoaded = true;
+      });
+    }).catchError((e) {
+      if (!mounted) return;
+      setState(() {
+        _cloudThemes = [];
         _cloudThemesLoaded = true;
       });
     });
@@ -471,18 +503,19 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             accountId: appState.activeAccount?.id,
             onColorChanged: (newId) => setState(() => _selfColorId = newId),
           ),
-          _AutoNightRow(
-            isDark: isDark,
-            enabled: appState.systemDarkModeEnabled,
-            isEditingTheme: appState.isEditingTheme,
-            onChanged: (v) {
-              if (v && appState.isEditingTheme) {
-                showTelegramToast(context, 'Cannot change theme mode while editing a theme.');
-                return;
-              }
-              appState.setSystemDarkMode(v);
-            },
-          ),
+          if (_supportsSystemDarkMode())
+            _AutoNightRow(
+              isDark: isDark,
+              enabled: appState.systemDarkModeEnabled,
+              isEditingTheme: appState.isEditingTheme,
+              onChanged: (v) {
+                if (v && appState.isEditingTheme) {
+                  showTelegramToast(context, 'Cannot change theme mode while editing a theme.');
+                  return;
+                }
+                appState.setSystemDarkMode(v);
+              },
+            ),
           _FontFamilyRow(
             isDark: isDark,
             currentFont: appState.customFontFamily,
@@ -506,7 +539,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 ),
               ).then((restart) {
                 if (restart == true && mounted) {
-                  SystemNavigator.pop();
+                  _restartApp();
                 }
               });
             },
@@ -993,8 +1026,7 @@ class _AccentColorPalette extends StatelessWidget {
   }
 
   void _showHslPicker(BuildContext context) async {
-    final lightnessMin = isDark ? 0.15 : 0.3;
-    final lightnessMax = isDark ? 0.85 : 0.7;
+    final (lightnessMin, lightnessMax) = _lightnessRangeForTheme(themeId);
     final result = await showColorPickerBox(
       context: context,
       initialColor: currentColor,
@@ -1002,6 +1034,18 @@ class _AccentColorPalette extends StatelessWidget {
       lightnessMax: lightnessMax,
     );
     if (result != null) onColorSelected(result);
+  }
+
+  static (double, double) _lightnessRangeForTheme(String themeId) {
+    switch (themeId) {
+      case 'night':
+      case 'night_green':
+        return (64.0 / 255.0, 1.0);
+      case 'classic_day':
+      case 'day_blue':
+      default:
+        return (0.0, 160.0 / 255.0);
+    }
   }
 
   static bool _colorsMatch(Color a, Color b) {
@@ -2197,7 +2241,7 @@ class _ChooseFontBoxState extends State<_ChooseFontBox> {
 
 // ── §14.6.3: Cloud Themes section ──
 
-class _CloudThemeSection extends StatelessWidget {
+class _CloudThemeSection extends StatefulWidget {
   final List<CloudThemeInfo> themes;
   final bool loaded;
   final bool isDark;
@@ -2218,15 +2262,27 @@ class _CloudThemeSection extends StatelessWidget {
     this.onThemeDeleted,
   });
 
+  static const _initialVisibleCount = 4;
+
+  @override
+  State<_CloudThemeSection> createState() => _CloudThemeSectionState();
+}
+
+class _CloudThemeSectionState extends State<_CloudThemeSection> {
+  bool _showAll = false;
+
   @override
   Widget build(BuildContext context) {
-    if (!loaded || themes.isEmpty) return const SizedBox.shrink();
+    if (!widget.loaded || widget.themes.isEmpty) return const SizedBox.shrink();
 
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg = widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
-    final visibleThemes = themes;
+    final hasMore = widget.themes.length > _CloudThemeSection._initialVisibleCount;
+    final visibleThemes = _showAll || !hasMore
+        ? widget.themes
+        : widget.themes.take(_CloudThemeSection._initialVisibleCount).toList();
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 200),
@@ -2245,10 +2301,21 @@ class _CloudThemeSection extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: accentColor,
+                    color: widget.accentColor,
                   ),
                 ),
                 const Spacer(),
+                if (hasMore && !_showAll)
+                  GestureDetector(
+                    onTap: () => setState(() => _showAll = true),
+                    child: Text(
+                      'Show All',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: widget.accentColor,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -2257,20 +2324,20 @@ class _CloudThemeSection extends StatelessWidget {
             height: _gridHeight(visibleThemes.length),
             child: _buildGrid(context, visibleThemes, textColor, subtextColor),
           ),
-          if (onEditTheme != null)
+          if (widget.onEditTheme != null)
             InkWell(
-              onTap: onEditTheme,
+              onTap: widget.onEditTheme,
               hoverColor: hoverBg,
               splashColor: hoverBg.withValues(alpha: 0.5),
               child: Padding(
                 padding: SettingsStyle.iconRowPadding,
                 child: Row(
                   children: [
-                    Icon(Icons.palette_outlined, size: 20, color: accentColor),
+                    Icon(Icons.palette_outlined, size: 20, color: widget.accentColor),
                     const SizedBox(width: 12),
                     Text(
                       'Edit Current Theme',
-                      style: TextStyle(fontSize: 14, color: accentColor),
+                      style: TextStyle(fontSize: 14, color: widget.accentColor),
                     ),
                   ],
                 ),
@@ -2301,13 +2368,13 @@ class _CloudThemeSection extends StatelessWidget {
               width: cardWidth,
               child: _CloudThemeCard(
                 theme: t,
-                isDark: isDark,
-                accentColor: accentColor,
+                isDark: widget.isDark,
+                accentColor: widget.accentColor,
                 textColor: textColor,
                 subtextColor: subtextColor,
-                isActive: t.id == activeThemeId,
-                onTap: () => onThemeSelected(t),
-                onDeleted: onThemeDeleted,
+                isActive: t.id == widget.activeThemeId,
+                onTap: () => widget.onThemeSelected(t),
+                onDeleted: widget.onThemeDeleted,
               ),
             )).toList(),
           );
@@ -2555,8 +2622,8 @@ class _ChatBackgroundSection extends StatefulWidget {
   final WallpaperData wallpaper;
   final ValueChanged<bool> onTileChanged;
   final ValueChanged<bool> onAdaptiveChanged;
-  final VoidCallback onPickGallery;
-  final VoidCallback onPickFile;
+  final Future<void> Function() onPickGallery;
+  final Future<void> Function() onPickFile;
 
   const _ChatBackgroundSection({
     required this.isDark,
@@ -2585,14 +2652,22 @@ class _ChatBackgroundSectionState extends State<_ChatBackgroundSection> {
     }
   }
 
-  void _onPickGallery() {
+  Future<void> _onPickGallery() async {
     setState(() => _loading = true);
-    widget.onPickGallery();
+    try {
+      await widget.onPickGallery();
+    } finally {
+      if (mounted && _loading) setState(() => _loading = false);
+    }
   }
 
-  void _onPickFile() {
+  Future<void> _onPickFile() async {
     setState(() => _loading = true);
-    widget.onPickFile();
+    try {
+      await widget.onPickFile();
+    } finally {
+      if (mounted && _loading) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -3086,7 +3161,7 @@ class _ChatListQuickActionSection extends StatelessWidget {
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     String selected = currentAction;
 
-    showDialog(
+    showDialog<String>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
@@ -3109,7 +3184,6 @@ class _ChatListQuickActionSection extends StatelessWidget {
                   InkWell(
                     onTap: () {
                       setDialogState(() => selected = value);
-                      onActionChanged(value);
                     },
                     child: Padding(
                       padding: const EdgeInsets.only(
@@ -3125,7 +3199,6 @@ class _ChatListQuickActionSection extends StatelessWidget {
                               onChanged: (v) {
                                 if (v != null) {
                                   setDialogState(() => selected = v);
-                                  onActionChanged(v);
                                 }
                               },
                               activeColor: accentColor,
@@ -3153,13 +3226,15 @@ class _ChatListQuickActionSection extends StatelessWidget {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
+              onPressed: () => Navigator.of(ctx).pop(selected),
               child: const Text('OK'),
             ),
           ],
         ),
       ),
-    );
+    ).then((result) {
+      if (result != null) onActionChanged(result);
+    });
   }
 }
 
@@ -3507,14 +3582,15 @@ class _StickersEmojiSection extends StatelessWidget {
           isDark: isDark,
           onChanged: onSuggestEmojiChanged,
         ),
-        if (suggestEmoji && isPremium)
+        if (suggestEmoji)
           _StickerCheckbox(
             label: 'Suggest Animated Emoji',
-            value: suggestAnimatedEmoji,
+            value: suggestAnimatedEmoji && isPremium,
             isDark: isDark,
-            onChanged: onSuggestAnimatedEmojiChanged,
+            onChanged: isPremium ? onSuggestAnimatedEmojiChanged : (_) {},
             nested: true,
             premiumOnly: true,
+            enabled: isPremium,
           ),
         _StickerCheckbox(
           label: 'Suggest Stickers by Emoji',
@@ -3553,6 +3629,7 @@ class _StickerCheckbox extends StatelessWidget {
   final ValueChanged<bool> onChanged;
   final bool nested;
   final bool premiumOnly;
+  final bool enabled;
 
   const _StickerCheckbox({
     required this.label,
@@ -3561,6 +3638,7 @@ class _StickerCheckbox extends StatelessWidget {
     required this.onChanged,
     this.nested = false,
     this.premiumOnly = false,
+    this.enabled = true,
   });
 
   @override
@@ -3571,9 +3649,10 @@ class _StickerCheckbox extends StatelessWidget {
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
         context.palette.windowBgActive;
+    final disabledColor = subtextColor.withValues(alpha: 0.5);
 
     return InkWell(
-      onTap: () => onChanged(!value),
+      onTap: enabled ? () => onChanged(!value) : null,
       child: Padding(
         padding: EdgeInsets.only(
           left: nested ? 44 : 22,
@@ -3588,9 +3667,12 @@ class _StickerCheckbox extends StatelessWidget {
               height: 20,
               child: Checkbox(
                 value: value,
-                onChanged: (v) => onChanged(v ?? false),
+                onChanged: enabled ? (v) => onChanged(v ?? false) : null,
                 activeColor: accentColor,
-                side: BorderSide(color: subtextColor, width: 1.5),
+                side: BorderSide(
+                  color: enabled ? subtextColor : disabledColor,
+                  width: 1.5,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(4),
                 ),
@@ -3602,11 +3684,18 @@ class _StickerCheckbox extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(fontSize: 14, color: textColor),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: enabled ? textColor : disabledColor,
+                ),
               ),
             ),
             if (premiumOnly)
-              Icon(Icons.star, size: 14, color: const Color(0xFFFFA500)),
+              Icon(
+                Icons.lock_outline,
+                size: 14,
+                color: enabled ? const Color(0xFFFFA500) : disabledColor,
+              ),
           ],
         ),
       ),
@@ -4305,8 +4394,6 @@ class _ReactionChooserButton extends StatefulWidget {
   final bool isDark;
   final ValueChanged<String> onReactionSelected;
 
-  static const _fallbackReactions = ['❤️', '👍', '👎', '🔥', '🎉', '😢', '💩', '👏', '😂', '🤔', '🤯', '😱'];
-
   const _ReactionChooserButton({
     required this.currentReaction,
     required this.isDark,
@@ -4318,13 +4405,14 @@ class _ReactionChooserButton extends StatefulWidget {
 }
 
 class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
-  List<String> _reactions = _ReactionChooserButton._fallbackReactions;
+  List<String> _reactions = [];
   bool _loaded = false;
+  bool _loadError = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_loaded) _loadReactions();
+    if (!_loaded && !_loadError) _loadReactions();
   }
 
   Future<void> _loadReactions() async {
@@ -4334,7 +4422,7 @@ class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
       final account = appState.activeAccount;
       if (account != null) {
         final available = await engine.getAvailableReactions(account.id);
-        if (available.isNotEmpty && mounted) {
+        if (mounted) {
           setState(() {
             _reactions = available;
             _loaded = true;
@@ -4342,7 +4430,9 @@ class _ReactionChooserButtonState extends State<_ReactionChooserButton> {
           return;
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _loadError = true);
+    }
     _loaded = true;
   }
 
@@ -4604,13 +4694,13 @@ class _ArchiveSettingsBoxState extends State<_ArchiveSettingsBox> {
     });
   }
 
-  void _save() {
+  Future<void> _save() async {
     final appState = context.read<AppState>();
     final account = appState.activeAccount;
     if (account == null) return;
     final engine = context.read<EngineService>();
     try {
-      engine.setArchiveSettings(
+      await engine.setArchiveSettings(
         account.id,
         archiveAndMute: _archiveAndMute,
         keepArchivedUnmuted: _keepUnmuted,
@@ -4618,9 +4708,8 @@ class _ArchiveSettingsBoxState extends State<_ArchiveSettingsBox> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save archive settings: $e')),
-        );
+        showTelegramToast(context, 'Failed to save archive settings');
+        _loadArchiveSettings();
       }
     }
   }
@@ -4794,26 +4883,19 @@ class _SensitiveContentSection extends StatelessWidget {
                 left: 22, top: 10, right: 22, bottom: 10),
             child: Row(
               children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: Checkbox(
-                    value: enabled,
-                    onChanged: (v) => onChanged(v ?? false),
-                    activeColor: accentColor,
-                    side: BorderSide(color: subtextColor, width: 1.5),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Disable filtering',
                     style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                ),
+                SizedBox(
+                  height: 24,
+                  child: Switch(
+                    value: enabled,
+                    onChanged: onChanged,
+                    activeColor: accentColor,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
               ],
