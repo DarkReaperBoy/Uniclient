@@ -696,12 +696,6 @@ All numeric constants match AyuGram exactly:
 ## confirm_box — §36.2 ConfirmBox / showConfirmBox
 
 
-## confirm_box — §36.5 SingleChoiceBox
-
-- [ ] [CRITICAL] AyuGram's `SingleChoiceBox` closes the box **immediately on selection change** via `setChangedCallback` (single_choice_box.cpp:48–53), not on OK button press. The Dart `_SingleChoiceContent` keeps the box open and requires the user to press OK (`confirm_box.dart:878`). This is a fundamental behavioral deviation — AyuGram's box is an auto-close picker, not a two-step confirm dialog. — `confirm_box.dart:878,897–901` ← `AyuGram/ui/boxes/single_choice_box.cpp:48–54`
-
-- [ ] [MAJOR] AyuGram's `SingleChoiceBox` calls the `callback(value)` immediately on selection, before closing (single_choice_box.cpp:50). Dart calls `onChanged?(index)` on select but only returns the value on OK press — callers that act on immediate-selection (e.g. notification sounds) will not fire the callback until OK is pressed, breaking live-preview behavior. — `confirm_box.dart:865–866` ← `AyuGram/ui/boxes/single_choice_box.cpp:47–53`
-
 ## confirm_box — §36.2 DeleteConfirmBox / _DeleteContent
 
 - [ ] [CRITICAL] The `openAutoDelete` return value (`DeleteConfirmResult.openAutoDelete`) is set when the user taps "Enable auto-delete" link (`confirm_box.dart:747–749`), but **no caller handles this flag** — checked across all call sites in `chat_view.dart`, `chat_list_panel.dart`, `calls_screen.dart`. The auto-delete settings panel is never opened, making the link a no-op stub. — `confirm_box.dart:747–749` ← `AyuGram/boxes/delete_messages_box.cpp:306–315` (TTLValidator.showBox() call)
