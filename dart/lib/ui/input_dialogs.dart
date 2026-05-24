@@ -172,6 +172,9 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
   }
 
   static bool _isValidUsername(String name) {
+    if (name.isEmpty) return true;
+    final first = name.codeUnitAt(0);
+    if (first >= 0x30 && first <= 0x39) return false;
     for (var i = 0; i < name.length; i++) {
       final c = name.codeUnitAt(i);
       final isLetter = (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A);
@@ -300,6 +303,10 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     setState(() => _saving = true);
     try {
       if (_additionalUsernames.isNotEmpty) {
+        for (final entry in _pendingToggles.entries) {
+          await widget.engine.toggleAccountUsername(
+              widget.accountId, entry.key, entry.value);
+        }
         final currentOrder = _additionalUsernames
             .map((u) => u['username'] as String? ?? '')
             .where((n) => n.isNotEmpty)
@@ -315,10 +322,6 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
           ];
           await widget.engine.reorderAccountUsernames(widget.accountId, newOrder);
         }
-      }
-      for (final entry in _pendingToggles.entries) {
-        await widget.engine.toggleAccountUsername(
-            widget.accountId, entry.key, entry.value);
       }
       if (username != widget.currentUsername) {
         await widget.engine.updateAccountUsername(widget.accountId, username);
@@ -418,7 +421,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'You can choose a username on Telegram. If you do, people will be able to find you by this username.'
+              'You can choose a username on Telegram. If you do, people will be able to find you by this username and contact you without needing your phone number.'
               '\n\n'
               'You can use a–z, 0–9 and underscores. Minimum length is 5 characters.',
               style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
@@ -587,6 +590,7 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
   String? _error;
   bool _retry = false;
   bool _invertNameOrder = false;
+  bool _phoneDisabled = false;
 
   @override
   void initState() {
@@ -602,10 +606,15 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     _lastNameFocus = FocusNode();
     _phoneFocus = FocusNode();
     _phoneFormatter = _PhoneNumberFormatter(dialCode: _selectedCountry.dialCode);
+    _phoneDisabled = widget.initialPhone.isNotEmpty;
     final locale = WidgetsBinding.instance.platformDispatcher.locale;
     _invertNameOrder = const {'ja', 'ko', 'zh', 'hu', 'vi'}.contains(locale.languageCode);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      (_invertNameOrder ? _lastNameFocus : _firstNameFocus).requestFocus();
+      if ((_firstNameCtrl.text.isEmpty && _lastNameCtrl.text.isEmpty) || _phoneDisabled) {
+        (_invertNameOrder ? _lastNameFocus : _firstNameFocus).requestFocus();
+      } else {
+        _phoneFocus.requestFocus();
+      }
     });
   }
 
@@ -622,7 +631,13 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
 
   bool _isValidPhone(String phone) {
     final digits = phone.replaceAll(RegExp(r'\D'), '');
-    return digits.length >= 8;
+    return (digits.length >= 8)
+        || (digits == '333')
+        || (digits.startsWith('42')
+            && (digits.length == 2
+                || digits.length == 5
+                || digits.length == 6
+                || digits == '4242'));
   }
 
   void _showCountryPicker() {
@@ -801,22 +816,19 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
                           style: TextStyle(fontSize: 15, color: textColor),
                           keyboardType: TextInputType.phone,
                           inputFormatters: [_phoneFormatter],
-                          enabled: !_saving,
+                          enabled: !_saving && !_phoneDisabled,
                           decoration: InputDecoration(
                             hintText: 'Phone number',
                             hintStyle: TextStyle(fontSize: 14, color: subColor),
                             isDense: true,
                             contentPadding: const EdgeInsets.symmetric(vertical: 8),
                             prefixIcon: InkWell(
-                              onTap: _saving ? null : _showCountryPicker,
+                              onTap: (_saving || _phoneDisabled) ? null : _showCountryPicker,
                               child: Padding(
                                 padding: const EdgeInsets.only(right: 8),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(_selectedCountry.flag,
-                                        style: const TextStyle(fontSize: 18)),
-                                    const SizedBox(width: 4),
                                     Text('+${_selectedCountry.dialCode}',
                                         style: TextStyle(fontSize: 15, color: textColor)),
                                     Icon(Icons.arrow_drop_down, size: 16, color: subColor),
@@ -1148,37 +1160,42 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
                           itemBuilder: (ctx, i) {
                             final c = _cachedList[i];
                             final isHighlighted = i == _highlightedIndex;
-                            return InkWell(
-                              onTap: () => widget.onSelect(c),
-                              child: Container(
-                                color: isHighlighted ? highlightColor : null,
-                                padding: const EdgeInsets.only(
-                                    left: 22, top: 9, right: 8),
-                                child: Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        c.name,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: textColor,
+                            return Semantics(
+                              label: '${c.name}, +${c.dialCode}',
+                              button: true,
+                              selected: isHighlighted,
+                              child: InkWell(
+                                onTap: () => widget.onSelect(c),
+                                child: Container(
+                                  color: isHighlighted ? highlightColor : null,
+                                  padding: const EdgeInsets.only(
+                                      left: 22, top: 9, right: 8),
+                                  child: Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          c.name,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: textColor,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
                                         ),
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
                                       ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '+${c.dialCode}',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: isHighlighted
-                                            ? p.windowSubTextFgOver
-                                            : codeColor,
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '+${c.dialCode}',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: isHighlighted
+                                              ? p.windowSubTextFgOver
+                                              : codeColor,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             );
@@ -1311,15 +1328,8 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
         if (remaining <= 0) {
           _expireOption = 0;
         } else {
-          final match = _expireOptions.keys.where(
-            (k) => k > 0 && (remaining - k).abs() < k * 0.1,
-          ).firstOrNull;
-          if (match != null) {
-            _expireOption = match;
-          } else {
-            _expireOption = -1;
-            _customExpireDate = widget.existingExpire;
-          }
+          _expireOption = -1;
+          _customExpireDate = widget.existingExpire;
         }
       } else {
         _expireOption = 0;
@@ -1507,7 +1517,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!_subscriptionLocked) ...[
+            if (!_subscriptionLocked && !widget.isPublic) ...[
               _toggleRow(
                 'Request Admin Approval',
                 _requestApproval,
@@ -1693,7 +1703,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
                       ],
                     ),
             ),
-            ], // end if (!_subscriptionLocked)
+            ], // end if (!_subscriptionLocked) — hides both Expire and Usage for subscription links
             if (_saving) ...[
               const SizedBox(height: 12),
               const Center(
@@ -1724,6 +1734,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
 class CreatePollResult {
   final String question;
   final String description;
+  final String? descriptionMediaPath;
   final List<String> options;
   final List<String?> optionMediaPaths;
   final bool multipleChoice;
@@ -1733,12 +1744,15 @@ class CreatePollResult {
   final bool shuffleAnswers;
   final bool allowAddingOptions;
   final int limitDuration;
+  final bool hideResults;
   final int correctOptionIndex;
+  final List<int> correctOptionIndices;
   final String solution;
 
   const CreatePollResult({
     required this.question,
     this.description = '',
+    this.descriptionMediaPath,
     required this.options,
     this.optionMediaPaths = const [],
     this.multipleChoice = false,
@@ -1748,7 +1762,9 @@ class CreatePollResult {
     this.shuffleAnswers = false,
     this.allowAddingOptions = false,
     this.limitDuration = 0,
+    this.hideResults = false,
     this.correctOptionIndex = -1,
+    this.correctOptionIndices = const [],
     this.solution = '',
   });
 }
@@ -1773,7 +1789,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   static const _kOptionLimit = 100;
   static const _kWarnOptionLimit = 30;
   static const _kSolutionLimit = 200;
-  static const _kMaxOptions = 12;
+  static const _kMaxOptions = 32;
 
   final _questionCtrl = TextEditingController();
   final _questionFocus = FocusNode();
@@ -1784,6 +1800,8 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     TextEditingController(),
   ];
   final List<String?> _optionMediaPaths = [null, null];
+  final List<DateTime?> _optionMediaTimestamps = [null, null];
+  String? _descriptionMediaPath;
   bool _multipleChoice = false;
   bool _anonymous = true;
   bool _showWhoVoted = false;
@@ -1792,8 +1810,10 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   bool _shuffleAnswers = false;
   bool _allowAddingOptions = false;
   bool _limitDuration = false;
-  int _durationSeconds = 300;
+  bool _hideResults = false;
+  int _durationSeconds = 86400;
   int _correctOption = -1;
+  final Set<int> _correctOptions = {};
 
   final _durationPickerKey = GlobalKey();
 
@@ -1827,6 +1847,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     setState(() {
       _optionCtrls.add(TextEditingController());
       _optionMediaPaths.add(null);
+      _optionMediaTimestamps.add(null);
     });
   }
 
@@ -1836,6 +1857,15 @@ class _CreatePollContentState extends State<_CreatePollContent> {
       _optionCtrls[index].dispose();
       _optionCtrls.removeAt(index);
       _optionMediaPaths.removeAt(index);
+      _optionMediaTimestamps.removeAt(index);
+      _correctOptions.remove(index);
+      final updated = <int>{};
+      for (final idx in _correctOptions) {
+        updated.add(idx > index ? idx - 1 : idx);
+      }
+      _correctOptions
+        ..clear()
+        ..addAll(updated);
       if (_correctOption == index) {
         _correctOption = -1;
       } else if (_correctOption > index) {
@@ -1851,6 +1881,23 @@ class _CreatePollContentState extends State<_CreatePollContent> {
       _optionCtrls.insert(newIndex, ctrl);
       final media = _optionMediaPaths.removeAt(oldIndex);
       _optionMediaPaths.insert(newIndex, media);
+      final ts = _optionMediaTimestamps.removeAt(oldIndex);
+      _optionMediaTimestamps.insert(newIndex, ts);
+      final updated = <int>{};
+      for (final idx in _correctOptions) {
+        if (idx == oldIndex) {
+          updated.add(newIndex);
+        } else if (idx > oldIndex && idx <= newIndex) {
+          updated.add(idx - 1);
+        } else if (idx < oldIndex && idx >= newIndex) {
+          updated.add(idx + 1);
+        } else {
+          updated.add(idx);
+        }
+      }
+      _correctOptions
+        ..clear()
+        ..addAll(updated);
       if (_correctOption == oldIndex) {
         _correctOption = newIndex;
       } else if (_correctOption > oldIndex && _correctOption <= newIndex) {
@@ -1861,14 +1908,30 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     });
   }
 
+  static const _kStaleMediaThreshold = Duration(minutes: 45);
+
+  bool _isMediaStale(int index) {
+    final ts = _optionMediaTimestamps[index];
+    if (ts == null) return false;
+    return DateTime.now().difference(ts) > _kStaleMediaThreshold;
+  }
+
   int get _filledOptionCount =>
       _optionCtrls.where((c) => c.text.trim().isNotEmpty).length;
+
+  bool get _multiCorrect => _quiz && _multipleChoice;
 
   bool get _canSubmit {
     final q = _questionCtrl.text.trim();
     if (q.isEmpty || q.length > _kQuestionLimit) return false;
     if (_filledOptionCount < 2) return false;
-    if (_quiz && (_correctOption < 0 || _correctOption >= _optionCtrls.length)) return false;
+    if (_quiz) {
+      if (_multiCorrect) {
+        if (_correctOptions.isEmpty) return false;
+      } else if (_correctOption < 0 || _correctOption >= _optionCtrls.length) {
+        return false;
+      }
+    }
     return true;
   }
 
@@ -1887,6 +1950,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     Navigator.of(context).pop(CreatePollResult(
       question: question,
       description: _descriptionCtrl.text.trim(),
+      descriptionMediaPath: _descriptionMediaPath,
       options: options,
       optionMediaPaths: mediaPaths,
       multipleChoice: _multipleChoice,
@@ -1896,7 +1960,9 @@ class _CreatePollContentState extends State<_CreatePollContent> {
       shuffleAnswers: _shuffleAnswers,
       allowAddingOptions: _allowAddingOptions,
       limitDuration: _limitDuration ? _durationSeconds : 0,
-      correctOptionIndex: _quiz ? _correctOption : -1,
+      hideResults: _limitDuration && _hideResults,
+      correctOptionIndex: _quiz && !_multiCorrect ? _correctOption : -1,
+      correctOptionIndices: _quiz && _multiCorrect ? (_correctOptions.toList()..sort()) : const [],
       solution: _quiz ? _solutionCtrl.text.trim() : '',
     ));
   }
@@ -1991,7 +2057,10 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     );
     if (choice == null || !mounted) return;
     if (choice == 'remove') {
-      setState(() => _optionMediaPaths[index] = null);
+      setState(() {
+        _optionMediaPaths[index] = null;
+        _optionMediaTimestamps[index] = null;
+      });
       return;
     }
     final result = await FilePicker.platform.pickFiles(
@@ -2001,7 +2070,41 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     if (result != null && result.files.isNotEmpty && mounted) {
       final path = result.files.first.path;
       if (path != null) {
-        setState(() => _optionMediaPaths[index] = path);
+        setState(() {
+          _optionMediaPaths[index] = path;
+          _optionMediaTimestamps[index] = DateTime.now();
+        });
+      }
+    }
+  }
+
+  Future<void> _pickDescriptionMedia() async {
+    final p = context.palette;
+    final textColor = p.boxTextFg;
+    final hasMedia = _descriptionMediaPath != null;
+    final choice = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(200, 300, 200, 300),
+      items: [
+        PopupMenuItem(value: 'photo_video', child: Text('Choose Photo or Video', style: TextStyle(color: textColor))),
+        PopupMenuItem(value: 'file', child: Text('Choose File', style: TextStyle(color: textColor))),
+        if (hasMedia)
+          PopupMenuItem(value: 'remove', child: Text('Remove', style: TextStyle(color: p.boxTextFgError))),
+      ],
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'remove') {
+      setState(() => _descriptionMediaPath = null);
+      return;
+    }
+    final result = await FilePicker.platform.pickFiles(
+      type: choice == 'photo_video' ? FileType.media : FileType.any,
+      allowMultiple: false,
+    );
+    if (result != null && result.files.isNotEmpty && mounted) {
+      final path = result.files.first.path;
+      if (path != null) {
+        setState(() => _descriptionMediaPath = path);
       }
     }
   }
@@ -2130,11 +2233,50 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                 ),
               ),
             const SizedBox(height: 12),
-            BoxInputField(
-              controller: _descriptionCtrl,
-              label: 'Description (optional)',
-              onChanged: (_) => setState(() {}),
-              inputFormatters: [LengthLimitingTextInputFormatter(_kDescriptionLimit)],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: BoxInputField(
+                    controller: _descriptionCtrl,
+                    label: 'Description (optional)',
+                    onChanged: (_) => setState(() {}),
+                    inputFormatters: [LengthLimitingTextInputFormatter(_kDescriptionLimit)],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: _descriptionMediaPath != null
+                      ? GestureDetector(
+                          onTap: _pickDescriptionMedia,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: SizedBox(
+                              width: 32,
+                              height: 32,
+                              child: _isImagePath(_descriptionMediaPath!)
+                                  ? Image.file(File(_descriptionMediaPath!), fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          Icon(Icons.broken_image, size: 16, color: subColor))
+                                  : Container(
+                                      color: p.windowBgActive.withValues(alpha: 0.15),
+                                      child: Icon(Icons.insert_drive_file, size: 16, color: p.windowBgActive),
+                                    ),
+                            ),
+                          ),
+                        )
+                      : SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: IconButton(
+                            icon: Icon(Icons.attach_file, size: 16, color: subColor),
+                            padding: EdgeInsets.zero,
+                            tooltip: 'Attach media',
+                            onPressed: _pickDescriptionMedia,
+                          ),
+                        ),
+                ),
+              ],
             ),
             if (_descriptionCtrl.text.length > 80)
               Align(
@@ -2218,7 +2360,9 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               _multipleChoice,
               (v) => setState(() {
                 _multipleChoice = v;
-                if (_multipleChoice) _quiz = false;
+                if (_multipleChoice && _quiz) {
+                  _correctOption = -1;
+                }
               }),
               toggleClr, textColor, subColor,
             ),
@@ -2226,7 +2370,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               'Allow Adding Options',
               'Other users will be able to add new options',
               _allowAddingOptions,
-              (v) => setState(() => _allowAddingOptions = v),
+              _quiz ? null : (v) => setState(() => _allowAddingOptions = v),
               toggleClr, textColor, subColor,
             ),
             _settingsToggle(
@@ -2245,17 +2389,16 @@ class _CreatePollContentState extends State<_CreatePollContent> {
             ),
             _settingsToggle(
               'Quiz Mode',
-              _multipleChoice
-                  ? 'Multiple answers and Quiz Mode are incompatible'
-                  : 'One correct answer, no revoting',
+              'One correct answer, no revoting',
               _quiz,
               (v) => setState(() {
                 _quiz = v;
                 if (_quiz) {
-                  _multipleChoice = false;
                   _allowRevoting = false;
+                  _allowAddingOptions = false;
                 } else {
                   _correctOption = -1;
+                  _correctOptions.clear();
                   _solutionCtrl.clear();
                 }
               }),
@@ -2265,7 +2408,10 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               'Limit Duration',
               'Poll will automatically close after a set time',
               _limitDuration,
-              (v) => setState(() => _limitDuration = v),
+              (v) => setState(() {
+                _limitDuration = v;
+                if (!v) _hideResults = false;
+              }),
               toggleClr, textColor, subColor,
             ),
             if (_limitDuration) ...[
@@ -2292,6 +2438,13 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                     ),
                   ),
                 ),
+              ),
+              _settingsToggle(
+                'Hide Results',
+                'Results will be hidden until the poll is closed',
+                _hideResults,
+                (v) => setState(() => _hideResults = v),
+                toggleClr, textColor, subColor,
               ),
             ],
             if (_quiz) ...[
@@ -2371,7 +2524,25 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                   child: Icon(Icons.drag_handle, size: 18, color: subColor),
                 ),
               ),
-              if (_quiz)
+              if (_quiz && _multiCorrect)
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Checkbox(
+                    value: _correctOptions.contains(i),
+                    onChanged: (v) => setState(() {
+                      if (v == true) {
+                        _correctOptions.add(i);
+                      } else {
+                        _correctOptions.remove(i);
+                      }
+                    }),
+                    activeColor: p.windowBgActive,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                )
+              else if (_quiz)
                 SizedBox(
                   width: 24,
                   height: 24,
@@ -2395,36 +2566,56 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               ),
               Padding(
                 padding: const EdgeInsets.only(left: 4),
-                child: Builder(builder: (btnCtx) => hasMedia
-                    ? GestureDetector(
-                        onTap: () => _pickOptionMedia(i, btnCtx),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: SizedBox(
-                            width: 32,
-                            height: 32,
-                            child: isImage
-                                ? Image.file(File(mediaPath), fit: BoxFit.cover,
+                child: Builder(builder: (btnCtx) {
+                  final stale = hasMedia && _isMediaStale(i);
+                  if (hasMedia) {
+                    return GestureDetector(
+                      onTap: () => _pickOptionMedia(i, btnCtx),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: Stack(
+                            children: [
+                              if (isImage)
+                                Image.file(File(mediaPath), fit: BoxFit.cover,
+                                    width: 32, height: 32,
                                     errorBuilder: (_, __, ___) =>
                                         Icon(Icons.broken_image, size: 16, color: subColor))
-                                : Container(
+                              else
+                                Container(
                                     color: p.windowBgActive.withValues(alpha: 0.15),
-                                    child: Icon(Icons.insert_drive_file, size: 16, color: p.windowBgActive),
+                                    child: Icon(Icons.insert_drive_file, size: 16, color: p.windowBgActive)),
+                              if (stale)
+                                Positioned(
+                                  right: 0, bottom: 0,
+                                  child: Container(
+                                    width: 12, height: 12,
+                                    decoration: BoxDecoration(
+                                      color: p.boxTextFgError,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.refresh, size: 8, color: Colors.white),
                                   ),
+                                ),
+                            ],
                           ),
                         ),
-                      )
-                    : SizedBox(
-                        width: 32,
-                        height: 32,
-                        child: IconButton(
-                          icon: Icon(Icons.attach_file, size: 16, color: subColor),
-                          padding: EdgeInsets.zero,
-                          tooltip: 'Attach media',
-                          onPressed: () => _pickOptionMedia(i, btnCtx),
-                        ),
                       ),
-                ),
+                    );
+                  }
+                  return SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: IconButton(
+                      icon: Icon(Icons.attach_file, size: 16, color: subColor),
+                      padding: EdgeInsets.zero,
+                      tooltip: 'Attach media',
+                      onPressed: () => _pickOptionMedia(i, btnCtx),
+                    ),
+                  );
+                }),
               ),
               if (_optionCtrls.length > 2)
                 SizedBox(
