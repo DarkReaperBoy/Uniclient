@@ -4598,7 +4598,7 @@ class _ShortcutsArchiveSection extends StatelessWidget {
   void _showArchiveSettingsBox(BuildContext context) {
     showDialog(
       context: context,
-      builder: (ctx) => _ArchiveSettingsBox(
+      builder: (ctx) => ArchiveSettingsBox(
         isDark: isDark,
         accentColor: accentColor,
       ),
@@ -4653,20 +4653,21 @@ class _ShortcutsArchiveButton extends StatelessWidget {
   }
 }
 
-class _ArchiveSettingsBox extends StatefulWidget {
+class ArchiveSettingsBox extends StatefulWidget {
   final bool isDark;
   final Color accentColor;
 
-  const _ArchiveSettingsBox({
+  const ArchiveSettingsBox({
+    super.key,
     required this.isDark,
     required this.accentColor,
   });
 
   @override
-  State<_ArchiveSettingsBox> createState() => _ArchiveSettingsBoxState();
+  State<ArchiveSettingsBox> createState() => _ArchiveSettingsBoxState();
 }
 
-class _ArchiveSettingsBoxState extends State<_ArchiveSettingsBox> {
+class _ArchiveSettingsBoxState extends State<ArchiveSettingsBox> {
   bool _archiveAndMute = false;
   bool _keepUnmuted = false;
   bool _keepFolders = false;

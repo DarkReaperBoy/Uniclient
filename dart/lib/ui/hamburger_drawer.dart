@@ -21,6 +21,7 @@ import 'contacts_screen.dart';
 import 'create_group_wizard.dart';
 import 'info_panel.dart';
 import 'popup_menu.dart';
+import 'chat_settings_screen.dart' show ArchiveSettingsBox;
 import 'settings_screen.dart';
 import 'shell.dart';
 import 'web_app_panel.dart';
@@ -593,21 +594,13 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
         case 'mark_read':
           chatState.markArchivedAsRead();
         case 'settings':
-          final chatSt = context.read<ChatState>();
-          final authSt = context.read<AuthState>();
-          Navigator.of(context).pop();
-          Navigator.of(context).push(
-            settingsPageRoute(
-              ChangeNotifierProvider.value(
-                value: appState,
-                child: ChangeNotifierProvider.value(
-                  value: chatSt,
-                  child: ChangeNotifierProvider.value(
-                    value: authSt,
-                    child: const SettingsScreen(),
-                  ),
-                ),
-              ),
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final accentColor = Theme.of(context).colorScheme.primary;
+          showDialog(
+            context: context,
+            builder: (_) => ArchiveSettingsBox(
+              isDark: isDark,
+              accentColor: accentColor,
             ),
           );
         case 'how_it_works':
@@ -616,8 +609,26 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
     });
   }
 
-  void _showArchiveHintDialog(BuildContext context, AppState appState) {
+  void _showArchiveHintDialog(BuildContext context, AppState appState) async {
+    final engine = context.read<EngineService>();
+    final account = appState.activeAccount;
+    bool keepArchivedUnmuted = false;
+    if (account != null) {
+      try {
+        final result = await engine.getArchiveSettings(account.id);
+        keepArchivedUnmuted = result.keepArchivedUnmuted;
+      } catch (_) {}
+    }
+    if (!context.mounted) return;
+
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor = theme.colorScheme.primary;
+
+    final descriptionText = keepArchivedUnmuted
+        ? 'When you receive a new message, all chats will remain in the Archive.'
+        : 'When you receive a new message, muted chats will remain in the Archive, while unmuted chats will be moved to Chats.';
+
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -635,7 +646,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
+                      color: accentColor,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.archive, color: Colors.white, size: 32),
@@ -646,10 +657,29 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                     style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    'When you receive a new message, muted chats will remain in the Archive, while unmuted chats will be moved to Chats.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.textTheme.bodySmall?.color,
+                  Text.rich(
+                    TextSpan(
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.textTheme.bodySmall?.color,
+                      ),
+                      children: [
+                        TextSpan(text: '$descriptionText You can change this in '),
+                        TextSpan(
+                          text: 'Archive Settings',
+                          style: TextStyle(color: accentColor),
+                          recognizer: TapGestureRecognizer()..onTap = () {
+                            Navigator.of(ctx).pop();
+                            showDialog(
+                              context: context,
+                              builder: (_) => ArchiveSettingsBox(
+                                isDark: isDark,
+                                accentColor: accentColor,
+                              ),
+                            );
+                          },
+                        ),
+                        const TextSpan(text: '.'),
+                      ],
                     ),
                     textAlign: TextAlign.center,
                   ),
