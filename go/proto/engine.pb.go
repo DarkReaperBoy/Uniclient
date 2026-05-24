@@ -1156,6 +1156,7 @@ type EngineChatInfo struct {
 	CanPost              bool                   `protobuf:"varint,32,opt,name=can_post,json=canPost,proto3" json:"can_post,omitempty"`
 	NoForwards           bool                   `protobuf:"varint,33,opt,name=no_forwards,json=noForwards,proto3" json:"no_forwards,omitempty"`
 	IsSelf               bool                   `protobuf:"varint,34,opt,name=is_self,json=isSelf,proto3" json:"is_self,omitempty"`
+	IsAdmin              bool                   `protobuf:"varint,35,opt,name=is_admin,json=isAdmin,proto3" json:"is_admin,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1424,6 +1425,13 @@ func (x *EngineChatInfo) GetNoForwards() bool {
 func (x *EngineChatInfo) GetIsSelf() bool {
 	if x != nil {
 		return x.IsSelf
+	}
+	return false
+}
+
+func (x *EngineChatInfo) GetIsAdmin() bool {
+	if x != nil {
+		return x.IsAdmin
 	}
 	return false
 }
@@ -14486,7 +14494,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x05state\x18\x01 \x01(\v2\x1a.uniclient.EngineAuthStateR\x05state\"8\n" +
 	"\x17EngineCancelAuthRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\x97\t\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\xb2\t\n" +
 	"\x0eEngineChatInfo\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -14531,7 +14539,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\bcan_post\x18  \x01(\bR\acanPost\x12\x1f\n" +
 	"\vno_forwards\x18! \x01(\bR\n" +
 	"noForwards\x12\x17\n" +
-	"\ais_self\x18\" \x01(\bR\x06isSelf\"\x83\x01\n" +
+	"\ais_self\x18\" \x01(\bR\x06isSelf\x12\x19\n" +
+	"\bis_admin\x18# \x01(\bR\aisAdmin\"\x83\x01\n" +
 	"\x18EngineGetChatListRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1a\n" +

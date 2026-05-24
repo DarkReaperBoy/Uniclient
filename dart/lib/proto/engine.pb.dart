@@ -1468,6 +1468,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     $core.bool? canPost,
     $core.bool? noForwards,
     $core.bool? isSelf,
+    $core.bool? isAdmin,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -1572,6 +1573,9 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     if (isSelf != null) {
       $result.isSelf = isSelf;
     }
+    if (isAdmin != null) {
+      $result.isAdmin = isAdmin;
+    }
     return $result;
   }
   EngineChatInfo._() : super();
@@ -1613,6 +1617,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     ..aOB(32, _omitFieldNames ? '' : 'canPost')
     ..aOB(33, _omitFieldNames ? '' : 'noForwards')
     ..aOB(34, _omitFieldNames ? '' : 'isSelf')
+    ..aOB(35, _omitFieldNames ? '' : 'isAdmin')
     ..hasRequiredFields = false
   ;
 
@@ -1942,6 +1947,15 @@ class EngineChatInfo extends $pb.GeneratedMessage {
   $core.bool hasIsSelf() => $_has(33);
   @$pb.TagNumber(34)
   void clearIsSelf() => clearField(34);
+
+  @$pb.TagNumber(35)
+  $core.bool get isAdmin => $_getBF(34);
+  @$pb.TagNumber(35)
+  set isAdmin($core.bool v) { $_setBool(34, v); }
+  @$pb.TagNumber(35)
+  $core.bool hasIsAdmin() => $_has(34);
+  @$pb.TagNumber(35)
+  void clearIsAdmin() => clearField(35);
 }
 
 class EngineGetChatListRequest extends $pb.GeneratedMessage {

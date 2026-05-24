@@ -1513,6 +1513,20 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	c.IsFake = isFake == 1
 	c.IsAdmin = isAdminInt == 1
 
+	// Apply isSelf detection (not stored in DB, computed in-memory).
+	if c.Type == ChatTypeDMVal {
+		e.accountsMu.RLock()
+		if acc, ok := e.accounts[accountID]; ok && acc.Core != nil {
+			type selfIDer interface{ SelfUserID() string }
+			if s, ok := acc.Core.(selfIDer); ok {
+				if sid := s.SelfUserID(); sid != "" && c.ChatID == sid {
+					c.IsSelf = true
+				}
+			}
+		}
+		e.accountsMu.RUnlock()
+	}
+
 	e.emitEvent(EventChatUpdated, accountID, ChatUpdatedEvent{Chat: c})
 }
 

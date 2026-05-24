@@ -6154,6 +6154,7 @@ class EngineService {
     canPost: p.canPost,
     noForwards: p.noForwards,
     isSelf: p.isSelf,
+    isAdmin: p.isAdmin,
   );
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {

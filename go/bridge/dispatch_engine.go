@@ -6580,6 +6580,7 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		CanPost:              c.CanPost,
 		NoForwards:           c.NoForwards,
 		IsSelf:               c.IsSelf,
+		IsAdmin:              c.IsAdmin,
 	}
 }
 

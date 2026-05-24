@@ -185,6 +185,7 @@ message EngineChatInfo {
   bool   can_post                 = 32;
   bool   no_forwards              = 33;
   bool   is_self                  = 34;
+  bool   is_admin                = 35;
 }
 
 message EngineGetChatListRequest {
