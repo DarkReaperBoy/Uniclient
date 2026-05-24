@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -541,6 +543,9 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback? onJoinTap;
   final VoidCallback? onDiscussTap;
   final VoidCallback? onGiftTap;
+  final bool isAdmin;
+  final VoidCallback? onManageTap;
+  final VideoController? videoAvatarController;
 
   static const double maxHeight = 236.0;
   static const double minHeight = 56.0;
@@ -583,6 +588,9 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     this.onJoinTap,
     this.onDiscussTap,
     this.onGiftTap,
+    this.isAdmin = false,
+    this.onManageTap,
+    this.videoAvatarController,
   });
 
   @override
@@ -608,7 +616,9 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       showStatsMenu != old.showStatsMenu ||
       notJoined != old.notJoined ||
       linkedChatId != old.linkedChatId ||
-      isPeerPremium != old.isPeerPremium;
+      isPeerPremium != old.isPeerPremium ||
+      isAdmin != old.isAdmin ||
+      videoAvatarController != old.videoAvatarController;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
@@ -698,29 +708,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                                 ? MyNotesUserpic(size: avatarDisplaySize)
                                 : isSelf
                                 ? SavedMessagesUserpic(size: avatarDisplaySize)
-                                : avatarPath.isNotEmpty
-                                    ? ClipOval(
-                                        child: Image.file(
-                                          File(avatarPath),
-                                          width: avatarDisplaySize,
-                                          height: avatarDisplaySize,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) =>
-                                              _avatarFallback(avatarColor, initials, avatarDisplaySize),
-                                        ),
-                                      )
-                                    : avatarBytes != null && avatarBytes!.isNotEmpty
-                                        ? ClipOval(
-                                            child: Image.memory(
-                                              avatarBytes!,
-                                              width: avatarDisplaySize,
-                                              height: avatarDisplaySize,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) =>
-                                                  _avatarFallback(avatarColor, initials, avatarDisplaySize),
-                                            ),
-                                          )
-                                        : _avatarFallback(avatarColor, initials, avatarDisplaySize),
+                                : _buildAvatarWithVideo(avatarPath, avatarDisplaySize, avatarColor, initials, avatarBytes),
                           ),
                         ),
                       ],
@@ -952,6 +940,10 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       buttons.add(_ActionBtnData(Icons.forum_outlined, 'Discuss', onDiscussTap));
     }
 
+    if (isAdmin && (chatType == ChatType.channel || chatType == ChatType.group)) {
+      buttons.add(_ActionBtnData(Icons.settings_outlined, 'Manage', onManageTap));
+    }
+
     // "Gift" for premium-eligible peers (non-self, non-bot DMs, or channels with stargifts)
     if (isPeerPremium && onGiftTap != null) {
       buttons.add(_ActionBtnData(Icons.card_giftcard_outlined, 'Gift', onGiftTap));
@@ -1175,6 +1167,51 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
         chatState.muteChat(accountId, chatId, true, durationSeconds: seconds);
       }
     });
+  }
+
+  Widget _buildAvatarWithVideo(String path, double size, Color color, String initials, Uint8List? bytes) {
+    Widget staticImage;
+    if (path.isNotEmpty) {
+      staticImage = ClipOval(
+        child: Image.file(
+          File(path),
+          width: size, height: size, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _avatarFallback(color, initials, size),
+        ),
+      );
+    } else if (bytes != null && bytes.isNotEmpty) {
+      staticImage = ClipOval(
+        child: Image.memory(
+          bytes,
+          width: size, height: size, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _avatarFallback(color, initials, size),
+        ),
+      );
+    } else {
+      staticImage = _avatarFallback(color, initials, size);
+    }
+
+    if (videoAvatarController != null) {
+      return ClipOval(
+        child: SizedBox(
+          width: size, height: size,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              staticImage,
+              Video(
+                controller: videoAvatarController!,
+                width: size, height: size,
+                fit: BoxFit.cover,
+                controls: NoVideoControls,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return staticImage;
   }
 
   static Widget _avatarFallback(Color color, String initials, double size) {
@@ -2378,11 +2415,15 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
   int? _sectionsDepsHash;
   Uint8List? _avatarBytes;
   String _avatarBytesPath = '';
+  Player? _videoAvatarPlayer;
+  VideoController? _videoAvatarController;
+  String _videoAvatarLoadedFor = '';
 
   @override
   void initState() {
     super.initState();
     _loadAvatarBytes();
+    _loadVideoAvatar();
   }
 
   @override
@@ -2390,6 +2431,10 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
     super.didUpdateWidget(old);
     if (old.chat.avatarPath != widget.chat.avatarPath) {
       _loadAvatarBytes();
+    }
+    if (old.chat.chatId != widget.chat.chatId) {
+      _disposeVideoAvatar();
+      _loadVideoAvatar();
     }
   }
 
@@ -2412,9 +2457,47 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
     });
   }
 
+  void _loadVideoAvatar() {
+    if (widget.chat.type != ChatType.dm) return;
+    final key = '${widget.chat.accountId}:${widget.chat.chatId}';
+    if (_videoAvatarLoadedFor == key) return;
+    _videoAvatarLoadedFor = key;
+    final engine = context.read<EngineService>();
+    engine.getUserProfile(widget.chat.accountId, widget.chat.chatId).then((p) {
+      if (!mounted || p == null) return;
+      if (p.videoAvatarPath.isEmpty) return;
+      final player = Player();
+      if (AppState.noHwAccelVideo) {
+        (player.platform as NativePlayer).setProperty('hwdec', 'no');
+      }
+      final controller = VideoController(player);
+      player.setPlaylistMode(PlaylistMode.loop);
+      player.open(Media(p.videoAvatarPath));
+      if (p.videoStartPosition > 0) {
+        player.seek(Duration(milliseconds: p.videoStartPosition));
+      }
+      if (mounted) {
+        setState(() {
+          _videoAvatarPlayer = player;
+          _videoAvatarController = controller;
+        });
+      } else {
+        player.dispose();
+      }
+    });
+  }
+
+  void _disposeVideoAvatar() {
+    _videoAvatarPlayer?.dispose();
+    _videoAvatarPlayer = null;
+    _videoAvatarController = null;
+    _videoAvatarLoadedFor = '';
+  }
+
   @override
   void dispose() {
     _snapTimer?.cancel();
+    _disposeVideoAvatar();
     super.dispose();
   }
 
@@ -2463,6 +2546,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
   bool _canShowStatsMenu() {
     final type = widget.chat.type;
     if (type != ChatType.channel && type != ChatType.group) return false;
+    if (!widget.chat.isAdmin) return false;
     final minMembers = type == ChatType.channel ? 50 : 500;
     return widget.chat.memberCount >= minMembers;
   }
@@ -2708,8 +2792,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                 );
               },
               chatType: widget.chat.type,
-              isSelf: widget.chat.title == 'Saved Messages' &&
-                  widget.chat.type == ChatType.dm,
+              isSelf: widget.chat.isSelf,
               isMyNotes: widget.chatState.activeSublist?.isSelf == true,
               storyCount: widget.chat.storyCount,
               hasUnreadStory: widget.chat.hasUnreadStory,
@@ -2740,6 +2823,11 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               onGiftTap: _isPeerGiftEligible()
                   ? () { _showStarGiftDialog(context); }
                   : null,
+              isAdmin: widget.chat.isAdmin,
+              onManageTap: widget.chat.isAdmin && (widget.chat.type == ChatType.channel || widget.chat.type == ChatType.group)
+                  ? () { showEditPeerInfoBox(context, chat: widget.chat, members: widget.members); }
+                  : null,
+              videoAvatarController: _videoAvatarController,
             ),
           ),
           ..._buildInfoSections(context),
