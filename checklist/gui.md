@@ -765,11 +765,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 # filter_column — Audit findings
 
-- [ ] [MAJOR] "Mark as Read" silently marks all chats without confirmation even when unread count > 1000 — `filter_column.dart:394-400` and `filter_column.dart:464-470` both iterate and call `chatState.markChatRead()` unconditionally. AyuGram's `MenuAddMarkAsReadChatListAction` checks `unreadState.messages > kMaxUnreadWithoutConfirmation (1000)` and shows a separate confirm box (`tr::lng_context_mark_read_sure()`) before proceeding — `AyuGram/SourceFiles/window/window_peer_menu.cpp:3849`
-
-- [ ] [MAJOR] Remove folder UX misses shared-chatlist flow — `filter_column.dart:479-509` shows a one-size-fits-all "Are you sure?" `AlertDialog` then calls `chatState.deleteFolder()`. AyuGram's `RemoveComplexChatFilter::request()` first checks `filter.hasMyLinks()`, shows a different dialog for filters with chatlist links ("delete for all members?"), fetches `MTPchatlists_GetLeaveChatlistSuggestions`, and lets the user pick which chats to leave — `AyuGram/SourceFiles/api/api_chat_filters_remove_manager.cpp:68-120`
-
-- [ ] [MAJOR] Lock icon is wrong shape and size — `filter_column.dart:819` defines `_lockIconSize = 8` and renders a Material `Icons.lock` (line 929). AyuGram draws a custom arc+block padlock via `SideBarLockIcon()` at `sideBarButtonLockSize: size(9px, 10px)` with `sideBarButtonLockArcHeight: 3px`, `sideBarButtonLockBlockHeight: 5px`, `sideBarButtonLockArcOffset: 2px` — `AyuGram/Telegram/lib_ui/ui/widgets/widgets.style:1689-1694` and `AyuGram/Telegram/lib_ui/ui/widgets/side_bar_button.cpp:237-285`
 
 # folders_settings_screen — Audit findings
 
@@ -777,7 +772,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 - [ ] [MAJOR] View section "enough space" threshold is wrong — Dart hardcodes `windowWidth < 712` to hide the View section, but AyuGram computes `widget()->width() >= minimumWidth() + st::windowFiltersWidth` which is `380 + 72 = 452px`. The section is hidden at widths where it should be visible (452–711px) — `folders_settings_screen.dart:478` ← `settings_folders.cpp:1118`, `window_session_controller.cpp:3138`, `window.style:13`, `window.style:253`
 
-- [ ] [MAJOR] Missing confirmation dialog when removing a folder that has invite links — AyuGram checks `row->filter.hasMyLinks()` and shows a confirmation box with "Delete" (attentionBoxButton style) before marking for removal. The Dart `FolderInfo` model has no `hasMyLinks` field and `_removeFolder` skips this check entirely, so folders with shared links are silently queued for deletion without confirmation — `folders_settings_screen.dart:173-201` ← `settings_folders.cpp:422-436`
 
 - [ ] [MAJOR] Premium preview for "Show Folder Tags" toggle uses a custom AlertDialog stub instead of the real premium preview flow — AyuGram calls `ShowPremiumPreviewToBuy(controller, PremiumFeature::FilterTags)` which opens the animated premium feature preview box. The Dart `_showPremiumPreview()` shows a plain AlertDialog with a "Subscribe to Premium" button that calls `_showPremiumPurchaseDialog` (another stub that just says "subscribe in the official app" and offers no action) — `folders_settings_screen.dart:1047-1091` ← `settings_folders.cpp:1048`
 
