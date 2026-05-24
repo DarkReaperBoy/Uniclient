@@ -768,22 +768,7 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 # folders_settings_screen — Audit findings
 
-- [ ] [MAJOR] `useVerticalFilters` toggle is not persisted via engine — `chatState.useVerticalFilters = v` only updates in-memory state with `notifyListeners()`, never calls an engine method. AyuGram calls `Core::App().settings().setChatFiltersHorizontal(value)` + `Core::App().saveSettingsDelayed()` so the setting survives restarts — `folders_settings_screen.dart:492` ← `settings_folders.cpp:1148`
-
-- [ ] [MAJOR] View section "enough space" threshold is wrong — Dart hardcodes `windowWidth < 712` to hide the View section, but AyuGram computes `widget()->width() >= minimumWidth() + st::windowFiltersWidth` which is `380 + 72 = 452px`. The section is hidden at widths where it should be visible (452–711px) — `folders_settings_screen.dart:478` ← `settings_folders.cpp:1118`, `window_session_controller.cpp:3138`, `window.style:13`, `window.style:253`
-
-
-- [ ] [MAJOR] Premium preview for "Show Folder Tags" toggle uses a custom AlertDialog stub instead of the real premium preview flow — AyuGram calls `ShowPremiumPreviewToBuy(controller, PremiumFeature::FilterTags)` which opens the animated premium feature preview box. The Dart `_showPremiumPreview()` shows a plain AlertDialog with a "Subscribe to Premium" button that calls `_showPremiumPurchaseDialog` (another stub that just says "subscribe in the official app" and offers no action) — `folders_settings_screen.dart:1047-1091` ← `settings_folders.cpp:1048`
-
 # forum_topic_icon — Audit findings
-
-- [ ] [MAJOR] `_customEmojiPendingRequests` not cleaned up on fetch failure — if `engine.getCustomEmojiFiles` throws, `_customEmojiPendingRequests.remove(documentId)` at line 449 is never reached (it's on the happy path only, not in a `try/finally`). The stale completed-with-error future stays in the map forever, causing all subsequent calls to `_fetchCustomEmojiData` for that documentId to immediately return the failed future (via line 430), permanently blocking retry. Fix: wrap the body of the async closure in `try/finally { _customEmojiPendingRequests.remove(documentId); }`. — `forum_topic_icon.dart:449` ← `AyuGramDesktop/Telegram/SourceFiles/data/stickers/data_custom_emoji.cpp:308` (cache lookup uses `startCacheLookup` with proper error-path cleanup before `loadNoCache`)
-
-- [ ] [MAJOR] `gzip.decode` runs synchronously on the UI isolate — line 439 calls `gzip.decode(file.fileData)` inside an async closure that runs on the UI thread. TGS (Lottie) files are gzip-compressed and can be 20–100 KB; synchronous decompression on the main isolate blocks frame rendering. Fix: `final decoded = await Isolate.run(() => gzip.decode(file.fileData));` — `forum_topic_icon.dart:439` ← `AyuGramDesktop/Telegram/SourceFiles/data/stickers/data_custom_emoji.cpp:361` (C++ sticker loading decompresses off the UI thread via the Storage thread pool)
-
-- [ ] [MAJOR] `_onLottieLoaded` creates `_lottieController` without calling `setState` — `build()` passes `controller: _lottieController` to `Lottie.memory`; on the first render this value is `null`, so Lottie enters auto-play mode. `_onLottieLoaded` (lines 592–598) then creates and starts the `AnimationController`, but never calls `setState`, so the Lottie widget is never rebuilt with the new non-null controller. The external controller ticks every frame via vsync but drives no visible output; Lottie continues in auto-play mode until an unrelated rebuild happens, at which point the animation may jump frames. Fix: wrap the body of `_onLottieLoaded` in `setState(() { ... })`. — `forum_topic_icon.dart:592` ← `AyuGramDesktop/Telegram/SourceFiles/data/stickers/data_custom_emoji.cpp:71` (AyuGram's Lottie integration in `LottieSizeFromTag` always drives animation via a properly wired external controller from the start)
-
-- [ ] [MAJOR] `Image.memory` for WebP topic icons does not specify `cacheWidth`/`cacheHeight` — lines 627–631 render a WebP-encoded emoji at display size `s` (21–32 px) but decode it at the file's native resolution (typically 100–512 px), wasting CPU and GPU memory. Fix: add `cacheWidth: s.toInt(), cacheHeight: s.toInt()` to both `Image.memory` calls (lines 628 and 663). — `forum_topic_icon.dart:628` ← `AyuGramDesktop/Telegram/SourceFiles/data/forum_topic.cpp:85` (`ForumTopicIconBackground` renders the SVG directly to a `size × size` QImage, never decoding above the required display resolution)
 
 ## ghost_settings_page — Missing active-account ring in picker popup
 
