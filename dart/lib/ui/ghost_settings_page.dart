@@ -644,7 +644,7 @@ class _AccountPickerButton extends StatelessWidget {
           value: 'global',
           child: Row(
             children: [
-              _GlobalSettingsAvatar(),
+              _GlobalSettingsAvatar(isActive: useGlobal),
               const SizedBox(width: 10),
               const Text('Global Settings'),
             ],
@@ -654,7 +654,7 @@ class _AccountPickerButton extends StatelessWidget {
           value: a.selfUserId,
           child: Row(
             children: [
-              _AccountAvatar(account: a),
+              _AccountAvatar(account: a, isActive: !useGlobal && a.selfUserId == activeAccount?.selfUserId),
               const SizedBox(width: 10),
               Flexible(
                 child: Text(
@@ -678,12 +678,16 @@ class _AccountPickerButton extends StatelessWidget {
 }
 
 class _GlobalSettingsAvatar extends StatelessWidget {
+  final bool isActive;
+  const _GlobalSettingsAvatar({this.isActive = false});
+
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    return Container(
-      width: 30,
-      height: 30,
+    final innerSize = isActive ? 24.0 : 30.0;
+    Widget avatar = Container(
+      width: innerSize,
+      height: innerSize,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
@@ -695,12 +699,32 @@ class _GlobalSettingsAvatar extends StatelessWidget {
           ],
         ),
       ),
-      child: const Center(
+      child: Center(
         child: Icon(
           Icons.visibility_off,
           color: Colors.white,
-          size: 16,
+          size: isActive ? 13.0 : 16.0,
         ),
+      ),
+    );
+    if (!isActive) return avatar;
+    return SizedBox(
+      width: 30,
+      height: 30,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: const Color(0xFF3390EC),
+                width: 2,
+              ),
+            ),
+          ),
+          avatar,
+        ],
       ),
     );
   }
@@ -708,7 +732,8 @@ class _GlobalSettingsAvatar extends StatelessWidget {
 
 class _AccountAvatar extends StatefulWidget {
   final AccountInfo account;
-  const _AccountAvatar({required this.account});
+  final bool isActive;
+  const _AccountAvatar({required this.account, this.isActive = false});
 
   @override
   State<_AccountAvatar> createState() => _AccountAvatarState();
@@ -741,17 +766,43 @@ class _AccountAvatarState extends State<_AccountAvatar> {
     });
   }
 
+  Widget _wrapWithRing(Widget avatar) {
+    if (!widget.isActive) return avatar;
+    return SizedBox(
+      width: 30,
+      height: 30,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: const Color(0xFF3390EC),
+                width: 2,
+              ),
+            ),
+          ),
+          avatar,
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final innerSize = widget.isActive ? 24.0 : 30.0;
     if (_fileExists) {
-      return ClipOval(
-        child: Image.file(
-          File(widget.account.avatarPath),
-          width: 30,
-          height: 30,
-          fit: BoxFit.cover,
-          cacheWidth: 60,
-          cacheHeight: 60,
+      return _wrapWithRing(
+        ClipOval(
+          child: Image.file(
+            File(widget.account.avatarPath),
+            width: innerSize,
+            height: innerSize,
+            fit: BoxFit.cover,
+            cacheWidth: 60,
+            cacheHeight: 60,
+          ),
         ),
       );
     }
@@ -761,20 +812,22 @@ class _AccountAvatarState extends State<_AccountAvatar> {
     const colorRemap = [0, 7, 4, 1, 6, 3, 5];
     final numId = int.tryParse(widget.account.selfUserId) ?? widget.account.selfUserId.hashCode.abs();
     final avatarColor = palette.peerUserpicBg(colorRemap[numId.abs() % 7]);
-    return Container(
-      width: 30,
-      height: 30,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: avatarColor,
-      ),
-      child: Center(
-        child: Text(
-          initial,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+    return _wrapWithRing(
+      Container(
+        width: innerSize,
+        height: innerSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: avatarColor,
+        ),
+        child: Center(
+          child: Text(
+            initial,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: widget.isActive ? 11.0 : 13.0,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
