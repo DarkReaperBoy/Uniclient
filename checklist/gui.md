@@ -785,8 +785,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 - [ ] [MAJOR] `_canShowStatsMenu()` shows stats menu button to non-admins — `info_panel.dart:2463` ← `AyuGram/info/profile/info_profile_top_bar.cpp:1039`
   Current code only checks member count (≥50 for channels, ≥500 for groups) with no admin-rights check. The stats/more-vert button in the cover top bar appears for any member of a large enough group. AyuGram gates statistics on admin permissions (`canViewStatistics()`). The `_ChannelActionsSection` at line 4692 correctly adds `_isSelfAdmin &&` — the same guard must be applied to `_canShowStatsMenu()`.
 
-- [ ] [MAJOR] No video/animated avatar support in cover — `info_panel.dart:700` ← `AyuGram/info/profile/info_profile_top_bar.cpp:1814`
-  Dart only renders static `Image.file` / `Image.memory` for avatars. AyuGram drives a `Ui::VideoUserpicPlayer` that streams animated frames for video profile photos. Users who set animated profile photos will see a frozen still frame instead of the animation.
 
 # input_dialogs — Audit Findings
 
