@@ -665,11 +665,14 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  VoidCallback? onPersistLayout;
+
   bool get useVerticalFilters => _useVerticalFilters;
   set useVerticalFilters(bool v) {
     if (_useVerticalFilters == v) return;
     _useVerticalFilters = v;
     notifyListeners();
+    onPersistLayout?.call();
   }
 
   /// Chats filtered by platform (empty = all).

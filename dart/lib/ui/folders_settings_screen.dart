@@ -449,11 +449,12 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
                 : const SizedBox.shrink(),
           ),
 
-          // §18.11 Show Folder Tags toggle — hidden when premiumPossible is false
-          if ((context.read<AppState>().activeAccount?.platform ?? '') == 'telegram') ...[
+          // §18.11 Show Folder Tags toggle — only shown for premium Telegram users
+          if ((context.read<AppState>().activeAccount?.platform ?? '') == 'telegram' &&
+              context.read<AppState>().effectivePremium) ...[
             _TagsToggle(
               value: context.read<ChatState>().showFolderTags,
-              isPremium: context.read<AppState>().effectivePremium,
+              isPremium: true,
               isDark: isDark,
               textColor: textColor,
               subtextColor: subtextColor,
@@ -476,7 +477,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
           Builder(
             builder: (context) {
               final windowWidth = MediaQuery.of(context).size.width;
-              if (windowWidth < 712) return const SizedBox.shrink();
+              if (windowWidth < 452) return const SizedBox.shrink();
               final chatState = context.read<ChatState>();
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1023,10 +1024,6 @@ class _TagsToggleState extends State<_TagsToggle> {
   }
 
   void _onToggle(bool v) {
-    if (!widget.isPremium) {
-      _showPremiumPreview();
-      return;
-    }
     widget.onChanged(v);
     _debounce?.cancel();
     _pendingValue = v;
@@ -1042,53 +1039,6 @@ class _TagsToggleState extends State<_TagsToggle> {
         });
       }
     });
-  }
-
-  void _showPremiumPreview() {
-    final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = widget.isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        title: Row(
-          children: [
-            Icon(Icons.workspace_premium, color: accentColor, size: 24),
-            const SizedBox(width: 10),
-            Text(
-              'Folder Tags',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: textColor,
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'Show folder names as colored tags next to unread counters in the chat list.\n\n'
-          'This is a Premium feature.',
-          style: TextStyle(fontSize: 14, color: subtextColor),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _showPremiumPurchaseDialog(context, widget.isDark);
-            },
-            child: Text('Subscribe to Premium', style: TextStyle(color: const Color(0xFFCB7DFF))),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Close', style: TextStyle(color: accentColor)),
-          ),
-        ],
-      ),
-    );
   }
 
   @override

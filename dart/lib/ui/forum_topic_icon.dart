@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -430,23 +431,26 @@ Future<void> _fetchCustomEmojiData(EngineService engine, String accountId, int d
     return _customEmojiPendingRequests[documentId];
   }
   final future = () async {
-    final files = await engine.getCustomEmojiFiles(accountId, [documentId]);
-    if (files.containsKey(documentId)) {
-      final file = files[documentId]!;
-      _customEmojiFileCache[documentId] = file;
-      if (file.isTgs) {
-        try {
-          final decoded = gzip.decode(file.fileData);
-          _customEmojiLottieCache[documentId] = decoded is Uint8List ? decoded : Uint8List.fromList(decoded);
-        } catch (_) {}
+    try {
+      final files = await engine.getCustomEmojiFiles(accountId, [documentId]);
+      if (files.containsKey(documentId)) {
+        final file = files[documentId]!;
+        _customEmojiFileCache[documentId] = file;
+        if (file.isTgs) {
+          try {
+            final decoded = await Isolate.run(() => gzip.decode(file.fileData));
+            _customEmojiLottieCache[documentId] = decoded is Uint8List ? decoded : Uint8List.fromList(decoded);
+          } catch (_) {}
+        }
+      } else {
+        final thumbs = await engine.getCustomEmojiThumbs(accountId, [documentId]);
+        if (thumbs.containsKey(documentId)) {
+          _customEmojiThumbCache[documentId] = thumbs[documentId]!.thumbB64;
+        }
       }
-    } else {
-      final thumbs = await engine.getCustomEmojiThumbs(accountId, [documentId]);
-      if (thumbs.containsKey(documentId)) {
-        _customEmojiThumbCache[documentId] = thumbs[documentId]!.thumbB64;
-      }
+    } finally {
+      _customEmojiPendingRequests.remove(documentId);
     }
-    _customEmojiPendingRequests.remove(documentId);
   }();
   _customEmojiPendingRequests[documentId] = future;
   return future;
@@ -590,12 +594,14 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
   }
 
   void _onLottieLoaded(LottieComposition composition) {
-    _lottieController?.dispose();
-    _lottieController = AnimationController(
-      vsync: this,
-      duration: composition.duration,
-    );
-    _lottieController!.repeat();
+    setState(() {
+      _lottieController?.dispose();
+      _lottieController = AnimationController(
+        vsync: this,
+        duration: composition.duration,
+      );
+      _lottieController!.repeat();
+    });
   }
 
   @override
@@ -628,6 +634,8 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
           file.fileData,
           width: s,
           height: s,
+          cacheWidth: s.toInt(),
+          cacheHeight: s.toInt(),
           fit: BoxFit.contain,
           gaplessPlayback: true,
           errorBuilder: (_, __, ___) => _buildFallback(s),
@@ -664,6 +672,8 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
           _decodedThumb!,
           width: s,
           height: s,
+          cacheWidth: s.toInt(),
+          cacheHeight: s.toInt(),
           fit: BoxFit.contain,
           gaplessPlayback: true,
         ),

@@ -237,6 +237,11 @@ class _UniClientShellState extends State<UniClientShell>
     }
 
     // Persist when filter tab mode changes (§18.12).
+    chatState.onPersistLayout ??= () {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _saveLayoutPrefs();
+      });
+    };
     if (_layoutLoaded && _lastVerticalFilters != chatState.useVerticalFilters) {
       _lastVerticalFilters = chatState.useVerticalFilters;
       WidgetsBinding.instance.addPostFrameCallback((_) => _saveLayoutPrefs());
