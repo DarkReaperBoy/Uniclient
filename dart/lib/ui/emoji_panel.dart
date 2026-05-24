@@ -599,9 +599,9 @@ class _TabContent extends StatelessWidget {
                   if (i == 0) {
                     tab = _EmojiTab(onEmojiSelected: onEmojiSelected, onCustomEmojiSelected: onCustomEmojiSelected);
                   } else if (i == 1) {
-                    tab = _StickerTab(onStickerSend: onStickerSend, onContextMenuToggle: onContextMenuToggle);
+                    tab = _StickerTab(onStickerSend: onStickerSend, onContextMenuToggle: onContextMenuToggle, visible: isActive);
                   } else {
-                    tab = _GifTab(onGifSend: onGifSend, onContextMenuToggle: onContextMenuToggle, onInlineResultSend: onInlineResultSend);
+                    tab = _GifTab(onGifSend: onGifSend, onContextMenuToggle: onContextMenuToggle, onInlineResultSend: onInlineResultSend, visible: isActive);
                   }
 
                   return Offstage(
@@ -857,12 +857,6 @@ class _EmojiTabState extends State<_EmojiTab> {
       if (_recentEmojis.isNotEmpty && mounted) setState(() {});
       _fetchCustomPacks();
     });
-  }
-
-  @override
-  void deactivate() {
-    _loadedPacks = false;
-    super.deactivate();
   }
 
   @override
@@ -1615,8 +1609,9 @@ const Duration _kSearchDebounce = Duration(milliseconds: 400);
 class _StickerTab extends StatefulWidget {
   final void Function(String stickerId, {StickerSendMode mode})? onStickerSend;
   final ValueChanged<bool>? onContextMenuToggle;
+  final bool visible;
 
-  const _StickerTab({this.onStickerSend, this.onContextMenuToggle});
+  const _StickerTab({this.onStickerSend, this.onContextMenuToggle, this.visible = true});
 
   @override
   State<_StickerTab> createState() => _StickerTabState();
@@ -1648,7 +1643,17 @@ class _StickerTabState extends State<_StickerTab> {
     super.initState();
     _gridScrollController.addListener(_onGridScroll);
     _searchController.addListener(_onSearchChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+    if (widget.visible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _StickerTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.visible && !oldWidget.visible && !_loaded) {
+      _loadData();
+    }
   }
 
   @override
@@ -1698,13 +1703,13 @@ class _StickerTabState extends State<_StickerTab> {
     final acc = appState.activeAccount;
     if (acc == null) return;
     engine.getStickerFiles(acc.id, [docId]).then((files) {
+      _stickerFileLoading.remove(docId);
       if (!mounted) return;
       if (files.containsKey(docId)) {
         setState(() {
           _stickerFileCache[docId] = files[docId]!;
         });
       }
-      _stickerFileLoading.remove(docId);
     });
   }
 
@@ -2840,8 +2845,9 @@ class _GifTab extends StatefulWidget {
   final void Function(String gifFileId, {StickerSendMode mode})? onGifSend;
   final ValueChanged<bool>? onContextMenuToggle;
   final void Function(int queryId, String resultId)? onInlineResultSend;
+  final bool visible;
 
-  const _GifTab({this.onGifSend, this.onContextMenuToggle, this.onInlineResultSend});
+  const _GifTab({this.onGifSend, this.onContextMenuToggle, this.onInlineResultSend, this.visible = true});
 
   @override
   State<_GifTab> createState() => _GifTabState();
@@ -2867,16 +2873,21 @@ class _GifTabState extends State<_GifTab> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadData();
-      _resolveGifBot();
-    });
+    if (widget.visible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadData();
+        _resolveGifBot();
+      });
+    }
   }
 
   @override
-  void deactivate() {
-    _loaded = false;
-    super.deactivate();
+  void didUpdateWidget(covariant _GifTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.visible && !oldWidget.visible) {
+      if (!_loaded) _loadData();
+      _resolveGifBot();
+    }
   }
 
   @override
@@ -2921,7 +2932,7 @@ class _GifTabState extends State<_GifTab> {
       return;
     }
     if (_activeCategoryIndex < 0 || (_activeCategoryIndex < _kGifCategoryEmojis.length && query != _kGifCategoryEmojis[_activeCategoryIndex])) {
-      _activeCategoryIndex = -1;
+      setState(() { _activeCategoryIndex = -1; });
     }
     if (_gifBotId != null) {
       setState(() => _searching = true);
@@ -2999,8 +3010,6 @@ class _GifTabState extends State<_GifTab> {
   void _onSearchResultTap(InlineBotResult result) {
     if (_lastQueryId != 0 && widget.onInlineResultSend != null) {
       widget.onInlineResultSend!(_lastQueryId, result.id);
-    } else {
-      widget.onGifSend?.call(result.id);
     }
   }
 
