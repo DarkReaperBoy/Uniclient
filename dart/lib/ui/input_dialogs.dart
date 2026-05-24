@@ -610,7 +610,7 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     final locale = WidgetsBinding.instance.platformDispatcher.locale;
     _invertNameOrder = const {'ja', 'ko', 'zh', 'hu', 'vi'}.contains(locale.languageCode);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if ((_firstNameCtrl.text.isEmpty && _lastNameCtrl.text.isEmpty) || _phoneDisabled) {
+      if (_phoneDisabled || _firstNameCtrl.text.isNotEmpty) {
         (_invertNameOrder ? _lastNameFocus : _firstNameFocus).requestFocus();
       } else {
         _phoneFocus.requestFocus();
@@ -2219,11 +2219,13 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                 onPick: (i) => _insertEmoji(_emojiSuggestions[i]),
                 onHover: (i) => setState(() => _emojiSelectedIndex = i),
               ),
-            if (_questionCtrl.text.length > 80)
+            if (_kQuestionLimit - _questionCtrl.text.length < 80)
               Align(
                 alignment: Alignment.centerRight,
                 child: Text(
-                  '${_questionCtrl.text.length}/$_kQuestionLimit',
+                  _questionCtrl.text.length <= _kQuestionLimit
+                      ? '${_kQuestionLimit - _questionCtrl.text.length}'
+                      : '−${_questionCtrl.text.length - _kQuestionLimit}',
                   style: TextStyle(
                     fontSize: 12,
                     color: _questionCtrl.text.length > _kQuestionLimit
@@ -2278,11 +2280,13 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                 ),
               ],
             ),
-            if (_descriptionCtrl.text.length > 80)
+            if (_kDescriptionLimit - _descriptionCtrl.text.length < 80)
               Align(
                 alignment: Alignment.centerRight,
                 child: Text(
-                  '${_descriptionCtrl.text.length}/$_kDescriptionLimit',
+                  _descriptionCtrl.text.length <= _kDescriptionLimit
+                      ? '${_kDescriptionLimit - _descriptionCtrl.text.length}'
+                      : '−${_descriptionCtrl.text.length - _kDescriptionLimit}',
                   style: TextStyle(
                     fontSize: 12,
                     color: _descriptionCtrl.text.length > _kDescriptionLimit
