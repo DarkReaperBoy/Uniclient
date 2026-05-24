@@ -770,10 +770,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 # forum_topic_icon — Audit findings
 
-## ghost_settings_page — Missing active-account ring in picker popup
-
-- [ ] [MAJOR] Active account selection indicator (blue outline ring) not rendered in picker popup items — `_AccountAvatar` and `_GlobalSettingsAvatar` never paint an active state ring regardless of which account is selected; in AyuGram C++ both `AccountAction::paint` and `GlobalAction::paint` call `PaintAccountOutline(p, userpic.outer)` when `_active == true` — `ghost_settings_page.dart:644-676` ← `AyuGram/ayu/ui/settings/settings_ayu.cpp:156-158` (AccountAction), `settings_ayu.cpp:247-249` (GlobalAction)
-
 ## hamburger_drawer — audit findings
 
 - [ ] [MAJOR] Archive context menu "Archive Settings" opens generic SettingsScreen instead of a dedicated archive settings box — `hamburger_drawer.dart:595-612` ← `AyuGram/window/window_peer_menu.cpp:1892` (`Settings::ArchiveSettingsBox`)
