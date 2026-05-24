@@ -778,9 +778,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 # input_dialogs — Audit Findings
 
-## input_dialogs — add_contact_box: IsValidPhone missing special cases
-
-- [ ] [MAJOR] `IsValidPhone` in AyuGram accepts `"333"` (test number) and numbers starting with `"42"` with specific lengths (2, 5, 6, or `"4242"`); Dart only checks `digits.length >= 8`, missing these test/special-number overrides entirely — `input_dialogs.dart:624` ← `AyuGram/boxes/add_contact_box.cpp:54-63`
 
 ## input_dialogs — add_contact_box: Phone disabled on pre-fill
 
