@@ -774,16 +774,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 # info_panel — Audit findings
 
-- [ ] [MAJOR] `isSelf` detection uses hardcoded title string comparison instead of `ChatInfo.isSelf` field — `info_panel.dart:2711` ← `AyuGram/info/profile/info_profile_top_bar.cpp:891` (user->isSelf())
-  Currently: `isSelf: widget.chat.title == 'Saved Messages' && widget.chat.type == ChatType.dm`
-  Should be: `isSelf: widget.chat.isSelf`
-  The `ChatInfo` model already has `isSelf: j['is_self'] as bool? ?? false` at engine_models.dart:359. The title comparison will silently break for localized account names or if the title changes.
-
-- [ ] [MAJOR] `_actionButtons()` missing "Manage" button for admin-editable peers — `info_panel.dart:926` ← `AyuGram/info/profile/info_profile_top_bar.cpp:933`
-  AyuGram places a "Manage" action button in the cover action row when `EditPeerInfoBox::Available(peer)` is true (i.e., user is admin). Dart only has edit in the `_GroupActionsSection` / `_ChannelActionsSection` rows below the fold, so admin users cannot reach edit from the top cover action bar as they can in AyuGram.
-
-- [ ] [MAJOR] `_canShowStatsMenu()` shows stats menu button to non-admins — `info_panel.dart:2463` ← `AyuGram/info/profile/info_profile_top_bar.cpp:1039`
-  Current code only checks member count (≥50 for channels, ≥500 for groups) with no admin-rights check. The stats/more-vert button in the cover top bar appears for any member of a large enough group. AyuGram gates statistics on admin permissions (`canViewStatistics()`). The `_ChannelActionsSection` at line 4692 correctly adds `_isSelfAdmin &&` — the same guard must be applied to `_canShowStatsMenu()`.
 
 
 # input_dialogs — Audit Findings
