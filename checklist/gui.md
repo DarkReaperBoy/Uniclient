@@ -772,10 +772,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 ## hamburger_drawer — audit findings
 
-- [ ] [MAJOR] Archive context menu "Archive Settings" opens generic SettingsScreen instead of a dedicated archive settings box — `hamburger_drawer.dart:595-612` ← `AyuGram/window/window_peer_menu.cpp:1892` (`Settings::ArchiveSettingsBox`)
-
-- [ ] [MAJOR] "How does the archive work?" dialog is a static info-only widget with no backend wiring — AyuGram's `ArchiveHintBox` includes a live "Unarchive on new message" toggle connected to `Api::globalPrivacy().unarchiveOnNewMessageCurrent()` — `hamburger_drawer.dart:619-692` ← `AyuGram/window/window_peer_menu.cpp:1898-1907`
-
 # info_panel — Audit findings
 
 - [ ] [MAJOR] `isSelf` detection uses hardcoded title string comparison instead of `ChatInfo.isSelf` field — `info_panel.dart:2711` ← `AyuGram/info/profile/info_profile_top_bar.cpp:891` (user->isSelf())
