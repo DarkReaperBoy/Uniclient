@@ -11824,7 +11824,7 @@ func extractEmojiStatusID(es tg.EmojiStatusClass) string {
 	case *tg.EmojiStatus:
 		return strconv.FormatInt(s.DocumentID, 10)
 	case *tg.EmojiStatusCollectible:
-		return strconv.FormatInt(s.DocumentID, 10)
+		return fmt.Sprintf("collectible:%d:%06X:%06X", s.DocumentID, s.CenterColor, s.EdgeColor)
 	default:
 		return ""
 	}

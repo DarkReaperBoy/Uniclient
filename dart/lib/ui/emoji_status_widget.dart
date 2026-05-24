@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -35,7 +34,6 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
 
   int? _documentId;
   bool _isCollectible = false;
-  bool _isUserpic = false;
   Color? _collectibleCenterColor;
   Color? _collectibleEdgeColor;
 
@@ -88,25 +86,18 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
     if (id.isEmpty) {
       _documentId = null;
       _isCollectible = false;
-      _isUserpic = false;
       return;
     }
 
     if (id.startsWith('collectible:')) {
       _isCollectible = true;
-      _isUserpic = false;
       final parts = id.substring(12).split(':');
       _documentId = int.tryParse(parts[0]);
       if (parts.length >= 3) {
         _collectibleCenterColor = _parseHexColor(parts[1]);
         _collectibleEdgeColor = _parseHexColor(parts[2]);
       }
-    } else if (id.startsWith('userpic:')) {
-      _isUserpic = true;
-      _documentId = null;
-      _isCollectible = false;
     } else {
-      _isUserpic = false;
       _documentId = int.tryParse(id);
       _isCollectible = false;
     }
@@ -178,10 +169,6 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
       return const SizedBox.shrink();
     }
 
-    if (_isUserpic) {
-      return _buildUserpicStatus();
-    }
-
     if (_documentId == null) {
       return const SizedBox.shrink();
     }
@@ -234,42 +221,6 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
     }
 
     return SizedBox(width: s, height: s, child: content);
-  }
-
-  Widget _buildUserpicStatus() {
-    final s = widget.size;
-    final cs = (s * MediaQuery.devicePixelRatioOf(context)).round();
-    final appState = context.read<AppState>();
-    final account = appState.activeAccount;
-    if (account != null && account.avatarPath.isNotEmpty) {
-      final file = File(account.avatarPath);
-      if (file.existsSync()) {
-        return ClipOval(
-          child: Image.file(
-            file,
-            width: s,
-            height: s,
-            cacheWidth: cs,
-            cacheHeight: cs,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _userpicFallback(s),
-          ),
-        );
-      }
-    }
-    return _userpicFallback(s);
-  }
-
-  Widget _userpicFallback(double s) {
-    return Container(
-      width: s,
-      height: s,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: widget.fallbackColor ?? const Color(0xFF6C3BEB),
-      ),
-      child: Icon(Icons.person, size: s * 0.7, color: Colors.white),
-    );
   }
 
   Widget _buildThumbOrFallback(CustomEmojiCache cache, {int? cacheSize}) {
