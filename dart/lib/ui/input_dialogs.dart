@@ -610,7 +610,7 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     final locale = WidgetsBinding.instance.platformDispatcher.locale;
     _invertNameOrder = const {'ja', 'ko', 'zh', 'hu', 'vi'}.contains(locale.languageCode);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_phoneDisabled || _firstNameCtrl.text.isNotEmpty) {
+      if ((_firstNameCtrl.text.isEmpty && _lastNameCtrl.text.isEmpty) || _phoneDisabled) {
         (_invertNameOrder ? _lastNameFocus : _firstNameFocus).requestFocus();
       } else {
         _phoneFocus.requestFocus();
