@@ -758,23 +758,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 3. **Migrate to a unified extracted component** — Once fixed, move the implementation back to a reusable file (but actually import it this time).
 
 
-# ayu_filter — Regex Filter Engine Audit
-
-## Findings
-
-- [ ] [CRITICAL] `_serviceMessageType` missing `TYPE_GIFT_PREMIUM_CHANNEL` (25): AyuGram distinguishes channel premium gifts (`gift->channel` → 25) from user premium gifts (→ 18), but the Dart switch only handles `'gift_premium': return 18` with no channel variant — any service message for a premium gift sent to a channel will be mistyped as 18 instead of 25, breaking filters that target type 25 — `ayu_filter.dart:217` ← `filters_utils.cpp:619-622`
-
-- [ ] [CRITICAL] `ImportChanges` and `previewImport` omit `peersToBeResolved`: `ApplyChanges` in AyuGram carries a `peersToBeResolved` vector; when applying an import, `ResolveFilterBackupPeers` is called to look up unknown peers via the API so per-dialog filters get correct IDs. The Dart `ImportChanges` class has no such field, `previewImport` never reads the `"peers"` key from the JSON, and `applyImport` never resolves anything — per-dialog filter imports silently fail to associate the correct dialog ID for any peer not already in the local cache — `ayu_filter.dart:97-124, 355-391` ← `filters_utils.h:27`, `filters_utils.cpp:832-864, 869-910`
-
-- [ ] [CRITICAL] Blocked/shadow-banned sender filtering never shows the "show filtered messages" button: AyuGram calls `FiltersCacheController::putHiddenBlockedMessage(item)` when a message is hidden due to a blocked or shadow-banned sender, which marks the dialog in `dialogsWithHiddenBlockedMessages`; `hasFilteredMessages` checks that set so the button appears. In Dart, the early-returns for blocked/shadow-banned senders at lines 574-576 return `true` without ever calling `_cacheResult`, so `_chatFilteredCount` stays at 0, `_hasFilteredMessages` returns false, and `filteredMessagesShown` returns null — the "show filtered messages" button never appears in dialogs where messages are hidden only due to blocked/shadow-banned senders — `ayu_filter.dart:572-576, 539-545, 547-549` ← `filters_controller.cpp:161-165`, `filters_cache_controller.cpp:177-180, 160-175`
-
-- [ ] [MAJOR] All stickers (Go engine mediaType=6) are uniformly mapped to TYPE_STICKER (13), never TYPE_ANIMATED_STICKER (15): AyuGram checks `document->isAnimation()` on sticker documents and returns 15 for animated stickers and 13 for static ones; dice media also returns 15. The Dart `_mediaTypeNames` has a single entry `6: 13` for all stickers, so filters targeting type 15 will never match animated stickers — `ayu_filter.dart:156` ← `filters_utils.cpp:586-590, 550-551`
-
-- [ ] [MAJOR] `publishFilters` writes multipart body as a Dart `String` via `request.write()` with no explicit encoding: `HttpClientRequest` as an `IOSink` for `multipart/form-data` (no charset declared) defaults to ISO-8859-1 encoding. Non-ASCII regex patterns (Cyrillic, Arabic, CJK, etc.) in the JSON content field will be silently corrupted before transmission — AyuGram uses `QNetworkAccessManager` with `QHttpMultiPart` which handles encoding correctly — `ayu_filter.dart:441-453` ← `filters_utils.cpp:347-392`
-
-- [ ] [MAJOR] Cache eviction leaves `_chatFilteredCount` permanently inflated: when the message cache hits `_maxCacheSize`, `_removeCacheEntry` is called with `fromEviction: true`, which skips the count decrement for evicted `filtered=true` entries. The count never goes back down even if all filtered messages are later superseded, making `_hasFilteredMessages` return true indefinitely for busy chats until a filter rebuild. AyuGram has no size limit — it clears `filteredMessages` entirely only on `rebuildCache()` — `ayu_filter.dart:615-640` ← `filters_cache_controller.cpp:90-100`
-
-- [ ] [MAJOR] Group cache invalidation requires caller to supply `groupMemberIds` explicitly: AyuGram's `invalidate(item)` auto-discovers the album group via `owner().groups().find(item)` and invalidates all members in one call. The Dart `invalidateMessage` only invalidates other group members if the caller passes a non-null `groupMemberIds` list — if any call site omits it, the cache entries for sibling album items remain stale and may continue to produce wrong filter results — `ayu_filter.dart:556-563` ← `filters_cache_controller.cpp:216-225`
 
 # emoji_panel — Audit findings
 
