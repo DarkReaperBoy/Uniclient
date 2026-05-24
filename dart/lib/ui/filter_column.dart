@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
 import 'chat_list_row.dart' show ForwardDragData;
+import 'confirm_box.dart' show showConfirmBox;
 import 'folders_settings_screen.dart' show showEditFolderBox, FoldersSettingsScreen, SimpleLimitBox;
 import 'popup_menu.dart';
 import 'settings_style.dart';
@@ -125,6 +127,8 @@ class FilterColumn extends StatefulWidget {
     return Icons.folder_outlined;
   }
 }
+
+const int _kMaxUnreadWithoutConfirmation = 1000;
 
 class _FilterColumnState extends State<FilterColumn> {
   final ScrollController _scrollController = ScrollController();
@@ -392,16 +396,31 @@ class _FilterColumnState extends State<FilterColumn> {
       if (value == null) return;
       switch (value) {
         case 'mark_read':
-          final chats = chatState.chatsForFolder(null);
-          for (final chat in chats) {
-            if (chat.unreadCount > 0) {
-              chatState.markChatRead(chat.accountId, chat.chatId);
+          _markAsReadWithConfirmation(allUnread, () {
+            final chats = chatState.chatsForFolder(null);
+            for (final chat in chats) {
+              if (chat.unreadCount > 0) {
+                chatState.markChatRead(chat.accountId, chat.chatId);
+              }
             }
-          }
+          });
         case 'settings':
           _openFoldersSettings();
       }
     });
+  }
+
+  void _markAsReadWithConfirmation(int totalUnread, VoidCallback onConfirm) {
+    if (totalUnread > _kMaxUnreadWithoutConfirmation) {
+      showConfirmBox(
+        context,
+        text: 'Are you sure you want to mark all messages as read?',
+        confirmText: 'Mark',
+        onConfirm: onConfirm,
+      );
+    } else {
+      onConfirm();
+    }
   }
 
   void _scrollToActiveTab(int index) {
@@ -462,12 +481,14 @@ class _FilterColumnState extends State<FilterColumn> {
       if (value == null) return;
       switch (value) {
         case 'mark_read':
-          final chats = chatState.chatsForFolder(folder.id);
-          for (final chat in chats) {
-            if (chat.unreadCount > 0) {
-              chatState.markChatRead(chat.accountId, chat.chatId);
+          _markAsReadWithConfirmation(unread, () {
+            final chats = chatState.chatsForFolder(folder.id);
+            for (final chat in chats) {
+              if (chat.unreadCount > 0) {
+                chatState.markChatRead(chat.accountId, chat.chatId);
+              }
             }
-          }
+          });
         case 'edit':
           showEditFolderBox(context, folder);
         case 'remove_folder':
@@ -477,33 +498,124 @@ class _FilterColumnState extends State<FilterColumn> {
   }
 
   void _confirmRemoveFolder(FolderInfo folder) {
-    showDialog<bool>(
+    final hasLinks = folder.isChatList;
+    showConfirmBox(
+      context,
+      text: hasLinks
+          ? 'Are you sure you want to delete this folder? '
+            'This will also deactivate all invite links associated with the folder.'
+          : 'Are you sure you want to remove "${folder.name}"?',
+      confirmText: hasLinks ? 'Delete' : 'Remove',
+      isDestructive: hasLinks,
+      onConfirm: () => _executeRemoveFolder(folder),
+    );
+  }
+
+  void _executeRemoveFolder(FolderInfo folder) {
+    if (!mounted) return;
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+
+    if (!folder.isChatList) {
+      chatState.deleteFolder(account.id, folder.id);
+      return;
+    }
+
+    final folderId = int.tryParse(folder.id) ?? 0;
+    final engine = context.read<EngineService>();
+    engine.getLeaveChatlistSuggestions(account.id, folderId).then((suggestions) {
+      if (!mounted) return;
+      if (suggestions.isEmpty) {
+        chatState.deleteFolder(account.id, folder.id);
+        return;
+      }
+      _showLeaveChatlistDialog(folder, account.id, folderId, suggestions);
+    }).catchError((_) {
+      if (mounted) chatState.deleteFolder(account.id, folder.id);
+    });
+  }
+
+  void _showLeaveChatlistDialog(
+    FolderInfo folder, String accountId, int folderId, List<String> suggestions,
+  ) {
+    final chatState = context.read<ChatState>();
+    final selected = Set<String>.from(suggestions);
+    showDialog<Set<String>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Remove Folder'),
-        content: Text('Are you sure you want to remove "${folder.name}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              'Remove',
-              style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setDialogState) {
+          final palette = PaletteProvider.of(ctx);
+          return AlertDialog(
+            title: const Text('Leave Chats'),
+            content: SizedBox(
+              width: 300,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Do you also want to leave these group chats?',
+                    style: TextStyle(color: palette.boxTextFg),
+                  ),
+                  const SizedBox(height: 12),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 300),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: suggestions.length,
+                      itemBuilder: (_, i) {
+                        final peerId = suggestions[i];
+                        final chat = chatState.chats.where((c) => c.chatId == peerId).firstOrNull;
+                        final title = chat?.title ?? peerId;
+                        return CheckboxListTile(
+                          dense: true,
+                          value: selected.contains(peerId),
+                          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          onChanged: (v) {
+                            setDialogState(() {
+                              if (v == true) {
+                                selected.add(peerId);
+                              } else {
+                                selected.remove(peerId);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
-    ).then((confirmed) {
-      if (confirmed == true && mounted) {
-        final chatState = context.read<ChatState>();
-        final appState = context.read<AppState>();
-        final account = appState.activeAccount;
-        if (account != null) {
-          chatState.deleteFolder(account.id, folder.id);
-        }
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(null),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(selected),
+                child: Text(
+                  'Delete Folder',
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+                ),
+              ),
+            ],
+          );
+        });
+      },
+    ).then((result) {
+      if (result == null || !mounted) return;
+      final engine = context.read<EngineService>();
+      if (result.isNotEmpty) {
+        engine.leaveChatlistFolder(accountId, folderId, result.toList()).then((_) {
+          if (mounted) chatState.deleteFolder(accountId, folder.id);
+        }).catchError((_) {
+          if (mounted) chatState.deleteFolder(accountId, folder.id);
+        });
+      } else {
+        chatState.deleteFolder(accountId, folder.id);
       }
     });
   }
@@ -816,8 +928,6 @@ class _SideBarButtonState extends State<_SideBarButton>
   static const double _badgePosX = 3;
   static const double _badgePosY = 7;
   static const double _badgeStroke = 2;
-  static const double _lockIconSize = 8;
-
   @override
   Widget build(BuildContext context) {
     final palette = PaletteProvider.of(context);
@@ -927,7 +1037,10 @@ class _SideBarButtonState extends State<_SideBarButton>
                         alignment: PlaceholderAlignment.middle,
                         child: Padding(
                           padding: const EdgeInsets.only(right: 2),
-                          child: Icon(Icons.lock, size: _lockIconSize, color: textColor),
+                          child: CustomPaint(
+                            size: const Size(9, 10),
+                            painter: _LockIconPainter(color: textColor),
+                          ),
                         ),
                       ),
                       TextSpan(text: widget.label),
@@ -1093,4 +1206,52 @@ class _MenuDotPainter extends CustomPainter {
   @override
   bool shouldRepaint(_MenuDotPainter oldDelegate) =>
       dotColor != oldDelegate.dotColor;
+}
+
+/// Custom-drawn padlock matching AyuGram's SideBarLockIcon.
+/// Dimensions from widgets.style:1689-1694:
+///   size: 9×10, arcHeight: 3, blockHeight: 5, arcOffset: 2, penWidth: 1.5
+class _LockIconPainter extends CustomPainter {
+  final Color color;
+  _LockIconPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final sx = size.width / 9.0;
+    final sy = size.height / 10.0;
+    final pw = 1.5 * math.min(sx, sy);
+
+    final fillPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    // Block (body): full width, bottom 5 units
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, 5 * sy, size.width, 5 * sy),
+        Radius.circular(1 * sx),
+      ),
+      fillPaint,
+    );
+
+    final strokePaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = pw
+      ..strokeCap = StrokeCap.butt
+      ..isAntiAlias = true;
+
+    // Left vertical line: (2, blockTop) → (2, arcBottom)
+    canvas.drawLine(Offset(2 * sx, 5 * sy), Offset(2 * sx, 3 * sy), strokePaint);
+    // Right vertical line: (7, blockTop) → (7, arcBottom)
+    canvas.drawLine(Offset(7 * sx, 5 * sy), Offset(7 * sx, 3 * sy), strokePaint);
+
+    // Semicircle shackle: top half of oval from (2,0) to (7,6)
+    final arcOval = Rect.fromLTWH(2 * sx, 0, 5 * sx, 6 * sy);
+    canvas.drawArc(arcOval, math.pi, -math.pi, false, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(_LockIconPainter old) => color != old.color;
 }
