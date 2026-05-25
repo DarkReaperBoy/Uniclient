@@ -779,9 +779,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 # input_dialogs — Audit Findings
 
 
-## input_dialogs — add_contact_box: Focus order on phone-pre-filled open
-
-- [ ] [MAJOR] AyuGram's `setInnerFocus` focuses the phone field directly when first/last name are already filled or phone is disabled; Dart always focuses first/last name, so when a contact is confirmed from a pre-filled phone+name, focus lands in the wrong field — `input_dialogs.dart:607-609` ← `AyuGram/boxes/add_contact_box.cpp:344-352`
 
 ## input_dialogs — username_box: Check debounce timeout wrong
 
