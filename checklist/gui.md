@@ -827,9 +827,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## message_bubble — reaction emoji overlay hardcoded static content
-- [ ] [CRITICAL] `_ReactionEmojiOverlay` uses hardcoded static emoji categories instead of dynamic content from engine — standard emoji are fully hardcoded inline lists (not fetched from Telegram's available reactions API), so any server-side reaction set changes are never reflected — `message_bubble.dart:1814`
-
 ## message_bubble — reaction emoji search filter broken
 - [ ] [CRITICAL] `_ReactionEmojiOverlay._filteredEmoji()` performs no actual keyword filtering: when `_search` is non-empty it returns ALL emoji from the current category unchanged rather than filtering by name/keyword match — `message_bubble.dart:1911`
 
