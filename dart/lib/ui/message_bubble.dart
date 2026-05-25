@@ -263,8 +263,6 @@ class _MessageBubbleState extends State<MessageBubble> {
     _showTimer?.cancel();
     _hideTimer?.cancel();
     if (_hovered) {
-      setState(() => _hovered = false);
-    } else {
       _hideTimer = Timer(const Duration(milliseconds: 300), () {
         if (mounted) setState(() => _hovered = false);
       });
@@ -10541,162 +10539,166 @@ class _InlineButtonState extends State<_InlineButton>
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final latController = TextEditingController();
-    final lonController = TextEditingController();
-    String? error;
-    bool detecting = false;
+    final accentColor = context.palette.windowBgActive;
 
-    showDialog<(double, double)?>(
-      context: context,
-      builder: (dialogCtx) {
-        return StatefulBuilder(
-          builder: (stateCtx, setDialogState) {
-            void detectLocation() async {
-              setDialogState(() { detecting = true; error = null; });
-              try {
-                final result = await Process.run('geoclue-where-am-i', ['-t', '5']);
-                if (result.exitCode == 0) {
-                  final output = result.stdout as String;
-                  final latMatch = RegExp(r'Latitude:\s*([\d.-]+)').firstMatch(output);
-                  final lonMatch = RegExp(r'Longitude:\s*([\d.-]+)').firstMatch(output);
-                  if (latMatch != null && lonMatch != null) {
-                    setDialogState(() {
-                      latController.text = latMatch.group(1)!;
-                      lonController.text = lonMatch.group(1)!;
-                      detecting = false;
-                    });
-                    return;
-                  }
-                }
-              } catch (_) {}
-              setDialogState(() {
-                detecting = false;
-                error = 'Could not detect location. Enter coordinates manually.';
-              });
-            }
-
-            return Dialog(
-              backgroundColor: bgColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 340),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Share Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textColor)),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: detecting ? null : detectLocation,
-                          icon: detecting
-                              ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: context.palette.windowBgActive))
-                              : Icon(Icons.my_location, size: 16, color: context.palette.windowBgActive),
-                          label: Text(
-                            detecting ? 'Detecting...' : 'Detect my location',
-                            style: TextStyle(fontSize: 13, color: context.palette.windowBgActive),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: context.palette.windowBgActive.withValues(alpha: 0.4)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(child: Divider(color: subtextColor.withValues(alpha: 0.3))),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: Text('or enter manually', style: TextStyle(fontSize: 11, color: subtextColor)),
-                          ),
-                          Expanded(child: Divider(color: subtextColor.withValues(alpha: 0.3))),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      GestureDetector(
-                        onTap: () => launcher.launchUrl(Uri.parse('https://www.openstreetmap.org/')),
-                        child: Text(
-                          'Find coordinates on map',
-                          style: TextStyle(fontSize: 12, color: context.palette.windowBgActive, decoration: TextDecoration.underline),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: latController,
-                        style: TextStyle(color: textColor, fontSize: 14),
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                        decoration: InputDecoration(
-                          labelText: 'Latitude',
-                          labelStyle: TextStyle(color: subtextColor),
-                          hintText: 'e.g. 51.5074',
-                          hintStyle: TextStyle(color: subtextColor.withValues(alpha: 0.5)),
-                          border: const OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: lonController,
-                        style: TextStyle(color: textColor, fontSize: 14),
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                        decoration: InputDecoration(
-                          labelText: 'Longitude',
-                          labelStyle: TextStyle(color: subtextColor),
-                          hintText: 'e.g. -0.1278',
-                          hintStyle: TextStyle(color: subtextColor.withValues(alpha: 0.5)),
-                          border: const OutlineInputBorder(),
-                        ),
-                      ),
-                      if (error != null) ...[
-                        const SizedBox(height: 8),
-                        Text(error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-                      ],
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.of(dialogCtx).pop(),
-                            child: Text('Cancel', style: TextStyle(color: subtextColor)),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton(
-                            onPressed: () {
-                              final lat = double.tryParse(latController.text.trim());
-                              final lon = double.tryParse(lonController.text.trim());
-                              if (lat == null || lon == null) {
-                                setDialogState(() => error = 'Enter valid coordinates');
-                                return;
-                              }
-                              if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-                                setDialogState(() => error = 'Lat: -90..90, Lon: -180..180');
-                                return;
-                              }
-                              Navigator.of(dialogCtx).pop((lat, lon));
-                            },
-                            child: Text('Send', style: TextStyle(color: context.palette.windowBgActive)),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    ).then((result) {
-      if (result == null) return;
+    void sendLocation(double lat, double lon) {
       final chatState = context.read<ChatState>();
       final chat = chatState.activeChat;
       if (chat == null) return;
       final engine = context.read<EngineService>();
-      engine.sendLocation(chat.accountId, chat.chatId, result.$1, result.$2);
+      engine.sendLocation(chat.accountId, chat.chatId, lat, lon);
+    }
+
+    void showManualFallback() {
+      final latController = TextEditingController();
+      final lonController = TextEditingController();
+      String? error;
+      showDialog<(double, double)?>(
+        context: context,
+        builder: (dialogCtx) {
+          return StatefulBuilder(
+            builder: (stateCtx, setDialogState) {
+              return Dialog(
+                backgroundColor: bgColor,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 340),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Share Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textColor)),
+                        const SizedBox(height: 4),
+                        Text('Could not detect your location automatically.\nEnter coordinates manually:', style: TextStyle(fontSize: 13, color: subtextColor)),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: latController,
+                          style: TextStyle(color: textColor, fontSize: 14),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                          decoration: InputDecoration(
+                            labelText: 'Latitude',
+                            labelStyle: TextStyle(color: subtextColor),
+                            hintText: 'e.g. 51.5074',
+                            hintStyle: TextStyle(color: subtextColor.withValues(alpha: 0.5)),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: lonController,
+                          style: TextStyle(color: textColor, fontSize: 14),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                          decoration: InputDecoration(
+                            labelText: 'Longitude',
+                            labelStyle: TextStyle(color: subtextColor),
+                            hintText: 'e.g. -0.1278',
+                            hintStyle: TextStyle(color: subtextColor.withValues(alpha: 0.5)),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        if (error != null) ...[
+                          const SizedBox(height: 8),
+                          Text(error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                        ],
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.of(dialogCtx).pop(),
+                              child: Text('Cancel', style: TextStyle(color: subtextColor)),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed: () {
+                                final lat = double.tryParse(latController.text.trim());
+                                final lon = double.tryParse(lonController.text.trim());
+                                if (lat == null || lon == null) {
+                                  setDialogState(() => error = 'Enter valid coordinates');
+                                  return;
+                                }
+                                if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                                  setDialogState(() => error = 'Lat: -90..90, Lon: -180..180');
+                                  return;
+                                }
+                                Navigator.of(dialogCtx).pop((lat, lon));
+                              },
+                              child: Text('Send', style: TextStyle(color: accentColor)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ).then((result) {
+        if (result != null) sendLocation(result.$1, result.$2);
+      });
+    }
+
+    showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.location_on, size: 48, color: accentColor),
+              const SizedBox(height: 12),
+              Text('Share Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 8),
+              Text(
+                'Do you want to share your current location with this bot?',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: subtextColor),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogCtx).pop(false),
+                    child: Text('Cancel', style: TextStyle(color: subtextColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogCtx).pop(true),
+                    child: Text('Share', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).then((confirmed) async {
+      if (confirmed != true || !context.mounted) return;
+      try {
+        final result = await Process.run('geoclue-where-am-i', ['-t', '10']);
+        if (result.exitCode == 0) {
+          final output = result.stdout as String;
+          final latMatch = RegExp(r'Latitude:\s*([\d.-]+)').firstMatch(output);
+          final lonMatch = RegExp(r'Longitude:\s*([\d.-]+)').firstMatch(output);
+          if (latMatch != null && lonMatch != null) {
+            final lat = double.tryParse(latMatch.group(1)!);
+            final lon = double.tryParse(lonMatch.group(1)!);
+            if (lat != null && lon != null) {
+              sendLocation(lat, lon);
+              return;
+            }
+          }
+        }
+      } catch (_) {}
+      if (context.mounted) showManualFallback();
     });
   }
 
