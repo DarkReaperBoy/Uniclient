@@ -637,6 +637,9 @@ class _MessageBubbleState extends State<MessageBubble> {
     final _maxWidth = (wm - 1.0).abs() > 0.01
         ? (_baseMaxWidth * wm).roundToDouble().clamp(_baseMaxWidth, _baseMaxWidth * 4)
         : _baseMaxWidth;
+    final _gifBubbleMax = (wm - 1.0).abs() > 0.01
+        ? (_baseMaxGifWidth * wm).roundToDouble().clamp(_baseMaxGifWidth, _baseMaxGifWidth * 4)
+        : _baseMaxGifWidth;
 
     // AyuGram spec: sticker-only messages render without a bubble background.
     // A sticker-only message has no text body, reply, or forward header — only
@@ -818,7 +821,9 @@ class _MessageBubbleState extends State<MessageBubble> {
                   }
                 : null,
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: showAvatar ? _maxWidth - 40 : _maxWidth),
+              constraints: BoxConstraints(maxWidth: message.mediaType == 7
+                  ? _gifBubbleMax
+                  : (showAvatar ? _maxWidth - 40 : _maxWidth)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
