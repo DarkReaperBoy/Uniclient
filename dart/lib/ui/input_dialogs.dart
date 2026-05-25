@@ -1821,8 +1821,10 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   static const _kQuestionLimit = 255;
   static const _kDescriptionLimit = 255;
   static const _kOptionLimit = 100;
+  static const _kWarnQuestionLimit = 80;
   static const _kWarnOptionLimit = 30;
   static const _kSolutionLimit = 200;
+  static const _kWarnSolutionLimit = 60;
   static const _kMaxOptions = 32;
 
   final _questionCtrl = TextEditingController();
@@ -2255,7 +2257,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                 onPick: (i) => _insertEmoji(_emojiSuggestions[i]),
                 onHover: (i) => setState(() => _emojiSelectedIndex = i),
               ),
-            if (_kQuestionLimit - _questionCtrl.text.length < 80)
+            if (_kQuestionLimit - _questionCtrl.text.length < _kWarnQuestionLimit)
               Align(
                 alignment: Alignment.centerRight,
                 child: Text(
@@ -2519,7 +2521,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                 onChanged: (_) => setState(() {}),
                 inputFormatters: [LengthLimitingTextInputFormatter(_kSolutionLimit)],
               ),
-              if (_solutionCtrl.text.length > 60)
+              if (_solutionCtrl.text.length > _kWarnSolutionLimit)
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(
