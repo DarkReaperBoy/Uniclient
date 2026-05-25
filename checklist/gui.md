@@ -784,43 +784,43 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 ## input_dialogs — create_poll_box: Quiz + multipleChoice correct answer uses radio only, not checkbox
 
-- [ ] [MAJOR] AyuGram supports `multiCorrect` mode (checkboxes for correct answer when both quiz and multiple-choice are enabled simultaneously); Dart always uses `Radio<int>` for correct-answer selection with no checkbox path, so quiz+multiple-choice gives wrong UX — `input_dialogs.dart:2375-2386` ← `AyuGram/boxes/create_poll_box.cpp:579-621, 836-848`
+- [x] [MAJOR] AyuGram supports `multiCorrect` mode (checkboxes for correct answer when both quiz and multiple-choice are enabled simultaneously); Dart always uses `Radio<int>` for correct-answer selection with no checkbox path, so quiz+multiple-choice gives wrong UX — `input_dialogs.dart:2375-2386` ← `AyuGram/boxes/create_poll_box.cpp:579-621, 836-848`
 
 ## input_dialogs — create_poll_box: Option media upload not tracked for stale state
 
-- [ ] [MAJOR] AyuGram tracks `PollMediaState` per option and calls `refreshStaleMedia` with a 45-minute threshold to invalidate uploads that expired; Dart stores only file paths (`_optionMediaPaths`) with no upload state tracking — media attached to options may be silently lost at send time — `input_dialogs.dart:1786, 1967-2007` ← `AyuGram/boxes/create_poll_box.cpp:111, 195-196`
+- [x] [MAJOR] AyuGram tracks `PollMediaState` per option and calls `refreshStaleMedia` with a 45-minute threshold to invalidate uploads that expired; Dart stores only file paths (`_optionMediaPaths`) with no upload state tracking — media attached to options may be silently lost at send time — `input_dialogs.dart:1786, 1967-2007` ← `AyuGram/boxes/create_poll_box.cpp:111, 195-196`
 
 ## input_dialogs — create_poll_box: Poll description field missing media attach support
 
-- [ ] [MAJOR] AyuGram calls `addMediaButton(description, state->descriptionMedia)` to allow attaching media to the description field; Dart's description field has no media attach button — `input_dialogs.dart:2133-2151` ← `AyuGram/boxes/create_poll_box.cpp:2485-2486`
+- [x] [MAJOR] AyuGram calls `addMediaButton(description, state->descriptionMedia)` to allow attaching media to the description field; Dart's description field has no media attach button — `input_dialogs.dart:2133-2151` ← `AyuGram/boxes/create_poll_box.cpp:2485-2486`
 
 ## input_dialogs — edit_invite_link: Expire option semantics inverted
 
-- [ ] [CRITICAL] AyuGram stores expire values as negative offsets for preset durations (`-kHour`, `-kDay`, `-kDay*7`) and `kMaxLimit` (INT_MAX) for Never, and positive timestamp for custom; Dart uses positive seconds-from-now offsets (3600, 86400, 604800) mapped directly. When saving, AyuGram does `now - state->expireValue` to convert negative offsets to future timestamps; Dart does `now + _expireOption` which produces the same result numerically, but the Dart custom expiry path (`_customExpireDate`) stores an absolute timestamp and passes it directly — this part is correct. However the preset matching on load (`(remaining - k).abs() < k * 0.1`) is fragile and will misclassify links near boundary — `input_dialogs.dart:1308-1333` ← `AyuGram/boxes/edit_invite_link.cpp:90-94, 242-253`
+- [x] [CRITICAL] AyuGram stores expire values as negative offsets for preset durations (`-kHour`, `-kDay`, `-kDay*7`) and `kMaxLimit` (INT_MAX) for Never, and positive timestamp for custom; Dart uses positive seconds-from-now offsets (3600, 86400, 604800) mapped directly. When saving, AyuGram does `now - state->expireValue` to convert negative offsets to future timestamps; Dart does `now + _expireOption` which produces the same result numerically, but the Dart custom expiry path (`_customExpireDate`) stores an absolute timestamp and passes it directly — this part is correct. However the preset matching on load (`(remaining - k).abs() < k * 0.1`) is fragile and will misclassify links near boundary — `input_dialogs.dart:1308-1333` ← `AyuGram/boxes/edit_invite_link.cpp:90-94, 242-253`
 
 ## input_dialogs — edit_invite_link: Expire section hidden for subscription links but usage section still shown
 
-- [ ] [MAJOR] AyuGram wraps the usage section in `usagesSlide` and hides it when `requestApproval` is on (`toggleOn(state->requestApproval.value() | rpl::map(!_1))`); Dart hides the "Usage Limit" section inside an `AnimatedSize` only when `_requestApproval` is true — this matches. However the Usage section is also hidden in AyuGram when `subscriptionLocked` (early return at line 202 skips both Expire and Usage sections); Dart shows Usage even for subscription-locked links because `if (!_subscriptionLocked)` only gates the Expire section — `input_dialogs.dart:1582` ← `AyuGram/boxes/edit_invite_link.cpp:202-204`
+- [x] [MAJOR] AyuGram wraps the usage section in `usagesSlide` and hides it when `requestApproval` is on (`toggleOn(state->requestApproval.value() | rpl::map(!_1))`); Dart hides the "Usage Limit" section inside an `AnimatedSize` only when `_requestApproval` is true — this matches. However the Usage section is also hidden in AyuGram when `subscriptionLocked` (early return at line 202 skips both Expire and Usage sections); Dart shows Usage even for subscription-locked links because `if (!_subscriptionLocked)` only gates the Expire section — `input_dialogs.dart:1582` ← `AyuGram/boxes/edit_invite_link.cpp:202-204`
 
 ## input_dialogs — edit_invite_link: Request Approval hidden for subscription-locked links
 
-- [ ] [MAJOR] AyuGram explicitly sets `requestApproval = nullptr` when `isPublic || subscriptionLocked`, so it never renders for subscription links; Dart checks `if (!_subscriptionLocked)` for the Subscription toggle but the Request Approval toggle is checked with the same guard — this is correct. However for `isPublic` links, AyuGram also hides Request Approval; Dart renders it because the `isPublic` flag only suppresses the Subscription toggle — `input_dialogs.dart:1510-1530` ← `AyuGram/boxes/edit_invite_link.cpp:112-120`
+- [x] [MAJOR] AyuGram explicitly sets `requestApproval = nullptr` when `isPublic || subscriptionLocked`, so it never renders for subscription links; Dart checks `if (!_subscriptionLocked)` for the Subscription toggle but the Request Approval toggle is checked with the same guard — this is correct. However for `isPublic` links, AyuGram also hides Request Approval; Dart renders it because the `isPublic` flag only suppresses the Subscription toggle — `input_dialogs.dart:1510-1530` ← `AyuGram/boxes/edit_invite_link.cpp:112-120`
 
 ## input_dialogs — country_select_box: Row height differs
 
-- [ ] [MAJOR] AyuGram uses `st::countryRowHeight` (from `style_boxes.h`, typically 36px) with a top offset `st::countriesSkip` before the first row; Dart uses `itemExtent: 36` but adds a top padding of 12px (`EdgeInsets.only(top: 12)`), not matching `st::countriesSkip` which is a styled value — `input_dialogs.dart:1143` ← `AyuGram/ui/boxes/country_select_box.cpp:361-364`
+- [x] [MAJOR] AyuGram uses `st::countryRowHeight` (from `style_boxes.h`, typically 36px) with a top offset `st::countriesSkip` before the first row; Dart uses `itemExtent: 36` but adds a top padding of 12px (`EdgeInsets.only(top: 12)`), not matching `st::countriesSkip` which is a styled value — `input_dialogs.dart:1143` ← `AyuGram/ui/boxes/country_select_box.cpp:361-364`
 
 ## input_dialogs — country_select_box: Flag emoji not shown by AyuGram; Dart shows it
 
-- [ ] [MAJOR] AyuGram's country row renders only the country name and calling code (`+XX`) — no flag emoji anywhere in `paintEvent`; Dart shows a flag emoji (`c.flag`) in the phone-prefix picker button and in the country list rows. This adds visual elements not present in the reference — `input_dialogs.dart:817, 1161` ← `AyuGram/ui/boxes/country_select_box.cpp:377-397`
+- [x] [MAJOR] AyuGram's country row renders only the country name and calling code (`+XX`) — no flag emoji anywhere in `paintEvent`; Dart shows a flag emoji (`c.flag`) in the phone-prefix picker button and in the country list rows. This adds visual elements not present in the reference — `input_dialogs.dart:817, 1161` ← `AyuGram/ui/boxes/country_select_box.cpp:377-397`
 
 ## input_dialogs — country_select_box: Ripple animation missing on row selection
 
-- [ ] [MAJOR] AyuGram renders `RippleAnimation` per row on press (`_ripples[i]->paint`); Dart uses plain `InkWell` with no explicit ripple shape matching the row — visual fidelity mismatch — `input_dialogs.dart:1151-1185` ← `AyuGram/ui/boxes/country_select_box.cpp:371-374`
+- [x] [MAJOR] AyuGram renders `RippleAnimation` per row on press (`_ripples[i]->paint`); Dart uses plain `InkWell` with no explicit ripple shape matching the row — visual fidelity mismatch — `input_dialogs.dart:1151-1185` ← `AyuGram/ui/boxes/country_select_box.cpp:371-374`
 
 ## input_dialogs — country_select_box: Accessibility roles and screen-reader support absent
 
-- [ ] [MAJOR] AyuGram implements full accessibility roles (`accessibilityRole`, `accessibilityChildFocused`, `accessibilityChildNameChanged`, etc.) on the inner widget; Dart has no accessibility semantics on the country list — `input_dialogs.dart:1080-1195` ← `AyuGram/ui/boxes/country_select_box.cpp:55-65`
+- [x] [MAJOR] AyuGram implements full accessibility roles (`accessibilityRole`, `accessibilityChildFocused`, `accessibilityChildNameChanged`, etc.) on the inner widget; Dart has no accessibility semantics on the country list — `input_dialogs.dart:1080-1195` ← `AyuGram/ui/boxes/country_select_box.cpp:55-65`
 
 # emoji_data — Emoji Keywords Implementation
 
