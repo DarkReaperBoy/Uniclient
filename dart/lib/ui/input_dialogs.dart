@@ -1852,6 +1852,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   final Set<int> _correctOptions = {};
 
   final _durationPickerKey = GlobalKey();
+  final _questionFieldKey = GlobalKey();
 
   List<EmojiEntry> _emojiSuggestions = [];
   int _emojiSelectedIndex = 0;
@@ -1950,6 +1951,13 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     final ts = _optionMediaTimestamps[index];
     if (ts == null) return false;
     return DateTime.now().difference(ts) > _kStaleMediaThreshold;
+  }
+
+  static const _kFieldMinHeight = 40.0;
+  bool _isFieldExpanded(GlobalKey key) {
+    final renderObj = key.currentContext?.findRenderObject();
+    if (renderObj is! RenderBox) return true;
+    return renderObj.size.height > _kFieldMinHeight;
   }
 
   int get _filledOptionCount =>
@@ -2239,6 +2247,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             BoxInputField(
+              key: _questionFieldKey,
               controller: _questionCtrl,
               focusNode: _questionFocus,
               label: 'Ask a question',
@@ -2257,7 +2266,8 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                 onPick: (i) => _insertEmoji(_emojiSuggestions[i]),
                 onHover: (i) => setState(() => _emojiSelectedIndex = i),
               ),
-            if (_kQuestionLimit - _questionCtrl.text.length < _kWarnQuestionLimit)
+            if (_kQuestionLimit - _questionCtrl.text.length < _kWarnQuestionLimit
+                && _isFieldExpanded(_questionFieldKey))
               Align(
                 alignment: Alignment.centerRight,
                 child: Text(
