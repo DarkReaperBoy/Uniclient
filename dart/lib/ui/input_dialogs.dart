@@ -33,6 +33,8 @@ class BoxInputField extends StatelessWidget {
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
   final bool enabled;
+  final int? maxLines;
+  final int? minLines;
 
   const BoxInputField({
     super.key,
@@ -45,6 +47,8 @@ class BoxInputField extends StatelessWidget {
     this.onSubmitted,
     this.onChanged,
     this.enabled = true,
+    this.maxLines = 1,
+    this.minLines,
   });
 
   @override
@@ -60,9 +64,11 @@ class BoxInputField extends StatelessWidget {
       focusNode: focusNode,
       obscureText: obscureText,
       style: TextStyle(fontSize: 15, color: textColor),
-      keyboardType: keyboardType,
+      keyboardType: maxLines != 1 ? TextInputType.multiline : keyboardType,
       inputFormatters: inputFormatters,
       enabled: enabled,
+      maxLines: maxLines,
+      minLines: minLines,
       textInputAction: onSubmitted != null ? TextInputAction.next : null,
       onSubmitted: onSubmitted,
       onChanged: onChanged,
@@ -2234,6 +2240,8 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               controller: _questionCtrl,
               focusNode: _questionFocus,
               label: 'Ask a question',
+              maxLines: null,
+              minLines: 1,
               onChanged: (_) {
                 _checkEmojiAutocomplete();
                 setState(() {});
@@ -2270,6 +2278,8 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                   child: BoxInputField(
                     controller: _descriptionCtrl,
                     label: 'Description (optional)',
+                    maxLines: null,
+                    minLines: 1,
                     onChanged: (_) => setState(() {}),
                     inputFormatters: [LengthLimitingTextInputFormatter(_kDescriptionLimit)],
                   ),
@@ -2504,6 +2514,8 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               BoxInputField(
                 controller: _solutionCtrl,
                 label: 'Add a comment',
+                maxLines: null,
+                minLines: 1,
                 onChanged: (_) => setState(() {}),
                 inputFormatters: [LengthLimitingTextInputFormatter(_kSolutionLimit)],
               ),
@@ -2598,6 +2610,8 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                 child: BoxInputField(
                   controller: _optionCtrls[i],
                   label: 'Option ${i + 1}',
+                  maxLines: null,
+                  minLines: 1,
                   onChanged: (_) => setState(() {}),
                   inputFormatters: [LengthLimitingTextInputFormatter(_kOptionLimit)],
                 ),
