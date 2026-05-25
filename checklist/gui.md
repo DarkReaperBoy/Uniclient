@@ -825,7 +825,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 ---
 
-- [ ] [CRITICAL] OCR is implemented by shelling out to an external `tesseract` binary via `Process.run`. AyuGram uses `Platform::TextRecognition` (OS vision API on macOS/iOS, ML Kit on Android, WinRT OCR on Windows). The Dart implementation silently fails on all platforms where tesseract is not installed (the common case for desktop users) with only a toast fallback, and completely skips the engine/platform bridge. — `media_viewer.dart:3376-3410` ← `media_view_overlay_widget.cpp:5657-5704` + `platform/platform_text_recognition.h`
 
 
 ## message_bubble — reaction emoji overlay hardcoded static content
