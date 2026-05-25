@@ -780,9 +780,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## input_dialogs — username_box: Save order wrong — primary username updated before reorder
-
-- [ ] [MAJOR] AyuGram saves via `list->save()` first (reorder+toggles) and then `editor->save()` (primary username) in a chained done callback; Dart does toggles, then reorder, then primary username update sequentially without proper chaining — if any step fails the others may still fire, corrupting state — `input_dialogs.dart:302-336` ← `AyuGram/boxes/username_box.cpp:372-383`
 
 ## input_dialogs — username_box: Missing description paragraph 2 (username_description2)
 
