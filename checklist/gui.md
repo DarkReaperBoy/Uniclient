@@ -827,9 +827,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 - [ ] [CRITICAL] OCR is implemented by shelling out to an external `tesseract` binary via `Process.run`. AyuGram uses `Platform::TextRecognition` (OS vision API on macOS/iOS, ML Kit on Android, WinRT OCR on Windows). The Dart implementation silently fails on all platforms where tesseract is not installed (the common case for desktop users) with only a toast fallback, and completely skips the engine/platform bridge. — `media_viewer.dart:3376-3410` ← `media_view_overlay_widget.cpp:5657-5704` + `platform/platform_text_recognition.h`
 
-- [ ] [MAJOR] PiP default initial position is set to bottom-right corner (`_x = screen.width - _kPipDefaultSize - _kPipBorderSkip`, `_y = screen.height - _kPipDefaultSize - _kPipBorderSkip`). AyuGram uses `position.snapped = RectPart::Top | RectPart::Left` with `st::pipBorderSkip = 20px`, placing PiP at top-left corner (x=20, y=20) on first open. — `media_viewer.dart:4624-4625` ← `media_view_pip.cpp:507,509,559-576`
-
-- [ ] [MAJOR] Story viewer `_muted` toggle sets `_storyVolume = 100.0` when muting instead of saving the current volume for restoration. On unmute, `_videoPlayer?.setVolume(_storyVolume)` always restores to 100% regardless of prior volume. — `media_viewer.dart:6983-6988`, `7195-7200` ← (AyuGram saves current volume before muting and restores it on unmute)
 
 ## message_bubble — reaction emoji overlay hardcoded static content
 - [ ] [CRITICAL] `_ReactionEmojiOverlay` uses hardcoded static emoji categories instead of dynamic content from engine — standard emoji are fully hardcoded inline lists (not fetched from Telegram's available reactions API), so any server-side reaction set changes are never reflected — `message_bubble.dart:1814`
