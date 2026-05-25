@@ -818,39 +818,11 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 - [x] [MAJOR] AyuGram implements full accessibility roles (`accessibilityRole`, `accessibilityChildFocused`, `accessibilityChildNameChanged`, etc.) on the inner widget; Dart has no accessibility semantics on the country list — `input_dialogs.dart:1080-1195` ← `AyuGram/ui/boxes/country_select_box.cpp:55-65`
 
-# emoji_data — Emoji Keywords Implementation
-
-- [ ] [MAJOR] `loadServerKeywordsDiff` replaces entire keyword emoticon list instead of appending new / removing deleted entries: AyuGram's `ApplyDifference` appends emoticons for `MTPDemojiKeyword` entries and surgically removes individual emoticons for `MTPDemojiKeywordDeleted` entries (keeping the rest intact). Dart unconditionally overwrites `pack.keywords[entry.key]` with the incoming slice, so if a diff only adds 1 new emoticon to a 5-emoticon keyword, the existing 5 are thrown away — `emoji_data.dart:2823` ← `AyuGram/chat_helpers/emoji_keywords.cpp:256-291`
-
-- [ ] [MAJOR] Keys from server diff are not `.trim()`med before storage — AyuGram's `NormalizeKey` does `.toLower().trimmed()` before inserting into `data.emoji`; the Dart `_LangPack.load()` and `loadServerKeywordsDiff` never trim, so a keyword with trailing whitespace in the API response is stored as-is and will silently fail to match any query — `emoji_data.dart:2716-2723` and `dart:2819-2830` ← `AyuGram/chat_helpers/emoji_keywords.cpp:172-173` (NormalizeKey), `251`, `275`
-
-- [ ] [MAJOR] `_prioritizeRecent` compares the full emoji string (possibly with skin-tone modifier) against the stored recent emoji string — AyuGram's `PrioritizeRecent` uses `(*emoji)->original()` to strip the skin-tone variant before comparing, so recents like `👋🏽` correctly bubble up `👋` results; Dart's `e.emoji == recent` direct compare will fail for any variant mismatch, leaving all variant emoji un-promoted — `emoji_data.dart:3026` ← `AyuGram/chat_helpers/emoji_keywords.cpp:660-662`
-
-- [ ] [MAJOR] `loadCacheFromDisk` and `_writeCacheToDisk` run synchronously on the main isolate — AyuGram offloads `ReadLocalCache` and `WriteLocalCache` to a background thread via `crl::async` (returning to main via `crl::on_main`) to prevent UI jank; Dart blocks the Flutter raster thread while parsing/writing potentially thousands of JSON keyword entries — `emoji_data.dart:2837-2863` ← `AyuGram/chat_helpers/emoji_keywords.cpp:372-380` (async read), `442-453` (async write)
-
-- [ ] [MAJOR] No `MTPmessages_GetEmojiKeywordsLanguages` call: AyuGram first queries the server for the correct set of language IDs to fetch (`emoji_keywords.cpp:703`) before requesting any lang-pack data, ensuring only languages with server-side keyword data are fetched. Dart's caller (`chat_view.dart:3722-3725`) hardcodes 3 languages (`selectedLanguageCode`, system locale, `'en'`) without consulting the server, causing unnecessary requests for unsupported languages and potentially missing server-recommended ones — `emoji_data.dart` (API surface of `loadServerKeywords`) ← `AyuGram/chat_helpers/emoji_keywords.cpp:692-716`
-
-- [ ] [MAJOR] `_emojiKeywordsFetched` flag in the caller is never reset when the active account changes — AyuGram's `EmojiKeywords` is instantiated per `Main::Session` and its `apiChanged()` re-triggers a refresh whenever the active session changes; Dart sets `_emojiKeywordsFetched = true` once and never clears it, so switching accounts silently reuses stale keyword data from the previous account — `dart/lib/ui/chat_view.dart:3712-3713` ← `AyuGram/chat_helpers/emoji_keywords.cpp:522-529`
-
 # instant_view — Audit findings
 
 - [ ] [CRITICAL] Generic embed block renders a static link card instead of actual iframe content — non-YouTube/Vimeo/Twitter/SoundCloud embeds (Instagram, TikTok, Reddit posts, etc.) display zero content — `instant_view.dart:2431` (`_buildGenericEmbed` called as fallback) ← `iv/iv_prepare.cpp:672` (`tag("iframe", attributes)` — AyuGram renders a real `<iframe>` via WebView for every embed type)
 
-- [ ] [CRITICAL] YouTube embed play taps `_playVideo("https://www.youtube.com/watch?v=…")` which passes the URL directly to media_kit/mpv — YouTube requires yt-dlp for streaming and will always throw, silently falling back to `launchUrl` (external browser) — the primary "Play" action is dead — `instant_view.dart:2441` ← `iv/iv_prepare.cpp:657-664` (AyuGram renders YouTube via iframe `src=` using the embed URL, which loads the native YouTube player in WebView)
-
-- [ ] [MAJOR] `_buildEmbedPost` does not render the author photo — AyuGram renders a `<figure>` element with `background-image: url(photoFullUrl)` inside the `<address>` — `instant_view.dart:1004-1027` (no photo widget anywhere) ← `iv/iv_prepare.cpp:689-697` (`address += tag("figure", { { "style", "background-image:url('" + src + "')" } })`)
-
-- [ ] [MAJOR] `_buildEmbedPost` does not render the publication date — AyuGram includes a `<time>` tag with the formatted date inside the embed post address block — `instant_view.dart:1004-1027` (no date) ← `iv/iv_prepare.cpp:700-702` (`address += tag("time", Date(date))`)
-
-- [ ] [MAJOR] Channel block always initialises `_joined = false` regardless of actual membership — never queries current membership state — user who already follows the channel still sees "Join" button — `instant_view.dart:2647` ← `iv/iv_prepare.cpp:768-770` (AyuGram conditionally adds `class="joined"` based on real membership data, updated reactively via `inChannelValues` producers)
-
 - [ ] [MAJOR] Map block fetches tiles directly from `https://tile.openstreetmap.org/…` exposing OSM requests from the client — AyuGram routes maps through a Telegram-served resource URL (`resource("map/" + GeoPointId …)`) which is downloaded by the engine, not the UI — `instant_view.dart:1534` ← `iv/iv_prepare.cpp:1233-1238` (`QByteArray Parser::mapUrl(…)` returns a `/map/…` resource path served by the data handler)
-
-- [ ] [MAJOR] Missing "Report IV" action — AyuGram fires `Event::Type::Report` when the page contains a `report-iv` context link (accessible via the page menu) — Dart has no report button, no menu item, and no handler — `instant_view.dart:200-240` (appBar actions list, no report) ← `iv/iv_controller.cpp:1036-1040` (`if (context == u"report-iv") _events.fire({ .type = Event::Type::Report … })`)
-
-- [ ] [MAJOR] Missing keyboard shortcuts Ctrl+W (close IV), Ctrl+M (minimize) — AyuGram handles these inside `processKey` — Dart's `CallbackShortcuts` only wires Ctrl+=, Ctrl+-, Ctrl+0 — `instant_view.dart:189-196` ← `iv/iv_controller.cpp:1020-1025` (`key == u"w"_q && modifier == ctrl → close()`, `key == u"m"_q && modifier == ctrl → minimize()`)
-
-- [ ] [MAJOR] Embed block ignores `is_full_width` and `is_allow_scrolling` flags — AyuGram uses these to set `width: 100%`, fixed pixel height, or autosize mode on the iframe — Dart always derives aspect ratio from `w/h` and renders a fixed-ratio container — `instant_view.dart:2363-2365` (reads `w` and `h` only) ← `iv/iv_prepare.cpp:636-650` (`if (data.is_full_width() && data.is_allow_scrolling()) { autosize = true; … } else if (data.is_full_width() || !data.vw()->v) { width = "100%"; … }`)
 
 # keyboard_shortcuts — Shortcut bindings and overlay state machine
 
