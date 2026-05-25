@@ -2122,13 +2122,24 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     }
   }
 
-  Future<void> _pickDescriptionMedia() async {
+  Future<void> _pickDescriptionMedia(BuildContext tapContext) async {
     final p = context.palette;
     final textColor = p.boxTextFg;
     final hasMedia = _descriptionMediaPath != null;
+    final renderBox = tapContext.findRenderObject() as RenderBox?;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final RelativeRect position;
+    if (renderBox != null && overlay != null) {
+      position = RelativeRect.fromRect(
+        renderBox.localToGlobal(Offset.zero) & renderBox.size,
+        Offset.zero & overlay.size,
+      );
+    } else {
+      position = RelativeRect.fromLTRB(200, 300, 200, 300);
+    }
     final choice = await showMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(200, 300, 200, 300),
+      position: position,
       items: [
         PopupMenuItem(value: 'photo_video', child: Text('Choose Photo or Video', style: TextStyle(color: textColor))),
         PopupMenuItem(value: 'file', child: Text('Choose File', style: TextStyle(color: textColor))),
@@ -2298,35 +2309,38 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                 ),
                 Padding(
                   padding: const EdgeInsets.only(left: 4),
-                  child: _descriptionMediaPath != null
-                      ? GestureDetector(
-                          onTap: _pickDescriptionMedia,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: SizedBox(
-                              width: 32,
-                              height: 32,
-                              child: _isImagePath(_descriptionMediaPath!)
-                                  ? Image.file(File(_descriptionMediaPath!), fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
-                                          Icon(Icons.broken_image, size: 16, color: subColor))
-                                  : Container(
-                                      color: p.windowBgActive.withValues(alpha: 0.15),
-                                      child: Icon(Icons.insert_drive_file, size: 16, color: p.windowBgActive),
-                                    ),
-                            ),
-                          ),
-                        )
-                      : SizedBox(
-                          width: 32,
-                          height: 32,
-                          child: IconButton(
-                            icon: Icon(Icons.attach_file, size: 16, color: subColor),
-                            padding: EdgeInsets.zero,
-                            tooltip: 'Attach media',
-                            onPressed: _pickDescriptionMedia,
+                  child: Builder(builder: (btnCtx) {
+                    if (_descriptionMediaPath != null) {
+                      return GestureDetector(
+                        onTap: () => _pickDescriptionMedia(btnCtx),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: _isImagePath(_descriptionMediaPath!)
+                                ? Image.file(File(_descriptionMediaPath!), fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        Icon(Icons.broken_image, size: 16, color: subColor))
+                                : Container(
+                                    color: p.windowBgActive.withValues(alpha: 0.15),
+                                    child: Icon(Icons.insert_drive_file, size: 16, color: p.windowBgActive),
+                                  ),
                           ),
                         ),
+                      );
+                    }
+                    return SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: IconButton(
+                        icon: Icon(Icons.attach_file, size: 16, color: subColor),
+                        padding: EdgeInsets.zero,
+                        tooltip: 'Attach media',
+                        onPressed: () => _pickDescriptionMedia(btnCtx),
+                      ),
+                    );
+                  }),
                 ),
               ],
             ),
