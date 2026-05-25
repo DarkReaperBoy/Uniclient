@@ -827,8 +827,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## message_bubble — reaction emoji search filter broken
-- [ ] [CRITICAL] `_ReactionEmojiOverlay._filteredEmoji()` performs no actual keyword filtering: when `_search` is non-empty it returns ALL emoji from the current category unchanged rather than filtering by name/keyword match — `message_bubble.dart:1911`
 
 ## message_bubble — xdg-open is Linux-desktop-only (no cross-platform)
 - [ ] [CRITICAL] URL opening (`_openUrl`), file opening (`_FileIndicator._onTap`), and map coordinate opening (`_LocationIndicator._openCoordinates`) all call `Process.run('xdg-open', ...)` directly — this fails silently on Windows, macOS, Android, and iOS; no platform abstraction exists — `message_bubble.dart:7404` ← no AyuGram equivalent (AyuGram uses Qt's `QDesktopServices::openUrl`)
