@@ -782,10 +782,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## input_dialogs — create_poll_box: Quiz + multipleChoice correct answer uses radio only, not checkbox
-
-- [x] [MAJOR] AyuGram supports `multiCorrect` mode (checkboxes for correct answer when both quiz and multiple-choice are enabled simultaneously); Dart always uses `Radio<int>` for correct-answer selection with no checkbox path, so quiz+multiple-choice gives wrong UX — `input_dialogs.dart:2375-2386` ← `AyuGram/boxes/create_poll_box.cpp:579-621, 836-848`
-
 ## input_dialogs — create_poll_box: Option media upload not tracked for stale state
 
 - [x] [MAJOR] AyuGram tracks `PollMediaState` per option and calls `refreshStaleMedia` with a 45-minute threshold to invalidate uploads that expired; Dart stores only file paths (`_optionMediaPaths`) with no upload state tracking — media attached to options may be silently lost at send time — `input_dialogs.dart:1786, 1967-2007` ← `AyuGram/boxes/create_poll_box.cpp:111, 195-196`
