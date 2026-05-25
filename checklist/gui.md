@@ -782,10 +782,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## input_dialogs — create_poll_box: kWarnQuestionLimit threshold wrong
-
-- [ ] [MAJOR] AyuGram shows the character counter when `(value < kWarnQuestionLimit)` where `kWarnQuestionLimit = 80` AND the field height exceeds `st::createPollOptionField.heightMin` (multiline condition); Dart shows it when `_questionCtrl.text.length > 80`, which is functionally the same for the question counter but missing the multiline height guard — `input_dialogs.dart:2119` ← `AyuGram/boxes/create_poll_box.cpp:106, 307-319`
-
 ## input_dialogs — create_poll_box: Default close period wrong
 
 - [ ] [MAJOR] AyuGram defaults `closePeriod` to 24 hours (86400 s) when the duration toggle is first enabled; Dart defaults to 300 seconds (5 minutes), which is wrong — `input_dialogs.dart:1796` ← `AyuGram/boxes/create_poll_box.cpp:2722-2725`
