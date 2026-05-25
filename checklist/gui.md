@@ -781,10 +781,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## input_dialogs — username_box: Missing description paragraph 2 (username_description2)
-
-- [ ] [MAJOR] AyuGram renders two description paragraphs (`tr::lng_username_description1` + `\n\n` + `tr::lng_username_description2`); Dart collapses everything into a single hardcoded string covering only description1 content, omitting the second paragraph — `input_dialogs.dart:420-425` ← `AyuGram/boxes/username_box.cpp:336-343`
-
 ## input_dialogs — create_poll_box: Max options count wrong (12 vs 32)
 
 - [ ] [CRITICAL] AyuGram uses `PollData::kMaxOptions = 32`; Dart hardcodes `_kMaxOptions = 12`, capping the poll at 12 options when Telegram allows up to 32 — `input_dialogs.dart:1777` ← `AyuGram/boxes/create_poll_box.cpp:104` + `AyuGram/data/data_poll.h:121`
