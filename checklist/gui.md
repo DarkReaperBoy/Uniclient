@@ -782,10 +782,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## input_dialogs — create_poll_box: Default close period wrong
-
-- [ ] [MAJOR] AyuGram defaults `closePeriod` to 24 hours (86400 s) when the duration toggle is first enabled; Dart defaults to 300 seconds (5 minutes), which is wrong — `input_dialogs.dart:1796` ← `AyuGram/boxes/create_poll_box.cpp:2722-2725`
-
 ## input_dialogs — create_poll_box: Duration picker preset list wrong
 
 - [ ] [MAJOR] AyuGram presets are `{3600, 3*3600, 8*3600, 24*3600, 72*3600}` (1h, 3h, 8h, 24h, 72h); Dart uses `{3600, 10800, 28800, 86400, 259200}` (1h, 3h, 8h, 24h, 3 days). The last entry differs: AyuGram uses 72 hours (3 days = 259200 s), which actually matches. However AyuGram lacks a "3 days" label option. On a recheck, both match in values. No issue here — SKIP.
