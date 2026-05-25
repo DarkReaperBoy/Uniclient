@@ -393,6 +393,7 @@ class _ChatViewState extends State<ChatView>
 
   bool _emojiPanelVisible = false;
   bool _emojiKeywordsFetched = false;
+  String? _emojiKeywordsAccountId;
   bool _commentsShown = true;
 
   String _botMenuText = '';
@@ -3765,8 +3766,10 @@ class _ChatViewState extends State<ChatView>
   String? _stickerSuggestEmoji;
 
   void _fetchEmojiKeywordsIfNeeded(String accountId) {
-    if (_emojiKeywordsFetched) return;
+    if (_emojiKeywordsFetched && _emojiKeywordsAccountId == accountId) return;
     _emojiKeywordsFetched = true;
+    _emojiKeywordsAccountId = accountId;
+    EmojiKeywords.instance.stopAutoRefresh();
     _fetchEmojiKeywordsForLangs(accountId);
     EmojiKeywords.instance.startAutoRefresh(() => _fetchEmojiKeywordsForLangs(accountId));
   }
@@ -3793,6 +3796,7 @@ class _ChatViewState extends State<ChatView>
             }
             ek.loadServerKeywordsDiff(
               keywords: kwMap,
+              deleted: const {},
               version: result.version,
               langCode: result.langCode,
             );

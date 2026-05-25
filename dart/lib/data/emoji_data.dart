@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 const List<EmojiEntry> kEmojiSuggestions = [
   EmojiEntry('#️⃣', ['hash']),
@@ -2714,9 +2715,11 @@ class _LangPack {
     sortedKeys.clear();
     maxKeyLength = 0;
     for (final entry in data.entries) {
+      final key = entry.key.toLowerCase().trim();
+      if (key.isEmpty) continue;
       final emojis = entry.value.map(_applyPostfix).toList();
-      keywords[entry.key] = emojis;
-      if (entry.key.length > maxKeyLength) maxKeyLength = entry.key.length;
+      keywords[key] = emojis;
+      if (key.length > maxKeyLength) maxKeyLength = key.length;
     }
     sortedKeys.addAll(keywords.keys);
     sortedKeys.sort();
@@ -2745,6 +2748,9 @@ class EmojiKeywords {
   Stream<void> get refreshed => _refreshedController.stream;
 
   static final _badSuggestionChar = RegExp(r'[^a-zA-Z0-9_\-+]');
+  static final _skinToneRe = RegExp(r'[\u{1F3FB}-\u{1F3FF}]', unicode: true);
+  static String _stripSkinTone(String emoji) =>
+      emoji.replaceAll(_skinToneRe, '');
 
   late final int _legacyMaxKeyLength = _computeLegacyMaxKeyLength();
 
@@ -2803,7 +2809,7 @@ class EmojiKeywords {
     pack.load(keywords, version);
     _refreshedController.add(null);
     if (_cacheDir != null) {
-      _writeCacheToDisk(langCode, keywords, version);
+      _writeCacheToDiskAsync(langCode, keywords, version);
     }
     if (isNew) {
       _scheduleSave();
@@ -2812,15 +2818,36 @@ class EmojiKeywords {
 
   void loadServerKeywordsDiff({
     required Map<String, List<String>> keywords,
+    required Map<String, List<String>> deleted,
     required int version,
     required String langCode,
   }) {
     final pack = _langPacks.putIfAbsent(langCode, _LangPack.new);
     for (final entry in keywords.entries) {
-      if (entry.value.isEmpty) {
-        pack.keywords.remove(entry.key);
+      final key = entry.key.toLowerCase().trim();
+      if (key.isEmpty) continue;
+      if (entry.value.isEmpty) continue;
+      final existing = pack.keywords[key];
+      if (existing != null) {
+        final existingSet = existing.toSet();
+        for (final e in entry.value) {
+          final emoji = _applyPostfix(e);
+          if (!existingSet.contains(emoji)) {
+            existing.add(emoji);
+          }
+        }
       } else {
-        pack.keywords[entry.key] = entry.value.map((e) => _applyPostfix(e)).toList();
+        pack.keywords[key] = entry.value.map(_applyPostfix).toList();
+      }
+    }
+    for (final entry in deleted.entries) {
+      final key = entry.key.toLowerCase().trim();
+      if (key.isEmpty) continue;
+      final existing = pack.keywords[key];
+      if (existing == null) continue;
+      existing.removeWhere((e) => entry.value.contains(e));
+      if (existing.isEmpty) {
+        pack.keywords.remove(key);
       }
     }
     pack.sortedKeys.clear();
@@ -2830,33 +2857,45 @@ class EmojiKeywords {
     pack.version = version;
     _refreshedController.add(null);
     if (_cacheDir != null) {
-      _writeCacheToDisk(langCode, pack.keywords, version);
+      _writeCacheToDiskAsync(langCode, pack.keywords, version);
     }
   }
 
-  void _writeCacheToDisk(String langCode, Map<String, List<String>> kw, int version) {
+  Future<void> _writeCacheToDiskAsync(String langCode, Map<String, List<String>> kw, int version) async {
+    final cacheDir = _cacheDir;
+    if (cacheDir == null) return;
     try {
-      final dir = Directory('$_cacheDir/keywords');
-      if (!dir.existsSync()) dir.createSync(recursive: true);
-      final file = File('${dir.path}/$langCode.json');
-      file.writeAsStringSync(json.encode({'v': version, 'kw': kw}));
+      await Isolate.run(() {
+        final dir = Directory('$cacheDir/keywords');
+        if (!dir.existsSync()) dir.createSync(recursive: true);
+        File('${dir.path}/$langCode.json')
+            .writeAsStringSync(json.encode({'v': version, 'kw': kw}));
+      });
     } catch (_) {}
   }
 
-  void loadCacheFromDisk() {
-    if (_cacheDir == null) return;
-    final dir = Directory('$_cacheDir/keywords');
-    if (!dir.existsSync()) return;
+  Future<void> loadCacheFromDisk() async {
+    final cacheDir = _cacheDir;
+    if (cacheDir == null) return;
     try {
-      for (final f in dir.listSync()) {
-        if (f is! File || !f.path.endsWith('.json')) continue;
-        final langCode = f.uri.pathSegments.last.replaceAll('.json', '');
-        final data = json.decode(f.readAsStringSync()) as Map<String, dynamic>;
-        final version = data['v'] as int? ?? 0;
-        final kw = (data['kw'] as Map<String, dynamic>).map(
+      final parsed = await Isolate.run(() {
+        final dir = Directory('$cacheDir/keywords');
+        if (!dir.existsSync()) return <String, Map<String, dynamic>>{};
+        final result = <String, Map<String, dynamic>>{};
+        for (final f in dir.listSync()) {
+          if (f is! File || !f.path.endsWith('.json')) continue;
+          final langCode = f.uri.pathSegments.last.replaceAll('.json', '');
+          result[langCode] =
+              json.decode(f.readAsStringSync()) as Map<String, dynamic>;
+        }
+        return result;
+      });
+      for (final entry in parsed.entries) {
+        final version = entry.value['v'] as int? ?? 0;
+        final kw = (entry.value['kw'] as Map<String, dynamic>).map(
           (k, v) => MapEntry(k, (v as List).cast<String>()),
         );
-        final pack = _langPacks.putIfAbsent(langCode, _LangPack.new);
+        final pack = _langPacks.putIfAbsent(entry.key, _LangPack.new);
         pack.load(kw, version);
       }
     } catch (_) {}
@@ -3023,7 +3062,11 @@ class EmojiKeywords {
     final result = List<EmojiEntry>.from(list);
     var lastRecent = 0;
     for (final recent in _recentEmojis) {
-      final idx = result.indexWhere((e) => e.emoji == recent, lastRecent);
+      final base = _stripSkinTone(recent);
+      final idx = result.indexWhere(
+        (e) => _stripSkinTone(e.emoji) == base,
+        lastRecent,
+      );
       if (idx > lastRecent) {
         final item = result.removeAt(idx);
         result.insert(lastRecent, item);
