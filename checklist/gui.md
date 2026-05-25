@@ -827,10 +827,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-
-## message_bubble — GIF max width hardcoded 320px independent of bubble width
-- [ ] [MAJOR] GIF display width is clamped to 320px unconditionally (`maxGifWidth = 320.0`) without considering the available bubble max width — on wide desktop layouts this makes GIFs appear much narrower than the bubble allows, deviating from AyuGram which sizes GIFs proportionally to available space — `message_bubble.dart:3388`
-
 ## message_bubble — via-bot label suppressed incorrectly in group chats
 - [ ] [MAJOR] The `viaBotName` label is suppressed when `senderName` is non-empty in group messages (`isOutgoing || senderName.isEmpty || !isFirstInGroup`) — AyuGram renders the via-bot label alongside the sender name row in groups; the Dart condition silently drops the via-bot attribution whenever a sender name is shown — `message_bubble.dart:927`
 
