@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, KeyDownEvent, LogicalKeyboardKey;
 
+import '../data/emoji_data.dart';
 import 'custom_emoji_cache.dart';
 import 'gesture_utils.dart';
 import 'info_panel.dart';
@@ -1836,8 +1837,9 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
   List<String> _filteredEmoji() {
     final all = _allReactions;
     if (_search.isEmpty) return all;
-    final q = _search.toLowerCase();
-    return all.where((e) => e.contains(q)).toList();
+    final results = searchEmoji(_search, limit: all.length);
+    final matched = results.map((e) => e.emoji).toSet();
+    return all.where((e) => matched.contains(e)).toList();
   }
 
   @override
