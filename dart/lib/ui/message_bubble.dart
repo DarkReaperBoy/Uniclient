@@ -924,7 +924,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                                     style: TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w400,
-                                      color: palette.msgInDateFg,
+                                      color: palette.msgInServiceFg,
                                     ),
                                   ),
                                   TextSpan(
