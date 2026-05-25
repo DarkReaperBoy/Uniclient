@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:ffi' as ffi;
 import 'dart:io';
 
+import 'package:ffi/ffi.dart' as pkg_ffi;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -12,12 +14,12 @@ const _notifyWidthTopCenter = 480.0;
 const _notifyMinHeight = 80.0;
 const _notifyDeltaX = 6.0;
 const _notifyDeltaY = 7.0;
-const _photoSize = 62.0;
+final double _photoSize = Platform.isMacOS ? 64.0 : 62.0;
 const _photoPos = 9.0;
 const _closeSize = 30.0;
 const _closePosRight = 1.0;
 const _closePosTop = 2.0;
-const _textLeft = 83.0; // photoPos + photoSize + 12
+final double _textLeft = _photoPos + _photoSize + 12.0;
 const _textTop = 7.0;
 const _itemTopOffset = 12.0;
 const _borderWidth = 1.0;
@@ -32,6 +34,39 @@ const _fastHideDuration = Duration(milliseconds: 150);
 const _shiftDuration = Duration(milliseconds: 150);
 const _actionsFadeDuration = Duration(milliseconds: 200);
 const _waitBeforeHide = Duration(milliseconds: 3000);
+
+/// Win32 GetLastInputInfo for detecting system-wide user activity on Windows.
+bool _winHasRecentInput() {
+  if (!Platform.isWindows) return true;
+  try {
+    final user32 = ffi.DynamicLibrary.open('user32.dll');
+    final kernel32 = ffi.DynamicLibrary.open('kernel32.dll');
+    final getLastInputInfo = user32.lookupFunction<
+        ffi.Int32 Function(ffi.Pointer<_LASTINPUTINFO>),
+        int Function(ffi.Pointer<_LASTINPUTINFO>)>('GetLastInputInfo');
+    final getTickCount = kernel32
+        .lookupFunction<ffi.Uint32 Function(), int Function()>('GetTickCount');
+    final info = pkg_ffi.calloc<_LASTINPUTINFO>();
+    info.ref.cbSize = ffi.sizeOf<_LASTINPUTINFO>();
+    final ok = getLastInputInfo(info);
+    if (ok == 0) {
+      pkg_ffi.calloc.free(info);
+      return true;
+    }
+    final idleMs = getTickCount() - info.ref.dwTime;
+    pkg_ffi.calloc.free(info);
+    return idleMs < 5000;
+  } catch (_) {
+    return true;
+  }
+}
+
+final class _LASTINPUTINFO extends ffi.Struct {
+  @ffi.Uint32()
+  external int cbSize;
+  @ffi.Uint32()
+  external int dwTime;
+}
 
 class _PopupState {
   final String id;
@@ -200,8 +235,9 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
           const Duration(milliseconds: 300),
           (timer) {
             if (!mounted) { timer.cancel(); return; }
-            if (_hasReceivedInput) {
+            if (_hasReceivedInput || _winHasRecentInput()) {
               timer.cancel();
+              _hasReceivedInput = true;
               _scheduleHideAfterWait(popup);
             }
           },
@@ -414,6 +450,8 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
         (isDark ? const Color(0xFF8899A6) : const Color(0xFF999999));
     final accentColor = palette?.windowBgActive ??
         (context.palette.windowBgActive);
+    final lightBtnBg = palette?.lightButtonBg ??
+        (isDark ? const Color(0xFF17212B) : Colors.white);
 
     final isRtl = Directionality.of(context) == TextDirection.rtl;
     final isLeftCorner = corner == NotificationCorner.topLeft ||
@@ -498,7 +536,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
           top: hideAllY,
           child: _HideAllButton(
             width: width,
-            bgColor: bgColor,
+            bgColor: lightBtnBg,
             borderColor: borderColor,
             accentColor: accentColor,
             onTap: _hideAll,
@@ -931,20 +969,19 @@ class _ReplyButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 28,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 23),
         decoration: BoxDecoration(
           color: accentColor,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(4),
         ),
         alignment: Alignment.center,
         child: const Text(
-          'REPLY',
+          'Reply',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 14,
             fontWeight: FontWeight.w600,
             color: Colors.white,
-            letterSpacing: 0.5,
           ),
         ),
       ),
