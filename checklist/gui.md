@@ -829,9 +829,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## message_bubble — reaction emoji overlay missing custom emoji tab
-- [ ] [MAJOR] `_ReactionEmojiOverlay` only shows standard Unicode emoji; there is no tab or section for premium custom emoji packs (fetched via `getAvailableReactions`/`getCustomEmojiStickers`). Users who have premium cannot set custom emoji reactions — `message_bubble.dart:1793`
-
 ## message_bubble — WebmEmojiPlayer temp file written per widget init with hash collision risk
 - [ ] [MAJOR] `_WebmEmojiPlayer._initPlayer` writes a temp file keyed on `widget.fileData.hashCode` every time the widget initializes — Dart's `hashCode` is not guaranteed unique, so two different emoji blobs can silently share the same temp file path; additionally temp files are never cleaned up, leading to unbounded temp dir growth — `message_bubble.dart:6617`
 
