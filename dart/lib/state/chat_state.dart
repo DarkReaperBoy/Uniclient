@@ -1649,6 +1649,11 @@ class ChatState extends ChangeNotifier {
   String? get pendingHighlightMsgId => _pendingHighlightMsgId;
   void clearPendingHighlight() { _pendingHighlightMsgId = null; }
 
+  void setHighlightMessage(String msgId) {
+    _pendingHighlightMsgId = msgId;
+    notifyListeners();
+  }
+
   Future<void> jumpToMessage(int timestampMs, {String? highlightMsgId}) async {
     final chat = _activeChat;
     if (chat == null) return;

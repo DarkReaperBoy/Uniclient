@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 import '../models/engine_models.dart';
@@ -71,7 +72,7 @@ const _kSaveToastFadeOut = Duration(milliseconds: 2500);
 const _kThumbStripHeight = 80.0;
 const _kThumbWidth = 56.0;
 const _kThumbWidthMax = 160.0;
-const _kThumbStripPaddingH = 14.0;
+const _kThumbStripPaddingH = 0.0;
 const _kThumbGap = 3.0;
 const _kThumbGapCurrent = 12.0;
 const _kThumbAnimDuration = Duration(milliseconds: 150);
@@ -90,6 +91,7 @@ const _kRadialBg = Color(0x54000000);
 const _kRadialFg = Color(0xFFFFFFFF);
 
 const _kChapterToastShowing = Duration(milliseconds: 200);
+const _kChapterToastHiding = Duration(milliseconds: 400);
 const _kChapterToastShown = Duration(milliseconds: 1500);
 
 class _VideoChapter {
@@ -382,6 +384,7 @@ class _MediaViewerState extends State<MediaViewer>
 
   Player? _player;
   VideoController? _videoController;
+  late List<CachedMessage> _mediaMessages;
   List<StreamSubscription> _playerSubs = [];
   bool _isPlaying = false;
   Duration _position = Duration.zero;
@@ -434,8 +437,9 @@ class _MediaViewerState extends State<MediaViewer>
   void initState() {
     super.initState();
     MediaViewer._activeInstance = this;
+    _mediaMessages = List.of(widget.mediaMessages);
     _focusNode = FocusNode();
-    _currentIndex = widget.mediaMessages.indexWhere(
+    _currentIndex = _mediaMessages.indexWhere(
       (m) => m.msgId == widget.initialMessage.msgId,
     );
     if (_currentIndex < 0) _currentIndex = 0;
@@ -480,7 +484,7 @@ class _MediaViewerState extends State<MediaViewer>
     );
     _chapterToastAnim = AnimationController(
       duration: _kChapterToastShowing,
-      reverseDuration: _kChapterToastShowing,
+      reverseDuration: _kChapterToastHiding,
       vsync: this,
     );
     _downloadsLinkRecognizer = TapGestureRecognizer()
@@ -544,11 +548,11 @@ class _MediaViewerState extends State<MediaViewer>
     }
   }
 
-  CachedMessage get _currentMessage => widget.mediaMessages[_currentIndex];
+  CachedMessage get _currentMessage => _mediaMessages[_currentIndex];
   bool get _isVideo => _currentMessage.mediaType == 2 || _currentMessage.mediaType == 5;
   bool get _isGif => _currentMessage.mediaType == 7;
   bool get _isDocument => _currentMessage.mediaType == 8 || _currentMessage.mediaType == 3;
-  bool get _hasStrip => widget.mediaMessages.length > 1;
+  bool get _hasStrip => _mediaMessages.length > 1;
   double get _stripOffset => _hasStrip ? _kThumbStripHeight + 28 : 0;
 
   bool get _isVideoNote => _currentMessage.mediaType == 5;
@@ -559,8 +563,8 @@ class _MediaViewerState extends State<MediaViewer>
       final prevIdx = _currentIndex + offset;
       final nextIdx = _currentIndex - offset;
       for (final idx in [prevIdx, nextIdx]) {
-        if (idx < 0 || idx >= widget.mediaMessages.length) continue;
-        final msg = widget.mediaMessages[idx];
+        if (idx < 0 || idx >= _mediaMessages.length) continue;
+        final msg = _mediaMessages[idx];
         if (msg.mediaLocalPath.isEmpty) continue;
         if (msg.mediaType == 2 || msg.mediaType == 5 || msg.mediaType == 7) continue;
         final file = File(msg.mediaLocalPath);
@@ -711,7 +715,7 @@ class _MediaViewerState extends State<MediaViewer>
     _lastChapterIndex = -1;
   }
 
-  bool get _hasPrev => _currentIndex < widget.mediaMessages.length - 1;
+  bool get _hasPrev => _currentIndex < _mediaMessages.length - 1;
   bool get _hasNext => _currentIndex > 0;
 
   void _goToPrev() {
@@ -742,7 +746,7 @@ class _MediaViewerState extends State<MediaViewer>
 
   void _goToIndex(int index) {
     if (index == _currentIndex) return;
-    if (index < 0 || index >= widget.mediaMessages.length) return;
+    if (index < 0 || index >= _mediaMessages.length) return;
     _disposePlayer();
     setState(() {
       _currentIndex = index;
@@ -755,9 +759,9 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   Widget _buildGalleryStrip() {
-    if (widget.mediaMessages.length <= 1) return const SizedBox.shrink();
+    if (_mediaMessages.length <= 1) return const SizedBox.shrink();
     return _GalleryThumbsStrip(
-      messages: widget.mediaMessages,
+      messages: _mediaMessages,
       currentIndex: _currentIndex,
       onTap: _goToIndex,
     );
@@ -942,7 +946,7 @@ class _MediaViewerState extends State<MediaViewer>
       videoController: vc,
       playerSubs: subs,
       message: _currentMessage,
-      mediaMessages: widget.mediaMessages,
+      mediaMessages: _mediaMessages,
       volume: _volume,
       playbackSpeed: _playbackSpeed,
       position: _position,
@@ -1304,8 +1308,8 @@ class _MediaViewerState extends State<MediaViewer>
 
   Widget _buildFullViewer(Size screenSize) {
     final msg = _currentMessage;
-    final photoIndex = widget.mediaMessages.length - _currentIndex;
-    final totalPhotos = widget.mediaMessages.length;
+    final photoIndex = _mediaMessages.length - _currentIndex;
+    final totalPhotos = _mediaMessages.length;
     final titleBarOffset = _showTitleBar ? _kTitleBarHeight : 0.0;
 
     final contentViewport = Size(
@@ -1586,8 +1590,8 @@ class _MediaViewerState extends State<MediaViewer>
 
   Widget _buildWindowedViewer(Size screenSize) {
     final msg = _currentMessage;
-    final photoIndex = widget.mediaMessages.length - _currentIndex;
-    final totalPhotos = widget.mediaMessages.length;
+    final photoIndex = _mediaMessages.length - _currentIndex;
+    final totalPhotos = _mediaMessages.length;
 
     final w = _windowedWidth.clamp(_kMinWidth, screenSize.width);
     final h = _windowedHeight.clamp(_kMinHeight, screenSize.height);
@@ -2319,6 +2323,7 @@ class _MediaViewerState extends State<MediaViewer>
   void _applyQualitySwitch(int seq, String path) {
     final savedPos = _position;
     final wasPlaying = _isPlaying;
+    final msg = _currentMessage;
     setState(() {
       _activeQualitySeq = seq;
       _qualityDownloading = false;
@@ -2335,10 +2340,34 @@ class _MediaViewerState extends State<MediaViewer>
         if (mounted) setState(() => _isPlaying = playing);
       }),
       player.stream.position.listen((pos) {
-        if (mounted && !_isSeeking) setState(() => _position = pos);
+        if (mounted && !_isSeeking) {
+          setState(() => _position = pos);
+          _detectChapterChange(pos);
+        }
       }),
       player.stream.duration.listen((dur) {
-        if (mounted) setState(() => _duration = dur);
+        if (mounted) {
+          setState(() => _duration = dur);
+          if (dur.inMilliseconds > 0 && _chapters.isEmpty) {
+            _chapters = _parseChapters(msg.contentText, dur.inMilliseconds);
+          }
+        }
+      }),
+      player.stream.completed.listen((completed) {
+        if (completed && msg.mediaType == 7) {
+          player.seek(Duration.zero);
+          player.play();
+        }
+      }),
+      player.stream.buffering.listen((buffering) {
+        if (mounted) {
+          setState(() => _isBuffering = buffering);
+          if (buffering) {
+            _bufferSpinCtrl.repeat();
+          } else {
+            _bufferSpinCtrl.stop();
+          }
+        }
       }),
     ];
     player.setVolume(_volume * 100.0);
@@ -2368,7 +2397,6 @@ class _MediaViewerState extends State<MediaViewer>
       child: Center(
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
-            constraints: const BoxConstraints(maxWidth: 480),
             height: 72,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
@@ -2751,8 +2779,16 @@ class _MediaViewerState extends State<MediaViewer>
         ? msg.mediaFileName
         : sourceFile.uri.pathSegments.last;
 
-    final dirPath = await FilePicker.platform.getDirectoryPath();
-    if (dirPath == null || !mounted) return;
+    Directory? downloadsDir;
+    try {
+      downloadsDir = await getDownloadsDirectory();
+    } catch (_) {}
+    if (downloadsDir == null) {
+      final dirPath = await FilePicker.platform.getDirectoryPath();
+      if (dirPath == null || !mounted) return;
+      downloadsDir = Directory(dirPath);
+    }
+    final dirPath = downloadsDir.path;
 
     var destPath = '$dirPath/$fileName';
     var counter = 1;
@@ -2841,7 +2877,7 @@ class _MediaViewerState extends State<MediaViewer>
             child: Opacity(
               opacity: _chapterToastAnim.value,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
                 decoration: BoxDecoration(
                   color: _kMediaviewSaveMsgBg,
                   borderRadius: BorderRadius.circular(8),
@@ -2856,7 +2892,7 @@ class _MediaViewerState extends State<MediaViewer>
                       ),
                     Text(
                       _chapterToastText,
-                      style: const TextStyle(color: _kMediaviewSaveMsgFg, fontSize: 14, fontWeight: FontWeight.w500),
+                      style: const TextStyle(color: _kMediaviewSaveMsgFg, fontSize: 15, fontWeight: FontWeight.w600),
                     ),
                     if (_chapterToastDirection > 0)
                       const Padding(
@@ -2934,15 +2970,15 @@ class _MediaViewerState extends State<MediaViewer>
               Navigator.of(ctx).pop();
               final chatState = context.read<ChatState>();
               chatState.deleteMessage(msg.msgId);
-              if (widget.mediaMessages.length <= 1) {
+              if (_mediaMessages.length <= 1) {
                 Navigator.of(context).pop();
               } else {
                 setState(() {
-                  final removedIdx = widget.mediaMessages.indexOf(msg);
+                  final removedIdx = _mediaMessages.indexOf(msg);
                   if (removedIdx >= 0) {
-                    widget.mediaMessages.removeAt(removedIdx);
-                    if (_currentIndex >= widget.mediaMessages.length) {
-                      _currentIndex = widget.mediaMessages.length - 1;
+                    _mediaMessages.removeAt(removedIdx);
+                    if (_currentIndex >= _mediaMessages.length) {
+                      _currentIndex = _mediaMessages.length - 1;
                     }
                   } else if (_currentIndex > 0) {
                     _currentIndex--;
@@ -3339,10 +3375,28 @@ class _MediaViewerState extends State<MediaViewer>
 
   void _recognizeText(CachedMessage msg) async {
     if (msg.mediaLocalPath.isEmpty) return;
-    final result = await Process.run('which', ['tesseract']);
-    if (result.exitCode != 0) {
-      if (mounted) showTelegramToast(context, 'Install tesseract-ocr for text recognition');
+    if (!Platform.isLinux && !Platform.isMacOS) {
+      if (mounted) showTelegramToast(context, 'Text recognition is not available on this platform');
       return;
+    }
+    String ocrCommand;
+    List<String> ocrArgs;
+    if (Platform.isLinux) {
+      final result = await Process.run('which', ['tesseract']);
+      if (result.exitCode != 0) {
+        if (mounted) showTelegramToast(context, 'Install tesseract-ocr for text recognition');
+        return;
+      }
+      ocrCommand = 'tesseract';
+      ocrArgs = [msg.mediaLocalPath, 'stdout', '--tsv'];
+    } else {
+      final result = await Process.run('which', ['tesseract']);
+      if (result.exitCode != 0) {
+        if (mounted) showTelegramToast(context, 'Install tesseract for text recognition (brew install tesseract)');
+        return;
+      }
+      ocrCommand = 'tesseract';
+      ocrArgs = [msg.mediaLocalPath, 'stdout', '--tsv'];
     }
     if (mounted) showTelegramToast(context, 'Recognizing text…');
     final imgFile = File(msg.mediaLocalPath);
@@ -3353,8 +3407,12 @@ class _MediaViewerState extends State<MediaViewer>
     frame.image.dispose();
     codec.dispose();
 
-    final ocr = await Process.run('tesseract', [msg.mediaLocalPath, 'stdout', '--tsv']);
+    final ocr = await Process.run(ocrCommand, ocrArgs);
     if (!mounted) return;
+    if (ocr.exitCode != 0) {
+      showTelegramToast(context, 'Text recognition failed');
+      return;
+    }
     final tsvOutput = (ocr.stdout as String).trim();
     if (tsvOutput.isEmpty) {
       showTelegramToast(context, 'No text found in image');
@@ -4561,8 +4619,10 @@ class _PipWidgetState extends State<PipOverlayWidget>
 
     _width = _kPipDefaultSize;
     _height = _kPipDefaultSize;
-    _x = 3 * _kPipBorderSkip; // 60px inner margin per spec
-    _y = 3 * _kPipBorderSkip;
+    final screen = WidgetsBinding.instance.platformDispatcher.views.first.physicalSize /
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+    _x = screen.width - _kPipDefaultSize - _kPipBorderSkip;
+    _y = screen.height - _kPipDefaultSize - _kPipBorderSkip;
 
     _isPlaying = widget.initialPlaying;
     _position = widget.initialPosition;
@@ -6425,6 +6485,7 @@ class _StoriesViewerState extends State<StoriesViewer>
   bool _leftSiblingHovered = false;
   bool _rightSiblingHovered = false;
   bool _muted = false;
+  double _storyVolume = 100.0;
   bool _playHovered = false;
   bool _volumeHovered = false;
   bool _closeHovered = false;
@@ -6641,10 +6702,7 @@ class _StoriesViewerState extends State<StoriesViewer>
     chatState.openChatById(channelId.toString());
     if (msgId > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        chatState.jumpToMessage(
-          DateTime.now().millisecondsSinceEpoch,
-          highlightMsgId: msgId.toString(),
-        );
+        chatState.setHighlightMessage(msgId.toString());
       });
     }
   }
@@ -6921,8 +6979,13 @@ class _StoriesViewerState extends State<StoriesViewer>
             _buildStoryControlButton(
               icon: _muted ? Icons.volume_off : Icons.volume_up,
               onTap: () {
-                setState(() => _muted = !_muted);
-                _videoPlayer?.setVolume(_muted ? 0.0 : 100.0);
+                setState(() {
+                  _muted = !_muted;
+                  if (_muted) {
+                    _storyVolume = 100.0;
+                  }
+                });
+                _videoPlayer?.setVolume(_muted ? 0.0 : _storyVolume);
               },
               hovered: _volumeHovered,
               onHover: (v) => setState(() => _volumeHovered = v),
@@ -7128,8 +7191,13 @@ class _StoriesViewerState extends State<StoriesViewer>
               _buildStoryControlButton(
                 icon: _muted ? Icons.volume_off : Icons.volume_up,
                 onTap: () {
-                  setState(() => _muted = !_muted);
-                  _videoPlayer?.setVolume(_muted ? 0.0 : 100.0);
+                  setState(() {
+                    _muted = !_muted;
+                    if (_muted) {
+                      _storyVolume = 100.0;
+                    }
+                  });
+                  _videoPlayer?.setVolume(_muted ? 0.0 : _storyVolume);
                 },
                 hovered: _volumeHovered,
                 onHover: (v) => setState(() => _volumeHovered = v),
@@ -8033,6 +8101,9 @@ class _StoryViewsListPopupState extends State<_StoryViewsListPopup> {
     final subtextColor = isDark ? Colors.white54 : Colors.black45;
 
     final displayCount = _viewers.isNotEmpty ? _viewers.length : widget.viewCount;
+    final screenSize = MediaQuery.sizeOf(context);
+    final rawBottom = screenSize.height - widget.position.dy + 8;
+    final clampedBottom = rawBottom.clamp(16.0, screenSize.height - _kMaxHeight - 16);
 
     return Stack(
       children: [
@@ -8041,8 +8112,8 @@ class _StoryViewsListPopupState extends State<_StoryViewsListPopup> {
           child: Container(color: Colors.transparent),
         ),
         Positioned(
-          left: widget.position.dx.clamp(16, MediaQuery.sizeOf(context).width - _kWidth - 16),
-          bottom: MediaQuery.sizeOf(context).height - widget.position.dy + 8,
+          left: widget.position.dx.clamp(16, screenSize.width - _kWidth - 16),
+          bottom: clampedBottom,
           child: Material(
             color: Colors.transparent,
             child: Container(
