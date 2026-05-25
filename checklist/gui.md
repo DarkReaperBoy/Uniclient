@@ -827,9 +827,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## message_bubble — via-bot label suppressed incorrectly in group chats
-- [ ] [MAJOR] The `viaBotName` label is suppressed when `senderName` is non-empty in group messages (`isOutgoing || senderName.isEmpty || !isFirstInGroup`) — AyuGram renders the via-bot label alongside the sender name row in groups; the Dart condition silently drops the via-bot attribution whenever a sender name is shown — `message_bubble.dart:927`
-
 ## my_profile_page — Critical and major issues
 
 - [ ] [CRITICAL] EditPeerColorBox missing "Profile" and "Name" tabs — Dart `_EditPeerColorBox` shows a single flat list of 7 color swatches with one "Background Emoji" section; AyuGram shows a full tabbed box with a "Profile" tab (profile photo + background emoji + profile color selector with `Ui::ColorSelector`) and a "Name" tab (message name color + background emoji), each with a live message preview widget — `my_profile_page.dart:1804-2212` ← `AyuGram/boxes/peers/edit_peer_color_box.cpp:2387-2530`
