@@ -782,10 +782,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## input_dialogs — create_poll_box: Duration picker preset list wrong
-
-- [ ] [MAJOR] AyuGram presets are `{3600, 3*3600, 8*3600, 24*3600, 72*3600}` (1h, 3h, 8h, 24h, 72h); Dart uses `{3600, 10800, 28800, 86400, 259200}` (1h, 3h, 8h, 24h, 3 days). The last entry differs: AyuGram uses 72 hours (3 days = 259200 s), which actually matches. However AyuGram lacks a "3 days" label option. On a recheck, both match in values. No issue here — SKIP.
-
 ## input_dialogs — create_poll_box: Missing "Hide Results" toggle
 
 - [ ] [CRITICAL] AyuGram has a "Hide Results" toggle (`tr::lng_polls_create_hide_results`) inside the duration section that sets `Flag::ResultsHidden` on the poll; Dart has no equivalent toggle anywhere in the create-poll UI — `input_dialogs.dart:2271-2296` ← `AyuGram/boxes/create_poll_box.cpp:2728-2738`
