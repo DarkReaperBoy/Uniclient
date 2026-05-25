@@ -6279,6 +6279,7 @@ class EngineService {
       pollCloseDate: _intFromExtra(extra, 'poll_close_date'),
       pollClosePeriod: _intFromExtra(extra, 'poll_close_period'),
       pollRecentVoters: _strListFromExtra(extra, 'poll_recent_voters'),
+      pollRecentVoterNames: _strListFromExtra(extra, 'poll_recent_voter_names'),
       geoLat: _doubleFromExtra(extra, 'geo_lat'),
       geoLong: _doubleFromExtra(extra, 'geo_long'),
       geoLive: _boolFromExtra(extra, 'geo_live'),

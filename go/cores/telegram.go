@@ -11259,14 +11259,19 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 			}
 			if rv, ok := res.GetRecentVoters(); ok && len(rv) > 0 {
 				voterIDs := make([]string, 0, len(rv))
+				voterNames := make([]string, 0, len(rv))
+				t.peerMu.RLock()
 				for _, p := range rv {
 					switch v := p.(type) {
 					case *tg.PeerUser:
 						voterIDs = append(voterIDs, fmt.Sprintf("%d", v.UserID))
+						voterNames = append(voterNames, t.userNames[v.UserID])
 					}
 				}
+				t.peerMu.RUnlock()
 				if len(voterIDs) > 0 {
 					m.Extra["poll_recent_voters"] = voterIDs
+					m.Extra["poll_recent_voter_names"] = voterNames
 				}
 			}
 

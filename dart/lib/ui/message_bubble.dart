@@ -8344,6 +8344,7 @@ class _PollWidgetState extends State<_PollWidget>
     final footerColor = isDark ? Colors.white54 : Colors.black45;
     final footerStyle = TextStyle(fontSize: 12, color: footerColor);
     final recentVoters = msg.pollRecentVoters;
+    final voterNames = msg.pollRecentVoterNames;
     final hasCountdown = _remainingSeconds > 0 && !msg.pollClosed;
 
     return Padding(
@@ -8374,10 +8375,11 @@ class _PollWidgetState extends State<_PollWidget>
                           ),
                         ),
                         child: Center(
-                          child: Icon(
-                            Icons.person,
-                            size: 12,
-                            color: Colors.white.withValues(alpha: 0.9),
+                          child: Text(
+                            i < voterNames.length && voterNames[i].isNotEmpty
+                                ? voterNames[i].characters.first.toUpperCase()
+                                : '?',
+                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white),
                           ),
                         ),
                       ),

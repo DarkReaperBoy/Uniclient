@@ -563,6 +563,7 @@ class CachedMessage {
   final int pollCloseDate;
   final int pollClosePeriod;
   final List<String> pollRecentVoters;
+  final List<String> pollRecentVoterNames;
 
   // Location data (extracted from contentRaw extra fields).
   final double geoLat;
@@ -712,6 +713,7 @@ class CachedMessage {
     this.pollCloseDate = 0,
     this.pollClosePeriod = 0,
     this.pollRecentVoters = const [],
+    this.pollRecentVoterNames = const [],
     this.geoLat = 0.0,
     this.geoLong = 0.0,
     this.geoLive = false,
@@ -838,6 +840,7 @@ class CachedMessage {
       pollCloseDate: _safeInt(extra['poll_close_date']),
       pollClosePeriod: _safeInt(extra['poll_close_period']),
       pollRecentVoters: (extra['poll_recent_voters'] as List<dynamic>?)?.cast<String>() ?? const [],
+      pollRecentVoterNames: (extra['poll_recent_voter_names'] as List<dynamic>?)?.cast<String>() ?? const [],
       geoLat: _safeDouble(extra['geo_lat']),
       geoLong: _safeDouble(extra['geo_long']),
       geoLive: extra['geo_live'] as bool? ?? false,
@@ -1103,6 +1106,7 @@ class CachedMessage {
     int? pollCloseDate,
     int? pollClosePeriod,
     List<String>? pollRecentVoters,
+    List<String>? pollRecentVoterNames,
     double? geoLat,
     double? geoLong,
     bool? geoLive,
@@ -1229,6 +1233,7 @@ class CachedMessage {
     pollCloseDate: pollCloseDate ?? this.pollCloseDate,
     pollClosePeriod: pollClosePeriod ?? this.pollClosePeriod,
     pollRecentVoters: pollRecentVoters ?? this.pollRecentVoters,
+    pollRecentVoterNames: pollRecentVoterNames ?? this.pollRecentVoterNames,
     geoLat: geoLat ?? this.geoLat,
     geoLong: geoLong ?? this.geoLong,
     geoLive: geoLive ?? this.geoLive,
