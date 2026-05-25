@@ -829,9 +829,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## message_bubble — poll recent voters avatar shows last char of ID string
-- [ ] [CRITICAL] `_ReactorAvatar` label text is `recentVoters[i].substring(recentVoters[i].length - 1)` — this takes the last character of a numeric ID string (e.g. "7" from "12345677"), not a name initial or actual avatar image — `message_bubble.dart:8317`
-
 ## message_bubble — kButtonExpandedHideDelay mismatch (0ms vs 300ms)
 - [ ] [MAJOR] When the reaction strip is expanded, AyuGram uses `kButtonExpandedHideDelay = 0ms` so the button hides immediately on mouse-leave; the Dart implementation always uses the 300ms hide delay regardless of expansion state — `message_bubble.dart:258` ← `history_view_reactions_button.cpp:43`
 
