@@ -829,9 +829,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## message_bubble — request_location inline button uses manual dialog, not GPS
-- [ ] [CRITICAL] The `request_location` inline keyboard button type opens a manual coordinate-entry dialog instead of requesting the device's GPS location — the result sent back is whatever the user types, not the actual device location — `message_bubble.dart:10297`
-
 ## message_bubble — tapping regular emoji reaction calls nothing
 - [ ] [CRITICAL] In `_ReactionList`, tapping a standard (non-custom) emoji reaction has `onTap: null` — the tap handler is only wired for custom emoji reactions. Regular emoji reactions cannot be toggled by the user — `message_bubble.dart:2150`
 
