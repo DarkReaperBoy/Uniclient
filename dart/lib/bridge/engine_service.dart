@@ -3395,8 +3395,8 @@ class EngineService {
     return data['msg_id'] as String? ?? '';
   }
 
-  Future<List<PublicLinkInfo>> getAdminedPublicChannels(String accountId) async {
-    final payload = utf8.encode(json.encode({'account_id': accountId}));
+  Future<List<PublicLinkInfo>> getAdminedPublicChannels(String accountId, {bool forPersonal = false}) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId, 'for_personal': forPersonal}));
     final resp = await _callAsync('__engine', 'GetAdminedPublicChannels', Uint8List.fromList(payload));
     if (resp.isEmpty) return [];
     final list = json.decode(utf8.decode(resp)) as List<dynamic>;
@@ -4229,11 +4229,12 @@ class EngineService {
     await _callAsync('__engine', 'UpdateProfile', Uint8List.fromList(payload));
   }
 
-  Future<void> updateNameColor(String accountId, int colorId, {int backgroundEmojiId = 0}) async {
+  Future<void> updateNameColor(String accountId, int colorId, {int backgroundEmojiId = 0, bool forProfile = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'color_id': colorId,
       if (backgroundEmojiId != 0) 'background_emoji_id': backgroundEmojiId,
+      if (forProfile) 'for_profile': true,
     }));
     await _callAsync('__engine', 'UpdateNameColor', Uint8List.fromList(payload));
   }

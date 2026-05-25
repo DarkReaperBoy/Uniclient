@@ -251,6 +251,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
         initialDay: _birthdayDay > 0 ? _birthdayDay : DateTime.now().day,
         initialMonth: _birthdayMonth > 0 ? _birthdayMonth : DateTime.now().month,
         initialYear: _birthdayYear > 0 ? _birthdayYear : 0,
+        hasExisting: _birthdayDay > 0 && _birthdayMonth > 0,
       ),
     );
     if (result == null || !mounted) return;
@@ -259,14 +260,26 @@ class _MyProfilePageState extends State<MyProfilePage> {
     if (account == null) return;
     final engine = context.read<EngineService>();
     try {
-      await engine.updateBirthday(account.id, result.day, result.month, result.year);
-      if (mounted) {
-        setState(() {
-          _birthdayDay = result.day;
-          _birthdayMonth = result.month;
-          _birthdayYear = result.year;
-        });
-        showTelegramToast(context, 'Birthday saved');
+      if (result.day == 0 && result.month == 0 && result.year == 0) {
+        await engine.updateBirthday(account.id, 0, 0, 0);
+        if (mounted) {
+          setState(() {
+            _birthdayDay = 0;
+            _birthdayMonth = 0;
+            _birthdayYear = 0;
+          });
+          showTelegramToast(context, 'Birthday removed');
+        }
+      } else {
+        await engine.updateBirthday(account.id, result.day, result.month, result.year);
+        if (mounted) {
+          setState(() {
+            _birthdayDay = result.day;
+            _birthdayMonth = result.month;
+            _birthdayYear = result.year;
+          });
+          showTelegramToast(context, 'Birthday saved');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -291,7 +304,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
   void _onBioChanged(String value) {
     final text = _bioController.text;
     final sel = _bioController.selection;
-    if (sel.isValid && sel.baseOffset == sel.extentOffset) {
+    final replaceEnabled = context.read<AppState>().chatReplaceEmojis;
+    if (replaceEnabled && sel.isValid && sel.baseOffset == sel.extentOffset) {
       final cursor = sel.baseOffset;
       for (final entry in _instantReplaces.entries) {
         final pat = entry.key;
@@ -1065,7 +1079,7 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
                     ),
                   ),
                 Positioned(
-                  right: 0,
+                  right: -6,
                   bottom: 0,
                   child: _UploadSubButton(
                     isDark: isDark,
@@ -1822,7 +1836,7 @@ class _EditPeerColorBox extends StatefulWidget {
   State<_EditPeerColorBox> createState() => _EditPeerColorBoxState();
 }
 
-class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
+class _EditPeerColorBoxState extends State<_EditPeerColorBox> with SingleTickerProviderStateMixin {
   late int _selected;
   bool _saving = false;
   List<PeerColorEntry>? _serverColors;
@@ -1832,6 +1846,10 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   Map<int, CustomEmojiThumbData> _emojiThumbs = {};
   bool _loadingEmojis = true;
   bool _showEmojiPicker = false;
+  late TabController _tabController;
+  int _profileColorId = -1;
+  int _profileEmojiId = 0;
+  bool _showProfileEmojiPicker = false;
 
   static const _fallbackColors = [
     Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
@@ -1843,8 +1861,19 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   void initState() {
     super.initState();
     _selected = widget.currentColorId;
+    _profileColorId = widget.currentColorId;
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) setState(() {});
+    });
     _loadColors();
     _loadBackgroundEmojis();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadColors() async {
@@ -1901,6 +1930,16 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
     return _fallbackColors[0];
   }
 
+  Color _profileColor() {
+    if (_serverColors != null) {
+      for (final c in _serverColors!) {
+        if (c.colorId == _profileColorId) return _colorForEntry(c);
+      }
+    }
+    if (_profileColorId >= 0 && _profileColorId < _fallbackColors.length) return _fallbackColors[_profileColorId];
+    return _fallbackColors[0];
+  }
+
   @override
   Widget build(BuildContext context) {
     final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
@@ -1913,6 +1952,8 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
         ? List.generate(7, (i) => (i, _fallbackColors[i]))
         : colors.map((c) => (c.colorId, _colorForEntry(c))).toList();
 
+    final isNameTab = _tabController.index == 0;
+
     return Dialog(
       backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1924,15 +1965,21 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Your Name Color',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                ),
+              TabBar(
+                controller: _tabController,
+                labelColor: accentColor,
+                unselectedLabelColor: subtextColor,
+                indicatorColor: accentColor,
+                indicatorSize: TabBarIndicatorSize.label,
+                labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+                dividerHeight: 0,
+                tabs: const [
+                  Tab(text: 'Name'),
+                  Tab(text: 'Profile'),
+                ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               if (_loadingColors)
                 Center(child: SizedBox(
                     width: 24, height: 24,
@@ -1943,9 +1990,16 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                   runSpacing: 8,
                   children: displayColors.map((entry) {
                     final (colorId, color) = entry;
-                    final isSelected = colorId == _selected;
+                    final currentId = isNameTab ? _selected : _profileColorId;
+                    final isSelected = colorId == currentId;
                     return GestureDetector(
-                      onTap: () => setState(() => _selected = colorId),
+                      onTap: () => setState(() {
+                        if (isNameTab) {
+                          _selected = colorId;
+                        } else {
+                          _profileColorId = colorId;
+                        }
+                      }),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
                         width: 44,
@@ -1979,65 +2033,67 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
               const SizedBox(height: 16),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: (widget.isDark
                       ? const Color(0xFF17212B)
                       : const Color(0xFFF5F5F5)),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: _selectedColor(),
-                        borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+                  decoration: BoxDecoration(
+                    color: widget.isDark
+                        ? const Color(0xFF182533)
+                        : Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(4),
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        offset: const Offset(0, 1),
                       ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'A',
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.userName.isNotEmpty ? widget.userName : 'Your Name',
                         style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isNameTab ? _selectedColor() : _profileColor(),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Hello! This is how your name color looks.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: textColor.withValues(alpha: 0.85),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.userName.isNotEmpty ? widget.userName : 'Your Name',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: _selectedColor(),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Hello! This is how your name color looks.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: textColor.withValues(alpha: 0.7),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
               InkWell(
                 onTap: _backgroundEmojiIds.isEmpty ? null : () {
-                  setState(() => _showEmojiPicker = !_showEmojiPicker);
+                  setState(() {
+                    if (isNameTab) {
+                      _showEmojiPicker = !_showEmojiPicker;
+                    } else {
+                      _showProfileEmojiPicker = !_showProfileEmojiPicker;
+                    }
+                  });
                 },
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
@@ -2060,20 +2116,20 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                         ),
                       ),
                       Text(
-                        _selectedEmojiId == 0 ? 'Off' : '•',
+                        (isNameTab ? _selectedEmojiId : _profileEmojiId) == 0 ? 'Off' : '•',
                         style: TextStyle(fontSize: 14, color: subtextColor),
                       ),
                       const SizedBox(width: 4),
                       Icon(
-                        _showEmojiPicker ? Icons.expand_less : Icons.expand_more,
+                        (isNameTab ? _showEmojiPicker : _showProfileEmojiPicker) ? Icons.expand_less : Icons.expand_more,
                         size: 20, color: subtextColor,
                       ),
                     ],
                   ),
                 ),
               ),
-              if (_showEmojiPicker && _backgroundEmojiIds.isNotEmpty)
-                _buildEmojiGrid(accentColor, textColor),
+              if ((isNameTab ? _showEmojiPicker : _showProfileEmojiPicker) && _backgroundEmojiIds.isNotEmpty)
+                _buildEmojiGrid(accentColor, textColor, forProfile: !isNameTab),
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -2101,7 +2157,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
     );
   }
 
-  Widget _buildEmojiGrid(Color accentColor, Color textColor) {
+  Widget _buildEmojiGrid(Color accentColor, Color textColor, {bool forProfile = false}) {
     final subtextColor = widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     return Padding(
       padding: const EdgeInsets.only(top: 8),
@@ -2110,12 +2166,18 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
-            onTap: () => setState(() => _selectedEmojiId = 0),
+            onTap: () => setState(() {
+              if (forProfile) {
+                _profileEmojiId = 0;
+              } else {
+                _selectedEmojiId = 0;
+              }
+            }),
             borderRadius: BorderRadius.circular(8),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
-                color: _selectedEmojiId == 0
+                color: (forProfile ? _profileEmojiId : _selectedEmojiId) == 0
                     ? accentColor.withValues(alpha: 0.15)
                     : null,
                 borderRadius: BorderRadius.circular(8),
@@ -2140,10 +2202,17 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
                       spacing: 6,
                       runSpacing: 6,
                       children: _backgroundEmojiIds.take(50).map((emojiId) {
-                        final isSelected = emojiId == _selectedEmojiId;
+                        final currentEmojiId = forProfile ? _profileEmojiId : _selectedEmojiId;
+                        final isSelected = emojiId == currentEmojiId;
                         final thumb = _emojiThumbs[emojiId];
                         return GestureDetector(
-                          onTap: () => setState(() => _selectedEmojiId = emojiId),
+                          onTap: () => setState(() {
+                            if (forProfile) {
+                              _profileEmojiId = emojiId;
+                            } else {
+                              _selectedEmojiId = emojiId;
+                            }
+                          }),
                           child: Container(
                             width: 36,
                             height: 36,
@@ -2200,6 +2269,9 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
     try {
       final engine = context.read<EngineService>();
       await engine.updateNameColor(widget.accountId, _selected, backgroundEmojiId: _selectedEmojiId);
+      if (_profileColorId != widget.currentColorId || _profileEmojiId != 0) {
+        await engine.updateNameColor(widget.accountId, _profileColorId, backgroundEmojiId: _profileEmojiId, forProfile: true);
+      }
       widget.onColorSaved(_selected);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -2893,34 +2965,9 @@ class _AddAccountButton extends StatelessWidget {
   void _showAddAccountDialog(BuildContext context) {
     final appState = context.read<AppState>();
     final authState = context.read<AuthState>();
-    showDialog(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Add Account'),
-        children: [
-          for (final p in [
-            ('telegram', 'Telegram'),
-            ('matrix', 'Matrix'),
-            ('xmpp', 'XMPP'),
-            ('irc', 'IRC'),
-            ('bale', 'Bale'),
-            ('rubika', 'Rubika'),
-            ('deltachat', 'Delta Chat'),
-            ('mumble', 'Mumble'),
-            ('teamspeak', 'TeamSpeak'),
-          ])
-            SimpleDialogOption(
-              child: Text(p.$2),
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                Navigator.of(context).pop();
-                final id = appState.addAccount(p.$1);
-                authState.startAuth(id);
-              },
-            ),
-        ],
-      ),
-    );
+    Navigator.of(context).pop();
+    final id = appState.addAccount('telegram');
+    authState.startAuth(id);
   }
 }
 
@@ -2956,7 +3003,7 @@ class _PersonalChannelSelectorState extends State<_PersonalChannelSelector> {
     try {
       final engine = context.read<EngineService>();
       final appState = context.read<AppState>();
-      final channels = await engine.getAdminedPublicChannels(appState.activeAccountId);
+      final channels = await engine.getAdminedPublicChannels(appState.activeAccountId, forPersonal: true);
       if (mounted) setState(() { _channels = channels; _loading = false; });
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
@@ -3099,8 +3146,19 @@ class _PersonalChannelSelectorState extends State<_PersonalChannelSelector> {
                 ),
               const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (widget.hasChannel)
+                    TextButton(
+                      onPressed: () {
+                        final engine = context.read<EngineService>();
+                        final appState = context.read<AppState>();
+                        engine.clearPersonalChannel(appState.activeAccountId);
+                        widget.onChannelChanged?.call('');
+                        Navigator.of(context).pop();
+                        showTelegramToast(context, 'Personal channel removed');
+                      },
+                      child: Text('Remove', style: TextStyle(color: Colors.red[400])),
+                    ),
                   const Spacer(),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
@@ -3120,11 +3178,13 @@ class _BirthdayDrumPickerDialog extends StatefulWidget {
   final int initialDay;
   final int initialMonth;
   final int initialYear;
+  final bool hasExisting;
 
   const _BirthdayDrumPickerDialog({
     required this.initialDay,
     required this.initialMonth,
     this.initialYear = 0,
+    this.hasExisting = false,
   });
 
   @override
@@ -3132,7 +3192,7 @@ class _BirthdayDrumPickerDialog extends StatefulWidget {
 }
 
 class _BirthdayDrumPickerDialogState extends State<_BirthdayDrumPickerDialog> {
-  static const _minYear = 1900;
+  static const _minYear = 1875;
   static const _monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
@@ -3262,8 +3322,15 @@ class _BirthdayDrumPickerDialogState extends State<_BirthdayDrumPickerDialog> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    if (widget.hasExisting)
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(
+                          (day: 0, month: 0, year: 0),
+                        ),
+                        child: Text('Remove', style: TextStyle(color: Colors.red[400])),
+                      ),
+                    const Spacer(),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
                       child: Text('Cancel', style: TextStyle(color: subtextColor)),

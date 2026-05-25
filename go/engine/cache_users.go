@@ -1167,10 +1167,10 @@ func (e *Engine) GetSelfColorAndChannel(accountID string) (int, string, error) {
 }
 
 type nameColorUpdater interface {
-	UpdateNameColor(colorID int, backgroundEmojiID int64) error
+	UpdateNameColor(colorID int, backgroundEmojiID int64, forProfile bool) error
 }
 
-func (e *Engine) UpdateNameColor(accountID string, colorID int, backgroundEmojiID int64) error {
+func (e *Engine) UpdateNameColor(accountID string, colorID int, backgroundEmojiID int64, forProfile bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account %q not connected", accountID)
@@ -1179,7 +1179,7 @@ func (e *Engine) UpdateNameColor(accountID string, colorID int, backgroundEmojiI
 	if !ok {
 		return fmt.Errorf("platform does not support name color update")
 	}
-	return u.UpdateNameColor(colorID, backgroundEmojiID)
+	return u.UpdateNameColor(colorID, backgroundEmojiID, forProfile)
 }
 
 type backgroundEmojiLister interface {

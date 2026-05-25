@@ -1970,12 +1970,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "GetAdminedPublicChannels":
 		var params struct {
-			AccountID string `json:"account_id"`
+			AccountID   string `json:"account_id"`
+			ForPersonal bool   `json:"for_personal"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		channels, err := e.GetAdminedPublicChannels(params.AccountID)
+		channels, err := e.GetAdminedPublicChannelsFiltered(params.AccountID, params.ForPersonal)
 		if err != nil {
 			return nil, err
 		}
@@ -3484,11 +3485,12 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			AccountID         string `json:"account_id"`
 			ColorID           int    `json:"color_id"`
 			BackgroundEmojiID int64  `json:"background_emoji_id"`
+			ForProfile        bool   `json:"for_profile"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		return nil, e.UpdateNameColor(params.AccountID, params.ColorID, params.BackgroundEmojiID)
+		return nil, e.UpdateNameColor(params.AccountID, params.ColorID, params.BackgroundEmojiID, params.ForProfile)
 
 	case "GetBackgroundEmojiList":
 		var params struct {

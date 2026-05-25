@@ -1345,6 +1345,37 @@ func (e *Engine) GetAdminedPublicChannels(accountID string) ([]PublicLinkInfo, e
 	return result, nil
 }
 
+func (e *Engine) GetAdminedPublicChannelsFiltered(accountID string, forPersonal bool) ([]PublicLinkInfo, error) {
+	if !forPersonal {
+		return e.GetAdminedPublicChannels(accountID)
+	}
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type provider interface {
+		GetAdminedPublicChannelsForPersonal() ([]cores.Dialog, error)
+	}
+	p, ok := acc.Core.(provider)
+	if !ok {
+		return e.GetAdminedPublicChannels(accountID)
+	}
+	dialogs, err := p.GetAdminedPublicChannelsForPersonal()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]PublicLinkInfo, 0, len(dialogs))
+	for _, d := range dialogs {
+		result = append(result, PublicLinkInfo{
+			ChatID:    d.ID,
+			Title:     d.Title,
+			Username:  d.LinkedChatId,
+			AvatarB64: d.AvatarB64,
+		})
+	}
+	return result, nil
+}
+
 type ChatPermissionFlags struct {
 	SlowmodeSeconds      int    `json:"slowmode_seconds"`
 	JoinToSend           bool   `json:"join_to_send"`
