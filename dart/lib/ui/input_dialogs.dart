@@ -184,6 +184,12 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     return true;
   }
 
+  static bool _startsWithDigit(String name) {
+    if (name.isEmpty) return false;
+    final c = name.codeUnitAt(0);
+    return c >= 0x30 && c <= 0x39;
+  }
+
   String _cleanUsername(String raw) {
     final trimmed = raw.trim();
     if (trimmed.startsWith('@')) return trimmed.substring(1);
@@ -227,6 +233,16 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     if (username.length > 32) {
       setState(() {
         _statusText = 'Username is too long';
+        _purchaseUsername = null;
+        _isValid = false;
+        _checking = false;
+      });
+      return;
+    }
+
+    if (_startsWithDigit(username)) {
+      setState(() {
+        _statusText = 'Sorry, this username is invalid';
         _purchaseUsername = null;
         _isValid = false;
         _checking = false;
