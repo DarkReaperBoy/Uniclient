@@ -3777,11 +3777,13 @@ class _ChatViewState extends State<ChatView>
   Future<void> _fetchEmojiKeywordsForLangs(String accountId) async {
     final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
-    final langs = <String>{};
-    langs.add(appState.selectedLanguageCode);
+    final localLangs = <String>{};
+    localLangs.add(appState.selectedLanguageCode);
     final systemLocale = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
-    langs.add(systemLocale);
-    langs.add('en');
+    localLangs.add(systemLocale);
+    localLangs.add('en');
+
+    final langs = await engine.getEmojiKeywordsLanguages(accountId, localLangs.toList());
 
     for (final lang in langs) {
       try {

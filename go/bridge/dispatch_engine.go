@@ -2749,6 +2749,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(result)
 
+	case "GetEmojiKeywordsLanguages":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			LangCodes []string `json:"lang_codes"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetEmojiKeywordsLanguages(params.AccountID, params.LangCodes)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
 	case "GetInstalledEmojiSets":
 		var req pb.EngineGetInstalledEmojiSetsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

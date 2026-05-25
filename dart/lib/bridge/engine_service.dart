@@ -1354,6 +1354,25 @@ class EngineService {
     }
   }
 
+  Future<List<String>> getEmojiKeywordsLanguages(String accountId, List<String> langCodes) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'lang_codes': langCodes,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetEmojiKeywordsLanguages', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return langCodes;
+      final data = json.decode(utf8.decode(respBytes));
+      if (data is List) {
+        return data.cast<String>();
+      }
+      return langCodes;
+    } catch (e) {
+      Debug.error('ENGINE', 'getEmojiKeywordsLanguages failed', e);
+      return langCodes;
+    }
+  }
+
   Future<void> sendSticker(String accountId, String chatId, String stickerId, {bool silent = false, int scheduleDate = 0}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

@@ -2313,3 +2313,41 @@ func (e *Engine) GetEmojiKeywordsDifference(accountID, langCode string, fromVers
 	}
 	return result, nil
 }
+
+func (e *Engine) GetEmojiKeywordsLanguages(accountID string, langCodes []string) ([]string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type emojiKeywordsLangsFetcher interface {
+		MessagesGetEmojiKeywordsLanguages(langcodes []string) (interface{}, error)
+	}
+	fetcher, ok := acc.Core.(emojiKeywordsLangsFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support emoji keywords languages")
+	}
+	raw, err := fetcher.MessagesGetEmojiKeywordsLanguages(langCodes)
+	if err != nil {
+		return nil, err
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize emoji keyword languages: %w", err)
+	}
+	var langs []struct {
+		LangCode string `json:"LangCode"`
+	}
+	if err := json.Unmarshal(b, &langs); err != nil {
+		return nil, fmt.Errorf("failed to parse emoji keyword languages: %w", err)
+	}
+	result := make([]string, 0, len(langs))
+	for _, l := range langs {
+		if l.LangCode != "" {
+			result = append(result, l.LangCode)
+		}
+	}
+	return result, nil
+}

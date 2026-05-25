@@ -23767,7 +23767,7 @@ func (t *TelegramCore) MessagesGetEmojiKeywordsDifference(langCode string, fromV
 }
 
 // MessagesGetEmojiKeywordsLanguages returns available languages for emoji keywords.
-func (t *TelegramCore) MessagesGetEmojiKeywordsLanguages(langcodes []string) ([]tg.EmojiLanguage, error) {
+func (t *TelegramCore) MessagesGetEmojiKeywordsLanguages(langcodes []string) (interface{}, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return nil, ErrAuth }
 	return t.api.MessagesGetEmojiKeywordsLanguages(t.ctx, langcodes)
