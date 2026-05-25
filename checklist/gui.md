@@ -820,29 +820,7 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 # instant_view — Audit findings
 
-- [ ] [CRITICAL] Generic embed block renders a static link card instead of actual iframe content — non-YouTube/Vimeo/Twitter/SoundCloud embeds (Instagram, TikTok, Reddit posts, etc.) display zero content — `instant_view.dart:2431` (`_buildGenericEmbed` called as fallback) ← `iv/iv_prepare.cpp:672` (`tag("iframe", attributes)` — AyuGram renders a real `<iframe>` via WebView for every embed type)
-
-- [ ] [MAJOR] Map block fetches tiles directly from `https://tile.openstreetmap.org/…` exposing OSM requests from the client — AyuGram routes maps through a Telegram-served resource URL (`resource("map/" + GeoPointId …)`) which is downloaded by the engine, not the UI — `instant_view.dart:1534` ← `iv/iv_prepare.cpp:1233-1238` (`QByteArray Parser::mapUrl(…)` returns a `/map/…` resource path served by the data handler)
-
-# keyboard_shortcuts — Shortcut bindings and overlay state machine
-
-- [ ] [CRITICAL] Pinned-chat default bindings use `alt+1–8` but AyuGram binds `ctrl+1–8` (same keys as folder shortcuts — both commands fire from the same Ctrl+N press via multi-command dispatch) — `keyboard_shortcuts.dart:946-968` ← `AyuGram/core/shortcuts.cpp:502-509`
-
-- [ ] [CRITICAL] `recordVoice` default binding is `ctrl+shift+r` but AyuGram binds it to plain `ctrl+r` (identical key as `readChat`; both commands are registered to the same QAction so pressing Ctrl+R dispatches both — Dart separates them with different modifiers, making the key collision behavior unreachable) — `keyboard_shortcuts.dart:880-882` ← `AyuGram/core/shortcuts.cpp:527,532`
-
-- [ ] [CRITICAL] `MediaViewerFullscreen` command entirely absent — no enum value, no scope entry, no default binding, no handler. AyuGram exposes `media_viewer_video_fullscreen` as a user-customisable command — `keyboard_shortcuts.dart:24-101` ← `AyuGram/core/shortcuts.h:78` and `AyuGram/core/shortcuts.cpp:135,159`
-
-- [ ] [MAJOR] Chat-switch overlay lacks the full AyuGram state machine. AyuGram tracks `ChatSwitchStarted`/`ChatSwitchModifier`, installs an event filter while the overlay is active, and emits navigation events for Arrow keys, Q, Enter (confirm), and Escape (cancel) while Ctrl is held. Dart just fires a one-shot `showChatSwitchRequest` call with no overlay-active guard, no navigation-while-held keys, and no cancel/confirm path — `keyboard_shortcuts.dart:1130-1137` ← `AyuGram/core/shortcuts.cpp:813-974`
-
-# language_box — Language selection not applied; engine prefs dead code; visual toggle mismatch
-
-- [ ] [CRITICAL] Language selection never applies the language change — `_selectLanguage` at `language_box.dart:210-215` only calls `appState.addRecentLanguage(langCode)` and saves prefs, but never calls any engine method to actually switch the Telegram interface language. AyuGram calls `Lang::CurrentCloudManager().switchToLanguage(language)` on every selection (`language_box.cpp:1387`). There is no `SetLanguage`/`SwitchLanguage` method in the Go engine (`go/engine/cache_users.go:2236` has `GetLanguages` but no setter). The box appears fully functional but selecting a language changes nothing in the Telegram session.
-
-- [ ] [MAJOR] `engine.saveLanguagePrefs` is dead code — `_persistLanguagePrefs` at `language_box.dart:221` calls `engine.saveLanguagePrefs(accountId, {'selectedLanguage': ..., ...})` on every language action, but `engine.loadLanguagePrefs` is never called anywhere in the Dart codebase. The engine just writes raw JSON to `language_prefs.json` (`go/engine/cache_users.go:2262-2269`) and no code ever reads it back. Additionally the key used to save is `'selectedLanguage'` while `app_state.dart:3275` loads using `'selectedLanguageCode'` — a latent key mismatch if `loadLanguagePrefs` is ever wired up.
-
-- [ ] [MAJOR] `_SkipLanguagesEditor` uses Material `Switch` widget but AyuGram uses `SettingsButton` toggle-circle style — `language_box.dart:1084-1089` renders a pill-shaped `Switch`, while AyuGram's `ChooseLanguageBox` uses a `Row` class that inherits `SettingsButton` and calls `paintToggle` (a filled circle, not a pill) at `choose_language_box.cpp:179`. The visual appearance differs substantially — circle-fill checkbox vs Material switch toggle.
-
-- [ ] [MAJOR] `_SkipLanguagesEditor._sortedFilteredLangs()` doesn't move the current UI language to front before partitioning — `language_box.dart:935-960` partitions selected languages first, but AyuGram's `ChooseLanguageBox` at `choose_language_box.cpp:287-294` first reorders the current locale language to index 0 via `base::reorder(list, …, 0)`, then stable-partitions selected languages. If the current language is not in the "skip" set, AyuGram still pins it to the top of the unselected group; the Dart version does not.
+- [ ] [MAJOR] Map block fetches tiles directly from `https://tile.openstreetmap.org/…` exposing OSM requests from the client — AyuGram routes maps through a Telegram-served resource URL (`resource("map/" + GeoPointId …)`) which is downloaded by the engine, not the UI — `instant_view.dart:1534` ← `iv/iv_prepare.cpp:1233-1238` (`QByteArray Parser::mapUrl(…)` returns a `/map/…` resource path served by the data handler). NOTE: Go engine now proxies OSM tiles but (a) still uses OSM instead of Telegram's static map resource, and (b) fallback at `instant_view.dart:2782` still makes direct `Image.network` calls to `tile.openstreetmap.org` from the Flutter client when engine fails.
 
 ## media_viewer — audit against AyuGram Desktop source
 
