@@ -293,6 +293,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     final stripSize = renderBox.size;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final accountId = context.read<AppState>().activeAccountId;
     final overlay = Overlay.of(context);
     late OverlayEntry entry;
     entry = OverlayEntry(builder: (ctx) {
@@ -301,6 +302,7 @@ class _MessageBubbleState extends State<MessageBubble> {
         stripSize: stripSize,
         isDark: isDark,
         availableReactions: _availableReactions,
+        accountId: accountId,
         onPick: (emoji) {
           entry.remove();
           _onReactionTap(emoji);
@@ -884,7 +886,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Sender name + admin badge: only on first message of group (in groups, for incoming).
+                    // Sender name + admin badge + via-bot: only on first message of group (in groups, for incoming).
                     if (isGroupChat && !isOutgoing && message.senderName.isNotEmpty && isFirstInGroup)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
@@ -913,6 +915,24 @@ class _MessageBubbleState extends State<MessageBubble> {
                                       color: _senderColor(message.senderId, palette: palette, isDark: isDark).withValues(alpha: 0.6),
                                     ),
                                   ),
+                                if (message.viaBotName.isNotEmpty && message.forwardFrom.isEmpty) ...[
+                                  TextSpan(
+                                    text: ' via ',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w400,
+                                      color: palette.msgInDateFg,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: '@${message.viaBotName}',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: palette.msgInServiceFg,
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -930,9 +950,10 @@ class _MessageBubbleState extends State<MessageBubble> {
                           topicId: message.topicId,
                         ),
                       ),
-                    // Via-bot label: "via @botname" — spec §5, shown if no sender name shown and no forward header.
+                    // Via-bot label shown standalone only when sender name is NOT shown.
                     if (message.viaBotName.isNotEmpty &&
-                        message.forwardFrom.isEmpty)
+                        message.forwardFrom.isEmpty &&
+                        !(isGroupChat && !isOutgoing && message.senderName.isNotEmpty && isFirstInGroup))
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
                         child: Text.rich(
@@ -947,7 +968,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                                 ),
                               ),
                               TextSpan(
-                                text: message.viaBotName,
+                                text: '@${message.viaBotName}',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -1769,6 +1790,7 @@ class _ReactionEmojiOverlay extends StatefulWidget {
   final ValueChanged<String> onPick;
   final VoidCallback onDismiss;
   final List<String> availableReactions;
+  final String accountId;
 
   const _ReactionEmojiOverlay({
     required this.stripOffset,
@@ -1777,6 +1799,7 @@ class _ReactionEmojiOverlay extends StatefulWidget {
     required this.onPick,
     required this.onDismiss,
     this.availableReactions = const [],
+    this.accountId = '',
   });
 
   @override
@@ -1790,6 +1813,9 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
   final _scrollController = ScrollController();
   late final AnimationController _animController;
   late final CurvedAnimation _anim;
+  int _tabIndex = 0; // 0 = emoji, 1 = custom
+  List<_CustomEmojiItem>? _customEmoji;
+  bool _loadingCustom = false;
 
   static const _panelWidth = 345.0;
   static const _panelMaxHeight = 360.0;
@@ -1840,6 +1866,38 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
     final results = searchEmoji(_search, limit: all.length);
     final matched = results.map((e) => e.emoji).toSet();
     return all.where((e) => matched.contains(e)).toList();
+  }
+
+  void _loadCustomEmoji() {
+    if (_loadingCustom || _customEmoji != null) return;
+    if (widget.accountId.isEmpty) return;
+    _loadingCustom = true;
+    try {
+      final engine = context.read<EngineService>();
+      engine.getInstalledEmojiSets(widget.accountId).then((sets) {
+        if (!mounted) return;
+        final items = <_CustomEmojiItem>[];
+        for (final set in sets) {
+          for (final sticker in set.stickers) {
+            if (sticker.emoji.isNotEmpty) {
+              items.add(_CustomEmojiItem(
+                emoji: sticker.emoji,
+                thumbB64: sticker.thumbB64,
+                setTitle: set.title,
+              ));
+            }
+          }
+        }
+        setState(() {
+          _customEmoji = items;
+          _loadingCustom = false;
+        });
+      }).catchError((_) {
+        if (mounted) setState(() => _loadingCustom = false);
+      });
+    } catch (_) {
+      _loadingCustom = false;
+    }
   }
 
   @override
@@ -1903,88 +1961,62 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
-                      child: Container(
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: searchBg,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 10),
-                            Icon(Icons.search,
-                                size: 18,
-                                color: ep.windowSubTextFg),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: TextField(
-                                controller: _searchController,
-                                style: TextStyle(
-                                    fontSize: 13, color: textColor),
-                                decoration: InputDecoration(
-                                  hintText: 'Search emoji',
-                                  hintStyle: TextStyle(
-                                    fontSize: 13,
-                                    color: ep.windowSubTextFg,
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+                      child: Row(
+                        children: [
+                          _tabButton('😀', 0, ep),
+                          const SizedBox(width: 2),
+                          _tabButton('⭐', 1, ep),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Container(
+                              height: 30,
+                              decoration: BoxDecoration(
+                                color: searchBg,
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              child: Row(
+                                children: [
+                                  const SizedBox(width: 8),
+                                  Icon(Icons.search, size: 16, color: ep.windowSubTextFg),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _searchController,
+                                      style: TextStyle(fontSize: 13, color: textColor),
+                                      decoration: InputDecoration(
+                                        hintText: _tabIndex == 0 ? 'Search emoji' : 'Search stickers',
+                                        hintStyle: TextStyle(fontSize: 13, color: ep.windowSubTextFg),
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                      ),
+                                      onChanged: (v) => setState(() => _search = v),
+                                    ),
                                   ),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding:
-                                      const EdgeInsets.symmetric(
-                                          vertical: 8),
-                                ),
-                                onChanged: (v) =>
-                                    setState(() => _search = v),
+                                  if (_search.isNotEmpty)
+                                    GestureDetector(
+                                      onTap: () {
+                                        _searchController.clear();
+                                        setState(() => _search = '');
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                                        child: Icon(Icons.close, size: 14, color: ep.windowSubTextFg),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                            if (_search.isNotEmpty)
-                              GestureDetector(
-                                onTap: () {
-                                  _searchController.clear();
-                                  setState(() => _search = '');
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8),
-                                  child: Icon(Icons.close,
-                                      size: 16,
-                                      color: ep.windowSubTextFg),
-                                ),
-                              ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 4),
                     Flexible(
-                      child: GridView.builder(
-                        controller: _scrollController,
-                        padding:
-                            const EdgeInsets.all(_gridPadding),
-                        gridDelegate:
-                            SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: cols,
-                          childAspectRatio: 1,
-                        ),
-                        itemCount: emojis.length,
-                        itemBuilder: (context, i) {
-                          return GestureDetector(
-                            onTap: () =>
-                                widget.onPick(emojis[i]),
-                            child: MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              child: Center(
-                                child: Text(
-                                  emojis[i],
-                                  style: const TextStyle(
-                                      fontSize: 28),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                      child: _tabIndex == 0
+                          ? _buildEmojiGrid(emojis, cols)
+                          : _buildCustomEmojiGrid(cols, ep),
                     ),
                   ],
                 ),
@@ -1995,6 +2027,113 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
       ],
     );
   }
+
+  Widget _tabButton(String label, int index, dynamic ep) {
+    final active = _tabIndex == index;
+    return GestureDetector(
+      onTap: () {
+        setState(() => _tabIndex = index);
+        if (index == 1) _loadCustomEmoji();
+      },
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          width: 32,
+          height: 30,
+          decoration: BoxDecoration(
+            color: active ? ep.windowBgActive.withValues(alpha: 0.15) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          alignment: Alignment.center,
+          child: Text(label, style: const TextStyle(fontSize: 18)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmojiGrid(List<String> emojis, int cols) {
+    return GridView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(_gridPadding),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: cols,
+        childAspectRatio: 1,
+      ),
+      itemCount: emojis.length,
+      itemBuilder: (context, i) {
+        return GestureDetector(
+          onTap: () => widget.onPick(emojis[i]),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Center(
+              child: Text(emojis[i], style: const TextStyle(fontSize: 28)),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCustomEmojiGrid(int cols, dynamic ep) {
+    if (_loadingCustom) {
+      return const Center(child: Padding(
+        padding: EdgeInsets.all(16),
+        child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+      ));
+    }
+    final items = _customEmoji;
+    if (items == null || items.isEmpty) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text('No custom emoji installed',
+            style: TextStyle(fontSize: 13, color: ep.windowSubTextFg)),
+      ));
+    }
+    final filtered = _search.isEmpty
+        ? items
+        : items.where((e) => e.emoji.contains(_search) || e.setTitle.toLowerCase().contains(_search.toLowerCase())).toList();
+    return GridView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(_gridPadding),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: cols,
+        childAspectRatio: 1,
+      ),
+      itemCount: filtered.length,
+      itemBuilder: (context, i) {
+        final item = filtered[i];
+        Widget content;
+        if (item.thumbB64.isNotEmpty) {
+          try {
+            final bytes = base64Decode(item.thumbB64);
+            content = Image.memory(bytes, width: 28, height: 28, fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Text(item.emoji, style: const TextStyle(fontSize: 28)));
+          } catch (_) {
+            content = Text(item.emoji, style: const TextStyle(fontSize: 28));
+          }
+        } else {
+          content = Text(item.emoji, style: const TextStyle(fontSize: 28));
+        }
+        return Tooltip(
+          message: item.setTitle,
+          child: GestureDetector(
+            onTap: () => widget.onPick(item.emoji),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Center(child: content),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CustomEmojiItem {
+  final String emoji;
+  final String thumbB64;
+  final String setTitle;
+  const _CustomEmojiItem({required this.emoji, this.thumbB64 = '', this.setTitle = ''});
 }
 
 class _ReactionList extends StatelessWidget {
@@ -2028,11 +2167,12 @@ class _ReactionList extends StatelessWidget {
       children: [
         for (final r in reactions)
           GestureDetector(
-            onTap: r.isCustomEmoji
+            onTap: onToggleReaction != null
+                ? () => onToggleReaction!(r.emoji)
+                : null,
+            onLongPress: r.isCustomEmoji
                 ? () => _showCustomEmojiPreview(context, r)
-                : onToggleReaction != null
-                    ? () => onToggleReaction!(r.emoji)
-                    : null,
+                : null,
             child: Container(
               key: reactionKeys[r.isCustomEmoji ? 'custom_${r.documentId}' : r.emoji],
               height: 22,
@@ -3268,7 +3408,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
         ? (_MessageBubbleState._baseMaxWidth * wm).roundToDouble()
         : _MessageBubbleState._baseMaxWidth;
     final bool isGif = message.mediaType == 7;
-    final double maxW = isGif ? math.min(320.0, baseMax) : baseMax;
+    final double maxW = baseMax;
     final double maxH = isGif ? 1080.0 : baseMax;
     double displayWidth = maxW;
     double displayHeight = maxW * 287.0 / baseMax;
@@ -3831,6 +3971,31 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
 
 }
 
+class _GifPlayerPool {
+  static const _maxPoolSize = 4;
+  static final _pool = <Player>[];
+
+  static Player acquire() {
+    if (_pool.isNotEmpty) return _pool.removeLast();
+    return Player();
+  }
+
+  static void release(Player player) {
+    if (_pool.length < _maxPoolSize) {
+      _pool.add(player);
+    } else {
+      player.dispose();
+    }
+  }
+
+  static void disposeAll() {
+    for (final p in _pool) {
+      p.dispose();
+    }
+    _pool.clear();
+  }
+}
+
 class _GifPlayer extends StatefulWidget {
   final String filePath;
   final double width;
@@ -3858,7 +4023,7 @@ class _GifPlayerState extends State<_GifPlayer> {
 
   void _initPlayer() {
     if (!mounted) return;
-    final player = Player();
+    final player = _GifPlayerPool.acquire();
     _player = player;
     _controller = VideoController(player, configuration: const VideoControllerConfiguration(enableHardwareAcceleration: true));
     player.setVolume(0);
@@ -3870,20 +4035,22 @@ class _GifPlayerState extends State<_GifPlayer> {
   void didUpdateWidget(_GifPlayer old) {
     super.didUpdateWidget(old);
     if (old.filePath != widget.filePath) {
-      _dispose();
+      _releasePlayer();
       _initPlayer();
     }
   }
 
-  void _dispose() {
-    _player?.dispose();
+  void _releasePlayer() {
+    if (_player != null) {
+      _GifPlayerPool.release(_player!);
+    }
     _player = null;
     _controller = null;
   }
 
   @override
   void dispose() {
-    _dispose();
+    _releasePlayer();
     super.dispose();
   }
 
@@ -6504,7 +6671,9 @@ class _WebmEmojiPlayerState extends State<_WebmEmojiPlayer> {
       final dir = Directory.systemTemp;
       final digest = crypto.sha256.convert(widget.fileData).toString().substring(0, 16);
       final file = File('${dir.path}/emoji_$digest.webm');
-      await file.writeAsBytes(widget.fileData, flush: true);
+      if (!await file.exists()) {
+        await file.writeAsBytes(widget.fileData, flush: true);
+      }
       _tempFile = file;
       final player = Player();
       final controller = VideoController(player);
@@ -10375,12 +10544,37 @@ class _InlineButtonState extends State<_InlineButton>
     final latController = TextEditingController();
     final lonController = TextEditingController();
     String? error;
+    bool detecting = false;
 
     showDialog<(double, double)?>(
       context: context,
       builder: (dialogCtx) {
         return StatefulBuilder(
           builder: (stateCtx, setDialogState) {
+            void detectLocation() async {
+              setDialogState(() { detecting = true; error = null; });
+              try {
+                final result = await Process.run('geoclue-where-am-i', ['-t', '5']);
+                if (result.exitCode == 0) {
+                  final output = result.stdout as String;
+                  final latMatch = RegExp(r'Latitude:\s*([\d.-]+)').firstMatch(output);
+                  final lonMatch = RegExp(r'Longitude:\s*([\d.-]+)').firstMatch(output);
+                  if (latMatch != null && lonMatch != null) {
+                    setDialogState(() {
+                      latController.text = latMatch.group(1)!;
+                      lonController.text = lonMatch.group(1)!;
+                      detecting = false;
+                    });
+                    return;
+                  }
+                }
+              } catch (_) {}
+              setDialogState(() {
+                detecting = false;
+                error = 'Could not detect location. Enter coordinates manually.';
+              });
+            }
+
             return Dialog(
               backgroundColor: bgColor,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -10393,7 +10587,37 @@ class _InlineButtonState extends State<_InlineButton>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Share Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textColor)),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: detecting ? null : detectLocation,
+                          icon: detecting
+                              ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: context.palette.windowBgActive))
+                              : Icon(Icons.my_location, size: 16, color: context.palette.windowBgActive),
+                          label: Text(
+                            detecting ? 'Detecting...' : 'Detect my location',
+                            style: TextStyle(fontSize: 13, color: context.palette.windowBgActive),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: context.palette.windowBgActive.withValues(alpha: 0.4)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: Divider(color: subtextColor.withValues(alpha: 0.3))),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text('or enter manually', style: TextStyle(fontSize: 11, color: subtextColor)),
+                          ),
+                          Expanded(child: Divider(color: subtextColor.withValues(alpha: 0.3))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
                       GestureDetector(
                         onTap: () => launcher.launchUrl(Uri.parse('https://www.openstreetmap.org/')),
                         child: Text(
@@ -10401,7 +10625,7 @@ class _InlineButtonState extends State<_InlineButton>
                           style: TextStyle(fontSize: 12, color: context.palette.windowBgActive, decoration: TextDecoration.underline),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       TextField(
                         controller: latController,
                         style: TextStyle(color: textColor, fontSize: 14),
