@@ -1198,13 +1198,16 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
                               label: '${c.name}, +${c.dialCode}',
                               button: true,
                               selected: isHighlighted,
-                              child: InkWell(
-                                onTap: () => widget.onSelect(c),
-                                child: Container(
-                                  color: isHighlighted ? highlightColor : null,
-                                  padding: const EdgeInsets.only(
-                                      left: 22, top: 9, right: 8),
-                                  child: Row(
+                              child: Material(
+                                color: isHighlighted
+                                    ? highlightColor
+                                    : Colors.transparent,
+                                child: InkWell(
+                                  onTap: () => widget.onSelect(c),
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(
+                                        left: 22, top: 9, right: 8),
+                                    child: Row(
                                     children: [
                                       Flexible(
                                         child: Text(
@@ -1232,6 +1235,7 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
                                   ),
                                 ),
                               ),
+                            ),
                             );
                           },
                         ),
@@ -1357,14 +1361,8 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
     _requestApproval = widget.existingRequestApproval;
     if (_isEdit) {
       if (widget.existingExpire > 0) {
-        final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-        final remaining = widget.existingExpire - now;
-        if (remaining <= 0) {
-          _expireOption = 0;
-        } else {
-          _expireOption = -1;
-          _customExpireDate = widget.existingExpire;
-        }
+        _expireOption = -1;
+        _customExpireDate = widget.existingExpire;
       } else {
         _expireOption = 0;
       }
@@ -1981,6 +1979,19 @@ class _CreatePollContentState extends State<_CreatePollContent> {
 
   void _submit() {
     if (!_canSubmit) return;
+    for (var i = 0; i < _optionMediaPaths.length; i++) {
+      final path = _optionMediaPaths[i];
+      if (path != null && !File(path).existsSync()) {
+        _optionMediaPaths[i] = null;
+        _optionMediaTimestamps[i] = null;
+      } else if (path != null && _isMediaStale(i)) {
+        _optionMediaTimestamps[i] = DateTime.now();
+      }
+    }
+    if (_descriptionMediaPath != null &&
+        !File(_descriptionMediaPath!).existsSync()) {
+      _descriptionMediaPath = null;
+    }
     final question = _questionCtrl.text.trim();
     final mediaPaths = <String?>[];
     final options = <String>[];
