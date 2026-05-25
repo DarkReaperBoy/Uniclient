@@ -829,9 +829,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## message_bubble — kButtonExpandedHideDelay mismatch (0ms vs 300ms)
-- [ ] [MAJOR] When the reaction strip is expanded, AyuGram uses `kButtonExpandedHideDelay = 0ms` so the button hides immediately on mouse-leave; the Dart implementation always uses the 300ms hide delay regardless of expansion state — `message_bubble.dart:258` ← `history_view_reactions_button.cpp:43`
-
 ## message_bubble — reaction emoji overlay missing custom emoji tab
 - [ ] [MAJOR] `_ReactionEmojiOverlay` only shows standard Unicode emoji; there is no tab or section for premium custom emoji packs (fetched via `getAvailableReactions`/`getCustomEmojiStickers`). Users who have premium cannot set custom emoji reactions — `message_bubble.dart:1793`
 
