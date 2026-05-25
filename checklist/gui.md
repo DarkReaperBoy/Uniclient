@@ -782,10 +782,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## input_dialogs — create_poll_box: Missing "Hide Results" toggle
-
-- [ ] [CRITICAL] AyuGram has a "Hide Results" toggle (`tr::lng_polls_create_hide_results`) inside the duration section that sets `Flag::ResultsHidden` on the poll; Dart has no equivalent toggle anywhere in the create-poll UI — `input_dialogs.dart:2271-2296` ← `AyuGram/boxes/create_poll_box.cpp:2728-2738`
-
 ## input_dialogs — create_poll_box: addOptions (Allow Adding Options) not locked when quiz mode enabled
 
 - [ ] [MAJOR] AyuGram locks/disables the "Allow Adding Options" toggle when quiz mode is on (`updateAddOptionsLocked` forces it off if `quiz->toggled()`); Dart allows both quiz mode and allow-adding-options to be active simultaneously, which is invalid — `input_dialogs.dart:2225-2230` ← `AyuGram/boxes/create_poll_box.cpp:2760-2770`
