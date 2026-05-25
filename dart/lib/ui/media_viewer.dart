@@ -3373,71 +3373,13 @@ class _MediaViewerState extends State<MediaViewer>
 
 
 
+  // AyuGram: Linux IsAvailable()=false, macOS uses VNRecognizeTextRequest,
+  // Windows uses WinRT OCR. No native OCR platform channels implemented yet.
+  bool get _isTextRecognitionAvailable => false;
+
   void _recognizeText(CachedMessage msg) async {
     if (msg.mediaLocalPath.isEmpty) return;
-    if (!Platform.isLinux && !Platform.isMacOS) {
-      if (mounted) showTelegramToast(context, 'Text recognition is not available on this platform');
-      return;
-    }
-    final which = await Process.run('which', ['tesseract']);
-    if (which.exitCode != 0) {
-      if (mounted) {
-        showTelegramToast(context, Platform.isMacOS
-            ? 'Install tesseract for text recognition (brew install tesseract)'
-            : 'Install tesseract-ocr for text recognition');
-      }
-      return;
-    }
-    const ocrCommand = 'tesseract';
-    final ocrArgs = [msg.mediaLocalPath, 'stdout', '--tsv'];
-    if (mounted) showTelegramToast(context, 'Recognizing text…');
-    final imgFile = File(msg.mediaLocalPath);
-    final bytes = await imgFile.readAsBytes();
-    final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    final imgSize = Size(frame.image.width.toDouble(), frame.image.height.toDouble());
-    frame.image.dispose();
-    codec.dispose();
-
-    final ocr = await Process.run(ocrCommand, ocrArgs);
-    if (!mounted) return;
-    if (ocr.exitCode != 0) {
-      showTelegramToast(context, 'Text recognition failed');
-      return;
-    }
-    final tsvOutput = (ocr.stdout as String).trim();
-    if (tsvOutput.isEmpty) {
-      showTelegramToast(context, 'No text found in image');
-      return;
-    }
-    final lines = tsvOutput.split('\n');
-    final blocks = <_OcrBlock>[];
-    for (int i = 1; i < lines.length; i++) {
-      final cols = lines[i].split('\t');
-      if (cols.length < 12) continue;
-      final text = cols[11].trim();
-      if (text.isEmpty) continue;
-      final conf = int.tryParse(cols[10]) ?? 0;
-      if (conf < 30) continue;
-      final left = int.tryParse(cols[6]) ?? 0;
-      final top = int.tryParse(cols[7]) ?? 0;
-      final width = int.tryParse(cols[8]) ?? 0;
-      final height = int.tryParse(cols[9]) ?? 0;
-      if (width <= 0 || height <= 0) continue;
-      blocks.add(_OcrBlock(
-        text: text,
-        rect: Rect.fromLTWH(left.toDouble(), top.toDouble(), width.toDouble(), height.toDouble()),
-      ));
-    }
-    if (blocks.isEmpty) {
-      showTelegramToast(context, 'No text found in image');
-      return;
-    }
-    setState(() {
-      _ocrBlocks = blocks;
-      _ocrImageSize = imgSize;
-      _showOcrOverlay = true;
-    });
+    if (!_isTextRecognitionAvailable) return;
   }
 
   void _closeOcrOverlay() {
@@ -3459,7 +3401,7 @@ class _MediaViewerState extends State<MediaViewer>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_isPhoto && hasContent)
+        if (_isTextRecognitionAvailable && _isPhoto && hasContent)
           _ViewerButton(
             icon: Icons.text_fields,
             onTap: () => _recognizeText(msg),
