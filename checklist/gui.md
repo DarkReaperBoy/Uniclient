@@ -781,11 +781,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-
-## input_dialogs — create_poll_box: addOptions (Allow Adding Options) not locked when quiz mode enabled
-
-- [ ] [MAJOR] AyuGram locks/disables the "Allow Adding Options" toggle when quiz mode is on (`updateAddOptionsLocked` forces it off if `quiz->toggled()`); Dart allows both quiz mode and allow-adding-options to be active simultaneously, which is invalid — `input_dialogs.dart:2225-2230` ← `AyuGram/boxes/create_poll_box.cpp:2760-2770`
-
 ## input_dialogs — create_poll_box: Revoting toggle not locked by quiz mode
 
 - [ ] [MAJOR] AyuGram calls `revoting->setToggleLocked` inside `updateQuizDependentLocks` when quiz is toggled (respecting `PollData::Flag::RevotingDisabled`); Dart simply disables `_allowRevoting` via `onChanged: _quiz ? null : ...` but does not prevent the switch from being visually toggled — `input_dialogs.dart:2236-2238` ← `AyuGram/boxes/create_poll_box.cpp:2771-2778`
