@@ -602,6 +602,7 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   static const _baseMaxWidth = 430.0;
+  static const _baseMaxGifWidth = 320.0;
   static const _radiusLarge = 16.0;
   static const _radiusSmall = 6.0;
 
@@ -961,7 +962,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w400,
-                                  color: palette.msgInDateFg,
+                                  color: isOutgoing ? palette.msgOutServiceFg : palette.msgInServiceFg,
                                 ),
                               ),
                               TextSpan(
@@ -969,7 +970,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: palette.msgInServiceFg,
+                                  color: isOutgoing ? palette.msgOutServiceFg : palette.msgInServiceFg,
                                 ),
                               ),
                             ],
@@ -3409,8 +3410,11 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
         ? (_MessageBubbleState._baseMaxWidth * wm).roundToDouble()
         : _MessageBubbleState._baseMaxWidth;
     final bool isGif = message.mediaType == 7;
-    final double maxW = baseMax;
-    final double maxH = isGif ? 1080.0 : baseMax;
+    final double gifMax = (wm - 1.0).abs() > 0.01
+        ? (_MessageBubbleState._baseMaxGifWidth * wm).roundToDouble()
+        : _MessageBubbleState._baseMaxGifWidth;
+    final double maxW = isGif ? gifMax : baseMax;
+    final double maxH = isGif ? gifMax : baseMax;
     double displayWidth = maxW;
     double displayHeight = maxW * 287.0 / baseMax;
     if (message.mediaWidth > 0 && message.mediaHeight > 0) {
