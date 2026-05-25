@@ -781,9 +781,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## input_dialogs — create_poll_box: Max options count wrong (12 vs 32)
-
-- [ ] [CRITICAL] AyuGram uses `PollData::kMaxOptions = 32`; Dart hardcodes `_kMaxOptions = 12`, capping the poll at 12 options when Telegram allows up to 32 — `input_dialogs.dart:1777` ← `AyuGram/boxes/create_poll_box.cpp:104` + `AyuGram/data/data_poll.h:121`
 
 ## input_dialogs — create_poll_box: kWarnQuestionLimit threshold wrong
 
