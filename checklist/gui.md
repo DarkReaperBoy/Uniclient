@@ -780,10 +780,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## input_dialogs — username_box: Check debounce timeout wrong
-
-- [ ] [MAJOR] AyuGram uses `Ui::EditPeer::kUsernameCheckTimeout` (defined elsewhere in edit_peer_common, typically 300–500 ms) for the debounce; Dart hardcodes 200ms, which may be too aggressive and cause excessive API calls — `input_dialogs.dart:252` ← `AyuGram/boxes/username_box.cpp:231`
-
 ## input_dialogs — username_box: Minimum username length constant mismatch
 
 - [ ] [MAJOR] AyuGram uses `Ui::EditPeer::kMinUsernameLength` as the minimum (defined in edit_peer_common, value is 5); Dart also uses 5 but the `_isValidUsername` validator does not check for a leading digit restriction. AyuGram additionally rejects usernames that start with a digit at the API level (USERNAME_INVALID). The local validator should match AyuGram's character-by-character check that also accepts `@` only at index 0 — `input_dialogs.dart:174-183` ← `AyuGram/boxes/username_box.cpp:205-211`
