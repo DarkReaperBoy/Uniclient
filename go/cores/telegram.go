@@ -26871,7 +26871,7 @@ func (t *TelegramCore) CreatePoll(chatID string, question string, options []stri
 	return t.SendPoll(chatID, question, options)
 }
 
-func (t *TelegramCore) CreatePollWithRevoting(chatID string, question string, answers []string, multipleChoice, anonymous, quiz, allowRevoting bool, correctOption int, solution string) (*Message, error) {
+func (t *TelegramCore) CreatePollWithRevoting(chatID string, question string, answers []string, multipleChoice, anonymous, quiz, allowRevoting, hideResults bool, correctOption int, solution string, limitDuration int) (*Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil { return nil, err }
 	defer unlock()
@@ -26896,6 +26896,12 @@ func (t *TelegramCore) CreatePollWithRevoting(chatID string, question string, an
 	if !allowRevoting {
 		poll.SetRevotingDisabled(true)
 	}
+	if hideResults {
+		poll.SetHideResultsUntilClose(true)
+	}
+	if limitDuration > 0 {
+		poll.SetClosePeriod(limitDuration)
+	}
 	media := &tg.InputMediaPoll{Poll: poll}
 	if quiz && correctOption >= 0 && correctOption < len(answers) {
 		media.SetCorrectAnswers([]int{correctOption})
@@ -26912,10 +26918,10 @@ func (t *TelegramCore) CreatePollWithRevoting(chatID string, question string, an
 }
 
 func (t *TelegramCore) CreatePollEx(chatID string, question string, answers []string, multipleChoice, anonymous, quiz bool, correctOption int, solution string) (*Message, error) {
-	return t.CreatePollWithRevoting(chatID, question, answers, multipleChoice, anonymous, quiz, true, correctOption, solution)
+	return t.CreatePollWithRevoting(chatID, question, answers, multipleChoice, anonymous, quiz, true, false, correctOption, solution, 0)
 }
 
-func (t *TelegramCore) CreatePollWithMedia(chatID string, question string, answers []string, mediaPaths []string, multipleChoice, anonymous, quiz, allowRevoting bool, correctOption int, solution string) (*Message, error) {
+func (t *TelegramCore) CreatePollWithMedia(chatID string, question string, answers []string, mediaPaths []string, multipleChoice, anonymous, quiz, allowRevoting, hideResults bool, correctOption int, solution string, limitDuration int) (*Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return nil, err
@@ -26971,6 +26977,12 @@ func (t *TelegramCore) CreatePollWithMedia(chatID string, question string, answe
 	}
 	if !allowRevoting {
 		poll.SetRevotingDisabled(true)
+	}
+	if hideResults {
+		poll.SetHideResultsUntilClose(true)
+	}
+	if limitDuration > 0 {
+		poll.SetClosePeriod(limitDuration)
 	}
 	media := &tg.InputMediaPoll{Poll: poll}
 	if quiz && correctOption >= 0 && correctOption < len(answers) {

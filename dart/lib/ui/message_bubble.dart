@@ -10313,6 +10313,7 @@ class _InlineButtonState extends State<_InlineButton>
               shuffleAnswers: result.shuffleAnswers,
               allowAddingOptions: result.allowAddingOptions,
               limitDuration: result.limitDuration,
+              hideResults: result.hideResults,
               correctOption: result.correctOptionIndex, solution: result.solution,
               description: result.description);
         });

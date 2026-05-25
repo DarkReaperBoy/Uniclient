@@ -2065,13 +2065,18 @@ func (e *Engine) SendStickerWithOpts(accountID, chatID, stickerID string, silent
 }
 
 type PollOptions struct {
-	MultipleChoice   bool
-	Anonymous        bool
-	Quiz             bool
-	AllowRevoting    bool
-	CorrectOption    int
-	Solution         string
-	OptionMediaPaths []string
+	MultipleChoice     bool
+	Anonymous          bool
+	Quiz               bool
+	AllowRevoting      bool
+	HideResults        bool
+	LimitDuration      int
+	ShuffleAnswers     bool
+	AllowAddingOptions bool
+	CorrectOption      int
+	Solution           string
+	Description        string
+	OptionMediaPaths   []string
 }
 
 func (e *Engine) CreatePoll(accountID, chatID, question string, options []string) (string, error) {
@@ -2095,10 +2100,10 @@ func (e *Engine) CreatePollEx(accountID, chatID, question string, options []stri
 	}
 	if hasMedia {
 		type pollCreatorWithMedia interface {
-			CreatePollWithMedia(chatID string, question string, options []string, mediaPaths []string, multipleChoice, anonymous, quiz, allowRevoting bool, correctOption int, solution string) (*cores.Message, error)
+			CreatePollWithMedia(chatID string, question string, options []string, mediaPaths []string, multipleChoice, anonymous, quiz, allowRevoting, hideResults bool, correctOption int, solution string, limitDuration int) (*cores.Message, error)
 		}
 		if pc, ok := acc.Core.(pollCreatorWithMedia); ok {
-			msg, err := pc.CreatePollWithMedia(chatID, question, options, opts.OptionMediaPaths, opts.MultipleChoice, opts.Anonymous, opts.Quiz, opts.AllowRevoting, opts.CorrectOption, opts.Solution)
+			msg, err := pc.CreatePollWithMedia(chatID, question, options, opts.OptionMediaPaths, opts.MultipleChoice, opts.Anonymous, opts.Quiz, opts.AllowRevoting, opts.HideResults, opts.CorrectOption, opts.Solution, opts.LimitDuration)
 			if err != nil {
 				return "", err
 			}
@@ -2109,10 +2114,10 @@ func (e *Engine) CreatePollEx(accountID, chatID, question string, options []stri
 		}
 	}
 	type pollCreatorWithRevoting interface {
-		CreatePollWithRevoting(chatID string, question string, options []string, multipleChoice, anonymous, quiz, allowRevoting bool, correctOption int, solution string) (*cores.Message, error)
+		CreatePollWithRevoting(chatID string, question string, options []string, multipleChoice, anonymous, quiz, allowRevoting, hideResults bool, correctOption int, solution string, limitDuration int) (*cores.Message, error)
 	}
 	if pc, ok := acc.Core.(pollCreatorWithRevoting); ok {
-		msg, err := pc.CreatePollWithRevoting(chatID, question, options, opts.MultipleChoice, opts.Anonymous, opts.Quiz, opts.AllowRevoting, opts.CorrectOption, opts.Solution)
+		msg, err := pc.CreatePollWithRevoting(chatID, question, options, opts.MultipleChoice, opts.Anonymous, opts.Quiz, opts.AllowRevoting, opts.HideResults, opts.CorrectOption, opts.Solution, opts.LimitDuration)
 		if err != nil {
 			return "", err
 		}

@@ -5684,6 +5684,7 @@ class _ChatViewState extends State<ChatView>
                         shuffleAnswers: result.shuffleAnswers,
                         allowAddingOptions: result.allowAddingOptions,
                         limitDuration: result.limitDuration,
+                        hideResults: result.hideResults,
                         correctOption: result.correctOptionIndex, solution: result.solution,
                         description: result.description);
                     });
@@ -6736,6 +6737,7 @@ class _ChatTopBar extends StatelessWidget {
         shuffleAnswers: result.shuffleAnswers,
         allowAddingOptions: result.allowAddingOptions,
         limitDuration: result.limitDuration,
+        hideResults: result.hideResults,
         correctOption: result.correctOptionIndex, solution: result.solution,
         description: result.description,
       );
@@ -15163,6 +15165,7 @@ class _ComposeAreaState extends State<_ComposeArea>
         shuffleAnswers: result.shuffleAnswers,
         allowAddingOptions: result.allowAddingOptions,
         limitDuration: result.limitDuration,
+        hideResults: result.hideResults,
         correctOption: result.correctOptionIndex, solution: result.solution,
         description: result.description);
     } catch (e) {
