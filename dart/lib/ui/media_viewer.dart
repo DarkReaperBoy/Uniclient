@@ -3379,25 +3379,17 @@ class _MediaViewerState extends State<MediaViewer>
       if (mounted) showTelegramToast(context, 'Text recognition is not available on this platform');
       return;
     }
-    String ocrCommand;
-    List<String> ocrArgs;
-    if (Platform.isLinux) {
-      final result = await Process.run('which', ['tesseract']);
-      if (result.exitCode != 0) {
-        if (mounted) showTelegramToast(context, 'Install tesseract-ocr for text recognition');
-        return;
+    final which = await Process.run('which', ['tesseract']);
+    if (which.exitCode != 0) {
+      if (mounted) {
+        showTelegramToast(context, Platform.isMacOS
+            ? 'Install tesseract for text recognition (brew install tesseract)'
+            : 'Install tesseract-ocr for text recognition');
       }
-      ocrCommand = 'tesseract';
-      ocrArgs = [msg.mediaLocalPath, 'stdout', '--tsv'];
-    } else {
-      final result = await Process.run('which', ['tesseract']);
-      if (result.exitCode != 0) {
-        if (mounted) showTelegramToast(context, 'Install tesseract for text recognition (brew install tesseract)');
-        return;
-      }
-      ocrCommand = 'tesseract';
-      ocrArgs = [msg.mediaLocalPath, 'stdout', '--tsv'];
+      return;
     }
+    const ocrCommand = 'tesseract';
+    final ocrArgs = [msg.mediaLocalPath, 'stdout', '--tsv'];
     if (mounted) showTelegramToast(context, 'Recognizing text…');
     final imgFile = File(msg.mediaLocalPath);
     final bytes = await imgFile.readAsBytes();
@@ -4621,8 +4613,8 @@ class _PipWidgetState extends State<PipOverlayWidget>
     _height = _kPipDefaultSize;
     final screen = WidgetsBinding.instance.platformDispatcher.views.first.physicalSize /
         WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
-    _x = screen.width - _kPipDefaultSize - _kPipBorderSkip;
-    _y = screen.height - _kPipDefaultSize - _kPipBorderSkip;
+    _x = _kPipBorderSkip;
+    _y = _kPipBorderSkip;
 
     _isPlaying = widget.initialPlaying;
     _position = widget.initialPosition;
@@ -6981,9 +6973,6 @@ class _StoriesViewerState extends State<StoriesViewer>
               onTap: () {
                 setState(() {
                   _muted = !_muted;
-                  if (_muted) {
-                    _storyVolume = 100.0;
-                  }
                 });
                 _videoPlayer?.setVolume(_muted ? 0.0 : _storyVolume);
               },
@@ -7193,9 +7182,6 @@ class _StoriesViewerState extends State<StoriesViewer>
                 onTap: () {
                   setState(() {
                     _muted = !_muted;
-                    if (_muted) {
-                      _storyVolume = 100.0;
-                    }
                   });
                   _videoPlayer?.setVolume(_muted ? 0.0 : _storyVolume);
                 },
