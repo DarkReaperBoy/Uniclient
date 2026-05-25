@@ -781,9 +781,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## input_dialogs — create_poll_box: Revoting toggle not locked by quiz mode
-
-- [ ] [MAJOR] AyuGram calls `revoting->setToggleLocked` inside `updateQuizDependentLocks` when quiz is toggled (respecting `PollData::Flag::RevotingDisabled`); Dart simply disables `_allowRevoting` via `onChanged: _quiz ? null : ...` but does not prevent the switch from being visually toggled — `input_dialogs.dart:2236-2238` ← `AyuGram/boxes/create_poll_box.cpp:2771-2778`
 
 ## input_dialogs — create_poll_box: Quiz + multipleChoice correct answer uses radio only, not checkbox
 
