@@ -418,11 +418,25 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'You can choose a username on Telegram. If you do, people will be able to find you by this username and contact you without needing your phone number.'
-              '\n\n'
-              'You can use a–z, 0–9 and underscores. Minimum length is 5 characters.',
-              style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
+            Text.rich(
+              TextSpan(
+                style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
+                children: [
+                  const TextSpan(
+                    text: 'You can choose a username on Telegram. If you do, other people will be able to find you by this username and contact you without knowing your phone number.'
+                        '\n\n'
+                        'You can use ',
+                  ),
+                  TextSpan(text: 'a-z', style: TextStyle(fontWeight: FontWeight.w600, color: textFg)),
+                  const TextSpan(text: ', '),
+                  TextSpan(text: '0-9', style: TextStyle(fontWeight: FontWeight.w600, color: textFg)),
+                  const TextSpan(text: ' and '),
+                  TextSpan(text: 'underscores', style: TextStyle(fontWeight: FontWeight.w600, color: textFg)),
+                  const TextSpan(text: '.\nMinimum length is '),
+                  TextSpan(text: '5 characters', style: TextStyle(fontWeight: FontWeight.w600, color: textFg)),
+                  const TextSpan(text: '.'),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             TextField(
