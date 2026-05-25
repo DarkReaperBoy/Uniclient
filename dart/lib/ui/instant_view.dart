@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import '../state/chat_state.dart';
 
 void openInstantView(BuildContext context, String accountId, String url, {String? siteName}) {
   Navigator.of(context, rootNavigator: true).push(
@@ -80,6 +81,35 @@ class _InstantViewPageState extends State<InstantViewPage> {
       return _history[_historyIndex].url;
     }
     return widget.url;
+  }
+
+  bool get _hasReportIv {
+    final blocks = _pageData?['blocks'] as List<dynamic>?;
+    if (blocks == null) return false;
+    for (final b in blocks) {
+      if (b is Map<String, dynamic> && b['type'] == 'anchor' && b['name'] == 'report-iv') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _reportIv() async {
+    final engine = context.read<EngineService>();
+    try {
+      await engine.reportSpam(widget.accountId, _currentUrl);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report sent'), duration: Duration(seconds: 2)),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to send report'), duration: Duration(seconds: 2)),
+        );
+      }
+    }
   }
 
   bool get _canGoBack => _historyIndex > 0;
@@ -193,6 +223,10 @@ class _InstantViewPageState extends State<InstantViewPage> {
         const SingleActivator(LogicalKeyboardKey.minus, control: true): _zoomOut,
         const SingleActivator(LogicalKeyboardKey.minus, control: true, alt: true): _zoomOut,
         const SingleActivator(LogicalKeyboardKey.digit0, control: true): _zoomReset,
+        const SingleActivator(LogicalKeyboardKey.keyW, control: true): () => Navigator.of(context).pop(),
+        const SingleActivator(LogicalKeyboardKey.keyM, control: true): () {
+          // Minimize window — no-op on mobile, uses platform channel on desktop
+        },
       },
       child: Focus(
         autofocus: true,
@@ -237,6 +271,12 @@ class _InstantViewPageState extends State<InstantViewPage> {
                   tooltip: 'Open in browser',
                   onPressed: () => _openExternal(_currentUrl),
                 ),
+                if (_hasReportIv)
+                  IconButton(
+                    icon: const Icon(Icons.flag_outlined, size: 20),
+                    tooltip: 'Report',
+                    onPressed: _reportIv,
+                  ),
               ],
               bottom: PreferredSize(
                 preferredSize: const Size.fromHeight(1),
@@ -1003,6 +1043,8 @@ class _IvBlockState extends State<_IvBlock> {
 
   Widget _buildEmbedPost(BuildContext context) {
     final author = block['author'] as String? ?? '';
+    final authorPhotoUrl = block['author_photo_url'] as String?;
+    final dateTs = block['date'] as num?;
     final blocks = block['blocks'] as List<dynamic>? ?? [];
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -1014,10 +1056,41 @@ class _IvBlockState extends State<_IvBlock> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (author.isNotEmpty)
+            if (author.isNotEmpty || authorPhotoUrl != null)
               Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(author, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _accentColor)),
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    if (authorPhotoUrl != null) ...[
+                      ClipOval(
+                        child: Image.network(
+                          authorPhotoUrl,
+                          width: 24, height: 24, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => CircleAvatar(
+                            radius: 12,
+                            backgroundColor: _accentColor.withAlpha(40),
+                            child: Text(
+                              author.isNotEmpty ? author[0].toUpperCase() : '?',
+                              style: TextStyle(fontSize: 11, color: _accentColor),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (author.isNotEmpty)
+                      Flexible(
+                        child: Text(author, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _accentColor)),
+                      ),
+                    if (dateTs != null && dateTs > 0) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatEmbedDate(dateTs.toInt()),
+                        style: TextStyle(fontSize: 12, color: _subtleColor),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ...blocks.map((b) => _IvBlock(block: b as Map<String, dynamic>, isDark: isDark, accountId: accountId, onNavigateIV: onNavigateIV)),
             if (block['caption'] != null) _buildCaption(context, block['caption']),
@@ -1025,6 +1098,12 @@ class _IvBlockState extends State<_IvBlock> {
         ),
       ),
     );
+  }
+
+  static String _formatEmbedDate(int timestamp) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
   Widget _buildRelated(BuildContext context) {
@@ -2315,6 +2394,10 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
   }
 
   Future<void> _playVideo(String url) async {
+    if (_extractYouTubeId(url) != null || _extractVimeoId(url) != null) {
+      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      return;
+    }
     setState(() => _loading = true);
     try {
       final player = Player();
@@ -2362,6 +2445,8 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
     final embedHtml = widget.block['html'] as String?;
     final w = (widget.block['w'] as num?)?.toDouble() ?? 0;
     final h = (widget.block['h'] as num?)?.toDouble() ?? 0;
+    final isFullWidth = widget.block['is_full_width'] == true;
+    final isAllowScrolling = widget.block['is_allow_scrolling'] == true;
 
     String? youtubeId;
     String? vimeoId;
@@ -2428,7 +2513,7 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
       return _buildSoundCloudCard(embedUrl, embedHtml);
     }
 
-    return _buildGenericEmbed(embedUrl, embedHtml, w, h);
+    return _buildGenericEmbed(embedUrl, embedHtml, w, h, isFullWidth, isAllowScrolling);
   }
 
   Widget _buildVideoEmbed({
@@ -2564,7 +2649,7 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
     );
   }
 
-  Widget _buildGenericEmbed(String? url, String? html, double w, double h) {
+  Widget _buildGenericEmbed(String? url, String? html, double w, double h, bool isFullWidth, bool isAllowScrolling) {
     String? displayUrl = url;
     if (displayUrl == null && html != null) {
       final srcMatch = RegExp(r'''src=["']([^"']+)["']''').firstMatch(html);
@@ -2577,13 +2662,22 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
       if (contentText.isEmpty) contentText = null;
     }
 
+    final double minH;
+    if (isFullWidth && isAllowScrolling) {
+      minH = h > 0 ? h.clamp(60, 600) : 200;
+    } else if (isFullWidth || w <= 0) {
+      minH = h > 0 ? h.clamp(60, 600) : 80;
+    } else {
+      minH = h > 0 ? h.clamp(60, 400) : 80;
+    }
+
     return GestureDetector(
       onTap: displayUrl != null
           ? () => launchUrl(Uri.parse(displayUrl!), mode: LaunchMode.externalApplication)
           : null,
       child: Container(
-        width: double.infinity,
-        constraints: BoxConstraints(minHeight: h > 0 ? h.clamp(60, 400) : 80),
+        width: isFullWidth ? double.infinity : (w > 0 ? w.clamp(200, double.infinity) : double.infinity),
+        constraints: BoxConstraints(minHeight: minH),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf4f4f5),
@@ -2592,25 +2686,24 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (contentText != null) ...[
-              Text(contentText, style: TextStyle(fontSize: 15, color: _textColor, height: 1.5), maxLines: 10, overflow: TextOverflow.ellipsis),
+              Text(contentText, style: TextStyle(fontSize: 15, color: _textColor, height: 1.5), maxLines: isAllowScrolling ? null : 10, overflow: isAllowScrolling ? null : TextOverflow.ellipsis),
               const SizedBox(height: 8),
             ],
             if (displayUrl != null)
               Row(
                 children: [
-                  Icon(Icons.web, size: 18, color: _subtleColor),
+                  Icon(Icons.open_in_new, size: 18, color: _accentColor),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      displayUrl,
-                      style: TextStyle(fontSize: 13, color: _accentColor, decoration: TextDecoration.underline),
-                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                      'Open in browser',
+                      style: TextStyle(fontSize: 13, color: _accentColor, fontWeight: FontWeight.w500),
                     ),
                   ),
-                  Icon(Icons.open_in_new, size: 16, color: _subtleColor),
                 ],
               ),
           ],
@@ -2646,6 +2739,28 @@ class _IvChannelBlock extends StatefulWidget {
 class _IvChannelBlockState extends State<_IvChannelBlock> {
   bool _joined = false;
   bool _joining = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkMembership();
+  }
+
+  Future<void> _checkMembership() async {
+    final username = widget.username;
+    if (username == null || username.isEmpty) return;
+    try {
+      final engine = context.read<EngineService>();
+      final chatId = await engine.resolveUsername(widget.accountId, username);
+      if (chatId != null && chatId.isNotEmpty && mounted) {
+        final chatState = context.read<ChatState>();
+        final inDialogs = chatState.chats.any((c) => c.chatId == chatId && c.accountId == widget.accountId);
+        if (inDialogs) {
+          setState(() => _joined = true);
+        }
+      }
+    } catch (_) {}
+  }
 
   Future<void> _joinChannel() async {
     final username = widget.username;
