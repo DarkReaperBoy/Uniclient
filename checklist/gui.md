@@ -820,7 +820,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 # instant_view — Audit findings
 
-- [ ] [MAJOR] Map block fetches tiles directly from `https://tile.openstreetmap.org/…` exposing OSM requests from the client — AyuGram routes maps through a Telegram-served resource URL (`resource("map/" + GeoPointId …)`) which is downloaded by the engine, not the UI — `instant_view.dart:1534` ← `iv/iv_prepare.cpp:1233-1238` (`QByteArray Parser::mapUrl(…)` returns a `/map/…` resource path served by the data handler). NOTE: Go engine now proxies OSM tiles but (a) still uses OSM instead of Telegram's static map resource, and (b) fallback at `instant_view.dart:2782` still makes direct `Image.network` calls to `tile.openstreetmap.org` from the Flutter client when engine fails.
 
 ## media_viewer — audit against AyuGram Desktop source
 
