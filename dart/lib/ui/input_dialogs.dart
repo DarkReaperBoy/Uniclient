@@ -318,10 +318,6 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     setState(() => _saving = true);
     try {
       if (_additionalUsernames.isNotEmpty) {
-        for (final entry in _pendingToggles.entries) {
-          await widget.engine.toggleAccountUsername(
-              widget.accountId, entry.key, entry.value);
-        }
         final currentOrder = _additionalUsernames
             .map((u) => u['username'] as String? ?? '')
             .where((n) => n.isNotEmpty)
@@ -335,6 +331,10 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
             ...currentOrder,
           ];
           await widget.engine.reorderAccountUsernames(widget.accountId, newOrder);
+        }
+        for (final entry in _pendingToggles.entries) {
+          await widget.engine.toggleAccountUsername(
+              widget.accountId, entry.key, entry.value);
         }
       }
       if (username != widget.currentUsername) {
