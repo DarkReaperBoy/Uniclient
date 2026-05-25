@@ -5672,6 +5672,23 @@ class EngineService {
 
   // ─�� Privacy Settings ──
 
+  Future<Uint8List?> getMapTile(String accountId, int zoom, int x, int y) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'zoom': zoom,
+      'x': x,
+      'y': y,
+    }));
+    try {
+      final respBytes = await _callAsync(accountId.isEmpty ? '__engine' : accountId, 'GetMapTile', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      return respBytes;
+    } catch (e) {
+      Debug.error('ENGINE', 'getMapTile failed', e);
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>?> getPrivacySetting(String accountId, String key) async {
     final payload = utf8.encode(json.encode({'account_id': accountId, 'key': key}));
     try {

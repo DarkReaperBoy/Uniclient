@@ -11,6 +11,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
@@ -1609,13 +1610,12 @@ class _IvBlockState extends State<_IvBlock> {
                           top: ty * 256.0 - viewTopPixel,
                           width: 256,
                           height: 256,
-                          child: Image.network(
-                            'https://tile.openstreetmap.org/$zoom/${((tx % n) + n) % n}/${ty.clamp(0, n - 1)}.png',
-                            fit: BoxFit.fill,
-                            headers: const {'User-Agent': 'UniClient/1.0'},
-                            errorBuilder: (_, __, ___) => Container(
-                              color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed),
-                            ),
+                          child: _MapTile(
+                            accountId: widget.accountId,
+                            zoom: zoom,
+                            x: ((tx % n) + n) % n,
+                            y: ty.clamp(0, n - 1),
+                            isDark: isDark,
                           ),
                         ),
                     Positioned(
@@ -2656,19 +2656,37 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
       if (srcMatch != null) displayUrl = srcMatch.group(1);
     }
 
+    final double embedW = isFullWidth ? double.infinity : (w > 0 ? w.clamp(200, double.infinity) : double.infinity);
+    final double embedH;
+    if (isFullWidth && isAllowScrolling) {
+      embedH = h > 0 ? h.clamp(60, 600) : 200;
+    } else if (isFullWidth || w <= 0) {
+      embedH = h > 0 ? h.clamp(60, 600) : 80;
+    } else {
+      embedH = h > 0 ? h.clamp(60, 400) : 80;
+    }
+
+    if (Platform.isAndroid || Platform.isIOS) {
+      final embedHtml = html ?? (displayUrl != null
+          ? '<iframe src="$displayUrl" style="width:100%;height:100%;border:none;"></iframe>'
+          : '');
+      if (embedHtml.isNotEmpty) {
+        return SizedBox(
+          width: embedW == double.infinity ? null : embedW,
+          height: embedH,
+          child: _EmbedWebView(
+            html: embedHtml,
+            url: displayUrl,
+            allowScrolling: isAllowScrolling,
+          ),
+        );
+      }
+    }
+
     String? contentText;
     if (html != null) {
       contentText = _stripHtml(html);
       if (contentText.isEmpty) contentText = null;
-    }
-
-    final double minH;
-    if (isFullWidth && isAllowScrolling) {
-      minH = h > 0 ? h.clamp(60, 600) : 200;
-    } else if (isFullWidth || w <= 0) {
-      minH = h > 0 ? h.clamp(60, 600) : 80;
-    } else {
-      minH = h > 0 ? h.clamp(60, 400) : 80;
     }
 
     return GestureDetector(
@@ -2676,8 +2694,8 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
           ? () => launchUrl(Uri.parse(displayUrl!), mode: LaunchMode.externalApplication)
           : null,
       child: Container(
-        width: isFullWidth ? double.infinity : (w > 0 ? w.clamp(200, double.infinity) : double.infinity),
-        constraints: BoxConstraints(minHeight: minH),
+        width: embedW == double.infinity ? double.infinity : embedW,
+        constraints: BoxConstraints(minHeight: embedH),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf4f4f5),
@@ -2700,8 +2718,10 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Open in browser',
+                      displayUrl!,
                       style: TextStyle(fontSize: 13, color: _accentColor, fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -2709,6 +2729,120 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MapTile extends StatefulWidget {
+  final String accountId;
+  final int zoom;
+  final int x;
+  final int y;
+  final bool isDark;
+
+  const _MapTile({
+    required this.accountId,
+    required this.zoom,
+    required this.x,
+    required this.y,
+    required this.isDark,
+  });
+
+  @override
+  State<_MapTile> createState() => _MapTileState();
+}
+
+class _MapTileState extends State<_MapTile> {
+  Uint8List? _tileData;
+  bool _usedFallback = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTile();
+  }
+
+  Future<void> _loadTile() async {
+    final engine = context.read<EngineService>();
+    final data = await engine.getMapTile(widget.accountId, widget.zoom, widget.x, widget.y);
+    if (!mounted) return;
+    if (data != null && data.isNotEmpty) {
+      setState(() => _tileData = data);
+    } else {
+      setState(() => _usedFallback = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_tileData != null) {
+      return Image.memory(_tileData!, fit: BoxFit.fill, width: 256, height: 256);
+    }
+    if (_usedFallback) {
+      return Image.network(
+        'https://tile.openstreetmap.org/${widget.zoom}/${widget.x}/${widget.y}.png',
+        fit: BoxFit.fill,
+        width: 256,
+        height: 256,
+        headers: const {'User-Agent': 'UniClient/1.0'},
+        errorBuilder: (_, __, ___) => Container(
+          color: widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed),
+        ),
+      );
+    }
+    return Container(color: widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed));
+  }
+}
+
+class _EmbedWebView extends StatefulWidget {
+  final String html;
+  final String? url;
+  final bool allowScrolling;
+
+  const _EmbedWebView({required this.html, this.url, this.allowScrolling = true});
+
+  @override
+  State<_EmbedWebView> createState() => _EmbedWebViewState();
+}
+
+class _EmbedWebViewState extends State<_EmbedWebView> {
+  late final WebViewWidget _webView;
+  late final WebViewController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(NavigationDelegate(
+        onNavigationRequest: (req) {
+          if (req.url.startsWith('http') && req.isMainFrame) {
+            launchUrl(Uri.parse(req.url), mode: LaunchMode.externalApplication);
+            return NavigationDecision.prevent;
+          }
+          return NavigationDecision.navigate;
+        },
+      ))
+      ..loadHtmlString(
+        _wrapHtml(widget.html),
+        baseUrl: widget.url,
+      );
+    _webView = WebViewWidget(controller: _controller);
+  }
+
+  String _wrapHtml(String content) {
+    if (content.contains('<html') || content.contains('<HTML')) return content;
+    return '''<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{margin:0;padding:0;overflow:${widget.allowScrolling ? 'auto' : 'hidden'};}iframe{border:none;width:100%;height:100%;}</style>
+</head><body>$content</body></html>''';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: _webView,
     );
   }
 }

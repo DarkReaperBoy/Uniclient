@@ -225,6 +225,14 @@ class MediaViewer extends StatefulWidget {
   static void copyMedia() => _activeInstance?._copyImageToClipboard(_activeInstance!._currentMessage);
   static void enterPip() => _activeInstance?._enterPip();
   static void close() => _activeInstance?._close();
+  static bool toggleFullscreen() {
+    final inst = _activeInstance;
+    if (inst == null) return false;
+    inst._setMode(inst._mode == _MediaViewerMode.fullscreen
+        ? _MediaViewerMode.windowed
+        : _MediaViewerMode.fullscreen);
+    return true;
+  }
   static void testSpeedBoostOn() {
     final inst = _activeInstance;
     if (inst == null) return;

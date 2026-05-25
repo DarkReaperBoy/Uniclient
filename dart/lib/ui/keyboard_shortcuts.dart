@@ -98,6 +98,7 @@ enum ShortcutCommand {
   chatSwitchOverlay,
   chatSwitchOverlayReverse,
   recordRound,
+  mediaViewerFullscreen,
 }
 
 const _autoRepeatCommands = {
@@ -193,6 +194,7 @@ const _commandScopes = <ShortcutCommand, ShortcutScope>{
   ShortcutCommand.openFilePicker: ShortcutScope.chatRequired,
   ShortcutCommand.pastePlainText: ShortcutScope.composeRequired,
   ShortcutCommand.recordRound: ShortcutScope.chatRequired,
+  ShortcutCommand.mediaViewerFullscreen: ShortcutScope.mediaViewer,
 };
 
 const _commandNames = <ShortcutCommand, String>{
@@ -272,6 +274,7 @@ const _commandNames = <ShortcutCommand, String>{
   ShortcutCommand.chatSwitchOverlay: 'chat_switch_overlay',
   ShortcutCommand.chatSwitchOverlayReverse: 'chat_switch_overlay_reverse',
   ShortcutCommand.recordRound: 'record_round',
+  ShortcutCommand.mediaViewerFullscreen: 'media_viewer_video_fullscreen',
 };
 
 final _nameToCommand = {
@@ -418,6 +421,9 @@ class ShortcutSystem {
   bool get isPaused => _paused;
   String _configDir = '';
 
+  bool chatSwitchStarted = false;
+  LogicalKeyboardKey? chatSwitchModifier;
+
   void Function(KeyEvent)? _recordingCallback;
   bool get isRecording => _recordingCallback != null;
 
@@ -482,7 +488,11 @@ class ShortcutSystem {
   }
 
   void pause() => _paused = true;
-  void resume() => _paused = false;
+  void resume() {
+    _paused = false;
+    chatSwitchStarted = false;
+    chatSwitchModifier = null;
+  }
 
   void init({String configDir = ''}) {
     if (_requestController.isClosed) {
@@ -879,7 +889,7 @@ class ShortcutSystem {
           control: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.keyR, ShortcutCommand.recordVoice,
-          control: true, shift: true),
+          control: true),
     const KeyBinding(
         LogicalKeyboardKey.backslash, ShortcutCommand.showChatMenu,
         control: true),
@@ -942,30 +952,54 @@ class ShortcutSystem {
     if (_isDesktop && _isMac)
       const KeyBinding(LogicalKeyboardKey.digit8, ShortcutCommand.lastFolder,
           meta: true),
-    if (_isDesktop)
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit1, ShortcutCommand.pinnedChat1,
-          alt: true),
-    if (_isDesktop)
+          control: true),
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit1, ShortcutCommand.pinnedChat1,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit2, ShortcutCommand.pinnedChat2,
-          alt: true),
-    if (_isDesktop)
+          control: true),
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit2, ShortcutCommand.pinnedChat2,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit3, ShortcutCommand.pinnedChat3,
-          alt: true),
-    if (_isDesktop)
+          control: true),
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit3, ShortcutCommand.pinnedChat3,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit4, ShortcutCommand.pinnedChat4,
-          alt: true),
-    if (_isDesktop)
+          control: true),
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit4, ShortcutCommand.pinnedChat4,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit5, ShortcutCommand.pinnedChat5,
-          alt: true),
-    if (_isDesktop)
+          control: true),
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit5, ShortcutCommand.pinnedChat5,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit6, ShortcutCommand.pinnedChat6,
-          alt: true),
-    if (_isDesktop)
+          control: true),
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit6, ShortcutCommand.pinnedChat6,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit7, ShortcutCommand.pinnedChat7,
-          alt: true),
-    if (_isDesktop)
+          control: true),
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit7, ShortcutCommand.pinnedChat7,
+          meta: true),
+    if (_isDesktop && !_isMac)
       const KeyBinding(LogicalKeyboardKey.digit8, ShortcutCommand.pinnedChat8,
-          alt: true),
+          control: true),
+    if (_isDesktop && _isMac)
+      const KeyBinding(LogicalKeyboardKey.digit8, ShortcutCommand.pinnedChat8,
+          meta: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.keyL, ShortcutCommand.lockTelegram,
           control: true),
@@ -1128,10 +1162,20 @@ class _ShortcutListenerState extends State<ShortcutListener>
       return true;
     });
     sys.registerHandler(ShortcutCommand.chatSwitchOverlay, () {
+      if (sys.chatSwitchStarted) return false;
+      sys.chatSwitchStarted = true;
+      sys.chatSwitchModifier = HardwareKeyboard.instance.isMetaPressed
+          ? LogicalKeyboardKey.metaLeft
+          : LogicalKeyboardKey.controlLeft;
       UniClientShell.showChatSwitchRequest?.call();
       return true;
     });
     sys.registerHandler(ShortcutCommand.chatSwitchOverlayReverse, () {
+      if (sys.chatSwitchStarted) return false;
+      sys.chatSwitchStarted = true;
+      sys.chatSwitchModifier = HardwareKeyboard.instance.isMetaPressed
+          ? LogicalKeyboardKey.metaLeft
+          : LogicalKeyboardKey.controlLeft;
       UniClientShell.showChatSwitchRequest?.call(reverse: true);
       return true;
     });
@@ -1343,6 +1387,10 @@ class _ShortcutListenerState extends State<ShortcutListener>
     sys.registerHandler(ShortcutCommand.supportHistoryForward, () {
       final chatState = context.read<ChatState>();
       return chatState.navigateChatHistory(1);
+    });
+
+    sys.registerHandler(ShortcutCommand.mediaViewerFullscreen, () {
+      return MediaViewer.toggleFullscreen();
     });
 
     sys.registerHandler(ShortcutCommand.formatBold, () {

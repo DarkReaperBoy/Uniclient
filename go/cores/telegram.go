@@ -23278,6 +23278,17 @@ func (t *TelegramCore) LangpackGetStrings(request *tg.LangpackGetStringsRequest)
 	return t.api.LangpackGetStrings(t.ctx, request)
 }
 
+// SetInterfaceLanguage switches the client's interface language by fetching the langpack.
+func (t *TelegramCore) SetInterfaceLanguage(langCode string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.LangpackGetLangPack(t.ctx, &tg.LangpackGetLangPackRequest{
+		LangPack: "tdesktop",
+		LangCode: langCode,
+	})
+	return err
+}
+
 // --- Messages (165 methods) ---
 
 // MessagesAcceptEncryption accepts an incoming secret chat encryption request.

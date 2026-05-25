@@ -4755,6 +4755,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(langs)
 
+	case "SetLanguage":
+		var params struct {
+			AccountID string `json:"account_id"`
+			LangCode  string `json:"lang_code"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.SetLanguage(params.AccountID, params.LangCode); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": true})
+
 	case "SaveLanguagePrefs":
 		var params struct {
 			AccountID string          `json:"account_id"`
@@ -4780,6 +4793,18 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return data, nil
+
+	case "GetMapTile":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Zoom      int    `json:"zoom"`
+			X         int    `json:"x"`
+			Y         int    `json:"y"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return e.GetMapTile(params.AccountID, params.Zoom, params.X, params.Y)
 
 	case "GetPrivacySetting":
 		var params struct {

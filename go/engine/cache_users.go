@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -2262,6 +2264,20 @@ func (e *Engine) GetLanguages(accountID string) ([]LanguageInfo, error) {
 	return nil, fmt.Errorf("not supported")
 }
 
+func (e *Engine) SetLanguage(accountID, langCode string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	type langSetter interface {
+		SetInterfaceLanguage(langCode string) error
+	}
+	if ls, ok := acc.Core.(langSetter); ok {
+		return ls.SetInterfaceLanguage(langCode)
+	}
+	return nil
+}
+
 func (e *Engine) SaveLanguagePrefs(accountID string, data json.RawMessage) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2286,6 +2302,24 @@ func (e *Engine) LoadLanguagePrefs(accountID string) (json.RawMessage, error) {
 		return nil, err
 	}
 	return json.RawMessage(data), nil
+}
+
+func (e *Engine) GetMapTile(accountID string, zoom, x, y int) ([]byte, error) {
+	tileURL := fmt.Sprintf("https://tile.openstreetmap.org/%d/%d/%d.png", zoom, x, y)
+	req, err := http.NewRequest("GET", tileURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "UniClient/1.0")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("tile fetch failed: %d", resp.StatusCode)
+	}
+	return io.ReadAll(resp.Body)
 }
 
 type connectedBotsGetter interface {

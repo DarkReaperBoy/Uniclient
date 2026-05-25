@@ -211,7 +211,15 @@ class _LanguageBoxState extends State<LanguageBox> {
     final appState = context.read<AppState>();
     appState.addRecentLanguage(langCode);
     _persistLanguagePrefs(appState);
+    _switchCloudLanguage(langCode);
     setState(() => _selectedCode = langCode);
+  }
+
+  void _switchCloudLanguage(String langCode) {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isEmpty) return;
+    engine.callGeneric(accountId, 'SetLanguage', {'lang_code': langCode});
   }
 
   void _persistLanguagePrefs(AppState appState) {
@@ -219,7 +227,7 @@ class _LanguageBoxState extends State<LanguageBox> {
     final accountId = appState.activeAccountId;
     if (accountId.isEmpty) return;
     engine.saveLanguagePrefs(accountId, {
-      'selectedLanguage': appState.selectedLanguageCode,
+      'selectedLanguageCode': appState.selectedLanguageCode,
       'showTranslateButton': appState.showTranslateButton,
       'translateEntireChats': appState.translateEntireChats,
       'skipTranslationLanguages': appState.skipTranslationLanguages,
@@ -743,7 +751,7 @@ class _LangMenuToggle extends StatelessWidget {
     final accountId = appState.activeAccountId;
     if (accountId.isEmpty) return;
     engine.saveLanguagePrefs(accountId, {
-      'selectedLanguage': appState.selectedLanguageCode,
+      'selectedLanguageCode': appState.selectedLanguageCode,
       'showTranslateButton': appState.showTranslateButton,
       'translateEntireChats': appState.translateEntireChats,
       'skipTranslationLanguages': appState.skipTranslationLanguages,
@@ -921,7 +929,7 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
     final accountId = appState.activeAccountId;
     if (accountId.isNotEmpty) {
       engine.saveLanguagePrefs(accountId, {
-        'selectedLanguage': appState.selectedLanguageCode,
+        'selectedLanguageCode': appState.selectedLanguageCode,
         'showTranslateButton': appState.showTranslateButton,
         'translateEntireChats': appState.translateEntireChats,
         'skipTranslationLanguages': appState.skipTranslationLanguages,
@@ -951,6 +959,12 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
         ];
         return needles.every((n) => words.any((w) => w.startsWith(n)));
       }).toList();
+    }
+    final currentLocale = View.of(context).platformDispatcher.locale.languageCode;
+    final currentIdx = langs.indexWhere((l) => l.langCode == currentLocale);
+    if (currentIdx > 0) {
+      final item = langs.removeAt(currentIdx);
+      langs.insert(0, item);
     }
     final selectedLangs = langs.where((l) => _selected.contains(l.langCode)).toList();
     final unselectedLangs = langs.where((l) => !_selected.contains(l.langCode)).toList();
@@ -1078,14 +1092,22 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
                               ],
                             ),
                           ),
-                          SizedBox(
-                            height: 20,
-                            width: 36,
-                            child: Switch(
-                              value: checked,
-                              onChanged: (_) => _toggle(lang.langCode),
-                              activeColor: accentColor,
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          GestureDetector(
+                            onTap: () => _toggle(lang.langCode),
+                            child: Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: checked ? accentColor : Colors.transparent,
+                                border: Border.all(
+                                  color: checked ? accentColor : subTextColor.withAlpha(120),
+                                  width: 2,
+                                ),
+                              ),
+                              child: checked
+                                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                  : null,
                             ),
                           ),
                         ],
