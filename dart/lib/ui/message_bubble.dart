@@ -6657,9 +6657,20 @@ class _WebmEmojiPlayer extends StatefulWidget {
 }
 
 class _WebmEmojiPlayerState extends State<_WebmEmojiPlayer> {
+  static Directory? _cacheDir;
+
   Player? _player;
   VideoController? _videoController;
-  File? _tempFile;
+
+  static Future<Directory> _ensureCacheDir() async {
+    if (_cacheDir != null) return _cacheDir!;
+    final dir = Directory('${Directory.systemTemp.path}/uniclient_emoji_cache');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    _cacheDir = dir;
+    return dir;
+  }
 
   @override
   void initState() {
@@ -6669,13 +6680,12 @@ class _WebmEmojiPlayerState extends State<_WebmEmojiPlayer> {
 
   Future<void> _initPlayer() async {
     try {
-      final dir = Directory.systemTemp;
-      final digest = crypto.sha256.convert(widget.fileData).toString().substring(0, 16);
-      final file = File('${dir.path}/emoji_$digest.webm');
+      final dir = await _ensureCacheDir();
+      final digest = crypto.sha256.convert(widget.fileData).toString();
+      final file = File('${dir.path}/$digest.webm');
       if (!await file.exists()) {
         await file.writeAsBytes(widget.fileData, flush: true);
       }
-      _tempFile = file;
       final player = Player();
       final controller = VideoController(player);
       final shouldAutoplay = context.read<AppState>().experimentalFlags['autoplay_gifs'] != false;
@@ -6695,7 +6705,6 @@ class _WebmEmojiPlayerState extends State<_WebmEmojiPlayer> {
   @override
   void dispose() {
     _player?.dispose();
-    _tempFile?.delete().catchError((_) {});
     super.dispose();
   }
 
