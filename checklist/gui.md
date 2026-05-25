@@ -829,9 +829,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## message_bubble — WebmEmojiPlayer temp file written per widget init with hash collision risk
-- [ ] [MAJOR] `_WebmEmojiPlayer._initPlayer` writes a temp file keyed on `widget.fileData.hashCode` every time the widget initializes — Dart's `hashCode` is not guaranteed unique, so two different emoji blobs can silently share the same temp file path; additionally temp files are never cleaned up, leading to unbounded temp dir growth — `message_bubble.dart:6617`
-
 ## message_bubble — GIF player creates new media_kit Player per widget with no pooling
 - [ ] [MAJOR] `_GifPlayer` instantiates a fresh `media_kit Player` object for every GIF widget without any pool or reuse strategy — if multiple GIFs are simultaneously visible (e.g. in album or rapid scroll), each holds its own decoder and render surface; no disposal coordination when widgets are recycled off-screen — `message_bubble.dart:3976`
 
