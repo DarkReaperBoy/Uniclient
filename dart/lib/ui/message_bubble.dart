@@ -25,6 +25,8 @@ import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
+import 'package:crypto/crypto.dart' as crypto;
+import 'package:url_launcher/url_launcher.dart' as launcher;
 
 import '../models/engine_models.dart';
 import '../bridge/engine_service.dart';
@@ -259,9 +261,13 @@ class _MessageBubbleState extends State<MessageBubble> {
   void _onHoverExit() {
     _showTimer?.cancel();
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) setState(() => _hovered = false);
-    });
+    if (_hovered) {
+      setState(() => _hovered = false);
+    } else {
+      _hideTimer = Timer(const Duration(milliseconds: 300), () {
+        if (mounted) setState(() => _hovered = false);
+      });
+    }
   }
 
   void _onReactionTap(String emoji) {
@@ -925,8 +931,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                       ),
                     // Via-bot label: "via @botname" — spec §5, shown if no sender name shown and no forward header.
                     if (message.viaBotName.isNotEmpty &&
-                        message.forwardFrom.isEmpty &&
-                        (isOutgoing || message.senderName.isEmpty || !isFirstInGroup))
+                        message.forwardFrom.isEmpty)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
                         child: Text.rich(
@@ -1082,6 +1087,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                         theme: theme,
                         reactionKeys: _reactionKeys,
                         accountId: message.accountId,
+                        onToggleReaction: _onReactionTap,
                       ),
                     ],
                     // Bottom info: views + forwards + edited + time + status.
@@ -1778,7 +1784,6 @@ class _ReactionEmojiOverlay extends StatefulWidget {
 
 class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
     with SingleTickerProviderStateMixin {
-  int _activeCategory = 0;
   String _search = '';
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
@@ -1790,101 +1795,21 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
   static const _cellSize = 40.0;
   static const _gridPadding = 8.0;
 
-  static const _categories = [
-    ('Recent', '🕐'),
-    ('Smileys', '😊'),
-    ('People', '👋'),
-    ('Nature', '🐻'),
-    ('Food', '🍔'),
-    ('Activities', '⚽'),
-    ('Travel', '🏠'),
-    ('Objects', '💡'),
-    ('Symbols', '❤️'),
-    ('Flags', '🏳️'),
+  static const _defaultReactions = [
+    '👍', '👎', '❤️', '🔥', '🥰', '👏', '😁', '🤔',
+    '🤯', '😱', '🤬', '😢', '🎉', '🤩', '🤮', '💩',
+    '🙏', '👌', '🕊', '🤡', '🥱', '🥴', '😍', '🐳',
+    '❤️‍🔥', '🌚', '🌭', '💯', '🤣', '⚡', '🍌', '🏆',
+    '💔', '🤨', '😐', '🍓', '🍾', '💋', '🖕', '😈',
+    '😴', '😭', '🤓', '👻', '👨‍💻', '👀', '🎃', '🙈',
+    '😇', '😨', '🤝', '✍️', '🤗', '🫡', '🎅', '🎄',
+    '☃️', '💅', '🤪', '🗿', '🆒', '💘', '🙉', '🦄',
+    '😘', '💊', '🙊', '😎', '👾', '🤷‍♂️', '🤷', '🤷‍♀️',
+    '😡',
   ];
 
-  static const _defaultRecentEmoji = [
-    '👍', '❤️', '🔥', '🥰', '👏', '😱', '😢', '🎉',
-    '🤔', '🥳', '😍', '💯', '🙏', '😂', '❤️‍🔥', '🤣',
-  ];
-
-  List<String> get _recentEmoji =>
-      widget.availableReactions.isNotEmpty ? widget.availableReactions : _defaultRecentEmoji;
-
-  late final List<List<String>> _emojiByCategory = [
-    _recentEmoji,
-    ['😀', '😃', '😄', '😁', '😆', '🥹', '😅', '🤣',
-     '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍',
-     '🤩', '😘', '😗', '☺️', '😚', '😙', '🥲', '😋',
-     '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫',
-     '🤔', '🫡', '🤐', '🤨', '😐', '😑', '😶', '🫥',
-     '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪',
-     '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🥴',
-     '😵', '🤯', '🥱', '😤', '😡', '🤬', '😈', '👿',
-     '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽',
-     '🤖', '😺', '😸', '😹', '😻', '😼', '😽', '🙀',
-     '😿', '😾'],
-    ['👋', '🤚', '🖐️', '✋', '🖖', '🫱', '🫲', '🫳',
-     '🫴', '🫷', '🫸', '👌', '🤌', '🤏', '✌️', '🤞',
-     '🫰', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕',
-     '👇', '☝️', '🫵', '👍', '👎', '✊', '👊', '🤛',
-     '🤜', '👏', '🙌', '🫶', '👐', '🤲', '🤝', '🙏',
-     '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶',
-     '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴',
-     '👀', '👁️', '👅', '👄'],
-    ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼',
-     '🐻‍❄️', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵',
-     '🙈', '🙉', '🙊', '🐔', '🐧', '🐦', '🐤', '🦆',
-     '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝',
-     '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲',
-     '🪳', '🦟', '🦗', '🕷️', '🌸', '💐', '🌷', '🌹',
-     '🥀', '🌺', '🌻', '🌼', '🌱', '🪴', '🌲', '🌳',
-     '🌴', '🌵', '🍀', '☘️', '🍃', '🍂', '🍁', '🌾'],
-    ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇',
-     '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥',
-     '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️',
-     '🫑', '🌽', '🥕', '🧄', '🧅', '🥔', '🍠', '🫘',
-     '🥐', '🍞', '🥖', '🫓', '🥨', '🧀', '🥚', '🍳',
-     '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🌭',
-     '🍔', '🍟', '🍕', '🫔', '🌮', '🌯', '🫕', '🥗',
-     '🥣', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟'],
-    ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉',
-     '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍',
-     '🏏', '🪃', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿',
-     '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌',
-     '🎿', '⛷️', '🏂', '🪂', '🏆', '🥇', '🥈', '🥉',
-     '🏅', '🎖️', '🏵️', '🎗️', '🎪', '🎭', '🩰', '🎨',
-     '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🪘', '🎷',
-     '🎺', '🪗', '🎸', '🎻', '🎲', '♟️', '🎯', '🎳'],
-    ['🏠', '🏡', '🏢', '🏣', '🏤', '🏥', '🏦', '🏨',
-     '🏩', '🏪', '🏫', '🏬', '🏭', '🏯', '🏰', '💒',
-     '🗼', '🗽', '⛪', '🕌', '🛕', '🕍', '⛩️', '🕋',
-     '⛲', '⛺', '🌁', '🌃', '🏙️', '🌄', '🌅', '🌆',
-     '🌇', '🌉', '🗾', '🏔️', '⛰️', '🌋', '🗻', '🏕️',
-     '🏖️', '🏜️', '🏝️', '🏞️', '🚗', '🚕', '🚙', '🚌',
-     '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚',
-     '🚛', '🚜', '✈️', '🚀', '🛸', '🚁', '🛶', '⛵'],
-    ['💡', '🔦', '🕯️', '💎', '🔑', '🗝️', '🔒', '🔓',
-     '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️',
-     '🕹️', '🗜️', '💽', '💾', '💿', '📀', '📼', '📷',
-     '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟',
-     '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '🧭', '⏱️',
-     '⏲️', '⏰', '🕰️', '⌛', '📡', '🔋', '🪫', '🔌',
-     '💰', '🪙', '💴', '💵', '💶', '💷', '💸', '💳',
-     '🧾', '📦', '📫', '📪', '📬', '📭', '📮', '🗳️'],
-    ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍',
-     '🤎', '❤️‍🔥', '❤️‍🩹', '💔', '❣️', '💕', '💞', '💓',
-     '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️',
-     '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐',
-     '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎',
-     '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑',
-     '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺',
-     '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴'],
-    ['🏳️', '🏴', '🏴‍☠️', '🏁', '🚩', '🏳️‍🌈', '🏳️‍⚧️', '🇺🇳',
-     '🇺🇸', '🇬🇧', '🇫🇷', '🇩🇪', '🇮🇹', '🇪🇸', '🇧🇷', '🇯🇵',
-     '🇰🇷', '🇨🇳', '🇷🇺', '🇮🇳', '🇨🇦', '🇦🇺', '🇲🇽', '🇹🇷',
-     '🇦🇷', '🇸🇦', '🇿🇦', '🇳🇬', '🇪🇬', '🇰🇪', '🇮🇱', '🇵🇸'],
-  ];
+  List<String> get _allReactions =>
+      widget.availableReactions.isNotEmpty ? widget.availableReactions : _defaultReactions;
 
   @override
   void initState() {
@@ -1909,14 +1834,10 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
   }
 
   List<String> _filteredEmoji() {
-    if (_search.isEmpty) {
-      return _emojiByCategory[_activeCategory];
-    }
-    final all = <String>{};
-    for (final cat in _emojiByCategory) {
-      all.addAll(cat);
-    }
-    return all.toList();
+    final all = _allReactions;
+    if (_search.isEmpty) return all;
+    final q = _search.toLowerCase();
+    return all.where((e) => e.contains(q)).toList();
   }
 
   @override
@@ -1924,8 +1845,6 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
     final ep = context.palette;
     final bg = ep.windowBgOver;
     final shadow = widget.isDark ? Colors.black26 : Colors.black12;
-    final tabBg = ep.windowBg;
-    final tabActive = ep.windowBgRipple;
     final searchBg = ep.windowBg;
     final textColor = ep.windowFg.withValues(alpha: 0.87);
     final emojis = _filteredEmoji();
@@ -2035,49 +1954,7 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
                         ),
                       ),
                     ),
-                    if (_search.isEmpty)
-                      SizedBox(
-                        height: 32,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 6),
-                          itemCount: _categories.length,
-                          itemBuilder: (context, i) {
-                            final isActive = _activeCategory == i;
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 2),
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(
-                                      () => _activeCategory = i);
-                                  _scrollController.jumpTo(0);
-                                },
-                                child: Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 8),
-                                  decoration: BoxDecoration(
-                                    color: isActive
-                                        ? tabActive
-                                        : tabBg,
-                                    borderRadius:
-                                        BorderRadius.circular(16),
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    _categories[i].$2,
-                                    style: const TextStyle(
-                                        fontSize: 18),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    if (_search.isEmpty) const SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Flexible(
                       child: GridView.builder(
                         controller: _scrollController,
@@ -2124,6 +2001,7 @@ class _ReactionList extends StatelessWidget {
   final ThemeData theme;
   final Map<String, GlobalKey> reactionKeys;
   final String accountId;
+  final ValueChanged<String>? onToggleReaction;
 
   const _ReactionList({
     required this.reactions,
@@ -2131,6 +2009,7 @@ class _ReactionList extends StatelessWidget {
     required this.theme,
     required this.reactionKeys,
     required this.accountId,
+    this.onToggleReaction,
   });
 
   @override
@@ -2149,7 +2028,9 @@ class _ReactionList extends StatelessWidget {
           GestureDetector(
             onTap: r.isCustomEmoji
                 ? () => _showCustomEmojiPreview(context, r)
-                : null,
+                : onToggleReaction != null
+                    ? () => onToggleReaction!(r.emoji)
+                    : null,
             child: Container(
               key: reactionKeys[r.isCustomEmoji ? 'custom_${r.documentId}' : r.emoji],
               height: 22,
@@ -3385,7 +3266,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
         ? (_MessageBubbleState._baseMaxWidth * wm).roundToDouble()
         : _MessageBubbleState._baseMaxWidth;
     final bool isGif = message.mediaType == 7;
-    final double maxW = isGif ? 320.0 : baseMax;
+    final double maxW = isGif ? math.min(320.0, baseMax) : baseMax;
     final double maxH = isGif ? 1080.0 : baseMax;
     double displayWidth = maxW;
     double displayHeight = maxW * 287.0 / baseMax;
@@ -3974,9 +3855,10 @@ class _GifPlayerState extends State<_GifPlayer> {
   }
 
   void _initPlayer() {
+    if (!mounted) return;
     final player = Player();
     _player = player;
-    _controller = VideoController(player);
+    _controller = VideoController(player, configuration: const VideoControllerConfiguration(enableHardwareAcceleration: true));
     player.setVolume(0);
     player.setPlaylistMode(PlaylistMode.loop);
     player.open(Media(widget.filePath));
@@ -4950,7 +4832,7 @@ class _LocationIndicatorState extends State<_LocationIndicator> {
     final lng = message.geoLong;
     if (lat == 0.0 && lng == 0.0) return;
     final url = 'https://www.openstreetmap.org/?mlat=$lat&mlon=$lng#map=15/$lat/$lng';
-    Process.run('xdg-open', [url]);
+    launcher.launchUrl(Uri.parse(url));
   }
 
   @override
@@ -5325,7 +5207,7 @@ class _ContactIndicator extends StatelessWidget {
                   )
                 : _actionButton('View Details', accentColor, () {
                     if (phone.isNotEmpty) {
-                      Process.run('xdg-open', ['tel:$phone']);
+                      launcher.launchUrl(Uri.parse('tel:$phone'));
                     }
                   }),
           ),
@@ -5510,7 +5392,7 @@ class _FileIndicator extends StatelessWidget {
   void _onTap(BuildContext context) {
     final state = message.mediaDownloadState;
     if (state == 2 && message.mediaLocalPath.isNotEmpty) {
-      Process.run('xdg-open', [message.mediaLocalPath]);
+      launcher.launchUrl(Uri.file(message.mediaLocalPath));
       return;
     }
     if (state == 1) {
@@ -6618,7 +6500,8 @@ class _WebmEmojiPlayerState extends State<_WebmEmojiPlayer> {
   Future<void> _initPlayer() async {
     try {
       final dir = Directory.systemTemp;
-      final file = File('${dir.path}/emoji_${widget.fileData.hashCode}.webm');
+      final digest = crypto.sha256.convert(widget.fileData).toString().substring(0, 16);
+      final file = File('${dir.path}/emoji_$digest.webm');
       await file.writeAsBytes(widget.fileData, flush: true);
       _tempFile = file;
       final player = Player();
@@ -7405,7 +7288,7 @@ class _RichMessageTextState extends State<_RichMessageText> {
         !url.startsWith('mailto:') && !url.startsWith('tel:')) {
       url = 'https://$url';
     }
-    Process.run('xdg-open', [url]);
+    launcher.launchUrl(Uri.parse(url));
   }
 }
 
@@ -8310,23 +8193,19 @@ class _PollWidgetState extends State<_PollWidget>
                         height: 20,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: context.palette.dialogsUnreadBg,
+                          color: HSLColor.fromAHSL(
+                            1.0, (recentVoters[i].hashCode % 360).toDouble().abs(), 0.5, isDark ? 0.35 : 0.55,
+                          ).toColor(),
                           border: Border.all(
                             color: context.palette.windowBg,
                             width: 1.5,
                           ),
                         ),
                         child: Center(
-                          child: Text(
-                            recentVoters[i].length > 1
-                                ? recentVoters[i]
-                                    .substring(recentVoters[i].length - 1)
-                                : '?',
-                            style: const TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
+                          child: Icon(
+                            Icons.person,
+                            size: 12,
+                            color: Colors.white.withValues(alpha: 0.9),
                           ),
                         ),
                       ),
@@ -8870,7 +8749,7 @@ class _WebPagePreview extends StatelessWidget {
       spans.add(TextSpan(
         text: token,
         style: descStyle.copyWith(color: accentColor),
-        recognizer: TapGestureRecognizer()..onTap = () => Process.run('xdg-open', [url]),
+        recognizer: TapGestureRecognizer()..onTap = () => launcher.launchUrl(Uri.parse(url)),
       ));
       pos = m.end;
     }
@@ -8943,7 +8822,7 @@ class _WebPagePreview extends StatelessWidget {
       case 'telegram_giftcode':
         _openGiftCodeFromUrl(context, url);
       default:
-        Process.run('xdg-open', [url]);
+        launcher.launchUrl(Uri.parse(url));
     }
   }
 
@@ -9596,7 +9475,7 @@ class _GameCardState extends State<_GameCard> {
         }
       }
       if (url != null && url.isNotEmpty) {
-        Process.run('xdg-open', [url]);
+        launcher.launchUrl(Uri.parse(url));
       }
     } catch (_) {
     } finally {
@@ -10166,7 +10045,7 @@ class _InlineButtonState extends State<_InlineButton>
           if (!url.startsWith('http://') && !url.startsWith('https://')) {
             url = 'https://$url';
           }
-          Process.run('xdg-open', [url]);
+          launcher.launchUrl(Uri.parse(url));
         }
       case 'url_auth':
         if (_loading) return;
@@ -10187,18 +10066,18 @@ class _InlineButtonState extends State<_InlineButton>
                 result['share_phone'] as bool? ?? false,
               );
               final openUrl = url.isNotEmpty ? url : btn.url;
-              if (openUrl.isNotEmpty) Process.run('xdg-open', [openUrl]);
+              if (openUrl.isNotEmpty) launcher.launchUrl(Uri.parse(openUrl));
               if (mounted) {
                 showTelegramToast(context, 'Logged in to ${authData['domain'] ?? 'website'}');
               }
             } else if (result['action'] == 'open') {
-              if (btn.url.isNotEmpty) Process.run('xdg-open', [btn.url]);
+              if (btn.url.isNotEmpty) launcher.launchUrl(Uri.parse(btn.url));
             }
           } else {
-            if (btn.url.isNotEmpty) Process.run('xdg-open', [btn.url]);
+            if (btn.url.isNotEmpty) launcher.launchUrl(Uri.parse(btn.url));
           }
         } catch (_) {
-          if (btn.url.isNotEmpty) Process.run('xdg-open', [btn.url]);
+          if (btn.url.isNotEmpty) launcher.launchUrl(Uri.parse(btn.url));
         } finally {
           if (mounted) setState(() => _loading = false);
         }
@@ -10245,7 +10124,7 @@ class _InlineButtonState extends State<_InlineButton>
           final result = await chatState.botCallbackGame(widget.messageId);
           if (!mounted) return;
           if (result.url.isNotEmpty) {
-            Process.run('xdg-open', [result.url]);
+            launcher.launchUrl(Uri.parse(result.url));
           } else if (result.message.isNotEmpty) {
             showTelegramToast(context, result.message);
           }
@@ -10512,7 +10391,15 @@ class _InlineButtonState extends State<_InlineButton>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Share Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textColor)),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 4),
+                      GestureDetector(
+                        onTap: () => launcher.launchUrl(Uri.parse('https://www.openstreetmap.org/')),
+                        child: Text(
+                          'Find coordinates on map',
+                          style: TextStyle(fontSize: 12, color: context.palette.windowBgActive, decoration: TextDecoration.underline),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       TextField(
                         controller: latController,
                         style: TextStyle(color: textColor, fontSize: 14),
