@@ -4,14 +4,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
 
 	"uniclient/cores"
+
+	"github.com/gotd/td/tg"
 )
 
 // CachedUser is the user profile data returned to the UI from cache.
@@ -2304,22 +2304,54 @@ func (e *Engine) LoadLanguagePrefs(accountID string) (json.RawMessage, error) {
 	return json.RawMessage(data), nil
 }
 
-func (e *Engine) GetMapTile(accountID string, zoom, x, y int) ([]byte, error) {
-	tileURL := fmt.Sprintf("https://tile.openstreetmap.org/%d/%d/%d.png", zoom, x, y)
-	req, err := http.NewRequest("GET", tileURL, nil)
+func (e *Engine) GetMapTile(accountID string, lat, lon float64, accessHash int64, w, h, zoom int) ([]byte, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not connected", accountID)
+	}
+	tc, ok := acc.Core.(*cores.TelegramCore)
+	if !ok {
+		return nil, fmt.Errorf("map tiles only supported for Telegram accounts")
+	}
+
+	scale := 2
+	clampedW := w
+	if clampedW < 16 {
+		clampedW = 16
+	} else if clampedW > 1024 {
+		clampedW = 1024
+	}
+	clampedH := h
+	if clampedH < 16 {
+		clampedH = 16
+	} else if clampedH > 1024 {
+		clampedH = 1024
+	}
+	if zoom < 13 {
+		zoom = 13
+	} else if zoom > 20 {
+		zoom = 20
+	}
+
+	geoPoint := &tg.InputGeoPoint{Lat: lat, Long: lon}
+	location := &tg.InputWebFileGeoPointLocation{
+		GeoPoint:   geoPoint,
+		AccessHash: accessHash,
+		W:          clampedW,
+		H:          clampedH,
+		Zoom:       zoom,
+		Scale:      scale,
+	}
+
+	result, err := tc.UploadGetWebFile(&tg.UploadGetWebFileRequest{
+		Location: location,
+		Offset:   0,
+		Limit:    1048576,
+	})
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "UniClient/1.0")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("tile fetch failed: %d", resp.StatusCode)
-	}
-	return io.ReadAll(resp.Body)
+	return result.Bytes, nil
 }
 
 type connectedBotsGetter interface {

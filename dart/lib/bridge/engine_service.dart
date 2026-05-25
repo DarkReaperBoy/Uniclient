@@ -5672,12 +5672,15 @@ class EngineService {
 
   // ─�� Privacy Settings ──
 
-  Future<Uint8List?> getMapTile(String accountId, int zoom, int x, int y) async {
+  Future<Uint8List?> getMapTile(String accountId, double lat, double lon, int accessHash, int w, int h, int zoom) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
+      'lat': lat,
+      'lon': lon,
+      'access': accessHash,
+      'w': w,
+      'h': h,
       'zoom': zoom,
-      'x': x,
-      'y': y,
     }));
     try {
       final respBytes = await _callAsync(accountId.isEmpty ? '__engine' : accountId, 'GetMapTile', Uint8List.fromList(payload));

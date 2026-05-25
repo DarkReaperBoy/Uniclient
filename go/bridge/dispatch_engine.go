@@ -4796,15 +4796,18 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "GetMapTile":
 		var params struct {
-			AccountID string `json:"account_id"`
-			Zoom      int    `json:"zoom"`
-			X         int    `json:"x"`
-			Y         int    `json:"y"`
+			AccountID  string  `json:"account_id"`
+			Lat        float64 `json:"lat"`
+			Lon        float64 `json:"lon"`
+			AccessHash int64   `json:"access"`
+			W          int     `json:"w"`
+			H          int     `json:"h"`
+			Zoom       int     `json:"zoom"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		return e.GetMapTile(params.AccountID, params.Zoom, params.X, params.Y)
+		return e.GetMapTile(params.AccountID, params.Lat, params.Lon, params.AccessHash, params.W, params.H, params.Zoom)
 
 	case "GetPrivacySetting":
 		var params struct {

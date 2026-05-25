@@ -1536,57 +1536,27 @@ class _IvBlockState extends State<_IvBlock> {
     final displayW = mapW.toDouble().clamp(200.0, 800.0);
     final displayH = mapH.toDouble().clamp(100.0, 400.0);
 
-    if (geoAccess == null) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GestureDetector(
-              onTap: () => launchUrl(Uri.parse('https://www.openstreetmap.org/?mlat=$latD&mlon=$lngD#map=$zoom/$latD/$lngD'), mode: LaunchMode.externalApplication),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Container(
-                  width: displayW,
-                  height: displayH,
-                  color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.location_pin, color: Colors.red.shade700, size: 36),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${latD.toStringAsFixed(4)}, ${lngD.toStringAsFixed(4)}',
-                        style: TextStyle(fontSize: 13, color: _subtleColor, fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Tap to open map',
-                        style: TextStyle(fontSize: 12, color: _accentColor),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            if (caption != null) _buildCaption(context, caption),
-          ],
-        ),
-      );
-    }
-
-    final n = 1 << zoom;
-    final latRad = latD * math.pi / 180.0;
-    final worldPixelX = ((lngD + 180.0) / 360.0) * n * 256;
-    final worldPixelY = ((1.0 - math.log(math.tan(latRad) + 1.0 / math.cos(latRad)) / math.pi) / 2.0) * n * 256;
-
-    final viewLeftPixel = worldPixelX - displayW / 2;
-    final viewTopPixel = worldPixelY - displayH / 2;
-
-    final tileXStart = (viewLeftPixel / 256).floor();
-    final tileYStart = (viewTopPixel / 256).floor();
-    final tileXEnd = ((viewLeftPixel + displayW) / 256).floor();
-    final tileYEnd = ((viewTopPixel + displayH) / 256).floor();
+    final placeholder = Container(
+      width: displayW,
+      height: displayH,
+      color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.location_pin, color: Colors.red.shade700, size: 36),
+          const SizedBox(height: 8),
+          Text(
+            '${latD.toStringAsFixed(4)}, ${lngD.toStringAsFixed(4)}',
+            style: TextStyle(fontSize: 13, color: _subtleColor, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap to open map',
+            style: TextStyle(fontSize: 12, color: _accentColor),
+          ),
+        ],
+      ),
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -1597,47 +1567,20 @@ class _IvBlockState extends State<_IvBlock> {
             onTap: () => launchUrl(Uri.parse('https://www.openstreetmap.org/?mlat=$latD&mlon=$lngD#map=$zoom/$latD/$lngD'), mode: LaunchMode.externalApplication),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: SizedBox(
-                width: displayW,
-                height: displayH,
-                child: Stack(
-                  clipBehavior: Clip.hardEdge,
-                  children: [
-                    for (int ty = tileYStart; ty <= tileYEnd; ty++)
-                      for (int tx = tileXStart; tx <= tileXEnd; tx++)
-                        Positioned(
-                          left: tx * 256.0 - viewLeftPixel,
-                          top: ty * 256.0 - viewTopPixel,
-                          width: 256,
-                          height: 256,
-                          child: _MapTile(
-                            accountId: widget.accountId,
-                            zoom: zoom,
-                            x: ((tx % n) + n) % n,
-                            y: ty.clamp(0, n - 1),
-                            isDark: isDark,
-                          ),
-                        ),
-                    Positioned(
-                      left: displayW / 2 - 14,
-                      top: displayH / 2 - 36,
-                      child: Icon(Icons.location_pin, color: Colors.red.shade700, size: 36),
-                    ),
-                    Positioned(
-                      left: 0, right: 0, bottom: 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        color: Colors.black45,
-                        child: Text(
-                          '${latD.toStringAsFixed(4)}, ${lngD.toStringAsFixed(4)}',
-                          style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: geoAccess != null
+                  ? _StaticMapImage(
+                      accountId: widget.accountId,
+                      lat: latD,
+                      lon: lngD,
+                      accessHash: geoAccess.toInt(),
+                      w: mapW,
+                      h: mapH,
+                      zoom: zoom,
+                      displayW: displayW,
+                      displayH: displayH,
+                      isDark: isDark,
+                    )
+                  : placeholder,
             ),
           ),
           if (caption != null) _buildCaption(context, caption),
@@ -2733,64 +2676,99 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
   }
 }
 
-class _MapTile extends StatefulWidget {
+class _StaticMapImage extends StatefulWidget {
   final String accountId;
+  final double lat;
+  final double lon;
+  final int accessHash;
+  final int w;
+  final int h;
   final int zoom;
-  final int x;
-  final int y;
+  final double displayW;
+  final double displayH;
   final bool isDark;
 
-  const _MapTile({
+  const _StaticMapImage({
     required this.accountId,
+    required this.lat,
+    required this.lon,
+    required this.accessHash,
+    required this.w,
+    required this.h,
     required this.zoom,
-    required this.x,
-    required this.y,
+    required this.displayW,
+    required this.displayH,
     required this.isDark,
   });
 
   @override
-  State<_MapTile> createState() => _MapTileState();
+  State<_StaticMapImage> createState() => _StaticMapImageState();
 }
 
-class _MapTileState extends State<_MapTile> {
-  Uint8List? _tileData;
-  bool _usedFallback = false;
+class _StaticMapImageState extends State<_StaticMapImage> {
+  Uint8List? _imageData;
+  bool _failed = false;
 
   @override
   void initState() {
     super.initState();
-    _loadTile();
+    _loadMap();
   }
 
-  Future<void> _loadTile() async {
+  Future<void> _loadMap() async {
     final engine = context.read<EngineService>();
-    final data = await engine.getMapTile(widget.accountId, widget.zoom, widget.x, widget.y);
+    final data = await engine.getMapTile(
+      widget.accountId,
+      widget.lat,
+      widget.lon,
+      widget.accessHash,
+      widget.w,
+      widget.h,
+      widget.zoom,
+    );
     if (!mounted) return;
     if (data != null && data.isNotEmpty) {
-      setState(() => _tileData = data);
+      setState(() => _imageData = data);
     } else {
-      setState(() => _usedFallback = true);
+      setState(() => _failed = true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_tileData != null) {
-      return Image.memory(_tileData!, fit: BoxFit.fill, width: 256, height: 256);
+    if (_imageData != null) {
+      return Image.memory(
+        _imageData!,
+        fit: BoxFit.cover,
+        width: widget.displayW,
+        height: widget.displayH,
+      );
     }
-    if (_usedFallback) {
-      return Image.network(
-        'https://tile.openstreetmap.org/${widget.zoom}/${widget.x}/${widget.y}.png',
-        fit: BoxFit.fill,
-        width: 256,
-        height: 256,
-        headers: const {'User-Agent': 'UniClient/1.0'},
-        errorBuilder: (_, __, ___) => Container(
-          color: widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed),
+    final bgColor = widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed);
+    if (_failed) {
+      return Container(
+        width: widget.displayW,
+        height: widget.displayH,
+        color: bgColor,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.location_pin, color: Colors.red.shade700, size: 36),
+            const SizedBox(height: 8),
+            Text(
+              '${widget.lat.toStringAsFixed(4)}, ${widget.lon.toStringAsFixed(4)}',
+              style: TextStyle(fontSize: 13, color: widget.isDark ? const Color(0xFF8899aa) : const Color(0xFF999999), fontWeight: FontWeight.w500),
+            ),
+          ],
         ),
       );
     }
-    return Container(color: widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8eaed));
+    return Container(
+      width: widget.displayW,
+      height: widget.displayH,
+      color: bgColor,
+      child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+    );
   }
 }
 
