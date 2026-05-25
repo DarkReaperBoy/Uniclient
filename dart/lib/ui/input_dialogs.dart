@@ -2462,8 +2462,9 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               'Allow Revoting',
               'Users will be able to change their vote',
               _allowRevoting,
-              _quiz ? null : (v) => setState(() => _allowRevoting = v),
+              (v) => setState(() => _allowRevoting = v),
               toggleClr, textColor, subColor,
+              locked: _quiz,
             ),
             _settingsToggle(
               'Shuffle Answers',
@@ -2750,10 +2751,12 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     ValueChanged<bool>? onChanged,
     Color toggleColor,
     Color textColor,
-    Color subColor,
-  ) {
+    Color subColor, {
+    bool locked = false,
+  }) {
+    final isActive = locked || onChanged != null;
     return InkWell(
-      onTap: onChanged != null ? () => onChanged(!value) : null,
+      onTap: locked ? null : (onChanged != null ? () => onChanged(!value) : null),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
@@ -2765,7 +2768,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                 children: [
                   Text(label, style: TextStyle(
                     fontSize: 14,
-                    color: onChanged != null ? textColor : subColor,
+                    color: isActive ? textColor : subColor,
                   )),
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
@@ -2774,14 +2777,19 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                 ],
               ),
             ),
-            SizedBox(
-              width: 40,
-              height: 24,
-              child: Switch(
-                value: value,
-                onChanged: onChanged != null ? (v) => onChanged(v) : null,
-                activeColor: toggleColor,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            AbsorbPointer(
+              absorbing: locked,
+              child: SizedBox(
+                width: 40,
+                height: 24,
+                child: Switch(
+                  value: value,
+                  onChanged: locked
+                      ? (_) {}
+                      : (onChanged != null ? (v) => onChanged(v) : null),
+                  activeColor: toggleColor,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
             ),
           ],
