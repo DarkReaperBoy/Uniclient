@@ -829,9 +829,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 
 
-## message_bubble — tapping regular emoji reaction calls nothing
-- [ ] [CRITICAL] In `_ReactionList`, tapping a standard (non-custom) emoji reaction has `onTap: null` — the tap handler is only wired for custom emoji reactions. Regular emoji reactions cannot be toggled by the user — `message_bubble.dart:2150`
-
 ## message_bubble — poll recent voters avatar shows last char of ID string
 - [ ] [CRITICAL] `_ReactorAvatar` label text is `recentVoters[i].substring(recentVoters[i].length - 1)` — this takes the last character of a numeric ID string (e.g. "7" from "12345677"), not a name initial or actual avatar image — `message_bubble.dart:8317`
 
