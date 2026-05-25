@@ -263,9 +263,8 @@ class _MessageBubbleState extends State<MessageBubble> {
     _showTimer?.cancel();
     _hideTimer?.cancel();
     if (_hovered) {
-      _hideTimer = Timer(const Duration(milliseconds: 300), () {
-        if (mounted) setState(() => _hovered = false);
-      });
+      // AyuGram: kButtonExpandedHideDelay = 0ms — hide immediately when strip is visible
+      if (mounted) setState(() => _hovered = false);
     }
   }
 
@@ -1882,6 +1881,7 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
                 emoji: sticker.emoji,
                 thumbB64: sticker.thumbB64,
                 setTitle: set.title,
+                documentId: sticker.fileId,
               ));
             }
           }
@@ -2115,7 +2115,9 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
         return Tooltip(
           message: item.setTitle,
           child: GestureDetector(
-            onTap: () => widget.onPick(item.emoji),
+            onTap: () => widget.onPick(
+              item.documentId.isNotEmpty ? 'custom_${item.documentId}' : item.emoji,
+            ),
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
               child: Center(child: content),
@@ -2131,7 +2133,8 @@ class _CustomEmojiItem {
   final String emoji;
   final String thumbB64;
   final String setTitle;
-  const _CustomEmojiItem({required this.emoji, this.thumbB64 = '', this.setTitle = ''});
+  final String documentId;
+  const _CustomEmojiItem({required this.emoji, this.thumbB64 = '', this.setTitle = '', this.documentId = ''});
 }
 
 class _ReactionList extends StatelessWidget {

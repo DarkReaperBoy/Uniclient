@@ -1863,10 +1863,21 @@ func (t *TelegramCore) ReactToMessage(chatID string, msgID string, emoji string)
 		return err
 	}
 
+	var reaction tg.ReactionClass
+	if strings.HasPrefix(emoji, "custom_") {
+		docID, parseErr := strconv.ParseInt(emoji[7:], 10, 64)
+		if parseErr == nil {
+			reaction = &tg.ReactionCustomEmoji{DocumentID: docID}
+		} else {
+			reaction = &tg.ReactionEmoji{Emoticon: emoji}
+		}
+	} else {
+		reaction = &tg.ReactionEmoji{Emoticon: emoji}
+	}
 	_, err = t.api.MessagesSendReaction(t.ctx, &tg.MessagesSendReactionRequest{
 		Peer:     inputPeer,
 		MsgID:    id,
-		Reaction: []tg.ReactionClass{&tg.ReactionEmoji{Emoticon: emoji}},
+		Reaction: []tg.ReactionClass{reaction},
 	})
 	return err
 }
