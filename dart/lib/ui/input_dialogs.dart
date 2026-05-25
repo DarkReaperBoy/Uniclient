@@ -173,14 +173,13 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
 
   static bool _isValidUsername(String name) {
     if (name.isEmpty) return true;
-    final first = name.codeUnitAt(0);
-    if (first >= 0x30 && first <= 0x39) return false;
     for (var i = 0; i < name.length; i++) {
       final c = name.codeUnitAt(i);
       final isLetter = (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A);
       final isDigit = c >= 0x30 && c <= 0x39;
       final isUnderscore = c == 0x5F;
-      if (!isLetter && !isDigit && !isUnderscore) return false;
+      final isAtSign = c == 0x40 && i == 0;
+      if (!isLetter && !isDigit && !isUnderscore && !isAtSign) return false;
     }
     return true;
   }
@@ -315,9 +314,8 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
             List.generate(currentOrder.length, (i) => currentOrder[i] != _initialUsernameOrder[i])
                 .any((d) => d);
         if (orderChanged) {
-          final primary = username.isNotEmpty ? username : widget.currentUsername;
           final newOrder = [
-            if (primary.isNotEmpty) primary,
+            if (widget.currentUsername.isNotEmpty) widget.currentUsername,
             ...currentOrder,
           ];
           await widget.engine.reorderAccountUsernames(widget.accountId, newOrder);
@@ -2348,6 +2346,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               (v) => setState(() {
                 _anonymous = v;
                 if (v) _showWhoVoted = false;
+                if (!_anonymous && !_showWhoVoted) _allowAddingOptions = false;
               }),
               toggleClr, textColor, subColor,
             ),
@@ -2355,7 +2354,10 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               'Show Who Voted',
               'Users will be able to see who voted for each option',
               _showWhoVoted,
-              _anonymous ? null : (v) => setState(() => _showWhoVoted = v),
+              _anonymous ? null : (v) => setState(() {
+                _showWhoVoted = v;
+                if (!v) _allowAddingOptions = false;
+              }),
               toggleClr, textColor, subColor,
             ),
             _settingsToggle(
@@ -2374,7 +2376,9 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               'Allow Adding Options',
               'Other users will be able to add new options',
               _allowAddingOptions,
-              _quiz ? null : (v) => setState(() => _allowAddingOptions = v),
+              (_quiz || (!_anonymous && !_showWhoVoted))
+                  ? null
+                  : (v) => setState(() => _allowAddingOptions = v),
               toggleClr, textColor, subColor,
             ),
             _settingsToggle(
