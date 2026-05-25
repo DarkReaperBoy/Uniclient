@@ -15383,6 +15383,7 @@ func ivBlockToMap(b tg.PageBlockClass, photoMap map[int64]ivPhotoInfo, docMap ma
 		if pt, ok := geo.(*tg.GeoPoint); ok {
 			m["lat"] = pt.Lat
 			m["lng"] = pt.Long
+			m["access"] = pt.AccessHash
 		}
 		return m
 	}
