@@ -533,6 +533,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     final canvasBounds = Rect.fromLTWH(0, 0, _canvasWidth, _canvasHeight);
 
     ui.Image? bgImage;
+    bool strokesBakedInBg = false;
     if (!overlayOnly) {
       final rec = ui.PictureRecorder();
       final c = Canvas(rec, canvasBounds);
@@ -568,6 +569,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           }
           sc.restore();
           bgImage = await strokeRec.endRecording().toImage(w, h);
+          strokesBakedInBg = true;
         }
 
         final blurRec = ui.PictureRecorder();
@@ -599,12 +601,14 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       canvas.drawImage(bgImage, Offset.zero, Paint());
     }
 
-    canvas.saveLayer(canvasBounds, Paint());
-    for (final stroke in _strokes) {
-      if (overlayOnly && stroke.tool == _BrushTool.blur) continue;
-      _StrokePainter.paintStroke(canvas, stroke.points, stroke.color, stroke.width, stroke.tool, 1.0);
+    if (!strokesBakedInBg) {
+      canvas.saveLayer(canvasBounds, Paint());
+      for (final stroke in _strokes) {
+        if (overlayOnly && stroke.tool == _BrushTool.blur) continue;
+        _StrokePainter.paintStroke(canvas, stroke.points, stroke.color, stroke.width, stroke.tool, 1.0);
+      }
+      canvas.restore();
     }
-    canvas.restore();
 
     for (final item in _sceneItems) {
       canvas.save();
@@ -1984,6 +1988,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   }
 
   void _showStickerPicker() {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
@@ -2039,9 +2045,31 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
             _undoStack.add(_AddItemAction(item));
             _redoStack.clear();
           });
+          _loadFullStickerData(engine, accountId, item, sticker);
         },
       ),
     );
+  }
+
+  Future<void> _loadFullStickerData(
+    EngineService engine,
+    String? accountId,
+    _SceneItem item,
+    StickerInfoItem sticker,
+  ) async {
+    if (accountId == null) return;
+    if (sticker.isAnimated || sticker.isVideo) return;
+    final docId = int.tryParse(sticker.fileId);
+    if (docId == null || docId == 0) return;
+    try {
+      final files = await engine.getStickerFiles(accountId, [docId]);
+      final fileData = files[docId];
+      if (fileData != null && fileData.fileData.isNotEmpty && mounted) {
+        setState(() {
+          item.stickerImageBytes = fileData.fileData;
+        });
+      }
+    } catch (_) {}
   }
 
   void _handleKeyEvent(KeyEvent event) {
@@ -2174,7 +2202,7 @@ class _StrokePainter extends CustomPainter {
 
     if (tool == _BrushTool.arrow && points.length >= 2) {
       final last = points.last * scale;
-      final minDist = width * 1.5;
+      final minDist = width * scale * 1.5;
       var lookback = points[points.length - 2] * scale;
       for (int i = points.length - 2; i >= 0; i--) {
         final candidate = points[i] * scale;
