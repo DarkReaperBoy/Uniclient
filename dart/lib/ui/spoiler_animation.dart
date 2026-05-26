@@ -59,6 +59,8 @@ class SpoilerAnimationManager {
   int _activeCount = 0;
   bool _ticking = false;
   int _currentFrame = 0;
+  int _lastTimestampMs = 0;
+  int _accumulatedMs = 0;
   final _listeners = <VoidCallback>{};
 
   bool powerSavingPaused = false;
@@ -87,13 +89,17 @@ class SpoilerAnimationManager {
   void _onFrame(Duration timestamp) {
     _ticking = false;
     if (_activeCount <= 0 || _listeners.isEmpty) return;
-    if (!powerSavingPaused) {
-      final frame = (timestamp.inMilliseconds ~/ _kFrameDurationMs) % _kFrameCount;
-      if (frame != _currentFrame) {
-        _currentFrame = frame;
-        for (final cb in List.of(_listeners)) {
-          cb();
-        }
+    final nowMs = timestamp.inMilliseconds;
+    final add = math.min(nowMs - _lastTimestampMs, _kFrameDurationMs);
+    if (!powerSavingPaused || _lastTimestampMs > 0) {
+      _accumulatedMs += add;
+      _lastTimestampMs = powerSavingPaused ? 0 : nowMs;
+    }
+    final frame = (_accumulatedMs ~/ _kFrameDurationMs) % _kFrameCount;
+    if (frame != _currentFrame) {
+      _currentFrame = frame;
+      for (final cb in List.of(_listeners)) {
+        cb();
       }
     }
     if (_activeCount > 0) {
