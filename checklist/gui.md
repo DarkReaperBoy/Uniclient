@@ -851,9 +851,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 ## privacy_settings_screen — audit vs AyuGram Desktop
 
-- [ ] [CRITICAL] `BuildConfirmationExtensions` only renders the section when `noWarningExtensions` is non-empty OR `ipRevealWarning` is false (i.e. the section is hidden by default and only appears once the user has configured it). Dart always renders the "File Confirmations" section unconditionally, permanently showing "No-Warning Extensions" and "Show IP in WebRTC calls" even for fresh installs — `privacy_settings_screen.dart:1246` ← `settings_privacy_security.cpp:1128`
-
-- [ ] [CRITICAL] `_LocalPasscodeCreate` stores the passcode as a SHA-256 hash (iterated 100000 times) in a local JSON file (`local_passcode.json`). AyuGram uses `controller->session().domain().local().setPasscode(pass.toUtf8())` which stores the passcode in Telegram Desktop's encrypted local storage via `Storage::Domain`. The Dart implementation uses a completely independent local file that is not integrated with the Telegram session storage or lock/unlock flow — `privacy_settings_screen.dart:5620` ← `settings_local_passcode.cpp:44`
 
 ## send_files_box — Paid price lost, groups structure unused, AI button missing
 
