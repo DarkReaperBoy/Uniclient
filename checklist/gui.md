@@ -840,10 +840,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 # payment_panel — Audit Findings
 
 
-## payment_panel — Receipt date uses hardcoded English months
-
-- [ ] [MAJOR] `_formatReceiptDate()` uses a hardcoded English month abbreviation array (`['Jan','Feb',...]`, lines 2179–2186). AyuGram formats the receipt date with `langDateTime(base::unixtime::parse(_invoice.receipt.date))` which respects the system locale and produces a locale-correct date string. Dart's output will always be in English regardless of the user's locale. — `payment_panel.dart:2179` ← `AyuGram/payments/ui/payments_form_summary.cpp:324`
-
 ## payment_panel — _hasChanges() misses in-progress tokenization
 
 - [ ] [MAJOR] `_hasChanges()` only compares saved field strings (payment method display name, address, name, email, phone) but does not detect when a Stripe or SmartGlocal tokenization request is in flight (line 2233). AyuGram's `Form::hasChanges()` returns `true` while `_stripe != nullptr || _smartglocal != nullptr`, ensuring the close-confirmation dialog appears even if the user opened the card form but hasn't yet tokenized. Dart will silently close without warning if the user enters card data during an in-progress tokenization. — `payment_panel.dart:2233` ← `AyuGram/payments/payments_form.cpp:1064`
