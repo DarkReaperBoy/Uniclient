@@ -957,61 +957,61 @@ All issues resolved.
 
 ## GroupCallInfo vs Data::GroupCall
 
-- [ ] [MAJOR] `GroupCallInfo` missing `recordStartDate` (when recording started; 0 = not recording) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:102` (`GroupCall.recordStartDate()`)
+- [x] [MAJOR] `GroupCallInfo` missing `recordStartDate` (when recording started; 0 = not recording) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:102` (`GroupCall.recordStartDate()`)
 
-- [ ] [MAJOR] `GroupCallInfo` missing `listenersHidden` flag (used in conference/video-stream calls to hide listener list) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:88` (`GroupCall.listenersHidden()`)
+- [x] [MAJOR] `GroupCallInfo` missing `listenersHidden` flag (used in conference/video-stream calls to hide listener list) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:88` (`GroupCall.listenersHidden()`)
 
-- [ ] [MAJOR] `GroupCallInfo` missing `messagesEnabled` / `messagesMinPrice` fields (group-call chat messages) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:201,211` (`GroupCall.messagesEnabled()`, `GroupCall.messagesMinPrice()`)
+- [x] [MAJOR] `GroupCallInfo` missing `messagesEnabled` / `messagesMinPrice` fields (group-call chat messages) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:201,211` (`GroupCall.messagesEnabled()`, `GroupCall.messagesMinPrice()`)
 
-- [ ] [MAJOR] `GroupCallInfo` missing `conferenceInviteLink` (conference mode invite URL) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:188` (`GroupCall.conferenceInviteLink()`)
+- [x] [MAJOR] `GroupCallInfo` missing `conferenceInviteLink` (conference mode invite URL) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:188` (`GroupCall.conferenceInviteLink()`)
 
 ## ForumTopic vs Data::ForumTopic
 
-- [ ] [MAJOR] `ForumTopic` stores `iconEmojiId: int` but AyuGram uses `DocumentId` (uint64) for the icon; `int` in Dart is 64-bit so no overflow, but the field is missing the concept that it can be a custom emoji document — semantically correct but `iconEmojiId` set to `0` vs an actual document-id could cause rendering issues. The Go bridge must ensure 0 means "no custom icon" consistently. Potential issue if Go truncates to int32 — `engine_models.dart:377` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_forum_topic.h:233` (`_iconId: DocumentId`)
+- [x] [MAJOR] `ForumTopic` stores `iconEmojiId: int` but AyuGram uses `DocumentId` (uint64) for the icon; `int` in Dart is 64-bit so no overflow, but the field is missing the concept that it can be a custom emoji document — semantically correct but `iconEmojiId` set to `0` vs an actual document-id could cause rendering issues. The Go bridge must ensure 0 means "no custom icon" consistently. Potential issue if Go truncates to int32 — `engine_models.dart:377` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_forum_topic.h:233` (`_iconId: DocumentId`)
 
-- [ ] [MAJOR] `ForumTopic` missing `notify` (per-topic notification settings override) — `engine_models.dart:372` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_forum_topic.h:169` (`ForumTopic._notify: PeerNotifySettings`)
+- [x] [MAJOR] `ForumTopic` missing `notify` — already implemented as `notifyMuteUntil`, `notifySound`, `notifyShowPreviews` fields — `engine_models.dart:404-406`
 
 ## StoryItem vs Data::Story
 
-- [ ] [MAJOR] `StoryItem` uses `reactions: int` (aggregate count only) but AyuGram's `StoryViews` also has per-`ReactionId` reaction counts and stores viewer list — `engine_models.dart:3158` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_story.h:77` (`StoryViews.reactionsCounts: flat_map<ReactionId, int>`)
+- [x] [MAJOR] `StoryItem` uses `reactions: int` (aggregate count only) but AyuGram's `StoryViews` also has per-`ReactionId` reaction counts and stores viewer list — already fixed: `reactionCounts: Map<String, int>` added — `engine_models.dart:3418`
 
-- [ ] [MAJOR] `StoryItem` missing `sentReactionId` (the reaction the current user sent to this story) — `engine_models.dart:3146` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_story.h:205` (`Story.sentReactionId()`)
+- [x] [MAJOR] `StoryItem` missing `sentReactionId` — already fixed: `sentReactionId: String` added — `engine_models.dart:3419`
 
-- [ ] [MAJOR] `StoryItem` missing `inProfile` flag (story is pinned in the peer's profile grid, separate from the `pinned` field which means "pinned-to-top") — `engine_models.dart:3159` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_story.h:186` (`Story.setInProfile()`, `Story.inProfile()`)
+- [x] [MAJOR] `StoryItem` missing `inProfile` flag — already fixed: `inProfile: bool` added — `engine_models.dart:3420`
 
 ## PollOption vs PollAnswer
 
-- [ ] [MAJOR] `PollOption` missing `recentVoters` list (peers who voted for this specific option) — `engine_models.dart:1388` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_poll.h:46` (`PollAnswer.recentVoters: vector<PeerData*>`)
+- [x] [MAJOR] `PollOption` missing `recentVoters` list — already fixed: `recentVoters: List<String>` added — `engine_models.dart:1555`
 
-- [ ] [MAJOR] `PollOption` missing `media` (per-answer photo/document/geo attachment, used in photo polls) — `engine_models.dart:1388` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_poll.h:45` (`PollAnswer.media: PollMedia`)
+- [x] [MAJOR] `PollOption` missing `media` — already fixed: `mediaType`, `mediaThumbB64`, `mediaFileId` added — `engine_models.dart:1556-1558`
 
-- [ ] [MAJOR] `CachedMessage.pollOptions` missing quiz `solution` text (explanation shown after quiz closes) — `engine_models.dart:551` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_poll.h:112` (`PollData.solution: TextWithEntities`)
+- [x] [MAJOR] `CachedMessage.pollOptions` missing quiz `solution` text — already fixed: `pollSolution: String` added — `engine_models.dart:672`
 
-- [ ] [MAJOR] `CachedMessage` poll missing `shuffleAnswers` flag — `engine_models.dart:553` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_poll.h:75` (`PollData::Flag::ShuffleAnswers`)
+- [x] [MAJOR] `CachedMessage` poll missing `shuffleAnswers` flag — already fixed: `pollShuffleAnswers: bool` added — `engine_models.dart:675`
 
-- [ ] [MAJOR] `CachedMessage` poll missing `revotingDisabled` flag — `engine_models.dart:553` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_poll.h:76` (`PollData::Flag::RevotingDisabled`)
+- [x] [MAJOR] `CachedMessage` poll missing `revotingDisabled` flag — already fixed: `pollRevotingDisabled: bool` added — `engine_models.dart:676`
 
-- [ ] [MAJOR] `CachedMessage` poll missing `openAnswers` flag (open-ended poll where users type a custom answer) — `engine_models.dart:553` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_poll.h:77` (`PollData::Flag::OpenAnswers`)
+- [x] [MAJOR] `CachedMessage` poll missing `openAnswers` flag — already fixed: `pollOpenAnswers: bool` added — `engine_models.dart:677`
 
-- [ ] [MAJOR] `CachedMessage` poll missing `hideResultsUntilClose` flag — `engine_models.dart:553` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_poll.h:78` (`PollData::Flag::HideResultsUntilClose`)
+- [x] [MAJOR] `CachedMessage` poll missing `hideResultsUntilClose` flag — already fixed: `pollHideResultsUntilClose: bool` added — `engine_models.dart:678`
 
 ## StickerSetInfo vs Data::StickersSet
 
-- [ ] [MAJOR] `StickerSetInfo` missing `installDate` (timestamp when user installed the set; 0 = not installed) — `engine_models.dart:2724` ← `AyuGramDesktop/Telegram/SourceFiles/data/stickers/data_stickers_set.h:121` (`StickersSet.installDate: TimeId = 0`)
+- [x] [MAJOR] `StickerSetInfo` missing `installDate` — already fixed: `installDate: int` added — `engine_models.dart:2987`
 
-- [ ] [MAJOR] `StickerSetInfo` missing `textColor` flag (set uses text-color-dependent rendering) — `engine_models.dart:2724` ← `AyuGramDesktop/Telegram/SourceFiles/data/stickers/data_stickers_set.h:51` (`StickersSetFlag::TextColor`)
+- [x] [MAJOR] `StickerSetInfo` missing `textColor` flag — already fixed: `textColor: bool` added — `engine_models.dart:2988`
 
-- [ ] [MAJOR] `StickerSetInfo` missing `channelStatus` flag (set is a channel status sticker set, not shown in regular panels) — `engine_models.dart:2724` ← `AyuGramDesktop/Telegram/SourceFiles/data/stickers/data_stickers_set.h:52` (`StickersSetFlag::ChannelStatus`)
+- [x] [MAJOR] `StickerSetInfo` missing `channelStatus` flag — already fixed: `channelStatus: bool` added — `engine_models.dart:2989`
 
-- [ ] [MAJOR] `StickerSetInfo` missing `thumbnailDocumentId` (document ID for the set thumbnail, used when no cover-sticker is loaded) — `engine_models.dart:2724` ← `AyuGramDesktop/Telegram/SourceFiles/data/stickers/data_stickers_set.h:111` (`StickersSet.thumbnailDocumentId: DocumentId = 0`)
+- [x] [MAJOR] `StickerSetInfo` missing `thumbnailDocumentId` — already fixed: `thumbnailDocumentId: int` added — `engine_models.dart:2990`
 
 ## AdminLogEvent vs MTPDchannelAdminLogEvent
 
-- [ ] [MAJOR] `AdminLogEvent` fields `userId: int` and `messageId: int` should be 64-bit compatible — in Dart `int` is 64-bit so no overflow. However, `AdminLogEvent.action` is a plain `String` enum tag while AyuGram generates distinct `HistoryItem` service messages per action type via `GenerateItems` — the Dart model conflates all event types into a flat `action`+`detail`+`oldValue`+`newValue` schema, losing structured sub-data such as old/new permissions objects, sticker-set changes, linked channel changes, etc. This is an architectural limitation rather than a simple field miss — `engine_models.dart:1846` ← `AyuGramDesktop/Telegram/SourceFiles/history/admin_log/history_admin_log_item.h:22` (`GenerateItems` produces per-action HistoryItem with full media/service text)
+- [x] [MAJOR] `AdminLogEvent` structured sub-data — already fixed: `actionData: Map<String, dynamic>` added to carry per-action structured data — `engine_models.dart:2034`
 
 ## FolderInfo vs Data::ChatFilter
 
-- [ ] [MAJOR] `FolderInfo` missing `hasMyLinks` flag (folder has shared invite links created by this user; controls "Manage Links" UI) — `engine_models.dart:1561` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_chat_filters.h:93` (`ChatFilter::Flag::HasMyLinks`, `chatFilter.hasMyLinks()`)
+- [x] [MAJOR] `FolderInfo` missing `hasMyLinks` flag — already fixed: `hasMyLinks: bool` added — `engine_models.dart:1756`
 
 ## ScheduledMessages / ScheduleRepeatOption
 
