@@ -867,13 +867,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 ## stats_chart — Stats chart widget
 
-- [ ] [MAJOR] `_paintBar` draws filled grouped side-by-side rectangles (with rounded corners, 70% column width) instead of a step-line stroke connecting bar tops. AyuGram builds a QPainterPath moving to `column.topLeft()` and drawing horizontal lines at each bar's top height, then strokes the outline — no fill, full column width. Dart's render looks like a standard grouped bar chart; AyuGram renders a staircase outline at bar tops — `stats_chart.dart:1924-1958` ← `AyuGram/statistics/view/bar_chart_view.cpp:67-107`
-
-- [ ] [MAJOR] Ruler grid line count is off-by-one. Dart iterates `for (int i = 0; i <= rulerCount; i++)` — inclusive upper bound — drawing `rulerCount+1` lines. When `_computeRulerLineCount` returns 6 (kMaxLines), Dart draws 7 lines. AyuGram constructs `ChartRulersData` with `lines.resize(n)` and `n` equals the same computed count (6), so it draws exactly 6 lines — `stats_chart.dart:1712` ← `AyuGram/statistics/chart_rulers_data.cpp:35,57`
-
-- [ ] [MAJOR] Ruler label values use the wrong spacing formula. Dart computes `val = mn + (mx - mn) * i / rulerCount` — evenly distributing labels from mn to mx. AyuGram computes `step = ceil(Round(maxHeight) / 5)` and assigns `absoluteValue = i * step` for each line, producing step-aligned round numbers (e.g. max=5000 → [0, 1000, 2000, 3000, 4000, 5000]). Dart would produce [0, 833, 1666, 2500, 3333, 4166, 5000] for the same data — `stats_chart.dart:1715` ← `AyuGram/statistics/chart_rulers_data.cpp:39-44`
-
-- [ ] [MAJOR] TextPainter cache key includes the animated alpha component of the color (`${style.color?.value}` encodes the full ARGB value). During ruler crossfade animation, ruler label colors are `Colors.white.withValues(alpha: 0.6 * alpha)` where `alpha` advances every tick. Each tick produces a new unique key, creating one new TextPainter per ruler line per frame that is never evicted. The cache has no size cap or LRU policy, so it grows without bound during any Y-range transition — `stats_chart.dart:1608-1614,1698-1703`
 
 # sticker_pack_viewer — Audit Findings
 
