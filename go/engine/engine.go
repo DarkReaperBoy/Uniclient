@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -276,6 +277,50 @@ func (e *Engine) SetAutoDownloadSettings(source string, settings map[string]inte
 	e.autoDownloadSettings[source] = settings
 	e.autoDownloadMu.Unlock()
 	log.Printf("[engine] SetAutoDownload: source=%s settings=%v", source, settings)
+}
+
+// SetPasscode stores the full passcode config in the vault.
+func (e *Engine) SetPasscode(data map[string]interface{}) error {
+	if err := e.vault.Put("passcode", "config", data); err != nil {
+		return err
+	}
+	return e.vault.Save()
+}
+
+// GetPasscodeConfig reads the passcode config from the vault.
+func (e *Engine) GetPasscodeConfig() (map[string]interface{}, error) {
+	var data map[string]interface{}
+	if err := e.vault.Get("passcode", "config", &data); err != nil {
+		if errors.Is(err, utils.ErrBucketNotFound) || errors.Is(err, utils.ErrKeyNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return data, nil
+}
+
+// ClearPasscode removes the passcode config from the vault.
+func (e *Engine) ClearPasscode() error {
+	_ = e.vault.Delete("passcode", "config")
+	return e.vault.Save()
+}
+
+// UpdatePasscodeConfig merges fields into the existing passcode config.
+func (e *Engine) UpdatePasscodeConfig(updates map[string]interface{}) error {
+	data, err := e.GetPasscodeConfig()
+	if err != nil {
+		return err
+	}
+	if data == nil {
+		return fmt.Errorf("no passcode set")
+	}
+	for k, v := range updates {
+		data[k] = v
+	}
+	if err := e.vault.Put("passcode", "config", data); err != nil {
+		return err
+	}
+	return e.vault.Save()
 }
 
 // SetPowerSaving stores the power-saving flags bitmap from the Dart UI.

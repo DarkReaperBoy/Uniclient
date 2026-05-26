@@ -363,7 +363,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _confirmGifs = false;
   bool _confirmVoiceMessages = false;
 
-  bool _showIpInWebRtcCalls = true;
+  bool _showIpInWebRtcCalls = false;
 
   // §54.11: Additional chat settings.
   bool _showOnlyAddedEmojisAndStickers = false;
@@ -1504,7 +1504,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _confirmStickers = false;
     _confirmGifs = false;
     _confirmVoiceMessages = false;
-    _showIpInWebRtcCalls = true;
+    _showIpInWebRtcCalls = false;
     _showAttachButton = true;
     _showCommandsButton = true;
     _showAutoDeleteButton = true;
@@ -2818,30 +2818,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _checkPasscodeAtStartup() {
-    if (_configDir.isEmpty) return;
-    final file = File('$_configDir/local_passcode.json');
-    if (file.existsSync()) {
-      try {
-        final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-        if ((data['hash'] as String? ?? '').isNotEmpty) {
-          _passcodeLocked = true;
-        }
-      } catch (_) {}
-    }
+    try {
+      final data = _engine.getPasscodeConfig();
+      if ((data['hash'] as String? ?? '').isNotEmpty) {
+        _passcodeLocked = true;
+      }
+    } catch (_) {}
     _lastNonIdleTime = DateTime.now().millisecondsSinceEpoch;
     checkAutoLock(_lastNonIdleTime);
   }
 
   bool get hasLocalPasscode {
     if (_cachedHasPasscode != null) return _cachedHasPasscode!;
-    if (_configDir.isEmpty) return false;
-    final file = File('$_configDir/local_passcode.json');
-    if (!file.existsSync()) {
-      _cachedHasPasscode = false;
-      return false;
-    }
     try {
-      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      final data = _engine.getPasscodeConfig();
       _cachedHasPasscode = (data['hash'] as String? ?? '').isNotEmpty;
       return _cachedHasPasscode!;
     } catch (_) {
@@ -2898,12 +2888,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<bool> checkPasscode(String entered) async {
-    if (_configDir.isEmpty) return false;
-    final file = File('$_configDir/local_passcode.json');
-    if (!file.existsSync()) return false;
     try {
-      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      final data = _engine.getPasscodeConfig();
       final storedHash = data['hash'] as String? ?? '';
+      if (storedHash.isEmpty) return false;
       final salt = data['salt'] as String? ?? '';
       final hash = await compute(_computePasscodeHash, [salt, entered]);
       if (hash == storedHash) {
@@ -2920,14 +2908,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   int _readAutoLockSeconds() {
     if (_cachedAutoLockSeconds != null) return _cachedAutoLockSeconds!;
-    if (_configDir.isEmpty) return 0;
-    final file = File('$_configDir/local_passcode.json');
-    if (!file.existsSync()) {
-      _cachedAutoLockSeconds = 0;
-      return 0;
-    }
     try {
-      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      final data = _engine.getPasscodeConfig();
       _cachedAutoLockSeconds = (data['autoLockSeconds'] as int?) ?? 0;
       return _cachedAutoLockSeconds!;
     } catch (_) {
@@ -3058,11 +3040,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _passcodeBadTries = 0;
       _passcodeLastTry = null;
     }
-    if (_configDir.isEmpty) return;
-    final file = File('$_configDir/local_passcode.json');
-    if (file.existsSync()) {
-      file.deleteSync();
-    }
+    try {
+      _engine.clearPasscode();
+    } catch (_) {}
     _autoLockTimer?.cancel();
     _shouldLockAt = 0;
   }
@@ -3473,7 +3453,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _confirmStickers = data['confirmStickers'] as bool? ?? false;
       _confirmGifs = data['confirmGifs'] as bool? ?? false;
       _confirmVoiceMessages = data['confirmVoiceMessages'] as bool? ?? false;
-      _showIpInWebRtcCalls = data['showIpInWebRtcCalls'] as bool? ?? true;
+      _showIpInWebRtcCalls = data['showIpInWebRtcCalls'] as bool? ?? false;
       // §54.9: Message field button toggles.
       _showAttachButton = data['showAttachButton'] as bool? ?? true;
       _showCommandsButton = data['showCommandsButton'] as bool? ?? true;

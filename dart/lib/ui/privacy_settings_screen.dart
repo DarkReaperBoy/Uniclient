@@ -156,18 +156,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   }
 
   Future<void> _loadPasscodeState() async {
-    final dir = context.read<AppState>().configDir;
-    if (dir.isEmpty) return;
-    final file = File('$dir/local_passcode.json');
-    if (await file.exists()) {
-      try {
-        final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-        if (!mounted) return;
-        setState(() => _hasPasscode = (data['hash'] as String? ?? '').isNotEmpty);
-      } catch (_) {
-        if (mounted) setState(() => _hasPasscode = false);
-      }
-    } else {
+    try {
+      final data = context.read<EngineService>().getPasscodeConfig();
+      if (!mounted) return;
+      setState(() => _hasPasscode = (data['hash'] as String? ?? '').isNotEmpty);
+    } catch (_) {
       if (mounted) setState(() => _hasPasscode = false);
     }
   }
@@ -492,17 +485,12 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   }
 
   void _openPasscodeLock() {
-    final dir = context.read<AppState>().configDir;
-    if (dir.isEmpty) return;
-
     if (_hasPasscode) {
       Navigator.of(context).push<void>(settingsPageRoute(
         _LocalPasscodeCheck(
-          configDir: dir,
           onSuccess: () {
             Navigator.of(context).pushReplacement(settingsPageRoute(
               _LocalPasscodeManage(
-                configDir: dir,
                 onChanged: () {
                   _loadPasscodeState();
                   context.read<AppState>().localPasscodeChanged();
@@ -515,13 +503,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     } else {
       Navigator.of(context).push<void>(settingsPageRoute(
         _LocalPasscodeCreate(
-          configDir: dir,
           onCreated: () {
             _loadPasscodeState();
             context.read<AppState>().localPasscodeChanged();
             Navigator.of(context).pushReplacement(settingsPageRoute(
               _LocalPasscodeManage(
-                configDir: dir,
                 onChanged: () {
                   _loadPasscodeState();
                   context.read<AppState>().localPasscodeChanged();
@@ -5593,30 +5579,12 @@ String _hashPasscode(String passcode) {
   return sha256.convert(bytes).toString();
 }
 
-Future<Map<String, dynamic>> _readPasscodeData(String configDir) async {
-  final file = File('$configDir/local_passcode.json');
-  if (!await file.exists()) return {};
-  try {
-    return jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-  } catch (_) {
-    return {};
-  }
-}
-
-Future<void> _writePasscodeData(
-    String configDir, Map<String, dynamic> data) async {
-  final file = File('$configDir/local_passcode.json');
-  await file.writeAsString(jsonEncode(data));
-}
-
 // ── LocalPasscodeCreate ──
 
 class _LocalPasscodeCreate extends StatefulWidget {
-  final String configDir;
   final VoidCallback onCreated;
 
   const _LocalPasscodeCreate({
-    required this.configDir,
     required this.onCreated,
   });
 
@@ -5671,7 +5639,7 @@ class _LocalPasscodeCreateState extends State<_LocalPasscodeCreate> {
 
     final salt = _generateSalt();
     final hash = await _hashPasscodeWithSalt(first, salt);
-    await _writePasscodeData(widget.configDir, {
+    context.read<EngineService>().setPasscode({
       'hash': hash,
       'salt': salt,
       'autoLockSeconds': 300,
@@ -5862,11 +5830,9 @@ class _LocalPasscodeCreateState extends State<_LocalPasscodeCreate> {
 // ── LocalPasscodeCheck ──
 
 class _LocalPasscodeCheck extends StatefulWidget {
-  final String configDir;
   final VoidCallback onSuccess;
 
   const _LocalPasscodeCheck({
-    required this.configDir,
     required this.onSuccess,
   });
 
@@ -6055,10 +6021,9 @@ class _LocalPasscodeCheckState extends State<_LocalPasscodeCheck> {
 // ── LocalPasscodeVerify (verify current before changing) ──
 
 class _LocalPasscodeVerify extends StatefulWidget {
-  final String configDir;
   final String title;
 
-  const _LocalPasscodeVerify({required this.configDir, required this.title});
+  const _LocalPasscodeVerify({required this.title});
 
   @override
   State<_LocalPasscodeVerify> createState() => _LocalPasscodeVerifyState();
@@ -6089,7 +6054,7 @@ class _LocalPasscodeVerifyState extends State<_LocalPasscodeVerify> {
       setState(() => _error = 'Please enter your passcode');
       return;
     }
-    final data = await _readPasscodeData(widget.configDir);
+    final data = context.read<EngineService>().getPasscodeConfig();
     final storedHash = data['hash'] as String? ?? '';
     final salt = data['salt'] as String? ?? '';
     String hash;
@@ -6186,11 +6151,9 @@ class _LocalPasscodeVerifyState extends State<_LocalPasscodeVerify> {
 // ── LocalPasscodeManage ──
 
 class _LocalPasscodeManage extends StatefulWidget {
-  final String configDir;
   final VoidCallback onChanged;
 
   const _LocalPasscodeManage({
-    required this.configDir,
     required this.onChanged,
   });
 
@@ -6236,7 +6199,7 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
   }
 
   Future<void> _loadSettings() async {
-    final data = await _readPasscodeData(widget.configDir);
+    final data = context.read<EngineService>().getPasscodeConfig();
     if (!mounted) return;
     setState(() {
       _autoLockSeconds = data['autoLockSeconds'] as int? ?? 0;
@@ -6265,17 +6228,17 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
     );
     if (result == null || !mounted) return;
 
-    final data = await _readPasscodeData(widget.configDir);
-    data['autoLockSeconds'] = result;
-    await _writePasscodeData(widget.configDir, data);
+    context.read<EngineService>().updatePasscodeConfig({
+      'autoLockSeconds': result,
+    });
     setState(() => _autoLockSeconds = result);
     widget.onChanged();
   }
 
   Future<void> _toggleSystemUnlock(bool value) async {
-    final data = await _readPasscodeData(widget.configDir);
-    data['systemUnlockEnabled'] = value;
-    await _writePasscodeData(widget.configDir, data);
+    context.read<EngineService>().updatePasscodeConfig({
+      'systemUnlockEnabled': value,
+    });
     if (!mounted) return;
     setState(() => _systemUnlockEnabled = value);
     widget.onChanged();
@@ -6283,15 +6246,13 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
 
   void _changePasscode() async {
     final verified = await Navigator.of(context).push<bool>(settingsPageRoute(
-      _LocalPasscodeVerify(
-        configDir: widget.configDir,
+      const _LocalPasscodeVerify(
         title: 'Enter Current Passcode',
       ),
     ));
     if (verified != true || !mounted) return;
     Navigator.of(context).push(settingsPageRoute(
       _LocalPasscodeCreate(
-        configDir: widget.configDir,
         onCreated: () {
           widget.onChanged();
           Navigator.of(context).pop();
@@ -6333,8 +6294,7 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
     );
     if (confirm != true || !mounted) return;
 
-    final file = File('${widget.configDir}/local_passcode.json');
-    if (await file.exists()) await file.delete();
+    context.read<EngineService>().clearPasscode();
     widget.onChanged();
     if (!mounted) return;
     Navigator.of(context).pop();

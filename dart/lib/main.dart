@@ -2561,13 +2561,8 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   }
 
   Future<void> _loadSystemUnlockPref() async {
-    final appState = context.read<AppState>();
-    final dir = appState.configDir;
-    if (dir.isEmpty) return;
-    final file = File('$dir/local_passcode.json');
-    if (!await file.exists()) return;
     try {
-      final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final data = context.read<EngineService>().getPasscodeConfig();
       if (mounted) {
         setState(() {
           _systemUnlockEnabled = data['systemUnlockEnabled'] as bool? ?? false;

@@ -2875,6 +2875,30 @@ class EngineService {
     _callRaw('__engine', 'SetAntiRecallSettings', Uint8List.fromList(payload));
   }
 
+  void setPasscode(Map<String, dynamic> config) {
+    final payload = utf8.encode(json.encode(config));
+    _callRaw('__engine', 'SetPasscode', Uint8List.fromList(payload));
+  }
+
+  Map<String, dynamic> getPasscodeConfig() {
+    final respBytes = _callRaw('__engine', 'GetPasscodeConfig', Uint8List(0));
+    if (respBytes.isEmpty) return {};
+    try {
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  void clearPasscode() {
+    _callRaw('__engine', 'ClearPasscode', Uint8List(0));
+  }
+
+  void updatePasscodeConfig(Map<String, dynamic> updates) {
+    final payload = utf8.encode(json.encode(updates));
+    _callRaw('__engine', 'UpdatePasscodeConfig', Uint8List.fromList(payload));
+  }
+
   List<CachedMessage> getDeletedMessages(String accountId, String chatId, {String search = '', int offset = 0, int limit = 20}) {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

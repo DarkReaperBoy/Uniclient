@@ -6397,6 +6397,35 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ApplyGiftCode(params.AccountID, params.Slug)
 
+	// ── Passcode (vault-backed) ──
+
+	case "SetPasscode":
+		var data map[string]interface{}
+		if err := json.Unmarshal(payload, &data); err != nil {
+			return nil, err
+		}
+		return nil, e.SetPasscode(data)
+
+	case "GetPasscodeConfig":
+		data, err := e.GetPasscodeConfig()
+		if err != nil {
+			return nil, err
+		}
+		if data == nil {
+			return json.Marshal(map[string]interface{}{})
+		}
+		return json.Marshal(data)
+
+	case "ClearPasscode":
+		return nil, e.ClearPasscode()
+
+	case "UpdatePasscodeConfig":
+		var updates map[string]interface{}
+		if err := json.Unmarshal(payload, &updates); err != nil {
+			return nil, err
+		}
+		return nil, e.UpdatePasscodeConfig(updates)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}
