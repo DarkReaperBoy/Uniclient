@@ -86,6 +86,10 @@ const _commandGroups = <List<(ShortcutCommand, String)>>[
   [
     (ShortcutCommand.showAdminLog, 'Admin Log'),
   ],
+  // 10.5. Media Viewer
+  [
+    (ShortcutCommand.mediaViewerFullscreen, 'Fullscreen'),
+  ],
   // 11. Media Playback
   [
     (ShortcutCommand.mediaPlay, 'Play'),
@@ -121,14 +125,6 @@ const _commandGroups = <List<(ShortcutCommand, String)>>[
     (ShortcutCommand.cancelSearch, 'Cancel Search'),
     (ShortcutCommand.chatSwitchOverlay, 'Switch Chat'),
     (ShortcutCommand.chatSwitchOverlayReverse, 'Switch Chat (Reverse)'),
-  ],
-  // 15. Support
-  [
-    (ShortcutCommand.supportReloadTemplates, 'Reload Templates'),
-    (ShortcutCommand.supportToggleMuted, 'Toggle Muted'),
-    (ShortcutCommand.supportScrollToCurrent, 'Scroll to Current'),
-    (ShortcutCommand.supportHistoryBack, 'History Back'),
-    (ShortcutCommand.supportHistoryForward, 'History Forward'),
   ],
 ];
 

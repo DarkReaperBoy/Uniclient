@@ -17,6 +17,7 @@ import 'chat_list_panel.dart';
 import 'chat_view.dart';
 import 'filter_column.dart';
 import 'hamburger_drawer.dart';
+import 'advanced_settings_screen.dart';
 import 'call_screen.dart';
 import 'chat_switch_overlay.dart';
 import 'info_panel.dart';
@@ -991,6 +992,7 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
 
   late final AnimationController _visibilityAnim;
   late final AnimationController _slideAnim;
+  late final AnimationController _contentWidthAnim;
   Timer? _showTimer;
   Timer? _waitTimer;
   Timer? _countdownTimer;
@@ -1002,12 +1004,20 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
   DateTime? _connectingStartedAt;
   final DateTime _appStartTime = DateTime.now();
   bool _appExposed = true;
+  String _retainedText = '';
+  bool _textExpanded = false;
 
   @override
   void initState() {
     super.initState();
     _visibilityAnim = AnimationController(vsync: this, duration: _animDuration);
     _slideAnim = AnimationController(vsync: this, duration: _animDuration);
+    _contentWidthAnim = AnimationController(vsync: this, duration: _animDuration);
+    _contentWidthAnim.addStatusListener((status) {
+      if (status == AnimationStatus.dismissed) {
+        setState(() => _retainedText = '');
+      }
+    });
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -1019,6 +1029,7 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
     _countdownTimer?.cancel();
     _visibilityAnim.dispose();
     _slideAnim.dispose();
+    _contentWidthAnim.dispose();
     super.dispose();
   }
 
@@ -1058,11 +1069,7 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
 
   void _tryReconnect() {
     _cancelWait();
-    try {
-      final engine = context.read<EngineService>();
-      engine.connectAccount(widget.accountId);
-    } catch (_) {}
-    setState(() {});
+    showProxiesDialog(context);
   }
 
   void _syncVisibility(ConnState state, int engineWaitSeconds) {
@@ -1198,7 +1205,7 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
 
   Widget _buildPill(ConnState state, TelegramPalette p, bool proxyEnabled) {
     final showProgress = state != ConnState.connected;
-    final showText = showProgress && (_isHovered || _isWaiting);
+    final wantText = showProgress && (_isHovered || _isWaiting);
 
     final String text;
     if (_isWaiting && _reconnectCountdown > 0) {
@@ -1207,69 +1214,120 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
       text = 'Connecting...';
     }
 
-    return AnimatedContainer(
-      duration: _animDuration,
-      decoration: BoxDecoration(
-        color: p.windowBg,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: p.windowShadowFg,
-            blurRadius: 4,
-            offset: const Offset(0, 1),
+    if (wantText && !_textExpanded) {
+      _textExpanded = true;
+      _retainedText = text;
+      _contentWidthAnim.forward();
+    } else if (!wantText && _textExpanded) {
+      _textExpanded = false;
+      _contentWidthAnim.reverse();
+    } else if (wantText) {
+      _retainedText = text;
+    }
+
+    final displayText = _retainedText;
+    final hasText = displayText.isNotEmpty;
+
+    return AnimatedBuilder(
+      animation: _contentWidthAnim,
+      builder: (context, _) {
+        final t = _contentWidthAnim.value;
+        final hPad = 5.0 + (13.0 * t);
+
+        return CustomPaint(
+          painter: _ConnectingPillPainter(
+            bgColor: p.windowBg,
+            shadowColor: p.windowShadowFg,
           ),
-        ],
-      ),
-      padding: EdgeInsets.symmetric(
-        horizontal: showText ? 18 : 5,
-        vertical: 5,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (showProgress)
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: p.menuIconFg,
-              ),
-            ),
-          if (showText) ...[
-            const SizedBox(width: 8),
-            Text(
-              text,
-              style: TextStyle(fontSize: 13, color: p.menuIconFg),
-            ),
-            if (_isWaiting) ...[
-              Padding(
-                padding: const EdgeInsets.only(left: 6),
-                child: GestureDetector(
-                  onTap: _tryReconnect,
-                  child: Text(
-                    'Try now',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: p.windowBgActive,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (showProgress)
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: p.menuIconFg,
                     ),
                   ),
-                ),
-              ),
-            ],
-          ],
-          if (proxyEnabled) ...[
-            if (showProgress || showText) const SizedBox(width: 4),
-            Icon(
-              Icons.shield_outlined,
-              size: 16,
-              color: p.windowBgActive,
+                if (hasText) ...[
+                  SizedBox(width: 8 * t),
+                  ClipRect(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: t,
+                      child: Opacity(
+                        opacity: t,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              displayText,
+                              style: TextStyle(fontSize: 13, color: p.menuIconFg),
+                            ),
+                            if (_isWaiting)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 6),
+                                child: GestureDetector(
+                                  onTap: _tryReconnect,
+                                  child: Text(
+                                    'Try now',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: p.windowBgActive,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                if (proxyEnabled) ...[
+                  if (showProgress || hasText) SizedBox(width: 4 * (hasText ? t : 1.0)),
+                  Icon(
+                    Icons.shield_outlined,
+                    size: 16,
+                    color: p.windowBgActive,
+                  ),
+                ],
+              ],
             ),
-          ],
-        ],
-      ),
+          ),
+        );
+      },
     );
   }
+}
+
+class _ConnectingPillPainter extends CustomPainter {
+  final Color bgColor;
+  final Color shadowColor;
+
+  _ConnectingPillPainter({required this.bgColor, required this.shadowColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = size.height / 2;
+    final body = RRect.fromLTRBR(0, 0, size.width, size.height, Radius.circular(r));
+
+    final shadowPaint = Paint()
+      ..color = shadowColor
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
+    canvas.drawRRect(body.shift(const Offset(0, 1)), shadowPaint);
+
+    final bgPaint = Paint()..color = bgColor;
+    canvas.drawRRect(body, bgPaint);
+  }
+
+  @override
+  bool shouldRepaint(_ConnectingPillPainter old) =>
+      old.bgColor != bgColor || old.shadowColor != shadowColor;
 }
 
 class _PlatformButton extends StatelessWidget {
