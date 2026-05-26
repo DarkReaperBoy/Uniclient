@@ -1913,12 +1913,14 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> with SingleTickerP
     }
   }
 
-  Color _colorForEntry(PeerColorEntry entry) {
+  List<Color> _colorsForEntry(PeerColorEntry entry) {
     final cols = widget.isDark ? entry.nightColors : entry.dayColors;
-    if (cols.isNotEmpty) return Color(0xFF000000 | (cols.first & 0xFFFFFF));
-    if (entry.colorId < _fallbackColors.length) return _fallbackColors[entry.colorId];
-    return _fallbackColors[entry.colorId % _fallbackColors.length];
+    if (cols.isNotEmpty) return cols.map((c) => Color(0xFF000000 | (c & 0xFFFFFF))).toList();
+    if (entry.colorId < _fallbackColors.length) return [_fallbackColors[entry.colorId]];
+    return [_fallbackColors[entry.colorId % _fallbackColors.length]];
   }
+
+  Color _colorForEntry(PeerColorEntry entry) => _colorsForEntry(entry).first;
 
   Color _selectedColor() {
     if (_serverColors != null) {
@@ -1948,9 +1950,9 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> with SingleTickerP
     final accentColor = context.palette.windowBgActive;
 
     final colors = _serverColors ?? [];
-    final displayColors = colors.isEmpty
-        ? List.generate(7, (i) => (i, _fallbackColors[i]))
-        : colors.map((c) => (c.colorId, _colorForEntry(c))).toList();
+    final displayEntries = colors.isEmpty
+        ? List.generate(7, (i) => (i, [_fallbackColors[i]]))
+        : colors.map((c) => (c.colorId, _colorsForEntry(c))).toList();
 
     final isNameTab = _tabController.index == 0;
 
@@ -1985,50 +1987,37 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> with SingleTickerP
                     width: 24, height: 24,
                     child: CircularProgressIndicator(strokeWidth: 2, color: accentColor)))
               else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: displayColors.map((entry) {
-                    final (colorId, color) = entry;
-                    final currentId = isNameTab ? _selected : _profileColorId;
-                    final isSelected = colorId == currentId;
-                    return GestureDetector(
-                      onTap: () => setState(() {
-                        if (isNameTab) {
-                          _selected = colorId;
-                        } else {
-                          _profileColorId = colorId;
-                        }
-                      }),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: isSelected
-                              ? Border.all(color: accentColor, width: 2.5)
-                              : null,
-                        ),
-                        padding: EdgeInsets.all(isSelected ? 2 : 0),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: color,
-                            borderRadius: BorderRadius.circular(isSelected ? 8 : 12),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            'A',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Wrap(
+                    spacing: 13,
+                    runSpacing: 13,
+                    children: displayEntries.map((entry) {
+                      final (colorId, colorList) = entry;
+                      final currentId = isNameTab ? _selected : _profileColorId;
+                      final isSelected = colorId == currentId;
+                      return GestureDetector(
+                        onTap: () => setState(() {
+                          if (isNameTab) {
+                            _selected = colorId;
+                          } else {
+                            _profileColorId = colorId;
+                          }
+                        }),
+                        child: SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: CustomPaint(
+                            painter: _ColorSamplePainter(
+                              colors: colorList,
+                              isSelected: isSelected,
+                              selectionColor: accentColor,
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
+                  ),
                 ),
               const SizedBox(height: 16),
               Container(
@@ -2062,23 +2051,50 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> with SingleTickerP
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        widget.userName.isNotEmpty ? widget.userName : 'Your Name',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: isNameTab ? _selectedColor() : _profileColor(),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              widget.userName.isNotEmpty ? widget.userName : 'Your Name',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: isNameTab ? _selectedColor() : _profileColor(),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        'Hello! This is how your name color looks.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: textColor.withValues(alpha: 0.85),
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Hello! This is how your name color looks.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: textColor.withValues(alpha: 0.85),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '12:00',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: textColor.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Icon(
+                            Icons.done_all,
+                            size: 14,
+                            color: accentColor.withValues(alpha: 0.7),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -2281,6 +2297,69 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> with SingleTickerP
       }
     }
   }
+}
+
+class _ColorSamplePainter extends CustomPainter {
+  final List<Color> colors;
+  final bool isSelected;
+  final Color selectionColor;
+
+  _ColorSamplePainter({
+    required this.colors,
+    required this.isSelected,
+    required this.selectionColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - (isSelected ? 4 : 0);
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    if (colors.length >= 2) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(-0.785398);
+      final halfH = radius * 1.5;
+      paint.color = colors[0];
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset.zero, radius: radius),
+        -1.5708, 3.1416, true, paint,
+      );
+      paint.color = colors[1];
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset.zero, radius: radius),
+        1.5708, 3.1416, true, paint,
+      );
+      if (colors.length >= 3) {
+        paint.color = colors[2];
+        final dotR = radius * 0.3;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCircle(center: Offset.zero, radius: dotR),
+            Radius.circular(dotR * 0.4),
+          ),
+          paint,
+        );
+      }
+      canvas.restore();
+    } else {
+      paint.color = colors.isNotEmpty ? colors[0] : const Color(0xFFCCCCCC);
+      canvas.drawCircle(center, radius, paint);
+    }
+
+    if (isSelected) {
+      final ringPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = selectionColor;
+      canvas.drawCircle(center, size.width / 2 - 1, ringPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ColorSamplePainter old) =>
+      colors != old.colors || isSelected != old.isSelected || selectionColor != old.selectionColor;
 }
 
 /// Small circular camera button overlaid at bottom-right of avatar.
@@ -2550,8 +2629,10 @@ class _AccountsSection extends StatelessWidget {
             );
           },
           onReorder: (oldIndex, newIndex) {
-            if (oldIndex >= premiumLimit || newIndex >= premiumLimit) return;
-            appState.reorderAccounts(oldIndex, newIndex);
+            if (oldIndex >= premiumLimit) return;
+            final clampedNew = newIndex.clamp(0, premiumLimit - 1);
+            if (clampedNew == oldIndex) return;
+            appState.reorderAccounts(oldIndex, clampedNew);
           },
         ),
         if (appState.canAddAccount)
@@ -2701,125 +2782,119 @@ class _SettingsAccountRow extends StatelessWidget {
     final accentColor = palette.windowBgActive;
     final avatarSize = isActive ? 26.0 : 30.0;
 
-    return Listener(
-      onPointerDown: (event) {
-        if (event.buttons == 4 && !isActive) {
-          _openInNewWindow(context);
-        }
-      },
-      child: GestureDetector(
-        onSecondaryTapUp: (details) =>
-            _showContextMenu(context, details.globalPosition),
-        onLongPressStart: (details) =>
-            _showContextMenu(context, details.globalPosition),
-        child: Opacity(
-          opacity: isLocked ? 0.5 : 1.0,
-          child: InkWell(
-            onTap: isLocked ? null : onTap,
-            hoverColor: hoverBg,
-            splashColor: hoverBg.withValues(alpha: 0.5),
-            child: Padding(
-              padding: const EdgeInsets.only(
-                left: 20, top: 11, bottom: 9, right: 20,
+    return GestureDetector(
+      onTertiaryTapUp: !isActive ? (_) => _openInNewWindow(context) : null,
+      onSecondaryTapUp: (details) =>
+          _showContextMenu(context, details.globalPosition),
+      onLongPressStart: (details) =>
+          _showContextMenu(context, details.globalPosition),
+      child: Opacity(
+        opacity: isLocked ? 0.5 : 1.0,
+        child: InkWell(
+          onTap: isLocked ? null : onTap,
+          hoverColor: hoverBg,
+          splashColor: hoverBg.withValues(alpha: 0.5),
+        child: Padding(
+          padding: const EdgeInsets.only(
+            left: 20, top: 11, bottom: 9, right: 20,
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: Center(
+                  child: Container(
+                    decoration: isActive
+                        ? BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: accentColor,
+                              width: 2,
+                            ),
+                          )
+                        : null,
+                    padding: isActive
+                        ? const EdgeInsets.all(2)
+                        : EdgeInsets.zero,
+                    child: account.avatarPath.isNotEmpty
+                        ? _clipAccountAvatar(
+                            context,
+                            Image.file(
+                              File(account.avatarPath),
+                              width: avatarSize,
+                              height: avatarSize,
+                              fit: BoxFit.cover,
+                              cacheWidth: 60,
+                              cacheHeight: 60,
+                              errorBuilder: (_, __, ___) =>
+                                  _avatarFallback(context, avatarSize),
+                            ),
+                            avatarSize,
+                          )
+                        : _avatarFallback(context, avatarSize),
+                  ),
+                ),
               ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: Center(
-                      child: Container(
-                        decoration: isActive
-                            ? BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: accentColor,
-                                  width: 2,
-                                ),
-                              )
-                            : null,
-                        padding: isActive
-                            ? const EdgeInsets.all(2)
-                            : EdgeInsets.zero,
-                        child: account.avatarPath.isNotEmpty
-                            ? _clipAccountAvatar(
-                                context,
-                                Image.file(
-                                  File(account.avatarPath),
-                                  width: avatarSize,
-                                  height: avatarSize,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: 60,
-                                  cacheHeight: 60,
-                                  errorBuilder: (_, __, ___) =>
-                                      _avatarFallback(context, avatarSize),
-                                ),
-                                avatarSize,
-                              )
-                            : _avatarFallback(context, avatarSize),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        account.displayName.isNotEmpty
+                            ? account.displayName
+                            : _AccountsSection._platformLabel(account.platform),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: labelColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            account.displayName.isNotEmpty
-                                ? account.displayName
-                                : _AccountsSection._platformLabel(account.platform),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: labelColor,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (account.isPremium) ...[
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.workspace_premium,
-                            size: 16,
-                            color: accentColor,
-                          ),
-                        ],
-                        if (account.isVerified && !account.isPremium) ...[
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.verified,
-                            size: 16,
-                            color: palette.profileVerifiedCheckBg,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (isLocked) ...[
-                    const SizedBox(width: 4),
-                    const Icon(Icons.lock, size: 16, color: Color(0xFF6C7883)),
+                    if (account.isPremium) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.workspace_premium,
+                        size: 16,
+                        color: accentColor,
+                      ),
+                    ],
+                    if (account.isVerified && !account.isPremium) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.verified,
+                        size: 16,
+                        color: palette.profileVerifiedCheckBg,
+                      ),
+                    ],
                   ],
-                  if (unreadCount > 0 && !isLocked) ...[
-                    const SizedBox(width: 4),
-                    _SettingsUnreadBadge(
-                      count: unreadCount,
-                      muted: unreadAllMuted,
-                      isDark: isDark,
-                    ),
-                  ],
-                  if (dragHandle != null) ...[
-                    const SizedBox(width: 8),
-                    dragHandle!,
-                  ],
-                ],
+                ),
               ),
-            ),
+              if (isLocked) ...[
+                const SizedBox(width: 4),
+                const Icon(Icons.lock, size: 16, color: Color(0xFF6C7883)),
+              ],
+              if (unreadCount > 0 && !isLocked) ...[
+                const SizedBox(width: 4),
+                _SettingsUnreadBadge(
+                  count: unreadCount,
+                  muted: unreadAllMuted,
+                  isDark: isDark,
+                ),
+              ],
+              if (dragHandle != null) ...[
+                const SizedBox(width: 8),
+                dragHandle!,
+              ],
+            ],
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _avatarFallback(BuildContext context, double size) {
