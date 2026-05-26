@@ -38,6 +38,124 @@ const _kSectionsTopSkip = 11.0;
 const _kCornerRadius = 12.0;
 const _kHeaderHeight = 54.0;
 
+class _CurrencyRule {
+  final String international;
+  final String thousands;
+  final String decimal;
+  final bool left;
+  final bool space;
+  final int exponent;
+  final bool stripDotZero;
+
+  const _CurrencyRule({
+    this.international = '',
+    this.thousands = ',',
+    this.decimal = '.',
+    this.left = true,
+    this.space = false,
+    this.exponent = 2,
+    this.stripDotZero = false,
+  });
+}
+
+const _kCurrencyRules = <String, _CurrencyRule>{
+  'AED': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'AFN': _CurrencyRule(),
+  'ALL': _CurrencyRule(thousands: '.', decimal: ',', left: false),
+  'AMD': _CurrencyRule(thousands: ',', decimal: '.', left: false, space: true),
+  'ARS': _CurrencyRule(thousands: '.', decimal: ',', left: true, space: true),
+  'AUD': _CurrencyRule(international: 'AU\$'),
+  'AZN': _CurrencyRule(thousands: ' ', decimal: ',', left: false, space: true),
+  'BAM': _CurrencyRule(thousands: '.', decimal: ',', left: false, space: true),
+  'BDT': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'BGN': _CurrencyRule(thousands: ' ', decimal: ',', left: false, space: true),
+  'BHD': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true, exponent: 3),
+  'BND': _CurrencyRule(thousands: '.', decimal: ','),
+  'BOB': _CurrencyRule(thousands: '.', decimal: ',', left: true, space: true),
+  'BRL': _CurrencyRule(international: 'R\$', thousands: '.', decimal: ',', left: true, space: true),
+  'BYN': _CurrencyRule(thousands: ' ', decimal: ',', left: false, space: true),
+  'CAD': _CurrencyRule(international: 'CA\$'),
+  'CHF': _CurrencyRule(thousands: "'", decimal: '.', left: false, space: true),
+  'CLP': _CurrencyRule(thousands: '.', decimal: ',', left: true, space: true, exponent: 0),
+  'CNY': _CurrencyRule(international: 'CN¥'),
+  'COP': _CurrencyRule(thousands: '.', decimal: ',', left: true, space: true),
+  'CRC': _CurrencyRule(thousands: '.', decimal: ','),
+  'CZK': _CurrencyRule(thousands: ' ', decimal: ',', left: false, space: true),
+  'DKK': _CurrencyRule(thousands: '', decimal: ',', left: false, space: true),
+  'DOP': _CurrencyRule(),
+  'DZD': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'EGP': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'ETB': _CurrencyRule(),
+  'EUR': _CurrencyRule(international: '€', thousands: ' ', decimal: ',', left: false, space: true),
+  'GBP': _CurrencyRule(international: '£'),
+  'GEL': _CurrencyRule(thousands: ' ', decimal: ',', left: false, space: true),
+  'GHS': _CurrencyRule(),
+  'GTQ': _CurrencyRule(),
+  'HKD': _CurrencyRule(international: 'HK\$'),
+  'HNL': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'HRK': _CurrencyRule(thousands: '.', decimal: ',', left: false, space: true),
+  'HUF': _CurrencyRule(thousands: ' ', decimal: ',', left: false, space: true),
+  'IDR': _CurrencyRule(thousands: '.', decimal: ','),
+  'ILS': _CurrencyRule(international: '₪', thousands: ',', decimal: '.', left: true, space: true),
+  'INR': _CurrencyRule(international: '₹'),
+  'IQD': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true, exponent: 3),
+  'IRR': _CurrencyRule(thousands: ',', decimal: '/', left: false, space: true),
+  'ISK': _CurrencyRule(thousands: '.', decimal: ',', left: false, space: true, exponent: 0),
+  'JMD': _CurrencyRule(),
+  'JOD': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: false, exponent: 3),
+  'JPY': _CurrencyRule(international: '¥', thousands: ',', decimal: '.', left: true, space: false, exponent: 0),
+  'KES': _CurrencyRule(),
+  'KGS': _CurrencyRule(thousands: ' ', decimal: '-', left: false, space: true),
+  'KRW': _CurrencyRule(international: '₩', thousands: ',', decimal: '.', left: true, space: false, exponent: 0),
+  'KZT': _CurrencyRule(thousands: ' ', decimal: '-'),
+  'LBP': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'LKR': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'MAD': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'MDL': _CurrencyRule(thousands: ',', decimal: '.', left: false, space: true),
+  'MMK': _CurrencyRule(),
+  'MNT': _CurrencyRule(thousands: ' ', decimal: ','),
+  'MOP': _CurrencyRule(),
+  'MUR': _CurrencyRule(),
+  'MVR': _CurrencyRule(thousands: ',', decimal: '.', left: false, space: true),
+  'MXN': _CurrencyRule(international: 'MX\$'),
+  'MYR': _CurrencyRule(),
+  'MZN': _CurrencyRule(),
+  'NGN': _CurrencyRule(),
+  'NIO': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'NOK': _CurrencyRule(thousands: ' ', decimal: ',', left: true, space: true),
+  'NPR': _CurrencyRule(),
+  'NZD': _CurrencyRule(international: 'NZ\$'),
+  'PAB': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'PEN': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'PHP': _CurrencyRule(),
+  'PKR': _CurrencyRule(),
+  'PLN': _CurrencyRule(thousands: ' ', decimal: ',', left: false, space: true),
+  'PYG': _CurrencyRule(thousands: '.', decimal: ',', left: true, space: true, exponent: 0),
+  'QAR': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'RON': _CurrencyRule(thousands: '.', decimal: ',', left: false, space: true),
+  'RSD': _CurrencyRule(thousands: '.', decimal: ',', left: false, space: true),
+  'RUB': _CurrencyRule(thousands: ' ', decimal: ',', left: false, space: true),
+  'SAR': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'SEK': _CurrencyRule(thousands: '.', decimal: ',', left: false, space: true),
+  'SGD': _CurrencyRule(),
+  'SYP': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'THB': _CurrencyRule(international: '฿'),
+  'TJS': _CurrencyRule(thousands: ' ', decimal: ';', left: false, space: true),
+  'TRY': _CurrencyRule(thousands: '.', decimal: ',', left: false, space: true),
+  'TTD': _CurrencyRule(),
+  'TWD': _CurrencyRule(international: 'NT\$'),
+  'TZS': _CurrencyRule(),
+  'UAH': _CurrencyRule(thousands: ' ', decimal: ',', left: false),
+  'UGX': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: false, exponent: 0),
+  'USD': _CurrencyRule(international: '\$'),
+  'UYU': _CurrencyRule(thousands: '.', decimal: ',', left: true, space: true),
+  'UZS': _CurrencyRule(thousands: ' ', decimal: ',', left: false, space: true),
+  'VEF': _CurrencyRule(thousands: '.', decimal: ',', left: true, space: true),
+  'VND': _CurrencyRule(international: '₫', thousands: '.', decimal: ',', left: false, space: true, exponent: 0),
+  'YER': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+  'ZAR': _CurrencyRule(thousands: ',', decimal: '.', left: true, space: true),
+};
+
 class PaymentPanelData {
   final String accountId;
   final String chatId;
@@ -117,6 +235,8 @@ class _PaymentPanelState extends State<PaymentPanel>
   bool _isReceipt = false;
   bool _termsAccepted = false;
   String _termsUrl = '';
+  bool _isRecurring = false;
+  bool _isTokenizing = false;
 
   bool _shippingRequested = false;
   bool _nameRequested = false;
@@ -214,6 +334,7 @@ class _PaymentPanelState extends State<PaymentPanel>
         _emailRequested = data['email_requested'] == true;
         _phoneRequested = data['phone_requested'] == true;
         _termsUrl = data['terms_url'] as String? ?? '';
+        _isRecurring = data['recurring'] == true;
 
         if (_isReceipt) {
           _receiptDate = (data['date'] as num?)?.toInt() ?? 0;
@@ -444,32 +565,61 @@ class _PaymentPanelState extends State<PaymentPanel>
 
   void _showBotTrustWarning() {
     final botName = widget.data.botName.isNotEmpty
-        ? widget.data.botName
+        ? '@${widget.data.botName}'
         : 'this bot';
     final providerName =
         _formData['native_provider'] as String? ?? 'the payment provider';
     showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Payment Confirmation'),
-        content: Text(
-          'You are about to pay via $providerName as requested by @$botName. '
-          'Please confirm that you want to proceed with this payment.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+      builder: (ctx) {
+        final p = PaletteProvider.of(ctx);
+        return AlertDialog(
+          title: const Text('Warning'),
+          content: RichText(
+            text: TextSpan(
+              style: TextStyle(color: p.windowFg, fontSize: 14, height: 1.4),
+              children: [
+                const TextSpan(text: 'Do you want to pay '),
+                TextSpan(
+                  text: botName,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                TextSpan(text: ' via $providerName?\n\n'),
+                const TextSpan(
+                  text: 'After the payment is done, your credentials and '
+                      'a copy of the delivery information will be forwarded to ',
+                ),
+                TextSpan(
+                  text: botName,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const TextSpan(text: '.\n\n'),
+                const TextSpan(
+                  text: 'You may also be charged by ',
+                ),
+                TextSpan(
+                  text: botName,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const TextSpan(text: ' again in the future.'),
+              ],
+            ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop(true);
-              _submitPayment();
-            },
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop(true);
+                _submitPayment();
+              },
+              child: const Text('Continue'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -479,80 +629,105 @@ class _PaymentPanelState extends State<PaymentPanel>
   void _showTermsDialog() {
     var accepted = _termsAccepted;
     String? errorText;
+    final botUsername = widget.data.botName;
+    final boldBot = botUsername.isNotEmpty ? '@$botUsername' : 'this bot';
+    final termsText = _isRecurring
+        ? 'After completing this payment you will be able to '
+            'manage your subscription in Settings > Subscriptions. '
+            'By proceeding, you agree to the Terms of Service of $boldBot.'
+        : 'By proceeding, you agree to the Terms of Service of $boldBot.';
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Terms of Service'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'By completing this payment, you agree to the Terms of Service of the payment provider.',
-              ),
-              if (_termsUrl.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () => launchUrl(Uri.parse(_termsUrl),
-                      mode: LaunchMode.externalApplication),
-                  child: Text(
-                    _termsUrl,
-                    style: const TextStyle(
-                      color: Colors.blue,
-                      decoration: TextDecoration.underline,
+      builder: (ctx) {
+        final p = PaletteProvider.of(ctx);
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Terms of Service'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RichText(
+                  text: TextSpan(
+                    style: TextStyle(color: p.windowFg, fontSize: 14, height: 1.4),
+                    children: [
+                      TextSpan(text: termsText),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: accepted,
+                      onChanged: (v) {
+                        setDialogState(() {
+                          accepted = v ?? false;
+                          errorText = null;
+                        });
+                      },
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          if (_termsUrl.isNotEmpty) {
+                            launchUrl(Uri.parse(_termsUrl),
+                                mode: LaunchMode.externalApplication);
+                          }
+                        },
+                        child: Text.rich(
+                          TextSpan(
+                            text: 'I agree to the ',
+                            children: [
+                              TextSpan(
+                                text: 'Terms of Service',
+                                style: TextStyle(
+                                  color: p.windowActiveTextFg,
+                                  decoration: _termsUrl.isNotEmpty
+                                      ? TextDecoration.underline
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                if (errorText != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      errorText!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ),
               ],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Checkbox(
-                    value: accepted,
-                    onChanged: (v) {
-                      setDialogState(() {
-                        accepted = v ?? false;
-                        errorText = null;
-                      });
-                    },
-                  ),
-                  const Expanded(child: Text('I agree to the Terms of Service')),
-                ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
               ),
-              if (errorText != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    errorText!,
-                    style: const TextStyle(color: Colors.red, fontSize: 12),
-                  ),
-                ),
+              TextButton(
+                onPressed: () {
+                  if (!accepted) {
+                    setDialogState(() {
+                      errorText = 'You must accept the Terms of Service to continue.';
+                    });
+                    return;
+                  }
+                  setState(() => _termsAccepted = true);
+                  Navigator.of(ctx).pop();
+                  _submitPayment();
+                },
+                child: const Text('Accept'),
+              ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                if (!accepted) {
-                  setDialogState(() {
-                    errorText = 'You must accept the Terms of Service to continue.';
-                  });
-                  return;
-                }
-                setState(() => _termsAccepted = true);
-                Navigator.of(ctx).pop();
-                _submitPayment();
-              },
-              child: const Text('Accept'),
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -590,64 +765,64 @@ class _PaymentPanelState extends State<PaymentPanel>
     );
   }
 
-  static int _currencyExponent(String code) {
-    switch (code.toUpperCase()) {
-      case 'JPY': case 'KRW': case 'CLP': case 'ISK':
-      case 'PYG': case 'UGX': case 'VND': case 'VUV':
-      case 'XAF': case 'XOF': case 'XPF': case 'RWF':
-      case 'GNF': case 'KMF': case 'DJF': case 'MGA':
-        return 0;
-      case 'BHD': case 'IQD': case 'JOD': case 'KWD':
-      case 'LYD': case 'OMR': case 'TND':
-        return 3;
-      default:
-        return 2;
-    }
-  }
-
   String _formatAmount(int amount, String currency) {
+    if (currency.toUpperCase() == 'XTR') {
+      return '\u2B50${amount.abs()}';
+    }
+    final rule = _lookupCurrencyRule(currency);
     final isNeg = amount < 0;
     final abs = amount.abs();
-    final exp = _currencyExponent(currency);
-    int divisor = 1;
-    for (int i = 0; i < exp; i++) divisor *= 10;
-    final major = abs ~/ divisor;
-    final minor = abs % divisor;
-    final sym = _currencySymbol(currency);
-    String s;
-    if (exp == 0 || minor == 0) {
-      s = '$sym$major';
-    } else {
-      s = '$sym$major.${minor.toString().padLeft(exp, '0')}';
+    final value = abs / _pow10(rule.exponent);
+    final precision = (!rule.stripDotZero || value != value.floorToDouble())
+        ? rule.exponent
+        : 0;
+    final formatted = _formatWithSeparators(
+      value, precision, rule.decimal, rule.thousands);
+    final name = rule.international.isNotEmpty
+        ? rule.international
+        : currency.toUpperCase();
+    final prefix = isNeg ? '\u2212' : '';
+    final buf = StringBuffer(prefix);
+    if (rule.left) {
+      buf.write(name);
+      if (rule.space) buf.write(' ');
     }
-    return isNeg ? '-$s' : s;
+    buf.write(formatted);
+    if (!rule.left) {
+      if (rule.space) buf.write(' ');
+      buf.write(name);
+    }
+    return buf.toString();
   }
 
-  String _currencySymbol(String code) {
-    switch (code.toUpperCase()) {
-      case 'USD':
-        return '\$';
-      case 'EUR':
-        return '\u20AC';
-      case 'GBP':
-        return '\u00A3';
-      case 'RUB':
-        return '\u20BD';
-      case 'JPY':
-        return '\u00A5';
-      case 'CNY':
-        return '\u00A5';
-      case 'IRR':
-        return '\uFDFC';
-      case 'TRY':
-        return '\u20BA';
-      case 'INR':
-        return '\u20B9';
-      case 'KRW':
-        return '\u20A9';
-      default:
-        return '$code ';
+  static double _pow10(int n) {
+    double r = 1;
+    for (int i = 0; i < n; i++) r *= 10;
+    return r;
+  }
+
+  static String _formatWithSeparators(
+      double amount, int precision, String decimal, String thousands) {
+    final fixed = amount.toStringAsFixed(precision);
+    if (thousands.isEmpty) return fixed.replaceAll('.', decimal);
+    final parts = fixed.split('.');
+    final intPart = parts[0];
+    final fracPart = parts.length > 1 ? parts[1] : '';
+    final buf = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final pos = intPart.length - i;
+      if (i > 0 && pos % 3 == 0) buf.write(thousands);
+      buf.write(intPart[i]);
     }
+    if (fracPart.isNotEmpty) {
+      buf.write(decimal);
+      buf.write(fracPart);
+    }
+    return buf.toString();
+  }
+
+  static _CurrencyRule _lookupCurrencyRule(String currency) {
+    return _kCurrencyRules[currency.toUpperCase()] ?? const _CurrencyRule();
   }
 
   @override
@@ -1526,6 +1701,7 @@ class _PaymentPanelState extends State<PaymentPanel>
                       }
 
                       setDialogState(() => isLoading = true);
+                      _isTokenizing = true;
                       try {
                         final expMonth = expiryParts[0];
                         final expYear = expiryParts[1];
@@ -1539,6 +1715,7 @@ class _PaymentPanelState extends State<PaymentPanel>
                           country: needCountry ? countryCtrl.text : null,
                           zip: needZip ? zipCtrl.text : null,
                         );
+                        _isTokenizing = false;
                         if (!mounted) return;
                         setState(() {
                           _credentialsData = token;
@@ -1547,6 +1724,7 @@ class _PaymentPanelState extends State<PaymentPanel>
                         });
                         Navigator.of(ctx).pop();
                       } catch (e) {
+                        _isTokenizing = false;
                         setDialogState(() => isLoading = false);
                         if (ctx.mounted) {
                           ScaffoldMessenger.of(ctx).showSnackBar(
@@ -1629,7 +1807,7 @@ class _PaymentPanelState extends State<PaymentPanel>
       request.headers.set('Authorization', 'Bearer $publishableKey');
       request.headers.set('Content-Type', 'application/x-www-form-urlencoded');
       request.headers.set('Stripe-Version', '2015-10-12');
-      request.headers.set('X-Stripe-User-Agent', '{"lang":"dart","publisher":"anthropic"}');
+      request.headers.set('X-Stripe-User-Agent', '{"bindings_version":"9.1.0","lang":"objective-c"}');
       final encodedBody = body.entries
           .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
           .join('&');
@@ -1665,11 +1843,12 @@ class _PaymentPanelState extends State<PaymentPanel>
     final nativeParams = _formData['native_params'] as Map<String, dynamic>? ?? {};
     final tokenizeUrl = nativeParams['tokenize_url'] as String? ?? '';
     final publicToken = nativeParams['public_token'] as String? ?? publishableKey;
+    final isTest = widget.data.isTest || (_formData['invoice_is_test'] == true);
     final String apiUrl;
-    if (tokenizeUrl.isNotEmpty) {
-      apiUrl = tokenizeUrl.endsWith('/') ? '${tokenizeUrl}cds/v1/tokenize/card' : tokenizeUrl;
+    if (tokenizeUrl.startsWith('https://') &&
+        tokenizeUrl.endsWith('.smart-glocal.com/cds/v1/tokenize/card')) {
+      apiUrl = tokenizeUrl;
     } else {
-      final isTest = widget.data.isTest || (_formData['invoice_is_test'] == true);
       apiUrl = isTest
           ? 'https://tgb-playground.smart-glocal.com/cds/v1/tokenize/card'
           : 'https://tgb.smart-glocal.com/cds/v1/tokenize/card';
@@ -2046,7 +2225,9 @@ class _PaymentPanelState extends State<PaymentPanel>
                 autofocus: true,
                 decoration: InputDecoration(
                   hintText: 'Enter tip amount',
-                  prefixText: _currencySymbol(currency),
+                  prefixText: _lookupCurrencyRule(currency).international.isNotEmpty
+                      ? '${_lookupCurrencyRule(currency).international} '
+                      : '${currency.toUpperCase()} ',
                   border: const OutlineInputBorder(),
                   errorText: tipError,
                 ),
@@ -2082,10 +2263,8 @@ class _PaymentPanelState extends State<PaymentPanel>
               onPressed: () {
                 final val = double.tryParse(controller.text);
                 if (val != null && val >= 0) {
-                  final exp = _currencyExponent(currency);
-                  int multiplier = 1;
-                  for (int i = 0; i < exp; i++) multiplier *= 10;
-                  final minorVal = (val * multiplier).round();
+                  final exp = _lookupCurrencyRule(currency).exponent;
+                  final minorVal = (val * _pow10(exp)).round();
                   if (_maxTip > 0 && minorVal > _maxTip) {
                     setDialogState(() {
                       tipError =
@@ -2175,14 +2354,18 @@ class _PaymentPanelState extends State<PaymentPanel>
   }
 
   String _formatReceiptDate(int timestamp) {
-    final dt = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
-    final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year} '
-        '${dt.hour.toString().padLeft(2, '0')}:'
-        '${dt.minute.toString().padLeft(2, '0')}';
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000).toLocal();
+    final loc = MaterialLocalizations.of(context);
+    final date = loc.formatMediumDate(dt);
+    final use24h = MediaQuery.alwaysUse24HourFormatOf(context);
+    final time = use24h
+        ? '${dt.hour.toString().padLeft(2, '0')}:'
+            '${dt.minute.toString().padLeft(2, '0')}'
+        : loc.formatTimeOfDay(
+            TimeOfDay.fromDateTime(dt),
+            alwaysUse24HourFormat: false,
+          );
+    return '$date $time';
   }
 
   String? _buildFullAddress(Map<String, dynamic> saved) {
@@ -2231,7 +2414,8 @@ class _PaymentPanelState extends State<PaymentPanel>
   }
 
   bool _hasChanges() {
-    return _paymentMethod != _initialPaymentMethod ||
+    return _isTokenizing ||
+        _paymentMethod != _initialPaymentMethod ||
         _shippingAddress != _initialShippingAddress ||
         _savedName != _initialName ||
         _savedEmail != _initialEmail ||
