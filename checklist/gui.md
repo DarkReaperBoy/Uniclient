@@ -839,9 +839,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 # payment_panel — Audit Findings
 
-## payment_panel — Stripe User-Agent header
-
-- [ ] [CRITICAL] `X-Stripe-User-Agent` header is sent as `{"lang":"dart","publisher":"anthropic"}` (line 1632), which exposes the app as Anthropic-built to Stripe's servers. AyuGram sends `{"lang":"objective-c","bindings_version":"9.1.0"}`, which is the expected client identity. The `"publisher":"anthropic"` tag is not a real Stripe SDK field and will cause Stripe to mis-identify the client. — `payment_panel.dart:1632` ← `AyuGram/payments/stripe/stripe_api_client.cpp:41`
 
 ## payment_panel — BOT_TRUST_REQUIRED warning dialog
 
