@@ -111,7 +111,7 @@ const double _kAnnotationMaxScale = 10.0;
 
 const double _kRainbowRingSize = 24.0;
 const double _kRainbowRingBorder = 3.0;
-const double _kToolButtonSize = 28.0;
+const double _kToolButtonSize = 20.0;
 const Duration _kToolSelectDuration = Duration(milliseconds: 120);
 const Duration _kColorButtonSwitchDuration = Duration(milliseconds: 140);
 const double _kPlusCircleSize = 20.0;
@@ -880,6 +880,17 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
     setState(() => _brushColor = color);
   }
 
+  List<Color> get _paletteColorsWithCustom {
+    for (final c in _kPaletteColors) {
+      if ((c.r - _brushColor.r).abs() < 0.01 &&
+          (c.g - _brushColor.g).abs() < 0.01 &&
+          (c.b - _brushColor.b).abs() < 0.01) {
+        return _kPaletteColors;
+      }
+    }
+    return [..._kPaletteColors, _brushColor];
+  }
+
   void _setPaintTool(_PaintTool tool) {
     setState(() {
       _toolBrushes[_currentPaintTool]!
@@ -1398,7 +1409,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
                           children: [
                             AnimatedCrossFade(
                               firstChild: _ColorPaletteRow(
-                                colors: _kPaletteColors,
+                                colors: _paletteColorsWithCustom,
                                 selected: _brushColor,
                                 onChanged: _setBrushColor,
                                 onCustomColor: () async {
@@ -1661,6 +1672,17 @@ class _ImageCropAreaState extends State<_ImageCropArea>
 
   bool get _hasLockedRatio => widget.enforceRatio != null;
 
+  Offset _toContentCoords(Offset screenPoint) {
+    if (widget.canvasZoom == 1.0 && widget.canvasOffset == Offset.zero) {
+      return screenPoint;
+    }
+    final sz = context.size;
+    if (sz == null) return screenPoint;
+    final center = Offset(sz.width / 2, sz.height / 2);
+    return (screenPoint - center - widget.canvasOffset) / widget.canvasZoom +
+        center;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1918,7 +1940,7 @@ class _ImageCropAreaState extends State<_ImageCropArea>
       }
       widget.onAnnotationSelected?.call(-1);
       setState(() {
-        _currentStrokePoints = [event.localPosition];
+        _currentStrokePoints = [_toContentCoords(event.localPosition)];
       });
       return;
     }
@@ -1966,7 +1988,7 @@ class _ImageCropAreaState extends State<_ImageCropArea>
       }
       if (_currentStrokePoints != null) {
         setState(() {
-          _currentStrokePoints!.add(event.localPosition);
+          _currentStrokePoints!.add(_toContentCoords(event.localPosition));
         });
       }
       return;
@@ -3333,8 +3355,9 @@ class _ToolButton extends StatefulWidget {
 class _ToolButtonState extends State<_ToolButton>
     with TickerProviderStateMixin {
   late final AnimationController _selectCtrl;
+  late final AnimationController _hoverCtrl;
   late final AnimationController _lottieCtrl;
-  bool _hovering = false;
+  bool _resetPending = false;
 
   @override
   void initState() {
@@ -3344,7 +3367,19 @@ class _ToolButtonState extends State<_ToolButton>
       duration: _kToolSelectDuration,
       value: widget.isSelected ? 1.0 : 0.0,
     );
+    _hoverCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
     _lottieCtrl = AnimationController(vsync: this);
+    _lottieCtrl.addStatusListener(_onLottieStatus);
+  }
+
+  void _onLottieStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed && _resetPending) {
+      _resetPending = false;
+      _lottieCtrl.value = 0;
+    }
   }
 
   @override
@@ -3361,20 +3396,30 @@ class _ToolButtonState extends State<_ToolButton>
 
   @override
   void dispose() {
+    _lottieCtrl.removeStatusListener(_onLottieStatus);
     _selectCtrl.dispose();
+    _hoverCtrl.dispose();
     _lottieCtrl.dispose();
     super.dispose();
   }
 
   void _onHoverEnter() {
-    setState(() => _hovering = true);
+    _hoverCtrl.forward();
     if (widget.lottieAsset != null) {
+      _resetPending = false;
       _lottieCtrl.forward(from: 0);
     }
   }
 
   void _onHoverExit() {
-    setState(() => _hovering = false);
+    _hoverCtrl.reverse();
+    if (widget.lottieAsset != null) {
+      if (_lottieCtrl.isAnimating) {
+        _resetPending = true;
+      } else {
+        _lottieCtrl.value = 0;
+      }
+    }
   }
 
   @override
@@ -3385,14 +3430,12 @@ class _ToolButtonState extends State<_ToolButton>
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedBuilder(
-          animation: _selectCtrl,
+          animation: Listenable.merge([_selectCtrl, _hoverCtrl]),
           builder: (context, _) {
             final t = Curves.easeOutCirc.transform(_selectCtrl.value);
-            final color = Color.lerp(
-              _hovering ? _kCancelFg : _kIconFgIdle,
-              _kIconFgActive,
-              t,
-            )!;
+            final h = _hoverCtrl.value;
+            final idleColor = Color.lerp(_kIconFgIdle, _kCancelFg, h)!;
+            final color = Color.lerp(idleColor, _kIconFgActive, t)!;
             return SizedBox(
               width: _kToolButtonSize,
               height: _kToolButtonSize,
@@ -3404,8 +3447,8 @@ class _ToolButtonState extends State<_ToolButton>
                         onLoaded: (composition) {
                           _lottieCtrl.duration = composition.duration;
                         },
-                        width: 20,
-                        height: 20,
+                        width: _kToolButtonSize,
+                        height: _kToolButtonSize,
                         delegates: LottieDelegates(
                           values: [
                             ValueDelegate.color(
@@ -3415,7 +3458,7 @@ class _ToolButtonState extends State<_ToolButton>
                           ],
                         ),
                       )
-                    : Icon(widget.icon, size: 20, color: color),
+                    : Icon(widget.icon, size: _kToolButtonSize, color: color),
               ),
             );
           },
