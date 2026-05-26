@@ -840,10 +840,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 # payment_panel — Audit Findings
 
 
-## payment_panel — Currency formatting incomplete
-
-- [ ] [MAJOR] `_currencySymbol()` only handles 10 currencies (USD/EUR/GBP/RUB/JPY/CNY/IRR/TRY/INR/KRW); all others fall back to the raw ISO code with no symbol (line 648). `_formatAmount()` always places the symbol on the left with no thousands separator or decimal separator customization (line 608). AyuGram's `FillAmountAndCurrency()` covers 100+ currencies via `LookupCurrencyRule()` with per-currency left/right symbol position, thousands separator character, decimal character, and `stripDotZero` flag. — `payment_panel.dart:608` ← `AyuGram/ui/text/format_values.cpp:176`
-
 ## payment_panel — Receipt date uses hardcoded English months
 
 - [ ] [MAJOR] `_formatReceiptDate()` uses a hardcoded English month abbreviation array (`['Jan','Feb',...]`, lines 2179–2186). AyuGram formats the receipt date with `langDateTime(base::unixtime::parse(_invoice.receipt.date))` which respects the system locale and produces a locale-correct date string. Dart's output will always be in English regardless of the user's locale. — `payment_panel.dart:2179` ← `AyuGram/payments/ui/payments_form_summary.cpp:324`
