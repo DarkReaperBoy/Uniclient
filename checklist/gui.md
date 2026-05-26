@@ -853,17 +853,7 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 - [ ] [CRITICAL] `BuildConfirmationExtensions` only renders the section when `noWarningExtensions` is non-empty OR `ipRevealWarning` is false (i.e. the section is hidden by default and only appears once the user has configured it). Dart always renders the "File Confirmations" section unconditionally, permanently showing "No-Warning Extensions" and "Show IP in WebRTC calls" even for fresh installs — `privacy_settings_screen.dart:1246` ← `settings_privacy_security.cpp:1128`
 
-- [ ] [CRITICAL] Login Email row opens a custom `_showChangeLoginEmailDialog` that asks the user for their current password and a new email, then calls `engine.setCloudPasswordEmail`. AyuGram opens this via `UrlClickHandler::Open(u"tg://settings/login_email"_q)` — a deep-link that routes to the platform's cloud-password settings flow, not a custom dialog with manual password entry. The Dart implementation is a completely custom stub that does not match the original flow — `privacy_settings_screen.dart:1373` ← `settings_privacy_security.cpp:729`
-
 - [ ] [CRITICAL] `_LocalPasscodeCreate` stores the passcode as a SHA-256 hash (iterated 100000 times) in a local JSON file (`local_passcode.json`). AyuGram uses `controller->session().domain().local().setPasscode(pass.toUtf8())` which stores the passcode in Telegram Desktop's encrypted local storage via `Storage::Domain`. The Dart implementation uses a completely independent local file that is not integrated with the Telegram session storage or lock/unlock flow — `privacy_settings_screen.dart:5620` ← `settings_local_passcode.cpp:44`
-
-# reactions_detail — Audit
-
-- [ ] [MAJOR] "All reactions" tab uses `Icons.favorite` (heart icon) instead of the correct reactions icon. AyuGram uses `reactionsTabAll` which maps to `"menu/read_reactions"` — visually a multi-reaction sparkle icon, not a heart. The heart misleads users into thinking it filters "liked" reactions only. — `reactions_detail.dart:675` ← `ui/chat/chat.style:862`
-
-- [ ] [MAJOR] Scroll position not reset when switching back to "All" tab via cached `_masterReactors` path. In `_onTabSelected`, when `tab == null && _masterReactors.isNotEmpty`, `_loading` stays `false` and the same `ListView.builder` widget is reused in the tree (same `else` branch, same widget type), so Flutter preserves the scroll offset from the previous tab instead of jumping to top. AyuGram clears and rebuilds all rows in `showReaction()` which inherently resets position. — `reactions_detail.dart:383-392` ← `history_view_reactions_list.cpp:253-280`
-
-- [ ] [MAJOR] `formatReadDateLocal` hardcodes 24-hour clock format (`HH:mm` / `HH:mm:ss`) for the non-seconds case. AyuGram uses `QLocale::system().timeFormat(QLocale::ShortFormat)` so the time respects the device's locale (12h for en-US, etc.). Dart always produces 24h regardless of locale. — `reactions_detail.dart:1028-1030` ← `api/api_who_reacted.cpp:699-710`
 
 ## send_files_box — Paid price lost, groups structure unused, AI button missing
 
