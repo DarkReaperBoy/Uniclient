@@ -401,6 +401,9 @@ class ForumTopic {
   final bool canTogglePinned;
   final String lastMsgText;
   final int lastMsgDate;
+  final int notifyMuteUntil;
+  final int notifySound;
+  final bool notifyShowPreviews;
 
   const ForumTopic({
     required this.id,
@@ -426,6 +429,9 @@ class ForumTopic {
     this.canTogglePinned = false,
     this.lastMsgText = '',
     this.lastMsgDate = 0,
+    this.notifyMuteUntil = 0,
+    this.notifySound = 0,
+    this.notifyShowPreviews = true,
   });
 
   bool get isGeneral => id == '1';
@@ -642,6 +648,35 @@ class CachedMessage {
   final bool isPollVote;
   final String pollVoteOption;
 
+  // Message effect/animation (e.g. animated confetti).
+  final int effectId;
+
+  // Paid stars for posting in a paid channel.
+  final int starsPaid;
+
+  // Business Shortcut message ID.
+  final int shortcutId;
+
+  // Reply-to-story reference.
+  final int replyToStoryId;
+  final String replyToStoryPeer;
+
+  // Reply quote text and offset within the replied message.
+  final String replyQuoteText;
+  final int replyQuoteOffset;
+
+  // Topic root message ID for thread navigation (standalone from topicId).
+  final String topicRootId;
+
+  // Quiz solution text (shown after quiz closes).
+  final String pollSolution;
+
+  // Additional poll flags.
+  final bool pollShuffleAnswers;
+  final bool pollRevotingDisabled;
+  final bool pollOpenAnswers;
+  final bool pollHideResultsUntilClose;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -769,6 +804,19 @@ class CachedMessage {
     this.reactedToType = 0,
     this.isPollVote = false,
     this.pollVoteOption = '',
+    this.effectId = 0,
+    this.starsPaid = 0,
+    this.shortcutId = 0,
+    this.replyToStoryId = 0,
+    this.replyToStoryPeer = '',
+    this.replyQuoteText = '',
+    this.replyQuoteOffset = 0,
+    this.topicRootId = '',
+    this.pollSolution = '',
+    this.pollShuffleAnswers = false,
+    this.pollRevotingDisabled = false,
+    this.pollOpenAnswers = false,
+    this.pollHideResultsUntilClose = false,
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) {
@@ -906,6 +954,19 @@ class CachedMessage {
       reactedToType: _safeInt(extra['reacted_to_type']),
       isPollVote: extra['is_poll_vote'] as bool? ?? false,
       pollVoteOption: extra['poll_vote_option'] as String? ?? '',
+      effectId: _safeInt(extra['effect_id']),
+      starsPaid: _safeInt(extra['stars_paid']),
+      shortcutId: _safeInt(extra['shortcut_id']),
+      replyToStoryId: _safeInt(extra['reply_to_story_id']),
+      replyToStoryPeer: extra['reply_to_story_peer'] as String? ?? '',
+      replyQuoteText: extra['reply_quote_text'] as String? ?? '',
+      replyQuoteOffset: _safeInt(extra['reply_quote_offset']),
+      topicRootId: extra['topic_root_id'] as String? ?? '',
+      pollSolution: extra['poll_solution'] as String? ?? '',
+      pollShuffleAnswers: extra['poll_shuffle_answers'] as bool? ?? false,
+      pollRevotingDisabled: extra['poll_revoting_disabled'] as bool? ?? false,
+      pollOpenAnswers: extra['poll_open_answers'] as bool? ?? false,
+      pollHideResultsUntilClose: extra['poll_hide_results_until_close'] as bool? ?? false,
     );
   }
 
@@ -930,6 +991,10 @@ class CachedMessage {
           chosen: o['chosen'] as bool? ?? false,
           correct: o['correct'] as bool? ?? false,
           voters: _safeInt(o['voters']),
+          recentVoters: (o['recent_voters'] as List<dynamic>?)?.cast<String>() ?? const [],
+          mediaType: o['media_type'] as String? ?? '',
+          mediaThumbB64: o['media_thumb_b64'] as String? ?? '',
+          mediaFileId: o['media_file_id'] as String? ?? '',
         ));
       }
     }
@@ -1164,6 +1229,19 @@ class CachedMessage {
     int? reactedToType,
     bool? isPollVote,
     String? pollVoteOption,
+    int? effectId,
+    int? starsPaid,
+    int? shortcutId,
+    int? replyToStoryId,
+    String? replyToStoryPeer,
+    String? replyQuoteText,
+    int? replyQuoteOffset,
+    String? topicRootId,
+    String? pollSolution,
+    bool? pollShuffleAnswers,
+    bool? pollRevotingDisabled,
+    bool? pollOpenAnswers,
+    bool? pollHideResultsUntilClose,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -1291,13 +1369,73 @@ class CachedMessage {
     reactedToType: reactedToType ?? this.reactedToType,
     isPollVote: isPollVote ?? this.isPollVote,
     pollVoteOption: pollVoteOption ?? this.pollVoteOption,
+    effectId: effectId ?? this.effectId,
+    starsPaid: starsPaid ?? this.starsPaid,
+    shortcutId: shortcutId ?? this.shortcutId,
+    replyToStoryId: replyToStoryId ?? this.replyToStoryId,
+    replyToStoryPeer: replyToStoryPeer ?? this.replyToStoryPeer,
+    replyQuoteText: replyQuoteText ?? this.replyQuoteText,
+    replyQuoteOffset: replyQuoteOffset ?? this.replyQuoteOffset,
+    topicRootId: topicRootId ?? this.topicRootId,
+    pollSolution: pollSolution ?? this.pollSolution,
+    pollShuffleAnswers: pollShuffleAnswers ?? this.pollShuffleAnswers,
+    pollRevotingDisabled: pollRevotingDisabled ?? this.pollRevotingDisabled,
+    pollOpenAnswers: pollOpenAnswers ?? this.pollOpenAnswers,
+    pollHideResultsUntilClose: pollHideResultsUntilClose ?? this.pollHideResultsUntilClose,
   );
 
+  bool get hasReplyToStory => replyToStoryId != 0;
+  bool get hasReplyQuote => replyQuoteText.isNotEmpty;
+  bool get hasEffect => effectId != 0;
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;
   bool get hasReplies => repliesCount > 0;
   bool get hasThread => topicId.isNotEmpty || hasReplies;
   bool get hasReplyKeyboard => replyKeyboard != null && replyKeyboard!.rows.isNotEmpty;
   bool get hasInlineKeyboard => inlineKeyboard.isNotEmpty;
+}
+
+// ── Recent reaction (per-user reaction state) ──
+class RecentReaction {
+  final String peerId;
+  final bool unread;
+  final bool big;
+  final bool my;
+
+  const RecentReaction({
+    required this.peerId,
+    this.unread = false,
+    this.big = false,
+    this.my = false,
+  });
+
+  factory RecentReaction.fromJson(Map<String, dynamic> j) => RecentReaction(
+    peerId: j['peer_id'] as String? ?? '',
+    unread: j['unread'] as bool? ?? false,
+    big: j['big'] as bool? ?? false,
+    my: j['my'] as bool? ?? false,
+  );
+}
+
+// ── Top paid reaction peer ──
+class MessageReactionTopPaid {
+  final String peerId;
+  final int count;
+  final bool top;
+  final bool my;
+
+  const MessageReactionTopPaid({
+    required this.peerId,
+    this.count = 0,
+    this.top = false,
+    this.my = false,
+  });
+
+  factory MessageReactionTopPaid.fromJson(Map<String, dynamic> j) => MessageReactionTopPaid(
+    peerId: j['peer_id'] as String? ?? '',
+    count: (j['count'] as num?)?.toInt() ?? 0,
+    top: j['top'] as bool? ?? false,
+    my: j['my'] as bool? ?? false,
+  );
 }
 
 // ── Message reaction ──
@@ -1306,12 +1444,16 @@ class MessageReaction {
   final int count;
   final bool byMe;
   final int documentId;
+  final List<RecentReaction> recentReactions;
+  final List<MessageReactionTopPaid> topPaid;
 
   const MessageReaction({
     required this.emoji,
     this.count = 1,
     this.byMe = false,
     this.documentId = 0,
+    this.recentReactions = const [],
+    this.topPaid = const [],
   });
 
   bool get isCustomEmoji => documentId != 0;
@@ -1321,6 +1463,12 @@ class MessageReaction {
     count: j['count'] as int? ?? 1,
     byMe: j['by_me'] as bool? ?? false,
     documentId: (j['document_id'] as num?)?.toInt() ?? 0,
+    recentReactions: (j['recent_reactions'] as List<dynamic>?)
+        ?.map((r) => RecentReaction.fromJson(r as Map<String, dynamic>))
+        .toList() ?? const [],
+    topPaid: (j['top_paid'] as List<dynamic>?)
+        ?.map((r) => MessageReactionTopPaid.fromJson(r as Map<String, dynamic>))
+        .toList() ?? const [],
   );
 
   Map<String, dynamic> toJson() => {
@@ -1328,6 +1476,8 @@ class MessageReaction {
     'count': count,
     'by_me': byMe,
     if (documentId != 0) 'document_id': documentId,
+    if (recentReactions.isNotEmpty) 'recent_reactions': recentReactions,
+    if (topPaid.isNotEmpty) 'top_paid': topPaid,
   };
 }
 
@@ -1402,6 +1552,10 @@ class PollOption {
   final int voters;
   final bool chosen;
   final bool correct;
+  final List<String> recentVoters;
+  final String mediaType;
+  final String mediaThumbB64;
+  final String mediaFileId;
 
   const PollOption({
     required this.text,
@@ -1409,7 +1563,13 @@ class PollOption {
     this.voters = 0,
     this.chosen = false,
     this.correct = false,
+    this.recentVoters = const [],
+    this.mediaType = '',
+    this.mediaThumbB64 = '',
+    this.mediaFileId = '',
   });
+
+  bool get hasMedia => mediaType.isNotEmpty;
 
   factory PollOption.fromJson(Map<String, dynamic> j) => PollOption(
     text: j['text'] as String? ?? '',
@@ -1417,6 +1577,10 @@ class PollOption {
     voters: j['voters'] as int? ?? 0,
     chosen: j['chosen'] as bool? ?? false,
     correct: j['correct'] as bool? ?? false,
+    recentVoters: (j['recent_voters'] as List<dynamic>?)?.cast<String>() ?? const [],
+    mediaType: j['media_type'] as String? ?? '',
+    mediaThumbB64: j['media_thumb_b64'] as String? ?? '',
+    mediaFileId: j['media_file_id'] as String? ?? '',
   );
 }
 
@@ -1589,6 +1753,7 @@ class FolderInfo {
   final bool isChatList;
   final String emoticon;
   final bool staticTitle;
+  final bool hasMyLinks;
 
   bool get hasTypeFilters => contacts || nonContacts || groups || channels || bots;
   bool get hasTagColor => colorIndex >= 0 && colorIndex <= 7;
@@ -1613,6 +1778,7 @@ class FolderInfo {
     this.isChatList = false,
     this.emoticon = '',
     this.staticTitle = false,
+    this.hasMyLinks = false,
   });
 }
 
@@ -1865,6 +2031,7 @@ class AdminLogEvent {
   final String newValue;
   final int messageId;
   final String msgText;
+  final Map<String, dynamic> actionData;
 
   const AdminLogEvent({
     required this.id,
@@ -1877,6 +2044,7 @@ class AdminLogEvent {
     this.newValue = '',
     this.messageId = 0,
     this.msgText = '',
+    this.actionData = const {},
   });
 
   factory AdminLogEvent.fromJson(Map<String, dynamic> j) => AdminLogEvent(
@@ -1890,6 +2058,7 @@ class AdminLogEvent {
     newValue: j['new_value'] as String? ?? '',
     messageId: (j['message_id'] as num?)?.toInt() ?? 0,
     msgText: j['msg_text'] as String? ?? '',
+    actionData: j['action_data'] as Map<String, dynamic>? ?? const {},
   );
 
   DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(date * 1000);
@@ -2336,6 +2505,11 @@ class GroupCallParticipant {
   final bool isSpeaking;
   final bool sounding;
   final bool hasVideo;
+  final bool videoJoined;
+  final String videoCameraEndpoint;
+  final String videoScreenEndpoint;
+  final bool videoCameraPaused;
+  final bool videoScreenPaused;
   final String avatarPath;
   final bool canSelfUnmute;
   final int raisedHandRating;
@@ -2346,6 +2520,7 @@ class GroupCallParticipant {
   final bool additionalSpeaking;
   final int lastActive;
   final int date;
+  final bool onlyMinLoaded;
 
   const GroupCallParticipant({
     this.userId = '',
@@ -2355,6 +2530,11 @@ class GroupCallParticipant {
     this.isSpeaking = false,
     this.sounding = false,
     this.hasVideo = false,
+    this.videoJoined = false,
+    this.videoCameraEndpoint = '',
+    this.videoScreenEndpoint = '',
+    this.videoCameraPaused = false,
+    this.videoScreenPaused = false,
     this.avatarPath = '',
     this.canSelfUnmute = false,
     this.raisedHandRating = 0,
@@ -2365,6 +2545,7 @@ class GroupCallParticipant {
     this.additionalSpeaking = false,
     this.lastActive = 0,
     this.date = 0,
+    this.onlyMinLoaded = false,
   });
 
   factory GroupCallParticipant.fromJson(Map<String, dynamic> j) => GroupCallParticipant(
@@ -2375,6 +2556,11 @@ class GroupCallParticipant {
     isSpeaking: j['is_speaking'] as bool? ?? false,
     sounding: j['sounding'] as bool? ?? false,
     hasVideo: j['has_video'] as bool? ?? false,
+    videoJoined: j['video_joined'] as bool? ?? false,
+    videoCameraEndpoint: j['video_camera_endpoint'] as String? ?? '',
+    videoScreenEndpoint: j['video_screen_endpoint'] as String? ?? '',
+    videoCameraPaused: j['video_camera_paused'] as bool? ?? false,
+    videoScreenPaused: j['video_screen_paused'] as bool? ?? false,
     avatarPath: j['avatar_path'] as String? ?? '',
     canSelfUnmute: j['can_self_unmute'] as bool? ?? false,
     raisedHandRating: (j['raised_hand_rating'] as num?)?.toInt() ?? 0,
@@ -2385,6 +2571,7 @@ class GroupCallParticipant {
     additionalSpeaking: j['additional_speaking'] as bool? ?? false,
     lastActive: (j['last_active'] as num?)?.toInt() ?? 0,
     date: (j['date'] as num?)?.toInt() ?? 0,
+    onlyMinLoaded: j['only_min_loaded'] as bool? ?? false,
   );
 }
 
@@ -2397,8 +2584,13 @@ class GroupCallInfo {
   final bool active;
   final bool isRtmp;
   final bool isRecording;
+  final int recordStartDate;
   final int scheduleDate;
   final String origin;
+  final bool listenersHidden;
+  final bool messagesEnabled;
+  final int messagesMinPrice;
+  final String conferenceInviteLink;
 
   const GroupCallInfo({
     this.callId = '',
@@ -2409,8 +2601,13 @@ class GroupCallInfo {
     this.active = false,
     this.isRtmp = false,
     this.isRecording = false,
+    this.recordStartDate = 0,
     this.scheduleDate = 0,
     this.origin = '',
+    this.listenersHidden = false,
+    this.messagesEnabled = false,
+    this.messagesMinPrice = 0,
+    this.conferenceInviteLink = '',
   });
 
   factory GroupCallInfo.fromJson(Map<String, dynamic> j) => GroupCallInfo(
@@ -2424,8 +2621,13 @@ class GroupCallInfo {
     active: j['active'] as bool? ?? false,
     isRtmp: j['is_rtmp'] as bool? ?? false,
     isRecording: j['is_recording'] as bool? ?? false,
+    recordStartDate: (j['record_start_date'] as num?)?.toInt() ?? 0,
     scheduleDate: (j['schedule_date'] as num?)?.toInt() ?? 0,
     origin: j['origin'] as String? ?? '',
+    listenersHidden: j['listeners_hidden'] as bool? ?? false,
+    messagesEnabled: j['messages_enabled'] as bool? ?? false,
+    messagesMinPrice: (j['messages_min_price'] as num?)?.toInt() ?? 0,
+    conferenceInviteLink: j['conference_invite_link'] as String? ?? '',
   );
 }
 
@@ -2782,6 +2984,10 @@ class StickerSetInfo {
   final bool isPremium;
   final bool userPremium;
   final bool isCreator;
+  final int installDate;
+  final bool textColor;
+  final bool channelStatus;
+  final int thumbnailDocumentId;
   final List<StickerInfoItem> stickers;
 
   const StickerSetInfo({
@@ -2800,6 +3006,10 @@ class StickerSetInfo {
     this.isPremium = false,
     this.userPremium = false,
     this.isCreator = false,
+    this.installDate = 0,
+    this.textColor = false,
+    this.channelStatus = false,
+    this.thumbnailDocumentId = 0,
     this.stickers = const [],
   });
 
@@ -2819,6 +3029,10 @@ class StickerSetInfo {
     isPremium: isPremium,
     userPremium: userPremium,
     isCreator: isCreator,
+    installDate: installDate,
+    textColor: textColor,
+    channelStatus: channelStatus,
+    thumbnailDocumentId: thumbnailDocumentId,
     stickers: newStickers,
   );
 }
@@ -3201,6 +3415,9 @@ class StoryItem {
   final int views;
   final int forwards;
   final int reactions;
+  final Map<String, int> reactionCounts;
+  final String sentReactionId;
+  final bool inProfile;
   final bool pinned;
   final bool edited;
   final bool noForwards;
@@ -3225,6 +3442,9 @@ class StoryItem {
     this.views = 0,
     this.forwards = 0,
     this.reactions = 0,
+    this.reactionCounts = const {},
+    this.sentReactionId = '',
+    this.inProfile = false,
     this.pinned = false,
     this.edited = false,
     this.noForwards = false,
@@ -3241,6 +3461,7 @@ class StoryItem {
   bool get hasMedia => localPath.isNotEmpty;
   bool get isRepost => fwdFromName.isNotEmpty || fwdFromPeerId.isNotEmpty;
   bool get isExpired => expires > 0 && DateTime.now().millisecondsSinceEpoch ~/ 1000 >= expires;
+  bool get hasSentReaction => sentReactionId.isNotEmpty;
 
   factory StoryItem.fromJson(Map<String, dynamic> j) {
     final fileRef = j['file_ref'] as Map<String, dynamic>? ?? {};
@@ -3264,6 +3485,10 @@ class StoryItem {
       views: (j['views'] as num?)?.toInt() ?? 0,
       forwards: (j['forwards'] as num?)?.toInt() ?? 0,
       reactions: (j['reactions'] as num?)?.toInt() ?? 0,
+      reactionCounts: (j['reaction_counts'] as Map<String, dynamic>?)
+          ?.map((k, v) => MapEntry(k, (v as num?)?.toInt() ?? 0)) ?? const {},
+      sentReactionId: j['sent_reaction_id'] as String? ?? '',
+      inProfile: j['in_profile'] as bool? ?? false,
       pinned: j['pinned'] as bool? ?? false,
       edited: j['edited'] as bool? ?? false,
       noForwards: j['no_forwards'] as bool? ?? false,
