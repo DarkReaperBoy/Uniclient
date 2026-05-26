@@ -950,17 +950,6 @@ All issues resolved.
 
 ## CachedMessage vs HistoryItem / HistoryItemCommonFields
 
-- [ ] [MAJOR] `CachedMessage` missing `effectId` (message effect/animation, e.g. animated confetti) — `engine_models.dart:459` ← `AyuGramDesktop/Telegram/SourceFiles/history/history_item.h:94` (`HistoryItemCommonFields.effectId = 0`)
-
-- [ ] [MAJOR] `CachedMessage` missing `starsPaid` (paid stars for posting in a paid channel) — `engine_models.dart:459` ← `AyuGramDesktop/Telegram/SourceFiles/history/history_item.h:90` (`HistoryItemCommonFields.starsPaid = 0`)
-
-- [ ] [MAJOR] `CachedMessage` missing `shortcutId` (Business Shortcut message ID) — `engine_models.dart:459` ← `AyuGramDesktop/Telegram/SourceFiles/history/history_item.h:89` (`HistoryItemCommonFields.shortcutId = 0`)
-
-- [ ] [MAJOR] `CachedMessage` missing reply-to-story reference (`replyToStoryId`, `replyToStoryPeer`) — `engine_models.dart:472` (`replyToId` is plain string) ← `AyuGramDesktop/Telegram/SourceFiles/data/data_msg_id.h:189` (`FullReplyTo.storyId: FullStoryId`)
-
-- [ ] [MAJOR] `CachedMessage` missing reply quote text and offset — `engine_models.dart:472` (`replyToId` only) ← `AyuGramDesktop/Telegram/SourceFiles/data/data_msg_id.h:191,195` (`FullReplyTo.quote: TextWithEntities`, `FullReplyTo.quoteOffset: int`)
-
-- [ ] [MAJOR] `CachedMessage` missing `topicRootId` as a standalone message-level field for thread navigation — `engine_models.dart:511` (has `topicId` from extra blob) ← `AyuGramDesktop/Telegram/SourceFiles/data/data_msg_id.h:193` (`FullReplyTo.topicRootId: MsgId`)
 
 ## MessageReaction vs Data::MessageReaction
 
