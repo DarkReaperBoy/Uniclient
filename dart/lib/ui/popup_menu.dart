@@ -289,22 +289,34 @@ class _TelegramMenuOverlayState<T> extends State<_TelegramMenuOverlay<T>>
               animation: widget.animation,
               builder: (context, child) {
                 final widthFactor =
-                    0.5 + 0.5 * _panelCurve(widget.animation.value, 0.6);
+                    _panelCurve(widget.animation.value, 0.6);
                 final heightFactor =
-                    0.45 + 0.55 * _panelCurve(widget.animation.value, 0.9);
+                    _panelCurve(widget.animation.value, 0.9);
                 final opacity =
                     (0.2 + 0.8 * _panelCurve(widget.animation.value, 0.3))
                         .clamp(0.0, 1.0);
 
                 return Opacity(
                   opacity: opacity,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(_kCornerRadius),
-                    child: Align(
-                      alignment: _origin,
-                      widthFactor: widthFactor.clamp(0.0, 1.0),
-                      heightFactor: heightFactor.clamp(0.0, 1.0),
-                      child: child,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(_kCornerRadius),
+                      boxShadow: [
+                        BoxShadow(
+                          color: shadow.withOpacity(_kShadowOpacity),
+                          blurRadius: _kShadowBlurRadius,
+                          offset: _kShadowOffset,
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(_kCornerRadius),
+                      child: Align(
+                        alignment: _origin,
+                        widthFactor: widthFactor.clamp(0.0, 1.0),
+                        heightFactor: heightFactor.clamp(0.0, 1.0),
+                        child: child,
+                      ),
                     ),
                   ),
                 );
@@ -313,13 +325,6 @@ class _TelegramMenuOverlayState<T> extends State<_TelegramMenuOverlay<T>>
                 decoration: BoxDecoration(
                   color: bg,
                   borderRadius: BorderRadius.circular(_kCornerRadius),
-                  boxShadow: [
-                    BoxShadow(
-                      color: shadow.withOpacity(_kShadowOpacity),
-                      blurRadius: _kShadowBlurRadius,
-                      offset: _kShadowOffset,
-                    ),
-                  ],
                 ),
                 child: Material(
                   color: Colors.transparent,
@@ -440,9 +445,11 @@ class _MenuPositionDelegate extends SingleChildLayoutDelegate {
 class _AnimatedSubmenuReveal extends StatefulWidget {
   final Widget child;
   final Alignment origin;
+  final Brightness brightness;
 
   const _AnimatedSubmenuReveal({
     required this.child,
+    required this.brightness,
     this.origin = Alignment.topLeft,
   });
 
@@ -471,23 +478,36 @@ class _AnimatedSubmenuRevealState extends State<_AnimatedSubmenuReveal>
 
   @override
   Widget build(BuildContext context) {
+    final shadow = _shadowColor(widget.brightness);
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         final t = const _SineInOutCurve().transform(_controller.value);
-        final widthFactor = 0.5 + 0.5 * _panelCurve(t, 0.6);
-        final heightFactor = 0.45 + 0.55 * _panelCurve(t, 0.9);
+        final widthFactor = _panelCurve(t, 0.6);
+        final heightFactor = _panelCurve(t, 0.9);
         final opacity = (0.2 + 0.8 * _panelCurve(t, 0.3)).clamp(0.0, 1.0);
 
         return Opacity(
           opacity: opacity,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(_kCornerRadius),
-            child: Align(
-              alignment: widget.origin,
-              widthFactor: widthFactor.clamp(0.0, 1.0),
-              heightFactor: heightFactor.clamp(0.0, 1.0),
-              child: child,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(_kCornerRadius),
+              boxShadow: [
+                BoxShadow(
+                  color: shadow.withOpacity(_kShadowOpacity),
+                  blurRadius: _kShadowBlurRadius,
+                  offset: _kShadowOffset,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(_kCornerRadius),
+              child: Align(
+                alignment: widget.origin,
+                widthFactor: widthFactor.clamp(0.0, 1.0),
+                heightFactor: heightFactor.clamp(0.0, 1.0),
+                child: child,
+              ),
             ),
           ),
         );
@@ -568,7 +588,6 @@ class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
     final hasIcons = items.any((i) => !i.isSeparator && i.icon != null);
     final pad = hasIcons ? 5.0 : 8.0;
     final bg = _menuBg(brightness);
-    final shadow = _shadowColor(brightness);
 
     setState(() => _activeSubmenuIndex = index);
 
@@ -587,6 +606,7 @@ class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
           ),
           child: _AnimatedSubmenuReveal(
             origin: rtl ? Alignment.topRight : Alignment.topLeft,
+            brightness: brightness,
             child: IntrinsicWidth(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(
@@ -597,13 +617,6 @@ class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
                   decoration: BoxDecoration(
                     color: bg,
                     borderRadius: BorderRadius.circular(_kCornerRadius),
-                    boxShadow: [
-                      BoxShadow(
-                        color: shadow.withOpacity(_kShadowOpacity),
-                        blurRadius: _kShadowBlurRadius,
-                        offset: _kShadowOffset,
-                      ),
-                    ],
                   ),
                   child: Material(
                     color: Colors.transparent,
@@ -867,18 +880,18 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
         ? const Color(0xFFdcdcdc)
         : const Color(0xFF8a8a8a);
     final shortcutColor = isDark
-        ? const Color(0xFF8d9ba4)
+        ? const Color(0xFF708499)
         : const Color(0xFF999999);
     final shortcutColorHover = isDark
-        ? const Color(0xFFa0b0b8)
-        : const Color(0xFF888888);
+        ? const Color(0xFF7c90a4)
+        : const Color(0xFF919191);
 
     final item = widget.item;
     final hasIcon = item.icon != null;
     final attentionColor = isDark
         ? const Color(0xFFec3942)
         : const Color(0xFFd14e4e);
-    final useRedText = item.isAttention && (widget.fullAttention || !hasIcon);
+    final useRedText = item.isAttention;
     final hasCustomColor = item.labelColor != null || item.iconColor != null ||
         item.isAttention;
     final anim = widget.routeAnimation;
@@ -1066,10 +1079,10 @@ class _TelegramDisabledItem<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = brightness == Brightness.dark;
     final textColor = isDark
-        ? const Color(0xFF6c7883)
+        ? const Color(0xFF3d4e5c)
         : const Color(0xFFcccccc);
     final iconColor = isDark
-        ? const Color(0xFF6c7883)
+        ? const Color(0xFF3d4e5c)
         : const Color(0xFFcccccc);
     final hasIcon = item.icon != null;
 
