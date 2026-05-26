@@ -862,10 +862,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 # main — Audit findings
 
 
-## main — PasscodeLockScreen logout button uses wrong widget type
-
-- [ ] [MAJOR] The logout link at the bottom of the passcode screen is rendered as a `GestureDetector` wrapping a plain `Text`, but AyuGram uses `Ui::LinkButton` — a link-styled control with underline and the `lightButtonFg` foreground color on hover. The Dart version uses `accentColor` (`windowBgActive`) with no text decoration, which does not match the link appearance of the original. — `main.dart:2826-2837` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_lock_widgets.h:89` + `window/window_lock_widgets.cpp:102-107`
-
 ## main — PasscodeLockScreen logout confirmation uses wrong overlay mechanism
 
 - [ ] [MAJOR] Logout confirmation is implemented as an in-screen `Positioned.fill` overlay with a custom `Material` card managed by `_showLogoutConfirm` state. AyuGram calls `Controller::showLogoutConfirmation()` which shows a `Ui::MakeConfirmBox` — a proper layer-system modal box rendered above all content, using `st::attentionBoxButton` for the confirm button style. The Dart implementation bypasses the box layer system entirely. — `main.dart:2839-2893` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_controller.cpp:548-569`
