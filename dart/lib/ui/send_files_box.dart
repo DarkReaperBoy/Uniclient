@@ -101,6 +101,7 @@ class SendFilesResult {
   final Map<int, String> videoCoverPaths;
   final List<SendFilesGroup> groups;
   final int captionGroupIndex;
+  final int starsPerMessage;
 
   const SendFilesResult({
     required this.paths,
@@ -121,6 +122,7 @@ class SendFilesResult {
     this.videoCoverPaths = const {},
     this.groups = const [],
     this.captionGroupIndex = -1,
+    this.starsPerMessage = 0,
   });
 }
 
@@ -1813,6 +1815,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
     final spoilers = _files.map((f) {
       if (!f.isMediaType) return false;
+      if (_starsPerMessage > 0) return false;
       return f.spoiler;
     }).toList();
     final groups = _divideByGroups();
@@ -1850,6 +1853,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       videoCoverPaths: coverPaths,
       groups: groups,
       captionGroupIndex: captionGroupIdx,
+      starsPerMessage: _starsPerMessage,
     ));
   }
 
@@ -2053,6 +2057,173 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     });
   }
 
+
+  void _showComposeAiDialog() {
+    final captionText = _captionController.text.trim();
+    if (captionText.isEmpty) return;
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId == null) return;
+    final engine = appState.engine;
+    showTelegramBox<String>(
+      context: context,
+      builder: (ctx) {
+        String mode = 'fix';
+        String translateLang = '';
+        String tone = '';
+        bool emojify = false;
+        bool loading = false;
+        String? resultText;
+        String? error;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => TelegramBox(
+            title: 'AI Compose',
+            scrollableContent: false,
+            content: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      for (final entry in [('fix', 'Fix'), ('style', 'Style'), ('translate', 'Translate')])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(entry.$2, style: const TextStyle(fontSize: 13)),
+                            selected: mode == entry.$1,
+                            onSelected: (_) => setDialogState(() {
+                              mode = entry.$1;
+                              resultText = null;
+                              error = null;
+                            }),
+                            selectedColor: ctx.palette.windowBgActive,
+                            labelStyle: TextStyle(
+                              color: mode == entry.$1
+                                  ? ctx.palette.activeButtonFg
+                                  : ctx.palette.boxTextFg,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (mode == 'translate')
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: SizedBox(
+                        height: 36,
+                        child: TextField(
+                          onChanged: (v) => translateLang = v,
+                          style: TextStyle(fontSize: 14, color: ctx.palette.boxTextFg),
+                          decoration: InputDecoration(
+                            hintText: 'Language (e.g. en, fa, ru)',
+                            hintStyle: TextStyle(fontSize: 14, color: ctx.palette.placeholderFg),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.fromLTRB(0, 8, 0, 8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (mode == 'style')
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: SizedBox(
+                        height: 36,
+                        child: TextField(
+                          onChanged: (v) => tone = v,
+                          style: TextStyle(fontSize: 14, color: ctx.palette.boxTextFg),
+                          decoration: InputDecoration(
+                            hintText: 'Tone (e.g. formal, casual)',
+                            hintStyle: TextStyle(fontSize: 14, color: ctx.palette.placeholderFg),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.fromLTRB(0, 8, 0, 8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (mode == 'style')
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 20, height: 20,
+                          child: Checkbox(
+                            value: emojify,
+                            onChanged: (v) => setDialogState(() => emojify = v ?? false),
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text('Add emojis', style: TextStyle(fontSize: 13, color: ctx.palette.boxTextFg)),
+                      ],
+                    ),
+                  if (loading)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))),
+                    ),
+                  if (error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(error!, style: const TextStyle(fontSize: 13, color: Color(0xFFDD4B39))),
+                    ),
+                  if (resultText != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: ctx.palette.windowBg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: ctx.palette.shadowFg.withValues(alpha: 0.15)),
+                        ),
+                        child: SelectableText(
+                          resultText!,
+                          style: TextStyle(fontSize: 14, color: ctx.palette.boxTextFg),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            buttons: [
+              TelegramBoxButton(text: 'Cancel', onPressed: () => Navigator.pop(ctx)),
+              TelegramBoxButton(
+                text: loading ? 'Working...' : (resultText != null ? 'Apply' : 'Generate'),
+                onPressed: loading ? null : () async {
+                  if (resultText != null) {
+                    Navigator.pop(ctx, resultText);
+                    return;
+                  }
+                  setDialogState(() { loading = true; error = null; });
+                  try {
+                    final r = await engine.composeWithAI(
+                      accountId,
+                      captionText,
+                      proofread: mode == 'fix',
+                      emojify: emojify,
+                      translateToLang: mode == 'translate' ? translateLang : '',
+                      changeTone: mode == 'style' ? tone : '',
+                    );
+                    setDialogState(() { resultText = r.resultText; loading = false; });
+                  } catch (e) {
+                    setDialogState(() { error = e.toString(); loading = false; });
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    ).then((result) {
+      if (result == null || result.isEmpty) return;
+      _captionController.text = result;
+    });
+  }
 
   Future<bool> _checkSendWayAllowed({required bool asDocuments, required bool grouped}) async {
     try {
@@ -2526,6 +2697,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                         ),
                       ),
                     ),
+                    if (_captionController.text.trim().isNotEmpty)
+                      _ComposeAiButton(
+                        accentColor: accentFg,
+                        subColor: subFg,
+                        onPressed: _showComposeAiDialog,
+                      ),
                     _EmojiToggleButton(
                       active: _showEmojiPanel,
                       accentColor: accentFg,
@@ -4444,6 +4621,74 @@ class _EmojiToggleButton extends StatelessWidget {
         onPressed: onPressed,
         splashRadius: 18,
         padding: EdgeInsets.zero,
+      ),
+    );
+  }
+}
+
+class _ComposeAiButton extends StatefulWidget {
+  final Color accentColor;
+  final Color subColor;
+  final VoidCallback onPressed;
+
+  const _ComposeAiButton({
+    required this.accentColor,
+    required this.subColor,
+    required this.onPressed,
+  });
+
+  @override
+  State<_ComposeAiButton> createState() => _ComposeAiButtonState();
+}
+
+class _ComposeAiButtonState extends State<_ComposeAiButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _sparkle;
+
+  @override
+  void initState() {
+    super.initState();
+    _sparkle = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 640),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _sparkle.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: IconButton(
+        icon: AnimatedBuilder(
+          animation: _sparkle,
+          builder: (_, __) {
+            final t = _sparkle.value;
+            final starOpacity = (t < 0.5)
+                ? (t * 2).clamp(0.0, 1.0)
+                : ((1.0 - t) * 2).clamp(0.0, 1.0);
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(Icons.auto_awesome, color: widget.accentColor, size: 20),
+                Opacity(
+                  opacity: starOpacity * 0.5,
+                  child: Icon(Icons.auto_awesome, color: widget.accentColor, size: 22),
+                ),
+              ],
+            );
+          },
+        ),
+        onPressed: widget.onPressed,
+        splashRadius: 18,
+        padding: EdgeInsets.zero,
+        tooltip: 'AI Compose',
       ),
     );
   }

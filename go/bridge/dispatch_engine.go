@@ -951,11 +951,52 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			GroupID:         req.GroupId,
 			IsVoice:         req.IsVoice,
 			IsVideoNote:     req.IsVideoNote,
+			Price:           req.Price,
 		})
 		if err != nil {
 			return nil, err
 		}
 		return proto.Marshal(&pb.EngineUploadFileResponse{MsgId: msgID})
+
+	case "ComposeWithAI":
+		var req pb.EngineComposeWithAIRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		acc := e.GetAccountCore(req.AccountId)
+		if acc == nil {
+			return nil, fmt.Errorf("account not found")
+		}
+		tgCore, ok := acc.(*cores.TelegramCore)
+		if !ok {
+			return nil, fmt.Errorf("AI compose is only supported for Telegram accounts")
+		}
+		aiReq := &tg.MessagesComposeMessageWithAIRequest{
+			Text: tg.TextWithEntities{Text: req.Text},
+		}
+		if req.Proofread {
+			aiReq.SetProofread(true)
+		}
+		if req.Emojify {
+			aiReq.SetEmojify(true)
+		}
+		if req.TranslateToLang != "" {
+			aiReq.SetTranslateToLang(req.TranslateToLang)
+		}
+		if req.ChangeTone != "" {
+			aiReq.SetChangeTone(req.ChangeTone)
+		}
+		result, err := tgCore.MessagesComposeMessageWithAI(aiReq)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineComposeWithAIResponse{
+			ResultText: result.ResultText.Text,
+		}
+		if diffText, ok := result.GetDiffText(); ok {
+			resp.DiffText = diffText.Text
+		}
+		return proto.Marshal(resp)
 
 	case "RetryPending":
 		var req pb.EngineRetryPendingRequest

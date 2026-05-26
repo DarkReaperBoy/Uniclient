@@ -6807,6 +6807,7 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     $core.String? groupId,
     $core.bool? isVoice,
     $core.bool? isVideoNote,
+    $fixnum.Int64? price,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -6863,6 +6864,9 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     if (isVideoNote != null) {
       $result.isVideoNote = isVideoNote;
     }
+    if (price != null) {
+      $result.price = price;
+    }
     return $result;
   }
   EngineUploadFileRequest._() : super();
@@ -6888,6 +6892,7 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     ..aOS(16, _omitFieldNames ? '' : 'groupId')
     ..aOB(17, _omitFieldNames ? '' : 'isVoice')
     ..aOB(18, _omitFieldNames ? '' : 'isVideoNote')
+    ..aInt64(19, _omitFieldNames ? '' : 'price')
     ..hasRequiredFields = false
   ;
 
@@ -7073,6 +7078,15 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
   $core.bool hasIsVideoNote() => $_has(17);
   @$pb.TagNumber(18)
   void clearIsVideoNote() => clearField(18);
+
+  @$pb.TagNumber(19)
+  $fixnum.Int64 get price => $_getI64(18);
+  @$pb.TagNumber(19)
+  set price($fixnum.Int64 v) { $_setInt64(18, v); }
+  @$pb.TagNumber(19)
+  $core.bool hasPrice() => $_has(18);
+  @$pb.TagNumber(19)
+  void clearPrice() => clearField(19);
 }
 
 class EngineUploadFileResponse extends $pb.GeneratedMessage {
@@ -7123,6 +7137,98 @@ class EngineUploadFileResponse extends $pb.GeneratedMessage {
   $core.bool hasMsgId() => $_has(0);
   @$pb.TagNumber(1)
   void clearMsgId() => clearField(1);
+}
+
+class EngineComposeWithAIRequest extends $pb.GeneratedMessage {
+  factory EngineComposeWithAIRequest({
+    $core.String? accountId,
+    $core.String? text,
+    $core.bool? proofread,
+    $core.bool? emojify,
+    $core.String? translateToLang,
+    $core.String? changeTone,
+  }) {
+    final $result = create();
+    if (accountId != null) { $result.accountId = accountId; }
+    if (text != null) { $result.text = text; }
+    if (proofread != null) { $result.proofread = proofread; }
+    if (emojify != null) { $result.emojify = emojify; }
+    if (translateToLang != null) { $result.translateToLang = translateToLang; }
+    if (changeTone != null) { $result.changeTone = changeTone; }
+    return $result;
+  }
+  EngineComposeWithAIRequest._() : super();
+  factory EngineComposeWithAIRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineComposeWithAIRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'text')
+    ..aOB(3, _omitFieldNames ? '' : 'proofread')
+    ..aOB(4, _omitFieldNames ? '' : 'emojify')
+    ..aOS(5, _omitFieldNames ? '' : 'translateToLang')
+    ..aOS(6, _omitFieldNames ? '' : 'changeTone')
+    ..hasRequiredFields = false
+  ;
+
+  EngineComposeWithAIRequest clone() => EngineComposeWithAIRequest()..mergeFromMessage(this);
+  EngineComposeWithAIRequest copyWith(void Function(EngineComposeWithAIRequest) updates) => super.copyWith((message) => updates(message as EngineComposeWithAIRequest)) as EngineComposeWithAIRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineComposeWithAIRequest create() => EngineComposeWithAIRequest._();
+  EngineComposeWithAIRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineComposeWithAIRequest> createRepeated() => $pb.PbList<EngineComposeWithAIRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineComposeWithAIRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineComposeWithAIRequest>(create);
+  static EngineComposeWithAIRequest? _defaultInstance;
+
+  @$pb.TagNumber(1) $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1) set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(2) $core.String get text => $_getSZ(1);
+  @$pb.TagNumber(2) set text($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(3) $core.bool get proofread => $_getBF(2);
+  @$pb.TagNumber(3) set proofread($core.bool v) { $_setBool(2, v); }
+  @$pb.TagNumber(4) $core.bool get emojify => $_getBF(3);
+  @$pb.TagNumber(4) set emojify($core.bool v) { $_setBool(3, v); }
+  @$pb.TagNumber(5) $core.String get translateToLang => $_getSZ(4);
+  @$pb.TagNumber(5) set translateToLang($core.String v) { $_setString(4, v); }
+  @$pb.TagNumber(6) $core.String get changeTone => $_getSZ(5);
+  @$pb.TagNumber(6) set changeTone($core.String v) { $_setString(5, v); }
+}
+
+class EngineComposeWithAIResponse extends $pb.GeneratedMessage {
+  factory EngineComposeWithAIResponse({
+    $core.String? resultText,
+    $core.String? diffText,
+  }) {
+    final $result = create();
+    if (resultText != null) { $result.resultText = resultText; }
+    if (diffText != null) { $result.diffText = diffText; }
+    return $result;
+  }
+  EngineComposeWithAIResponse._() : super();
+  factory EngineComposeWithAIResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineComposeWithAIResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'resultText')
+    ..aOS(2, _omitFieldNames ? '' : 'diffText')
+    ..hasRequiredFields = false
+  ;
+
+  EngineComposeWithAIResponse clone() => EngineComposeWithAIResponse()..mergeFromMessage(this);
+  EngineComposeWithAIResponse copyWith(void Function(EngineComposeWithAIResponse) updates) => super.copyWith((message) => updates(message as EngineComposeWithAIResponse)) as EngineComposeWithAIResponse;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineComposeWithAIResponse create() => EngineComposeWithAIResponse._();
+  EngineComposeWithAIResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineComposeWithAIResponse> createRepeated() => $pb.PbList<EngineComposeWithAIResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineComposeWithAIResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineComposeWithAIResponse>(create);
+  static EngineComposeWithAIResponse? _defaultInstance;
+
+  @$pb.TagNumber(1) $core.String get resultText => $_getSZ(0);
+  @$pb.TagNumber(1) set resultText($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(2) $core.String get diffText => $_getSZ(1);
+  @$pb.TagNumber(2) set diffText($core.String v) { $_setString(1, v); }
 }
 
 class EngineRetryPendingRequest extends $pb.GeneratedMessage {

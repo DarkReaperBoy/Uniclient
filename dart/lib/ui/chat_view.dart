@@ -4284,18 +4284,43 @@ class _ChatViewState extends State<ChatView>
     final scheduleDate = result.scheduledDate != null
         ? result.scheduledDate!.millisecondsSinceEpoch ~/ 1000
         : 0;
-    final isDocGroup = result.sendAsDocuments;
-    final lastIdx = result.paths.length - 1;
-    final groupId = result.groupFiles && result.paths.length > 1
-        ? 'album_${DateTime.now().millisecondsSinceEpoch}'
-        : '';
     final replyId = _replyToId ?? '';
+    final baseTs = DateTime.now().millisecondsSinceEpoch;
+    final fileGroupId = <int, String>{};
+    final fileCaptionFlag = <int, bool>{};
+    if (result.groups.isNotEmpty) {
+      for (var gi = 0; gi < result.groups.length; gi++) {
+        final g = result.groups[gi];
+        final gid = g.fileIndices.length > 1
+            ? 'album_${baseTs}_$gi'
+            : '';
+        for (final fi in g.fileIndices) {
+          fileGroupId[fi] = gid;
+        }
+        if (gi == result.captionGroupIndex && g.fileIndices.isNotEmpty) {
+          final captionFileIdx = g.albumType == 'media'
+              ? g.fileIndices.first
+              : g.fileIndices.last;
+          fileCaptionFlag[captionFileIdx] = true;
+        }
+      }
+    } else if (result.groupFiles && result.paths.length > 1) {
+      final gid = 'album_$baseTs';
+      for (var i = 0; i < result.paths.length; i++) {
+        fileGroupId[i] = gid;
+      }
+      final captionIdx = result.sendAsDocuments
+          ? result.paths.length - 1
+          : 0;
+      fileCaptionFlag[captionIdx] = true;
+    } else if (result.paths.length == 1) {
+      fileCaptionFlag[0] = true;
+    }
     for (var i = 0; i < result.paths.length; i++) {
-      final captionIdx = isDocGroup ? lastIdx : 0;
       final caption = result.perFileCaptions[i] ??
-          (i == captionIdx ? result.caption : '');
+          (fileCaptionFlag[i] == true ? result.caption : '');
       final entities = result.perFileCaptionEntities[i] ??
-          (i == captionIdx ? result.captionEntitiesJson : '');
+          (fileCaptionFlag[i] == true ? result.captionEntitiesJson : '');
       final hasSpoiler = i < result.spoilers.length && result.spoilers[i];
       chatState.uploadFile(
         result.paths[i],
@@ -4310,7 +4335,8 @@ class _ChatViewState extends State<ChatView>
         sendLargePhotos: result.sendLargePhotos,
         sendAsSticker: result.sendAsSticker,
         replyToMsgId: i == 0 ? replyId : '',
-        groupId: groupId,
+        groupId: fileGroupId[i] ?? '',
+        price: result.starsPerMessage,
       );
     }
     if (replyId.isNotEmpty) {

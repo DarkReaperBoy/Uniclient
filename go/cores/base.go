@@ -822,6 +822,7 @@ type UploadOptions struct {
 	SendAsSticker   bool
 	ReplyToMsgID    string
 	GroupID         string
+	Price           int64
 }
 
 // UploadWithOptionsSupporter allows uploading files with extra metadata.

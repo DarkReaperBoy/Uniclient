@@ -587,10 +587,25 @@ message EngineUploadFileRequest {
   string group_id          = 16;
   bool   is_voice          = 17;
   bool   is_video_note     = 18;
+  int64  price             = 19;
 }
 
 message EngineUploadFileResponse {
   string msg_id = 1;
+}
+
+message EngineComposeWithAIRequest {
+  string account_id       = 1;
+  string text             = 2;
+  bool   proofread        = 3;
+  bool   emojify          = 4;
+  string translate_to_lang = 5;
+  string change_tone      = 6;
+}
+
+message EngineComposeWithAIResponse {
+  string result_text = 1;
+  string diff_text   = 2;
 }
 
 message EngineRetryPendingRequest {

@@ -4997,7 +4997,7 @@ class EngineService {
     await _callAsync('__engine', 'PinMessage', req.writeToBuffer());
   }
 
-  Future<String> uploadFile(String accountId, String chatId, String filePath, {String caption = '', String captionEntities = '', bool silent = false, int scheduleDate = 0, bool spoiler = false, bool sendAsDocument = false, bool captionAbove = false, String videoCoverPath = '', bool sendLargePhotos = false, bool sendAsSticker = false, String replyToMsgId = '', String groupId = ''}) async {
+  Future<String> uploadFile(String accountId, String chatId, String filePath, {String caption = '', String captionEntities = '', bool silent = false, int scheduleDate = 0, bool spoiler = false, bool sendAsDocument = false, bool captionAbove = false, String videoCoverPath = '', bool sendLargePhotos = false, bool sendAsSticker = false, String replyToMsgId = '', String groupId = '', int price = 0}) async {
     final req = epb.EngineUploadFileRequest()
       ..accountId = accountId
       ..chatId = chatId
@@ -5013,11 +5013,26 @@ class EngineService {
       ..sendLargePhotos = sendLargePhotos
       ..sendAsSticker = sendAsSticker
       ..replyToMsgId = replyToMsgId
-      ..groupId = groupId;
+      ..groupId = groupId
+      ..price = Int64(price);
     final resp = epb.EngineUploadFileResponse.fromBuffer(
       await _callAsync('__engine', 'UploadFile', req.writeToBuffer()),
     );
     return resp.msgId;
+  }
+
+  Future<({String resultText, String diffText})> composeWithAI(String accountId, String text, {bool proofread = false, bool emojify = false, String translateToLang = '', String changeTone = ''}) async {
+    final req = epb.EngineComposeWithAIRequest()
+      ..accountId = accountId
+      ..text = text
+      ..proofread = proofread
+      ..emojify = emojify
+      ..translateToLang = translateToLang
+      ..changeTone = changeTone;
+    final resp = epb.EngineComposeWithAIResponse.fromBuffer(
+      await _callAsync('__engine', 'ComposeWithAI', req.writeToBuffer()),
+    );
+    return (resultText: resp.resultText, diffText: resp.diffText);
   }
 
   Future<String> sendVoice(String accountId, String chatId, String filePath, {int duration = 0, String caption = ''}) async {
