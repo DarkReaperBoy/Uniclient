@@ -858,11 +858,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 ## Findings
 
 
-# spoiler_animation — 1 issue found
-
-## spoiler_animation — Frame advancement uses wall-clock division instead of capped accumulation
-
-- [ ] [MAJOR] Frame index computed as `(timestamp.inMilliseconds ~/ _kFrameDurationMs) % _kFrameCount` — during jank (a single Flutter frame takes >66ms), the animation skips multiple frames at once. AyuGram caps advancement to exactly one frame per tick via `const auto add = std::min(now - _last, kDefaultFrameDuration)`, so the animation slows but never jumps. Dart's approach causes visible discontinuities when the UI thread hitches. — `spoiler_animation.dart:91` ← `AyuGram/Telegram/lib_ui/ui/effects/spoiler_mess.cpp:794-796`
 
 # main — Audit findings
 
