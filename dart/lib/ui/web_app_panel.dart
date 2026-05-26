@@ -137,10 +137,12 @@ class _WebAppPanelState extends State<WebAppPanel>
   bool _inBlockingRequest = false;
   bool _allowClipboardRead = false;
   bool _hiddenForPayment = false;
+  bool _closeConfirmationActive = false;
   DateTime _lastWebviewInteraction = DateTime.fromMillisecondsSinceEpoch(0);
   Size _lastContentSize = Size.zero;
 
   final Map<String, String?> _deviceStorage = {};
+  TelegramPalette? _lastPalette;
 
   String get _accountId {
     if (widget.data.accountId.isNotEmpty) return widget.data.accountId;
@@ -180,6 +182,18 @@ class _WebAppPanelState extends State<WebAppPanel>
     )..repeat();
 
     _initWebView();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final palette = context.palette;
+    if (_lastPalette != null && _lastPalette != palette && _webController != null) {
+      _postEventToWebView('theme_changed', {
+        'theme_params': _buildThemeParams(palette),
+      });
+    }
+    _lastPalette = palette;
   }
 
   void _initWebView() {
@@ -297,7 +311,10 @@ class _WebAppPanelState extends State<WebAppPanel>
         _postEventToWebView('safe_area_changed',
             {'top': 0, 'bottom': 0, 'left': 0, 'right': 0});
       case 'web_app_request_content_safe_area':
-        final contentTop = _fullscreen ? (_kHeaderHeight + 8).round() : 0;
+        final mq = MediaQuery.of(context);
+        final contentTop = _fullscreen
+            ? ((mq.padding.top + _kHeaderHeight) / mq.devicePixelRatio).round()
+            : 0;
         _postEventToWebView('content_safe_area_changed',
             {'top': contentTop, 'bottom': 0, 'left': 0, 'right': 0});
       case 'web_app_open_link':
@@ -536,7 +553,19 @@ class _WebAppPanelState extends State<WebAppPanel>
   }
 
   void _handleShareToStory() {
-    // fire-and-forget per spec — no response event, silently unsupported
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: const Text('Story sharing is not supported.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _handleRequestWriteAccess() {
@@ -934,9 +963,11 @@ class _WebAppPanelState extends State<WebAppPanel>
         if (mounted) {
           _postEventToWebView('device_storage_key_saved', {'req_id': reqId});
         }
-      }).catchError((_) {
+      }).catchError((e) {
         if (mounted) {
-          _postEventToWebView('device_storage_failed', {'req_id': reqId, 'error': 'WRITE_FAILED'});
+          final errStr = e.toString().toLowerCase();
+          final errorCode = errStr.contains('quota') ? 'QUOTA_EXCEEDED' : 'WRITE_FAILED';
+          _postEventToWebView('device_storage_failed', {'req_id': reqId, 'error': errorCode});
         }
       });
     } else {
@@ -1044,7 +1075,7 @@ class _WebAppPanelState extends State<WebAppPanel>
     final valid = passed && detected is num;
     final age = valid ? detected.toInt() : 0;
     final engine = _engine;
-    if (engine != null && _accountId.isNotEmpty && age > 0) {
+    if (engine != null && _accountId.isNotEmpty) {
       engine.callGeneric(
         _accountId,
         'BotVerifyAge',
@@ -1056,6 +1087,10 @@ class _WebAppPanelState extends State<WebAppPanel>
   // ── Button setup ──
 
   void _handleSetupButton(Map<String, dynamic> data, {required bool isMain}) {
+    if (data.isEmpty) {
+      _close();
+      return;
+    }
     setState(() {
       final text = (data['text'] as String? ?? '').trim();
       final emojiId = data['icon_custom_emoji_id'] as String?;
@@ -1101,14 +1136,13 @@ class _WebAppPanelState extends State<WebAppPanel>
 
   void _handleRequestViewport() {
     if (!mounted) return;
-    final isStable = _loadingState == WebAppLoadingState.ready;
     _webController?.runJavaScript('''
 (function(){
   var h = window.innerHeight || 0;
   var w = window.innerWidth || 0;
   if(window.TelegramGameProxy){
     window.TelegramGameProxy.receiveEvent('viewport_changed',
-      {height:h,width:w,is_state_stable:$isStable,is_expanded:true});
+      {height:h,width:w,is_state_stable:true,is_expanded:true});
   }
 })();
 ''');
@@ -1121,7 +1155,17 @@ class _WebAppPanelState extends State<WebAppPanel>
         (data['buttons'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
     if (message.isEmpty || buttons.isEmpty) {
-      _postEventToWebView('popup_closed', {'button_id': ''});
+      _close();
+      return;
+    }
+
+    const validTypes = {'default', 'ok', 'close', 'cancel', 'destructive'};
+    final validButtons = buttons.where((btn) {
+      final type = btn['type'] as String? ?? 'default';
+      return validTypes.contains(type);
+    }).toList();
+    if (validButtons.isEmpty) {
+      _close();
       return;
     }
 
@@ -1130,7 +1174,7 @@ class _WebAppPanelState extends State<WebAppPanel>
       builder: (ctx) => AlertDialog(
         title: title.isNotEmpty ? Text(title) : null,
         content: Text(message),
-        actions: buttons.map((btn) {
+        actions: validButtons.map((btn) {
           final id = btn['id'] as String? ?? '';
           final type = btn['type'] as String? ?? 'default';
           final text = btn['text'] as String? ?? '';
@@ -1243,6 +1287,8 @@ class _WebAppPanelState extends State<WebAppPanel>
   }
 
   void _showCloseConfirmation() {
+    if (_closeConfirmationActive) return;
+    _closeConfirmationActive = true;
     showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1260,6 +1306,7 @@ class _WebAppPanelState extends State<WebAppPanel>
         ],
       ),
     ).then((confirmed) {
+      _closeConfirmationActive = false;
       if (confirmed == true && mounted) Navigator.of(context).pop();
     });
   }

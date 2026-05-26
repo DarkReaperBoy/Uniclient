@@ -32,7 +32,7 @@ class TelegramTooltip extends StatefulWidget {
 }
 
 class _TelegramTooltipState extends State<TelegramTooltip> {
-  static const double _kDragDistanceThreshold = 20.0;
+  static const double _kDragDistanceThreshold = 4.0;
 
   Timer? _showTimer;
   Timer? _hideTimer;
@@ -125,6 +125,7 @@ class _TooltipOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = PaletteProvider.of(context);
     final screen = MediaQuery.of(context).size;
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
 
     return CustomSingleChildLayout(
       delegate: _TooltipPositionDelegate(
@@ -132,6 +133,7 @@ class _TooltipOverlay extends StatelessWidget {
         shift: _kShift,
         edgeSkip: _kEdgeSkip,
         screenSize: screen,
+        isRtl: isRtl,
       ),
       child: IgnorePointer(
         child: Container(
@@ -163,12 +165,14 @@ class _TooltipPositionDelegate extends SingleChildLayoutDelegate {
   final Offset shift;
   final double edgeSkip;
   final Size screenSize;
+  final bool isRtl;
 
   _TooltipPositionDelegate({
     required this.pointer,
     required this.shift,
     required this.edgeSkip,
     required this.screenSize,
+    this.isRtl = false,
   });
 
   @override
@@ -180,7 +184,12 @@ class _TooltipPositionDelegate extends SingleChildLayoutDelegate {
 
   @override
   Offset getPositionForChild(Size size, Size childSize) {
-    double x = pointer.dx + shift.dx;
+    double x;
+    if (isRtl) {
+      x = pointer.dx - shift.dx - childSize.width;
+    } else {
+      x = pointer.dx + shift.dx;
+    }
     double y = pointer.dy + shift.dy;
 
     if (x + childSize.width > screenSize.width - edgeSkip) {
@@ -201,7 +210,8 @@ class _TooltipPositionDelegate extends SingleChildLayoutDelegate {
       pointer != oldDelegate.pointer ||
       screenSize != oldDelegate.screenSize ||
       shift != oldDelegate.shift ||
-      edgeSkip != oldDelegate.edgeSkip;
+      edgeSkip != oldDelegate.edgeSkip ||
+      isRtl != oldDelegate.isRtl;
 }
 
 // ── Important Tooltip ──
@@ -411,6 +421,7 @@ class _ImportantTooltipDelegate extends SingleChildLayoutDelegate {
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
     return BoxConstraints(
+      minWidth: 2 * (_kArrowSkipMin + _kArrowHeight),
       maxWidth: screenSize.width - _kImportantMargin.horizontal * 2,
       maxHeight: screenSize.height - _kImportantMargin.vertical * 2,
     );
@@ -427,10 +438,10 @@ class _ImportantTooltipDelegate extends SingleChildLayoutDelegate {
         x = targetRect.center.dx - childSize.width / 2;
         y = targetRect.top - childSize.height;
       case TooltipSide.right:
-        x = targetRect.right + _kArrowHeight;
+        x = targetRect.center.dx + arrowSkip - childSize.width;
         y = targetRect.center.dy - childSize.height / 2;
       case TooltipSide.left:
-        x = targetRect.left - childSize.width - _kArrowHeight;
+        x = targetRect.center.dx - arrowSkip;
         y = targetRect.center.dy - childSize.height / 2;
     }
 

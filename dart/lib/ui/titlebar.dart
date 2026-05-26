@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -79,6 +81,7 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
   bool _oneSideControls = false;
   bool _resizeEnabled = true;
   bool _mousePressed = false;
+  Timer? _dragTimer;
   _ButtonLayout _layout = _ButtonLayout.fallback;
 
   @override
@@ -96,6 +99,7 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
 
   @override
   void dispose() {
+    _dragTimer?.cancel();
     _instances.remove(this);
     if (_instances.isEmpty) {
       CustomTitlebar.channel.setMethodCallHandler(null);
@@ -272,18 +276,33 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
                   _showWindowMenu();
                 } else if (e.buttons & 0x01 != 0) {
                   _mousePressed = true;
+                  _dragTimer?.cancel();
                 }
               },
-              onPointerUp: (_) => _mousePressed = false,
+              onPointerUp: (_) {
+                _mousePressed = false;
+                _dragTimer?.cancel();
+                _dragTimer = null;
+              },
               onPointerMove: (_) {
-                if (_mousePressed) {
-                  _mousePressed = false;
-                  _startDrag();
+                if (_mousePressed && _dragTimer == null) {
+                  _dragTimer = Timer(kDoubleTapTimeout, () {
+                    if (_mousePressed) {
+                      _mousePressed = false;
+                      _startDrag();
+                    }
+                    _dragTimer = null;
+                  });
                 }
               },
               behavior: HitTestBehavior.opaque,
               child: GestureDetector(
-                onDoubleTap: _toggleMaximize,
+                onDoubleTap: () {
+                  _dragTimer?.cancel();
+                  _dragTimer = null;
+                  _mousePressed = false;
+                  _toggleMaximize();
+                },
                 behavior: HitTestBehavior.opaque,
                 child: const SizedBox.expand(),
               ),
@@ -379,27 +398,40 @@ class _TitleButtonPainter extends CustomPainter {
 class _WinButtonState extends State<_WinButton> {
   bool _hovered = false;
 
+  String get _semanticLabel => switch (widget.type) {
+    _ButtonType.minimize => 'Minimize',
+    _ButtonType.maximize => 'Maximize',
+    _ButtonType.close => 'Close',
+  };
+
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: () {
-          widget.onTap();
-          setState(() => _hovered = false);
-        },
-        child: Container(
-          width: CustomTitlebar.buttonWidth,
-          height: CustomTitlebar.height,
-          color: _hovered ? widget.bgOverColor : widget.bgColor,
-          alignment: Alignment.center,
-          child: CustomPaint(
-            size: const Size(10, 10),
-            painter: _TitleButtonPainter(
-              type: widget.type,
-              isMaximized: widget.isMaximized,
-              color: _hovered ? widget.fgOverColor : widget.fgColor,
+    return Semantics(
+      label: _semanticLabel,
+      button: true,
+      child: Tooltip(
+        message: _semanticLabel,
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: GestureDetector(
+            onTap: () {
+              widget.onTap();
+              setState(() => _hovered = false);
+            },
+            child: Container(
+              width: CustomTitlebar.buttonWidth,
+              height: CustomTitlebar.height,
+              color: _hovered ? widget.bgOverColor : widget.bgColor,
+              alignment: Alignment.center,
+              child: CustomPaint(
+                size: const Size(10, 10),
+                painter: _TitleButtonPainter(
+                  type: widget.type,
+                  isMaximized: widget.isMaximized,
+                  color: _hovered ? widget.fgOverColor : widget.fgColor,
+                ),
+              ),
             ),
           ),
         ),

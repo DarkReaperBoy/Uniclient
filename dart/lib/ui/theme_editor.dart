@@ -53,6 +53,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   String? _editingPalettePath;
 
   List<_ListItem>? _cachedItems;
+  Set<String>? _cachedMatchingKeys;
 
   String? _editingToken;
   Color? _editingColor;
@@ -60,6 +61,8 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   final _menuButtonKey = GlobalKey();
   bool _saving = false;
   Uint8List? _currentBackground;
+  bool _colorDialogOpen = false;
+  String? _colorDialogToken;
 
   @override
   void initState() {
@@ -109,6 +112,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
       _filter = text.toLowerCase();
       _focusedIndex = -1;
       _cachedItems = null;
+      _cachedMatchingKeys = null;
     });
   }
 
@@ -145,15 +149,27 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
 
   static final _searchSplitter = RegExp(r'[\s\-_+.,;:!#@()\[\]{}<>]+');
 
+  Set<String> _computeMatchingKeys() {
+    if (_filter.isEmpty) return _colorMap.keys.toSet();
+    final queryWords = _filter.split(_searchSplitter).where((w) => w.isNotEmpty).toList();
+    if (queryWords.isEmpty) return _colorMap.keys.toSet();
+    final result = <String>{};
+    for (final key in _colorMap.keys) {
+      final desc = _tokenDescription(key) ?? '';
+      final hex = _colorToHexString(_colorMap[key]!);
+      final ref = _referenceChain[key] ?? '';
+      final searchText = '$key $ref $desc $hex'.toLowerCase();
+      final searchWords = searchText.split(_searchSplitter).where((w) => w.isNotEmpty).toList();
+      if (queryWords.every((qw) => searchWords.any((sw) => sw.startsWith(qw)))) {
+        result.add(key);
+      }
+    }
+    return result;
+  }
+
   bool _matchesFilter(String key) {
-    if (_filter.isEmpty) return true;
-    final desc = _tokenDescription(key) ?? '';
-    final hex = _colorToHexString(_colorMap[key]!);
-    final ref = _referenceChain[key] ?? '';
-    final searchText = '$key $ref $desc $hex'.toLowerCase();
-    final searchWords = searchText.split(_searchSplitter).where((w) => w.isNotEmpty);
-    final queryWords = _filter.split(_searchSplitter).where((w) => w.isNotEmpty);
-    return queryWords.every((qw) => searchWords.any((sw) => sw.startsWith(qw)));
+    _cachedMatchingKeys ??= _computeMatchingKeys();
+    return _cachedMatchingKeys!.contains(key);
   }
 
   List<_ListItem> get _listItems {
@@ -174,7 +190,6 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     final items = <_ListItem>[];
     var idx = 0;
     if (existing.isNotEmpty) {
-      items.add(_ListItem.header('Existing'));
       for (final e in existing) {
         items.add(_ListItem.entry(e, idx++));
       }
@@ -224,20 +239,21 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   }
 
   void _openColorPickerDialog(String token, Color currentColor) async {
+    if (_colorDialogOpen) {
+      Navigator.of(context).pop();
+    }
+    _colorDialogOpen = true;
+    _colorDialogToken = token;
     final result = await showColorPickerBox(
       context: context,
       initialColor: currentColor,
       title: token,
       showOpacity: true,
     );
+    _colorDialogOpen = false;
+    _colorDialogToken = null;
     if (result != null && mounted) {
       _updateColor(token, result);
-      if (_editingToken == token) {
-        setState(() {
-          _editingColor = result;
-          _hexEditController.text = _colorToHexString(result);
-        });
-      }
     }
   }
 
@@ -289,9 +305,10 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   }
 
   void _handleExport() async {
+    final bg = _currentBackground ?? _generateSolidBackground();
     final result = await showDialog<_ExportResult>(
       context: context,
-      builder: (ctx) => _SaveThemeBox(palette: _currentPalette, existingBackground: _currentBackground),
+      builder: (ctx) => _SaveThemeBox(palette: _currentPalette, existingBackground: bg),
     );
     if (result == null || !mounted) return;
 
@@ -328,7 +345,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
       return;
     }
 
-    _saving = true;
+    setState(() => _saving = true);
     try {
       final existingCloud = widget.cloudTheme;
       final existingMeta = existingCloud != null && existingCloud.id != 0
@@ -381,7 +398,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
         showTelegramToast(context, 'Upload failed: $e');
       }
     } finally {
-      _saving = false;
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -466,6 +483,14 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     });
   }
 
+  Uint8List _generateSolidBackground() {
+    final bgColor = _currentPalette.dialogsBg;
+    final image = img.Image(width: 100, height: 100);
+    final fill = img.ColorRgba8(bgColor.red, bgColor.green, bgColor.blue, bgColor.alpha);
+    img.fill(image, color: fill);
+    return Uint8List.fromList(img.encodePng(image));
+  }
+
   void _showInFolder() {
     final target = _themeFilePath ?? _editingPalettePath;
     if (target == null) return;
@@ -530,7 +555,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     } else if (event.logicalKey == LogicalKeyboardKey.enter) {
       if (_focusedIndex >= 0 && _focusedIndex < entryItems.length) {
         final entry = entryItems[_focusedIndex].entry!;
-        _openColorPicker(entry.key, entry.value);
+        _openColorPickerDialog(entry.key, entry.value);
       }
     }
   }
@@ -822,15 +847,13 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                     onTap: () {
                       setState(() => _focusedIndex = eIdx);
                       _listFocusNode.requestFocus();
-                      _openColorPicker(entry.key, entry.value);
+                      _openColorPickerDialog(entry.key, entry.value);
                     },
                   );
                 },
               ),
             ),
           ),
-          if (_editingToken != null && _editingColor != null)
-            _buildInlineColorEditor(),
           Container(
             decoration: BoxDecoration(
               color: accentColor,
@@ -845,11 +868,20 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: _handleSaveToCloud,
+                onTap: _saving ? null : _handleSaveToCloud,
                 child: Container(
                   height: 44,
                   alignment: Alignment.center,
-                  child: Text(
+                  child: _saving
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: _currentPalette.activeButtonFg,
+                          ),
+                        )
+                      : Text(
                     'SAVE THEME',
                     style: TextStyle(
                       fontSize: 15,
@@ -1004,7 +1036,7 @@ class _PaletteEntryRowState extends State<_PaletteEntryRow> {
                         Text(
                           '= ${widget.referenceName}',
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: widget.subtextColor.withAlpha(180),
                           ),
@@ -1452,7 +1484,7 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                     controller: _slugController,
                     style: TextStyle(color: textFg, fontSize: 14),
                     decoration: InputDecoration(
-                      prefixText: 'addtheme/',
+                      prefixText: 't.me/addtheme/',
                       prefixStyle: TextStyle(color: subFg, fontSize: 14),
                       labelText: 'Link',
                       labelStyle: TextStyle(color: subFg, fontSize: 14),
@@ -1480,6 +1512,14 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
                     onChanged: (v) {
                       if (_slugError != null) _validateSlug(v);
                     },
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  child: Text(
+                    'Share this link so others can apply the theme.',
+                    style: TextStyle(color: subFg, fontSize: 12),
                   ),
                 ),
               ],

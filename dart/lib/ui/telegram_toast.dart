@@ -5,6 +5,10 @@ import 'dart:typed_data';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'package:provider/provider.dart';
+
+import '../bridge/engine_service.dart';
+import '../state/app_state.dart';
 
 enum ToastAttach { none, left, top, right, bottom }
 
@@ -280,6 +284,7 @@ void showStickerToast(
   String stickerEmoji = '',
   String stickerThumbB64 = '',
   Uint8List? stickerLottieData,
+  int stickerId = 0,
   VoidCallback? onOpenPack,
   VoidCallback? onOpenSavedMessages,
   VoidCallback? onShowPremium,
@@ -309,6 +314,7 @@ void showStickerToast(
       stickerEmoji: stickerEmoji,
       stickerThumbB64: stickerThumbB64,
       stickerLottieData: stickerLottieData,
+      stickerId: stickerId,
       onOpenPack: onOpenPack,
       onOpenSavedMessages: onOpenSavedMessages,
       onShowPremium: onShowPremium,
@@ -332,6 +338,7 @@ class _StickerToast extends StatefulWidget {
   final String stickerEmoji;
   final String stickerThumbB64;
   final Uint8List? stickerLottieData;
+  final int stickerId;
   final VoidCallback? onOpenPack;
   final VoidCallback? onOpenSavedMessages;
   final VoidCallback? onShowPremium;
@@ -347,6 +354,7 @@ class _StickerToast extends StatefulWidget {
     this.stickerEmoji = '',
     this.stickerThumbB64 = '',
     this.stickerLottieData,
+    this.stickerId = 0,
     this.onOpenPack,
     this.onOpenSavedMessages,
     this.onShowPremium,
@@ -364,6 +372,7 @@ class _StickerToastState extends State<_StickerToast>
   TapGestureRecognizer? _packTapRecognizer;
   Timer? _holdTimer;
   bool _hiding = false;
+  Uint8List? _loadedLottieData;
 
   @override
   void initState() {
@@ -382,6 +391,23 @@ class _StickerToastState extends State<_StickerToast>
       if (!mounted) return;
       _holdTimer = Timer(const Duration(milliseconds: 3000), _startHide);
     });
+    if (widget.stickerLottieData == null && widget.stickerId > 0) {
+      _tryLoadAnimatedEmoji();
+    }
+  }
+
+  Future<void> _tryLoadAnimatedEmoji() async {
+    try {
+      final engine = context.read<EngineService>();
+      final appState = context.read<AppState>();
+      final accountId = appState.activeAccountId;
+      if (accountId.isEmpty) return;
+      final files = await engine.getStickerFiles(accountId, [widget.stickerId]);
+      final fileData = files[widget.stickerId];
+      if (fileData != null && fileData.fileData.isNotEmpty && mounted) {
+        setState(() => _loadedLottieData = fileData.fileData);
+      }
+    } catch (_) {}
   }
 
   void _startHide() {
@@ -418,23 +444,9 @@ class _StickerToastState extends State<_StickerToast>
       return [
         TextSpan(text: widget.packName, style: bold),
         const TextSpan(text: '\n', style: normal),
-        const TextSpan(
-            text: 'Try sending these emoji in Saved Messages for free to test.', style: normal),
-      ];
-    }
-
-    if (widget.section == StickerToastSection.topicIcon) {
-      return [
-        TextSpan(text: widget.packName, style: bold),
-        const TextSpan(text: '\n', style: normal),
-        const TextSpan(
-            text: 'This icon is from the ', style: normal),
-        TextSpan(
-          text: '${widget.packName} pack',
-          style: link,
-          recognizer: _packTapRecognizer,
-        ),
-        const TextSpan(text: '.', style: normal),
+        const TextSpan(text: 'Try sending these emoji in ', style: normal),
+        TextSpan(text: 'Saved Messages', style: bold),
+        const TextSpan(text: ' for free to test.', style: normal),
       ];
     }
 
@@ -462,22 +474,24 @@ class _StickerToastState extends State<_StickerToast>
     }
 
     return [
-      TextSpan(text: 'Animated Emoji', style: bold),
+      TextSpan(text: widget.packName, style: bold),
       const TextSpan(text: '\n', style: normal),
-      const TextSpan(
-          text: 'Subscribe to Telegram Premium to unlock this emoji.', style: normal),
+      const TextSpan(text: 'Subscribe to ', style: normal),
+      TextSpan(text: 'Telegram Premium', style: bold),
+      const TextSpan(text: ' to unlock this emoji.', style: normal),
     ];
   }
 
   Widget _buildPreview() {
     const previewSize = 36.0;
 
-    if (widget.stickerLottieData != null) {
+    final lottieData = widget.stickerLottieData ?? _loadedLottieData;
+    if (lottieData != null) {
       return SizedBox(
         width: previewSize,
         height: previewSize,
         child: Lottie.memory(
-          widget.stickerLottieData!,
+          lottieData,
           fit: BoxFit.contain,
           repeat: true,
           errorBuilder: (_, __, ___) => _buildEmojiText(previewSize),
@@ -521,7 +535,7 @@ class _StickerToastState extends State<_StickerToast>
 
   VoidCallback? get _viewCallback {
     if (widget.toSaved) return widget.onOpenSavedMessages;
-    if (widget.section == StickerToastSection.topicIcon) {
+    if (widget.isEmoji || widget.section == StickerToastSection.topicIcon) {
       return widget.onShowPremium;
     }
     return widget.onOpenPack;
@@ -562,14 +576,19 @@ class _StickerToastState extends State<_StickerToast>
                 viewCb();
                 _startHide();
               },
-              child: Text(
-                _viewButtonText,
-                style: const TextStyle(
-                  color: Color(0xFF4DB8FF),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  decoration: TextDecoration.none,
-                  height: 1.3,
+              child: Container(
+                height: 44,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  _viewButtonText,
+                  style: const TextStyle(
+                    color: Color(0xFF4DB8FF),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.none,
+                    height: 1.3,
+                  ),
                 ),
               ),
             ),

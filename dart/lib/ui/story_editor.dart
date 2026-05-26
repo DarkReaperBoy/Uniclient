@@ -8,6 +8,7 @@ import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart' as lottie;
 import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
 
@@ -76,6 +77,8 @@ class _SceneItem {
   _TextBgStyle textBgStyle;
   String fontFamily;
   Uint8List? stickerImageBytes;
+  Uint8List? stickerLottieData;
+  lottie.LottieComposition? lottieComposition;
   int stickerWidth;
   int stickerHeight;
 
@@ -91,11 +94,13 @@ class _SceneItem {
     this.textBgStyle = _TextBgStyle.none,
     this.fontFamily = 'sans-serif',
     this.stickerImageBytes,
+    this.stickerLottieData,
+    this.lottieComposition,
     this.stickerWidth = 0,
     this.stickerHeight = 0,
   });
 
-  bool get isSticker => stickerImageBytes != null && stickerImageBytes!.isNotEmpty;
+  bool get isSticker => (stickerImageBytes != null && stickerImageBytes!.isNotEmpty) || lottieComposition != null;
 }
 
 class _PaintStroke {
@@ -510,6 +515,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           allowSharing: _allowSharing,
           selectedContactIds: _selectedContactIds,
           excludedContactIds: _excludedContactIds,
+          trimStart: _trimStart,
+          trimEnd: _trimEnd,
         );
       }
 
@@ -1018,11 +1025,17 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
 
   Widget _buildItemWidget(_SceneItem item) {
     if (item.isSticker) {
-      return Container(
-        decoration: _selectedItem == item
-            ? BoxDecoration(border: Border.all(color: Colors.white54, width: 1))
-            : null,
-        child: Image.memory(
+      Widget stickerChild;
+      if (item.lottieComposition != null) {
+        stickerChild = lottie.Lottie(
+          composition: item.lottieComposition,
+          width: 120,
+          height: 120,
+          fit: BoxFit.contain,
+          repeat: true,
+        );
+      } else if (item.stickerImageBytes != null && item.stickerImageBytes!.isNotEmpty) {
+        stickerChild = Image.memory(
           item.stickerImageBytes!,
           width: 120,
           height: 120,
@@ -1033,7 +1046,18 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
             item.text.isNotEmpty ? item.text : '?',
             style: const TextStyle(fontSize: 64),
           ),
-        ),
+        );
+      } else {
+        stickerChild = Text(
+          item.text.isNotEmpty ? item.text : '?',
+          style: const TextStyle(fontSize: 64),
+        );
+      }
+      return Container(
+        decoration: _selectedItem == item
+            ? BoxDecoration(border: Border.all(color: Colors.white54, width: 1))
+            : null,
+        child: stickerChild,
       );
     }
     if (!item.isText) return const SizedBox.shrink();
@@ -2058,16 +2082,25 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     StickerInfoItem sticker,
   ) async {
     if (accountId == null) return;
-    if (sticker.isAnimated || sticker.isVideo) return;
     final docId = int.tryParse(sticker.fileId);
     if (docId == null || docId == 0) return;
     try {
       final files = await engine.getStickerFiles(accountId, [docId]);
       final fileData = files[docId];
       if (fileData != null && fileData.fileData.isNotEmpty && mounted) {
-        setState(() {
-          item.stickerImageBytes = fileData.fileData;
-        });
+        if (sticker.isAnimated) {
+          final composition = await lottie.LottieComposition.fromBytes(fileData.fileData);
+          if (mounted) {
+            setState(() {
+              item.stickerLottieData = fileData.fileData;
+              item.lottieComposition = composition;
+            });
+          }
+        } else {
+          setState(() {
+            item.stickerImageBytes = fileData.fileData;
+          });
+        }
       }
     } catch (_) {}
   }
