@@ -59,9 +59,10 @@ const (
 	UpdateUserStatus     UpdateType = "user_status"
 	UpdateTyping         UpdateType = "typing"
 	UpdateCallState      UpdateType = "call_state"
-	UpdateGroupMembers   UpdateType = "group_members"
-	UpdateVerification   UpdateType = "verification"
-	UpdateConnectivity   UpdateType = "connectivity"
+	UpdateGroupMembers    UpdateType = "group_members"
+	UpdateVerification    UpdateType = "verification"
+	UpdateConnectivity    UpdateType = "connectivity"
+	UpdateNotifySettings  UpdateType = "notify_settings"
 )
 
 // CallState represents the current phase of a voice or video call.
@@ -598,7 +599,15 @@ type Update struct {
 	Verification *VerificationInfo `json:"verification,omitempty"`
 	Action       string            `json:"action,omitempty"` // typing action: "typing", "record_video", "upload_photo", etc.
 	ConnState    string            `json:"conn_state,omitempty"` // "connected", "disconnected", "reconnecting"
+	NotifySettings *NotifySettingsUpdate `json:"notify_settings,omitempty"`
 	Platform     string            `json:"platform"`
+}
+
+// NotifySettingsUpdate carries a notification settings change from the server.
+type NotifySettingsUpdate struct {
+	PeerType string `json:"peer_type"` // "user", "group", "channel", or "default_private", "default_group", "default_channel"
+	PeerID   int64  `json:"peer_id,omitempty"`
+	Muted    bool   `json:"muted"`
 }
 
 // VerificationInfo represents an interactive device verification event.

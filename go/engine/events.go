@@ -32,6 +32,7 @@ const (
 	EventExportProgress  = "export_progress"
 	EventExportError     = "export_error"
 	EventExportComplete  = "export_complete"
+	EventNotifySettings  = "notify_settings"
 )
 
 // EngineEvent is the envelope for all events pushed to Dart.
@@ -254,6 +255,15 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 
 	case cores.UpdateConnectivity:
 		e.handleConnectivity(accountID, u.ConnState)
+
+	case cores.UpdateNotifySettings:
+		if u.NotifySettings != nil {
+			e.emitEvent(EventNotifySettings, accountID, map[string]interface{}{
+				"peer_type": u.NotifySettings.PeerType,
+				"peer_id":   u.NotifySettings.PeerID,
+				"muted":     u.NotifySettings.Muted,
+			})
+		}
 	}
 }
 

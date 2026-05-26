@@ -2586,6 +2586,20 @@ class ExportCompleteEvent {
   );
 }
 
+class NotifySettingsEvent {
+  final String accountId;
+  final String peerType;
+  final int peerId;
+  final bool muted;
+
+  const NotifySettingsEvent({
+    this.accountId = '',
+    this.peerType = '',
+    this.peerId = 0,
+    this.muted = false,
+  });
+}
+
 class PersonalCallInfo {
   final String callId;
   final String peerId;

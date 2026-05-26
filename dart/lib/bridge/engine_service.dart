@@ -53,6 +53,7 @@ class EngineService {
   final _exportProgressController = StreamController<ExportProgressEvent>.broadcast();
   final _exportErrorController = StreamController<ExportErrorEvent>.broadcast();
   final _exportCompleteController = StreamController<ExportCompleteEvent>.broadcast();
+  final _notifySettingsController = StreamController<NotifySettingsEvent>.broadcast();
   StreamSubscription<Uint8List>? _bridgeEventSub;
 
   Stream<AuthStateEvent> get onAuthState => _authStateController.stream;
@@ -76,6 +77,7 @@ class EngineService {
   Stream<ExportProgressEvent> get onExportProgress => _exportProgressController.stream;
   Stream<ExportErrorEvent> get onExportError => _exportErrorController.stream;
   Stream<ExportCompleteEvent> get onExportComplete => _exportCompleteController.stream;
+  Stream<NotifySettingsEvent> get onNotifySettings => _notifySettingsController.stream;
 
   bool get isInitialized => _initialized;
 
@@ -6115,6 +6117,16 @@ class EngineService {
         if (data is Map<String, dynamic>) {
           _exportCompleteController.add(ExportCompleteEvent.fromJson(data,
             accountId: event['account_id'] as String? ?? ''));
+        }
+
+      case 'notify_settings':
+        if (data is Map<String, dynamic>) {
+          _notifySettingsController.add(NotifySettingsEvent(
+            accountId: event['account_id'] as String? ?? '',
+            peerType: data['peer_type'] as String? ?? '',
+            peerId: (data['peer_id'] as num?)?.toInt() ?? 0,
+            muted: data['muted'] as bool? ?? false,
+          ));
         }
 
       default:

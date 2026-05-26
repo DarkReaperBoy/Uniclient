@@ -1603,12 +1603,37 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
   int _nextToneId = 1;
   final List<_NotifException> _exceptions = [];
   final List<int> _recentMuteDurations = [];
+  StreamSubscription<NotifySettingsEvent>? _notifySettingsSub;
 
   @override
   void initState() {
     super.initState();
     _loadExceptions();
     _loadDefaultSettings();
+    _subscribeNotifySettings();
+  }
+
+  @override
+  void dispose() {
+    _notifySettingsSub?.cancel();
+    super.dispose();
+  }
+
+  void _subscribeNotifySettings() {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    final relevantPeerTypes = switch (widget.type) {
+      _NotifType.privateChats => {'user', 'default_private'},
+      _NotifType.groups => {'group', 'default_group'},
+      _NotifType.channels => {'channel', 'default_channel'},
+      _ => <String>{},
+    };
+    _notifySettingsSub = engine.onNotifySettings
+        .where((e) => e.accountId == accountId && relevantPeerTypes.contains(e.peerType))
+        .listen((_) {
+      _loadExceptions();
+    });
   }
 
   void _loadDefaultSettings() async {

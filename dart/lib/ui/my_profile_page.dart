@@ -711,13 +711,23 @@ class _BioInput extends StatefulWidget {
   State<_BioInput> createState() => _BioInputState();
 }
 
+class _BioEmojiSuggestion {
+  final EmojiEntry? unicodeEntry;
+  final StickerInfoItem? customEmoji;
+  final int? customDocId;
+  const _BioEmojiSuggestion({this.unicodeEntry, this.customEmoji, this.customDocId});
+  bool get isCustom => customEmoji != null;
+  String get insertText => unicodeEntry?.emoji ?? customEmoji?.emoji ?? '';
+}
+
 class _BioInputState extends State<_BioInput> {
   final _focusNode = FocusNode();
   final _layerLink = LayerLink();
-  List<EmojiEntry> _emojiSuggestions = [];
+  List<_BioEmojiSuggestion> _emojiSuggestions = [];
   int _emojiSelectedIndex = 0;
   int _emojiTriggerOffset = -1;
   OverlayEntry? _overlayEntry;
+  List<CustomEmojiSetSummary>? _cachedEmojiPacks;
 
   @override
   void initState() {
@@ -726,6 +736,18 @@ class _BioInputState extends State<_BioInput> {
       if (_handleEmojiKey(event)) return KeyEventResult.handled;
       return KeyEventResult.ignored;
     };
+    _loadCustomEmojiPacks();
+  }
+
+  Future<void> _loadCustomEmojiPacks() async {
+    try {
+      final engine = context.read<EngineService>();
+      final appState = context.read<AppState>();
+      final acc = appState.activeAccount;
+      if (acc == null) return;
+      final packs = await engine.getInstalledEmojiSets(acc.id);
+      if (mounted) _cachedEmojiPacks = packs;
+    } catch (_) {}
   }
 
   @override
@@ -769,7 +791,7 @@ class _BioInputState extends State<_BioInput> {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 itemCount: _emojiSuggestions.length,
                 itemBuilder: (context, index) {
-                  final e = _emojiSuggestions[index];
+                  final suggestion = _emojiSuggestions[index];
                   final isSelected = index == _emojiSelectedIndex;
                   return MouseRegion(
                     onEnter: (_) {
@@ -778,7 +800,7 @@ class _BioInputState extends State<_BioInput> {
                     },
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () => _insertEmoji(_emojiSuggestions[index]),
+                      onTap: () => _insertSuggestion(_emojiSuggestions[index]),
                       child: Container(
                         width: 40,
                         height: 40,
@@ -787,7 +809,9 @@ class _BioInputState extends State<_BioInput> {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         alignment: Alignment.center,
-                        child: Text(e.emoji, style: const TextStyle(fontSize: 24)),
+                        child: suggestion.isCustom
+                            ? _buildCustomEmojiThumb(suggestion.customEmoji!)
+                            : Text(suggestion.unicodeEntry!.emoji, style: const TextStyle(fontSize: 24)),
                       ),
                     ),
                   );
@@ -824,9 +848,34 @@ class _BioInputState extends State<_BioInput> {
     if (match != null) {
       final query = match.group(1)!;
       final triggerOffset = match.start + match.group(0)!.indexOf(':');
-      final results = searchEmoji(query, limit: 20);
+      final unicodeResults = searchEmoji(query, limit: 15);
+      final suggestions = <_BioEmojiSuggestion>[];
+      for (final e in unicodeResults) {
+        suggestions.add(_BioEmojiSuggestion(unicodeEntry: e));
+      }
+      // Search custom emoji from installed packs: match stickers whose associated
+      // emoji is in the Unicode results, or whose pack title matches the query.
+      if (_cachedEmojiPacks != null) {
+        final matchedUnicodeEmoji = unicodeResults.map((e) => e.emoji).toSet();
+        final queryLower = query.toLowerCase();
+        for (final pack in _cachedEmojiPacks!) {
+          for (final sticker in pack.stickers) {
+            if (suggestions.length >= 20) break;
+            final docId = int.tryParse(sticker.fileId) ?? 0;
+            if (docId == 0) continue;
+            if (matchedUnicodeEmoji.contains(sticker.emoji) ||
+                pack.title.toLowerCase().contains(queryLower)) {
+              suggestions.add(_BioEmojiSuggestion(
+                customEmoji: sticker,
+                customDocId: docId,
+              ));
+            }
+          }
+          if (suggestions.length >= 20) break;
+        }
+      }
       setState(() {
-        _emojiSuggestions = results;
+        _emojiSuggestions = suggestions.take(20).toList();
         _emojiSelectedIndex = 0;
         _emojiTriggerOffset = triggerOffset;
       });
@@ -839,18 +888,19 @@ class _BioInputState extends State<_BioInput> {
     }
   }
 
-  void _insertEmoji(EmojiEntry emoji) {
+  void _insertSuggestion(_BioEmojiSuggestion suggestion) {
     final sel = widget.controller.selection;
     if (!sel.isValid) return;
     final cursor = sel.baseOffset;
     final text = widget.controller.text;
+    final insertText = suggestion.insertText;
     final newText = text.substring(0, _emojiTriggerOffset) +
-        emoji.emoji +
+        insertText +
         text.substring(cursor);
     widget.controller.value = TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(
-          offset: _emojiTriggerOffset + emoji.emoji.length),
+          offset: _emojiTriggerOffset + insertText.length),
     );
     setState(() => _emojiSuggestions = []);
     _dismissOverlay();
@@ -872,7 +922,7 @@ class _BioInputState extends State<_BioInput> {
     }
     if (event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.tab) {
-      _insertEmoji(_emojiSuggestions[_emojiSelectedIndex]);
+      _insertSuggestion(_emojiSuggestions[_emojiSelectedIndex]);
       return true;
     }
     if (event.logicalKey == LogicalKeyboardKey.escape) {
@@ -881,6 +931,16 @@ class _BioInputState extends State<_BioInput> {
       return true;
     }
     return false;
+  }
+
+  Widget _buildCustomEmojiThumb(StickerInfoItem sticker) {
+    if (sticker.thumbB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(sticker.thumbB64);
+        return Image.memory(bytes, width: 28, height: 28, fit: BoxFit.contain);
+      } catch (_) {}
+    }
+    return Text(sticker.emoji, style: const TextStyle(fontSize: 24));
   }
 
   @override

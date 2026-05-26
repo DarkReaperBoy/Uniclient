@@ -619,6 +619,46 @@ func (t *TelegramCore) initClient() {
 		})
 		return nil
 	})
+	// Notification settings pushed from server (cross-device sync).
+	dispatcher.OnNotifySettings(func(ctx context.Context, e tg.Entities, u *tg.UpdateNotifySettings) error {
+		var peerType string
+		var peerID int64
+		switch p := u.Peer.(type) {
+		case *tg.NotifyPeer:
+			switch peer := p.Peer.(type) {
+			case *tg.PeerUser:
+				peerType = "user"
+				peerID = peer.UserID
+			case *tg.PeerChat:
+				peerType = "group"
+				peerID = peer.ChatID
+			case *tg.PeerChannel:
+				peerType = "channel"
+				peerID = peer.ChannelID
+			}
+		case *tg.NotifyUsers:
+			peerType = "default_private"
+		case *tg.NotifyChats:
+			peerType = "default_group"
+		case *tg.NotifyBroadcasts:
+			peerType = "default_channel"
+		}
+		if peerType == "" {
+			return nil
+		}
+		muted := u.NotifySettings.MuteUntil > 0
+		t.fireUpdate(Update{
+			Type:     UpdateNotifySettings,
+			Platform: tgPlatform,
+			NotifySettings: &NotifySettingsUpdate{
+				PeerType: peerType,
+				PeerID:   peerID,
+				Muted:    muted,
+			},
+		})
+		return nil
+	})
+
 	// User status updates (online/offline + coarse last-seen kinds).
 	dispatcher.OnUserStatus(func(ctx context.Context, e tg.Entities, u *tg.UpdateUserStatus) error {
 		userID := strconv.FormatInt(u.UserID, 10)
