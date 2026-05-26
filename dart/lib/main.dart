@@ -36,6 +36,7 @@ import 'ui/media_viewer.dart';
 import 'ui/photo_crop_editor.dart';
 import 'ui/shell.dart';
 import 'theme/wallpaper.dart';
+import 'ui/confirm_box.dart' show showConfirmBox;
 import 'ui/titlebar.dart';
 import 'utils/debug.dart';
 import 'utils/spell_service.dart';
@@ -2528,7 +2529,6 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   final _focusNode = FocusNode();
   String _error = '';
   bool _visible = false;
-  bool _showLogoutConfirm = false;
   SystemUnlockStatus _unlockStatus = const SystemUnlockStatus();
   bool _systemUnlockEnabled = false;
   DateTime _lastSystemUnlockAttempt = DateTime(2000);
@@ -2677,14 +2677,19 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   void _confirmLogout() {
     final appState = context.read<AppState>();
     if (appState.activeAccountId.isEmpty) return;
-    setState(() => _showLogoutConfirm = true);
+    showConfirmBox(
+      context,
+      text: TrStrings.lngPasscodeLogoutSure(),
+      confirmText: TrStrings.lngPasscodeLogout(),
+      isDestructive: true,
+      onConfirm: _doLogout,
+    );
   }
 
   void _doLogout() {
     final appState = context.read<AppState>();
     final activeId = appState.activeAccountId;
     if (activeId.isEmpty) return;
-    setState(() => _showLogoutConfirm = false);
     appState.removeAccount(activeId);
   }
 
@@ -2709,10 +2714,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
         final slideOffset = Offset((1.0 - t) * 0.15, 0.0);
         return FractionalTranslation(
           translation: slideOffset,
-          child: Opacity(
-            opacity: t.clamp(0.0, 1.0),
-            child: child,
-          ),
+          child: child,
         );
       },
       child: Material(
@@ -2837,73 +2839,15 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                   left: 0,
                   right: 0,
                   top: inputY + _inputFieldHeight + _passcodeSubmitSkip + 42 + 16,
-                  child: GestureDetector(
-                    onTap: _confirmLogout,
-                    child: Text(
-                      TrStrings.lngPasscodeLogout(),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: accentColor,
-                        decoration: TextDecoration.none,
-                      ),
+                  child: Center(
+                    child: _LinkButton(
+                      text: TrStrings.lngPasscodeLogout(),
+                      color: palette.lightButtonFg,
+                      overColor: palette.lightButtonFgOver,
+                      onTap: _confirmLogout,
                     ),
                   ),
                 ),
-                if (_showLogoutConfirm)
-                  Positioned.fill(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _showLogoutConfirm = false),
-                      child: ColoredBox(
-                        color: const Color(0x80000000),
-                        child: Center(
-                          child: GestureDetector(
-                            onTap: () {},
-                            child: Material(
-                              borderRadius: BorderRadius.circular(10),
-                              color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF),
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 320),
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        TrStrings.lngPasscodeLogout(),
-                                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        TrStrings.lngPasscodeLogoutSure(),
-                                        style: TextStyle(fontSize: 14, color: subtextColor),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.end,
-                                        children: [
-                                          TextButton(
-                                            onPressed: () => setState(() => _showLogoutConfirm = false),
-                                            child: Text(TrStrings.lngCancel(), style: TextStyle(color: accentColor)),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          TextButton(
-                                            onPressed: _doLogout,
-                                            child: Text(TrStrings.lngPasscodeLogout(), style: TextStyle(color: errorColor)),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             );
           },
@@ -2913,4 +2857,45 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   }
 }
 
+class _LinkButton extends StatefulWidget {
+  const _LinkButton({
+    required this.text,
+    required this.color,
+    required this.overColor,
+    required this.onTap,
+  });
+  final String text;
+  final Color color;
+  final Color overColor;
+  final VoidCallback onTap;
+
+  @override
+  State<_LinkButton> createState() => _LinkButtonState();
+}
+
+class _LinkButtonState extends State<_LinkButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _hovered ? widget.overColor : widget.color;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Text(
+          widget.text,
+          style: TextStyle(
+            fontSize: 13,
+            color: c,
+            decoration: TextDecoration.underline,
+            decorationColor: c,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
