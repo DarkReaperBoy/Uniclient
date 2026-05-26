@@ -289,9 +289,9 @@ class _TelegramMenuOverlayState<T> extends State<_TelegramMenuOverlay<T>>
               animation: widget.animation,
               builder: (context, child) {
                 final widthFactor =
-                    _panelCurve(widget.animation.value, 0.6);
+                    0.5 + 0.5 * _panelCurve(widget.animation.value, 0.6);
                 final heightFactor =
-                    _panelCurve(widget.animation.value, 0.9);
+                    0.45 + 0.55 * _panelCurve(widget.animation.value, 0.9);
                 final opacity =
                     (0.2 + 0.8 * _panelCurve(widget.animation.value, 0.3))
                         .clamp(0.0, 1.0);
@@ -483,8 +483,8 @@ class _AnimatedSubmenuRevealState extends State<_AnimatedSubmenuReveal>
       animation: _controller,
       builder: (context, child) {
         final t = const _SineInOutCurve().transform(_controller.value);
-        final widthFactor = _panelCurve(t, 0.6);
-        final heightFactor = _panelCurve(t, 0.9);
+        final widthFactor = 0.5 + 0.5 * _panelCurve(t, 0.6);
+        final heightFactor = 0.45 + 0.55 * _panelCurve(t, 0.9);
         final opacity = (0.2 + 0.8 * _panelCurve(t, 0.3)).clamp(0.0, 1.0);
 
         return Opacity(
