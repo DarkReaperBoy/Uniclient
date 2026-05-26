@@ -840,10 +840,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 # payment_panel — Audit Findings
 
 
-## payment_panel — BOT_TRUST_REQUIRED warning dialog
-
-- [ ] [MAJOR] `_showBotTrustWarning()` shows a generic "Payment Confirmation" dialog with simplified body text (line 450). AyuGram's `Panel::showWarning()` uses `tr::lng_payments_warning_title()` as title and `tr::lng_payments_warning_body(lt_bot1, lt_provider, lt_bot2, lt_bot3)` as body — a multi-sentence warning that names the bot three times in context ("do you want to pay for %bot1 via %provider; after payment %bot2 will receive personal details; you may be charged by %bot3 again"). The Dart text is a single vague sentence that omits these key disclosures. — `payment_panel.dart:450` ← `AyuGram/payments/ui/payments_panel.cpp:710`
-
 ## payment_panel — Terms dialog missing bot username and recurring support
 
 - [ ] [MAJOR] `_showTermsDialog()` does not include the bot's `@username` in the terms text and does not differentiate between recurring and one-time payments (lines 479–557). AyuGram's `Panel::requestTermsAcceptance()` takes `username` and `recurring` parameters and renders `tr::lng_payments_terms_text` (recurring) vs `tr::lng_payments_terms_text_once` (one-time), both using `lt_bot` with the bold `@username`. The Dart dialog only shows a generic "payment provider" phrase. — `payment_panel.dart:479` ← `AyuGram/payments/ui/payments_panel.cpp:733`
