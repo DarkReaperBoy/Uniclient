@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -34,7 +35,7 @@ void _openUrl(String url) {
   launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
 }
 
-const _kLanguageNames = <String, String>{
+const _kLanguageNamesFallback = <String, String>{
   'af': 'Afrikaans', 'sq': 'Shqip', 'am': 'አማርኛ', 'ar': 'العربية',
   'hy': 'Հայերեն', 'az': 'Azərbaycan', 'eu': 'Euskara', 'be': 'Беларуская',
   'bn': 'বাংলা', 'bs': 'Bosanski', 'bg': 'Български', 'ca': 'Català',
@@ -68,11 +69,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _tonBalance = '';
   bool _dialogFiltersEnabled = false;
   bool _premiumLoaded = false;
+  String _nativeLanguageName = '';
+  bool _showPhoneValidation = false;
+  bool _showPasswordValidation = false;
 
   @override
   void initState() {
     super.initState();
     _loadPremiumData();
+    _loadNativeLanguageName();
+    _reloadSettingsData();
   }
 
   Future<void> _loadPremiumData() async {
@@ -100,6 +106,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _tonBalance = results[3] as String;
       _premiumLoaded = true;
     });
+  }
+
+  Future<void> _loadNativeLanguageName() async {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null || account.platform != 'telegram') return;
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    try {
+      final languages = await engine.getLanguages(accountId);
+      if (!mounted) return;
+      final code = appState.selectedLanguageCode;
+      for (final lang in languages) {
+        if (lang['lang_code'] == code || lang['code'] == code) {
+          final name = lang['native_name'] as String? ?? lang['nativeName'] as String? ?? '';
+          if (name.isNotEmpty) {
+            setState(() => _nativeLanguageName = name);
+            return;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _reloadSettingsData() async {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null || account.platform != 'telegram') return;
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    try {
+      final results = await Future.wait([
+        engine.getCloudPasswordState(accountId).catchError((_) => null),
+        engine.getContentSettings(accountId).catchError((_) => (sensitiveEnabled: false, sensitiveCanChange: false, ageVerifyNeeded: false)),
+        engine.getAllPrivacySettings(accountId).catchError((_) => null),
+      ]);
+      if (!mounted) return;
+      final pwState = results[0] as Map<String, dynamic>?;
+      if (pwState != null) {
+        final hasPassword = pwState['has_password'] as bool? ?? false;
+        final pendingEmail = pwState['pending_email'] as bool? ?? false;
+        setState(() {
+          _showPhoneValidation = pwState['phone_unconfirmed'] as bool? ?? false;
+          _showPasswordValidation = !hasPassword && pendingEmail;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -220,6 +275,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           // §14.2: Profile header / cover area.
           _ProfileHeader(account: account, isDark: isDark),
+          if (_showPhoneValidation)
+            _ValidationBanner(
+              icon: Icons.phone,
+              text: 'Confirm your phone number to protect your account.',
+              actionText: 'Confirm',
+              onAction: () {
+                setState(() => _showPhoneValidation = false);
+              },
+              onDismiss: () => setState(() => _showPhoneValidation = false),
+              isDark: isDark,
+            ),
+          if (_showPasswordValidation)
+            _ValidationBanner(
+              icon: Icons.lock_outline,
+              text: 'Set up a cloud password to protect your account.',
+              actionText: 'Set Up',
+              onAction: () {
+                Navigator.of(context).push(
+                  settingsPageRoute(
+                    ChangeNotifierProvider.value(
+                      value: appState,
+                      child: const PrivacySettingsScreen(),
+                    ),
+                  ),
+                );
+              },
+              onDismiss: () => setState(() => _showPasswordValidation = false),
+              isDark: isDark,
+            ),
           // §14.3: skip+divider+skip between profile header and nav buttons.
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
@@ -378,7 +462,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             label: 'Language',
             isDark: isDark,
             trailing: Text(
-              _kLanguageNames[appState.selectedLanguageCode] ?? appState.selectedLanguageCode.toUpperCase(),
+              _nativeLanguageName.isNotEmpty
+                  ? _nativeLanguageName
+                  : (_kLanguageNamesFallback[appState.selectedLanguageCode] ?? appState.selectedLanguageCode.toUpperCase()),
               style: TextStyle(
                 fontSize: 14,
                 color: context.palette.windowBgActive,
@@ -459,7 +545,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 onTap: () {
-                  showTelegramToast(context, 'Telegram Currency management is available in the official app');
+                  Navigator.of(context).push(
+                    settingsPageRoute(_CurrencyScreen(
+                      accountId: appState.activeAccountId,
+                      balance: _tonBalance,
+                    )),
+                  );
                 },
               ),
             _SettingsRow(
@@ -635,7 +726,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     final hasQr = hasUsername;
 
     return SizedBox(
-      height: 96,
+      height: 104,
       child: Padding(
         padding: const EdgeInsets.only(left: 22, top: 8, right: 12),
         child: Row(
@@ -691,7 +782,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                 ),
               ),
             ),
-            const SizedBox(width: 18),
+            const SizedBox(width: 10),
             // Text column: name, phone/ID, username.
             Expanded(
               child: Column(
@@ -917,20 +1008,14 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
   }
 
   void _onUsernameTap(BuildContext context, String username) {
-    if (username.isEmpty) {
-      final appState = context.read<AppState>();
-      final account = appState.activeAccount;
-      if (account == null) return;
-      showUsernameBox(
-        context,
-        accountId: appState.activeAccountId,
-        currentUsername: account.username,
-      );
-      return;
-    }
-    final link = 'https://t.me/$username';
-    Clipboard.setData(ClipboardData(text: link));
-    showTelegramToast(context, 'Link copied: $link');
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    showUsernameBox(
+      context,
+      accountId: appState.activeAccountId,
+      currentUsername: account.username,
+    );
   }
 
   void _showEmojiAvatarPicker(BuildContext context) {
@@ -1375,6 +1460,8 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor = context.palette.windowBgActive;
     final link = 'https://t.me/$username';
+    final account = widget.account;
+    final displayName = account?.displayName ?? '';
 
     showDialog(
       context: context,
@@ -1386,26 +1473,54 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 200,
-              height: 200,
+              width: 240,
+              height: 240,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: accentColor.withValues(alpha: 0.3), width: 2),
               ),
-              padding: const EdgeInsets.all(8),
-              child: QrImageView(
-                data: link,
-                version: QrVersions.auto,
-                size: 184,
-                eyeStyle: QrEyeStyle(
-                  eyeShape: QrEyeShape.square,
-                  color: accentColor,
-                ),
-                dataModuleStyle: QrDataModuleStyle(
-                  dataModuleShape: QrDataModuleShape.square,
-                  color: accentColor,
-                ),
-                backgroundColor: Colors.white,
+              padding: const EdgeInsets.all(12),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  QrImageView(
+                    data: link,
+                    version: QrVersions.auto,
+                    size: 216,
+                    eyeStyle: QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: accentColor,
+                    ),
+                    dataModuleStyle: QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.square,
+                      color: accentColor,
+                    ),
+                    backgroundColor: Colors.white,
+                  ),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                      border: Border.all(color: Colors.white, width: 4),
+                    ),
+                    child: CircleAvatar(
+                      radius: 20,
+                      backgroundColor: accentColor,
+                      backgroundImage: account?.avatarPath.isNotEmpty == true
+                          ? FileImage(File(account!.avatarPath))
+                          : null,
+                      child: account?.avatarPath.isNotEmpty != true
+                          ? Text(
+                              displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                            )
+                          : null,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -1423,6 +1538,14 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
               showTelegramToast(context, 'Link copied');
             },
             child: Text('Copy Link', style: TextStyle(color: accentColor)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Clipboard.setData(ClipboardData(text: link));
+              Navigator.of(ctx).pop();
+              showTelegramToast(context, 'Link copied to share');
+            },
+            child: Text('Share', style: TextStyle(color: accentColor)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -1498,6 +1621,58 @@ class _SettingsRow extends StatelessWidget {
             const SizedBox(width: 3),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ValidationBanner extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final String actionText;
+  final VoidCallback onAction;
+  final VoidCallback onDismiss;
+  final bool isDark;
+
+  const _ValidationBanner({
+    required this.icon,
+    required this.text,
+    required this.actionText,
+    required this.onAction,
+    required this.onDismiss,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = context.palette.windowBgActive;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFF3E0);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 24, color: accentColor),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text, style: TextStyle(fontSize: 13, color: textColor)),
+          ),
+          TextButton(
+            onPressed: onAction,
+            child: Text(actionText, style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
+          ),
+          IconButton(
+            icon: Icon(Icons.close, size: 18, color: textColor.withValues(alpha: 0.5)),
+            onPressed: onDismiss,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            padding: EdgeInsets.zero,
+          ),
+        ],
       ),
     );
   }
@@ -2599,29 +2774,6 @@ class _PremiumInfoScreenState extends State<_PremiumInfoScreen> {
         return;
       }
     } catch (_) {}
-    _features = const [
-      'Upgraded Stories',
-      '4 GB file uploads',
-      'Doubled limits',
-      'Last seen control',
-      'Voice-to-text',
-      'Faster downloads',
-      'Real-time translation',
-      'Animated emoji',
-      'Emoji status',
-      'Tags for messages',
-      'Chat wallpapers',
-      'Profile badge',
-      'Message privacy',
-      'Advanced chat management',
-      'No ads',
-      'Unique reactions',
-      'Animated profile photos',
-      'Premium stickers',
-      'Business features',
-      'Message effects',
-      'AI-powered compose',
-    ];
     if (mounted) setState(() { _loading = false; _loadError = true; });
   }
 
@@ -2675,24 +2827,43 @@ class _PremiumInfoScreenState extends State<_PremiumInfoScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text('Features', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: accentColor)),
                 if (_loadError) ...[
-                  const SizedBox(height: 4),
-                  Text('Could not load feature list from server. Showing default features.',
-                    style: TextStyle(fontSize: 12, color: subtextColor, fontStyle: FontStyle.italic)),
-                ],
-                const SizedBox(height: 8),
-                for (final f in _features)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      children: [
-                        Icon(Icons.star, size: 20, color: const Color(0xFF976FFF)),
-                        const SizedBox(width: 12),
-                        Expanded(child: Text(f, style: TextStyle(fontSize: 14, color: textColor))),
-                      ],
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.cloud_off, size: 36, color: subtextColor),
+                          const SizedBox(height: 8),
+                          Text('Could not load feature list from server.',
+                            style: TextStyle(fontSize: 14, color: subtextColor)),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: () {
+                              setState(() { _loading = true; _loadError = false; });
+                              _loadPremiumInfo();
+                            },
+                            child: Text('Retry', style: TextStyle(color: accentColor)),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
+                ] else ...[
+                  Text('Features', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: accentColor)),
+                  const SizedBox(height: 8),
+                  for (final f in _features)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          Icon(Icons.star, size: 20, color: const Color(0xFF976FFF)),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(f, style: TextStyle(fontSize: 14, color: textColor))),
+                        ],
+                      ),
+                    ),
+                ],
                 if (!widget.isPremium) ...[
                   const SizedBox(height: 20),
                   SizedBox(
@@ -2770,8 +2941,16 @@ class _CreditsScreenState extends State<_CreditsScreen> with SingleTickerProvide
       if (mounted) {
         setState(() {
           _allTransactions = txList;
-          _inTransactions = txList.where((t) => (t['amount'] as num? ?? 0) > 0).toList();
-          _outTransactions = txList.where((t) => (t['amount'] as num? ?? 0) < 0).toList();
+          _inTransactions = txList.where((t) {
+            final dir = t['direction'] as String?;
+            if (dir != null) return dir == 'incoming' || dir == 'in';
+            return (t['amount'] as num? ?? 0) > 0;
+          }).toList();
+          _outTransactions = txList.where((t) {
+            final dir = t['direction'] as String?;
+            if (dir != null) return dir == 'outgoing' || dir == 'out';
+            return (t['amount'] as num? ?? 0) < 0;
+          }).toList();
           _txLoading = false;
         });
       }
@@ -2902,7 +3081,10 @@ class _CreditsScreenState extends State<_CreditsScreen> with SingleTickerProvide
         final amount = (tx['amount'] as num?)?.toInt() ?? 0;
         final title = tx['title'] as String? ?? tx['peer'] as String? ?? 'Transaction';
         final date = tx['date'] as String? ?? '';
-        final isPositive = amount > 0;
+        final dir = tx['direction'] as String?;
+        final isPositive = dir != null
+            ? (dir == 'incoming' || dir == 'in')
+            : amount > 0;
         return ListTile(
           leading: Icon(
             isPositive ? Icons.arrow_downward : Icons.arrow_upward,
@@ -2927,6 +3109,104 @@ class _CreditsScreenState extends State<_CreditsScreen> with SingleTickerProvide
           ),
         );
       },
+    );
+  }
+}
+
+class _CurrencyScreen extends StatefulWidget {
+  final String accountId;
+  final String balance;
+
+  const _CurrencyScreen({required this.accountId, required this.balance});
+
+  @override
+  State<_CurrencyScreen> createState() => _CurrencyScreenState();
+}
+
+class _CurrencyScreenState extends State<_CurrencyScreen> {
+  late String _balance;
+
+  @override
+  void initState() {
+    super.initState();
+    _balance = widget.balance;
+    _refreshBalance();
+  }
+
+  Future<void> _refreshBalance() async {
+    final engine = context.read<EngineService>();
+    try {
+      final balance = await engine.getTonBalance(widget.accountId);
+      if (mounted && balance.isNotEmpty) setState(() => _balance = balance);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('Telegram Currency', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                const Icon(Icons.currency_exchange, size: 48, color: Color(0xFF0098EA)),
+                const SizedBox(height: 8),
+                Text(
+                  _balance,
+                  style: TextStyle(fontSize: 36, fontWeight: FontWeight.w700, color: textColor),
+                ),
+                const SizedBox(height: 4),
+                Text('TON Balance', style: TextStyle(fontSize: 14, color: subtextColor)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'Telegram Currency (TON) can be used for transactions within Telegram. Your balance is synced with the Telegram blockchain wallet.',
+              style: TextStyle(fontSize: 13, color: subtextColor),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: accentColor,
+                side: BorderSide(color: accentColor),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: _refreshBalance,
+              child: const Text('Refresh Balance', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -3092,6 +3372,29 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
     try {
       final data = await engine.getBusinessFeature(widget.accountId, widget.featureKey);
       if (mounted) {
+        if (widget.featureKey == 'hours') {
+          final hours = data['hours'] as Map<String, dynamic>? ?? {};
+          if (data['intervals'] == null && hours.isNotEmpty) {
+            final intervals = <String, dynamic>{};
+            for (final entry in hours.entries) {
+              final val = entry.value as String? ?? '';
+              if (val == 'closed') {
+                intervals[entry.key] = {'open': false, 'open_minute': 540, 'close_minute': 1080};
+              } else {
+                final parts = val.split(' - ');
+                var openMin = 540, closeMin = 1080;
+                if (parts.length == 2) {
+                  final sp = parts[0].split(':');
+                  final ep = parts[1].split(':');
+                  if (sp.length == 2) openMin = (int.tryParse(sp[0]) ?? 9) * 60 + (int.tryParse(sp[1]) ?? 0);
+                  if (ep.length == 2) closeMin = (int.tryParse(ep[0]) ?? 18) * 60 + (int.tryParse(ep[1]) ?? 0);
+                }
+                intervals[entry.key] = {'open': true, 'open_minute': openMin, 'close_minute': closeMin};
+              }
+            }
+            data['intervals'] = intervals;
+          }
+        }
         setState(() {
           _data = data;
           if (widget.featureKey == 'greeting' || widget.featureKey == 'away') {
@@ -3121,6 +3424,23 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
         update['text'] = _textController.text;
       } else if (widget.featureKey == 'location') {
         update['address'] = _textController.text;
+      } else if (widget.featureKey == 'hours') {
+        final intervals = update['intervals'] as Map<String, dynamic>? ?? {};
+        final hoursCompat = <String, dynamic>{};
+        for (final entry in intervals.entries) {
+          final dayData = entry.value as Map<String, dynamic>?;
+          if (dayData != null) {
+            final isOpen = dayData['open'] as bool? ?? true;
+            if (isOpen) {
+              final openMin = dayData['open_minute'] as int? ?? 540;
+              final closeMin = dayData['close_minute'] as int? ?? 1080;
+              hoursCompat[entry.key] = '${(openMin ~/ 60).toString().padLeft(2, '0')}:${(openMin % 60).toString().padLeft(2, '0')} - ${(closeMin ~/ 60).toString().padLeft(2, '0')}:${(closeMin % 60).toString().padLeft(2, '0')}';
+            } else {
+              hoursCompat[entry.key] = 'closed';
+            }
+          }
+        }
+        update['hours'] = hoursCompat;
       }
       await engine.setBusinessFeature(widget.accountId, widget.featureKey, update);
       if (mounted) {
@@ -3194,7 +3514,8 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
     final enabled = _data['enabled'] as bool? ?? false;
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    final hours = _data['hours'] as Map<String, dynamic>? ?? {};
+    final intervals = _data['intervals'] as Map<String, dynamic>? ?? {};
+    final timezone = _data['timezone'] as String? ?? 'UTC';
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -3213,48 +3534,120 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
           ),
         ),
         if (enabled) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () => _pickTimezone(textColor, subtextColor, accentColor, isDark),
+            hoverColor: hoverBg,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(child: Text('Timezone', style: TextStyle(fontSize: 14, color: textColor))),
+                  Text(timezone, style: TextStyle(fontSize: 13, color: accentColor)),
+                  const SizedBox(width: 4),
+                  Icon(Icons.chevron_right, size: 16, color: subtextColor),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           Text('Set your availability', style: TextStyle(fontSize: 13, color: subtextColor)),
           const SizedBox(height: 8),
           for (final day in days)
-            InkWell(
-              onTap: () => _pickDayHours(day, hours, textColor, subtextColor, accentColor, isDark),
-              hoverColor: hoverBg,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(day, style: TextStyle(fontSize: 14, color: textColor))),
-                    Text(
-                      hours[day.toLowerCase()] as String? ?? '9:00 - 18:00',
-                      style: TextStyle(fontSize: 13, color: accentColor),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.chevron_right, size: 16, color: subtextColor),
-                  ],
-                ),
-              ),
-            ),
+            _buildDayRow(day, intervals, textColor, subtextColor, accentColor, hoverBg, isDark),
         ],
       ],
     );
   }
 
-  void _pickDayHours(String day, Map<String, dynamic> hours, Color textColor, Color subtextColor, Color accentColor, bool isDark) {
-    final current = (hours[day.toLowerCase()] as String?) ?? '9:00 - 18:00';
-    final parts = current.split(' - ');
-    var startHour = 9, startMin = 0, endHour = 18, endMin = 0;
-    if (parts.length == 2) {
-      final s = parts[0].split(':');
-      final e = parts[1].split(':');
-      if (s.length == 2) { startHour = int.tryParse(s[0]) ?? 9; startMin = int.tryParse(s[1]) ?? 0; }
-      if (e.length == 2) { endHour = int.tryParse(e[0]) ?? 18; endMin = int.tryParse(e[1]) ?? 0; }
-    }
+  Widget _buildDayRow(String day, Map<String, dynamic> intervals, Color textColor, Color subtextColor, Color accentColor, Color hoverBg, bool isDark) {
+    final key = day.toLowerCase();
+    final dayData = intervals[key] as Map<String, dynamic>?;
+    final isOpen = dayData?['open'] as bool? ?? true;
+    final openMinute = dayData?['open_minute'] as int? ?? 540;
+    final closeMinute = dayData?['close_minute'] as int? ?? 1080;
+    final displayOpen = '${(openMinute ~/ 60).toString().padLeft(2, '0')}:${(openMinute % 60).toString().padLeft(2, '0')}';
+    final displayClose = '${(closeMinute ~/ 60).toString().padLeft(2, '0')}:${(closeMinute % 60).toString().padLeft(2, '0')}';
+
+    return InkWell(
+      onTap: () => _pickDayHours(day, intervals, textColor, subtextColor, accentColor, isDark),
+      hoverColor: hoverBg,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 24,
+              child: Checkbox(
+                value: isOpen,
+                activeColor: accentColor,
+                onChanged: (v) {
+                  setState(() {
+                    final updated = Map<String, dynamic>.from(intervals);
+                    updated[key] = {
+                      'open': v ?? true,
+                      'open_minute': openMinute,
+                      'close_minute': closeMinute,
+                    };
+                    _data['intervals'] = updated;
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(day, style: TextStyle(fontSize: 14, color: isOpen ? textColor : subtextColor))),
+            Text(
+              isOpen ? '$displayOpen - $displayClose' : 'Closed',
+              style: TextStyle(fontSize: 13, color: isOpen ? accentColor : subtextColor),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right, size: 16, color: subtextColor),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _pickTimezone(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    showDialog<String>(
+    final timezones = ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+      'Europe/London', 'Europe/Berlin', 'Europe/Moscow', 'Asia/Tehran', 'Asia/Dubai', 'Asia/Kolkata',
+      'Asia/Shanghai', 'Asia/Tokyo', 'Australia/Sydney'];
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Select Timezone', style: TextStyle(color: textColor)),
+        content: SizedBox(
+          width: 300,
+          height: 400,
+          child: ListView.builder(
+            itemCount: timezones.length,
+            itemBuilder: (ctx, i) => ListTile(
+              title: Text(timezones[i], style: TextStyle(fontSize: 14, color: textColor)),
+              onTap: () {
+                setState(() => _data['timezone'] = timezones[i]);
+                Navigator.of(ctx).pop();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickDayHours(String day, Map<String, dynamic> intervals, Color textColor, Color subtextColor, Color accentColor, bool isDark) {
+    final key = day.toLowerCase();
+    final dayData = intervals[key] as Map<String, dynamic>?;
+    final openMinute = dayData?['open_minute'] as int? ?? 540;
+    final closeMinute = dayData?['close_minute'] as int? ?? 1080;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+
+    showDialog<Map<String, int>>(
       context: context,
       builder: (ctx) {
-        var sH = startHour, sM = startMin, eH = endHour, eM = endMin;
+        var sH = openMinute ~/ 60, sM = openMinute % 60;
+        var eH = closeMinute ~/ 60, eM = closeMinute % 60;
         return StatefulBuilder(
           builder: (ctx, setDlgState) => AlertDialog(
             backgroundColor: bgColor,
@@ -3291,10 +3684,7 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
             actions: [
               TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('Cancel', style: TextStyle(color: subtextColor))),
               TextButton(
-                onPressed: () {
-                  final result = '${sH.toString().padLeft(2, '0')}:${sM.toString().padLeft(2, '0')} - ${eH.toString().padLeft(2, '0')}:${eM.toString().padLeft(2, '0')}';
-                  Navigator.of(ctx).pop(result);
-                },
+                onPressed: () => Navigator.of(ctx).pop({'open': sH * 60 + sM, 'close': eH * 60 + eM}),
                 child: Text('Save', style: TextStyle(color: accentColor)),
               ),
             ],
@@ -3304,15 +3694,22 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
     ).then((result) {
       if (result != null && mounted) {
         setState(() {
-          final h = Map<String, dynamic>.from(_data['hours'] as Map<String, dynamic>? ?? {});
-          h[day.toLowerCase()] = result;
-          _data['hours'] = h;
+          final updated = Map<String, dynamic>.from(intervals);
+          updated[key] = {
+            'open': true,
+            'open_minute': result['open'],
+            'close_minute': result['close'],
+          };
+          _data['intervals'] = updated;
         });
       }
     });
   }
 
   Widget _buildLocationEditor(Color textColor, Color subtextColor, Color accentColor) {
+    final lat = _data['lat'] as num? ?? 0.0;
+    final lng = _data['lng'] as num? ?? 0.0;
+    final hasCoords = lat != 0.0 || lng != 0.0;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -3329,14 +3726,74 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: accentColor)),
           ),
         ),
+        const SizedBox(height: 16),
+        Text('Coordinates', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
         const SizedBox(height: 8),
-        Text('This address will be displayed on your profile.', style: TextStyle(fontSize: 13, color: subtextColor)),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                style: TextStyle(fontSize: 14, color: textColor),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                decoration: InputDecoration(
+                  labelText: 'Latitude',
+                  labelStyle: TextStyle(color: subtextColor),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: accentColor)),
+                ),
+                controller: TextEditingController(text: lat != 0.0 ? lat.toStringAsFixed(6) : ''),
+                onChanged: (v) {
+                  final parsed = double.tryParse(v);
+                  if (parsed != null && parsed >= -90 && parsed <= 90) {
+                    _data['lat'] = parsed;
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                style: TextStyle(fontSize: 14, color: textColor),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                decoration: InputDecoration(
+                  labelText: 'Longitude',
+                  labelStyle: TextStyle(color: subtextColor),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: accentColor)),
+                ),
+                controller: TextEditingController(text: lng != 0.0 ? lng.toStringAsFixed(6) : ''),
+                onChanged: (v) {
+                  final parsed = double.tryParse(v);
+                  if (parsed != null && parsed >= -180 && parsed <= 180) {
+                    _data['lng'] = parsed;
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (hasCoords)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Location: ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}',
+              style: TextStyle(fontSize: 13, color: accentColor),
+            ),
+          ),
+        Text('This address and location will be displayed on your profile.', style: TextStyle(fontSize: 13, color: subtextColor)),
       ],
     );
   }
 
   Widget _buildMessageEditor(Color textColor, Color subtextColor, Color accentColor) {
     final isGreeting = widget.featureKey == 'greeting';
+    final recipientFilter = _data['recipient_filter'] as String? ?? 'all';
+    final exceptIds = (_data['except_ids'] as List<dynamic>?)?.cast<String>() ?? [];
+    final onlyIds = (_data['only_ids'] as List<dynamic>?)?.cast<String>() ?? [];
+    final inactivityDays = _data['inactivity_days'] as int? ?? 7;
+    final scheduleType = _data['schedule'] as String? ?? 'always';
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -3356,6 +3813,72 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: accentColor)),
           ),
         ),
+        const SizedBox(height: 16),
+        Text('Who receives this message', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+        const SizedBox(height: 8),
+        for (final (value, label) in <(String, String)>[
+          ('all', 'All new chats'),
+          ('contacts', 'All contacts'),
+          ('non_contacts', 'All non-contacts'),
+          ('selected', 'Selected chats only'),
+          ('all_except', 'All chats except...'),
+        ])
+          RadioListTile<String>(
+            title: Text(label, style: TextStyle(fontSize: 14, color: textColor)),
+            value: value,
+            groupValue: recipientFilter,
+            activeColor: accentColor,
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            onChanged: (v) => setState(() => _data['recipient_filter'] = v),
+          ),
+        if (recipientFilter == 'all_except' && exceptIds.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 8),
+            child: Text('${exceptIds.length} chat(s) excluded', style: TextStyle(fontSize: 13, color: subtextColor)),
+          ),
+        if (recipientFilter == 'selected' && onlyIds.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 8),
+            child: Text('${onlyIds.length} chat(s) selected', style: TextStyle(fontSize: 13, color: subtextColor)),
+          ),
+        if (isGreeting) ...[
+          const SizedBox(height: 16),
+          Text('Inactivity period', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+          const SizedBox(height: 4),
+          Text('Send greeting again after this period of inactivity.', style: TextStyle(fontSize: 13, color: subtextColor)),
+          const SizedBox(height: 8),
+          DropdownButton<int>(
+            value: inactivityDays,
+            isExpanded: true,
+            dropdownColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF17212B) : Colors.white,
+            style: TextStyle(fontSize: 14, color: textColor),
+            items: const [
+              DropdownMenuItem(value: 7, child: Text('1 week')),
+              DropdownMenuItem(value: 14, child: Text('2 weeks')),
+              DropdownMenuItem(value: 30, child: Text('1 month')),
+            ],
+            onChanged: (v) => setState(() => _data['inactivity_days'] = v),
+          ),
+        ] else ...[
+          const SizedBox(height: 16),
+          Text('Schedule', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+          const SizedBox(height: 8),
+          for (final (value, label) in <(String, String)>[
+            ('always', 'Always send'),
+            ('outside_hours', 'Outside business hours'),
+            ('custom', 'Custom schedule'),
+          ])
+            RadioListTile<String>(
+              title: Text(label, style: TextStyle(fontSize: 14, color: textColor)),
+              value: value,
+              groupValue: scheduleType,
+              activeColor: accentColor,
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              onChanged: (v) => setState(() => _data['schedule'] = v),
+            ),
+        ],
         const SizedBox(height: 8),
         Text(
           isGreeting
@@ -3471,67 +3994,111 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
   }
 
   Widget _buildChatbotsEditor(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
-    final botUsername = _data['bot_username'] as String? ?? '';
+    final bots = (_data['bots'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    final legacyBot = _data['bot_username'] as String? ?? '';
+    if (bots.isEmpty && legacyBot.isNotEmpty) {
+      bots.add({'username': legacyBot, 'reply_to_messages': true, 'manage_chats': false});
+      _data['bots'] = bots;
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('Connected Chatbot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+        Text('Connected Chatbots', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
         const SizedBox(height: 8),
-        Text('Connect a Telegram bot to manage customer conversations.', style: TextStyle(fontSize: 13, color: subtextColor)),
+        Text('Connect Telegram bots to manage customer conversations.', style: TextStyle(fontSize: 13, color: subtextColor)),
         const SizedBox(height: 16),
-        if (botUsername.isNotEmpty) ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF5F5F5),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.smart_toy, color: accentColor),
-                const SizedBox(width: 12),
-                Expanded(child: Text('@$botUsername', style: TextStyle(fontSize: 14, color: textColor))),
-                IconButton(
-                  icon: Icon(Icons.close, size: 20, color: subtextColor),
-                  onPressed: () => setState(() => _data['bot_username'] = ''),
-                ),
-              ],
-            ),
-          ),
-        ] else
-          OutlinedButton.icon(
-            onPressed: () {
-              final ctrl = TextEditingController();
-              showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  backgroundColor: isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF),
-                  title: Text('Connect Bot', style: TextStyle(color: textColor)),
-                  content: TextField(
-                    controller: ctrl,
-                    style: TextStyle(color: textColor),
-                    decoration: InputDecoration(hintText: '@bot_username', hintStyle: TextStyle(color: subtextColor)),
+        for (var i = 0; i < bots.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.smart_toy, color: accentColor),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text('@${bots[i]['username'] ?? ''}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor))),
+                      IconButton(
+                        icon: Icon(Icons.close, size: 20, color: subtextColor),
+                        onPressed: () {
+                          setState(() {
+                            final updated = List<Map<String, dynamic>>.from(bots)..removeAt(i);
+                            _data['bots'] = updated;
+                            if (updated.isEmpty) _data['bot_username'] = '';
+                          });
+                        },
+                      ),
+                    ],
                   ),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('Cancel', style: TextStyle(color: subtextColor))),
-                    TextButton(
-                      onPressed: () {
-                        if (ctrl.text.isNotEmpty) {
-                          setState(() => _data['bot_username'] = ctrl.text.replaceFirst('@', ''));
-                          Navigator.of(ctx).pop();
-                        }
-                      },
-                      child: Text('Connect', style: TextStyle(color: accentColor)),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 36),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: Text('Reply to messages', style: TextStyle(fontSize: 13, color: textColor))),
+                            Switch(
+                              value: bots[i]['reply_to_messages'] as bool? ?? true,
+                              onChanged: (v) => setState(() => bots[i]['reply_to_messages'] = v),
+                              activeColor: accentColor,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('Connect Bot'),
-            style: OutlinedButton.styleFrom(foregroundColor: accentColor, side: BorderSide(color: accentColor)),
+                  ),
+                ],
+              ),
+            ),
           ),
+        OutlinedButton.icon(
+          onPressed: () => _showAddBotDialog(textColor, subtextColor, accentColor, isDark),
+          icon: const Icon(Icons.add),
+          label: const Text('Connect Bot'),
+          style: OutlinedButton.styleFrom(foregroundColor: accentColor, side: BorderSide(color: accentColor)),
+        ),
       ],
+    );
+  }
+
+  void _showAddBotDialog(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF),
+        title: Text('Connect Bot', style: TextStyle(color: textColor)),
+        content: TextField(
+          controller: ctrl,
+          style: TextStyle(color: textColor),
+          decoration: InputDecoration(hintText: '@bot_username', hintStyle: TextStyle(color: subtextColor)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('Cancel', style: TextStyle(color: subtextColor))),
+          TextButton(
+            onPressed: () {
+              if (ctrl.text.isNotEmpty) {
+                final username = ctrl.text.replaceFirst('@', '');
+                setState(() {
+                  final bots = (_data['bots'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+                  bots.add({'username': username, 'reply_to_messages': true, 'manage_chats': false});
+                  _data['bots'] = bots;
+                  _data['bot_username'] = username;
+                });
+                Navigator.of(ctx).pop();
+              }
+            },
+            child: Text('Connect', style: TextStyle(color: accentColor)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3657,20 +4224,31 @@ class _GiftCatalogScreenState extends State<_GiftCatalogScreen> {
     final result = await engine.getStarGifts(widget.accountId);
     if (mounted) {
       final gifts = result?.gifts ?? [];
-      final thumbs = <int, Uint8List>{};
+      final b64List = <int, String>{};
       for (int i = 0; i < gifts.length; i++) {
-        if (gifts[i].thumbB64.isNotEmpty) {
-          try {
-            thumbs[i] = base64Decode(gifts[i].thumbB64);
-          } catch (_) {}
-        }
+        if (gifts[i].thumbB64.isNotEmpty) b64List[i] = gifts[i].thumbB64;
       }
-      setState(() {
-        _gifts = gifts;
-        _decodedThumbs = thumbs;
-        _loading = false;
-      });
+      final thumbs = await _decodeThumbsInIsolate(b64List);
+      if (mounted) {
+        setState(() {
+          _gifts = gifts;
+          _decodedThumbs = thumbs;
+          _loading = false;
+        });
+      }
     }
+  }
+
+  static Future<Map<int, Uint8List>> _decodeThumbsInIsolate(Map<int, String> b64Map) async {
+    return await Isolate.run(() {
+      final result = <int, Uint8List>{};
+      for (final entry in b64Map.entries) {
+        try {
+          result[entry.key] = base64Decode(entry.value);
+        } catch (_) {}
+      }
+      return result;
+    });
   }
 
   void _showRecipientPicker(BuildContext context, StarGiftItem gift) {
@@ -3680,21 +4258,35 @@ class _GiftCatalogScreenState extends State<_GiftCatalogScreen> {
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor = context.palette.windowBgActive;
     final engine = context.read<EngineService>();
-    final chatState = context.read<ChatState>();
-
-    final chats = chatState.chats
-        .where((c) => c.type == ChatType.dm && c.chatId.isNotEmpty)
-        .toList();
 
     showDialog(
       context: context,
       builder: (ctx) {
         String searchQuery = '';
+        List<ContactInfo>? contacts;
+        bool loadingContacts = true;
+
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
+            if (contacts == null) {
+              engine.getContacts(widget.accountId).then((result) {
+                if (ctx.mounted) {
+                  setDialogState(() {
+                    contacts = result.where((c) => !c.isBot && c.userId.isNotEmpty).toList();
+                    loadingContacts = false;
+                  });
+                }
+              }).catchError((_) {
+                if (ctx.mounted) setDialogState(() { contacts = []; loadingContacts = false; });
+              });
+            }
+
+            final allContacts = contacts ?? [];
             final filtered = searchQuery.isEmpty
-                ? chats
-                : chats.where((c) => c.title.toLowerCase().contains(searchQuery.toLowerCase())).toList();
+                ? allContacts
+                : allContacts.where((c) =>
+                    c.displayName.toLowerCase().contains(searchQuery.toLowerCase()) ||
+                    c.username.toLowerCase().contains(searchQuery.toLowerCase())).toList();
 
             return AlertDialog(
               backgroundColor: bgColor,
@@ -3715,33 +4307,40 @@ class _GiftCatalogScreenState extends State<_GiftCatalogScreen> {
                     ),
                     const SizedBox(height: 8),
                     Expanded(
-                      child: filtered.isEmpty
-                          ? Center(child: Text('No contacts found', style: TextStyle(color: subtextColor)))
-                          : ListView.builder(
-                              itemCount: filtered.length,
-                              itemBuilder: (ctx, i) {
-                                final chat = filtered[i];
-                                return ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor: accentColor,
-                                    child: Text(chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?',
-                                        style: const TextStyle(color: Colors.white)),
-                                  ),
-                                  title: Text(chat.title, style: TextStyle(fontSize: 14, color: textColor)),
-                                  onTap: () async {
-                                    Navigator.of(ctx).pop();
-                                    try {
-                                      final success = await engine.sendStarGift(widget.accountId, chat.chatId, gift.id);
-                                      if (context.mounted) {
-                                        showTelegramToast(context, success ? 'Gift sent!' : 'Failed to send gift');
-                                      }
-                                    } catch (e) {
-                                      if (context.mounted) showTelegramToast(context, 'Error: $e');
-                                    }
+                      child: loadingContacts
+                          ? const Center(child: CircularProgressIndicator())
+                          : filtered.isEmpty
+                              ? Center(child: Text('No contacts found', style: TextStyle(color: subtextColor)))
+                              : ListView.builder(
+                                  itemCount: filtered.length,
+                                  itemBuilder: (ctx, i) {
+                                    final contact = filtered[i];
+                                    return ListTile(
+                                      leading: CircleAvatar(
+                                        backgroundColor: accentColor,
+                                        child: Text(
+                                          contact.displayName.isNotEmpty ? contact.displayName[0].toUpperCase() : '?',
+                                          style: const TextStyle(color: Colors.white),
+                                        ),
+                                      ),
+                                      title: Text(contact.displayName, style: TextStyle(fontSize: 14, color: textColor)),
+                                      subtitle: contact.username.isNotEmpty
+                                          ? Text('@${contact.username}', style: TextStyle(fontSize: 12, color: subtextColor))
+                                          : null,
+                                      onTap: () async {
+                                        Navigator.of(ctx).pop();
+                                        try {
+                                          final success = await engine.sendStarGift(widget.accountId, contact.userId, gift.id);
+                                          if (context.mounted) {
+                                            showTelegramToast(context, success ? 'Gift sent!' : 'Failed to send gift');
+                                          }
+                                        } catch (e) {
+                                          if (context.mounted) showTelegramToast(context, 'Error: $e');
+                                        }
+                                      },
+                                    );
                                   },
-                                );
-                              },
-                            ),
+                                ),
                     ),
                   ],
                 ),
