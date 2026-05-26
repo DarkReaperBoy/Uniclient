@@ -579,29 +579,35 @@ class _PaymentPanelState extends State<PaymentPanel>
             text: TextSpan(
               style: TextStyle(color: p.windowFg, fontSize: 14, height: 1.4),
               children: [
-                const TextSpan(text: 'Do you want to pay '),
+                const TextSpan(text: 'Neither Telegram, nor '),
                 TextSpan(
                   text: botName,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                TextSpan(text: ' via $providerName?\n\n'),
                 const TextSpan(
-                  text: 'After the payment is done, your credentials and '
-                      'a copy of the delivery information will be forwarded to ',
+                  text: ' will have access to your credit card information. '
+                      'Credit card details will be handled only by the payment system, ',
                 ),
                 TextSpan(
-                  text: botName,
+                  text: providerName,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const TextSpan(text: '.\n\n'),
+                const TextSpan(text: 'Payments will go directly to the developer of '),
+                TextSpan(
+                  text: botName,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const TextSpan(
-                  text: 'You may also be charged by ',
+                  text: '. Telegram cannot provide any guarantees, so proceed '
+                      'at your own risk. In case of problems, please contact '
+                      'the developer of ',
                 ),
                 TextSpan(
                   text: botName,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                const TextSpan(text: ' again in the future.'),
+                const TextSpan(text: ' or your bank.'),
               ],
             ),
           ),
@@ -631,11 +637,6 @@ class _PaymentPanelState extends State<PaymentPanel>
     String? errorText;
     final botUsername = widget.data.botName;
     final boldBot = botUsername.isNotEmpty ? '@$botUsername' : 'this bot';
-    final termsText = _isRecurring
-        ? 'After completing this payment you will be able to '
-            'manage your subscription in Settings > Subscriptions. '
-            'By proceeding, you agree to the Terms of Service of $boldBot.'
-        : 'By proceeding, you agree to the Terms of Service of $boldBot.';
     showDialog(
       context: context,
       builder: (ctx) {
@@ -650,7 +651,16 @@ class _PaymentPanelState extends State<PaymentPanel>
                   text: TextSpan(
                     style: TextStyle(color: p.windowFg, fontSize: 14, height: 1.4),
                     children: [
-                      TextSpan(text: termsText),
+                      TextSpan(
+                        text: _isRecurring
+                            ? 'Subscribe and accept Terms of Service of '
+                            : 'Do you accept the Terms of Service of ',
+                      ),
+                      TextSpan(
+                        text: boldBot,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const TextSpan(text: '?'),
                     ],
                   ),
                 ),
