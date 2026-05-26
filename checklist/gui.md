@@ -846,31 +846,7 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 # peer_short_info — Audit findings
 
-- [ ] [CRITICAL] Username "onTap" opens `t.me/…` in the external browser via `launchUrl(LaunchMode.externalApplication)` instead of navigating to the peer within the app — `peer_short_info.dart:872` ← `prepare_short_info_box.cpp:453` (`open` callback calls `window->showPeerHistory(peer)`)
-
-- [ ] [CRITICAL] Group/channel "Link" row `onTap` also opens `t.me/…` in the external browser — `peer_short_info.dart:909` ← `prepare_short_info_box.cpp:453` (same `open` callback, internal navigation)
-
-- [ ] [CRITICAL] Context menu is hardcoded to a single "Open in New Window" entry and is not extensible; AyuGram feeds per-peer actions (Report, Block, Delete Contact, etc.) through a `menuFiller` callback wired to `fillMenuRequests` — `peer_short_info.dart:395-415` ← `peer_short_info_box.cpp:856-876` + `prepare_short_info_box.cpp:467-472`
-
-- [ ] [MAJOR] Phone formatter only handles 5 country codes (US +1, RU +7, UK +44, DE +49, IR +98) and falls back to naive 3-digit grouping for every other country; AyuGram delegates to `Countries::Instance().format()` which covers all 200+ ITU country codes — `peer_short_info.dart:1104-1129` ← `format_values.cpp:424-437`
-
-- [ ] [MAJOR] Birthday "today" value shows bare "January 1, 2000" with no cake emoji, no "turns N today" age annotation, and no localized today-sentence; AyuGram wraps the date with `tr::lng_info_birthday_today(lt_emoji, BirthdayCake(), lt_date, …)` and appends age via `tr::lng_info_birthday_today_years` — `peer_short_info.dart:1131-1151` ← `info_profile_values.cpp:749-771`
-
-- [ ] [MAJOR] Birthday gift icon (`birthdayTodayIcon`: the `menu/gift_premium` icon) is never shown on birthday today; AyuGram renders this icon to the right of the birthday row and makes it visible only when `IsBirthdayTodayValue` is true — `peer_short_info.dart:877-887` ← `info_profile_actions.cpp:903-912` + `boxes.style:1060`
-
-- [ ] [MAJOR] Scrollbar thumb uses `Radius.circular(4)` (4 px) instead of the AyuGram `shortInfoScroll` value of `round: 1px` — `peer_short_info.dart:499` ← `info.style:1270`
-
 # photo_crop_editor — Audit findings
-
-- [ ] [CRITICAL] Paint stroke coordinates broken under canvas zoom — `_ImageCropAreaState._onPointerDown` stores raw `event.localPosition` (widget screen coords) at line 1921, but `_CropPainter.paint()` applies a zoom+pan canvas transform (translate/scale/translate at lines 2255–2263) before drawing all strokes. Stored screen-space point `P` is drawn at `(P – center) * zoom + center + offset`, not at `P`. When painting with `_canvasZoom > 1.0`, every stroke appears displaced from where the user drew it; the export (`_applyCropAndExport`) also uses the uncorrected coordinates. Fix: inverse-transform pointer position before storing — `photo_crop_editor.dart:1921` + `photo_crop_editor.dart:2255` ← `AyuGramDesktop/Telegram/SourceFiles/editor/editor_paint.cpp` (uses Qt `QGraphicsView::mapToScene()` to convert widget coords to scene/content coords before recording strokes)
-
-- [ ] [CRITICAL] Custom brush color never added to palette row — AyuGram's `ColorPicker::rebuildPalette()` appends the current `_brush.color` to the displayed colors list when it's not among the 10 defaults (lines 685–710), so the user can click the custom colour dot to re-select it. The Dart `_ColorPaletteRow` always renders the fixed `_kPaletteColors` list (10 items, line 3152); custom colours chosen via the colour-picker box appear only in the rainbow button swatch and are otherwise inaccessible — `photo_crop_editor.dart:3152` ← `AyuGramDesktop/Telegram/SourceFiles/editor/color_picker.cpp:685`
-
-- [ ] [CRITICAL] Tool button Lottie animation freezes at final frame after first hover — `_ToolButtonState._onHoverExit()` (line 3376) only sets `_hovering = false` and does nothing to the `_lottieCtrl`. AyuGram's `ToolLottieButton` (lines 212–222) sets `_resetPending = true` on `QEvent::Leave`; after the animation finishes it calls `reset()` which jumps the icon back to frame 0 (lines 250–258). In the Dart, after the very first hover-over, every tool icon permanently shows its last animation frame (fully animated / "active" pose) instead of the idle frame — `photo_crop_editor.dart:3376` ← `AyuGramDesktop/Telegram/SourceFiles/editor/color_picker.cpp:212`
-
-- [ ] [MAJOR] Tool button hover colour change is instant, not animated — AyuGram defines `photoEditorToolButtonHoverDuration: 350` (editor.style line 139) and the `ToolLottieButton` drives the Lottie icon animation over `crl::time(st::photoEditorToolButtonHoverDuration)` (color_picker.cpp line 248). The Dart `_ToolButtonState._onHoverEnter/_Exit` only toggles `_hovering` via bare `setState()` (lines 3369–3378), causing an instantaneous colour jump instead of a smooth 350 ms fade — `photo_crop_editor.dart:3369` ← `AyuGramDesktop/Telegram/SourceFiles/editor/editor.style:139` + `AyuGramDesktop/Telegram/SourceFiles/editor/color_picker.cpp:248`
-
-- [ ] [MAJOR] Tool button hit-area SizedBox 28 px vs AyuGram spec 20 px — `_kToolButtonSize = 28.0` (line 114) is used as the SizedBox size for each tool button (line 3396). AyuGram's `photoEditorToolButtonSize: 20px` (editor.style line 136) is the visual icon slot; the hit area is extended by `photoEditorToolButtonSelectedExtra: 8px` per side as an invisible overlay (`updateToolButtonsGeometry()` color_picker.cpp line 499–500). The Dart treats 28 px as the visible bounding box. Result: spacing per tool is `28 + 18 = 46 px` in Dart vs `20 + 18 = 38 px` in AyuGram — a 21% wider tool row — `photo_crop_editor.dart:114` ← `AyuGramDesktop/Telegram/SourceFiles/editor/editor.style:136` + `AyuGramDesktop/Telegram/SourceFiles/editor/color_picker.cpp:499`
 
 ## popup_menu — Context Menu Widget
 
