@@ -861,9 +861,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 # main — Audit findings
 
-## main — PasscodeLockScreen show animation uses wrong animation type
-
-- [ ] [MAJOR] Passcode lock screen show animation uses `FractionalTranslation` + `Opacity` (slide+fade combined), but AyuGram uses `SlideAnimation` with `_withFade = false` — a pure horizontal slide with no opacity change. The fade component is absent in the C++ implementation. — `main.dart:2689-2702` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_lock_widgets.cpp:55-68` + `window/window_slide_animation.h:52`
 
 ## main — PasscodeLockScreen logout button uses wrong widget type
 
