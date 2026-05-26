@@ -6788,7 +6788,7 @@ class EngineService {
     required String reactionsFrom,
     required bool pollVotesEnabled,
     required String pollVotesFrom,
-    required bool showSenderName,
+    required bool showPreviews,
   }) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -6796,7 +6796,7 @@ class EngineService {
       'reactions_from': reactionsFrom,
       'poll_votes_enabled': pollVotesEnabled,
       'poll_votes_from': pollVotesFrom,
-      'show_sender_name': showSenderName,
+      'show_previews': showPreviews,
     }));
     try {
       await _callAsync('__engine', 'SetReactionsNotifySettings', Uint8List.fromList(payload));

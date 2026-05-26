@@ -296,22 +296,36 @@ class _NotificationsSettingsScreenState
                 showName: appState.notifPreviewName,
                 showText: appState.notifPreviewText,
                 onNameChanged: (v) {
-                  appState.notifPreviewName = v;
-                  if (!v) appState.notifPreviewText = false;
+                  if (v) {
+                    appState.notifPreviewName = true;
+                  } else {
+                    appState.notifPreviewName = false;
+                    appState.notifPreviewText = false;
+                  }
+                  final view = (appState.notifPreviewName && appState.notifPreviewText)
+                      ? 0
+                      : appState.notifPreviewName
+                          ? 1
+                          : 2;
                   final engine = context.read<EngineService>();
-                  final view = (appState.notifPreviewName ? 1 : 0) |
-                      (appState.notifPreviewText ? 2 : 0);
                   engine.saveLocalNotifyConfig(
                     appState.activeAccountId,
                     {'type': 'notify_view', 'view': view},
                   );
                 },
                 onTextChanged: (v) {
-                  appState.notifPreviewText = v;
-                  if (v) appState.notifPreviewName = true;
+                  if (v) {
+                    appState.notifPreviewName = true;
+                    appState.notifPreviewText = true;
+                  } else {
+                    appState.notifPreviewText = false;
+                  }
+                  final view = (appState.notifPreviewName && appState.notifPreviewText)
+                      ? 0
+                      : appState.notifPreviewName
+                          ? 1
+                          : 2;
                   final engine = context.read<EngineService>();
-                  final view = (appState.notifPreviewName ? 1 : 0) |
-                      (appState.notifPreviewText ? 2 : 0);
                   engine.saveLocalNotifyConfig(
                     appState.activeAccountId,
                     {'type': 'notify_view', 'view': view},
@@ -550,11 +564,6 @@ class _NotificationsSettingsScreenState
             ? (v) {
                 final appState = context.read<AppState>();
                 appState.setNotifPinnedMessages(v);
-                final engine = context.read<EngineService>();
-                engine.saveLocalNotifyConfig(appState.activeAccountId, {
-                  'type': 'pinned_messages',
-                  'enabled': v,
-                });
               }
             : null,
         textColor: textColor,
@@ -960,43 +969,61 @@ class _NotificationMonitorWidgetState
 
   void _showSampleNotifications(_ScreenCorner corner) {
     _hideSampleNotifications();
-    final overlay = Overlay.of(context, rootOverlay: true);
-    final windowSize = MediaQuery.sizeOf(context);
     final count = widget.barCount;
 
-    for (var i = 0; i < count; i++) {
-      final entry = OverlayEntry(builder: (ctx) {
-        final isTop = _isTopCorner(corner);
-        final isLeft = _isLeftCorner(corner);
-        final isCenter = corner == _ScreenCorner.topCenter;
+    if (!kIsWeb && Platform.isLinux) {
+      for (var i = 0; i < count; i++) {
+        Process.run('notify-send', [
+          '--app-name=UniClient',
+          '--urgency=low',
+          '--expire-time=4000',
+          'UniClient',
+          'You have a new message',
+        ]);
+      }
+    } else if (!kIsWeb && Platform.isMacOS) {
+      for (var i = 0; i < count; i++) {
+        Process.run('osascript', [
+          '-e', 'display notification "You have a new message" with title "UniClient"',
+        ]);
+      }
+    } else {
+      final overlay = Overlay.of(context, rootOverlay: true);
+      final windowSize = MediaQuery.sizeOf(context);
+      for (var i = 0; i < count; i++) {
+        final entry = OverlayEntry(builder: (ctx) {
+          final isTop = _isTopCorner(corner);
+          final isLeft = _isLeftCorner(corner);
+          final isCenter = corner == _ScreenCorner.topCenter;
 
-        double top;
-        double left;
-        final slotOffset = (_sampleH + _sampleDeltaY) * i;
+          double top;
+          double left;
+          final slotOffset = (_sampleH + _sampleDeltaY) * i;
 
-        if (isTop) {
-          top = _sampleDeltaY + slotOffset;
-        } else {
-          top = windowSize.height - _sampleDeltaY - _sampleH - slotOffset;
-        }
-        if (isCenter) {
-          left = (windowSize.width - _sampleW) / 2;
-        } else if (isLeft) {
-          left = _sampleDeltaX;
-        } else {
-          left = windowSize.width - _sampleDeltaX - _sampleW;
-        }
+          if (isTop) {
+            top = _sampleDeltaY + slotOffset;
+          } else {
+            top = windowSize.height - _sampleDeltaY - _sampleH - slotOffset;
+          }
+          if (isCenter) {
+            left = (windowSize.width - _sampleW) / 2;
+          } else if (isLeft) {
+            left = _sampleDeltaX;
+          } else {
+            left = windowSize.width - _sampleDeltaX - _sampleW;
+          }
 
-        return Positioned(
-          top: top,
-          left: left,
-          child: IgnorePointer(
-            child: _SampleNotificationCard(isDark: widget.isDark),
-          ),
-        );
-      });
-      _sampleOverlays.add(entry);
-      overlay.insert(entry);
+          return Positioned(
+            top: top,
+            left: left,
+            child: IgnorePointer(
+              child: _SampleNotificationCard(isDark: widget.isDark),
+            ),
+          );
+        });
+        _sampleOverlays.add(entry);
+        overlay.insert(entry);
+      }
     }
   }
 
@@ -1562,7 +1589,8 @@ String _compactDuration(int seconds) {
 class _CustomTone {
   final int id;
   final String name;
-  const _CustomTone({required this.id, required this.name});
+  final String? filePath;
+  const _CustomTone({required this.id, required this.name, this.filePath});
 }
 
 class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
@@ -1575,22 +1603,12 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
   int _nextToneId = 1;
   final List<_NotifException> _exceptions = [];
   final List<int> _recentMuteDurations = [];
-  StreamSubscription<ChatInfo>? _chatUpdateSub;
 
   @override
   void initState() {
     super.initState();
     _loadExceptions();
     _loadDefaultSettings();
-    _chatUpdateSub = context.read<EngineService>().onChatUpdated.listen((_) {
-      _loadExceptions();
-    });
-  }
-
-  @override
-  void dispose() {
-    _chatUpdateSub?.cancel();
-    super.dispose();
   }
 
   void _loadDefaultSettings() async {
@@ -1635,8 +1653,9 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
           for (final tone in serverTones) {
             final id = (tone['id'] as num?)?.toInt() ?? 0;
             final name = tone['name'] as String? ?? 'Ringtone';
+            final filePath = tone['file_path'] as String?;
             if (!_customTones.any((t) => t.id == id)) {
-              _customTones.add(_CustomTone(id: id, name: name));
+              _customTones.add(_CustomTone(id: id, name: name, filePath: filePath));
             }
           }
           if (_customTones.isNotEmpty) {
@@ -1672,48 +1691,23 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     try {
       final serverExceptions = await engine.getNotificationExceptions(activeId, peerType: peerType);
       if (!mounted) return;
-      if (serverExceptions.isNotEmpty) {
-        setState(() {
-          _exceptions.clear();
-          for (final exc in serverExceptions) {
-            final peerId = exc['peer_id'];
-            _exceptions.add(_NotifException(
-              chatId: peerId != null ? peerId.toString() : '',
-              accountId: activeId,
-              name: exc['name'] as String? ?? '',
-              avatarPath: '',
-              isMuted: exc['muted'] as bool? ?? false,
-            ));
-          }
-        });
-        return;
-      }
-    } catch (_) {}
-
-    if (!mounted) return;
-    final chatState = context.read<ChatState>();
-    final allChats = chatState.chatsForAccount(activeId);
-
-    final typeFilter = switch (widget.type) {
-      _NotifType.privateChats => (ChatInfo c) => c.type == ChatType.dm,
-      _NotifType.groups => (ChatInfo c) => c.type == ChatType.group,
-      _NotifType.channels => (ChatInfo c) => c.type == ChatType.channel,
-      _ => (ChatInfo c) => false,
-    };
-
-    final mutedChats = allChats.where((c) => c.isMuted && typeFilter(c)).toList();
-    setState(() {
-      _exceptions.clear();
-      for (final chat in mutedChats) {
-        _exceptions.add(_NotifException(
-          chatId: chat.chatId,
-          accountId: chat.accountId,
-          name: chat.title,
-          avatarPath: chat.avatarPath,
-          isMuted: true,
-        ));
-      }
-    });
+      setState(() {
+        _exceptions.clear();
+        for (final exc in serverExceptions) {
+          final peerId = exc['peer_id'];
+          _exceptions.add(_NotifException(
+            chatId: peerId != null ? peerId.toString() : '',
+            accountId: activeId,
+            name: exc['name'] as String? ?? '',
+            avatarPath: '',
+            isMuted: exc['muted'] as bool? ?? false,
+          ));
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _exceptions.clear());
+    }
   }
 
   void _persistEnabledState(bool enabled) {
@@ -1742,11 +1736,6 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       _ => '',
     };
     if (peerType.isNotEmpty) {
-      if (soundEnabled) {
-        engine.muteDefaultNotifyForDuration(accountId, peerType: peerType, seconds: 0);
-      } else {
-        engine.muteDefaultNotifyForDuration(accountId, peerType: peerType, seconds: 2147483647);
-      }
       engine.updateDefaultNotifySettings(accountId, peerType: peerType, enabled: _enabled, soundEnabled: soundEnabled);
     }
   }
@@ -2405,26 +2394,30 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
 
     final items = <TelegramMenuItem<String>>[
       const TelegramMenuItem<String>(
-        value: 'select_tone',
-        icon: Icon(Icons.music_note, size: 20),
-        label: 'Select tone',
+        value: 'mute_1h',
+        icon: Icon(Icons.access_time, size: 20),
+        label: 'Mute for 1 hour',
       ),
-      TelegramMenuItem<String>(
-        value: 'toggle_sound',
-        icon: Icon(
-            _soundEnabled ? Icons.volume_off : Icons.volume_up,
-            size: 20),
-        label: _soundEnabled ? 'Disable sound' : 'Enable sound',
+      const TelegramMenuItem<String>(
+        value: 'mute_4h',
+        icon: Icon(Icons.access_time, size: 20),
+        label: 'Mute for 4 hours',
       ),
-      if (_recentMuteDurations.isNotEmpty) ...[
-        const TelegramMenuItem<String>.separator(),
-        for (final dur in _recentMuteDurations)
-          TelegramMenuItem<String>(
-            value: 'recent_$dur',
-            icon: const Icon(Icons.access_time, size: 20),
-            label: 'Mute for ${_compactDuration(dur)}',
-          ),
-      ],
+      const TelegramMenuItem<String>(
+        value: 'mute_8h',
+        icon: Icon(Icons.access_time, size: 20),
+        label: 'Mute for 8 hours',
+      ),
+      const TelegramMenuItem<String>(
+        value: 'mute_1d',
+        icon: Icon(Icons.access_time, size: 20),
+        label: 'Mute for 1 day',
+      ),
+      const TelegramMenuItem<String>(
+        value: 'mute_3d',
+        icon: Icon(Icons.access_time, size: 20),
+        label: 'Mute for 3 days',
+      ),
       const TelegramMenuItem<String>.separator(),
       const TelegramMenuItem<String>(
         value: 'mute_for',
@@ -2455,19 +2448,21 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       items: items,
     ).then((value) {
       if (value == null) return;
-      if (value == 'select_tone') {
-        _showRingtonesBox(context);
-      } else if (value == 'toggle_sound') {
-        final newSound = !_soundEnabled;
-        setState(() => _soundEnabled = newSound);
-        _persistSoundState(newSound);
-      } else if (value.startsWith('recent_')) {
-        final seconds = int.tryParse(value.substring(7));
-        if (seconds != null) {
-          _addRecentDuration(seconds);
-          setState(() => _enabled = false);
-          _muteForDuration(seconds);
-        }
+      if (value == 'mute_1h') {
+        setState(() => _enabled = false);
+        _muteForDuration(3600);
+      } else if (value == 'mute_4h') {
+        setState(() => _enabled = false);
+        _muteForDuration(14400);
+      } else if (value == 'mute_8h') {
+        setState(() => _enabled = false);
+        _muteForDuration(28800);
+      } else if (value == 'mute_1d') {
+        setState(() => _enabled = false);
+        _muteForDuration(86400);
+      } else if (value == 'mute_3d') {
+        setState(() => _enabled = false);
+        _muteForDuration(259200);
       } else if (value == 'mute_for') {
         _showMuteDurationPicker(context);
       } else if (value == 'mute_forever') {
@@ -3123,7 +3118,7 @@ class _SplitToggleRow extends StatelessWidget {
             child: InkWell(
               hoverColor: hoverBg,
               splashColor: hoverBg.withValues(alpha: 0.5),
-              onTap: onTap ?? () {},
+              onTap: onTap,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 0, 0),
                 child: Row(
@@ -3206,7 +3201,7 @@ class _ReactionsSubPage extends StatefulWidget {
 class _ReactionsSubPageState extends State<_ReactionsSubPage> {
   _ReactionsFrom _reactionsFrom = _ReactionsFrom.everyone;
   _ReactionsFrom _pollVotesFrom = _ReactionsFrom.everyone;
-  bool _showSenderName = true;
+  bool _showPreviews = true;
   bool _loaded = false;
 
   @override
@@ -3235,7 +3230,7 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
           final pollVotesEnabled = settings['poll_votes_enabled'] as bool? ?? true;
           _pollVotesFrom = _parseReactionsFrom(settings['poll_votes_from'] as String?);
           if (!pollVotesEnabled) _pollVotesFrom = _ReactionsFrom.none;
-          _showSenderName = settings['show_sender_name'] as bool? ?? true;
+          _showPreviews = settings['show_previews'] as bool? ?? true;
         });
       }
     } catch (_) {
@@ -3277,7 +3272,7 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
       reactionsFrom: _reactionsFromToString(reactionsEnabled ? _reactionsFrom : _ReactionsFrom.everyone),
       pollVotesEnabled: pollVotesEnabled,
       pollVotesFrom: _reactionsFromToString(pollVotesEnabled ? _pollVotesFrom : _ReactionsFrom.everyone),
-      showSenderName: _showSenderName,
+      showPreviews: _showPreviews,
     );
   }
 
@@ -3294,10 +3289,14 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
     final accentColor =
         context.palette.windowBgActive;
 
+    final initialSelected = current == _ReactionsFrom.none
+        ? _ReactionsFrom.everyone
+        : current;
+
     showDialog<_ReactionsFrom>(
       context: context,
       builder: (ctx) {
-        var selected = current;
+        var selected = initialSelected;
         return StatefulBuilder(
           builder: (stateCtx, setDialogState) {
             return AlertDialog(
@@ -3328,6 +3327,16 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
                     title: Text('From my contacts',
                         style: TextStyle(color: textColor, fontSize: 14)),
                     value: _ReactionsFrom.contacts,
+                    groupValue: selected,
+                    activeColor: accentColor,
+                    onChanged: (v) {
+                      setDialogState(() => selected = v!);
+                    },
+                  ),
+                  RadioListTile<_ReactionsFrom>(
+                    title: Text('Nobody',
+                        style: TextStyle(color: textColor, fontSize: 14)),
+                    value: _ReactionsFrom.none,
                     groupValue: selected,
                     activeColor: accentColor,
                     onChanged: (v) {
@@ -3495,10 +3504,10 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
           _NotifIconToggleRow(
             icon: Icons.person,
             iconColor: iconColor,
-            label: 'Show sender\'s name',
-            value: _showSenderName,
+            label: 'Show previews',
+            value: _showPreviews,
             onChanged: (v) {
-              setState(() => _showSenderName = v);
+              setState(() => _showPreviews = v);
               _persistSettings();
             },
             textColor: textColor,
@@ -3550,9 +3559,9 @@ class _NotificationPreview extends StatelessWidget {
     final borderColor =
         isDark ? const Color(0xFF2E3A47) : const Color(0xFFD5D5D5);
 
-    final displayTitle = showName ? 'Dino Rex' : 'UniClient';
+    final displayTitle = showName ? 'UniClient' : 'UniClient';
     final displayText =
-        showText ? 'It\'s morning in Tokyo \u{1F60E}' : 'You have a new message';
+        showText ? 'You have a new message' : 'You have a new message';
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
@@ -4012,6 +4021,7 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
   late List<_CustomTone> _tones;
   late int _volume;
   int _nextId = 1;
+  Player? _previewPlayer;
 
   @override
   void initState() {
@@ -4023,6 +4033,34 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
       _nextId = _tones.fold<int>(0, (m, t) => t.id > m ? t.id : m) + 1;
     }
     _loadServerRingtones();
+  }
+
+  @override
+  void dispose() {
+    _previewPlayer?.dispose();
+    super.dispose();
+  }
+
+  void _playPreview(int toneId) {
+    if (toneId == _kNoSoundValue) return;
+    final vol = (_volume.clamp(0, 100)).toDouble();
+    if (toneId == _kDefaultValue) {
+      final defaultPath = '${Directory.systemTemp.path}/uniclient_msg_incoming.wav';
+      if (File(defaultPath).existsSync()) {
+        _previewPlayer ??= Player();
+        _previewPlayer!.setVolume(vol);
+        _previewPlayer!.open(Media(defaultPath));
+      }
+      return;
+    }
+    final tone = _tones.where((t) => t.id == toneId);
+    if (tone.isEmpty) return;
+    final filePath = tone.first.filePath;
+    if (filePath != null && File(filePath).existsSync()) {
+      _previewPlayer ??= Player();
+      _previewPlayer!.setVolume(vol);
+      _previewPlayer!.open(Media(filePath));
+    }
   }
 
   void _loadServerRingtones() async {
@@ -4037,8 +4075,9 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
           for (final tone in serverTones) {
             final id = (tone['id'] as num?)?.toInt() ?? 0;
             final name = tone['name'] as String? ?? 'Ringtone';
+            final filePath = tone['file_path'] as String?;
             if (!_tones.any((t) => t.id == id)) {
-              _tones.add(_CustomTone(id: id, name: name));
+              _tones.add(_CustomTone(id: id, name: name, filePath: filePath));
             }
           }
           if (_tones.isNotEmpty) {
@@ -4219,7 +4258,10 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
         }
       },
       child: InkWell(
-        onTap: () => setState(() => _selectedId = value),
+        onTap: () {
+          setState(() => _selectedId = value);
+          _playPreview(value);
+        },
         hoverColor: _hoverBg,
         splashColor: _hoverBg.withValues(alpha: 0.5),
         child: Padding(
