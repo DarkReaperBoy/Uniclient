@@ -379,6 +379,7 @@ class _MessageBubbleState extends State<MessageBubble> {
       ));
     } else {
       final showSec = context.read<AppState>().showMessageSeconds;
+      final use24h = MediaQuery.of(context).alwaysUse24HourFormat;
       for (final reactor in filtered) {
         final hasDate = reactor.date > 0;
         items.add(PopupMenuItem<String>(
@@ -412,7 +413,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                             const SizedBox(width: 3),
                             Expanded(
                               child: Text(
-                                formatReadDateLocal(reactor.date, showSeconds: showSec),
+                                formatReadDateLocal(reactor.date, showSeconds: showSec, use24HourFormat: use24h),
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
                                 style: TextStyle(fontSize: 12, color: subColor),

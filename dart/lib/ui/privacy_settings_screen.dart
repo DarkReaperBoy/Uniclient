@@ -1225,7 +1225,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     Color hoverBg,
   ) {
     final appState = context.watch<AppState>();
-    if (appState.noWarningExtensions.isEmpty && appState.showIpInWebRtcCalls) {
+    if (appState.noWarningExtensions.isEmpty && !appState.showIpInWebRtcCalls) {
       return [];
     }
     return [
@@ -1351,7 +1351,46 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   }
 
   void _showChangeLoginEmailDialog() {
-    _openTwoStepVerification();
+    if (_hasPassword == null) return;
+
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+
+    if (_unconfirmedEmail.isNotEmpty) {
+      Navigator.of(context).push(settingsPageRoute(
+        _CloudPasswordEmailConfirm(
+          accountId: accountId,
+          engine: engine,
+          emailPattern: _unconfirmedEmail,
+          onDone: () {
+            _fetchPasswordState();
+            Navigator.of(context).pop();
+          },
+        ),
+      ));
+    } else if (_hasPassword == true) {
+      Navigator.of(context).push(settingsPageRoute(
+        _CloudPasswordInput(
+          accountId: accountId,
+          engine: engine,
+          mode: _CloudPasswordMode.check,
+          hint: _hint,
+          hasRecovery: _hasRecovery,
+          pendingResetDate: _pendingResetDate,
+          onSuccess: () => _fetchPasswordState(),
+          navigateToLoginEmail: true,
+        ),
+      ));
+    } else {
+      Navigator.of(context).push(settingsPageRoute(
+        CloudPasswordStart(
+          accountId: accountId,
+          engine: engine,
+          onPasswordSet: () => _fetchPasswordState(),
+        ),
+      ));
+    }
   }
 
   void _toggleTopPeers(bool newVal) {
@@ -3275,6 +3314,7 @@ class _CloudPasswordInput extends StatefulWidget {
   final VoidCallback onSuccess;
   final String? currentPassword;
   final String? recoveryCode;
+  final bool navigateToLoginEmail;
 
   const _CloudPasswordInput({
     required this.accountId,
@@ -3286,6 +3326,7 @@ class _CloudPasswordInput extends StatefulWidget {
     required this.onSuccess,
     this.currentPassword,
     this.recoveryCode,
+    this.navigateToLoginEmail = false,
   });
 
   @override
@@ -3409,16 +3450,30 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
         try { await widget.engine.cancelResetPassword(widget.accountId); } catch (_) {}
       }
       setState(() => _loading = false);
-      Navigator.of(context).pushReplacement(settingsPageRoute(
-        _CloudPasswordDone(
-          accountId: widget.accountId,
-          engine: widget.engine,
-          message: 'Password confirmed!',
-          currentPassword: password,
-          onDone: widget.onSuccess,
-          navigateToManage: true,
-        ),
-      ));
+      if (widget.navigateToLoginEmail) {
+        Navigator.of(context).pushReplacement(settingsPageRoute(
+          _CloudPasswordEmail(
+            accountId: widget.accountId,
+            engine: widget.engine,
+            newPassword: '',
+            currentPassword: password,
+            hint: '',
+            emailOnly: true,
+            onSuccess: widget.onSuccess,
+          ),
+        ));
+      } else {
+        Navigator.of(context).pushReplacement(settingsPageRoute(
+          _CloudPasswordDone(
+            accountId: widget.accountId,
+            engine: widget.engine,
+            message: 'Password confirmed!',
+            currentPassword: password,
+            onDone: widget.onSuccess,
+            navigateToManage: true,
+          ),
+        ));
+      }
     } catch (e) {
       if (!mounted) return;
       final errMsg = e.toString();

@@ -388,6 +388,9 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
         _loading = false;
       });
       _invalidateCachedReactorData();
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
       return;
     }
 
@@ -672,7 +675,7 @@ class _ReactionTabBar extends StatelessWidget {
               onTap: () => onTabSelected(kReadTab),
             ),
           _TabPill(
-            iconData: Icons.favorite,
+            iconData: Icons.auto_awesome,
             label: _formatCountDecimal(totalCount),
             isSelected: selectedTab == null,
             palette: palette,
@@ -865,7 +868,8 @@ class _ReactorRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasReactionVisual = showEmoji && (reactor.emoji.isNotEmpty || reactor.isCustomEmoji);
-    final dateStr = reactor.date > 0 ? formatReadDateLocal(reactor.date) : '';
+    final use24h = MediaQuery.of(context).alwaysUse24HourFormat;
+    final dateStr = reactor.date > 0 ? formatReadDateLocal(reactor.date, use24HourFormat: use24h) : '';
 
     return InkWell(
       onTap: onTap,
@@ -959,7 +963,8 @@ class _ReadParticipantRow extends StatelessWidget {
     final name = participant.name.isNotEmpty ? participant.name : 'User ${participant.userId}';
     final hasDate = participant.date > 0;
     final showSec = context.read<AppState>().showMessageSeconds;
-    final dateStr = formatReadDateLocal(participant.date, showSeconds: showSec);
+    final use24h = MediaQuery.of(context).alwaysUse24HourFormat;
+    final dateStr = formatReadDateLocal(participant.date, showSeconds: showSec, use24HourFormat: use24h);
 
     return InkWell(
       onTap: onTap,
@@ -1021,13 +1026,22 @@ class _ReadParticipantRow extends StatelessWidget {
   }
 }
 
-String formatReadDateLocal(int unixSeconds, {bool showSeconds = false}) {
+String formatReadDateLocal(int unixSeconds, {bool showSeconds = false, bool use24HourFormat = true}) {
   if (unixSeconds <= 0) return '';
   final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
   final now = DateTime.now();
-  final time = showSeconds
-      ? '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}'
-      : '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  String time;
+  if (use24HourFormat) {
+    time = showSeconds
+        ? '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}'
+        : '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  } else {
+    final hour12 = dt.hour == 0 ? 12 : (dt.hour > 12 ? dt.hour - 12 : dt.hour);
+    final amPm = dt.hour < 12 ? 'AM' : 'PM';
+    time = showSeconds
+        ? '$hour12:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')} $amPm'
+        : '$hour12:${dt.minute.toString().padLeft(2, '0')} $amPm';
+  }
   if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
     return 'Today, $time';
   }
