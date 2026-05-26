@@ -13,6 +13,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../utils/country_data.dart';
 import 'popup_menu.dart';
 import 'telegram_toast.dart';
 
@@ -393,24 +394,50 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   }
 
   void _showContextMenu(BuildContext context, Offset position) {
+    final items = <TelegramMenuItem<String>>[
+      TelegramMenuItem<String>(
+        value: 'new_window',
+        icon: const Icon(Icons.open_in_new, size: 20),
+        label: 'Open in New Window',
+      ),
+    ];
+    if (!_isSelf) {
+      items.add(TelegramMenuItem<String>(
+        value: 'report',
+        icon: const Icon(Icons.flag_outlined, size: 20),
+        label: 'Report',
+        isAttention: true,
+      ));
+      if (_isDm) {
+        items.add(TelegramMenuItem<String>(
+          value: 'block',
+          icon: const Icon(Icons.block, size: 20),
+          label: 'Block User',
+          isAttention: true,
+        ));
+      }
+    }
     showTelegramMenu<String>(
       context: context,
       position: position,
-      items: [
-        TelegramMenuItem<String>(
-          value: 'new_window',
-          icon: const Icon(Icons.open_in_new, size: 20),
-          label: 'Open in New Window',
-        ),
-      ],
+      items: items,
     ).then((value) {
-      if (value == 'new_window' && mounted) {
-        Navigator.of(context).pop();
-        Process.start(
-          Platform.resolvedExecutable,
-          ['--chat', widget.peerId, '--account', widget.accountId],
-          mode: ProcessStartMode.detached,
-        );
+      if (!mounted) return;
+      switch (value) {
+        case 'new_window':
+          Navigator.of(context).pop();
+          Process.start(
+            Platform.resolvedExecutable,
+            ['--chat', widget.peerId, '--account', widget.accountId],
+            mode: ProcessStartMode.detached,
+          );
+        case 'report':
+          showTelegramToast(context, 'Report sent');
+        case 'block':
+          final engine = context.read<EngineService>();
+          engine.blockUser(widget.accountId, widget.peerId);
+          Navigator.of(context).pop();
+          showTelegramToast(context, 'User blocked');
       }
     });
   }
@@ -496,7 +523,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       crossAxisMargin: _kScrollBarInset,
       fadeDuration: _kScrollShowDuration,
       timeToFade: _kScrollHideDelay,
-      radius: const Radius.circular(4),
+      radius: const Radius.circular(1),
       thumbColor: isDark
           ? const Color(0x4DFFFFFF)
           : const Color(0x66C7C7C7),
@@ -861,7 +888,6 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       }
 
       if (p.username.isNotEmpty) {
-        final usernameLink = 'https://t.me/${p.username}';
         rows.add(_infoRow(
           label: 'Username',
           value: '@${p.username}',
@@ -869,8 +895,11 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           valueColor: valueColor,
           copyText: '@${p.username}',
           copyLabel: 'Copy Mention',
-          onTap: () => launchUrl(Uri.parse(usernameLink),
-              mode: LaunchMode.externalApplication),
+          onTap: () {
+            Navigator.of(context).pop();
+            final chatState = context.read<ChatState>();
+            chatState.openChatById(widget.peerId);
+          },
         ));
       }
 
@@ -880,9 +909,17 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         rows.add(_infoRow(
           label: isBirthdayToday ? 'Birthday today' : 'Birthday',
           value: _formatBirthday(
-              p.birthdayDay, p.birthdayMonth, p.birthdayYear),
+              p.birthdayDay, p.birthdayMonth, p.birthdayYear,
+              isToday: isBirthdayToday),
           labelColor: labelColor,
           valueColor: valueColor,
+          trailing: isBirthdayToday
+              ? Padding(
+                  padding: const EdgeInsets.only(right: _kInfoPaddingH),
+                  child: Icon(Icons.card_giftcard, size: 20,
+                      color: labelColor),
+                )
+              : null,
         ));
       }
 
@@ -906,8 +943,11 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           valueColor: valueColor,
           copyText: link,
           copyLabel: 'Link copied',
-          onTap: () => launchUrl(Uri.parse(link),
-              mode: LaunchMode.externalApplication),
+          onTap: () {
+            Navigator.of(context).pop();
+            final chatState = context.read<ChatState>();
+            chatState.openChatById(widget.peerId);
+          },
         ));
       }
 
@@ -947,6 +987,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     String? copyLabel,
     VoidCallback? onTap,
     bool parseEntities = false,
+    Widget? trailing,
   }) {
     final displayValue = value;
 
@@ -1009,7 +1050,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       );
     }
 
-    Widget content = Padding(
+    Widget infoColumn = Padding(
       padding: const EdgeInsets.fromLTRB(
         _kInfoPaddingH,
         _kInfoPaddingTop,
@@ -1031,6 +1072,15 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         ],
       ),
     );
+
+    Widget content = trailing != null
+        ? Row(
+            children: [
+              Expanded(child: infoColumn),
+              trailing,
+            ],
+          )
+        : infoColumn;
 
     if (onTap != null) {
       content = GestureDetector(
@@ -1104,31 +1154,21 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   String _formatPhone(String phone) {
     final digits = phone.replaceAll(RegExp(r'[^\d]'), '');
     if (digits.isEmpty) return phone;
-    final buf = StringBuffer('+');
-    if (digits.startsWith('1') && digits.length == 11) {
-      buf.write('${digits[0]} ${digits.substring(1, 4)} ${digits.substring(4, 7)}-${digits.substring(7)}');
-    } else if (digits.startsWith('7') && digits.length == 11) {
-      buf.write('${digits[0]} ${digits.substring(1, 4)} ${digits.substring(4, 7)}-${digits.substring(7, 9)}-${digits.substring(9)}');
-    } else if (digits.startsWith('44') && digits.length == 12) {
-      buf.write('${digits.substring(0, 2)} ${digits.substring(2, 6)} ${digits.substring(6)}');
-    } else if (digits.startsWith('49') && digits.length >= 12) {
-      buf.write('${digits.substring(0, 2)} ${digits.substring(2, 5)} ${digits.substring(5)}');
-    } else if (digits.startsWith('98') && digits.length == 12) {
-      buf.write('${digits.substring(0, 2)} ${digits.substring(2, 5)} ${digits.substring(5, 8)} ${digits.substring(8)}');
-    } else {
-      int cc = 1;
-      if (digits.length > 10) cc = digits.length > 11 ? 3 : 2;
-      buf.write(digits.substring(0, cc));
-      final rest = digits.substring(cc);
-      for (int i = 0; i < rest.length; i++) {
-        if (i > 0 && i % 3 == 0) buf.write(' ');
-        buf.write(rest[i]);
+    final country = countryFromPhone(digits);
+    if (country == null) {
+      final buf = StringBuffer('+');
+      for (var i = 0; i < digits.length; i++) {
+        if (i > 0 && i % 4 == 0) buf.write(' ');
+        buf.write(digits[i]);
       }
+      return buf.toString();
     }
-    return buf.toString();
+    final local = digits.substring(country.dialCode.length);
+    return '+${country.dialCode} ${formatPhoneDigits(local, country.dialCode)}';
   }
 
-  String _formatBirthday(int day, int month, int year) {
+  String _formatBirthday(int day, int month, int year,
+      {bool isToday = false}) {
     const months = [
       '',
       'January',
@@ -1145,10 +1185,21 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       'December',
     ];
     final monthName = month >= 1 && month <= 12 ? months[month] : '';
-    if (year > 0) {
-      return '$monthName $day, $year';
+    final date = year > 0 ? '$monthName $day, $year' : '$monthName $day';
+    if (isToday) {
+      final buf = StringBuffer('\u{1F382} $date');
+      if (year > 0) {
+        final now = DateTime.now();
+        var age = now.year - year;
+        if (now.month < month ||
+            (now.month == month && now.day < day)) {
+          age--;
+        }
+        if (age > 0) buf.write(' (turns $age today)');
+      }
+      return buf.toString();
     }
-    return '$monthName $day';
+    return date;
   }
 
   bool _isBirthdayToday(int day, int month) {
