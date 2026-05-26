@@ -862,9 +862,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 # main — Audit findings
 
 
-## main — PasscodeLockScreen logout confirmation uses wrong overlay mechanism
-
-- [ ] [MAJOR] Logout confirmation is implemented as an in-screen `Positioned.fill` overlay with a custom `Material` card managed by `_showLogoutConfirm` state. AyuGram calls `Controller::showLogoutConfirmation()` which shows a `Ui::MakeConfirmBox` — a proper layer-system modal box rendered above all content, using `st::attentionBoxButton` for the confirm button style. The Dart implementation bypasses the box layer system entirely. — `main.dart:2839-2893` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_controller.cpp:548-569`
 
 # stats_chart — Audit findings
 
