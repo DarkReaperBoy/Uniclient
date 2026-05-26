@@ -829,7 +829,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 ## my_profile_page — Critical and major issues
 
-- [ ] [MAJOR] Bio emoji autocomplete is a custom in-panel implementation instead of `Ui::Emoji::SuggestionsController` — AyuGram uses `SuggestionsController::Init(container->window(), bio, &self->session())` which provides the full system emoji/custom-emoji popup; Dart builds its own `:query` triggered horizontal panel that only searches `EmojiEntry` (Unicode only, no custom emoji) — `my_profile_page.dart:700-870` ← `AyuGram/settings/sections/settings_information.cpp:744-748`
 
 
 # notification_popup — Desktop notification popup widget
@@ -837,7 +836,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 # notifications_settings_screen — Audit findings
 
 
-- [ ] [MAJOR] `_NotificationTypeSubPage` exceptions list has no real-time update subscription to `session.data().notifySettings().exceptionsUpdates()` — it subscribes to `EngineService.onChatUpdated` which is a general chat-info stream, not a targeted notification-settings change event. Exceptions changed from another device won't trigger a refresh until a broader chat update occurs — `notifications_settings_screen.dart:1585-1587` ← `settings_notifications_type.cpp:216-219`
 
 # payment_panel — Audit Findings
 
