@@ -839,10 +839,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 # payment_panel — Audit Findings
 
-## payment_panel — SmartGlocal URL validation
-
-- [ ] [CRITICAL] SmartGlocal `tokenizeUrl` validation is completely wrong — Dart checks `tokenizeUrl.endsWith('/')` (line 1670) and accepts any non-empty URL verbatim, meaning a malicious bot could set `tokenize_url` to an arbitrary host and receive raw card details. AyuGram validates `url.startsWith("https://") && url.endsWith(".smart-glocal.com/cds/v1/tokenize/card")` and falls back to the default URL if it fails. — `payment_panel.dart:1669` ← `AyuGram/payments/smartglocal/smartglocal_api_client.cpp:49`
-
 ## payment_panel — Stripe User-Agent header
 
 - [ ] [CRITICAL] `X-Stripe-User-Agent` header is sent as `{"lang":"dart","publisher":"anthropic"}` (line 1632), which exposes the app as Anthropic-built to Stripe's servers. AyuGram sends `{"lang":"objective-c","bindings_version":"9.1.0"}`, which is the expected client identity. The `"publisher":"anthropic"` tag is not a real Stripe SDK field and will cause Stripe to mis-identify the client. — `payment_panel.dart:1632` ← `AyuGram/payments/stripe/stripe_api_client.cpp:41`
