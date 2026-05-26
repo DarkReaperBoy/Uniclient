@@ -1606,11 +1606,29 @@ class _ChartAreaPainter extends CustomPainter {
   }
 
   TextPainter _cachedTP(String text, TextStyle style) {
-    final key = '$text|${style.fontSize}|${style.color?.value}';
-    return textCache.putIfAbsent(key, () => TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: TextDirection.ltr,
-    )..layout());
+    final key = '$text|${style.fontSize}';
+    var tp = textCache[key];
+    if (tp == null) {
+      tp = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      textCache[key] = tp;
+      if (textCache.length > 200) {
+        final excess = textCache.keys.take(textCache.length - 150).toList();
+        for (final k in excess) {
+          textCache[k]?.dispose();
+          textCache.remove(k);
+        }
+      }
+    } else {
+      final span = tp.text as TextSpan;
+      if (span.style?.color != style.color) {
+        tp.text = TextSpan(text: text, style: style);
+        tp.layout();
+      }
+    }
+    return tp;
   }
 
   static int _computeRulerLineCount(double mn, double mx) {
@@ -1632,6 +1650,13 @@ class _ChartAreaPainter extends CustomPainter {
   static double _roundRuler(double maxValue) {
     final k = (maxValue / 5).toInt();
     return (k % 10 == 0) ? maxValue : (((maxValue ~/ 10) + 1) * 10).toDouble();
+  }
+
+  static double _computeRulerStep(double mn, double mx) {
+    final range = (mx - mn).abs();
+    if (range == 0) return 1;
+    final v = range > 100 ? _roundRuler(range) : range;
+    return math.max(1.0, (v / 5).ceilToDouble());
   }
 
   double _dataXToPixel(int i, int n, double width) {
@@ -1709,16 +1734,18 @@ class _ChartAreaPainter extends CustomPainter {
     final rightLabelColor = rightColor?.withValues(alpha: alpha) ?? defaultLabelColor;
 
     final rulerCount = _computeRulerLineCount(mn, mx);
-    for (int i = 0; i <= rulerCount; i++) {
-      final y = top + chartH * (1 - i / rulerCount);
+    final step = _computeRulerStep(mn, mx);
+    for (int i = 0; i < rulerCount; i++) {
+      final frac = rulerCount > 1 ? i / (rulerCount - 1) : 0.0;
+      final y = top + chartH * (1 - frac);
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-      final val = mn + (mx - mn) * i / rulerCount;
+      final val = mn + i * step;
       final tp = _cachedTP(
           _formatShort(val), TextStyle(fontSize: 10, color: leftLabelColor));
       tp.paint(canvas, Offset(0, y - tp.height - 4));
 
       if (rightMn != null && rightMx != null) {
-        final rVal = rightMn + (rightMx - rightMn) * i / rulerCount;
+        final rVal = rightMn + (rightMx - rightMn) * frac;
         final rTp = _cachedTP(
             _formatShort(rVal), TextStyle(fontSize: 10, color: rightLabelColor));
         rTp.paint(canvas, Offset(size.width - rTp.width, y - rTp.height - 4));
@@ -1920,13 +1947,13 @@ class _ChartAreaPainter extends CustomPainter {
     final span = rangeEnd - rangeStart;
     if (span <= 0) return;
 
-    final visibleN = (span * n).ceil().clamp(1, n);
-    final groupWidth = size.width / visibleN;
-    final barWidth = (groupWidth * 0.7) / rLines.length.clamp(1, 999);
-
-    double maxVal = 0;
     final si = (rangeStart * (n - 1)).floor().clamp(0, n - 1);
     final ei = (rangeEnd * (n - 1)).ceil().clamp(0, n - 1);
+    final visibleCount = ei - si + 1;
+    if (visibleCount <= 0) return;
+    final colW = size.width / visibleCount;
+
+    double maxVal = 0;
     for (final l in visLines) {
       for (int i = si; i <= ei && i < l.values.length; i++) {
         if (l.values[i] > maxVal) maxVal = l.values[i];
@@ -1937,24 +1964,32 @@ class _ChartAreaPainter extends CustomPainter {
     final renderMax = animatedYMx > 0 ? animatedYMx : maxVal;
     _paintRulers(canvas, size, topPad, chartH, 0, maxVal);
 
-    for (int i = 0; i < n; i++) {
-      final cx = _dataXToPixel(i, n, size.width);
-      final groupX = cx - groupWidth / 2 + groupWidth * 0.15;
-      for (int li = 0; li < rLines.length; li++) {
-        final (line, lineAlpha) = rLines[li];
-        if (i >= line.values.length) continue;
-        final val = line.values[i];
-        final barH = (val / renderMax) * chartH;
-        final x = groupX + barWidth * li;
-        final rect =
-            Rect.fromLTWH(x, topPad + chartH - barH, barWidth, barH);
-        final selAlpha =
-            (selectedIndex != null && selectedIndex != i) ? 0.4 : 1.0;
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(rect, const Radius.circular(2)),
+    for (final (line, lineAlpha) in rLines) {
+      final path = Path();
+      var started = false;
+      for (int x = si; x <= ei; x++) {
+        if (x >= line.values.length) continue;
+        final yPct = line.values[x] / renderMax;
+        final yPoint = yPct * chartH * lineAlpha;
+        final colIdx = x - si;
+        final colLeft = colIdx * colW;
+        final colTop = topPad + chartH - yPoint;
+
+        if (!started) {
+          path.moveTo(colLeft, colTop);
+          started = true;
+        } else {
+          path.lineTo(colLeft, colTop);
+        }
+        path.lineTo(x == ei ? size.width : colLeft + colW, colTop);
+      }
+      if (started) {
+        canvas.drawPath(
+          path,
           Paint()
-            ..color =
-                _resolveLineColor(line).withValues(alpha: selAlpha * lineAlpha),
+            ..color = _resolveLineColor(line).withValues(alpha: lineAlpha)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.0,
         );
       }
     }
