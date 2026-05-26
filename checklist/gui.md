@@ -953,10 +953,6 @@ All issues resolved.
 
 ## MessageReaction vs Data::MessageReaction
 
-- [ ] [MAJOR] `MessageReaction` named field `byMe` should map to C++ `my` — naming divergence is fine as long as the Go bridge uses `by_me`, but `RecentReaction.my` is a separate field and is NOT surfaced in Dart at all; there is no way to identify if the per-user reaction is unread — `engine_models.dart:1293` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_message_reactions.h:377-385` (`RecentReaction.unread`, `RecentReaction.big`, `RecentReaction.my`)
-
-- [ ] [MAJOR] `MessageReaction` missing paid-reaction top-paid-peer data (`topPaid` list showing who sent the most paid reactions) — `engine_models.dart:1293` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_message_reactions.h:388-397` (`MessageReactionsTopPaid: peer, count, top, my`)
-
 ## GroupCallParticipant vs Data::GroupCallParticipant
 
 - [ ] [MAJOR] `GroupCallParticipant` uses `hasVideo: bool` but AyuGram tracks `videoJoined` (boolean) and a full `videoParams` struct with camera/screen endpoint details and pause state — `engine_models.dart:2310` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:54` (`GroupCallParticipant.videoJoined = false`)
