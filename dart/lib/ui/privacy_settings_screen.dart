@@ -14,7 +14,7 @@ import 'package:provider/provider.dart';
 import '../utils/system_unlock.dart';
 
 import '../bridge/engine_service.dart';
-import '../models/engine_models.dart' show ChatType;
+import '../models/engine_models.dart' show ChatInfo, ChatType;
 import '../state/app_state.dart';
 import 'active_sessions_screen.dart';
 import 'settings_style.dart';
@@ -327,21 +327,47 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     final s = _privacySettings[key];
     if (s == null) return '...';
     final option = s['option'] as String? ?? 'everyone';
-    final alwaysUsers = (s['always_users'] as List?)?.length ?? 0;
-    final neverUsers = (s['never_users'] as List?)?.length ?? 0;
-    final alwaysChats = (s['always_chats'] as List?)?.length ?? 0;
-    final neverChats = (s['never_chats'] as List?)?.length ?? 0;
+    final alwaysUsers = (s['always_users'] as List?) ?? [];
+    final neverUsers = (s['never_users'] as List?) ?? [];
+    final alwaysChats = (s['always_chats'] as List?) ?? [];
+    final neverChats = (s['never_chats'] as List?) ?? [];
     final allowPremium = s['allow_premium'] as bool? ?? false;
-    final alwaysCount = alwaysUsers + alwaysChats + (allowPremium ? 1 : 0);
-    final neverCount = neverUsers + neverChats;
+    final alwaysMiniapps = s['always_miniapps'] as bool? ?? false;
+    final neverMiniapps = s['never_miniapps'] as bool? ?? false;
+
+    final alwaysChatMembers = alwaysChats.fold<int>(0, (sum, chat) {
+      if (chat is Map) return sum + (chat['member_count'] as int? ?? 1);
+      return sum + 1;
+    });
+    final neverChatMembers = neverChats.fold<int>(0, (sum, chat) {
+      if (chat is Map) return sum + (chat['member_count'] as int? ?? 1);
+      return sum + 1;
+    });
+    final alwaysCount = alwaysUsers.length + alwaysChatMembers + (allowPremium ? 1 : 0);
+    final neverCount = neverUsers.length + neverChatMembers;
 
     String base;
-    switch (option) {
-      case 'everyone': base = 'Everyone'; break;
-      case 'contacts': base = 'My Contacts'; break;
-      case 'close_friends': base = 'Close Friends'; break;
-      case 'nobody': base = 'Nobody'; break;
-      default: base = option;
+    if (key == 'calls_p2p') {
+      switch (option) {
+        case 'everyone': base = 'Everybody'; break;
+        case 'contacts': base = 'My contacts'; break;
+        case 'nobody': base = 'Nobody'; break;
+        default: base = option;
+      }
+    } else {
+      switch (option) {
+        case 'everyone':
+          base = neverMiniapps ? 'Not Mini Apps' : 'Everyone';
+          break;
+        case 'contacts':
+          base = allowPremium ? 'Contacts & Premium' : alwaysMiniapps ? 'Contacts & Mini Apps' : 'My Contacts';
+          break;
+        case 'close_friends': base = 'Close Friends'; break;
+        case 'nobody':
+          base = allowPremium ? 'Premium' : alwaysMiniapps ? 'Mini Apps' : 'Nobody';
+          break;
+        default: base = option;
+      }
     }
     if (alwaysCount > 0 && neverCount > 0) {
       return '$base (+$alwaysCount, -$neverCount)';
@@ -942,19 +968,34 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     Color accentColor,
     Color hoverBg,
   ) {
-    const privacyItems = <Map<String, dynamic>>[
+    const privacyItemsBefore = <Map<String, dynamic>>[
       {'key': 'phone_number', 'label': 'Phone Number', 'options': ['everyone', 'contacts', 'nobody']},
       {'key': 'last_seen', 'label': 'Last Seen & Online', 'options': ['everyone', 'contacts', 'close_friends', 'nobody']},
       {'key': 'profile_photo', 'label': 'Profile Photo', 'options': ['everyone', 'contacts', 'close_friends', 'nobody']},
       {'key': 'forwards', 'label': 'Forwarded Messages', 'options': ['everyone', 'contacts', 'close_friends', 'nobody']},
       {'key': 'calls', 'label': 'Calls', 'options': ['everyone', 'contacts', 'nobody']},
       {'key': 'voice_messages', 'label': 'Voice Messages', 'options': ['everyone', 'contacts', 'nobody']},
+    ];
+    const privacyItemsAfter = <Map<String, dynamic>>[
       {'key': 'birthday', 'label': 'Birthday', 'options': ['everyone', 'contacts', 'close_friends', 'nobody']},
       {'key': 'gifts', 'label': 'Gifts', 'options': ['everyone', 'contacts', 'close_friends', 'nobody']},
       {'key': 'about', 'label': 'Bio', 'options': ['everyone', 'contacts', 'nobody']},
       {'key': 'saved_music', 'label': 'Saved Music', 'options': ['everyone', 'contacts', 'nobody']},
       {'key': 'chat_invite', 'label': 'Groups & Channels', 'options': ['everyone', 'contacts', 'nobody']},
     ];
+
+    Widget buildRow(Map<String, dynamic> item) => _PrivacyRow(
+      label: item['label'] as String,
+      rightLabel: _privacyLabel(item['key'] as String),
+      textColor: textColor,
+      subtextColor: subtextColor,
+      hoverBg: hoverBg,
+      onTap: () => _openPrivacyEditor(
+        item['key'] as String,
+        item['label'] as String,
+        (item['options'] as List).cast<String>(),
+      ),
+    );
 
     return [
       Padding(
@@ -968,18 +1009,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           ),
         ),
       ),
-      ...privacyItems.map((item) => _PrivacyRow(
-        label: item['label'] as String,
-        rightLabel: _privacyLabel(item['key'] as String),
-        textColor: textColor,
-        subtextColor: subtextColor,
-        hoverBg: hoverBg,
-        onTap: () => _openPrivacyEditor(
-          item['key'] as String,
-          item['label'] as String,
-          (item['options'] as List).cast<String>(),
-        ),
-      )),
+      ...privacyItemsBefore.map(buildRow),
       _PrivacyRow(
         label: 'Messages',
         rightLabel: _messagesPrivacyLabel(),
@@ -988,6 +1018,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         hoverBg: hoverBg,
         onTap: _openMessagesPrivacyEditor,
       ),
+      ...privacyItemsAfter.map(buildRow),
     ];
   }
 
@@ -1084,6 +1115,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     Color hoverBg,
   ) {
     if (!_archiveLoaded) return [];
+    final appState = context.watch<AppState>();
+    if (!appState.effectivePremium && !_archiveAndMute) return [];
     return [
       InkWell(
         onTap: () => _toggleArchiveAndMute(!_archiveAndMute),
@@ -1121,66 +1154,6 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           style: TextStyle(fontSize: 13, color: subtextColor),
         ),
       ),
-      if (_archiveAndMute) ...[
-        InkWell(
-          onTap: () => _toggleArchiveKeepUnmuted(!_archiveKeepUnmuted),
-          hoverColor: hoverBg,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 6, 22, 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Keep Archived Unmuted',
-                    style: TextStyle(fontSize: 14, color: textColor),
-                  ),
-                ),
-                SizedBox(
-                  width: 36,
-                  height: 20,
-                  child: IgnorePointer(
-                    child: Switch(
-                      value: _archiveKeepUnmuted,
-                      onChanged: (_) {},
-                      activeColor: accentColor,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        InkWell(
-          onTap: () => _toggleArchiveKeepFolders(!_archiveKeepFolders),
-          hoverColor: hoverBg,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 6, 22, 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Keep Archived in Folders',
-                    style: TextStyle(fontSize: 14, color: textColor),
-                  ),
-                ),
-                SizedBox(
-                  width: 36,
-                  height: 20,
-                  child: IgnorePointer(
-                    child: Switch(
-                      value: _archiveKeepFolders,
-                      onChanged: (_) {},
-                      activeColor: accentColor,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     ];
   }
 
@@ -1214,6 +1187,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           ),
         ),
       ),
+      const SizedBox(height: 7),
     ];
   }
 
@@ -1250,6 +1224,10 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     Color accentColor,
     Color hoverBg,
   ) {
+    final appState = context.watch<AppState>();
+    if (appState.noWarningExtensions.isEmpty && appState.showIpInWebRtcCalls) {
+      return [];
+    }
     return [
       const SizedBox(height: 14),
       Padding(
@@ -1274,38 +1252,6 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           ),
         ),
       ),
-      InkWell(
-        onTap: () {
-          final appState = context.read<AppState>();
-          appState.setShowIpInWebRtcCalls(!appState.showIpInWebRtcCalls);
-        },
-        hoverColor: hoverBg,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Show IP in WebRTC calls',
-                  style: TextStyle(fontSize: 14, color: textColor),
-                ),
-              ),
-              SizedBox(
-                width: 36,
-                height: 20,
-                child: Switch(
-                  value: context.watch<AppState>().showIpInWebRtcCalls,
-                  onChanged: (v) {
-                    context.read<AppState>().setShowIpInWebRtcCalls(v);
-                  },
-                  activeColor: accentColor,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     ];
   }
 
@@ -1316,61 +1262,99 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+    var showIp = appState.showIpInWebRtcCalls;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF17212B) : Colors.white,
-        title: Text('No-Warning Extensions', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
-        content: SizedBox(
-          width: 300,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Enter file extensions (space-separated) that should open without a confirmation dialog.',
-                style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                maxLines: 4,
-                maxLength: 10240,
-                style: TextStyle(fontSize: 14, color: textColor),
-                decoration: InputDecoration(
-                  hintText: 'txt log md pdf',
-                  hintStyle: TextStyle(color: subtextColor),
-                  border: const OutlineInputBorder(),
-                  contentPadding: const EdgeInsets.all(12),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF17212B) : Colors.white,
+          title: Text('File Confirmations', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+          content: SizedBox(
+            width: 300,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Enter file extensions (space-separated) that should open without a confirmation dialog.',
+                  style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  maxLines: 4,
+                  maxLength: 10240,
+                  style: TextStyle(fontSize: 14, color: textColor),
+                  decoration: InputDecoration(
+                    hintText: 'txt log md pdf',
+                    hintStyle: TextStyle(color: subtextColor),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                InkWell(
+                  onTap: () => setDialogState(() => showIp = !showIp),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Show IP in WebRTC calls',
+                            style: TextStyle(fontSize: 14, color: textColor),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 36,
+                          height: 20,
+                          child: IgnorePointer(
+                            child: Switch(
+                              value: showIp,
+                              onChanged: (_) {},
+                              activeColor: accentColor,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final text = controller.text.substring(0, controller.text.length.clamp(0, 10240));
+                final extsList = text.split(' ')
+                    .where((s) => s.isNotEmpty)
+                    .take(1024)
+                    .toSet();
+                appState.setNoWarningExtensions(extsList);
+                appState.setShowIpInWebRtcCalls(showIp);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final text = controller.text.substring(0, controller.text.length.clamp(0, 10240));
-              final extsList = text.split(' ')
-                  .where((s) => s.isNotEmpty)
-                  .take(1024)
-                  .toSet();
-              appState.setNoWarningExtensions(extsList);
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }
 
   void _showChangeLoginEmailDialog() {
+    _openTwoStepVerification();
+  }
+
+  void _showChangeLoginEmailDialogLegacy() {
     final engine = context.read<EngineService>();
     final accountId = context.read<AppState>().activeAccountId;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1666,6 +1650,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                 if (accountId.isNotEmpty) {
                   engine.setAccountTTL(accountId, selected);
                 }
+                final label = _selfDestructLabel(selected);
+                showTelegramToast(context, 'Account will self-destruct in $label if inactive.');
               },
               child: const Text('Save'),
             ),
@@ -1673,6 +1659,12 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         ),
       ),
     );
+  }
+
+  static String _selfDestructLabel(int days) {
+    if (days >= 360) return '${(days / 30).round()} months';
+    if (days >= 28) return '${(days / 30).round()} months';
+    return '$days days';
   }
 }
 
@@ -2164,6 +2156,15 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
       case 'everyone': return 'Everyone';
       case 'contacts': return 'My Contacts';
       case 'close_friends': return 'Close Friends';
+      case 'nobody': return 'Nobody';
+      default: return opt;
+    }
+  }
+
+  String _p2pLabel(String opt) {
+    switch (opt) {
+      case 'everyone': return 'Everybody';
+      case 'contacts': return 'My contacts';
       case 'nobody': return 'Nobody';
       default: return opt;
     }
@@ -2776,7 +2777,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                         ),
                       ),
                       Text(
-                        _optionLabel(_callsP2POption),
+                        _p2pLabel(_callsP2POption),
                         style: TextStyle(fontSize: 14, color: subtextColor),
                       ),
                       const SizedBox(width: 4),
@@ -3153,8 +3154,8 @@ class _P2PPrivacyBoxState extends State<_P2PPrivacyBox> {
 
   String _optionLabel(String opt) {
     switch (opt) {
-      case 'everyone': return 'Everyone';
-      case 'contacts': return 'My Contacts';
+      case 'everyone': return 'Everybody';
+      case 'contacts': return 'My contacts';
       case 'nobody': return 'Nobody';
       default: return opt;
     }
@@ -3959,12 +3960,7 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
 
   void _submit() {
     final hint = _hintController.text;
-    if (hint.isEmpty) {
-      setState(() => _error = 'Please enter a hint');
-      _hintFocus.requestFocus();
-      return;
-    }
-    if (hint == widget.newPassword) {
+    if (hint.isNotEmpty && hint == widget.newPassword) {
       setState(() => _error = 'The hint must be different from your password');
       _hintFocus.requestFocus();
       return;
@@ -5190,13 +5186,13 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
     if (_saving) return;
     if (period == _selectedTTL) return;
 
-    if (period > 0) {
+    if (period > 0 && _selectedTTL == 0) {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Auto-Delete Messages'),
           content: Text(
-            'Are you sure you want to ${_selectedTTL == 0 ? 'enable' : 'change'} auto-delete with a timer of ${_formatPeriod(period)}? '
+            'Are you sure you want to enable auto-delete with a timer of ${_formatPeriod(period)}? '
             'All new messages in chats you start will be automatically deleted after this period.',
           ),
           actions: [
@@ -5206,7 +5202,7 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
             ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text(_selectedTTL == 0 ? 'Enable' : 'Change'),
+              child: const Text('Enable'),
             ),
           ],
         ),
@@ -5246,38 +5242,150 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
 
   void _openApplyToExisting() async {
     if (_selectedTTL <= 0) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Apply to existing chats'),
-        content: Text(
-          'Set a ${_formatPeriod(_selectedTTL)} auto-delete timer for all your existing chats?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
     final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
     final accountId = appState.activeAccountId;
     if (accountId.isEmpty) return;
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+
+    List<ChatInfo> chats;
     try {
-      final chats = await engine.searchChats('', limit: 500);
-      for (final chat in chats) {
-        engine.setHistoryTTL(accountId, chat.chatId, _selectedTTL);
+      chats = await engine.searchChats('', limit: 200);
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed to load chats: $e');
+      return;
+    }
+    if (chats.isEmpty || !mounted) return;
+
+    final selected = <String>{};
+    final result = await showDialog<Set<String>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: bgColor,
+          title: Text(
+            'Apply to existing chats',
+            style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+          content: SizedBox(
+            width: 364,
+            height: 400,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                  child: Text(
+                    'Set ${_formatPeriod(_selectedTTL)} auto-delete timer for selected chats:',
+                    style: TextStyle(fontSize: 13, color: subtextColor),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                  child: Row(
+                    children: [
+                      InkWell(
+                        onTap: () => setDialogState(() {
+                          if (selected.length == chats.length) {
+                            selected.clear();
+                          } else {
+                            selected.addAll(chats.map((c) => c.chatId));
+                          }
+                        }),
+                        child: Text(
+                          selected.length == chats.length ? 'Deselect All' : 'Select All',
+                          style: TextStyle(fontSize: 13, color: accentColor),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${selected.length} selected',
+                        style: TextStyle(fontSize: 13, color: subtextColor),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: chats.length,
+                    itemBuilder: (ctx, i) {
+                      final chat = chats[i];
+                      final isSelected = selected.contains(chat.chatId);
+                      return InkWell(
+                        onTap: () => setDialogState(() {
+                          if (isSelected) {
+                            selected.remove(chat.chatId);
+                          } else {
+                            selected.add(chat.chatId);
+                          }
+                        }),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: Checkbox(
+                                  value: isSelected,
+                                  onChanged: (v) => setDialogState(() {
+                                    if (v == true) {
+                                      selected.add(chat.chatId);
+                                    } else {
+                                      selected.remove(chat.chatId);
+                                    }
+                                  }),
+                                  activeColor: accentColor,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  chat.title.isNotEmpty ? chat.title : chat.chatId,
+                                  style: TextStyle(fontSize: 14, color: textColor),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: Text('Cancel', style: TextStyle(color: accentColor)),
+            ),
+            TextButton(
+              onPressed: selected.isEmpty ? null : () => Navigator.of(ctx).pop(Set<String>.from(selected)),
+              child: Text('Apply', style: TextStyle(color: selected.isEmpty ? subtextColor : accentColor)),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null || result.isEmpty || !mounted) return;
+
+    try {
+      for (final chatId in result) {
+        engine.setHistoryTTL(accountId, chatId, _selectedTTL);
         await Future<void>.delayed(const Duration(milliseconds: 200));
       }
-      if (mounted) showTelegramToast(context, 'Auto-delete applied to ${chats.length} chats.');
+      if (mounted) showTelegramToast(context, 'Auto-delete applied to ${result.length} chats.');
     } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed: $e');
     }
@@ -6150,12 +6258,32 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
   int _autoLockSeconds = 0;
   bool _systemUnlockEnabled = false;
   SystemUnlockStatus _unlockStatus = const SystemUnlockStatus();
+  int _lastActivity = DateTime.now().millisecondsSinceEpoch;
+  Timer? _idleTimer;
 
   @override
   void initState() {
     super.initState();
     _initUnlockStatus();
     _loadSettings();
+    _idleTimer = Timer.periodic(const Duration(seconds: 60), (_) => _checkIdle());
+  }
+
+  @override
+  void dispose() {
+    _idleTimer?.cancel();
+    super.dispose();
+  }
+
+  void _resetActivity() {
+    _lastActivity = DateTime.now().millisecondsSinceEpoch;
+  }
+
+  void _checkIdle() {
+    final elapsed = DateTime.now().millisecondsSinceEpoch - _lastActivity;
+    if (elapsed >= 10 * 60 * 1000 && mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _initUnlockStatus() async {
@@ -6285,7 +6413,10 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
     final errorColor =
         isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
-    return Scaffold(
+    return Listener(
+      onPointerDown: (_) => _resetActivity(),
+      onPointerSignal: (_) => _resetActivity(),
+      child: Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor,
@@ -6347,24 +6478,29 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
                 : const Color(0xFFF1F1F1),
           ),
           const SizedBox(height: 7),
-          InkWell(
-            onTap: _turnOff,
-            hoverColor: hoverBg,
-            child: Padding(
-              padding: SettingsStyle.iconRowPadding,
-              child: Row(
-                children: [
-                  Icon(Icons.lock_open, size: 24, color: errorColor),
-                  const SizedBox(width: SettingsStyle.iconGap),
-                  Text(
-                    'Turn Off Passcode',
-                    style: TextStyle(fontSize: 14, color: errorColor),
-                  ),
-                ],
-              ),
+        ],
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
+        child: InkWell(
+          onTap: _turnOff,
+          hoverColor: hoverBg,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: SettingsStyle.iconRowPadding,
+            child: Row(
+              children: [
+                Icon(Icons.lock_open, size: 24, color: errorColor),
+                const SizedBox(width: SettingsStyle.iconGap),
+                Text(
+                  'Turn Off Passcode',
+                  style: TextStyle(fontSize: 14, color: errorColor),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
+      ),
       ),
     );
   }
@@ -7124,6 +7260,9 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
     final accountId = appState.activeAccountId;
     final blockedIds = _blockedUsers.map((u) => u['id'] as String? ?? '').toSet();
     var searchQuery = '';
+    var searchResults = <_BlockPickerContact>[];
+    var searching = false;
+    Timer? debounce;
     final contactsFuture = _loadContacts(engine, accountId, blockedIds);
 
     showDialog<void>(
@@ -7163,12 +7302,54 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
                             borderSide: BorderSide(color: accentColor),
                           ),
                         ),
-                        onChanged: (v) => setDialogState(() => searchQuery = v),
+                        onChanged: (v) {
+                          searchQuery = v;
+                          debounce?.cancel();
+                          if (v.length >= 2) {
+                            setDialogState(() => searching = true);
+                            debounce = Timer(const Duration(milliseconds: 400), () async {
+                              try {
+                                final results = await engine.searchGlobalChats(accountId, v, limit: 20);
+                                if (dialogCtx.mounted) {
+                                  setDialogState(() {
+                                    searchResults = results.map((c) => _BlockPickerContact(
+                                      id: c.chatId,
+                                      name: c.title,
+                                      status: '',
+                                      avatarB64: '',
+                                      isBlocked: blockedIds.contains(c.chatId),
+                                    )).toList();
+                                    searching = false;
+                                  });
+                                }
+                              } catch (_) {
+                                if (dialogCtx.mounted) setDialogState(() => searching = false);
+                              }
+                            });
+                          } else {
+                            setDialogState(() {
+                              searchResults = [];
+                              searching = false;
+                            });
+                          }
+                        },
                       ),
                     ),
                     const SizedBox(height: 8),
                     Expanded(
-                      child: FutureBuilder<List<_BlockPickerContact>>(
+                      child: searchQuery.length >= 2
+                          ? searching
+                              ? const Center(child: CircularProgressIndicator())
+                              : searchResults.isEmpty
+                                  ? Center(child: Text('No results found', style: TextStyle(color: subtextColor)))
+                                  : ListView.builder(
+                                      itemCount: searchResults.length,
+                                      itemBuilder: (ctx, i) {
+                                        final c = searchResults[i];
+                                        return _buildBlockPickerItem(c, engine, accountId, dialogCtx, textColor, subtextColor, hoverBg);
+                                      },
+                                    )
+                          : FutureBuilder<List<_BlockPickerContact>>(
                         future: contactsFuture,
                         builder: (ctx, snap) {
                           if (snap.hasError) {
@@ -7192,48 +7373,14 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
                             return const Center(child: CircularProgressIndicator());
                           }
                           final contacts = snap.data!;
-                          final filtered = searchQuery.isEmpty
-                              ? contacts
-                              : contacts.where((c) => c.name.toLowerCase().contains(searchQuery.toLowerCase())).toList();
-                          if (filtered.isEmpty) {
+                          if (contacts.isEmpty) {
                             return Center(child: Text('No contacts found', style: TextStyle(color: subtextColor)));
                           }
                           return ListView.builder(
-                            itemCount: filtered.length,
+                            itemCount: contacts.length,
                             itemBuilder: (ctx, i) {
-                              final c = filtered[i];
-                              return Opacity(
-                                opacity: c.isBlocked ? 0.4 : 1.0,
-                                child: InkWell(
-                                  onTap: c.isBlocked ? null : () async {
-                                    Navigator.of(dialogCtx).pop();
-                                    await engine.blockUser(accountId, c.id);
-                                    _fetchBlockedUsers();
-                                  },
-                                  hoverColor: hoverBg,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                    child: Row(
-                                      children: [
-                                        _blockedUserAvatar(c.avatarB64, c.name, 36),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(c.name, style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
-                                              if (c.status.isNotEmpty)
-                                                Text(c.status, style: TextStyle(color: subtextColor, fontSize: 12), overflow: TextOverflow.ellipsis),
-                                            ],
-                                          ),
-                                        ),
-                                        if (c.isBlocked)
-                                          Text('Blocked', style: TextStyle(color: subtextColor, fontSize: 12)),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
+                              final c = contacts[i];
+                              return _buildBlockPickerItem(c, engine, accountId, dialogCtx, textColor, subtextColor, hoverBg);
                             },
                           );
                         },
@@ -7252,6 +7399,41 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildBlockPickerItem(_BlockPickerContact c, EngineService engine, String accountId, BuildContext dialogCtx, Color textColor, Color subtextColor, Color hoverBg) {
+    return Opacity(
+      opacity: c.isBlocked ? 0.4 : 1.0,
+      child: InkWell(
+        onTap: c.isBlocked ? null : () async {
+          Navigator.of(dialogCtx).pop();
+          await engine.blockUser(accountId, c.id);
+          _fetchBlockedUsers();
+        },
+        hoverColor: hoverBg,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              _blockedUserAvatar(c.avatarB64, c.name, 36),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(c.name, style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                    if (c.status.isNotEmpty)
+                      Text(c.status, style: TextStyle(color: subtextColor, fontSize: 12), overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+              if (c.isBlocked)
+                Text('Blocked', style: TextStyle(color: subtextColor, fontSize: 12)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -7914,6 +8096,74 @@ class _WebSessionsScreenState extends State<_WebSessionsScreen> {
     });
   }
 
+  void _showSessionDetail(Map<String, dynamic> session) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final destructiveColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+    final accentColor = context.palette.windowBgActive;
+
+    final botName = (session['bot_name'] as String?) ?? (session['domain'] as String?) ?? 'Unknown';
+    final domain = session['domain'] as String? ?? '';
+    final browser = session['browser'] as String? ?? '';
+    final platform = session['platform'] as String? ?? '';
+    final ip = session['ip'] as String? ?? '';
+    final region = session['region'] as String? ?? '';
+    final dateCreated = session['date_created'] as int? ?? 0;
+    final dateActive = session['date_active'] as int? ?? 0;
+    final hash = session['hash'] as int? ?? 0;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text(botName, style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (domain.isNotEmpty) _sessionDetailRow('Domain', domain, textColor, subtextColor),
+            if (browser.isNotEmpty || platform.isNotEmpty) _sessionDetailRow('Browser', '$browser, $platform', textColor, subtextColor),
+            if (ip.isNotEmpty) _sessionDetailRow('IP Address', ip, textColor, subtextColor),
+            if (region.isNotEmpty) _sessionDetailRow('Location', region, textColor, subtextColor),
+            if (dateCreated > 0) _sessionDetailRow('Logged In', _formatDate(dateCreated), textColor, subtextColor),
+            if (dateActive > 0) _sessionDetailRow('Last Active', _formatDate(dateActive), textColor, subtextColor),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Close', style: TextStyle(color: accentColor)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _terminateSession(hash);
+            },
+            child: Text('Disconnect', style: TextStyle(color: destructiveColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sessionDetailRow(String label, String value, Color textColor, Color subtextColor) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(label, style: TextStyle(fontSize: 13, color: subtextColor)),
+          ),
+          Expanded(child: Text(value, style: TextStyle(fontSize: 13, color: textColor))),
+        ],
+      ),
+    );
+  }
+
   Future<void> _terminateSession(int hash) async {
     final engine = context.read<EngineService>();
     final accountId = context.read<AppState>().activeAccountId;
@@ -8006,7 +8256,7 @@ class _WebSessionsScreenState extends State<_WebSessionsScreen> {
                       ),
                     for (final session in _sessions!)
                       InkWell(
-                        onTap: () => _terminateSession(session['hash'] as int? ?? 0),
+                        onTap: () => _showSessionDetail(session),
                         hoverColor: hoverBg,
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
