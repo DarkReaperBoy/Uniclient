@@ -848,21 +848,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 # photo_crop_editor — Audit findings
 
-## popup_menu — Context Menu Widget
-
-- [ ] [CRITICAL] Menu box shadow is inside `ClipRRect` and is permanently clipped — the shadow never renders. `DecoratedBox` (with `BoxShadow`) is a child of `Align` inside `ClipRRect`; `ClipRRect` clips to its own layout bounds, which equal the `Align` bounds (= menu content size). The shadow extends beyond those bounds and is clipped away at all animation phases including `widthFactor = heightFactor = 1.0`. Fix: move the `BoxShadow` decoration outside the `ClipRRect`, keeping only the background color/radius inside the clip. — `popup_menu.dart:301-334` ← `lib_ui/ui/widgets/popup_menu.cpp:342-349` (`paintBg` + `_boxShadow.paint`)
-
-- [ ] [MAJOR] Open animation starts at 50% width / 45% height instead of 0% — menu pops in already half-expanded. AyuGram's `PanelAnimation.paintFrame` runs `progress` 0 → 1 starting from a fully-collapsed state; the Dart hardcodes `widthFactor = 0.5 + 0.5 * curve` and `heightFactor = 0.45 + 0.55 * curve`, so the menu is always at least half its final size at `t = 0`. — `popup_menu.dart:292-294` ← `lib_ui/ui/widgets/popup_menu.cpp:682-708` (`startShowAnimation`, `PanelAnimation` progress 0 → 1)
-
-- [ ] [MAJOR] Disabled item text and icon colour wrong in dark mode: Dart uses `0xFF6c7883` (`menuIconFg`) for both. Night theme defines `menuFgDisabled: #3d4e5c` — a much darker, less-visible grey. Light mode is correct (`0xFFcccccc == menuFgDisabled light`). — `popup_menu.dart:1069-1073` ← `night-custom-base.tdesktop-theme: menuFgDisabled: #3d4e5c` / `lib_ui/ui/widgets/widgets.style:977` (`itemFgDisabled: menuFgDisabled`)
-
-- [ ] [MAJOR] Shortcut (keyboard accelerator) resting colour wrong in dark mode: Dart uses `0xFF8d9ba4` but AyuGram maps `itemFgShortcut → windowSubTextFg` which in the night theme is `#708499` (notably darker / more muted). — `popup_menu.dart:864-865` ← `night-custom-base.tdesktop-theme: windowSubTextFg: #708499` / `lib_ui/ui/widgets/widgets.style:978` (`itemFgShortcut: windowSubTextFg`)
-
-- [ ] [MAJOR] Shortcut hover colour wrong in dark mode: Dart uses `0xFFa0b0b8`; AyuGram maps `itemFgShortcutOver → windowSubTextFgOver` which in the night theme is `#7c90a4`. — `popup_menu.dart:873` ← `night-custom-base.tdesktop-theme: windowSubTextFgOver: #7c90a4` / `lib_ui/ui/widgets/widgets.style:979` (`itemFgShortcutOver: windowSubTextFgOver`)
-
-- [ ] [MAJOR] Shortcut hover colour wrong in light mode: Dart uses `0xFF888888`; AyuGram light palette has `windowSubTextFgOver: #919191`. — `popup_menu.dart:874` ← `lib_ui/ui/colors.palette: windowSubTextFgOver: #919191`
-
-- [ ] [MAJOR] Attention items with icons show default-colour text instead of red when `fullAttention = false`. AyuGram's `menuWithIconsAttention` style unconditionally sets `itemFg: attentionButtonFg` and `itemFgOver: attentionButtonFgOver` for all attention entries regardless of icon presence. The Dart gate `useRedText = item.isAttention && (widget.fullAttention || !hasIcon)` suppresses the red label on icon-bearing destructive actions (e.g. "Delete message") unless callers pass `fullAttention: true`, which they do not by default. — `popup_menu.dart:881` ← `lib_ui/ui/widgets/widgets.style:1707-1710` (`menuWithIconsAttention`)
 
 ## privacy_settings_screen — audit vs AyuGram Desktop
 
