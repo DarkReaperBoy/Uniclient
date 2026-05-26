@@ -840,10 +840,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 # payment_panel — Audit Findings
 
 
-## payment_panel — Terms dialog missing bot username and recurring support
-
-- [ ] [MAJOR] `_showTermsDialog()` does not include the bot's `@username` in the terms text and does not differentiate between recurring and one-time payments (lines 479–557). AyuGram's `Panel::requestTermsAcceptance()` takes `username` and `recurring` parameters and renders `tr::lng_payments_terms_text` (recurring) vs `tr::lng_payments_terms_text_once` (one-time), both using `lt_bot` with the bold `@username`. The Dart dialog only shows a generic "payment provider" phrase. — `payment_panel.dart:479` ← `AyuGram/payments/ui/payments_panel.cpp:733`
-
 ## payment_panel — Currency formatting incomplete
 
 - [ ] [MAJOR] `_currencySymbol()` only handles 10 currencies (USD/EUR/GBP/RUB/JPY/CNY/IRR/TRY/INR/KRW); all others fall back to the raw ISO code with no symbol (line 648). `_formatAmount()` always places the symbol on the left with no thousands separator or decimal separator customization (line 608). AyuGram's `FillAmountAndCurrency()` covers 100+ currencies via `LookupCurrencyRule()` with per-currency left/right symbol position, thousands separator character, decimal character, and `stripDotZero` flag. — `payment_panel.dart:608` ← `AyuGram/ui/text/format_values.cpp:176`
