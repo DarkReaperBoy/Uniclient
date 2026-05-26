@@ -857,38 +857,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 ## Findings
 
-- [ ] [CRITICAL] `_PremiumInfoScreen` falls back to 21 hardcoded premium features when engine call fails — fake data rendered to user as real server content — `settings_screen.dart:2564-2586` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_main.cpp:535` (PremiumId() section uses live server data only, no static fallback)
-
-- [ ] [CRITICAL] "Telegram Currency" row is a stub: `onTap` shows a toast "Telegram Currency management is available in the official app" instead of navigating to a working screen — `settings_screen.dart:460-462` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_main.cpp:565-578` (`showOther(CurrencyId())` navigates to live currency section)
-
-- [ ] [CRITICAL] Missing phone/password validation suggestion banners: AyuGram shows `SetupValidatePhoneNumberSuggestion` and `SetupValidatePasswordSuggestion` cards at the top of settings when the account has unvalidated phone/password — Dart has no equivalent — `settings_screen.dart:217-533` (entire body has no validation suggestions) ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_main.cpp:641-649` (`BuildValidationSuggestions(builder)` always called in setupContent)
-
-- [ ] [CRITICAL] Business Location editor is text-only and cannot submit geographic coordinates — Telegram Business Location API requires `lat`/`lng` fields; Dart stores only a plain address string in `_data['address']` — `settings_screen.dart:3277-3298` ← `AyuGramDesktop/Telegram/SourceFiles/settings/business/settings_location.cpp` (full location picker with map coordinates)
-
-- [ ] [CRITICAL] Username tap when username is set copies a link to clipboard and shows a toast — should display selectable text or open the username editing flow — `settings_screen.dart:930-932` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_main.cpp:334` (`_username->setMarkedText(tr::link(...))` — selectable FlatLabel, not a copy-on-tap action)
-
-- [ ] [MAJOR] Profile header name column left offset: Dart = 22 (padding) + 80 (avatar) + 18 (gap) = **120 px** from window left, but AyuGram `settingsNameLeft = 112 px` — 8 px too far right — `settings_screen.dart:639,650,693` ← `AyuGramDesktop/Telegram/SourceFiles/styles/style_settings.h` (`settingsNameLeft: 112px`) + `settings_main.cpp:317` (`const auto nameLeft = st::settingsNameLeft`)
-
-- [ ] [MAJOR] Profile header `SizedBox` height 96 px; AyuGram calculates `settingsPhotoTop(8) + photo_h(~80) + settingsPhotoBottom(16) = 104 px` — header 8 px too short, bottom of avatar clips — `settings_screen.dart:637` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_main.cpp:145-147` (FixedHeightWidget formula) + `style_settings.h` (`settingsPhotoBottom: 16px`)
-
-- [ ] [MAJOR] Language row trailing text comes from hardcoded 50-entry `_kLanguageNames` map — any language code not in the map shows the raw code; AyuGram reads `Lang::GetInstance().nativeName()` dynamically from the loaded language pack — `settings_screen.dart:36-51,379-381` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_main.cpp:493-498` (`rpl::map([] { return Lang::GetInstance().nativeName(); })`)
-
-- [ ] [MAJOR] QR code dialog is a basic `AlertDialog` with `QrImageView` — missing avatar in QR center, Telegram-branded frame, and download/share button — `settings_screen.dart:1371-1433` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_main.cpp:251-257` (`Ui::DefaultShowFillPeerQrBoxCallback(show, _user)` — full peer QR box)
-
-- [ ] [MAJOR] Gift recipient picker (`_GiftCatalogScreen`) sources only from `chatState.chats` filtered to `type == ChatType.dm` — misses any contact not yet in the local chat list — `settings_screen.dart:3647-3649` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_main.cpp:593-595` (`Ui::ChooseStarGiftRecipient(controller)` — full contacts picker, not just chat list)
-
-- [ ] [MAJOR] Stars transactions categorised by `amount > 0` / `amount < 0` sign — if the amount field means something other than net credit (e.g. absolute amount with a separate direction field), all transactions are mis-sorted — `settings_screen.dart:2735-2736` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_credits.cpp` (credits use typed transaction records with explicit direction)
-
-- [ ] [MAJOR] Missing API reloads when settings screen opens: AyuGram calls `cloudPassword().reload()`, `reloadContactSignupSilent()`, `sensitiveContent().reload()`, `globalPrivacy().reload()`, `premium().reload()`, `cloudThemes().refresh()` in `setupContent()` — Dart only calls `_loadPremiumData()`, leaving privacy/password/theme data stale — `settings_screen.dart:72-75` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_main.cpp:779-786`
-
-- [ ] [MAJOR] Business greeting/away message editor has no recipient filter controls — AyuGram's greeting and away message screens include "who receives this message" and exceptions configuration; Dart shows only a bare text field — `settings_screen.dart:3300-3330` ← `AyuGramDesktop/Telegram/SourceFiles/settings/business/settings_greeting.cpp` and `settings_away_message.cpp`
-
-- [ ] [MAJOR] Business chatbot editor supports only a single `bot_username` string — AyuGram's chatbot screen shows a list of connected bots and supports multiple — `settings_screen.dart:3436` (`final botUsername = _data['bot_username'] as String? ?? ''`) ← `AyuGramDesktop/Telegram/SourceFiles/settings/business/settings_chatbots.cpp` (list of chatbot configurations)
-
-- [ ] [MAJOR] Business working hours stored as bare `"HH:MM - HH:MM"` strings per day — Telegram Business Hours API uses interval objects with open/close flags and timezone; the string format cannot round-trip through the engine correctly — `settings_screen.dart:3191,3257` ← `AyuGramDesktop/Telegram/SourceFiles/settings/business/settings_working_hours.cpp`
-
-- [ ] [MAJOR] Gift catalog thumbnail `base64Decode()` for all items runs on the UI thread inside `_loadGifts()` without `Isolate.run` — can cause frame drops for large catalogs — `settings_screen.dart:3622-3629` ← Flutter performance best practices (CPU-bound decoding must use `Isolate.run`)
-
 # shell — Connecting widget behavior and visual deviations
 
 - [ ] [MAJOR] Tapping connecting widget calls `engine.connectAccount()` (reconnect attempt), but AyuGram opens the Proxy Settings dialog (`ProxiesBoxController::CreateOwningBox(account)`) on widget click — `shell.dart:1184-1185` ← `window_connecting_widget.cpp:508-509`
