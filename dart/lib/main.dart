@@ -36,7 +36,7 @@ import 'ui/media_viewer.dart';
 import 'ui/photo_crop_editor.dart';
 import 'ui/shell.dart';
 import 'theme/wallpaper.dart';
-import 'ui/confirm_box.dart' show showConfirmBox;
+import 'ui/confirm_box.dart' show showConfirmBox, TelegramBox, TelegramBoxButton, kBoxPadding, kBoxDuration;
 import 'ui/titlebar.dart';
 import 'utils/debug.dart';
 import 'utils/spell_service.dart';
@@ -2525,10 +2525,12 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   late final AnimationController _anim;
   late final AnimationController _errorAnim;
   late final AnimationController _shakeAnim;
+  late final AnimationController _dialogAnim;
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   String _error = '';
   bool _visible = false;
+  bool _showLogoutConfirm = false;
   SystemUnlockStatus _unlockStatus = const SystemUnlockStatus();
   bool _systemUnlockEnabled = false;
   DateTime _lastSystemUnlockAttempt = DateTime(2000);
@@ -2543,6 +2545,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     _anim = AnimationController(vsync: this, duration: _duration);
     _errorAnim = AnimationController(vsync: this, duration: _errorDuration);
     _shakeAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _dialogAnim = AnimationController(vsync: this, duration: kBoxDuration);
     _anim.addStatusListener(_onAnimStatus);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final locked = context.read<AppState>().passcodeLocked;
@@ -2617,6 +2620,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     _anim.dispose();
     _errorAnim.dispose();
     _shakeAnim.dispose();
+    _dialogAnim.dispose();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -2677,13 +2681,14 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   void _confirmLogout() {
     final appState = context.read<AppState>();
     if (appState.activeAccountId.isEmpty) return;
-    showConfirmBox(
-      context,
-      text: TrStrings.lngPasscodeLogoutSure(),
-      confirmText: TrStrings.lngPasscodeLogout(),
-      isDestructive: true,
-      onConfirm: _doLogout,
-    );
+    setState(() => _showLogoutConfirm = true);
+    _dialogAnim.forward(from: 0.0);
+  }
+
+  void _dismissLogoutConfirm() {
+    _dialogAnim.reverse().then((_) {
+      if (mounted) setState(() => _showLogoutConfirm = false);
+    });
   }
 
   void _doLogout() {
@@ -2848,6 +2853,64 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                     ),
                   ),
                 ),
+                if (_showLogoutConfirm)
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _dialogAnim,
+                      builder: (context, child) {
+                        final dimCurve = CurvedAnimation(
+                          parent: _dialogAnim,
+                          curve: Curves.easeOutCirc,
+                        );
+                        return Stack(
+                          children: [
+                            Positioned.fill(
+                              child: GestureDetector(
+                                onTap: _dismissLogoutConfirm,
+                                child: FadeTransition(
+                                  opacity: dimCurve,
+                                  child: const ColoredBox(color: Color(0x8A000000)),
+                                ),
+                              ),
+                            ),
+                            Center(
+                              child: FadeTransition(
+                                opacity: _dialogAnim,
+                                child: child,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                      child: TelegramBox(
+                        content: Padding(
+                          padding: kBoxPadding,
+                          child: Text(
+                            TrStrings.lngPasscodeLogoutSure(),
+                            style: TextStyle(
+                              fontSize: 14,
+                              height: 22 / 14,
+                              color: palette.boxTextFg,
+                            ),
+                          ),
+                        ),
+                        buttons: [
+                          TelegramBoxButton(
+                            text: 'Cancel',
+                            onPressed: _dismissLogoutConfirm,
+                          ),
+                          TelegramBoxButton(
+                            text: TrStrings.lngPasscodeLogout(),
+                            isDestructive: true,
+                            onPressed: () {
+                              _dismissLogoutConfirm();
+                              _doLogout();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             );
           },
