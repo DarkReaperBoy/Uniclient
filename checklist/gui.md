@@ -857,19 +857,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 ## Findings
 
-# shell — Connecting widget behavior and visual deviations
-
-- [ ] [MAJOR] Tapping connecting widget calls `engine.connectAccount()` (reconnect attempt), but AyuGram opens the Proxy Settings dialog (`ProxiesBoxController::CreateOwningBox(account)`) on widget click — `shell.dart:1184-1185` ← `window_connecting_widget.cpp:508-509`
-
-- [ ] [MAJOR] Connecting widget rendered as a generic Flutter `BoxDecoration` rounded pill (`borderRadius: BorderRadius.circular(15)` + `BoxShadow`) instead of AyuGram's sprite-based design using `connectingLeft`/`connectingRight` end-cap icons and `connectingBody`/`connectingLeftShadow`/`connectingRightShadow`/`connectingBodyShadow` fill sprites — `shell.dart:1205-1216` ← `window.style:173-178`, `window_connecting_widget.cpp:541-546`
-
-- [ ] [MAJOR] Connecting widget collapse animation differs: when hover ends, Dart immediately removes the text node and animates only the padding via `AnimatedContainer`. AyuGram retains the old text in `_currentLayout` while animating `_contentWidth` to the smaller value, so text remains visible until the pill has fully shrunk — `shell.dart:1205-1267` ← `window_connecting_widget.cpp:363-381`
-
-# shortcuts_settings_screen — 2 issues
-
-- [ ] [CRITICAL] `MediaViewerFullscreen` command missing entirely — not in `ShortcutCommand` enum in `keyboard_shortcuts.dart` and not listed in `_commandGroups` in `shortcuts_settings_screen.dart:11-133`. AyuGram includes it as a standalone configurable shortcut between ShowAdminLog and MediaPlay groups — `shortcuts_settings_screen.dart:89-97` ← `settings_shortcuts.cpp:116-126` / `shortcuts.h:78`
-
-- [ ] [MAJOR] Support shortcuts group (`supportReloadTemplates`, `supportToggleMuted`, `supportScrollToCurrent`, `supportHistoryBack`, `supportHistoryForward`) is exposed in the configurable shortcuts settings UI at `shortcuts_settings_screen.dart:126-133`. AyuGram defines these commands in `shortcuts.h:85-89` but deliberately excludes them from the settings `Entries()` function — they are internal support-mode bindings not intended to be user-configurable — `settings_shortcuts.cpp:42-127` (no support entries in list)
 
 # spoiler_animation — 1 issue found
 
