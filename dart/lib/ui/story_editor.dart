@@ -60,7 +60,7 @@ enum _BrushTool { pen, arrow, marker, blur, eraser }
 
 enum _TextAlign { left, center, right }
 
-enum _TextBgStyle { none, filled, outlined, shadowed }
+enum _TextBgStyle { none, framed, semiTransparent }
 
 enum StoryPrivacyOption { everyone, contacts, closeFriends, selectedContacts }
 
@@ -210,7 +210,6 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   bool _saveToProfile = true;
   bool _allowSharing = true;
   bool _posting = false;
-  double _uploadProgress = 0;
   bool _posted = false;
   List<String> _selectedContactIds = [];
   List<String> _excludedContactIds = [];
@@ -219,6 +218,17 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   List<ui.Image?> _videoThumbnails = [];
 
   bool get _hasPremium => context.read<AppState>().effectivePremium;
+
+  // Canvas rotation/flip
+  int _canvasRotationQuarters = 0;
+  bool _canvasFlippedH = false;
+  int _stickerPlaceCount = 0;
+
+  // Upload progress without setState
+  final ValueNotifier<double> _uploadProgressNotifier = ValueNotifier(0.0);
+
+  // Current stroke points notifier for live preview
+  final ValueNotifier<List<Offset>?> _currentPointsNotifier = ValueNotifier(null);
 
   // Gesture state for item manipulation
   Offset? _dragStart;
@@ -266,6 +276,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     _captionController.dispose();
     _keyboardFocusNode.dispose();
     _strokesNotifier.dispose();
+    _uploadProgressNotifier.dispose();
+    _currentPointsNotifier.dispose();
     super.dispose();
   }
 
@@ -447,10 +459,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
 
   Future<void> _postStory() async {
     if (_posting) return;
-    setState(() {
-      _posting = true;
-      _uploadProgress = 0;
-    });
+    setState(() => _posting = true);
+    _uploadProgressNotifier.value = 0;
 
     Timer? progressTimer;
 
@@ -460,15 +470,13 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       if (accountId == null) throw Exception('No active account');
       final engine = context.read<EngineService>();
 
-      setState(() => _uploadProgress = 0.15);
+      _uploadProgressNotifier.value = 0.15;
 
       progressTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
         if (!mounted) return;
-        setState(() {
-          if (_uploadProgress < 0.85) {
-            _uploadProgress += 0.02;
-          }
-        });
+        if (_uploadProgressNotifier.value < 0.85) {
+          _uploadProgressNotifier.value += 0.02;
+        }
       });
 
       if (_videoFile != null) {
@@ -506,10 +514,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       }
 
       progressTimer.cancel();
-      setState(() {
-        _uploadProgress = 1.0;
-        _posted = true;
-      });
+      _uploadProgressNotifier.value = 1.0;
+      setState(() => _posted = true);
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -530,6 +536,12 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     if (!overlayOnly) {
       final rec = ui.PictureRecorder();
       final c = Canvas(rec, canvasBounds);
+      if (_canvasRotationQuarters != 0 || _canvasFlippedH) {
+        c.translate(_canvasWidth / 2, _canvasHeight / 2);
+        c.rotate(_canvasRotationQuarters * math.pi / 2);
+        if (_canvasFlippedH) c.scale(-1.0, 1.0);
+        c.translate(-_canvasWidth / 2, -_canvasHeight / 2);
+      }
       if (_hasMedia && _loadedImage != null) {
         final src = Rect.fromLTWH(0, 0, _loadedImage!.width.toDouble(), _loadedImage!.height.toDouble());
         c.drawImageRect(_loadedImage!, src, canvasBounds, Paint());
@@ -545,9 +557,22 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
 
       final blurStrokes = _strokes.where((s) => s.tool == _BrushTool.blur).toList();
       if (blurStrokes.isNotEmpty) {
+        final nonBlurStrokes = _strokes.where((s) => s.tool != _BrushTool.blur).toList();
+        if (nonBlurStrokes.isNotEmpty) {
+          final strokeRec = ui.PictureRecorder();
+          final sc = Canvas(strokeRec, canvasBounds);
+          sc.drawImage(bgImage!, Offset.zero, Paint());
+          sc.saveLayer(canvasBounds, Paint());
+          for (final stroke in nonBlurStrokes) {
+            _StrokePainter.paintStroke(sc, stroke.points, stroke.color, stroke.width, stroke.tool, 1.0);
+          }
+          sc.restore();
+          bgImage = await strokeRec.endRecording().toImage(w, h);
+        }
+
         final blurRec = ui.PictureRecorder();
         final bc = Canvas(blurRec, canvasBounds);
-        bc.drawImage(bgImage!, Offset.zero, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10));
+        bc.drawImage(bgImage!, Offset.zero, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20));
         final blurredImage = await blurRec.endRecording().toImage(w, h);
 
         final mergeRec = ui.PictureRecorder();
@@ -612,38 +637,32 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           text: TextSpan(
             text: item.text,
             style: TextStyle(
-              color: item.textBgStyle == _TextBgStyle.filled ? Colors.white : item.color,
+              color: item.textBgStyle == _TextBgStyle.framed ? Colors.white : item.color,
               fontSize: item.fontSize,
               fontFamily: item.fontFamily,
               fontWeight: FontWeight.bold,
-              shadows: item.textBgStyle == _TextBgStyle.shadowed
-                  ? [const Shadow(color: Color(0x73000000), blurRadius: 6, offset: Offset(0, 2))]
-                  : null,
             ),
           ),
           textDirection: TextDirection.ltr,
         )..layout(maxWidth: _canvasWidth * 0.8);
         final textOffset = Offset(-tp.width / 2, -tp.height / 2);
-        if (item.textBgStyle == _TextBgStyle.filled) {
+        if (item.textBgStyle == _TextBgStyle.framed) {
           final bgRect = Rect.fromLTWH(
             textOffset.dx - 8, textOffset.dy - 4,
             tp.width + 16, tp.height + 8,
           );
           canvas.drawRRect(
             RRect.fromRectAndRadius(bgRect, const Radius.circular(6)),
-            Paint()..color = item.color.withValues(alpha: 0.4),
+            Paint()..color = item.color,
           );
-        } else if (item.textBgStyle == _TextBgStyle.outlined) {
+        } else if (item.textBgStyle == _TextBgStyle.semiTransparent) {
           final bgRect = Rect.fromLTWH(
             textOffset.dx - 8, textOffset.dy - 4,
             tp.width + 16, tp.height + 8,
           );
           canvas.drawRRect(
             RRect.fromRectAndRadius(bgRect, const Radius.circular(6)),
-            Paint()
-              ..color = item.color
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.5,
+            Paint()..color = item.color.withValues(alpha: item.color.a * 0.5),
           );
         }
         tp.paint(canvas, textOffset);
@@ -718,9 +737,10 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     });
   }
 
+  double get _baseBrushSize => 1 + 24 * _brushSizeRatio;
+
   double get _effectiveBrushWidth {
-    double base = 1 + 24 * _brushSizeRatio;
-    if (_currentBrush == _BrushTool.marker) base *= 2.5;
+    double base = _baseBrushSize;
     if (_currentBrush == _BrushTool.blur) base *= 3.0;
     return base;
   }
@@ -774,14 +794,20 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
                   scale: _zoom,
                   child: Transform.translate(
                     offset: _pan,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        _buildCanvasContent(scale),
-                        RepaintBoundary(child: Stack(fit: StackFit.expand, children: _buildBlurLayers(scale))),
-                        if (_mode == _EditorMode.paint) _buildPaintLayer(scale),
-                        ..._buildSceneItems(scale),
-                      ],
+                    child: Transform(
+                      alignment: Alignment.center,
+                      transform: Matrix4.identity()
+                        ..rotateZ(_canvasRotationQuarters * math.pi / 2)
+                        ..scale(_canvasFlippedH ? -1.0 : 1.0, 1.0),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          _buildCanvasContent(scale),
+                          RepaintBoundary(child: Stack(fit: StackFit.expand, children: _buildBlurLayers(scale))),
+                          if (_mode == _EditorMode.paint) _buildPaintLayer(scale),
+                          ..._buildSceneItems(scale),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -845,7 +871,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       layers.add(ClipPath(
         clipper: _BlurStrokeClipper(stroke.points, stroke.width, scale),
         child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: const SizedBox.expand(),
         ),
       ));
@@ -857,7 +883,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       layers.add(ClipPath(
         clipper: _BlurStrokeClipper(_currentStrokePoints!, _effectiveBrushWidth, scale),
         child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: const SizedBox.expand(),
         ),
       ));
@@ -867,39 +893,40 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
 
   Widget _buildPaintLayer(double scale) {
     final nonBlurStrokes = _strokes.where((s) => s.tool != _BrushTool.blur).toList();
-    final showCurrentNonBlur = _currentBrush != _BrushTool.blur ? _currentStrokePoints : null;
     return Listener(
       onPointerDown: (e) => _startStroke(e.localPosition, scale),
       onPointerMove: (e) => _continueStroke(e.localPosition, scale),
       onPointerUp: (_) => _endStroke(),
       behavior: HitTestBehavior.translucent,
-      child: ValueListenableBuilder<List<_PaintStroke>>(
-        valueListenable: _strokesNotifier,
-        builder: (_, __, ___) => CustomPaint(
-          painter: _StrokePainter(
-            strokes: nonBlurStrokes,
-            currentPoints: showCurrentNonBlur,
-            currentColor: _brushColor,
-            currentWidth: _effectiveBrushWidth,
-            currentTool: _currentBrush,
-            scale: scale,
-          ),
-          size: Size.infinite,
-        ),
+      child: ValueListenableBuilder<List<Offset>?>(
+        valueListenable: _currentPointsNotifier,
+        builder: (_, currentPts, __) {
+          final showCurrent = _currentBrush != _BrushTool.blur ? currentPts : null;
+          return CustomPaint(
+            painter: _StrokePainter(
+              strokes: nonBlurStrokes,
+              currentPoints: showCurrent,
+              currentColor: _brushColor,
+              currentWidth: _effectiveBrushWidth,
+              currentTool: _currentBrush,
+              scale: scale,
+            ),
+            size: Size.infinite,
+          );
+        },
       ),
     );
   }
 
   void _startStroke(Offset pos, double scale) {
-    setState(() {
-      _currentStrokePoints = [pos / scale];
-    });
+    _currentStrokePoints = [pos / scale];
+    _currentPointsNotifier.value = _currentStrokePoints;
   }
 
   void _continueStroke(Offset pos, double scale) {
     if (_currentStrokePoints != null) {
       _currentStrokePoints = [..._currentStrokePoints!, pos / scale];
-      _strokesNotifier.value = List.from(_strokesNotifier.value);
+      _currentPointsNotifier.value = _currentStrokePoints;
     }
   }
 
@@ -916,9 +943,11 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
         _undoStack.add(_StrokeAction(stroke));
         _redoStack.clear();
         _currentStrokePoints = null;
+        _currentPointsNotifier.value = null;
       });
     } else {
-      setState(() => _currentStrokePoints = null);
+      _currentStrokePoints = null;
+      _currentPointsNotifier.value = null;
     }
   }
 
@@ -1014,39 +1043,27 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       item.text,
       textAlign: align,
       style: TextStyle(
-        color: item.color,
+        color: item.textBgStyle == _TextBgStyle.framed ? Colors.white : item.color,
         fontSize: item.fontSize,
         fontFamily: item.fontFamily,
         fontWeight: FontWeight.bold,
-        shadows: item.textBgStyle == _TextBgStyle.shadowed
-            ? [const Shadow(color: Color(0x73000000), blurRadius: 6, offset: Offset(0, 2))]
-            : null,
       ),
     );
 
-    if (item.textBgStyle == _TextBgStyle.filled) {
+    if (item.textBgStyle == _TextBgStyle.framed) {
       textWidget = Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: item.color.withValues(alpha: 0.4),
+          color: item.color,
           borderRadius: BorderRadius.circular(6),
         ),
-        child: Text(
-          item.text,
-          textAlign: align,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: item.fontSize,
-            fontFamily: item.fontFamily,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        child: textWidget,
       );
-    } else if (item.textBgStyle == _TextBgStyle.outlined) {
+    } else if (item.textBgStyle == _TextBgStyle.semiTransparent) {
       textWidget = Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          border: Border.all(color: item.color, width: 1.5),
+          color: item.color.withValues(alpha: item.color.a * 0.5),
           borderRadius: BorderRadius.circular(6),
         ),
         child: textWidget,
@@ -1193,6 +1210,16 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           ),
           const Spacer(),
           if (_mode == _EditorMode.transform) ...[
+            _buildTopBarButton(
+              icon: Icons.rotate_right,
+              onTap: () => setState(() => _canvasRotationQuarters = (_canvasRotationQuarters + 1) % 4),
+            ),
+            const SizedBox(width: 8),
+            _buildTopBarButton(
+              icon: Icons.flip,
+              onTap: () => setState(() => _canvasFlippedH = !_canvasFlippedH),
+            ),
+            const SizedBox(width: 8),
             _buildTopBarButton(
               icon: Icons.text_fields,
               active: _textMode,
@@ -1608,6 +1635,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
               child: TextField(
                 controller: _captionController,
                 maxLines: null,
+                maxLength: _hasPremium ? 2048 : 1024,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: const InputDecoration(
                   hintText: 'Add a caption...',
@@ -1615,6 +1643,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
                   border: InputBorder.none,
                   isDense: true,
                   contentPadding: EdgeInsets.zero,
+                  counterText: '',
                 ),
               ),
             ),
@@ -1642,24 +1671,27 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       return SizedBox(
         width: 36,
         height: 36,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            CircularProgressIndicator(
-              value: _uploadProgress,
-              strokeWidth: 2,
-              color: Colors.white,
-              backgroundColor: Colors.white24,
-            ),
-            Container(
-              width: 28,
-              height: 28,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0xFF4DB8FF),
+        child: ValueListenableBuilder<double>(
+          valueListenable: _uploadProgressNotifier,
+          builder: (_, progress, __) => Stack(
+            alignment: Alignment.center,
+            children: [
+              CircularProgressIndicator(
+                value: progress,
+                strokeWidth: 2,
+                color: Colors.white,
+                backgroundColor: Colors.white24,
               ),
-            ),
-          ],
+              Container(
+                width: 28,
+                height: 28,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFF4DB8FF),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -1959,9 +1991,11 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       builder: (ctx) => _StickerPickerPanel(
         onEmojiSelected: (emoji) {
           Navigator.pop(ctx);
+          _stickerPlaceCount++;
+          final off = (_stickerPlaceCount - 1) * 15.0;
           final center = Offset(
-            _canvasWidth / 2,
-            _canvasHeight / 2,
+            _canvasWidth / 2 + off % 60 - 30,
+            _canvasHeight / 2 + off % 45 - 22,
           );
           final item = _SceneItem(
             position: center,
@@ -1981,9 +2015,11 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
         },
         onStickerSelected: (sticker) {
           Navigator.pop(ctx);
+          _stickerPlaceCount++;
+          final off = (_stickerPlaceCount - 1) * 15.0;
           final center = Offset(
-            _canvasWidth / 2,
-            _canvasHeight / 2,
+            _canvasWidth / 2 + off % 60 - 30,
+            _canvasHeight / 2 + off % 45 - 22,
           );
           Uint8List? imageBytes;
           if (sticker.thumbB64.isNotEmpty) {
@@ -2086,11 +2122,12 @@ class _StrokePainter extends CustomPainter {
     if (points.length < 2) return;
     if (tool == _BrushTool.blur) return;
 
+    final effectiveWidth = tool == _BrushTool.marker ? width * 2.5 : width;
     final paint = Paint()
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke
-      ..strokeWidth = width * scale;
+      ..strokeWidth = effectiveWidth * scale;
 
     final isMarker = tool == _BrushTool.marker;
 
@@ -2100,19 +2137,19 @@ class _StrokePainter extends CustomPainter {
         paint.color = color;
         break;
       case _BrushTool.marker:
-        paint.color = color.withValues(alpha: 0.35);
+        paint.color = color.withValues(alpha: color.a * 0.35);
         paint.blendMode = BlendMode.src;
         break;
       case _BrushTool.blur:
         break;
       case _BrushTool.eraser:
-        paint.color = Colors.transparent;
-        paint.blendMode = BlendMode.clear;
+        paint.color = const Color(0xFF000000);
+        paint.blendMode = BlendMode.dstOut;
         break;
     }
 
     if (isMarker) {
-      canvas.saveLayer(null, Paint()..blendMode = BlendMode.srcOver);
+      canvas.saveLayer(null, Paint());
     }
 
     final smoothed = _smoothPoints(points);
@@ -2137,7 +2174,7 @@ class _StrokePainter extends CustomPainter {
 
     if (tool == _BrushTool.arrow && points.length >= 2) {
       final last = points.last * scale;
-      final minDist = width * scale * 1.5;
+      final minDist = width * 1.5;
       var lookback = points[points.length - 2] * scale;
       for (int i = points.length - 2; i >= 0; i--) {
         final candidate = points[i] * scale;
@@ -2149,7 +2186,7 @@ class _StrokePainter extends CustomPainter {
         }
       }
       final angle = math.atan2(last.dy - lookback.dy, last.dx - lookback.dx);
-      final headLen = width * scale * 2.5;
+      final headLen = effectiveWidth * scale * 2.5;
       const arrowAngle = 26 * math.pi / 180;
       final p1 = Offset(
         last.dx - headLen * math.cos(angle - arrowAngle),
@@ -2170,21 +2207,47 @@ class _StrokePainter extends CustomPainter {
     }
   }
 
+  static const _kSmoothStrength = 0.5;
+  static const _kHalfStrength = _kSmoothStrength / 2.0;
+  static const _kInvStrength = 1.0 - _kSmoothStrength;
+  static const _kMaxPointDistance = 15.0;
+
   static List<Offset> _smoothPoints(List<Offset> raw) {
-    if (raw.length < 3) return raw;
-    var pts = List<Offset>.from(raw);
+    if (raw.length < 4) return raw;
+    var pts = _interpolateLargeGaps(raw);
     for (int pass = 0; pass < 2; pass++) {
       final smoothed = <Offset>[pts.first];
       for (int i = 1; i < pts.length - 1; i++) {
         smoothed.add(Offset(
-          (pts[i - 1].dx + pts[i].dx + pts[i + 1].dx) / 3,
-          (pts[i - 1].dy + pts[i].dy + pts[i + 1].dy) / 3,
+          pts[i].dx * _kInvStrength + (pts[i - 1].dx + pts[i + 1].dx) * _kHalfStrength,
+          pts[i].dy * _kInvStrength + (pts[i - 1].dy + pts[i + 1].dy) * _kHalfStrength,
         ));
       }
       smoothed.add(pts.last);
       pts = smoothed;
     }
     return pts;
+  }
+
+  static List<Offset> _interpolateLargeGaps(List<Offset> pts) {
+    final result = <Offset>[pts.first];
+    for (int i = 1; i < pts.length; i++) {
+      final dx = pts[i].dx - pts[i - 1].dx;
+      final dy = pts[i].dy - pts[i - 1].dy;
+      final dist = math.sqrt(dx * dx + dy * dy);
+      if (dist > _kMaxPointDistance) {
+        final steps = (dist / _kMaxPointDistance).ceil();
+        for (int s = 1; s < steps; s++) {
+          final t = s / steps;
+          result.add(Offset(
+            pts[i - 1].dx + dx * t,
+            pts[i - 1].dy + dy * t,
+          ));
+        }
+      }
+      result.add(pts[i]);
+    }
+    return result;
   }
 
   @override
@@ -2402,17 +2465,23 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
     final accountId = appState.activeAccountId;
     if (accountId == null) return;
 
-    final contacts = await engine.getContacts(accountId);
-    if (!context.mounted) return;
+    final nav = Navigator.of(context);
+    List<ContactInfo> contacts;
+    try {
+      contacts = await engine.getContacts(accountId);
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
 
     final result = await showDialog<List<String>>(
-      context: context,
+      context: nav.context,
       builder: (ctx) => _ContactPickerDialog(
         contacts: contacts,
         selectedIds: _contactIds,
       ),
     );
-    if (result != null) {
+    if (result != null && mounted) {
       setState(() => _contactIds = result);
     }
   }
@@ -2423,18 +2492,24 @@ class _PrivacyDialogState extends State<_PrivacyDialog> {
     final accountId = appState.activeAccountId;
     if (accountId == null) return;
 
-    final contacts = await engine.getContacts(accountId);
-    if (!context.mounted) return;
+    final nav = Navigator.of(context);
+    List<ContactInfo> contacts;
+    try {
+      contacts = await engine.getContacts(accountId);
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
 
     final result = await showDialog<List<String>>(
-      context: context,
+      context: nav.context,
       builder: (ctx) => _ContactPickerDialog(
         contacts: contacts,
         selectedIds: _excludedIds,
         title: 'Exclude People',
       ),
     );
-    if (result != null) {
+    if (result != null && mounted) {
       setState(() => _excludedIds = result);
     }
   }
@@ -2464,21 +2539,18 @@ class _ContactPickerDialogState extends State<_ContactPickerDialog> {
   void initState() {
     super.initState();
     _selected = Set<String>.from(widget.selectedIds);
-    _decodeAvatars();
   }
 
-  Future<void> _decodeAvatars() async {
-    for (final c in widget.contacts) {
-      if (c.avatarB64.isNotEmpty) {
-        try {
-          _avatarCache[c.userId] = Uint8List.fromList(base64Decode(c.avatarB64));
-        } catch (_) {}
-      }
-      if (_avatarCache.length % 50 == 0) {
-        await Future<void>.delayed(Duration.zero);
-      }
+  Uint8List? _getAvatar(String userId, String avatarB64) {
+    if (_avatarCache.containsKey(userId)) return _avatarCache[userId];
+    if (avatarB64.isEmpty) return null;
+    try {
+      final bytes = Uint8List.fromList(base64Decode(avatarB64));
+      _avatarCache[userId] = bytes;
+      return bytes;
+    } catch (_) {
+      return null;
     }
-    if (mounted) setState(() {});
   }
 
   @override
@@ -2576,21 +2648,22 @@ class _ContactPickerDialogState extends State<_ContactPickerDialog> {
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               child: Row(
                                 children: [
-                                  CircleAvatar(
-                                    radius: 18,
-                                    backgroundColor: const Color(0xFF4DB8FF),
-                                    backgroundImage: _avatarCache.containsKey(c.userId)
-                                        ? MemoryImage(_avatarCache[c.userId]!)
-                                        : null,
-                                    child: !_avatarCache.containsKey(c.userId)
-                                        ? Text(
-                                            c.displayName.isNotEmpty
-                                                ? c.displayName[0].toUpperCase()
-                                                : '?',
-                                            style: const TextStyle(color: Colors.white, fontSize: 14),
-                                          )
-                                        : null,
-                                  ),
+                                  Builder(builder: (_) {
+                                    final avatar = _getAvatar(c.userId, c.avatarB64);
+                                    return CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor: const Color(0xFF4DB8FF),
+                                      backgroundImage: avatar != null ? MemoryImage(avatar) : null,
+                                      child: avatar == null
+                                          ? Text(
+                                              c.displayName.isNotEmpty
+                                                  ? c.displayName[0].toUpperCase()
+                                                  : '?',
+                                              style: const TextStyle(color: Colors.white, fontSize: 14),
+                                            )
+                                          : null,
+                                    );
+                                  }),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(

@@ -20441,6 +20441,35 @@ func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte, opts St
 	return t.sendStoryCommon(req)
 }
 
+// trimVideoWithFFmpeg trims a video using ffmpeg based on start/end ratios (0.0-1.0).
+func trimVideoWithFFmpeg(videoPath string, trimStart, trimEnd float64) (string, error) {
+	probeCmd := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", videoPath)
+	probeOut, err := probeCmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("ffprobe: %w", err)
+	}
+	durStr := strings.TrimSpace(string(probeOut))
+	duration, err := strconv.ParseFloat(durStr, 64)
+	if err != nil || duration <= 0 {
+		return "", fmt.Errorf("parse duration %q: %w", durStr, err)
+	}
+	startSec := duration * trimStart
+	endSec := duration * trimEnd
+	outPath := filepath.Join(os.TempDir(), fmt.Sprintf("story_trimmed_%d.mp4", time.Now().UnixNano()))
+	cmd := exec.Command("ffmpeg", "-y",
+		"-ss", fmt.Sprintf("%.3f", startSec),
+		"-to", fmt.Sprintf("%.3f", endSec),
+		"-i", videoPath,
+		"-c", "copy",
+		"-avoid_negative_ts", "make_zero",
+		outPath)
+	if err := cmd.Run(); err != nil {
+		os.Remove(outPath)
+		return "", fmt.Errorf("ffmpeg trim: %w", err)
+	}
+	return outPath, nil
+}
+
 // overlayVideoWithFFmpeg composites a transparent PNG overlay onto a video using ffmpeg.
 func overlayVideoWithFFmpeg(videoPath string, overlayPNG []byte) (string, error) {
 	overlayPath := filepath.Join(os.TempDir(), fmt.Sprintf("story_overlay_%d.png", time.Now().UnixNano()))
@@ -20470,9 +20499,16 @@ func (t *TelegramCore) SendStoryWithVideoFile(text string, videoPath string, opt
 	if !t.authed || t.api == nil { return 0, ErrAuth }
 
 	actualVideoPath := videoPath
+	if opts.TrimStart > 0.0 || opts.TrimEnd < 1.0 {
+		trimmed, trimErr := trimVideoWithFFmpeg(videoPath, opts.TrimStart, opts.TrimEnd)
+		if trimErr == nil {
+			defer os.Remove(trimmed)
+			actualVideoPath = trimmed
+		}
+	}
 	overlayApplied := false
 	if len(opts.OverlayData) > 0 {
-		composited, compErr := overlayVideoWithFFmpeg(videoPath, opts.OverlayData)
+		composited, compErr := overlayVideoWithFFmpeg(actualVideoPath, opts.OverlayData)
 		if compErr == nil {
 			defer os.Remove(composited)
 			actualVideoPath = composited
