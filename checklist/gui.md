@@ -955,10 +955,6 @@ All issues resolved.
 
 ## GroupCallParticipant vs Data::GroupCallParticipant
 
-- [ ] [MAJOR] `GroupCallParticipant` uses `hasVideo: bool` but AyuGram tracks `videoJoined` (boolean) and a full `videoParams` struct with camera/screen endpoint details and pause state — `engine_models.dart:2310` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:54` (`GroupCallParticipant.videoJoined = false`)
-
-- [ ] [MAJOR] `GroupCallParticipant` missing `onlyMinLoaded` flag (indicates participant data is a minimal snapshot not yet fully resolved) — `engine_models.dart:2303` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:53` (`GroupCallParticipant.onlyMinLoaded : 1 = false`)
-
 ## GroupCallInfo vs Data::GroupCall
 
 - [ ] [MAJOR] `GroupCallInfo` missing `recordStartDate` (when recording started; 0 = not recording) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:102` (`GroupCall.recordStartDate()`)
