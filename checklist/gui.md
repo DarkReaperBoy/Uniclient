@@ -955,16 +955,6 @@ All issues resolved.
 
 ## GroupCallParticipant vs Data::GroupCallParticipant
 
-## GroupCallInfo vs Data::GroupCall
-
-- [x] [MAJOR] `GroupCallInfo` missing `recordStartDate` (when recording started; 0 = not recording) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:102` (`GroupCall.recordStartDate()`)
-
-- [x] [MAJOR] `GroupCallInfo` missing `listenersHidden` flag (used in conference/video-stream calls to hide listener list) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:88` (`GroupCall.listenersHidden()`)
-
-- [x] [MAJOR] `GroupCallInfo` missing `messagesEnabled` / `messagesMinPrice` fields (group-call chat messages) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:201,211` (`GroupCall.messagesEnabled()`, `GroupCall.messagesMinPrice()`)
-
-- [x] [MAJOR] `GroupCallInfo` missing `conferenceInviteLink` (conference mode invite URL) — `engine_models.dart:2363` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:188` (`GroupCall.conferenceInviteLink()`)
-
 ## ForumTopic vs Data::ForumTopic
 
 - [x] [MAJOR] `ForumTopic` stores `iconEmojiId: int` but AyuGram uses `DocumentId` (uint64) for the icon; `int` in Dart is 64-bit so no overflow, but the field is missing the concept that it can be a custom emoji document — semantically correct but `iconEmojiId` set to `0` vs an actual document-id could cause rendering issues. The Go bridge must ensure 0 means "no custom icon" consistently. Potential issue if Go truncates to int32 — `engine_models.dart:377` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_forum_topic.h:233` (`_iconId: DocumentId`)
