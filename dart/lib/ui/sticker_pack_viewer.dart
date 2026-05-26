@@ -102,7 +102,7 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
     final isEmoji = _setInfo?.emojis ?? false;
     final maxSheetHeight = isEmoji ? 197.0 : 320.0;
     final screenHeight = MediaQuery.of(context).size.height;
-    final sheetHeight = maxSheetHeight.clamp(0.0, screenHeight * 0.9);
+    final sheetHeight = maxSheetHeight.clamp(0.0, screenHeight - 56);
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -383,37 +383,46 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
         ? const EdgeInsets.fromLTRB(12, 0, 12, 0)
         : const EdgeInsets.fromLTRB(19, 13, 19, 13);
 
-    return GridView.builder(
-      padding: padding,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        mainAxisSpacing: 0,
-        crossAxisSpacing: 0,
-        childAspectRatio: isEmoji ? 42.0 / 39.0 : 1.0,
-      ),
-      itemCount: stickers.length,
-      itemBuilder: (context, index) {
-        final sticker = stickers[index];
-        return RepaintBoundary(
-          child: _StickerTile(
-            sticker: sticker,
-            accountId: widget.accountId,
-            engine: widget.engine,
-            onTap: () => _sendSticker(sticker),
-            isCreator: info?.isCreator ?? false,
-            onFaveToggled: (nowFaved) {
-              if (_setInfo == null) return;
-              final updated = List<StickerInfoItem>.of(_setInfo!.stickers);
-              updated[index] = sticker.copyWith(isFaved: nowFaved);
-              setState(() => _setInfo = _setInfo!.copyWithStickers(updated));
-            },
-            onDeleted: () {
-              if (_setInfo == null) return;
-              final updated = List<StickerInfoItem>.of(_setInfo!.stickers);
-              updated.removeAt(index);
-              setState(() => _setInfo = _setInfo!.copyWithStickers(updated));
-            },
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth - padding.left - padding.right;
+        final cellWidth = availableWidth / crossAxisCount;
+        final cellHeight = isEmoji ? (cellWidth * 39.0 / 42.0) : cellWidth;
+
+        return GridView.builder(
+          padding: padding,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: 0,
+            crossAxisSpacing: 0,
+            mainAxisExtent: cellHeight,
           ),
+          itemCount: stickers.length,
+          itemBuilder: (context, index) {
+            final sticker = stickers[index];
+            return RepaintBoundary(
+              child: _StickerTile(
+                sticker: sticker,
+                accountId: widget.accountId,
+                engine: widget.engine,
+                isEmoji: isEmoji,
+                onTap: () => _sendSticker(sticker),
+                isCreator: info?.isCreator ?? false,
+                onFaveToggled: (nowFaved) {
+                  if (_setInfo == null) return;
+                  final updated = List<StickerInfoItem>.of(_setInfo!.stickers);
+                  updated[index] = sticker.copyWith(isFaved: nowFaved);
+                  setState(() => _setInfo = _setInfo!.copyWithStickers(updated));
+                },
+                onDeleted: () {
+                  if (_setInfo == null) return;
+                  final updated = List<StickerInfoItem>.of(_setInfo!.stickers);
+                  updated.removeAt(index);
+                  setState(() => _setInfo = _setInfo!.copyWithStickers(updated));
+                },
+              ),
+            );
+          },
         );
       },
     );
@@ -441,10 +450,32 @@ class _VideoPlayerPool extends ChangeNotifier {
   }
 }
 
+class _LottiePlayerPool extends ChangeNotifier {
+  static final instance = _LottiePlayerPool._();
+  _LottiePlayerPool._();
+
+  int _active = 0;
+  static const maxActive = 6;
+
+  bool tryAcquire() {
+    if (_active >= maxActive) return false;
+    _active++;
+    return true;
+  }
+
+  void release() {
+    if (_active > 0) {
+      _active--;
+      notifyListeners();
+    }
+  }
+}
+
 class _StickerTile extends StatefulWidget {
   final StickerInfoItem sticker;
   final String accountId;
   final EngineService engine;
+  final bool isEmoji;
   final VoidCallback? onTap;
   final bool isCreator;
   final ValueChanged<bool>? onFaveToggled;
@@ -454,6 +485,7 @@ class _StickerTile extends StatefulWidget {
     required this.sticker,
     required this.accountId,
     required this.engine,
+    this.isEmoji = false,
     this.onTap,
     this.isCreator = false,
     this.onFaveToggled,
@@ -471,50 +503,114 @@ class _StickerTileState extends State<_StickerTile>
   Player? _webmPlayer;
   VideoController? _webmController;
   File? _webmTempFile;
+  Uint8List? _staticImageData;
   bool _loadingFile = false;
-  bool _acquiredSlot = false;
-  bool _waitingForSlot = false;
+  bool _acquiredVideoSlot = false;
+  bool _waitingForVideoSlot = false;
+  bool _acquiredLottieSlot = false;
+  bool _waitingForLottieSlot = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.sticker.isAnimated) {
-      _loadAnimatedSticker();
+      _tryLoadLottie();
     } else if (widget.sticker.isVideo) {
       _tryLoadVideo();
+    } else if (widget.sticker.thumbB64.isEmpty) {
+      _loadStaticSticker();
     }
   }
 
   void _tryLoadVideo() {
-    if (_acquiredSlot || _loadingFile) return;
+    if (_acquiredVideoSlot || _loadingFile) return;
     if (_VideoPlayerPool.instance.tryAcquire()) {
-      _acquiredSlot = true;
-      if (_waitingForSlot) {
-        _waitingForSlot = false;
-        _VideoPlayerPool.instance.removeListener(_onSlotAvailable);
+      _acquiredVideoSlot = true;
+      if (_waitingForVideoSlot) {
+        _waitingForVideoSlot = false;
+        _VideoPlayerPool.instance.removeListener(_onVideoSlotAvailable);
       }
       _loadVideoSticker();
-    } else if (!_waitingForSlot) {
-      _waitingForSlot = true;
-      _VideoPlayerPool.instance.addListener(_onSlotAvailable);
+    } else if (!_waitingForVideoSlot) {
+      _waitingForVideoSlot = true;
+      _VideoPlayerPool.instance.addListener(_onVideoSlotAvailable);
     }
   }
 
-  void _onSlotAvailable() {
-    if (!mounted || _acquiredSlot) {
-      if (_waitingForSlot) {
-        _waitingForSlot = false;
-        _VideoPlayerPool.instance.removeListener(_onSlotAvailable);
+  void _onVideoSlotAvailable() {
+    if (!mounted || _acquiredVideoSlot) {
+      if (_waitingForVideoSlot) {
+        _waitingForVideoSlot = false;
+        _VideoPlayerPool.instance.removeListener(_onVideoSlotAvailable);
       }
       return;
     }
     _tryLoadVideo();
   }
 
-  void _releaseSlot() {
-    if (_acquiredSlot) {
-      _acquiredSlot = false;
+  void _releaseVideoSlot() {
+    if (_acquiredVideoSlot) {
+      _acquiredVideoSlot = false;
       _VideoPlayerPool.instance.release();
+    }
+  }
+
+  void _tryLoadLottie() {
+    if (_acquiredLottieSlot || _loadingFile) return;
+    if (_LottiePlayerPool.instance.tryAcquire()) {
+      _acquiredLottieSlot = true;
+      if (_waitingForLottieSlot) {
+        _waitingForLottieSlot = false;
+        _LottiePlayerPool.instance.removeListener(_onLottieSlotAvailable);
+      }
+      _loadAnimatedSticker();
+    } else if (!_waitingForLottieSlot) {
+      _waitingForLottieSlot = true;
+      _LottiePlayerPool.instance.addListener(_onLottieSlotAvailable);
+    }
+  }
+
+  void _onLottieSlotAvailable() {
+    if (!mounted || _acquiredLottieSlot) {
+      if (_waitingForLottieSlot) {
+        _waitingForLottieSlot = false;
+        _LottiePlayerPool.instance.removeListener(_onLottieSlotAvailable);
+      }
+      return;
+    }
+    _tryLoadLottie();
+  }
+
+  void _releaseLottieSlot() {
+    if (_acquiredLottieSlot) {
+      _acquiredLottieSlot = false;
+      _LottiePlayerPool.instance.release();
+    }
+  }
+
+  Future<void> _loadStaticSticker() async {
+    if (_loadingFile) return;
+    _loadingFile = true;
+    final docId = int.tryParse(widget.sticker.fileId);
+    if (docId == null) {
+      _loadingFile = false;
+      return;
+    }
+    try {
+      final files = await widget.engine.getStickerFiles(widget.accountId, [docId]);
+      final fileData = files[docId];
+      if (fileData != null && mounted) {
+        if (fileData.isTgs) {
+          final decompressed = Uint8List.fromList(gzip.decode(fileData.fileData));
+          setState(() => _lottieData = decompressed);
+        } else {
+          setState(() => _staticImageData = fileData.fileData);
+        }
+      } else {
+        _loadingFile = false;
+      }
+    } catch (_) {
+      _loadingFile = false;
     }
   }
 
@@ -524,6 +620,7 @@ class _StickerTileState extends State<_StickerTile>
     final docId = int.tryParse(widget.sticker.fileId);
     if (docId == null) {
       _loadingFile = false;
+      _releaseLottieSlot();
       return;
     }
     try {
@@ -535,9 +632,11 @@ class _StickerTileState extends State<_StickerTile>
         setState(() => _lottieData = decompressed);
       } else {
         _loadingFile = false;
+        _releaseLottieSlot();
       }
     } catch (_) {
       _loadingFile = false;
+      _releaseLottieSlot();
     }
   }
 
@@ -547,7 +646,7 @@ class _StickerTileState extends State<_StickerTile>
     final docId = int.tryParse(widget.sticker.fileId);
     if (docId == null) {
       _loadingFile = false;
-      _releaseSlot();
+      _releaseVideoSlot();
       return;
     }
     try {
@@ -566,7 +665,7 @@ class _StickerTileState extends State<_StickerTile>
         if (!mounted) {
           await player.dispose();
           _loadingFile = false;
-          _releaseSlot();
+          _releaseVideoSlot();
           return;
         }
         setState(() {
@@ -575,11 +674,11 @@ class _StickerTileState extends State<_StickerTile>
         });
       } else {
         _loadingFile = false;
-        _releaseSlot();
+        _releaseVideoSlot();
       }
     } catch (_) {
       _loadingFile = false;
-      _releaseSlot();
+      _releaseVideoSlot();
     }
   }
 
@@ -595,15 +694,19 @@ class _StickerTileState extends State<_StickerTile>
   @override
   void dispose() {
     _dismissPreview();
-    if (_waitingForSlot) {
-      _VideoPlayerPool.instance.removeListener(_onSlotAvailable);
+    if (_waitingForVideoSlot) {
+      _VideoPlayerPool.instance.removeListener(_onVideoSlotAvailable);
+    }
+    if (_waitingForLottieSlot) {
+      _LottiePlayerPool.instance.removeListener(_onLottieSlotAvailable);
     }
     _lottieController?.dispose();
     final player = _webmPlayer;
     _webmPlayer = null;
     _webmController = null;
     player?.dispose().catchError((_) {});
-    _releaseSlot();
+    _releaseVideoSlot();
+    _releaseLottieSlot();
     _webmTempFile?.delete().catchError((_) {});
     super.dispose();
   }
@@ -625,6 +728,12 @@ class _StickerTileState extends State<_StickerTile>
         controller: _webmController!,
         fit: BoxFit.contain,
         controls: NoVideoControls,
+      );
+    } else if (_staticImageData != null) {
+      child = Image.memory(
+        _staticImageData!,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
       );
     } else if (sticker.thumbB64.isNotEmpty) {
       try {
@@ -655,8 +764,10 @@ class _StickerTileState extends State<_StickerTile>
     return GestureDetector(
       onTap: widget.onTap,
       onSecondaryTapUp: (details) => _showContextMenu(context, details.globalPosition),
-      onLongPressStart: (details) => _showStickerPreview(context, details.globalPosition, child),
-      onLongPressEnd: (_) => _dismissPreview(),
+      onLongPressStart: widget.isEmoji
+          ? (details) => _showContextMenu(context, details.globalPosition)
+          : (details) => _showStickerPreview(context, details.globalPosition, child),
+      onLongPressEnd: widget.isEmoji ? null : (_) => _dismissPreview(),
       child: TelegramTooltip(
         message: sticker.emoji,
         child: Padding(
@@ -693,18 +804,32 @@ class _StickerTileState extends State<_StickerTile>
       Rect.fromLTWH(position.dx, position.dy, 0, 0),
       Offset.zero & overlay.size,
     );
-    final items = <PopupMenuEntry<String>>[
-      const PopupMenuItem(value: 'send', child: Text('Send')),
-      PopupMenuItem(
+
+    final items = <PopupMenuEntry<String>>[];
+    if (widget.isEmoji) {
+      if (sticker.emoji.isNotEmpty) {
+        items.add(const PopupMenuItem(value: 'copy', child: Text('Copy Emoji')));
+      }
+      if (widget.isCreator) {
+        items.add(const PopupMenuItem(value: 'delete', child: Text('Delete',
+          style: TextStyle(color: Color(0xFFE53935)))));
+      } else {
+        items.add(const PopupMenuItem(value: 'addtoset', child: Text('Add to Emoji Set')));
+      }
+    } else {
+      items.add(const PopupMenuItem(value: 'send', child: Text('Send')));
+      items.add(PopupMenuItem(
         value: 'fav',
         child: Text(sticker.isFaved ? 'Remove from Favorites' : 'Add to Favorites'),
-      ),
-      if (!widget.isCreator)
-        const PopupMenuItem(value: 'addtoset', child: Text('Add to Set')),
-      if (widget.isCreator)
-        const PopupMenuItem(value: 'delete', child: Text('Delete Sticker',
-          style: TextStyle(color: Color(0xFFE53935)))),
-    ];
+      ));
+      if (widget.isCreator) {
+        items.add(const PopupMenuItem(value: 'delete', child: Text('Delete Sticker',
+          style: TextStyle(color: Color(0xFFE53935)))));
+      } else {
+        items.add(const PopupMenuItem(value: 'addtoset', child: Text('Add to Set')));
+      }
+    }
+
     showMenu<String>(
       context: context,
       position: relativeRect,
@@ -714,6 +839,13 @@ class _StickerTileState extends State<_StickerTile>
       switch (value) {
         case 'send':
           widget.onTap?.call();
+        case 'copy':
+          Clipboard.setData(ClipboardData(text: sticker.emoji));
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Emoji copied'), duration: Duration(seconds: 2)),
+            );
+          }
         case 'fav':
           final docId = int.tryParse(sticker.fileId);
           if (docId != null) {
@@ -763,10 +895,12 @@ class _StickerTileState extends State<_StickerTile>
   }
 
   Future<void> _showAddToSetDialog() async {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
     final sets = await widget.engine.getCreatedStickerSets(widget.accountId);
     if (!mounted) return;
     if (sets.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('You don\'t have any custom sticker sets'),
           duration: Duration(seconds: 2),
@@ -774,10 +908,11 @@ class _StickerTileState extends State<_StickerTile>
       );
       return;
     }
+    final addLabel = widget.isEmoji ? 'Add to Emoji Set' : 'Add to Set';
     final selected = await showDialog<StickerSetInfo>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Add to Set'),
+        title: Text(addLabel),
         children: sets.map((set) => SimpleDialogOption(
           onPressed: () => Navigator.pop(ctx, set),
           child: Text('${set.title} (${set.count})'),
@@ -787,12 +922,26 @@ class _StickerTileState extends State<_StickerTile>
     if (selected == null || !mounted) return;
     final docId = int.tryParse(widget.sticker.fileId);
     if (docId == null) return;
+    final loadingSnack = messenger.showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+            SizedBox(width: 12),
+            Text('Adding...'),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+      ),
+    );
     final success = await widget.engine.addStickerToExistingSet(
       widget.accountId, selected.setId, selected.accessHash, docId,
       widget.sticker.emoji.isNotEmpty ? widget.sticker.emoji : '⭐',
     );
+    loadingSnack.close();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text(success ? 'Added to ${selected.title}' : 'Failed to add sticker'),
           duration: const Duration(seconds: 2),
@@ -855,7 +1004,11 @@ class _StickerTileState extends State<_StickerTile>
     );
   }
 
+  static final _thumbCache = <String, Uint8List>{};
+
   static Uint8List _decodeStrippedThumb(String b64) {
+    final cached = _thumbCache[b64];
+    if (cached != null) return cached;
     final stripped = base64Decode(b64);
     if (stripped.length < 3 || stripped[0] != 0x01) {
       return stripped;
@@ -868,6 +1021,8 @@ class _StickerTileState extends State<_StickerTile>
     buf.setAll(0, header);
     buf.setAll(header.length, stripped.sublist(3));
     buf.setAll(header.length + stripped.length - 3, footer);
+    if (_thumbCache.length > 200) _thumbCache.clear();
+    _thumbCache[b64] = buf;
     return buf;
   }
 
