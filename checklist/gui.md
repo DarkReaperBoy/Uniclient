@@ -852,13 +852,6 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 ## privacy_settings_screen — audit vs AyuGram Desktop
 
 
-## send_files_box — Paid price lost, groups structure unused, AI button missing
-
-- [ ] [CRITICAL] `starsPerMessage` (paid-post price) is never included in `SendFilesResult` and never passed to `uploadFile()` — the user-edited price from `_showEditPriceDialog` is silently discarded; paid posts on broadcast channels send without the price applied — `send_files_box.dart:85-124` (missing field in `SendFilesResult`), `chat_view.dart:4238-4252` (no price arg to `uploadFile`), `chat_state.dart:1594` (no price param), `engine_service.dart:4785` (no price param) ← `send_files_box.cpp:2413` (`options.price = hasPrice() ? _price.current() : 0`)
-
-- [ ] [CRITICAL] `result.groups` and `result.captionGroupIndex` are computed in `_doSend` but entirely ignored by the caller — all files in a mixed-type send (e.g. photo + document) share a single `groupId` token regardless of type boundaries, so the engine receives one album spanning incompatible types; caption is assigned using a hardcoded `captionIdx = isDocGroup ? lastIdx : 0` rule rather than the group-aware index, causing captions to land on the wrong file when document groups precede media groups — `chat_view.dart:4227-4252` (single timestamp groupId, ignores `result.groups`/`result.captionGroupIndex`) ← `send_files_box.cpp:2427-2452` (`DivideByGroups` + per-group caption assignment to front/back of each typed bundle)
-
-- [ ] [MAJOR] Compose-AI button is absent from the caption area — C++ sets up `_aiButton` via `Ui::SetupCaptionAiButton` and keeps it geometrically anchored to the caption field, but no equivalent widget exists in the Dart caption row — `send_files_box.dart:2510-2570` (caption row has emoji toggle and formatting toolbar only) ← `send_files_box.cpp:1913` (`_aiButton = Ui::SetupCaptionAiButton({...})`)
 
 # settings_screen — Settings Main + Sub-screens Audit
 
