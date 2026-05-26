@@ -842,7 +842,7 @@ The Dart file exists but is **DEAD CODE**—never imported or used anywhere. The
 
 ## payment_panel — _hasChanges() misses in-progress tokenization
 
-- [ ] [MAJOR] `_hasChanges()` only compares saved field strings (payment method display name, address, name, email, phone) but does not detect when a Stripe or SmartGlocal tokenization request is in flight (line 2233). AyuGram's `Form::hasChanges()` returns `true` while `_stripe != nullptr || _smartglocal != nullptr`, ensuring the close-confirmation dialog appears even if the user opened the card form but hasn't yet tokenized. Dart will silently close without warning if the user enters card data during an in-progress tokenization. — `payment_panel.dart:2233` ← `AyuGram/payments/payments_form.cpp:1064`
+- [x] [MAJOR] `_hasChanges()` only compares saved field strings (payment method display name, address, name, email, phone) but does not detect when a Stripe or SmartGlocal tokenization request is in flight (line 2233). AyuGram's `Form::hasChanges()` returns `true` while `_stripe != nullptr || _smartglocal != nullptr`, ensuring the close-confirmation dialog appears even if the user opened the card form but hasn't yet tokenized. Dart will silently close without warning if the user enters card data during an in-progress tokenization. — `payment_panel.dart:2233` ← `AyuGram/payments/payments_form.cpp:1064`
 
 # peer_short_info — Audit findings
 

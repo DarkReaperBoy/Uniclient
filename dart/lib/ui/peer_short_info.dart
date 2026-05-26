@@ -14,6 +14,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../utils/country_data.dart';
+import 'confirm_box.dart';
 import 'popup_menu.dart';
 import 'telegram_toast.dart';
 
@@ -408,6 +409,14 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         label: 'Report',
         isAttention: true,
       ));
+      if (_isDm && _profile?.isContact == true) {
+        items.add(TelegramMenuItem<String>(
+          value: 'delete_contact',
+          icon: const Icon(Icons.person_remove_outlined, size: 20),
+          label: 'Delete Contact',
+          isAttention: true,
+        ));
+      }
       if (_isDm) {
         items.add(TelegramMenuItem<String>(
           value: 'block',
@@ -423,6 +432,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       items: items,
     ).then((value) {
       if (!mounted) return;
+      final engine = context.read<EngineService>();
       switch (value) {
         case 'new_window':
           Navigator.of(context).pop();
@@ -432,9 +442,17 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
             mode: ProcessStartMode.detached,
           );
         case 'report':
-          showTelegramToast(context, 'Report sent');
+          showDynamicReportFlow(
+            context,
+            engine: engine,
+            accountId: widget.accountId,
+            chatId: widget.peerId,
+            msgIds: [],
+          );
+        case 'delete_contact':
+          engine.deleteContact(widget.accountId, widget.peerId);
+          showTelegramToast(context, 'Contact deleted');
         case 'block':
-          final engine = context.read<EngineService>();
           engine.blockUser(widget.accountId, widget.peerId);
           Navigator.of(context).pop();
           showTelegramToast(context, 'User blocked');
