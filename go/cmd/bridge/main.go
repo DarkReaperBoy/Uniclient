@@ -1,17 +1,18 @@
 // Entry point for c-shared library build.
-// Build: CGO_ENABLED=1 go build -tags goolm -buildmode=c-shared -o libcores.so ./cmd/bridge/
+// Minimal CGo: a 2-line C trampoline invokes Dart's event callback function
+// pointer. All exported function signatures use pure Go types. Memory is
+// managed by Go's runtime with Pinner to satisfy cgo pointer rules.
 package main
 
-// #include <stdlib.h>
-// #include <stdint.h>
-//
-// typedef void (*event_callback_t)(void* data, int32_t len);
-//
-// static void invoke_event_callback(event_callback_t cb, void* data, int32_t len) {
-//     cb(data, len);
-// }
+/*
+#include <stdint.h>
+typedef void (*event_callback_t)(void* data, int32_t len);
+static void invoke_callback(event_callback_t cb, void* data, int32_t len) { cb(data, len); }
+*/
 import "C"
 import (
+	"runtime"
+	"sync"
 	"unsafe"
 
 	"uniclient/bridge"
@@ -19,51 +20,72 @@ import (
 
 func main() {}
 
-// BridgeCallWithLen is the single FFI entry point.
-// Takes a serialized BridgeRequest proto as (pointer, length).
-// Returns a serialized BridgeResponse proto and sets outLen.
-// Caller must free the returned pointer with BridgeFree.
-//
+type pinnedEntry struct {
+	data   []byte
+	pinner *runtime.Pinner
+}
+
+var (
+	pinnedMu   sync.Mutex
+	pinnedRefs = make(map[uintptr]pinnedEntry)
+)
+
+func pinBytes(data []byte) *byte {
+	buf := make([]byte, len(data))
+	copy(buf, data)
+	ptr := &buf[0]
+
+	p := new(runtime.Pinner)
+	p.Pin(ptr)
+
+	pinnedMu.Lock()
+	pinnedRefs[uintptr(unsafe.Pointer(ptr))] = pinnedEntry{data: buf, pinner: p}
+	pinnedMu.Unlock()
+	return ptr
+}
+
+func unpinBytes(ptr *byte) {
+	pinnedMu.Lock()
+	entry, ok := pinnedRefs[uintptr(unsafe.Pointer(ptr))]
+	if ok {
+		entry.pinner.Unpin()
+		delete(pinnedRefs, uintptr(unsafe.Pointer(ptr)))
+	}
+	pinnedMu.Unlock()
+}
+
 //export BridgeCallWithLen
-func BridgeCallWithLen(data *C.uint8_t, dataLen C.int32_t, outLen *C.int32_t) *C.uint8_t {
-	goData := C.GoBytes(unsafe.Pointer(data), C.int(dataLen))
+func BridgeCallWithLen(data *byte, dataLen int32, outLen *int32) *byte {
+	goData := make([]byte, int(dataLen))
+	copy(goData, unsafe.Slice(data, int(dataLen)))
+
 	result := bridge.Call(goData)
-	*outLen = C.int32_t(len(result))
+	*outLen = int32(len(result))
 	if len(result) == 0 {
 		return nil
 	}
-	cResult := (*C.uint8_t)(C.malloc(C.size_t(len(result))))
-	copy(unsafe.Slice((*byte)(unsafe.Pointer(cResult)), len(result)), result)
-	return cResult
+	return pinBytes(result)
 }
 
-// BridgeFree frees memory allocated by BridgeCallWithLen.
-//
 //export BridgeFree
-func BridgeFree(ptr *C.uint8_t) {
+func BridgeFree(ptr *byte) {
 	if ptr != nil {
-		C.free(unsafe.Pointer(ptr))
+		unpinBytes(ptr)
 	}
 }
 
-// BridgeSetEventCallback sets a C callback for async events (Go → Dart).
-// The callback receives (data pointer, length) for a serialized BridgeEvent proto.
-//
 //export BridgeSetEventCallback
-func BridgeSetEventCallback(cb C.event_callback_t) {
+func BridgeSetEventCallback(cb unsafe.Pointer) {
 	if cb == nil {
 		bridge.SetEventCallback(nil)
 		return
 	}
+	ccb := C.event_callback_t(cb)
 	bridge.SetEventCallback(func(data []byte) {
 		if len(data) == 0 {
 			return
 		}
-		// C.CBytes allocates via C.malloc and copies data into it.
-		// Do NOT free here — Dart's NativeCallable.listener runs asynchronously,
-		// so Dart reads the pointer after this function returns. Dart frees it
-		// after copying via malloc.free().
-		cData := C.CBytes(data)
-		C.invoke_event_callback(cb, cData, C.int32_t(len(data)))
+		ptr := pinBytes(data)
+		C.invoke_callback(ccb, unsafe.Pointer(ptr), C.int32_t(len(data)))
 	})
 }

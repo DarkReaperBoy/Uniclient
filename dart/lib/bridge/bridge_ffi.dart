@@ -25,15 +25,15 @@ typedef _BridgeFreeC = Void Function(Pointer<Uint8> ptr);
 typedef _BridgeFreeDart = void Function(Pointer<Uint8> ptr);
 
 typedef _EventCallbackC = Void Function(Pointer<Void> data, Int32 len);
-typedef _BridgeSetEventCallbackC = Void Function(
-  Pointer<NativeFunction<_EventCallbackC>> cb,
-);
-typedef _BridgeSetEventCallbackDart = void Function(
-  Pointer<NativeFunction<_EventCallbackC>> cb,
-);
+typedef _BridgeSetEventCallbackC = Void Function(Pointer<Void> cb);
+typedef _BridgeSetEventCallbackDart = void Function(Pointer<Void> cb);
 
 /// The resolved library path, shared with background isolates.
 String? _resolvedLibPath;
+
+/// Global reference to BridgeFree for the event callback handler.
+/// Set once during init(), remains valid for the process lifetime.
+_BridgeFreeDart? _bridgeFreeGlobal;
 
 class BridgeImpl {
   late final DynamicLibrary _lib;
@@ -56,12 +56,13 @@ class BridgeImpl {
           'BridgeCallWithLen',
         );
     _free = _lib.lookupFunction<_BridgeFreeC, _BridgeFreeDart>('BridgeFree');
+    _bridgeFreeGlobal = _free;
     _setEventCallback = _lib
         .lookupFunction<_BridgeSetEventCallbackC, _BridgeSetEventCallbackDart>(
           'BridgeSetEventCallback',
         );
 
-    _setEventCallback(_eventCallbackPointer);
+    _setEventCallback(_eventCallbackPointer.cast());
     _initialized = true;
   }
 
@@ -84,7 +85,7 @@ class BridgeImpl {
 
   void dispose() {
     if (!_initialized) return;
-    _setEventCallback(nullptr);
+    _setEventCallback(Pointer<Void>.fromAddress(0));
     _initialized = false;
     _globalEventController.close();
     _eventCallable.close();
@@ -167,12 +168,8 @@ final _globalEventController = StreamController<Uint8List>.broadcast();
 
 void _onEvent(Pointer<Void> data, int len) {
   if (len <= 0) return;
-  // Copy bytes first, then free the C-allocated memory.
-  // Go's C.CBytes uses C.malloc; we must free here because
-  // NativeCallable.listener runs asynchronously — Go can't free
-  // the pointer before Dart has read it.
   final bytes = Uint8List.fromList(data.cast<Uint8>().asTypedList(len));
-  malloc.free(data);
+  _bridgeFreeGlobal?.call(data.cast<Uint8>());
   _globalEventController.add(bytes);
 }
 
