@@ -1,0 +1,19 @@
+# engine_service — Bridge service layer audit
+
+## Summary
+
+`engine_service.dart` is the high-level Dart wrapper around the FFI bridge. It is well-structured and covers a very wide API surface (~250 methods). No placeholder stubs, no "coming soon" snackbars, no fake data. All calls correctly reach the Go engine via `_callRaw`/`_callAsync`. However, four concrete bugs were found:
+
+---
+
+## Findings
+
+- [ ] [CRITICAL] `EngineGroupCallParticipant` proto is missing `video_joined`, `only_min_loaded`, `video_camera_endpoint`, `video_screen_endpoint`, `video_camera_paused`, `video_screen_paused` — so `getGroupCall()` always returns participants with those fields at their zero defaults (false/empty string). The Dart model `GroupCallParticipant` declares all six fields correctly, but the proto carrying them (`proto/engine.proto:959-977`) has none of them. Only the `group_call_state` event path (`engine_service.dart:6135`, via `GroupCallInfo.fromJson`) correctly delivers these fields because it goes through JSON. The proto path (`engine_service.dart:2166-2201`) is broken for all video-related participant state. — `engine_service.dart:2180` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:bool videoJoined`, `bool onlyMinLoaded`, `videoParams`
+
+- [ ] [CRITICAL] `EngineGroupCallInfo` proto (`proto/engine.proto:979-986`) only carries 6 fields (`call_id`, `chat_id`, `title`, `participants_count`, `participants[]`, `active`) — `getGroupCall()` always returns `GroupCallInfo` with `isRtmp`, `isRecording`, `recordStartDate`, `scheduleDate`, `listenersHidden`, `messagesEnabled`, `messagesMinPrice`, `conferenceInviteLink` all at zero/false/empty. These fields exist on the Dart model but are never populated by the sync fetch path. Only `group_call_state` push events (`engine_service.dart:6135`) deliver complete data. — `engine_service.dart:2174-2201` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_group_call.h:bool rtmp()`, `bool listenersHidden()`, `scheduleStartSubscribed()`
+
+- [ ] [CRITICAL] Non-engine core events are silently dropped — `engine_service.dart:6008` contains the comment `// Non-engine core events will be handled when per-core UI is built.` and does nothing. Any event fired by a non-Telegram core (Bale, Matrix, Rubika, XMPP, IRC, etc.) is discarded at the bridge listener. This means multi-platform accounts cannot receive live `msg_received`, `chat_updated`, `auth_state`, or any other event. AyuGram dispatches all data-source events to the appropriate handler. — `engine_service.dart:6004-6008` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_changes.h:Changes::peerUpdated`, `messageUpdated`, `entryUpdated`
+
+- [ ] [MAJOR] `_msgReactionsUpdatedController` (declared at `engine_service.dart:45`) and `_notifySettingsController` (declared at `engine_service.dart:56`) are never closed in `dispose()` — `dispose()` at lines 5894-5917 closes 20 of the 22 broadcast `StreamController`s but omits these two. On app hot-restart or account removal the streams leak. AyuGram cleans up all subscriptions on session teardown. — `engine_service.dart:5894-5917` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_session.h` (session destruction closes all subscriptions)
+
+- [ ] [MAJOR] `getDeletedMessages()` uses the synchronous blocking call `_callRaw` and parses JSON inline on the UI thread — `engine_service.dart:2902-2937`. The parallel `getMessages()` at line 2806 correctly uses `_callAsync` + `Isolate.run` to offload protobuf parsing. `getDeletedMessages` returns up to 20 messages with full field mapping but does both the FFI call and all JSON parsing synchronously on the Dart main isolate. AyuGram loads deleted/history items from a background thread. — `engine_service.dart:2902` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_histories.h:Histories::deleteMessages` (async)

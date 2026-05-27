@@ -54,6 +54,7 @@ class NotificationSoundPlayer {
 
     await player.setVolume(vol);
     await player.open(Media(soundPath));
+    await player.play();
     Debug.log('NOTIF', 'Sound played: vol=${vol.toInt()}%');
   }
 

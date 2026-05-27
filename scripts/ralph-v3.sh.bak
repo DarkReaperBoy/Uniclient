@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ralph-v3.sh — Fully autonomous implement→verify→audit loop
+# ralph-v2.sh — Fully autonomous implement→verify→audit loop
 #
 # Designed by a 12-agent tribunal debate (7 rounds, 100k+ words).
 # Incorporates: three-layer audit, circuit breakers, partial-failure
@@ -17,10 +17,10 @@
 #     Convergence: zero critical+major findings for 2 consecutive cycles → done.
 #
 # No human gate. Fully autonomous. No artificial cost ceiling.
-# Safety: circuit breakers, divergence stop, partial failure, max 5 audit cycles.
+# Safety: circuit breakers, divergence rollback, partial failure, max 5 audit cycles.
 #
-# Usage: nix develop --command bash -c "scripts/ralph-v3.sh"
-# Kill:  Ctrl+C or kill $(pgrep -f ralph-v3.sh)
+# Usage: nix develop --command bash -c "scripts/ralph-v2.sh"
+# Kill:  Ctrl+C or kill $(pgrep -f ralph-v2.sh)
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -41,6 +41,7 @@ if [[ ! -d "$AYUGRAM_DIR" ]]; then
 fi
 
 # ─── Configuration ───────────────────────────────────────────────
+RATE_LIMIT_WAIT="${RALPH_RATE_WAIT:-300}"
 BACKOFF_BASE=30
 BACKOFF_MAX=300
 MAX_IMPL_ATTEMPTS=3
@@ -48,7 +49,6 @@ MAX_AUDIT_CYCLES=5
 CONVERGE_THRESHOLD=2
 CIRCUIT_BREAKER_THRESHOLD=3
 CIRCUIT_BREAKER_COOLDOWN=300
-SKIP_UNCHANGED="${RALPH_SKIP_UNCHANGED:-0}"
 # No session timeout — ralph runs until Claude finishes naturally
 
 # ─── Logging ─────────────────────────────────────────────────────
@@ -62,71 +62,16 @@ mkdir -p "$ITER_LOG_DIR"
 FEEDBACK_FILE="/tmp/ralph_feedback.txt"
 COST_LOG="$LOG_DIR/cost_${RUN_ID}.log"
 PROGRESS_FILE="/tmp/ralph_audit_progress.json"
-STAGE_FILE="/tmp/ralph_current_stage.txt"
-INTERRUPT_FILE="/tmp/ralph_interrupted_${RUN_ID}"
 AUDIT_DATA="$PROJECT_ROOT/audit"
-CURRENT_STAGE="STARTING"
-CURRENT_STEP="initializing"
-CURRENT_DETAIL=""
-rm -f "$INTERRUPT_FILE"
 
 log() { echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
 notify() {
   log "NOTIFY: $*"
-  command -v notify-send &>/dev/null && notify-send -u critical "Ralph v3" "$*" 2>/dev/null || true
+  command -v notify-send &>/dev/null && notify-send -u critical "Ralph v2" "$*" 2>/dev/null || true
 }
 update_progress() {
-  local stage="$1" step="$2" detail="${3:-}"
-  local now
-  now="$(date -Iseconds)"
-  CURRENT_STAGE="$stage"
-  CURRENT_STEP="$step"
-  CURRENT_DETAIL="$detail"
-
-  jq -n \
-    --arg current_stage "$stage" \
-    --arg phase "$stage" \
-    --arg step "$step" \
-    --arg detail "$detail" \
-    --arg time "$now" \
-    --arg run_id "$RUN_ID" \
-    --arg impl_iteration "${IMPL_ITERATION:-0}" \
-    --arg audit_cycle "${AUDIT_CYCLE:-0}" \
-    --arg audit_phase "${AUDIT_PHASE:-none}" \
-    --arg remaining "${REMAINING:-0}" \
-    --arg item_count "${ITEM_COUNT:-0}" \
-    --arg item_attempts "${ITEM_ATTEMPTS:-0}" \
-    --arg total_commits "${TOTAL_COMMITS:-0}" \
-    --arg skip_unchanged "$SKIP_UNCHANGED" \
-    '{current_stage:$current_stage, phase:$phase, step:$step, detail:$detail, time:$time, run_id:$run_id, implementation_iteration:($impl_iteration|tonumber), audit_cycle:($audit_cycle|tonumber), audit_phase:$audit_phase, remaining_items:($remaining|tonumber), current_section_items:($item_count|tonumber), item_attempts:($item_attempts|tonumber), verified_commits:($total_commits|tonumber), skip_unchanged_audits:($skip_unchanged == "1")}' > "$PROGRESS_FILE"
-
-  {
-    printf 'Ralph v3 current stage: %s\n' "$stage"
-    printf 'Step: %s\n' "$step"
-    [[ -n "$detail" ]] && printf 'Detail: %s\n' "$detail"
-    printf 'Updated: %s\n' "$now"
-    printf 'Run ID: %s\n' "$RUN_ID"
-    printf 'Implementation iteration: %s\n' "${IMPL_ITERATION:-0}"
-    printf 'Audit cycle: %s\n' "${AUDIT_CYCLE:-0}"
-    printf 'Audit phase: %s\n' "${AUDIT_PHASE:-none}"
-    printf 'Remaining checklist items: %s\n' "${REMAINING:-0}"
-    printf 'Current section items: %s\n' "${ITEM_COUNT:-0}"
-    printf 'Item attempts: %s\n' "${ITEM_ATTEMPTS:-0}"
-    printf 'Verified commits: %s\n' "${TOTAL_COMMITS:-0}"
-    printf 'Skip unchanged audits: %s\n' "$SKIP_UNCHANGED"
-    printf 'JSON progress: %s\n' "$PROGRESS_FILE"
-    printf 'Log file: %s\n' "$LOG_FILE"
-  } > "$STAGE_FILE"
-}
-
-set_current_stage() {
-  local stage="$1" step="$2" detail="${3:-}"
-  update_progress "$stage" "$step" "$detail"
-  log ""
-  log "▶ CURRENT RALPH STAGE: $stage"
-  log "  Step: $step"
-  [[ -n "$detail" ]] && log "  Detail: $detail"
-  log "  Stage file: $STAGE_FILE"
+  local phase="$1" step="$2" detail="${3:-}"
+  echo "{\"phase\":\"$phase\",\"step\":\"$step\",\"detail\":\"$detail\",\"time\":\"$(date -Iseconds)\"}" > "$PROGRESS_FILE"
 }
 
 # ─── Gitignore ───────────────────────────────────────────────────
@@ -143,41 +88,16 @@ fi
 echo $$ > "$LOCKFILE"
 
 # ─── Cleanup ─────────────────────────────────────────────────────
-kill_descendants() {
-  local parent="$1" child
-  while IFS= read -r child; do
-    [[ -n "$child" ]] || continue
-    kill_descendants "$child"
-    kill "$child" 2>/dev/null || true
-  done < <(pgrep -P "$parent" 2>/dev/null || true)
-}
-
 cleanup() {
-  trap - EXIT
   log "Shutting down..."
-  case "${CURRENT_STAGE:-}" in
-    COMPLETE*|STOPPED*) ;;
-    *) update_progress "STOPPED" "cleanup" "Ralph exited or was interrupted" ;;
-  esac
-  # Kill descendant Claude/subshell pipelines without signalling this script.
-  kill_descendants "$$"
+  # Kill all child processes (prevents orphan Claude sessions burning API credits)
+  kill -- -$$ 2>/dev/null || true
   pkill -x uniclient 2>/dev/null || true
-  rm -f "$LOCKFILE"
-  [[ "${CURRENT_STAGE:-}" == "STOPPED / INTERRUPTED"* ]] || rm -f "$FEEDBACK_FILE"
+  rm -f "$LOCKFILE" "$FEEDBACK_FILE"
   rm -f /tmp/uniclient_debug_cmd.json /tmp/uniclient_debug_out.json
-  notify "Ralph v3 stopped. Impl: ${IMPL_ITERATION:-0}. Audit: ${AUDIT_CYCLE:-0}. Commits: ${TOTAL_COMMITS:-0}."
+  notify "Ralph v2 stopped. Impl: ${IMPL_ITERATION:-0}. Audit: ${AUDIT_CYCLE:-0}. Commits: ${TOTAL_COMMITS:-0}."
   log "=== FINAL: ${IMPL_ITERATION:-0} impl, ${AUDIT_CYCLE:-0} audit, ${TOTAL_COMMITS:-0} commits ==="
 }
-
-handle_interrupt() {
-  trap - INT TERM
-  touch "$INTERRUPT_FILE" 2>/dev/null || true
-  update_progress "STOPPED / INTERRUPTED" "Ctrl+C" "Stopped by user; current work will be retried on the next ralph run" || true
-  log "Interrupt received. Stopping without marking current work complete."
-  exit 130
-}
-
-trap handle_interrupt INT TERM
 trap cleanup EXIT
 
 # ═════════════════════════════════════════════════════════════════
@@ -372,7 +292,7 @@ run_palette_diff() {
         ayu_rgb=$(echo "$ayu_val" | tr '[:upper:]' '[:lower:]')
         if [[ "$dart_rgb" != "$ayu_rgb" ]]; then
           local linenum
-          linenum=$(grep -n "$dart_key" "$dart_palette" 2>/dev/null | head -1 | cut -d: -f1 || true)
+          linenum=$(grep -n "$dart_key" "$dart_palette" 2>/dev/null | head -1 | cut -d: -f1)
           echo "- [ ] [MAJOR] Color mismatch '$dart_key': AyuGram=$ayu_rgb, Dart=$dart_rgb — \`telegram_palette.dart:${linenum:-?}\` ← \`colors.palette\`"
         fi
       fi
@@ -481,7 +401,7 @@ extract_ayugram_context() {
       [[ -f "$style_file" ]] || continue
       context+="--- $(basename "$style_file") ---"$'\n'
       # Extract pixel values and key definitions (skip comments, includes)
-      context+="$(grep -E "^[a-zA-Z].*: [0-9]+px|^[a-zA-Z].*: margins\(|^[a-zA-Z].*: font\(|^[a-zA-Z].*: #[0-9a-fA-F]" "$style_file" 2>/dev/null | head -80 || true)"$'\n'
+      grep -E "^[a-zA-Z].*: [0-9]+px|^[a-zA-Z].*: margins\(|^[a-zA-Z].*: font\(|^[a-zA-Z].*: #[0-9a-fA-F]" "$style_file" 2>/dev/null | head -80
       context+=$'\n'
     done
   done
@@ -493,7 +413,7 @@ extract_ayugram_context() {
       [[ -f "$h_file" ]] || continue
       context+="--- $(basename "$h_file") ---"$'\n'
       # Extract class declarations and public method signatures
-      context+="$(grep -E "^class |void |bool |int |QString |QRect |QSize |static |virtual " "$h_file" 2>/dev/null | head -30 || true)"$'\n'
+      grep -E "^class |void |bool |int |QString |QRect |QSize |static |virtual " "$h_file" 2>/dev/null | head -30
       context+=$'\n'
     done
   done
@@ -520,7 +440,7 @@ get_file_tier() {
   score=$(( callbacks * 3 + switch_cases * 2 + state_fields + lines / 200 ))
 
   if [[ $score -lt 3 ]]; then
-    echo "haiku"
+    echo "skip"
   elif [[ $score -lt 12 ]]; then
     echo "haiku"
   else
@@ -564,11 +484,6 @@ FINGERPRINT_FILE="$PROJECT_ROOT/audit/fingerprints.json"
 
 should_audit_file() {
   local dart_file="$1" cycle="$2"
-  # Default to full audits. Fingerprint skipping can hide work after interrupted
-  # runs or stale false-negatives; only enable it explicitly with
-  # RALPH_SKIP_UNCHANGED=1.
-  [[ "$SKIP_UNCHANGED" == "1" ]] || return 0
-  [[ -f "$INTERRUPT_FILE" ]] && return 0
   # Always audit on cycle 1
   [[ "$cycle" -le 1 ]] && return 0
   # Check if file hash changed since last audit
@@ -584,8 +499,6 @@ should_audit_file() {
 
 update_fingerprint() {
   local dart_file="$1"
-  [[ "$SKIP_UNCHANGED" == "1" ]] || return 0
-  [[ -f "$INTERRUPT_FILE" ]] && return 0
   local current_hash
   current_hash=$(sha256sum "$dart_file" 2>/dev/null | cut -d' ' -f1)
   # Create or update the fingerprint file
@@ -597,8 +510,82 @@ update_fingerprint() {
   [[ -n "$tmp" ]] && echo "$tmp" > "$FINGERPRINT_FILE"
 }
 
-# Retry/backoff on transient failures handled by invoke_claude() + circuit breaker.
-# No output-parsing rate limit detection (too fragile, causes false positives).
+# ─── Rate limit detection & waiting ──────────────────────────────
+RATE_LIMITED=false
+
+check_and_wait_rate_limit() {
+  local output_file="$1"
+  [[ -f "$output_file" ]] || return 1
+
+  # Check for rate limit message (may be JSON-wrapped or plain text)
+  if ! grep -q "hit your limit\|rate.limit\|Rate limit\|429\|Too Many Requests" "$output_file" 2>/dev/null; then
+    RATE_LIMITED=false
+    return 1
+  fi
+
+  RATE_LIMITED=true
+  log ""
+  log "  ⏰ RATE LIMITED detected."
+
+  # Extract reset time — Claude CLI outputs JSON with "resetsAt" as Unix epoch
+  local reset_epoch
+  reset_epoch=$(grep -oP '"resetsAt"\s*:\s*\K[0-9]+' "$output_file" 2>/dev/null | head -1 || true)
+
+  if [[ -n "$reset_epoch" && "$reset_epoch" -gt 0 ]]; then
+    local now_epoch
+    now_epoch=$(date +%s)
+    local wait_secs=$(( reset_epoch - now_epoch + 30 ))  # +30s buffer
+
+    if [[ $wait_secs -gt 0 && $wait_secs -lt 36000 ]]; then  # sanity: max 10 hours
+      local wait_mins=$(( wait_secs / 60 ))
+      local reset_time
+      reset_time=$(date -d "@$reset_epoch" '+%H:%M:%S' 2>/dev/null || echo "unknown")
+      log "  ⏰ Rate limit resets at $reset_time. Waiting ${wait_mins} minutes..."
+
+      local slept=0
+      while [[ $slept -lt $wait_secs ]]; do
+        sleep 30
+        slept=$((slept + 30))
+        local remaining=$(( wait_secs - slept ))
+        if [[ $((slept % 300)) -eq 0 && $remaining -gt 0 ]]; then
+          log "     Still waiting... ${remaining}s left ($(date '+%H:%M:%S'))"
+        fi
+      done
+    else
+      log "  ⏰ Reset time is in the past or too far out. Waiting 10 minutes..."
+      sleep 600
+    fi
+  else
+    # No epoch found — try human-readable fallback
+    local reset_str
+    reset_str=$(grep -oP 'resets?\s+\K[0-9]{1,2}:[0-9]{2}\s*(am|pm|AM|PM)' "$output_file" 2>/dev/null | head -1 || true)
+    if [[ -n "$reset_str" ]]; then
+      reset_epoch=$(date -d "$reset_str" +%s 2>/dev/null || true)
+      local now_epoch
+      now_epoch=$(date +%s)
+      if [[ -n "$reset_epoch" && "$reset_epoch" -gt "$now_epoch" ]]; then
+        local wait_secs=$(( reset_epoch - now_epoch + 30 ))
+        log "  ⏰ Rate limit resets at $reset_str. Waiting $(( wait_secs / 60 )) minutes..."
+        sleep "$wait_secs"
+      else
+        log "  ⏰ Could not parse '$reset_str'. Waiting 10 minutes..."
+        sleep 600
+      fi
+    else
+      log "  ⏰ No reset time found. Waiting 10 minutes..."
+      sleep 600
+    fi
+  fi
+
+  # Reset circuit breaker after rate limit wait (the API should be available now)
+  CB_FAILURES=0
+  CB_OPEN=false
+  CB_OPEN_UNTIL=0
+  RATE_LIMITED=false
+  log "  ✅ Rate limit wait complete. Circuit breaker reset. Resuming."
+  log ""
+  return 0
+}
 
 # ─── Circuit breaker state ───────────────────────────────────────
 CB_FAILURES=0
@@ -664,29 +651,8 @@ JQ_FMT='
   elif $e.type == "system" and $e.subtype == "init" then
     "\n  ┌─────────────────────────────────────────┐\n  │ 🚀 Session \($e.session_id // "")  │\n  └─────────────────────────────────────────┘\n"
   elif $e.type == "result" then
-    ($e.subtype // "unknown") as $subtype |
-    (if $subtype == "success" then "✅" else "❌" end) as $icon |
-    "\n  ┌─────────────────────────────────────────┐\n  │ \($icon) \($subtype) — \(($e.duration_ms // 0) / 1000)s, $\($e.total_cost_usd // 0)  │\n  └─────────────────────────────────────────┘\n"
+    "\n  ┌─────────────────────────────────────────┐\n  │ ✅ \($e.subtype // "done") — \(($e.duration_ms // 0) / 1000)s, $\($e.total_cost_usd // 0)  │\n  └─────────────────────────────────────────┘\n"
   else empty end'
-
-claude_result_subtype() {
-  local jsonl_file="$1"
-  jq -Rr 'try (fromjson | select(.type == "result") | .subtype // "unknown") catch empty' "$jsonl_file" 2>/dev/null | tail -1 || true
-}
-
-normalize_claude_exit() {
-  local current_code="$1" jsonl_file="$2" subtype
-  if [[ -f "$INTERRUPT_FILE" ]]; then
-    echo 130
-    return
-  fi
-  subtype=$(claude_result_subtype "$jsonl_file")
-  if [[ -n "$subtype" && "$subtype" != "success" ]]; then
-    echo 1
-  else
-    echo "$current_code"
-  fi
-}
 
 # ─── Claude invocation with circuit breaker + timeout ────────────
 # $1=prompt $2=log_file $3=label $4=model(optional) $5=effort(optional)
@@ -725,16 +691,10 @@ invoke_claude() {
   local duration_s=$(( ${duration:-0} / 1000 ))
   echo "$(date '+%H:%M:%S') $label $model \$$cost ${duration_s}s" >> "$COST_LOG" || true
 
-  code=$(normalize_claude_exit "$code" "$iter_file.jsonl")
-
-  # On failure: check internet, backoff, retry once. Ctrl+C is an intentional
-  # stop, so do not retry inside this exiting process; the next ralph run will
-  # retry because no checklist/fingerprint state is advanced.
-  if [[ $code -ne 0 && $code -ne 130 ]]; then
-    wait_for_internet
-    local backoff=$(( 30 + RANDOM % 30 ))  # 30-60s jitter
-    log "  ⏳ Failed (exit $code). Retrying in ${backoff}s..."
-    sleep "$backoff"
+  # Check for rate limit ONLY on failure
+  if [[ $code -ne 0 ]] && check_and_wait_rate_limit "$iter_file.jsonl"; then
+    # Was rate limited, waited, now retry the same call
+    log "  🔄 Retrying $label after rate limit wait..."
     code=0
     claude \
       --print \
@@ -749,7 +709,6 @@ invoke_claude() {
       | jq -Rr --unbuffered --arg root "$PROJECT_ROOT/" "$JQ_FMT" \
       | tee -a "$iter_file" \
       || code=${PIPESTATUS[0]:-$?}
-    code=$(normalize_claude_exit "$code" "$iter_file.jsonl")
     # Re-extract cost
     cost=$(grep -o '"total_cost_usd":[0-9.]*' "$iter_file.jsonl" 2>/dev/null | tail -1 | grep -o '[0-9.]*' || echo "0")
     duration=$(grep -o '"duration_ms":[0-9]*' "$iter_file.jsonl" 2>/dev/null | tail -1 | grep -o '[0-9]*' || echo "0")
@@ -758,12 +717,7 @@ invoke_claude() {
   fi
 
   echo ""
-  if [[ $code -eq 130 ]]; then
-    log "┌──────────────────────────────────────────────────────────"
-    log "│ 🛑 $label INTERRUPTED — current work will retry next run"
-    log "└──────────────────────────────────────────────────────────"
-    circuit_breaker_record true
-  elif [[ $code -eq 0 ]]; then
+  if [[ $code -eq 0 ]]; then
     log "┌──────────────────────────────────────────────────────────"
     log "│ ✅ $label COMPLETE — \$$cost, ${duration_s}s"
     log "└──────────────────────────────────────────────────────────"
@@ -798,14 +752,8 @@ launch_app() {
   local bundle="$PROJECT_ROOT/dart/build/linux/x64/debug/bundle"
   if [[ ! -x "$bundle/uniclient" ]]; then
     log "Binary not found. Building..."
-    if ! "$SCRIPTS/build_go.sh" linux 2>&1 | tail -3; then
-      log "Go build failed"
-      return 1
-    fi
-    if ! "$SCRIPTS/build_flutter.sh" linux debug 2>&1 | tail -5; then
-      log "Flutter build failed"
-      return 1
-    fi
+    "$SCRIPTS/build_go.sh" linux 2>&1 | tail -3
+    "$SCRIPTS/build_flutter.sh" linux debug 2>&1 | tail -5
   fi
   (cd "$bundle" && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &)
   sleep 4
@@ -868,7 +816,7 @@ RULES:
 - For placeholder/stub items: do NOT remove the UI element. Make it FUNCTIONAL — wire it
   to the engine, implement real behavior, test on both desktop and mobile.
 PROMPT_END
-  [[ -n "$extra" ]] && printf '\n%s\n' "$extra"
+  [[ -n "$extra" ]] && echo -e "\n$extra"
 }
 
 # ═════════════════════════════════════════════════════════════════
@@ -923,14 +871,14 @@ SEVERITY GUIDE (proportional — Weber's Law):
 
 IF ALL ITEMS PASS:
   a. Delete ALL verified items from checklist/gui.md (remove their "- [ ]" lines)
-  b. git add checklist/gui.md && git commit -m "Verify & close: <section name>" -- checklist/gui.md
+  b. git add checklist/gui.md && git commit -m "Verify & close: <section name>"
   c. git push origin main
   d. Exit.
 
 IF SOME ITEMS FAIL:
   a. Delete ONLY the items that PASSED from checklist/gui.md
   b. Write failure details for failed items to /tmp/ralph_feedback.txt
-  c. git add checklist/gui.md && git commit -m "Verify & close: <section> (partial)" -- checklist/gui.md
+  c. git add checklist/gui.md && git commit -m "Verify & close: <section> (partial)"
   d. git push origin main
   e. Exit.
 
@@ -1117,33 +1065,6 @@ If no issues: write "# ${dart_basename} — clean"
 PROMPT_END
 }
 
-# Remove a repeatedly failing section from gui.md without spending another
-# implementation+verification cycle on a prompt that is only allowed to skip it.
-skip_current_items() {
-  local section_name="$1" current_items="$2"
-  local checklist="$PROJECT_ROOT/checklist/gui.md"
-  local items_file tmp
-
-  items_file=$(mktemp)
-  tmp=$(mktemp)
-  printf '%s\n' "$current_items" > "$items_file"
-
-  awk '
-    NR == FNR { drop[$0]++; next }
-    drop[$0] > 0 { drop[$0]--; next }
-    { print }
-  ' "$items_file" "$checklist" > "$tmp"
-  rm -f "$items_file"
-  mv "$tmp" "$checklist"
-
-  git -C "$PROJECT_ROOT" add checklist/gui.md
-  git -C "$PROJECT_ROOT" commit -m "Skip GUI items after repeated failures: $section_name" -- checklist/gui.md || return 1
-  wait_for_internet
-  if ! git -C "$PROJECT_ROOT" push origin main 2>/dev/null; then
-    log "  ⚠️  git push failed — skip commit is local only."
-  fi
-}
-
 # ═════════════════════════════════════════════════════════════════
 # MAIN STATE
 # ═════════════════════════════════════════════════════════════════
@@ -1153,8 +1074,7 @@ TOTAL_COMMITS=0
 CONSECUTIVE_FAILURES=0
 ITEM_ATTEMPTS=0
 CONVERGE_COUNT=0
-DIVERGE_AYUGRAM_COUNT=0
-DIVERGE_CLEANUP_COUNT=0
+DIVERGE_COUNT=0
 LAST_COMMIT_HASH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "none")"
 LAST_AYUGRAM_FINDINGS=999999
 LAST_CLEANUP_FINDINGS=999999
@@ -1173,11 +1093,8 @@ log "  Mode 1: Implement → Verify (per section)"
 log "  Mode 2a: AyuGram source comparison audit"
 log "  Mode 2b: Placeholder/optimization cleanup sweep"
 log "  Convergence: both phases find zero issues for 2 cycles"
-log "  Current stage: $STAGE_FILE"
-log "  Progress JSON:  $PROGRESS_FILE"
 log "  Kill: Ctrl+C"
 log ""
-set_current_stage "STARTING" "main loop" "checking checklist/gui.md"
 
 while true; do
 
@@ -1195,7 +1112,7 @@ while true; do
     # MODE 1: IMPLEMENT + VERIFY
     # ═══════════════════════════════════════════════════════════
     IMPL_ITERATION=$((IMPL_ITERATION + 1))
-    set_current_stage "MODE 1 / SELECT SECTION" "implementation iteration $IMPL_ITERATION" "$REMAINING unchecked checklist items"
+    update_progress "implement" "iteration $IMPL_ITERATION" "$REMAINING items left"
     echo ""
     log "╔══════════════════════════════════════════════════════════════╗"
     log "║  🔨 IMPLEMENT #$IMPL_ITERATION                                      "
@@ -1232,81 +1149,54 @@ while true; do
 
     # Guard: if no section found (items exist but no ## headers), treat as audit needed
     if [[ -z "$CURRENT_SECTION" || $ITEM_COUNT -eq 0 ]]; then
-      log "  ⚠️  gui.md has unchecked items outside a ## section. Adding a wrapper section instead of deleting them."
-      tmp_gui=$(mktemp)
-      awk '
-        /^- \[ \]/ && !inserted { print "## Unsectioned Items"; inserted=1 }
-        { print }
-      ' "$PROJECT_ROOT/checklist/gui.md" > "$tmp_gui"
-      mv "$tmp_gui" "$PROJECT_ROOT/checklist/gui.md"
+      log "  ⚠️  gui.md has items but no ## section headers. Clearing and re-auditing."
+      echo "" > "$PROJECT_ROOT/checklist/gui.md"
       continue
     fi
 
     pkill -x uniclient 2>/dev/null || true
     rm -f /tmp/uniclient_debug_cmd.json /tmp/uniclient_debug_out.json
 
-    HEAD_SUBJECT="$(git -C "$PROJECT_ROOT" log -1 --format='%s' 2>/dev/null || true)"
-    RETRY_VERIFY_ONLY=false
-    if [[ "$HEAD_SUBJECT" == \[unverified\]* ]]; then
-      RETRY_VERIFY_ONLY=true
-      IMPL_HASH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "none")"
-      log "Detected existing unverified implementation commit. Retrying verification before implementation."
-    fi
-
     # ── STAGE 1: IMPLEMENT ──────────────────────────────────
     IMPL_FILE="$ITER_LOG_DIR/iter_$(printf '%04d' $IMPL_ITERATION)_impl.log"
 
-    if ! $RETRY_VERIFY_ONLY && [[ $ITEM_ATTEMPTS -ge $MAX_IMPL_ATTEMPTS ]]; then
-      set_current_stage "MODE 1 / SKIP FAILED SECTION" "section: $SECTION_NAME" "failed $MAX_IMPL_ATTEMPTS attempts; removing checklist items"
-      log "Section failed $MAX_IMPL_ATTEMPTS times. Removing it to avoid an infinite loop."
-      if skip_current_items "$SECTION_NAME" "$CURRENT_ITEMS"; then
-        SKIP_HASH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "none")"
-        if [[ "$SKIP_HASH" != "$LAST_COMMIT_HASH" ]]; then
-          LAST_COMMIT_HASH="$SKIP_HASH"
-        fi
-        ITEM_ATTEMPTS=0
-        rm -f "$FEEDBACK_FILE"
-        continue
-      fi
-      log "Failed to skip repeated section; backing off before retry."
-      set_current_stage "MODE 1 / BACKOFF" "skip failed" "retrying in ${BACKOFF_BASE}s"
-      sleep "$BACKOFF_BASE"
-      continue
-    fi
-
-    if ! $RETRY_VERIFY_ONLY; then
-      IMPL_EXTRA=""
-      if [[ -f "$FEEDBACK_FILE" ]]; then
-        IMPL_EXTRA="PREVIOUS VERIFICATION FAILED. Feedback:
+    IMPL_EXTRA=""
+    if [[ -f "$FEEDBACK_FILE" ]]; then
+      IMPL_EXTRA="PREVIOUS VERIFICATION FAILED. Feedback:
 --- FEEDBACK START ---
 $(cat "$FEEDBACK_FILE")
 --- FEEDBACK END ---
 Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
-        rm -f "$FEEDBACK_FILE"
-        log "Including feedback (attempt $((ITEM_ATTEMPTS + 1))/$MAX_IMPL_ATTEMPTS)"
-      fi
-
-      IMPL_EXIT=0
-      set_current_stage "MODE 1 / STAGE 1: IMPLEMENT" "section: $SECTION_NAME" "$ITEM_COUNT item(s); attempt $((ITEM_ATTEMPTS + 1))/$MAX_IMPL_ATTEMPTS"
-      invoke_claude "$(build_impl_prompt "$IMPL_EXTRA")" "$IMPL_FILE" "IMPLEMENT" || IMPL_EXIT=$?
-
-      if [[ $IMPL_EXIT -ne 0 ]]; then
-        CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
-        BACKOFF=$(( BACKOFF_BASE * (2 ** (CONSECUTIVE_FAILURES - 1)) ))
-        [[ $BACKOFF -gt $BACKOFF_MAX ]] && BACKOFF=$BACKOFF_MAX
-        log "Impl failed (exit $IMPL_EXIT). Backoff ${BACKOFF}s..."
-        set_current_stage "MODE 1 / IMPLEMENT BACKOFF" "exit $IMPL_EXIT" "retrying in ${BACKOFF}s"
-        sleep "$BACKOFF"; continue
-      fi
-      CONSECUTIVE_FAILURES=0
-
-      IMPL_HASH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "none")"
-      if [[ "$IMPL_HASH" == "$LAST_COMMIT_HASH" ]]; then
-        log "No commit. Stall."
-        ITEM_ATTEMPTS=$((ITEM_ATTEMPTS + 1)); continue
-      fi
-      log "Impl committed: $(git -C "$PROJECT_ROOT" log -1 --oneline)"
+      rm -f "$FEEDBACK_FILE"
+      log "Including feedback (attempt $((ITEM_ATTEMPTS + 1))/$MAX_IMPL_ATTEMPTS)"
     fi
+
+    if [[ $ITEM_ATTEMPTS -ge $MAX_IMPL_ATTEMPTS ]]; then
+      log "Item failed $MAX_IMPL_ATTEMPTS times. Skipping."
+      IMPL_EXTRA="This item failed verification $MAX_IMPL_ATTEMPTS times.
+SKIP IT — delete it from checklist/gui.md, commit, and exit.
+Item: $CURRENT_ITEMS"
+      ITEM_ATTEMPTS=0
+    fi
+
+    IMPL_EXIT=0
+    invoke_claude "$(build_impl_prompt "$IMPL_EXTRA")" "$IMPL_FILE" "IMPLEMENT" || IMPL_EXIT=$?
+
+    if [[ $IMPL_EXIT -ne 0 ]]; then
+      CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
+      BACKOFF=$(( BACKOFF_BASE * (2 ** (CONSECUTIVE_FAILURES - 1)) ))
+      [[ $BACKOFF -gt $BACKOFF_MAX ]] && BACKOFF=$BACKOFF_MAX
+      log "Impl failed (exit $IMPL_EXIT). Backoff ${BACKOFF}s..."
+      sleep "$BACKOFF"; continue
+    fi
+    CONSECUTIVE_FAILURES=0
+
+    IMPL_HASH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "none")"
+    if [[ "$IMPL_HASH" == "$LAST_COMMIT_HASH" ]]; then
+      log "No commit. Stall."
+      ITEM_ATTEMPTS=$((ITEM_ATTEMPTS + 1)); continue
+    fi
+    log "Impl committed: $(git -C "$PROJECT_ROOT" log -1 --oneline)"
 
     # ── STAGE 2: VERIFY ─────────────────────────────────────
     log ""
@@ -1319,7 +1209,6 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
     rm -f "$FEEDBACK_FILE"
 
     VERIFY_EXIT=0
-    set_current_stage "MODE 1 / STAGE 2: VERIFY" "section: $SECTION_NAME" "$ITEM_COUNT item(s); implementation commit ${IMPL_HASH:0:12}"
     invoke_claude "$(build_verify_prompt "$CURRENT_ITEMS")" "$VERIFY_FILE" "VERIFY" "claude-sonnet-4-6" || VERIFY_EXIT=$?
 
     if [[ $VERIFY_EXIT -ne 0 ]]; then
@@ -1327,7 +1216,6 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       BACKOFF=$(( BACKOFF_BASE * (2 ** (CONSECUTIVE_FAILURES - 1)) ))
       [[ $BACKOFF -gt $BACKOFF_MAX ]] && BACKOFF=$BACKOFF_MAX
       log "Verify crashed (exit $VERIFY_EXIT). Backoff ${BACKOFF}s..."
-      set_current_stage "MODE 1 / VERIFY BACKOFF" "exit $VERIFY_EXIT" "retrying in ${BACKOFF}s"
       sleep "$BACKOFF"; continue
     fi
     CONSECUTIVE_FAILURES=0
@@ -1337,27 +1225,14 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       NEW_COMMITS=$(git -C "$PROJECT_ROOT" log --oneline "$LAST_COMMIT_HASH".."$VERIFY_HASH" 2>/dev/null | wc -l)
       TOTAL_COMMITS=$((TOTAL_COMMITS + NEW_COMMITS))
       LAST_COMMIT_HASH="$VERIFY_HASH"
-      if [[ -f "$FEEDBACK_FILE" ]]; then
-        ITEM_ATTEMPTS=$((ITEM_ATTEMPTS + 1))
-        set_current_stage "MODE 1 / PARTIAL VERIFY" "section: $SECTION_NAME" "some items passed; attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS"
-        log ""
-        log "  ╔════════════════════════════════════════════╗"
-        log "  ║  ⚠️  PARTIALLY VERIFIED                    ║"
-        log "  ║  $NEW_COMMITS commit(s) | Attempt $ITEM_ATTEMPTS / $MAX_IMPL_ATTEMPTS  ║"
-        log "  ╚════════════════════════════════════════════╝"
-        log "  Feedback: $(head -2 "$FEEDBACK_FILE" 2>/dev/null || echo 'none')"
-      else
-        ITEM_ATTEMPTS=0
-        set_current_stage "MODE 1 / VERIFIED" "section: $SECTION_NAME" "all items passed; $NEW_COMMITS commit(s)"
-        log ""
-        log "  ╔════════════════════════════════════════════╗"
-        log "  ║  ✅ VERIFIED & PUSHED                      ║"
-        log "  ║  $NEW_COMMITS commit(s) | Total: $TOTAL_COMMITS verified  ║"
-        log "  ╚════════════════════════════════════════════╝"
-      fi
+      ITEM_ATTEMPTS=0
+      log ""
+      log "  ╔════════════════════════════════════════════╗"
+      log "  ║  ✅ VERIFIED & PUSHED                      ║"
+      log "  ║  $NEW_COMMITS commit(s) | Total: $TOTAL_COMMITS verified  ║"
+      log "  ╚════════════════════════════════════════════╝"
     elif [[ -f "$FEEDBACK_FILE" ]]; then
       ITEM_ATTEMPTS=$((ITEM_ATTEMPTS + 1))
-      set_current_stage "MODE 1 / VERIFY FAILED" "section: $SECTION_NAME" "attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS; feedback saved"
       log ""
       log "  ╔════════════════════════════════════════════╗"
       log "  ║  ❌ VERIFICATION FAILED                    ║"
@@ -1366,7 +1241,6 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       log "  Feedback: $(head -2 "$FEEDBACK_FILE" 2>/dev/null || echo 'none')"
     else
       ITEM_ATTEMPTS=$((ITEM_ATTEMPTS + 1))
-      set_current_stage "MODE 1 / VERIFY UNKNOWN" "section: $SECTION_NAME" "no checklist commit and no feedback; attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS"
       log ""
       log "  ⚠️  No push, no feedback. Attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS"
     fi
@@ -1383,7 +1257,6 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       AUDIT_CYCLE=$((AUDIT_CYCLE + 1))
 
       if [[ $AUDIT_CYCLE -gt $MAX_AUDIT_CYCLES ]]; then
-        set_current_stage "STOPPED / MAX AUDIT CYCLES" "cycle $AUDIT_CYCLE" "limit is $MAX_AUDIT_CYCLES"
         log "Max audit cycles ($MAX_AUDIT_CYCLES). Exiting."
         notify "Ralph v3: max audit cycles reached. $TOTAL_COMMITS commits."
         break
@@ -1395,9 +1268,9 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       log "║  📊 Comparing Dart code against AyuGram Desktop C++ source   "
       log "║  🏷️  Git tag: audit-pre-cycle-${AUDIT_CYCLE}a                          "
       log "╚══════════════════════════════════════════════════════════════╝"
-      set_current_stage "MODE 2 / PHASE A: AYUGRAM AUDIT" "cycle $AUDIT_CYCLE/$MAX_AUDIT_CYCLES" "Dart UI vs AyuGram source"
+      update_progress "audit" "cycle $AUDIT_CYCLE phase A" "ayugram comparison"
 
-    # Safety tag for manual divergence review
+    # Safety tag for rollback
     git -C "$PROJECT_ROOT" tag -f "audit-pre-cycle-${AUDIT_CYCLE}a" HEAD 2>/dev/null || true
 
     # ── Take SSIM screenshot and compare vs previous cycle ───
@@ -1426,19 +1299,18 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
     fi
 
     # ── LAYER 0: Mechanical scans (ZERO tokens) ────────────────
-    set_current_stage "MODE 2 / PHASE A: MECHANICAL SCANS" "cycle $AUDIT_CYCLE/$MAX_AUDIT_CYCLES" "static scan and palette diff"
+    update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 0: mechanical scans"
     run_static_scan
     run_palette_diff
 
     # ── LAYER 1: Per-file audit (Dart vs AyuGram, parallel Sonnet) ─
-    set_current_stage "MODE 2 / PHASE A: PER-FILE AUDIT" "cycle $AUDIT_CYCLE/$MAX_AUDIT_CYCLES" "parallel Dart file comparison"
+    update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 1: per-file code comparison"
     log "  Layer 1: Comparing Dart files against AyuGram source (skeleton mode)..."
 
     # Get all auditable dart files
-    mapfile -t ALL_DART_FILES < <((find "$PROJECT_ROOT/dart/lib" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' || true) | sort)
+    mapfile -t ALL_DART_FILES < <(find "$PROJECT_ROOT/dart/lib" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
 
-    # Full audit by default. Fingerprint filtering only activates when
-    # RALPH_SKIP_UNCHANGED=1 is explicitly set.
+    # Filter by fingerprint on cycle 2+ (skip unchanged files)
     DART_FILES=()
     SKIPPED_UNCHANGED=0
     for dart_file in "${ALL_DART_FILES[@]}"; do
@@ -1450,7 +1322,7 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
     done
     NUM_FILES=${#DART_FILES[@]}
     if [[ $SKIPPED_UNCHANGED -gt 0 ]]; then
-      log "  📂 Auditing $NUM_FILES files ($SKIPPED_UNCHANGED omitted by explicit RALPH_SKIP_UNCHANGED=1)"
+      log "  📂 Auditing $NUM_FILES files ($SKIPPED_UNCHANGED unchanged, skipped)"
     else
       log "  📂 Auditing ALL $NUM_FILES files (cycle $AUDIT_CYCLE — full scan)"
     fi
@@ -1462,33 +1334,45 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
     CHUNK_ID=0
     SUCCESSFUL_CHUNKS=0
     FAILED_CHUNKS=0
+    BATCH_RATE_LIMITED=false
     unset CHUNK_ID_MAP 2>/dev/null || true
     declare -A CHUNK_ID_MAP
 
     for dart_file in "${DART_FILES[@]}"; do
+      # If rate limited, wait before launching more
+      if $BATCH_RATE_LIMITED; then
+        log "  ⏰ Rate limit detected in previous batch. Checking before continuing..."
+        # Find any rate-limited output from the last batch
+        for rl_check in "$ITER_LOG_DIR"/audit_c${AUDIT_CYCLE}_*.log.jsonl; do
+          if [[ -f "$rl_check" ]] && check_and_wait_rate_limit "$rl_check"; then
+            break
+          fi
+        done
+        BATCH_RATE_LIMITED=false
+      fi
 
       dart_basename=$(basename "$dart_file" .dart)
-      dart_rel="${dart_file#$PROJECT_ROOT/dart/lib/}"
-      chunk_label="${dart_rel%.dart}"
-      chunk_label="${chunk_label//\//_}"
-      CHUNK_FILE="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_${chunk_label}.log"
+      CHUNK_FILE="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_${dart_basename}.log"
 
-      # Tier routing: haiku for tiny/simple, sonnet for complex. No files are
-      # skipped by default; interrupted work is retried on the next run.
+      # Tier routing: skip tiny files, use haiku for simple, sonnet for complex
       tier=$(get_file_tier "$dart_file")
-      [[ "$tier" == "skip" ]] && tier="haiku"
+      if [[ "$tier" == "skip" ]]; then
+        log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart — SKIP (tiny/no callbacks)"
+        CHUNK_ID=$((CHUNK_ID + 1))
+        SUCCESSFUL_CHUNKS=$((SUCCESSFUL_CHUNKS + 1))
+        continue
+      fi
 
       model="claude-sonnet-4-6"
       [[ "$tier" == "haiku" ]] && model="claude-haiku-4-5-20251001"
 
-      CHUNK_ID_MAP["$dart_file"]=$CHUNK_ID
+      CHUNK_ID_MAP["$dart_basename"]=$CHUNK_ID
       PROMPT="$(build_audit_prompt "$dart_file" "$CHUNK_ID")"
       log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart ($(wc -l < "$dart_file") lines, tier=$tier)"
 
       (
-        trap - EXIT INT TERM
         set +e
-        invoke_claude "$PROMPT" "$CHUNK_FILE" "AUDIT-${chunk_label}" "$model"
+        invoke_claude "$PROMPT" "$CHUNK_FILE" "AUDIT-${dart_basename}" "$model"
         exit $?
       ) &
       PIDS+=($!)
@@ -1504,6 +1388,16 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
         done
         PIDS=()
 
+        # Check if any session in this batch was rate limited
+        if [[ $FAILED_CHUNKS -gt 0 ]]; then
+          for rl_check in "$ITER_LOG_DIR"/audit_c${AUDIT_CYCLE}_*.log.jsonl; do
+            if [[ -f "$rl_check" ]] && grep -q "hit your limit\|rate.limit\|Rate limit" "$rl_check" 2>/dev/null; then
+              BATCH_RATE_LIMITED=true
+              log "  ⚠️  Rate limit detected in batch. Will wait before next batch."
+              break
+            fi
+          done
+        fi
       fi
     done
 
@@ -1515,17 +1409,20 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       fi
     done
 
-    # Update fingerprints for files whose audit produced output
+    # Only update fingerprints for files whose audit SUCCEEDED (not rate-limited/failed)
     for dart_file in "${DART_FILES[@]}"; do
-      chunk_out="$PROJECT_ROOT/checklist/audit_chunk_${CHUNK_ID_MAP[$dart_file]:-999}.md"
-      if [[ -f "$chunk_out" ]]; then
+      db=$(basename "$dart_file" .dart)
+      chunk_out="$PROJECT_ROOT/checklist/audit_chunk_${CHUNK_ID_MAP[$db]:-999}.md"
+      chunk_jsonl="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_${db}.log.jsonl"
+      # Only fingerprint if output exists AND was not rate-limited
+      if [[ -f "$chunk_out" ]] && ! grep -q "hit your limit\|rate.limit\|Rate limit" "$chunk_jsonl" 2>/dev/null; then
         update_fingerprint "$dart_file"
       fi
     done
 
     log ""
     log "  📊 Layer 1: $SUCCESSFUL_CHUNKS/$NUM_FILES audited, $FAILED_CHUNKS failed"
-    [[ $SKIPPED_UNCHANGED -gt 0 ]] && log "  ⏭️  $SKIPPED_UNCHANGED files omitted only because RALPH_SKIP_UNCHANGED=1"
+    [[ $SKIPPED_UNCHANGED -gt 0 ]] && log "  ⏭️  $SKIPPED_UNCHANGED files skipped (unchanged since last audit)"
     [[ $FAILED_CHUNKS -gt 0 ]] && log "  ⚠️  $FAILED_CHUNKS files failed (partial-failure — continuing)"
 
     else
@@ -1536,11 +1433,11 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       log "║  📊 Hunting placeholders, broken wiring, performance issues  "
       log "║  🏷️  Git tag: audit-pre-cycle-${AUDIT_CYCLE}b                          "
       log "╚══════════════════════════════════════════════════════════════╝"
-      set_current_stage "MODE 2 / PHASE B: CLEANUP AUDIT" "cycle $AUDIT_CYCLE/$MAX_AUDIT_CYCLES" "placeholders, broken wiring, performance"
+      update_progress "audit" "cycle $AUDIT_CYCLE phase B" "cleanup sweep"
 
       git -C "$PROJECT_ROOT" tag -f "audit-pre-cycle-${AUDIT_CYCLE}b" HEAD 2>/dev/null || true
 
-      mapfile -t DART_FILES < <((find "$PROJECT_ROOT/dart/lib" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' || true) | sort)
+      mapfile -t DART_FILES < <(find "$PROJECT_ROOT/dart/lib" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
       NUM_FILES=${#DART_FILES[@]}
       log "  📂 Sweeping ALL $NUM_FILES files for placeholders & perf issues"
 
@@ -1551,17 +1448,29 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       CHUNK_ID=0
       SUCCESSFUL_CHUNKS=0
       FAILED_CHUNKS=0
+      BATCH_RATE_LIMITED=false
 
       for dart_file in "${DART_FILES[@]}"; do
+        if $BATCH_RATE_LIMITED; then
+          log "  ⏰ Rate limit detected. Checking before continuing..."
+          for rl_check in "$ITER_LOG_DIR"/cleanup_c${AUDIT_CYCLE}_*.log.jsonl; do
+            if [[ -f "$rl_check" ]] && check_and_wait_rate_limit "$rl_check"; then
+              break
+            fi
+          done
+          BATCH_RATE_LIMITED=false
+        fi
 
         dart_basename=$(basename "$dart_file" .dart)
-        dart_rel="${dart_file#$PROJECT_ROOT/dart/lib/}"
-        chunk_label="${dart_rel%.dart}"
-        chunk_label="${chunk_label//\//_}"
-        CHUNK_FILE="$ITER_LOG_DIR/cleanup_c${AUDIT_CYCLE}_${chunk_label}.log"
+        CHUNK_FILE="$ITER_LOG_DIR/cleanup_c${AUDIT_CYCLE}_${dart_basename}.log"
 
         tier=$(get_file_tier "$dart_file")
-        [[ "$tier" == "skip" ]] && tier="haiku"
+        if [[ "$tier" == "skip" ]]; then
+          log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart — SKIP (tiny)"
+          CHUNK_ID=$((CHUNK_ID + 1))
+          SUCCESSFUL_CHUNKS=$((SUCCESSFUL_CHUNKS + 1))
+          continue
+        fi
         model="claude-sonnet-4-6"
         [[ "$tier" == "haiku" ]] && model="claude-haiku-4-5-20251001"
 
@@ -1569,9 +1478,8 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
         log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart (tier=$tier)"
 
         (
-          trap - EXIT INT TERM
           set +e
-          invoke_claude "$PROMPT" "$CHUNK_FILE" "CLEANUP-${chunk_label}" "$model"
+          invoke_claude "$PROMPT" "$CHUNK_FILE" "CLEANUP-${dart_basename}" "$model"
           exit $?
         ) &
         PIDS+=($!)
@@ -1586,6 +1494,15 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
             fi
           done
           PIDS=()
+          if [[ $FAILED_CHUNKS -gt 0 ]]; then
+            for rl_check in "$ITER_LOG_DIR"/cleanup_c${AUDIT_CYCLE}_*.log.jsonl; do
+              if [[ -f "$rl_check" ]] && grep -q "hit your limit\|rate.limit\|Rate limit" "$rl_check" 2>/dev/null; then
+                BATCH_RATE_LIMITED=true
+                log "  ⚠️  Rate limit detected in batch. Will wait before next batch."
+                break
+              fi
+            done
+          fi
         fi
       done
 
@@ -1602,7 +1519,7 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
     fi  # end ayugram/cleanup phase
 
     # ── MERGE: Combine all findings into gui.md ──────────────
-    set_current_stage "MODE 2 / MERGE AUDIT FINDINGS" "cycle $AUDIT_CYCLE/$MAX_AUDIT_CYCLES" "writing checklist/gui.md"
+    update_progress "audit" "cycle $AUDIT_CYCLE" "merging findings"
     phase_title="Code Comparison (Dart vs AyuGram)"
     [[ "$AUDIT_PHASE" == "cleanup" ]] && phase_title="Cleanup Sweep (placeholders, stubs, perf)"
     {
@@ -1612,7 +1529,7 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       echo ""
       for f in "$PROJECT_ROOT/checklist/audit_chunk_"*.md; do
         [[ -f "$f" ]] || continue
-        if ! grep -q '^- \[ \]' "$f"; then
+        if grep -qi "no issues found" "$f" && [[ $(wc -l < "$f") -le 2 ]]; then
           continue
         fi
         cat "$f"
@@ -1632,42 +1549,18 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
     log "  │ 📦 Files: $SUCCESSFUL_CHUNKS ok, $FAILED_CHUNKS failed"
     log "  └──────────────────────────────────────────────────"
 
-    if [[ $FAILED_CHUNKS -gt 0 && "$FINDINGS" -eq 0 ]]; then
-      CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
-      if [[ $CONSECUTIVE_FAILURES -ge $MAX_IMPL_ATTEMPTS ]]; then
-        set_current_stage "STOPPED / AUDIT CHUNKS FAILED" "cycle $AUDIT_CYCLE/$MAX_AUDIT_CYCLES" "$FAILED_CHUNKS chunks failed with zero findings $CONSECUTIVE_FAILURES times"
-        log "  ❌ Audit phase produced only failed chunks $CONSECUTIVE_FAILURES times. Stopping for manual review."
-        notify "Ralph v3: audit chunks keep failing; stopped for manual review."
-        break
-      fi
-      BACKOFF=$(( BACKOFF_BASE * (2 ** (CONSECUTIVE_FAILURES - 1)) ))
-      [[ $BACKOFF -gt $BACKOFF_MAX ]] && BACKOFF=$BACKOFF_MAX
-      log "  ⚠️  $FAILED_CHUNKS audit chunks failed and no findings were produced. Retrying same phase after ${BACKOFF}s instead of treating it as clean."
-      sleep "$BACKOFF"
-      continue
-    fi
-    if [[ "$FINDINGS" -gt 0 || $FAILED_CHUNKS -eq 0 ]]; then
-      CONSECUTIVE_FAILURES=0
-    fi
-
     # ── Handle findings ────────────────────────────────────────
     if [[ "$FINDINGS" -eq 0 ]]; then
       if [[ "$AUDIT_PHASE" == "ayugram" ]]; then
         # AyuGram audit found nothing → move to cleanup sweep
-        LAST_AYUGRAM_FINDINGS=0
-        DIVERGE_AYUGRAM_COUNT=0
         log "  AyuGram audit clean. Moving to Phase B: cleanup sweep..."
         AUDIT_PHASE="cleanup"
-        set_current_stage "MODE 2 / PHASE TRANSITION" "AyuGram audit clean" "next stage: Phase B cleanup audit"
         continue
       else
         # Cleanup sweep also found nothing → check convergence
-        LAST_CLEANUP_FINDINGS=0
-        DIVERGE_CLEANUP_COUNT=0
         CONVERGE_COUNT=$((CONVERGE_COUNT + 1))
         log "  Both phases clean. Convergence: $CONVERGE_COUNT/$CONVERGE_THRESHOLD"
         if [[ $CONVERGE_COUNT -ge $CONVERGE_THRESHOLD ]]; then
-          set_current_stage "COMPLETE / CONVERGED" "both audit phases clean" "$CONVERGE_COUNT/$CONVERGE_THRESHOLD clean cycles"
           echo ""
           log "╔══════════════════════════════════════════════════════════════╗"
           log "║  🎉 CONVERGED — both phases zero findings for $CONVERGE_THRESHOLD cycles  ║"
@@ -1679,7 +1572,6 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
         fi
         # Reset to ayugram for next full cycle
         AUDIT_PHASE="ayugram"
-        set_current_stage "MODE 2 / NEXT AUDIT CYCLE" "cleanup audit clean" "next stage: Phase A AyuGram audit"
         continue
       fi
     fi
@@ -1687,38 +1579,27 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
     # ── Divergence detection (per-phase comparison) ─────────
     if [[ "$AUDIT_PHASE" == "ayugram" ]]; then
       LAST_PHASE_FINDINGS=$LAST_AYUGRAM_FINDINGS
-      DIVERGE_PHASE_COUNT=$DIVERGE_AYUGRAM_COUNT
-      PHASE_TAG_SUFFIX="a"
     else
       LAST_PHASE_FINDINGS=$LAST_CLEANUP_FINDINGS
-      DIVERGE_PHASE_COUNT=$DIVERGE_CLEANUP_COUNT
-      PHASE_TAG_SUFFIX="b"
     fi
     if [[ "$FINDINGS" -gt "$LAST_PHASE_FINDINGS" && $AUDIT_CYCLE -gt 1 ]]; then
-      DIVERGE_PHASE_COUNT=$((DIVERGE_PHASE_COUNT + 1))
-      log "  ⚠️  DIVERGENCE: findings $LAST_PHASE_FINDINGS → $FINDINGS (phase count: $DIVERGE_PHASE_COUNT)"
-      if [[ "$AUDIT_PHASE" == "ayugram" ]]; then
-        DIVERGE_AYUGRAM_COUNT=$DIVERGE_PHASE_COUNT
-      else
-        DIVERGE_CLEANUP_COUNT=$DIVERGE_PHASE_COUNT
-      fi
-      if [[ $DIVERGE_PHASE_COUNT -ge 2 ]]; then
-        review_tag="audit-pre-cycle-${AUDIT_CYCLE}${PHASE_TAG_SUFFIX}"
-        set_current_stage "STOPPED / DIVERGENCE" "cycle $AUDIT_CYCLE phase $PHASE_TAG_SUFFIX" "findings increased from $LAST_PHASE_FINDINGS to $FINDINGS twice"
-        if git -C "$PROJECT_ROOT" rev-parse "$review_tag" &>/dev/null; then
-          log "  DIVERGENCE confirmed at $review_tag. Stopping for manual review; not resetting or force-pushing."
+      DIVERGE_COUNT=$((DIVERGE_COUNT + 1))
+      log "  ⚠️  DIVERGENCE: findings $LAST_PHASE_FINDINGS → $FINDINGS (count: $DIVERGE_COUNT)"
+      if [[ $DIVERGE_COUNT -ge 2 ]]; then
+        rollback_tag="audit-pre-cycle-$((AUDIT_CYCLE - 2))a"
+        if git -C "$PROJECT_ROOT" rev-parse "$rollback_tag" &>/dev/null; then
+          log "  DIVERGENCE confirmed. Resetting to $rollback_tag."
+          git -C "$PROJECT_ROOT" reset --hard "$rollback_tag"
+          wait_for_internet
+          git -C "$PROJECT_ROOT" push origin main --force-with-lease 2>/dev/null || true
         else
-          log "  DIVERGENCE confirmed but phase tag $review_tag not found."
+          log "  DIVERGENCE confirmed but rollback tag $rollback_tag not found."
         fi
-        notify "Ralph v3: DIVERGENCE. Stopped for manual review."
+        notify "Ralph v3: DIVERGENCE. Rolled back."
         break
       fi
     else
-      if [[ "$AUDIT_PHASE" == "ayugram" ]]; then
-        DIVERGE_AYUGRAM_COUNT=0
-      else
-        DIVERGE_CLEANUP_COUNT=0
-      fi
+      DIVERGE_COUNT=0
     fi
     if [[ "$AUDIT_PHASE" == "ayugram" ]]; then
       LAST_AYUGRAM_FINDINGS=$FINDINGS
@@ -1737,30 +1618,25 @@ Audit cycle $AUDIT_CYCLE ($phase_label): $FINDINGS items found
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 EOF
-)" -- checklist/gui.md 2>/dev/null || true
+)" 2>/dev/null || true
     wait_for_internet
     if ! git -C "$PROJECT_ROOT" push origin main 2>/dev/null; then
       log "  ⚠️  git push failed — commits are local only."
     fi
     LAST_COMMIT_HASH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "none")"
 
-    # Keep the same phase active until its generated checklist is fixed and
-    # verifies clean. Otherwise the next empty-checklist transition would skip
-    # the implementation pass for the current phase's findings.
+    # After fixing this phase's items, move to next phase
     if [[ "$AUDIT_PHASE" == "ayugram" ]]; then
-      log "  AyuGram checklist ($FINDINGS items) committed. Fixing before cleanup sweep."
+      log "  AyuGram checklist ($FINDINGS items) committed. Fixing, then cleanup sweep."
+      AUDIT_PHASE="cleanup"
     else
-      log "  Cleanup checklist ($FINDINGS items) committed. Fixing before next AyuGram cycle."
+      log "  Cleanup checklist ($FINDINGS items) committed. Fixing, then next AyuGram cycle."
+      AUDIT_PHASE="ayugram"
     fi
   fi
 done
 
 # ─── Final report ────────────────────────────────────────────────
-case "${CURRENT_STAGE:-}" in
-  COMPLETE*|STOPPED*) ;;
-  *) set_current_stage "COMPLETE / LOOP EXIT" "final report" "main loop exited" ;;
-esac
-
 TOTAL_COST="?"
 if [[ -f "$COST_LOG" ]]; then
   TOTAL_COST=$(awk '{gsub(/\$/,"",$4); sum+=$4} END{printf "%.2f", sum}' "$COST_LOG" 2>/dev/null || echo "?")
