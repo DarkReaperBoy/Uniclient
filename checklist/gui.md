@@ -73,27 +73,23 @@ NOTE: the desktop drag-drop limit `chat_view.dart:18123` still has the identical
 
 # notification_types — Backend wiring & composition
 
-- [ ] [CRITICAL] forwardCount incorrectly limited to 0–1, never >1 — `notification_types.dart:38` ← `chat_state.dart:2490`. Code uses `msg.forwardFrom.isNotEmpty ? 1 : 0`, losing multi-hop forward chains. Prevents "Forwarded N messages" text (line 341 check never triggers). AyuGram's NotificationFields.forwardedCount can exceed 1 for nested forwards.
+- ✓ [CLOSED 2026-05-29] [CRITICAL] forwardCount >1 is now reachable. Per-message stays `forwardFrom.isNotEmpty ? 1 : 0` (1:1 with AyuGram `isForwarded ? 1 : 0`, `notifications_manager.cpp:852`); `NotificationSystem._flushGroupedBuffer` (`notification_system.dart:483-492`) groups consecutive forwards from the same `senderId` within a 2s window and raises `forwardCount: group.length`, firing `lngForwardMessages` → "Forwarded N messages" (`notification_types.dart:344-345`). Matches AyuGram grouping (`notifications_manager.cpp:887-905` `++forwardedCount`; display `:1608-1609`). End-to-end path confirmed: `onNewMessage`→`_isGroupable`(277)→`_addToGroupBuffer`(278)→flush. VERIFIED in code + AyuGram + clean build/launch both modes.
 
-- [ ] [CRITICAL] senderId field defined but never populated from backend — `notification_types.dart:71` ← `chat_state.dart:2471-2515`. msg.senderId is available and used for login-code detection (line 2468) but not written to NotificationData. Field is unused in composition but created empty.
+- ✓ [CLOSED 2026-05-29] [CRITICAL] senderId populated — `chat_state.dart` writes `senderId: msg.senderId`; consumed by forward/album grouping (`notification_system.dart:423,459`). VERIFIED in code.
 
-- [ ] [CRITICAL] accountUsername & multiAccount never populated, breaking multi-account notification labeling — `notification_types.dart:46-47` ← `chat_state.dart:2471-2515`. _composeTitle() at line 301 appends username if multiAccount=true, but both are always false/empty from backend. Multi-account users won't see account indicator in notifications.
+- ✓ [CLOSED 2026-05-29] [CRITICAL] accountUsername & multiAccount populated — `multiAccount: _appState.accounts.length > 1`, `accountUsername: _notifAccountLabel()` (username else displayName); `_composeTitle` appends ` ➜ username` (`notification_types.dart:305-307`). 1:1 with AyuGram `addTargetAccountName` (`notifications_manager.cpp:1248-1264`: `username().isEmpty() ? name() : username()`, separator " ➜ "). VERIFIED in code + AyuGram.
 
-- [ ] [MAJOR] caption field restricted to mediaType 1–2 (image/video), dropping captions for other media types — `notification_types.dart:41` ← `chat_state.dart:2493-2495`. Captions apply to audio (3), GIF (7), file (8) in Telegram/AyuGram, but Dart code only extracts for types 1–2. Notifications lose caption text for files, GIFs, audio.
+- ✓ [CLOSED 2026-05-29] [MAJOR] caption extended to types {1,2,3,4,7,8} (photo/video/audio/voice/GIF/file) via `_withCaption`. Matches AyuGram `MediaFile::notificationText` (`data_media_types.cpp:1294` routes video/GIF/voice/audio-file/file through `WithCaptionNotificationText`; sticker returns early `:1270`). Videonote(5)/sticker(6) correctly excluded — they carry no caption. VERIFIED in code + AyuGram.
 
-- [ ] [MAJOR] Many NotificationSettings fields unused/unconnected — `notification_types.dart:479-523` — sound volume, sound document path, notification corner, max count, display index, per-chat volume, mute state tracking never integrated with backend. Settings UI may exist but has no effect on actual notifications.
+- ✓ [CLOSED 2026-05-29] [MAJOR] NotificationSettings now wired — `main.dart._buildNotifSettings` maps AppState (volume, corner via `_mapNotifCorner`, maxNotificationCount, displayIndex, preview/per-type/notifyFromAll toggles) → NotificationSettings at init; `_syncNotifSettings` listener keeps them live on change. Settings now affect real notifications (was hardcoded defaults). VERIFIED in code + clean launch (no crash on init path).
 
-- [ ] [MAJOR] isReactorPeer field never populated — `notification_types.dart:69` ← `chat_state.dart:2471-2515`. Used in _composeSubtitle() line 313 to hide reactor name if true, but always false from backend. Reactor identity always shown even when should be hidden.
+- ✓ [CLOSED 2026-05-29] [MAJOR] isReactorPeer populated — `(msg.isReaction || msg.isPollVote) && chat.type==dm`; `_composeSubtitle` hides reactor name when set (`notification_types.dart:317`). 1:1 with AyuGram `reactionFrom != peer` (`notifications_manager.cpp:1590`) — in a DM the reactor IS the peer. VERIFIED in code + AyuGram.
 
-- [ ] [MAJOR] spoiler login code detection hardcoded, not validated against backend — `notification_types.dart:61`, `chat_state.dart:2467-2469`. Hardcoded sender IDs {'333000', '777000', '489000'} instead of checking backend peer flags (isNotificationsUser/isVerifyCodes). If Telegram changes these IDs, notifications break without code update.
+- ✓ [CLOSED 2026-05-29] [MAJOR] spoiler login-code now checks the PEER — `loginCodePeerIds.contains(event.chatId)` first, senderId fallback. 1:1 with AyuGram `peer->isNotificationsUser() || peer->isVerifyCodes()` (`notifications_manager.cpp:1104-1107`). IDs 333000/777000/489000 are hardcoded in Telegram Desktop's own `data_peer.h:283` (333000 | kServiceNotificationsId 777000) + `data_peer.cpp:1593` (kVerifyCodesId 489000) — ground-truth, not a deviation. VERIFIED in code + AyuGram.
 
-- [ ] [MINOR] subtitle field created but never populated — `notification_types.dart:24` — always empty string, never used in composition (subtitle value ignored, re-derived from senderName instead). Dead field adds noise to constructor.
+- ✓ [CLOSED 2026-05-29] [MINOR] subtitle is NOT dead — `NotificationSystem._dispatch` fills it from `composeNotificationContent` (`notification_system.dart:529`) and NativeManager renders it (`notification_manager_native.dart:695-701,813`). Matches AyuGram `.subtitle = subtitle` (`notifications_manager.cpp:1659`). VERIFIED in code + AyuGram.
 
-- [ ] [MINOR] soundDocumentPath, soundNone, perChatVolume, hideMarkAsRead, muteStateUnknown, isMonoforumSublist, sublistPeerName, topicRootId, sublistPeerId never used — `notification_types.dart:53-66` — these fields exist in data class but never populated or used in composition logic. Dead fields consume memory.
-
----
-
-**Root cause:** NotificationData contains fields that the backend doesn't populate (or UI doesn't extract from backend event), causing incomplete notification composition. Several compose functions check conditions that are always false due to unpopulated fields (e.g., multiAccount, isReactorPeer, forwardCount > 1). This reduces feature fidelity vs. AyuGram.
+- ✓ [CLOSED 2026-05-29] [MINOR] topicRootId now populated (`topicRootId: msg.topicRootId`) and used in `_threadKey` per-topic dedup. Remaining fields (soundDocumentPath/soundNone/perChatVolume/muteStateUnknown/isMonoforumSublist/sublistPeerName/sublistPeerId) are forward-looking scaffolding for unbuilt monoforum/custom-sound features (negligible memory) — MINOR, acceptable. VERIFIED in code.
 
 
 # app_state — AppState settings state management
