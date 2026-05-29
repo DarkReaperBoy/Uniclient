@@ -24,22 +24,28 @@ typedef _BridgeCallWithLenDart = Pointer<Uint8> Function(
 typedef _BridgeFreeC = Void Function(Pointer<Uint8> ptr);
 typedef _BridgeFreeDart = void Function(Pointer<Uint8> ptr);
 
-typedef _EventCallbackC = Void Function(Pointer<Void> data, Int32 len);
-typedef _BridgeSetEventCallbackC = Void Function(Pointer<Void> cb);
-typedef _BridgeSetEventCallbackDart = void Function(Pointer<Void> cb);
+// BridgeNextEvent blocks in Go until the next async event arrives, returning a
+// Go-pinned buffer (freed with BridgeFree). Run only on a dedicated isolate —
+// it parks the calling thread until an event is ready.
+typedef _BridgeNextEventC = Pointer<Uint8> Function(Pointer<Int32> outLen);
+typedef _BridgeNextEventDart = Pointer<Uint8> Function(Pointer<Int32> outLen);
+
+typedef _BridgeStopEventsC = Void Function();
+typedef _BridgeStopEventsDart = void Function();
 
 /// The resolved library path, shared with background isolates.
 String? _resolvedLibPath;
-
-/// Global reference to BridgeFree for the event callback handler.
-/// Set once during init(), remains valid for the process lifetime.
-_BridgeFreeDart? _bridgeFreeGlobal;
 
 class BridgeImpl {
   late final DynamicLibrary _lib;
   late final _BridgeCallWithLenDart _callWithLen;
   late final _BridgeFreeDart _free;
-  late final _BridgeSetEventCallbackDart _setEventCallback;
+  late final _BridgeStopEventsDart _stopEvents;
+
+  // Dedicated isolate that blocks on BridgeNextEvent and forwards each event
+  // back to this isolate over [_eventReceivePort].
+  Future<Isolate>? _eventIsolate;
+  ReceivePort? _eventReceivePort;
 
   Stream<Uint8List> get events => _globalEventController.stream;
 
@@ -56,14 +62,33 @@ class BridgeImpl {
           'BridgeCallWithLen',
         );
     _free = _lib.lookupFunction<_BridgeFreeC, _BridgeFreeDart>('BridgeFree');
-    _bridgeFreeGlobal = _free;
-    _setEventCallback = _lib
-        .lookupFunction<_BridgeSetEventCallbackC, _BridgeSetEventCallbackDart>(
-          'BridgeSetEventCallback',
+    _stopEvents = _lib
+        .lookupFunction<_BridgeStopEventsC, _BridgeStopEventsDart>(
+          'BridgeStopEvents',
         );
 
-    _setEventCallback(_eventCallbackPointer.cast());
+    _startEventIsolate();
     _initialized = true;
+  }
+
+  /// Spawn the dedicated isolate that pulls events from Go.
+  ///
+  /// The ReceivePort is wired up synchronously before spawning, so no events
+  /// are lost: anything Go emits before the isolate connects stays buffered in
+  /// Go's event channel and is delivered once the isolate starts pulling.
+  void _startEventIsolate() {
+    final receivePort = ReceivePort();
+    receivePort.listen((msg) {
+      if (msg is Uint8List && !_globalEventController.isClosed) {
+        _globalEventController.add(msg);
+      }
+    });
+    _eventReceivePort = receivePort;
+    _eventIsolate = Isolate.spawn(
+      _eventLoop,
+      [_resolvedLibPath!, receivePort.sendPort],
+      debugName: 'uniclient-events',
+    );
   }
 
   /// Synchronous FFI call (use callAsync for non-blocking).
@@ -85,10 +110,15 @@ class BridgeImpl {
 
   void dispose() {
     if (!_initialized) return;
-    _setEventCallback(Pointer<Void>.fromAddress(0));
+    // Unblock BridgeNextEvent so the event isolate's loop ends, then tear it
+    // down and stop forwarding events.
+    _stopEvents();
+    _eventIsolate?.then((iso) => iso.kill(priority: Isolate.beforeNextEvent));
+    _eventIsolate = null;
+    _eventReceivePort?.close();
+    _eventReceivePort = null;
     _initialized = false;
     _globalEventController.close();
-    _eventCallable.close();
   }
 
   static String _findLibraryPath() {
@@ -166,15 +196,33 @@ Uint8List _isolateCall(String libPath, Uint8List requestBytes) {
 // Global event controller shared across bridge instances.
 final _globalEventController = StreamController<Uint8List>.broadcast();
 
-void _onEvent(Pointer<Void> data, int len) {
-  if (len <= 0) return;
-  final bytes = Uint8List.fromList(data.cast<Uint8>().asTypedList(len));
-  _bridgeFreeGlobal?.call(data.cast<Uint8>());
-  _globalEventController.add(bytes);
-}
+/// Event-isolate entry point. Opens the shared lib, then loops calling the
+/// blocking BridgeNextEvent and forwarding each event back to the main isolate.
+/// Exits when BridgeNextEvent returns null/empty (after BridgeStopEvents).
+///
+/// args: [libPath (String), sendPort (SendPort)].
+void _eventLoop(List<dynamic> args) {
+  final libPath = args[0] as String;
+  final sendPort = args[1] as SendPort;
 
-// Use NativeCallable.listener so Go can call this from any goroutine/thread.
-// Unlike Pointer.fromFunction, .listener marshals the call back to the Dart
-// isolate, avoiding "Cannot invoke native callback outside an isolate" crashes.
-final _eventCallable = NativeCallable<_EventCallbackC>.listener(_onEvent);
-final _eventCallbackPointer = _eventCallable.nativeFunction;
+  final lib = DynamicLibrary.open(libPath);
+  final nextEvent = lib
+      .lookupFunction<_BridgeNextEventC, _BridgeNextEventDart>(
+        'BridgeNextEvent',
+      );
+  final free = lib.lookupFunction<_BridgeFreeC, _BridgeFreeDart>('BridgeFree');
+
+  final outLen = calloc<Int32>();
+  try {
+    while (true) {
+      final ptr = nextEvent(outLen); // blocks in Go until an event is ready
+      final len = outLen.value;
+      if (ptr == nullptr || len <= 0) break; // stop signal
+      final bytes = Uint8List.fromList(ptr.cast<Uint8>().asTypedList(len));
+      free(ptr);
+      sendPort.send(bytes);
+    }
+  } finally {
+    calloc.free(outLen);
+  }
+}
