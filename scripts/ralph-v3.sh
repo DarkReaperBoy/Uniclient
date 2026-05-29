@@ -11,7 +11,7 @@
 #   MODE 1 (IMPLEMENT+VERIFY): Two-stage ralph loop — pick checklist item,
 #     implement (Opus), verify (Opus), push. Until gui.md empty.
 #   MODE 2 (AUDIT): Three-layer audit of codebase vs spec:
-#     Layer 1: Parallel Sonnet sessions extract constraint violations ($0.087/session)
+#     Layer 1: Parallel Opus sessions extract constraint violations (all sessions use $RALPH_MODEL)
 #     SSIM regression between cycles for visual change detection
 #     Layer 3: Generate new gui.md from findings, return to MODE 1
 #     Convergence: zero critical+major findings for 2 consecutive cycles → done.
@@ -30,8 +30,15 @@ SPEC_FILE="$PROJECT_ROOT/research/telegram_desktop_ui.md"
 AYUGRAM_DIR="/home/nako/Documents/AyuGramDesktop"
 AYUGRAM_UI="$AYUGRAM_DIR/Telegram/SourceFiles"
 
+# ─── Claude binary ──────────────────────────────────────────────
+# Use the user-installed native CLI (newer than the NixOS-packaged one on
+# PATH) by absolute path, so the loop works under cron / bare shells where
+# ~/.local/bin isn't on PATH. Override with: CLAUDE_BIN=/path/to/claude
+CLAUDE_BIN="${CLAUDE_BIN:-/home/nako/.local/bin/claude}"
+
 # ─── Startup checks ─────────────────────────────────────────────
-for cmd in claude jq magick git; do
+[[ -x "$CLAUDE_BIN" ]] || { echo "FATAL: claude CLI not executable at '$CLAUDE_BIN'. Set CLAUDE_BIN env var or install it."; exit 1; }
+for cmd in jq magick git; do
   command -v "$cmd" &>/dev/null || { echo "FATAL: '$cmd' not found in PATH. Run inside nix develop."; exit 1; }
 done
 if [[ ! -d "$AYUGRAM_DIR" ]]; then
@@ -49,6 +56,9 @@ CONVERGE_THRESHOLD=2
 CIRCUIT_BREAKER_THRESHOLD=3
 CIRCUIT_BREAKER_COOLDOWN=300
 SKIP_UNCHANGED="${RALPH_SKIP_UNCHANGED:-0}"
+# Single model for ALL sessions (implement, verify, audit, cleanup). Override
+# with RALPH_MODEL=...  The [1m] suffix selects the 1M-context Opus variant.
+RALPH_MODEL="${RALPH_MODEL:-claude-opus-4-8[1m]}"
 # No session timeout — ralph runs until Claude finishes naturally
 
 # ─── Logging ─────────────────────────────────────────────────────
@@ -65,6 +75,13 @@ PROGRESS_FILE="/tmp/ralph_audit_progress.json"
 STAGE_FILE="/tmp/ralph_current_stage.txt"
 INTERRUPT_FILE="/tmp/ralph_interrupted_${RUN_ID}"
 AUDIT_DATA="$PROJECT_ROOT/audit"
+# Durable resume state (gitignored under audit/): survives Ctrl+C so a re-run
+# continues exactly where it left off instead of restarting the session.
+STATE_FILE="$AUDIT_DATA/state.json"
+RESUME_DIR="$AUDIT_DATA/resume"
+DONE_DIR="$RESUME_DIR/done"
+AUDIT_SESSION_FILE="$RESUME_DIR/session.json"
+RESUMING_AUDIT=false
 CURRENT_STAGE="STARTING"
 CURRENT_STEP="initializing"
 CURRENT_DETAIL=""
@@ -117,6 +134,7 @@ update_progress() {
     printf 'JSON progress: %s\n' "$PROGRESS_FILE"
     printf 'Log file: %s\n' "$LOG_FILE"
   } > "$STAGE_FILE"
+  save_resume_state
 }
 
 set_current_stage() {
@@ -127,6 +145,104 @@ set_current_stage() {
   log "  Step: $step"
   [[ -n "$detail" ]] && log "  Detail: $detail"
   log "  Stage file: $STAGE_FILE"
+}
+
+# ─── Resume state: survive Ctrl+C and continue where we left off ──
+# save_resume_state is called from update_progress, which only ever runs in the
+# main process (never in the parallel audit subshells), so $STATE_FILE writes
+# never race. Written atomically (tmp + mv). Every guard ends with `return 0`
+# so a transient jq/fs hiccup can never trip `set -e`.
+save_resume_state() {
+  mkdir -p "$AUDIT_DATA" 2>/dev/null || true
+  local tmp="$STATE_FILE.tmp.$$"
+  if jq -n \
+      --argjson cycle    "${AUDIT_CYCLE:-0}" \
+      --arg     phase    "${AUDIT_PHASE:-ayugram}" \
+      --argjson converge "${CONVERGE_COUNT:-0}" \
+      --argjson div_a    "${DIVERGE_AYUGRAM_COUNT:-0}" \
+      --argjson div_c    "${DIVERGE_CLEANUP_COUNT:-0}" \
+      --argjson last_a   "${LAST_AYUGRAM_FINDINGS:-999999}" \
+      --argjson last_c   "${LAST_CLEANUP_FINDINGS:-999999}" \
+      --argjson commits  "${TOTAL_COMMITS:-0}" \
+      --argjson impl     "${IMPL_ITERATION:-0}" \
+      '{audit_cycle:$cycle, audit_phase:$phase, converge_count:$converge, diverge_ayugram:$div_a, diverge_cleanup:$div_c, last_ayugram_findings:$last_a, last_cleanup_findings:$last_c, total_commits:$commits, impl_iteration:$impl}' \
+      > "$tmp" 2>/dev/null; then
+    mv -f "$tmp" "$STATE_FILE" 2>/dev/null || rm -f "$tmp" 2>/dev/null || true
+  else
+    rm -f "$tmp" 2>/dev/null || true
+  fi
+  return 0
+}
+
+load_resume_state() {
+  [[ "${RALPH_FRESH:-0}" == "1" ]] && { log "  RALPH_FRESH=1 — ignoring saved state, starting a clean run."; rm -f "$STATE_FILE" 2>/dev/null || true; rm -rf "$RESUME_DIR" 2>/dev/null || true; return 0; }
+  [[ -f "$STATE_FILE" ]] || return 0
+  jq -e . "$STATE_FILE" >/dev/null 2>&1 || { log "  ⚠️  saved state unreadable — starting clean."; return 0; }
+  AUDIT_CYCLE=$(jq -r '.audit_cycle // 0'                "$STATE_FILE" 2>/dev/null || echo 0)
+  AUDIT_PHASE=$(jq -r '.audit_phase // "ayugram"'        "$STATE_FILE" 2>/dev/null || echo ayugram)
+  CONVERGE_COUNT=$(jq -r '.converge_count // 0'          "$STATE_FILE" 2>/dev/null || echo 0)
+  DIVERGE_AYUGRAM_COUNT=$(jq -r '.diverge_ayugram // 0'  "$STATE_FILE" 2>/dev/null || echo 0)
+  DIVERGE_CLEANUP_COUNT=$(jq -r '.diverge_cleanup // 0'  "$STATE_FILE" 2>/dev/null || echo 0)
+  LAST_AYUGRAM_FINDINGS=$(jq -r '.last_ayugram_findings // 999999' "$STATE_FILE" 2>/dev/null || echo 999999)
+  LAST_CLEANUP_FINDINGS=$(jq -r '.last_cleanup_findings // 999999' "$STATE_FILE" 2>/dev/null || echo 999999)
+  TOTAL_COMMITS=$(jq -r '.total_commits // 0'            "$STATE_FILE" 2>/dev/null || echo 0)
+  IMPL_ITERATION=$(jq -r '.impl_iteration // 0'          "$STATE_FILE" 2>/dev/null || echo 0)
+  log "  ↻ RESUMING from saved state: audit cycle $AUDIT_CYCLE, phase $AUDIT_PHASE, $TOTAL_COMMITS verified commits (convergence $CONVERGE_COUNT/$CONVERGE_THRESHOLD)."
+  log "    (set RALPH_FRESH=1 to ignore saved state and start clean)"
+  return 0
+}
+
+# Per-file audit resume. A leftover $AUDIT_SESSION_FILE + done-markers mean an
+# audit pass was interrupted before its merge. begin_audit_session decides:
+# resume that pass (keep finished chunks) or start the phase fresh (wipe stale
+# chunks/markers). Completion is tracked by orchestrator-written done-markers,
+# NOT by chunk-file existence — a chunk file can be half-written if Claude is
+# killed mid-write, but a done-marker is only touched after the session exits 0.
+begin_audit_session() {
+  local cycle="$1" phase="$2" fhash match=false
+  fhash=$(printf '%s\n' "${DART_FILES[@]}" | sha1sum 2>/dev/null | cut -d' ' -f1 || true)
+  mkdir -p "$DONE_DIR" 2>/dev/null || true
+  if [[ -f "$AUDIT_SESSION_FILE" ]] \
+     && [[ "$(jq -r '.cycle // empty'      "$AUDIT_SESSION_FILE" 2>/dev/null || true)" == "$cycle" ]] \
+     && [[ "$(jq -r '.phase // empty'      "$AUDIT_SESSION_FILE" 2>/dev/null || true)" == "$phase" ]] \
+     && [[ "$(jq -r '.files_hash // empty' "$AUDIT_SESSION_FILE" 2>/dev/null || true)" == "$fhash" ]]; then
+    match=true
+  fi
+  if $match; then
+    local done_n
+    done_n=$(find "$DONE_DIR" -name 'chunk_*.done' 2>/dev/null | wc -l | tr -d ' ' || echo 0)
+    RESUMING_AUDIT=true
+    log "  ↻ Resuming interrupted $phase audit (cycle $cycle): ${done_n:-0} file(s) already done — auditing only the remainder."
+  else
+    rm -rf "$DONE_DIR" 2>/dev/null || true
+    mkdir -p "$DONE_DIR" 2>/dev/null || true
+    rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md 2>/dev/null || true
+    jq -n --arg c "$cycle" --arg p "$phase" --arg f "$fhash" \
+      '{cycle:$c, phase:$p, files_hash:$f}' > "$AUDIT_SESSION_FILE" 2>/dev/null || true
+    RESUMING_AUDIT=false
+  fi
+  return 0
+}
+
+# Per-file pass + merge finished — clear this phase's resume markers so the next
+# phase/cycle starts fresh.
+end_audit_session() {
+  rm -rf "$DONE_DIR" 2>/dev/null || true
+  rm -f "$AUDIT_SESSION_FILE" 2>/dev/null || true
+  return 0
+}
+
+# Drop a stored Implement/Verify session id if the current work-unit differs
+# from the one it belonged to — so we never --resume an unrelated conversation.
+# $1=key (implement|verify)  $2=signature (e.g. section name) of the current unit
+resume_guard() {
+  local key="$1" sig="$2" prev=""
+  local sig_file="$RESUME_DIR/session_${key}.sig"   # separate stmt: ${key} must be set first (set -u)
+  mkdir -p "$RESUME_DIR" 2>/dev/null || true
+  [[ -f "$sig_file" ]] && prev=$(cat "$sig_file" 2>/dev/null || true)
+  [[ "$prev" != "$sig" ]] && rm -f "$RESUME_DIR/session_${key}.id" 2>/dev/null || true
+  printf '%s' "$sig" > "$sig_file" 2>/dev/null || true
+  return 0
 }
 
 # ─── Gitignore ───────────────────────────────────────────────────
@@ -690,8 +806,11 @@ normalize_claude_exit() {
 
 # ─── Claude invocation with circuit breaker + timeout ────────────
 # $1=prompt $2=log_file $3=label $4=model(optional) $5=effort(optional)
+# $6=resume_key(optional): assign a known session id so a Ctrl+C'd session can be
+#    continued mid-task on the next run instead of restarting from scratch.
 invoke_claude() {
-  local prompt="$1" iter_file="$2" label="$3" model="${4:-claude-opus-4-6}" effort="${5:-max}"
+  local prompt="$1" iter_file="$2" label="$3" model="${4:-$RALPH_MODEL}" effort="${5:-max}"
+  local resume_key="${6:-}"
 
   circuit_breaker_check || return 1
   wait_for_internet
@@ -703,15 +822,43 @@ invoke_claude() {
   log "│ 📄 Log: $iter_file"
   log "└──────────────────────────────────────────────────────────"
 
+  # ── Mid-session resume (Implement/Verify only) ──────────────────
+  # A leftover session-id file means this exact unit was interrupted last run;
+  # --resume continues that conversation (Claude reloads what it read/edited/
+  # decided). Otherwise assign a fresh known id we can resume later. The retry
+  # path below always --resumes, since the session exists after the first call.
+  local -a session_args=() retry_session_args=()
+  local sid_file="" sid="" effective_prompt="$prompt" retry_prompt="$prompt"
+  local resume_nudge="You were interrupted (Ctrl+C) partway through a task in THIS conversation. Do NOT restart from scratch. Re-read what you already did above, check the on-disk state of any files you were editing, and continue from exactly where you left off until the original task — described earlier in this conversation — is fully complete."
+  if [[ -n "$resume_key" ]]; then
+    mkdir -p "$RESUME_DIR" 2>/dev/null || true
+    sid_file="$RESUME_DIR/session_${resume_key}.id"
+    [[ -s "$sid_file" ]] && sid=$(cat "$sid_file" 2>/dev/null || true)
+    if [[ -n "$sid" ]]; then
+      session_args=(--resume "$sid")
+      effective_prompt="$resume_nudge"
+      log "  ↻ Resuming interrupted $label session ($sid) — continuing mid-task, not restarting."
+    else
+      sid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || true)
+      if [[ -n "$sid" ]]; then
+        printf '%s' "$sid" > "$sid_file" 2>/dev/null || true
+        session_args=(--session-id "$sid")
+      fi
+    fi
+    [[ -n "$sid" ]] && { retry_session_args=(--resume "$sid"); retry_prompt="$resume_nudge"; }
+  fi
+
   local code=0
-  claude \
+  "$CLAUDE_BIN" \
     --print \
+    "${session_args[@]}" \
     --dangerously-skip-permissions \
+    --permission-mode auto \
     --model "$model" \
     --effort "$effort" \
     --output-format stream-json \
     --verbose \
-    -p "$prompt" \
+    -p "$effective_prompt" \
     2>&1 \
     | tee "$iter_file.jsonl" \
     | jq -Rr --unbuffered --arg root "$PROJECT_ROOT/" "$JQ_FMT" \
@@ -736,14 +883,16 @@ invoke_claude() {
     log "  ⏳ Failed (exit $code). Retrying in ${backoff}s..."
     sleep "$backoff"
     code=0
-    claude \
+    "$CLAUDE_BIN" \
       --print \
+      "${retry_session_args[@]}" \
       --dangerously-skip-permissions \
+      --permission-mode auto \
       --model "$model" \
       --effort "$effort" \
       --output-format stream-json \
       --verbose \
-      -p "$prompt" \
+      -p "$retry_prompt" \
       2>&1 \
       | tee "$iter_file.jsonl" \
       | jq -Rr --unbuffered --arg root "$PROJECT_ROOT/" "$JQ_FMT" \
@@ -773,6 +922,12 @@ invoke_claude() {
     log "│ ❌ $label FAILED (exit $code) — \$$cost, ${duration_s}s"
     log "└──────────────────────────────────────────────────────────"
     circuit_breaker_record false
+  fi
+
+  # Keep the session id ONLY on interrupt, so the next run resumes it; on success
+  # or a genuine failure, clear it so the next run starts a fresh session.
+  if [[ -n "$sid_file" && $code -ne 130 ]]; then
+    rm -f "$sid_file" 2>/dev/null || true
   fi
 
   return $code
@@ -1162,6 +1317,8 @@ LAST_CLEANUP_FINDINGS=999999
 AUDIT_PHASE="ayugram"
 
 mkdir -p "$AUDIT_DATA"
+# Override the defaults above from persisted state if a prior run was interrupted.
+load_resume_state
 
 echo ""
 log "╔══════════════════════════════════════════════════════════════╗"
@@ -1251,6 +1408,9 @@ while true; do
       RETRY_VERIFY_ONLY=true
       IMPL_HASH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "none")"
       log "Detected existing unverified implementation commit. Retrying verification before implementation."
+      # Implement already produced a commit — drop any interrupted-implement
+      # session so a later implement never resumes this finished conversation.
+      rm -f "$RESUME_DIR/session_implement.id" "$RESUME_DIR/session_implement.sig" 2>/dev/null || true
     fi
 
     # ── STAGE 1: IMPLEMENT ──────────────────────────────────
@@ -1288,7 +1448,8 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
 
       IMPL_EXIT=0
       set_current_stage "MODE 1 / STAGE 1: IMPLEMENT" "section: $SECTION_NAME" "$ITEM_COUNT item(s); attempt $((ITEM_ATTEMPTS + 1))/$MAX_IMPL_ATTEMPTS"
-      invoke_claude "$(build_impl_prompt "$IMPL_EXTRA")" "$IMPL_FILE" "IMPLEMENT" || IMPL_EXIT=$?
+      resume_guard implement "$SECTION_NAME"
+      invoke_claude "$(build_impl_prompt "$IMPL_EXTRA")" "$IMPL_FILE" "IMPLEMENT" "$RALPH_MODEL" "max" "implement" || IMPL_EXIT=$?
 
       if [[ $IMPL_EXIT -ne 0 ]]; then
         CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
@@ -1320,7 +1481,8 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
 
     VERIFY_EXIT=0
     set_current_stage "MODE 1 / STAGE 2: VERIFY" "section: $SECTION_NAME" "$ITEM_COUNT item(s); implementation commit ${IMPL_HASH:0:12}"
-    invoke_claude "$(build_verify_prompt "$CURRENT_ITEMS")" "$VERIFY_FILE" "VERIFY" "claude-sonnet-4-6" || VERIFY_EXIT=$?
+    resume_guard verify "$SECTION_NAME"
+    invoke_claude "$(build_verify_prompt "$CURRENT_ITEMS")" "$VERIFY_FILE" "VERIFY" "$RALPH_MODEL" "max" "verify" || VERIFY_EXIT=$?
 
     if [[ $VERIFY_EXIT -ne 0 ]]; then
       CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
@@ -1380,7 +1542,15 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
 
     if [[ "$AUDIT_PHASE" == "ayugram" ]]; then
       # ── Phase A: AyuGram source comparison ──
-      AUDIT_CYCLE=$((AUDIT_CYCLE + 1))
+      # Only start a NEW cycle when not resuming: a leftover ayugram session
+      # file means the previous per-file pass was interrupted before its merge,
+      # so we continue that same cycle rather than skipping ahead.
+      if [[ -f "$AUDIT_SESSION_FILE" ]] \
+         && [[ "$(jq -r '.phase // empty' "$AUDIT_SESSION_FILE" 2>/dev/null || true)" == "ayugram" ]]; then
+        log "  ↻ Resuming interrupted AyuGram audit — continuing cycle $AUDIT_CYCLE (not incrementing)."
+      else
+        AUDIT_CYCLE=$((AUDIT_CYCLE + 1))
+      fi
 
       if [[ $AUDIT_CYCLE -gt $MAX_AUDIT_CYCLES ]]; then
         set_current_stage "STOPPED / MAX AUDIT CYCLES" "cycle $AUDIT_CYCLE" "limit is $MAX_AUDIT_CYCLES"
@@ -1455,7 +1625,9 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       log "  📂 Auditing ALL $NUM_FILES files (cycle $AUDIT_CYCLE — full scan)"
     fi
 
-    rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md
+    # Resume-aware: keep finished chunks if this continues an interrupted audit;
+    # otherwise clear stale chunks/markers and start the phase fresh.
+    begin_audit_session "$AUDIT_CYCLE" "ayugram"
 
     BATCH_SIZE=8
     PIDS=()
@@ -1472,24 +1644,32 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       chunk_label="${dart_rel%.dart}"
       chunk_label="${chunk_label//\//_}"
       CHUNK_FILE="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_${chunk_label}.log"
-
-      # Tier routing: haiku for tiny/simple, sonnet for complex. No files are
-      # skipped by default; interrupted work is retried on the next run.
-      tier=$(get_file_tier "$dart_file")
-      [[ "$tier" == "skip" ]] && tier="haiku"
-
-      model="claude-sonnet-4-6"
-      [[ "$tier" == "haiku" ]] && model="claude-haiku-4-5-20251001"
-
       CHUNK_ID_MAP["$dart_file"]=$CHUNK_ID
+
+      # Resume: if this file's audit already finished in an interrupted run
+      # (orchestrator-written done-marker present), skip re-auditing it.
+      if [[ -f "$DONE_DIR/chunk_${CHUNK_ID}.done" ]]; then
+        log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart — already audited (resume skip)"
+        SUCCESSFUL_CHUNKS=$((SUCCESSFUL_CHUNKS + 1))
+        CHUNK_ID=$((CHUNK_ID + 1))
+        continue
+      fi
+
+      tier=$(get_file_tier "$dart_file")   # informational only — model is fixed below
+      model="$RALPH_MODEL"
+
       PROMPT="$(build_audit_prompt "$dart_file" "$CHUNK_ID")"
       log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart ($(wc -l < "$dart_file") lines, tier=$tier)"
 
+      this_chunk=$CHUNK_ID
       (
         trap - EXIT INT TERM
         set +e
         invoke_claude "$PROMPT" "$CHUNK_FILE" "AUDIT-${chunk_label}" "$model"
-        exit $?
+        rc=$?
+        # Mark done only on clean exit, so an interrupted/failed chunk is retried.
+        [[ $rc -eq 0 ]] && touch "$DONE_DIR/chunk_${this_chunk}.done" 2>/dev/null
+        exit $rc
       ) &
       PIDS+=($!)
       CHUNK_ID=$((CHUNK_ID + 1))
@@ -1544,7 +1724,8 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       NUM_FILES=${#DART_FILES[@]}
       log "  📂 Sweeping ALL $NUM_FILES files for placeholders & perf issues"
 
-      rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md
+      # Resume-aware (see Phase A): keep finished chunks on a continuation.
+      begin_audit_session "$AUDIT_CYCLE" "cleanup"
 
       BATCH_SIZE=8
       PIDS=()
@@ -1560,19 +1741,28 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
         chunk_label="${chunk_label//\//_}"
         CHUNK_FILE="$ITER_LOG_DIR/cleanup_c${AUDIT_CYCLE}_${chunk_label}.log"
 
-        tier=$(get_file_tier "$dart_file")
-        [[ "$tier" == "skip" ]] && tier="haiku"
-        model="claude-sonnet-4-6"
-        [[ "$tier" == "haiku" ]] && model="claude-haiku-4-5-20251001"
+        # Resume: skip files already swept in an interrupted run.
+        if [[ -f "$DONE_DIR/chunk_${CHUNK_ID}.done" ]]; then
+          log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart — already swept (resume skip)"
+          SUCCESSFUL_CHUNKS=$((SUCCESSFUL_CHUNKS + 1))
+          CHUNK_ID=$((CHUNK_ID + 1))
+          continue
+        fi
+
+        tier=$(get_file_tier "$dart_file")   # informational only — model is fixed below
+        model="$RALPH_MODEL"
 
         PROMPT="$(build_cleanup_prompt "$dart_file" "$CHUNK_ID")"
         log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart (tier=$tier)"
 
+        this_chunk=$CHUNK_ID
         (
           trap - EXIT INT TERM
           set +e
           invoke_claude "$PROMPT" "$CHUNK_FILE" "CLEANUP-${chunk_label}" "$model"
-          exit $?
+          rc=$?
+          [[ $rc -eq 0 ]] && touch "$DONE_DIR/chunk_${this_chunk}.done" 2>/dev/null
+          exit $rc
         ) &
         PIDS+=($!)
         CHUNK_ID=$((CHUNK_ID + 1))
@@ -1620,6 +1810,11 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       done
     } > "$PROJECT_ROOT/checklist/gui.md"
 
+    # gui.md is now written from the chunks. Clear this phase's resume markers
+    # FIRST (so an interrupt during the chunk cleanup below still leaves no stale
+    # session that could re-generate an already-merged checklist), THEN remove
+    # the now-merged chunk files.
+    end_audit_session
     rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md
 
     FINDINGS=$(grep -c '^- \[ \]' "$PROJECT_ROOT/checklist/gui.md" 2>/dev/null || true)
@@ -1735,7 +1930,7 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
     git -C "$PROJECT_ROOT" commit -m "$(cat <<EOF
 Audit cycle $AUDIT_CYCLE ($phase_label): $FINDINGS items found
 
-Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 EOF
 )" -- checklist/gui.md 2>/dev/null || true
     wait_for_internet
