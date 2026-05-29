@@ -2,10 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# system_tray — Audit findings
-
-- [ ] [MAJOR] Passcode lock doesn't remove notifications item from tray menu — `main.dart:530-534` `_passcodeLockSyncListener` only sets `_notifSystem.passcodeLocked` but never calls any tray update method; the notifications toggle item remains visible and interactive while passcode is locked, letting users toggle notification settings when they shouldn't be able to. AyuGram subscribes to `passcodeLockChanges()` and calls `rebuildMenu()` which conditionally omits the notifications item (`if (!Core::App().passcodeLocked())`) — `system_tray.dart:180` ← `tray.cpp:57-60,97`
-
 # system_unlock — Biometric detection incomplete, missing `known` field, no Apple Watch support
 
 - [ ] [CRITICAL] Missing `known` field in SystemUnlockStatus class — `dart/lib/utils/system_unlock.dart:10-19` ← `AyuGramDesktop/Telegram/lib_base/base/system_unlock.h:14-23`. AyuGram's `SystemUnlockAvailability` struct has `known: 1` (bool flag) indicating whether the status has been determined. Dart version has only `available`, `withBiometrics`, `withCompanion`. This breaks compatibility with the spec and makes it impossible to distinguish "not yet checked" from "checked but unavailable".
