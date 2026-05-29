@@ -18120,7 +18120,7 @@ String _formatTime12h(DateTime dt) {
 /// §48.2 five drag states determining overlay layout.
 enum _DragZoneLayout { files, photoFiles, mediaFiles, image, none }
 
-const _kMaxDragFileSize = 4 * 1024 * 1024 * 1024; // 4 GB (kFileSizePremiumLimit)
+const _kMaxDragFileSize = 4000 * 1024 * 1024; // 4000 MiB (kFileSizePremiumLimit; matches AyuGram localimageloader.h:25)
 const _kSmallImageSizeLimit = 10 * 1024 * 1024; // 10 MB (Images::kReadBytesLimit)
 
 /// §48.4 classify dragged files: reject null data, forward data, non-local
