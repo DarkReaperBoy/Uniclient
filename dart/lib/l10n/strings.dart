@@ -35,6 +35,12 @@ class TrStrings {
   static String lngDialogsTextWithFrom(String from, String message) =>
       '$from: $message';
 
+  // Native notification action buttons (lang.strings: lng_open_link,
+  // lng_context_mark_read, lng_notification_reply)
+  static String lngOpenLink() => 'Open';
+  static String lngContextMarkRead() => 'Mark as read';
+  static String lngNotificationReply() => 'Reply';
+
   // Notification grouping (notifications_manager.cpp)
   static String lngForwardMessages(int count) =>
       '$count forwarded message${count == 1 ? '' : 's'}';

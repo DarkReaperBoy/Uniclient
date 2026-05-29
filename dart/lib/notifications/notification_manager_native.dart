@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ffi' as ffi;
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
@@ -30,6 +31,19 @@ void _setEnv(String key, String value) {
     malloc.free(keyPtr);
     malloc.free(valuePtr);
   }
+}
+
+final math.Random _fileIdRng = math.Random();
+
+/// Unique, collision-free temp-file id. Mirrors AyuGram's
+/// `base::RandomValue<uint64>()` (window/notifications_utilities.cpp:69) — a
+/// 32-bit `hashCode` can collide for two distinct avatar/sound source paths,
+/// causing one peer's cached file to overwrite another's.
+String _randomFileId() {
+  final hi = _fileIdRng.nextInt(0x100000000);
+  final lo = _fileIdRng.nextInt(0x100000000);
+  return hi.toRadixString(16).padLeft(8, '0') +
+      lo.toRadixString(16).padLeft(8, '0');
 }
 
 typedef NotificationActionCallback = void Function(
@@ -82,8 +96,7 @@ class CachedUserpics {
       final rawRgba = resized.toUint8List();
       final pngBytes = Uint8List.fromList(img.encodePng(resized));
 
-      final hash = avatarPath.hashCode.toRadixString(16);
-      final outPath = p.join(_cacheDir!, 'userpic_$hash.png');
+      final outPath = p.join(_cacheDir!, 'userpic_${_randomFileId()}.png');
       await File(outPath).writeAsBytes(pngBytes);
 
       _cache[avatarPath] = _CachedUserpic(
@@ -154,9 +167,17 @@ class NativeManager extends NotificationManager {
   @override
   ManagerType get type => ManagerType.native;
 
+  // Whether the native server plays the alert sound itself (via the
+  // `sound-file` hint). This is a static capability check, matching AyuGram's
+  // `VolumeSupported()` (notifications_manager_linux.cpp:235) — it must NOT
+  // gate on inhibition. DND is enforced separately at play time: the server
+  // suppresses the sound when `Inhibited`, and NotificationSystem skips its own
+  // fallback playback while inhibited (the `invokeIfNotInhibited` analog,
+  // notifications_manager_linux.cpp:873-877). Gating this getter on
+  // `_inhibited` made it return false under DND, telling callers to play their
+  // own audio and defeating Do-Not-Disturb.
   @override
-  bool get handlesSound =>
-      _capabilities.contains('sound') && !_inhibited;
+  bool get handlesSound => _capabilities.contains('sound');
 
   String defaultSoundPath = '';
   final CachedUserpics _userpicCache = CachedUserpics();
@@ -164,6 +185,12 @@ class NativeManager extends NotificationManager {
   NotificationActionCallback? onAction;
   NotificationReplyCallback? onReply;
 
+  // LRU sound cache: source path → cached temp WAV path. Insertion order is
+  // the recency order (oldest first); a cache hit re-inserts to refresh it.
+  // Bounded so the temp dir can't grow without limit, the way AyuGram's
+  // Media::Audio::LocalDiskCache keeps the audio_cache folder in check
+  // (notifications_manager_linux.cpp:337).
+  static const int _kMaxSoundCacheEntries = 64;
   final Map<String, String> _soundCache = {};
   String? _soundCacheDir;
 
@@ -234,20 +261,49 @@ class NativeManager extends NotificationManager {
       final cacheDir = p.join(Directory.systemTemp.path, 'uniclient_userpics');
       await Directory(cacheDir).create(recursive: true);
 
-      final hash = title.hashCode;
-      const palette = [
-        [0xE1, 0x73, 0x73],
-        [0xE0, 0x80, 0x2B],
-        [0xE5, 0xAE, 0x40],
-        [0x4F, 0xAD, 0x2F],
-        [0x46, 0xAC, 0xC2],
-        [0x59, 0x8D, 0xCF],
-        [0x88, 0x70, 0xC3],
-        [0xCD, 0x60, 0x9A],
+      // Telegram userpic gradient pairs (color1 top → color2 bottom), from
+      // lib_ui/ui/colors.palette (historyPeerN UserpicBg / UserpicBg2).
+      const gradients = [
+        [[0xff, 0x84, 0x5e], [0xd4, 0x52, 0x46]], // 0 red
+        [[0x9a, 0xd1, 0x64], [0x46, 0xba, 0x43]], // 1 green
+        [[0xe5, 0xca, 0x77], [0xe5, 0xca, 0x77]], // 2 yellow (unused)
+        [[0x5c, 0xaf, 0xfa], [0x40, 0x8a, 0xcf]], // 3 blue
+        [[0xb6, 0x94, 0xf9], [0x6c, 0x61, 0xdf]], // 4 purple
+        [[0xff, 0x8a, 0xac], [0xd9, 0x55, 0x74]], // 5 pink
+        [[0x5b, 0xcb, 0xe3], [0x35, 0x9a, 0xd4]], // 6 sea
+        [[0xfe, 0xbb, 0x5b], [0xf6, 0x81, 0x36]], // 7 orange
       ];
-      final c = palette[hash.abs() % palette.length];
-      final image = img.Image(width: 64, height: 64);
-      img.fill(image, color: img.ColorRgba8(c[0], c[1], c[2], 255));
+      // Name → colour index → palette index, matching EmptyUserpic's
+      // ColorIndexToPaletteIndex (chat_style.cpp:1205) over the 7 simple
+      // colours (kSimpleColorIndexCount). The notification layer only has a
+      // name, not the peer id, so we hash the title to pick the gradient.
+      const paletteMap = [0, 7, 4, 1, 6, 3, 5];
+      final pair = gradients[paletteMap[title.hashCode.abs() % 7]];
+      final top = pair[0];
+      final bottom = pair[1];
+
+      const size = 64;
+      final image = img.Image(width: size, height: size, numChannels: 4);
+      img.fill(image, color: img.ColorRgba8(0, 0, 0, 0));
+      // Draw a circular userpic (EmptyUserpic::paintCircle) with a vertical
+      // gradient and an anti-aliased edge — transparent corners — instead of
+      // the old opaque flat-filled square.
+      final center = (size - 1) / 2.0;
+      final radius = size / 2.0;
+      for (var py = 0; py < size; py++) {
+        final t = py / (size - 1);
+        final r = (top[0] + (bottom[0] - top[0]) * t).round();
+        final g = (top[1] + (bottom[1] - top[1]) * t).round();
+        final b = (top[2] + (bottom[2] - top[2]) * t).round();
+        for (var px = 0; px < size; px++) {
+          final dx = px - center;
+          final dy = py - center;
+          final dist = math.sqrt(dx * dx + dy * dy);
+          final coverage = (radius - dist + 0.5).clamp(0.0, 1.0);
+          if (coverage <= 0) continue;
+          image.setPixelRgba(px, py, r, g, b, (coverage * 255).round());
+        }
+      }
 
       final initials = _getInitials(title);
       final font = img.arial24;
@@ -256,14 +312,14 @@ class NativeManager extends NotificationManager {
         final ch = font.characters[cu];
         if (ch != null) textW += ch.xAdvance;
       }
-      final x = (64 - textW) ~/ 2;
-      final y = (64 - font.lineHeight) ~/ 2;
+      final x = (size - textW) ~/ 2;
+      final y = (size - font.lineHeight) ~/ 2;
       img.drawString(image, initials,
           font: font, x: x, y: y,
           color: img.ColorRgba8(255, 255, 255, 255));
 
       final rawRgba = image.toUint8List();
-      final outPath = p.join(cacheDir, 'placeholder_${hash.toRadixString(16)}.png');
+      final outPath = p.join(cacheDir, 'placeholder_${_randomFileId()}.png');
       await File(outPath).writeAsBytes(Uint8List.fromList(img.encodePng(image)));
 
       _userpicCache._cache[cacheKey] = _CachedUserpic(
@@ -520,19 +576,19 @@ class NativeManager extends NotificationManager {
     if (_capabilities.contains('actions')) {
       actions.addAll([
         DBusString('default'),
-        DBusString('Open'),
+        DBusString(TrStrings.lngOpenLink()),
       ]);
       if (!data.hideMarkAsRead) {
         actions.addAll([
           DBusString('mail-mark-read'),
-          DBusString('Mark as Read'),
+          DBusString(TrStrings.lngContextMarkRead()),
         ]);
       }
       final hideReply = shouldHideReplyButton(data, settings);
       if (_capabilities.contains('inline-reply') && !hideReply) {
         actions.addAll([
           DBusString('inline-reply'),
-          DBusString('Reply'),
+          DBusString(TrStrings.lngNotificationReply()),
         ]);
       }
     }
@@ -554,6 +610,7 @@ class NativeManager extends NotificationManager {
         DBusVariant(DBusString(_desktopEntry));
 
     final forceHideDetails = !settings.previewName && !settings.previewText;
+    var imageHintSet = false;
     if (!forceHideDetails) {
       Uint8List? rawRgba;
       if (data.avatarPath.isNotEmpty) {
@@ -568,6 +625,7 @@ class NativeManager extends NotificationManager {
         hints[DBusString(_imageDataKey)] = DBusVariant(
           _buildImageHintFromRgba(rawRgba),
         );
+        imageHintSet = true;
       }
     }
 
@@ -604,7 +662,12 @@ class NativeManager extends NotificationManager {
         [
           DBusString('UniClient'),
           DBusUint32(replacesId),
-          DBusString(forceHideDetails ? _desktopEntry : ''),
+          // app_icon: empty when an image-data hint carries the userpic;
+          // otherwise fall back to the app icon so the notification is never
+          // icon-less (notifications_manager_linux.cpp:772-773 —
+          // `!hasImage ? ApplicationIconName() : ""`). A decode failure or a
+          // missing avatar file leaves no image hint even with previews on.
+          DBusString(imageHintSet ? '' : _desktopEntry),
           DBusString(
               data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName),
           DBusString(_buildBody(data)),
@@ -643,7 +706,12 @@ class NativeManager extends NotificationManager {
   Future<String?> _cachedSoundPath(String sourcePath) async {
     if (sourcePath.isEmpty) return null;
     final cached = _soundCache[sourcePath];
-    if (cached != null && File(cached).existsSync()) return cached;
+    if (cached != null && File(cached).existsSync()) {
+      // Refresh recency: re-insert so this entry becomes most-recently-used.
+      _soundCache.remove(sourcePath);
+      _soundCache[sourcePath] = cached;
+      return cached;
+    }
     try {
       final srcFile = File(sourcePath);
       if (!await srcFile.exists()) return null;
@@ -653,14 +721,28 @@ class NativeManager extends NotificationManager {
       final ext = p.extension(sourcePath).isNotEmpty
           ? p.extension(sourcePath)
           : '.wav';
-      final hash = sourcePath.hashCode.toRadixString(16);
-      final outPath = p.join(_soundCacheDir!, 'TD_$hash$ext');
+      final outPath = p.join(_soundCacheDir!, 'TD_${_randomFileId()}$ext');
       await srcFile.copy(outPath);
       _soundCache[sourcePath] = outPath;
+      _evictSoundCacheIfNeeded();
       return outPath;
     } catch (e) {
       Debug.log('NOTIF', 'Sound cache failed: $e');
       return null;
+    }
+  }
+
+  // Drop least-recently-used sounds (and their temp files) once the cache
+  // exceeds its bound, so the audio cache directory stays bounded.
+  void _evictSoundCacheIfNeeded() {
+    while (_soundCache.length > _kMaxSoundCacheEntries) {
+      final oldestKey = _soundCache.keys.first;
+      final oldestPath = _soundCache.remove(oldestKey);
+      if (oldestPath != null) {
+        try {
+          File(oldestPath).deleteSync();
+        } catch (_) {}
+      }
     }
   }
 
@@ -765,7 +847,7 @@ class NativeManager extends NotificationManager {
         notifDict[DBusString('buttons')] = DBusVariant(
           DBusArray(DBusSignature('a{sv}'), [
             DBusDict(DBusSignature('s'), DBusSignature('v'), {
-              DBusString('label'): DBusVariant(DBusString('Mark as Read')),
+              DBusString('label'): DBusVariant(DBusString(TrStrings.lngContextMarkRead())),
               DBusString('action'): DBusVariant(DBusString('app.notification-mark-as-read')),
               DBusString('target'): DBusVariant(DBusArray(DBusSignature('s'), [
                 DBusString(data.accountId),
