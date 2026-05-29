@@ -39,7 +39,7 @@ NOTE: the desktop drag-drop limit `chat_view.dart:18123` still has the identical
 
 # chat_view — desktop drag-drop file size limit
 
-- [ ] [CRITICAL] File size limit mismatch (desktop drag-drop) — `chat_view.dart:18123` sets `_kMaxDragFileSize = 4 * 1024 * 1024 * 1024` (4,096 MiB), used at `chat_view.dart:18143` (`if (size > _kMaxDragFileSize) return _DragZoneLayout.none;`) to reject dragged files. AyuGram enforces `kFileSizePremiumLimit = 4'000 * int64(1024 * 1024)` (4,000 MiB) in `storage/localimageloader.h:25`, checked at `storage/storage_media_prepare.cpp:150` & `:217`. Allows 96 MiB oversized files the backend rejects. The comment `// 4 GB (kFileSizePremiumLimit)` is wrong — `kFileSizePremiumLimit` is 4000 MiB, not 4096 MiB. Desktop sibling of the now-fixed `web_drop_web.dart:56` bug; found during its verification. Fix: change to `4000 * 1024 * 1024`.
+- ✓ [CLOSED 2026-05-29] File size limit (desktop drag-drop) — `chat_view.dart:18123` `_kMaxDragFileSize` corrected to `4000 * 1024 * 1024` (4000 MiB), byte-exact match to AyuGram `kFileSizePremiumLimit` (`storage/localimageloader.h:25` = `4'000 * int64(1024*1024)`); reject check `storage/storage_media_prepare.cpp:150,217`; used at `chat_view.dart:18143`. Comment fixed. VERIFIED: byte-exact value comparison + app builds, launches & renders chat list cleanly (smoke test, no crash).
 
 # notification_manager_default — DefaultManager logic deviations
 
@@ -106,7 +106,7 @@ NOTE: the desktop drag-drop limit `chat_view.dart:18123` still has the identical
 
 - [ ] [MAJOR] `setAutoPowerSaving()` doesn't call the engine at all — changing the auto power saving toggle updates in-memory state and saves to disk but never sends `SetPowerSaving` to the engine, so the engine-level flag (corresponding to `PowerSaving::SetForceAll`) is never toggled — `app_state.dart:2545-2550` ← `AyuGram/SourceFiles/ui/power_saving.cpp:35-50` (`SetForceAll` must be called when auto power saving changes)
 
-- [ ] [MAJOR] `passcodeCanTry()` implements an escalating lockout schedule (5 s / 10 s / 15 s / 20 s / 25 s / ≥30 s per attempt) that does not exist in tdesktop — tdesktop uses a flat `WrongPasscodeTimeout = 1500` ms single-attempt delay with no escalation; the custom logic significantly over-restricts users after a few misses and is not spec-compliant — `app_state.dart:2860-2874` ← `AyuGram/SourceFiles/config.h:35` (`WrongPasscodeTimeout = 1500`)
+- ✓ [CLOSED 2026-05-29 — FALSE POSITIVE] `passcodeCanTry()` (`app_state.dart:2860-2874`) escalating lockout (5/10/15/20/25/≥30 s) is an EXACT 1:1 match to AyuGram `passcodeCanTry()` at `settings.h:116-127` (same `switch (cPasscodeBadTries())`: 3→5000 … 7→25000, default 30000). The finding cited `config.h:35 WrongPasscodeTimeout=1500` as ground truth, but that constant is UNUSED dead code (zero .cpp references; real retry logic lives in settings.h). Dart replicates AyuGram ground truth 1:1 — spec-compliant, NO change needed (do not 'fix' to flat 1500 ms; that would BREAK parity).
 
 # audio_service — AudioService state management
 
