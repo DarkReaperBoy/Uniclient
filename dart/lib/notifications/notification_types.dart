@@ -21,6 +21,10 @@ class NotificationData {
   final String senderName;
   final String chatTitle;
   final String text;
+  // Carries the COMPOSED subtitle from NotificationSystem._dispatch() to the
+  // managers (NativeManager/DefaultManager read it to render the second line).
+  // Composition derives it from senderName via _composeSubtitle(), so it is left
+  // empty at construction and filled in _dispatch() — not a dead field.
   final String subtitle;
   final String avatarPath;
   final bool isMuted;
@@ -352,16 +356,24 @@ String _composeBody(NotificationData data, NotificationSettings settings) {
   return text;
 }
 
+// "{attachType}, {caption}" when a caption is present, else just the type —
+// mirrors AyuGram's WithCaptionNotificationText (data_media_types.cpp). The
+// caption is spoiler-masked the same way as the media itself.
+String _withCaption(String attachType, NotificationData data) {
+  if (data.caption.isEmpty) return attachType;
+  return '$attachType, ${_applySpoiler(data.caption, data.hasSpoiler)}';
+}
+
 String _messageTextForType(NotificationData data) {
   switch (data.messageType) {
     case 1: // image
-      return data.caption.isNotEmpty ? '${TrStrings.lngNotifPhoto()}, ${_applySpoiler(data.caption, data.hasSpoiler)}' : TrStrings.lngNotifPhoto();
+      return _withCaption(TrStrings.lngNotifPhoto(), data);
     case 2: // video
-      return data.caption.isNotEmpty ? '${TrStrings.lngNotifVideo()}, ${_applySpoiler(data.caption, data.hasSpoiler)}' : TrStrings.lngNotifVideo();
+      return _withCaption(TrStrings.lngNotifVideo(), data);
     case 3: // audio
-      return TrStrings.lngNotifAudioFile();
+      return _withCaption(TrStrings.lngNotifAudioFile(), data);
     case 4: // voice
-      return TrStrings.lngNotifVoiceMessage();
+      return _withCaption(TrStrings.lngNotifVoiceMessage(), data);
     case 5: // videonote
       return TrStrings.lngNotifVideoMessage();
     case 6: // sticker
@@ -370,9 +382,9 @@ String _messageTextForType(NotificationData data) {
       }
       return TrStrings.lngNotifSticker();
     case 7: // gif
-      return TrStrings.lngNotifGif();
+      return _withCaption(TrStrings.lngNotifGif(), data);
     case 8: // file
-      return TrStrings.lngNotifFile();
+      return _withCaption(TrStrings.lngNotifFile(), data);
     case 9: // poll
       return data.pollQuestion.isNotEmpty
           ? '\u{1F4CA} ${data.pollQuestion}'

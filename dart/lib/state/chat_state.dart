@@ -2464,9 +2464,16 @@ class ChatState extends ChangeNotifier {
       }
 
       final notifText = _applySpoilerEntities(msg.contentText, msg.contentRich);
-      const loginCodeSenderIds = {'333000', '777000', '489000'};
+      // Mask login codes from Telegram's service accounts. Mirrors AyuGram's
+      // getNotificationOptions(): spoilerLoginCode = !out && (peer.isNotificationsUser
+      // || peer.isVerifyCodes). isNotificationsUser == id 333000|777000,
+      // isVerifyCodes == id 489000 — well-known service IDs hardcoded in Telegram
+      // Desktop itself (data_peer.h/.cpp), not invented here. AyuGram checks the
+      // PEER (chat) id; we check chatId first with a senderId fallback.
+      const loginCodePeerIds = {'333000', '777000', '489000'};
       final isLoginCodeSender = !msg.isOutgoing &&
-          loginCodeSenderIds.contains(msg.senderId);
+          (loginCodePeerIds.contains(event.chatId) ||
+              loginCodePeerIds.contains(msg.senderId));
 
       onNotification!(NotificationData(
         accountId: event.accountId,
@@ -2487,10 +2494,20 @@ class ChatState extends ChangeNotifier {
         isForumTopic: msg.topicId.isNotEmpty,
         topicTitle: msg.topicName,
         forwardFrom: msg.forwardFrom,
+        // Per-message count is 0/1 (matches AyuGram's `isForwarded ? 1 : 0`).
+        // NotificationSystem groups consecutive forwards from the same sender
+        // and raises it >1 → "Forwarded N messages"; that grouping keys on
+        // senderId (populated below), so without it all forwards collapse.
         forwardCount: msg.forwardFrom.isNotEmpty ? 1 : 0,
         stickerEmoji: stickerEmoji,
         hasSpoiler: msg.mediaSpoiler,
-        caption: (msg.mediaType >= 1 && msg.mediaType <= 2 && msg.contentText.isNotEmpty)
+        // Captions show for photo/video/audio/voice/GIF/file — matches AyuGram's
+        // MediaFile::notificationText(), which appends originalText for all these
+        // document types via WithCaptionNotificationText (data_media_types.cpp).
+        // Sticker(6) carries its emoji in contentText, not a caption, so it is
+        // excluded; poll/location/contact/invoice have their own text.
+        caption: (msg.contentText.isNotEmpty &&
+                const {1, 2, 3, 4, 7, 8}.contains(msg.mediaType))
             ? msg.contentText
             : '',
         pollQuestion: msg.pollQuestion,
@@ -2512,6 +2529,22 @@ class ChatState extends ChangeNotifier {
         reactedToType: msg.reactedToType,
         isPollVote: msg.isPollVote,
         pollVoteOption: msg.pollVoteOption,
+        // Sender identity — used by NotificationSystem to group forwards/albums
+        // by author and to dedup per thread.
+        senderId: msg.senderId,
+        // Forum-topic root id keys per-topic dedup/clear in NotificationSystem.
+        topicRootId: msg.topicRootId,
+        // Muted-chat tracking. In a muted chat the sender is muted too, so the
+        // notification is skipped (AyuGram computeSkipState). Mention-bypass would
+        // require a per-message mentionsMe flag the backend doesn't expose yet.
+        isSenderMuted: chat?.isMuted ?? false,
+        // Reactor == peer only in 1:1 chats, where the reactor's name duplicates
+        // the chat title, so it's hidden (AyuGram: reactionFrom != peer).
+        isReactorPeer: (msg.isReaction || msg.isPollVote) &&
+            chat?.type == ChatType.dm,
+        // Multi-account label appended to the title (AyuGram addTargetAccountName).
+        multiAccount: _appState.accounts.length > 1,
+        accountUsername: _notifAccountLabel(event.accountId),
       ));
     }
     // Refresh saved sublists when messages arrive in Saved Messages.
@@ -2520,6 +2553,16 @@ class ChatState extends ChangeNotifier {
     if (savedChat != null) {
       _debouncedRefreshSavedSublists();
     }
+  }
+
+  // Label for the account that received a notification, appended to the title
+  // when more than one account is logged in. Mirrors AyuGram's
+  // addTargetAccountName(): prefer the username, fall back to the display name.
+  String _notifAccountLabel(String accountId) {
+    final acc =
+        _appState.accounts.where((a) => a.id == accountId).firstOrNull;
+    if (acc == null) return '';
+    return acc.username.isNotEmpty ? acc.username : acc.displayName;
   }
 
   void _handleMsgEdited(MsgEditedEvent event) {

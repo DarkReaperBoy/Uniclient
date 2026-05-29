@@ -147,6 +147,7 @@ class _UniClientAppState extends State<UniClientApp>
   VoidCallback? _appIconSyncListener;
   VoidCallback? _closeBehaviorSyncListener;
   VoidCallback? _passcodeLockSyncListener;
+  VoidCallback? _notifSettingsSyncListener;
   String _lastAppIcon = '';
   AppState? _appStateRef;
   ChatState? _chatStateRef;
@@ -456,19 +457,23 @@ class _UniClientAppState extends State<UniClientApp>
       // toggleSoundNotifications(): saves sound+flash state when disabling,
       // restores when re-enabling.
       _tray.onNotificationsToggle = () {
-        final current = _notifSystem.settings;
         final result = _tray.toggleSoundNotifications(
-          currentDesktopNotify: current.desktopNotify,
-          currentSoundNotify: current.allowSound,
-          currentFlashBounce: current.flashBounce,
+          currentDesktopNotify: appState.notifDesktopNotify,
+          currentSoundNotify: appState.notifAllowSound,
+          currentFlashBounce: appState.notifFlashBounce,
           rememberedSound: appState.rememberedSoundNotifyFromTray,
           rememberedFlash: appState.rememberedFlashBounceNotifyFromTray,
         );
-        _notifSystem.updateSettings(current.copyWith(
-          desktopNotify: result.desktopNotify,
-          allowSound: result.soundNotify,
-          flashBounce: result.flashBounce,
-        ));
+        // Write to AppState (the single source of truth); _notifSettingsSync
+        // pushes the change into the notification system and persists it. A null
+        // sound/flash means "leave unchanged" (matches the old copyWith `??`).
+        appState.notifDesktopNotify = result.desktopNotify;
+        if (result.soundNotify != null) {
+          appState.notifAllowSound = result.soundNotify!;
+        }
+        if (result.flashBounce != null) {
+          appState.notifFlashBounce = result.flashBounce!;
+        }
         appState.rememberedSoundNotifyFromTray = result.rememberedSound;
         appState.rememberedFlashBounceNotifyFromTray = result.rememberedFlash;
         _tray.updateNotificationsItem(enabled: result.desktopNotify);
@@ -514,7 +519,12 @@ class _UniClientAppState extends State<UniClientApp>
     }
 
     _chatStateRef ??= chatState;
-    _notifSystem.init(const NotificationSettings());
+    // §15: build the live notification settings from AppState (not defaults) so
+    // the user's preview/per-type/corner/volume/count choices actually take
+    // effect, then keep them in sync as settings change.
+    _notifSystem.init(_buildNotifSettings(appState));
+    _notifSettingsSyncListener = () => _syncNotifSettings(appState);
+    appState.addListener(_notifSettingsSyncListener!);
     _notifSystem.onFlashBounce = () => _tray.flashWindow();
     _notifSystem.onQueryMuteState = (accountId, chatId) {
       final chat = chatState.chats
@@ -565,21 +575,13 @@ class _UniClientAppState extends State<UniClientApp>
       };
     }
     chatState.onNotification = (data) {
-      final accounts = appState.accounts;
-      final isMulti = accounts.length > 1;
       // Keep the notification system's active account fresh so the
       // notifyFromAll=false filter silences other accounts (it compares
       // data.accountId against this — an empty value would suppress everything).
       _notifSystem.activeAccountId = appState.activeAccountId;
-      String acctUsername = '';
-      if (isMulti) {
-        final acct = accounts.where((a) => a.id == data.accountId).firstOrNull;
-        acctUsername = acct?.username ?? acct?.displayName ?? '';
-      }
-      _notifSystem.onNewMessage(data.copyWith(
-        multiAccount: isMulti,
-        accountUsername: acctUsername,
-      ));
+      // multiAccount/accountUsername are populated correctly in ChatState
+      // (_notifAccountLabel uses the AyuGram isEmpty fallback, not null-coalesce).
+      _notifSystem.onNewMessage(data);
     };
 
     // Debug command poller — reads /tmp/uniclient_debug_cmd.json for
@@ -589,6 +591,65 @@ class _UniClientAppState extends State<UniClientApp>
         _pollDebugCommand(chatState);
       });
     }
+  }
+
+  // §15: map AppState's notification preferences onto the NotificationSettings
+  // the notification system consumes. Without this the system ran on hardcoded
+  // defaults and none of the settings-screen toggles affected real notifications.
+  NotificationSettings _buildNotifSettings(AppState a) {
+    return NotificationSettings(
+      desktopNotify: a.notifDesktopNotify,
+      allowSound: a.notifAllowSound,
+      volume: a.notifVolume,
+      flashBounce: a.notifFlashBounce,
+      previewName: a.notifPreviewName,
+      previewText: a.notifPreviewText,
+      privateChatsNotify: a.notifPrivateChats,
+      groupsNotify: a.notifGroups,
+      channelsNotify: a.notifChannels,
+      reactionsNotify: a.notifReactions,
+      includeMutedChats: a.notifIncludeMutedChats,
+      countUnreadMessages: a.notifCountUnreadMessages,
+      useNativeNotifications: a.notifUseNative,
+      notifyFromAll: a.notifAllAccountsNotify,
+      corner: _mapNotifCorner(a.notifCorner),
+      maxNotificationCount: a.notifCount,
+      displayIndex: a.notifDisplayIndex,
+      // reactionsShowPreview / forceCustomNotifications / disableNotificationsDelay
+      // / hideReplyButton have no AppState control yet — keep their defaults.
+    );
+  }
+
+  // AppState.notifCorner uses the settings screen's _ScreenCorner ordering
+  // {topLeft, topRight, bottomRight, bottomLeft, topCenter}, which differs from
+  // NotificationCorner {topLeft, topRight, bottomLeft, bottomRight, topCenter} at
+  // indices 2/3 — so map explicitly, never index NotificationCorner by raw value.
+  NotificationCorner _mapNotifCorner(int idx) {
+    switch (idx) {
+      case 0:
+        return NotificationCorner.topLeft;
+      case 1:
+        return NotificationCorner.topRight;
+      case 2:
+        return NotificationCorner.bottomRight;
+      case 3:
+        return NotificationCorner.bottomLeft;
+      case 4:
+        return NotificationCorner.topCenter;
+      default:
+        return NotificationCorner.bottomRight;
+    }
+  }
+
+  void _syncNotifSettings(AppState appState) {
+    // Manager type (native vs custom in-app overlay) is fixed at init so the
+    // live overlay and manager callbacks never need re-wiring mid-session; a
+    // change to "use native notifications" applies on the next launch.
+    final current = _notifSystem.settings;
+    _notifSystem.updateSettings(_buildNotifSettings(appState).copyWith(
+      useNativeNotifications: current.useNativeNotifications,
+      forceCustomNotifications: current.forceCustomNotifications,
+    ));
   }
 
   void _syncTrayAccounts(AppState appState) {
@@ -2128,6 +2189,9 @@ class _UniClientAppState extends State<UniClientApp>
     }
     if (_passcodeLockSyncListener != null && _appStateRef != null) {
       _appStateRef!.removeListener(_passcodeLockSyncListener!);
+    }
+    if (_notifSettingsSyncListener != null && _appStateRef != null) {
+      _appStateRef!.removeListener(_notifSettingsSyncListener!);
     }
     if (_chatStateRef != null) _chatStateRef!.onNotification = null;
     // Persist emoji keywords state (recent emojis, variant prefs).
