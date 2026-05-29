@@ -2,16 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# system_unlock — Biometric detection incomplete, missing `known` field, no Apple Watch support
-
-
-- [ ] [CRITICAL] Apple Watch companion detection is hardcoded false and never checked — `dart/lib/utils/system_unlock.dart:16` ← `AyuGramDesktop/Telegram/lib_base/base/platform/mac/base_system_unlock_mac.mm:35-39`. AyuGram checks `LAPolicyDeviceOwnerAuthenticationWithWatch` on macOS 10.15+. Dart hardcodes `withCompanion = false` in the constructor and never actually queries LocalAuthentication for watch availability. On supported devices, this silently fails to enable watch unlock.
-
-
-
-- [ ] [MINOR] Error handling doesn't distinguish TouchID lockout from user cancellation — `dart/lib/utils/system_unlock.dart:60-61` ← `AyuGramDesktop/Telegram/lib_base/base/platform/mac/base_system_unlock_mac.mm:76`. AyuGram specifically checks `error.code == LAErrorTouchIDLockout` to return `FloodError`. Dart catches all exceptions as `floodError` (line 61), conflating user cancellation, invalid state, and actual lockout into one result type. This prevents proper error reporting to the UI.
-
-
 # web_drop — File drag-and-drop utility for web platform
 
 ## Findings
