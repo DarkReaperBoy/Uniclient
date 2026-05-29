@@ -98,21 +98,7 @@ NOTE: the desktop drag-drop limit `chat_view.dart:18123` still has the identical
 
 # audio_service — AudioService state management
 
-- [ ] [MAJOR] No playback speed support — `AudioService` always plays at 1.0x; `playVoice` never calls `player.setRate()` for voice messages or music. AyuGram applies `voicePlaybackSpeed` (user-configurable) for voice and `audioPlaybackSpeed` for music via `LookupPlaybackSpeed`. — `audio_service.dart:197` (player.open, no setRate) ← `media_player_instance.cpp:65-74` (LookupPlaybackSpeed), `media_player_instance.cpp:879` (speed assigned on play), `media_player_instance.cpp:1183-1189` (updatePlaybackSpeed on settings change)
-
 - [ ] [MAJOR] No auto-advance to next track on completion — the `completed` stream listener resets state and stops, but never calls `onNextTrack()` or `next()`. AyuGram calls `moveInPlaylist(data, 1, true)` when `StoppedAtEnd` (unless repeat-one or `OptionDisableAutoplayNext`), so music and voice messages auto-advance to the next item. In Dart, playback silently stops after each track. — `audio_service.dart:186-194` (completed listener, no next call) ← `media_player_instance.cpp:1300-1310` (StoppedAtEnd → moveInPlaylist)
-
-# auth_state — Auth flow state management
-
-- [ ] [MAJOR] SRP_ID_INVALID first-occurrence forces user to re-enter password with an error message, but AyuGram silently retries with fresh SRP params transparently — the user should never see an error on the first SRP_ID_INVALID; only if it storms (within timeout) should an error show — `auth_state.dart:104-141` ← `intro_password_check.cpp:169-178`
-
-- [ ] [MAJOR] `_error` is never cleared inside `_handleAuthEvent` — if `submitInput` sets `_error` and the engine later pushes a state-change event (e.g. auth method auto-selected, QR rotated, state advanced by background task), the stale error message remains displayed alongside the new state until the next user action — `auth_state.dart:200-234` (no `_error = null` in handler) ← `intro_password_check.cpp:125-128` (errors always cleared on step transitions)
-
-# ayu_forward — Forward state machine and intelligent chunking
-
-- [ ] [MAJOR] `buildChunks` missing sender-level `noForwards` check: messages from a sender with `senderNoForwards=true` (but no message-level `noForwards`) are routed to native forward instead of `resendAsOwn`. In C++, `isFullAyuForwardNeeded` at `ayu_forward.cpp:234` checks `item->from()->isAyuNoForwards()` and, if true, routes the *entire batch* through `forwardMessages` (full re-send) via `apiwrap.cpp:3487-3493`. In Dart, `needsIntelligentForward` at `ayu_forward.dart:303` does check `m.senderNoForwards`, but `buildChunks` at `ayu_forward.dart:160-187` only calls `isChatRestricted` (chat-level) and `isMessageRestricted` (message-level) — sender-level restriction is never propagated into the chunk method decision, so those messages silently fall through to `ForwardMethod.native`. — `ayu_forward.dart:160-187` ← `ayu_forward.cpp:233-235` + `apiwrap.cpp:3487-3493`
-
-- [ ] [MAJOR] Progress counter uses cumulative global total instead of per-chunk reset. Dart sets `total: messages.length` (global count of all messages) once at line 228-230 and never resets it between chunks, so users see "3/10 • chunk 1/2" then "10/10 • chunk 2/2". C++ `intelligentForward` at `ayu_forward.cpp:295` resets `state->totalMessages = chunk.items.size()` for each native chunk inside the loop, so users see "3/3 • chunk 1/2" then "3/3 • chunk 2/2" — per-chunk progress that resets between chunks. The status text display diverges from the C++ spec. — `ayu_forward.dart:228-230` ← `ayu_forward.cpp:291-306`
 
 # chat_state — Pagination & Navigation Constants Wrong
 
