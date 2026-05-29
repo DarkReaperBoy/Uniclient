@@ -1238,22 +1238,25 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "SetProxy":
 		var params struct {
-			AccountID   string `json:"account_id"`
-			Mode        int    `json:"mode"`
-			Host        string `json:"host"`
-			Port        int    `json:"port"`
-			ProxyType   string `json:"proxy_type"`
-			Username    string `json:"username"`
-			Password    string `json:"password"`
-			Secret      string `json:"secret"`
-			IPv6        bool   `json:"ipv6"`
-			UseForCalls bool   `json:"use_for_calls"`
+			AccountID       string `json:"account_id"`
+			Mode            int    `json:"mode"`
+			Host            string `json:"host"`
+			Port            int    `json:"port"`
+			ProxyType       string `json:"proxy_type"`
+			Username        string `json:"username"`
+			Password        string `json:"password"`
+			Secret          string `json:"secret"`
+			IPv6            bool   `json:"ipv6"`
+			UseForCalls     bool   `json:"use_for_calls"`
+			RotationEnabled bool   `json:"rotation_enabled"`
+			RotationTimeout int    `json:"rotation_timeout"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
 		e.SetProxy(params.Mode, params.Host, params.Port, params.ProxyType,
-			params.Username, params.Password, params.Secret, params.IPv6, params.UseForCalls)
+			params.Username, params.Password, params.Secret, params.IPv6, params.UseForCalls,
+			params.RotationEnabled, params.RotationTimeout)
 		return nil, nil
 
 	case "CheckProxy":
@@ -1304,12 +1307,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "SetPowerSaving":
 		var params struct {
-			Flags int `json:"flags"`
+			Flags    int  `json:"flags"`
+			ForceAll bool `json:"force_all"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		e.SetPowerSaving(params.Flags)
+		e.SetPowerSaving(params.Flags, params.ForceAll)
 		return nil, nil
 
 	case "SetExperimentalFlag":

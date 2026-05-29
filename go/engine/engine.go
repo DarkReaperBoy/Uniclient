@@ -100,6 +100,10 @@ type Engine struct {
 	proxySecret   string
 	proxyIPv6     bool
 	proxyForCalls bool
+	// Proxy rotation (AyuGram SettingsProxy.proxyRotationEnabled/Timeout):
+	// rotate through the proxy list every proxyRotationTimeout seconds.
+	proxyRotationEnabled bool
+	proxyRotationTimeout int
 
 	// Auto-download settings: per-source limits controlled from Dart via SetAutoDownload.
 	autoDownloadMu       sync.RWMutex
@@ -107,6 +111,9 @@ type Engine struct {
 
 	// Power saving flags bitmap from Dart UI.
 	powerSavingFlags int
+	// powerSavingForceAll mirrors AyuGram PowerSaving::ForceAll (auto power
+	// saving): when true, every power-saving flag is treated as enabled.
+	powerSavingForceAll bool
 
 	// Local storage limits from Dart UI.
 	localStorageTotalMB  int
@@ -252,7 +259,7 @@ func (e *Engine) SetAntiRecallSettings(saveDeleted, saveHistory, saveForBots boo
 }
 
 // SetProxy updates the engine proxy settings and reconfigures active connections.
-func (e *Engine) SetProxy(mode int, host string, port int, proxyType, user, pass, secret string, ipv6, forCalls bool) {
+func (e *Engine) SetProxy(mode int, host string, port int, proxyType, user, pass, secret string, ipv6, forCalls, rotationEnabled bool, rotationTimeout int) {
 	e.proxyMu.Lock()
 	e.proxyMode = mode
 	e.proxyHost = host
@@ -263,9 +270,11 @@ func (e *Engine) SetProxy(mode int, host string, port int, proxyType, user, pass
 	e.proxySecret = secret
 	e.proxyIPv6 = ipv6
 	e.proxyForCalls = forCalls
+	e.proxyRotationEnabled = rotationEnabled
+	e.proxyRotationTimeout = rotationTimeout
 	e.proxyMu.Unlock()
-	log.Printf("[engine] SetProxy: mode=%d type=%s host=%s:%d ipv6=%v forCalls=%v",
-		mode, proxyType, host, port, ipv6, forCalls)
+	log.Printf("[engine] SetProxy: mode=%d type=%s host=%s:%d ipv6=%v forCalls=%v rotation=%v/%ds",
+		mode, proxyType, host, port, ipv6, forCalls, rotationEnabled, rotationTimeout)
 }
 
 // SetAutoDownloadSettings stores per-source auto-download limits.
@@ -323,10 +332,13 @@ func (e *Engine) UpdatePasscodeConfig(updates map[string]interface{}) error {
 	return e.vault.Save()
 }
 
-// SetPowerSaving stores the power-saving flags bitmap from the Dart UI.
-func (e *Engine) SetPowerSaving(flags int) {
+// SetPowerSaving stores the power-saving flags bitmap and the force-all flag
+// (auto power saving) from the Dart UI. forceAll maps to AyuGram
+// PowerSaving::SetForceAll: when set, every flag is treated as enabled.
+func (e *Engine) SetPowerSaving(flags int, forceAll bool) {
 	e.powerSavingFlags = flags
-	log.Printf("[engine] SetPowerSaving: flags=0x%X", flags)
+	e.powerSavingForceAll = forceAll
+	log.Printf("[engine] SetPowerSaving: flags=0x%X forceAll=%v", flags, forceAll)
 }
 
 func (e *Engine) SetExperimentalFlag(id string, value bool) {

@@ -130,6 +130,171 @@ class GhostModeAccountSettings {
       };
 }
 
+/// AyuGram "message shot" (message screenshot) render settings.
+/// 1:1 with `MessageShotSettings` in AyuGram `ayu/ayu_settings.h:184-238`
+/// and the behaviour in `ayu/ayu_settings.cpp:227-354`. Holds how a captured
+/// message screenshot is rendered (background, date, reactions, theme, …).
+/// The boolean feature toggle is the separate [AppState.showMessageShot].
+class MessageShotSettings {
+  bool showBackground;
+  bool showDate;
+  bool showReactions;
+  bool showHeaderDecorations;
+  bool showColorfulReplies;
+  bool revealSpoilers;
+
+  /// -1 = no embedded theme. C++ uint32 accent color packed as ARGB.
+  int embeddedThemeType;
+  int embeddedThemeAccentColor;
+
+  /// Cloud theme reference (C++ uint64 ids). 0/empty = no cloud theme.
+  int cloudThemeId;
+  int cloudThemeAccessHash;
+  int cloudThemeDocumentId;
+  String cloudThemeTitle;
+  int cloudThemeAccountId;
+
+  MessageShotSettings({
+    this.showBackground = true,
+    this.showDate = false,
+    this.showReactions = false,
+    this.showHeaderDecorations = true,
+    this.showColorfulReplies = true,
+    this.revealSpoilers = true,
+    this.embeddedThemeType = -1,
+    this.embeddedThemeAccentColor = 0,
+    this.cloudThemeId = 0,
+    this.cloudThemeAccessHash = 0,
+    this.cloudThemeDocumentId = 0,
+    this.cloudThemeTitle = '',
+    this.cloudThemeAccountId = 0,
+  });
+
+  // ayu_settings.cpp:263-268
+  bool get isCloudThemeEmpty =>
+      cloudThemeId == 0 &&
+      cloudThemeAccessHash == 0 &&
+      cloudThemeDocumentId == 0 &&
+      cloudThemeTitle.isEmpty;
+
+  // ayu_settings.cpp:270-276
+  void _clearCloudThemeData() {
+    cloudThemeId = 0;
+    cloudThemeAccessHash = 0;
+    cloudThemeDocumentId = 0;
+    cloudThemeTitle = '';
+    cloudThemeAccountId = 0;
+  }
+
+  /// ayu_settings.cpp:278-288. Returns true if anything changed (caller saves).
+  bool setEmbeddedTheme(int type, [int accentColor = 0]) {
+    if (embeddedThemeType == type &&
+        embeddedThemeAccentColor == accentColor &&
+        isCloudThemeEmpty) {
+      return false;
+    }
+    embeddedThemeType = type;
+    embeddedThemeAccentColor = accentColor;
+    _clearCloudThemeData();
+    return true;
+  }
+
+  /// ayu_settings.cpp:290-308. Returns true if anything changed (caller saves).
+  bool setCloudTheme(
+    int accountId,
+    int id,
+    int accessHash,
+    int documentId,
+    String title,
+  ) {
+    if (embeddedThemeType == -1 &&
+        embeddedThemeAccentColor == 0 &&
+        cloudThemeAccountId == accountId &&
+        cloudThemeId == id &&
+        cloudThemeAccessHash == accessHash &&
+        cloudThemeDocumentId == documentId &&
+        cloudThemeTitle == title) {
+      return false;
+    }
+    embeddedThemeType = -1;
+    embeddedThemeAccentColor = 0;
+    cloudThemeAccountId = accountId;
+    cloudThemeId = id;
+    cloudThemeAccessHash = accessHash;
+    cloudThemeDocumentId = documentId;
+    cloudThemeTitle = title;
+    return true;
+  }
+
+  /// ayu_settings.cpp:310-320. Returns true if anything changed (caller saves).
+  bool clearTheme() {
+    if (embeddedThemeType == -1 &&
+        embeddedThemeAccentColor == 0 &&
+        isCloudThemeEmpty) {
+      return false;
+    }
+    embeddedThemeType = -1;
+    embeddedThemeAccentColor = 0;
+    _clearCloudThemeData();
+    return true;
+  }
+
+  void copyFrom(MessageShotSettings src) {
+    showBackground = src.showBackground;
+    showDate = src.showDate;
+    showReactions = src.showReactions;
+    showHeaderDecorations = src.showHeaderDecorations;
+    showColorfulReplies = src.showColorfulReplies;
+    revealSpoilers = src.revealSpoilers;
+    embeddedThemeType = src.embeddedThemeType;
+    embeddedThemeAccentColor = src.embeddedThemeAccentColor;
+    cloudThemeId = src.cloudThemeId;
+    cloudThemeAccessHash = src.cloudThemeAccessHash;
+    cloudThemeDocumentId = src.cloudThemeDocumentId;
+    cloudThemeTitle = src.cloudThemeTitle;
+    cloudThemeAccountId = src.cloudThemeAccountId;
+  }
+
+  // ayu_settings.cpp:340-354 (from_json). embeddedTheme* fall back to the
+  // legacy "themeType"/"themeAccentColor" keys, matching the C++ migration.
+  factory MessageShotSettings.fromJson(Map<String, dynamic> j) =>
+      MessageShotSettings(
+        showBackground: j['showBackground'] as bool? ?? true,
+        showDate: j['showDate'] as bool? ?? false,
+        showReactions: j['showReactions'] as bool? ?? false,
+        showHeaderDecorations: j['showHeaderDecorations'] as bool? ?? true,
+        showColorfulReplies: j['showColorfulReplies'] as bool? ?? true,
+        revealSpoilers: j['revealSpoilers'] as bool? ?? true,
+        embeddedThemeType:
+            j['embeddedThemeType'] as int? ?? j['themeType'] as int? ?? -1,
+        embeddedThemeAccentColor: j['embeddedThemeAccentColor'] as int? ??
+            j['themeAccentColor'] as int? ??
+            0,
+        cloudThemeId: j['cloudThemeId'] as int? ?? 0,
+        cloudThemeAccessHash: j['cloudThemeAccessHash'] as int? ?? 0,
+        cloudThemeDocumentId: j['cloudThemeDocumentId'] as int? ?? 0,
+        cloudThemeTitle: j['cloudThemeTitle'] as String? ?? '',
+        cloudThemeAccountId: j['cloudThemeAccountId'] as int? ?? 0,
+      );
+
+  // ayu_settings.cpp:322-338 (to_json).
+  Map<String, dynamic> toJson() => {
+        'showBackground': showBackground,
+        'showDate': showDate,
+        'showReactions': showReactions,
+        'showHeaderDecorations': showHeaderDecorations,
+        'showColorfulReplies': showColorfulReplies,
+        'revealSpoilers': revealSpoilers,
+        'embeddedThemeType': embeddedThemeType,
+        'embeddedThemeAccentColor': embeddedThemeAccentColor,
+        'cloudThemeId': cloudThemeId,
+        'cloudThemeAccessHash': cloudThemeAccessHash,
+        'cloudThemeDocumentId': cloudThemeDocumentId,
+        'cloudThemeTitle': cloudThemeTitle,
+        'cloudThemeAccountId': cloudThemeAccountId,
+      };
+}
+
 /// Top-level app state: accounts, connection, config, active platform.
 class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final EngineService _engine;
@@ -374,6 +539,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _channelBottomButton = 2; // 0=Hidden, 1=MuteUnmute, 2=DiscussWithFallback
   bool _quickAdminShortcuts = true;
   bool _showMessageShot = true;
+  // AyuGram `_messageShotSettings` (ayu_settings.h:703) — render config for the
+  // message-screenshot feature, distinct from the [_showMessageShot] toggle.
+  MessageShotSettings _messageShotSettings = MessageShotSettings();
   bool _hideFastShare = false;
 
   // §54.9: Message field button toggles (all default true).
@@ -1522,6 +1690,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _channelBottomButton = 2;
     _quickAdminShortcuts = true;
     _showMessageShot = true;
+    _messageShotSettings = MessageShotSettings();
     _hideFastShare = false;
     _saveDeletedMessages = true;
     _saveMessagesHistory = true;
@@ -1927,6 +2096,75 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
+  // AyuGram `messageShotSettings()` accessor (ayu_settings.h:260-261).
+  MessageShotSettings get messageShotSettings => _messageShotSettings;
+
+  void _onMessageShotChanged() {
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setMessageShotShowBackground(bool v) {
+    if (_messageShotSettings.showBackground == v) return;
+    _messageShotSettings.showBackground = v;
+    _onMessageShotChanged();
+  }
+
+  void setMessageShotShowDate(bool v) {
+    if (_messageShotSettings.showDate == v) return;
+    _messageShotSettings.showDate = v;
+    _onMessageShotChanged();
+  }
+
+  void setMessageShotShowReactions(bool v) {
+    if (_messageShotSettings.showReactions == v) return;
+    _messageShotSettings.showReactions = v;
+    _onMessageShotChanged();
+  }
+
+  void setMessageShotShowHeaderDecorations(bool v) {
+    if (_messageShotSettings.showHeaderDecorations == v) return;
+    _messageShotSettings.showHeaderDecorations = v;
+    _onMessageShotChanged();
+  }
+
+  void setMessageShotShowColorfulReplies(bool v) {
+    if (_messageShotSettings.showColorfulReplies == v) return;
+    _messageShotSettings.showColorfulReplies = v;
+    _onMessageShotChanged();
+  }
+
+  void setMessageShotRevealSpoilers(bool v) {
+    if (_messageShotSettings.revealSpoilers == v) return;
+    _messageShotSettings.revealSpoilers = v;
+    _onMessageShotChanged();
+  }
+
+  void setMessageShotEmbeddedTheme(int type, [int accentColor = 0]) {
+    if (_messageShotSettings.setEmbeddedTheme(type, accentColor)) {
+      _onMessageShotChanged();
+    }
+  }
+
+  void setMessageShotCloudTheme(
+    int accountId,
+    int id,
+    int accessHash,
+    int documentId,
+    String title,
+  ) {
+    if (_messageShotSettings.setCloudTheme(
+        accountId, id, accessHash, documentId, title)) {
+      _onMessageShotChanged();
+    }
+  }
+
+  void clearMessageShotTheme() {
+    if (_messageShotSettings.clearTheme()) {
+      _onMessageShotChanged();
+    }
+  }
+
   void setHideFastShare(bool v) {
     if (_hideFastShare == v) return;
     _hideFastShare = v;
@@ -2231,6 +2469,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       'password': activeProxy['password'] ?? '',
       'secret': activeProxy['secret'] ?? '',
       'proxies': _proxyList,
+      // AyuGram SettingsProxy.proxyRotationEnabled/proxyRotationTimeout
+      // (core_settings_proxy.h:43-47) — forward so the backend can rotate
+      // through the proxy list on the configured timeout.
+      'rotation_enabled': _proxyRotationEnabled,
+      'rotation_timeout': _proxyRotationTimeout,
     };
     for (final a in _accounts) {
       _engine.callGeneric(a.id, 'SetProxy', payload).catchError((_) {});
@@ -2530,7 +2773,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   int get powerSavingFlags => _powerSavingFlags;
-  bool powerSaving(int flag) => _powerSavingFlags & flag != 0;
+  // 1:1 with AyuGram PowerSaving::On(flag) = ForceAll() || (Current() & flag)
+  // (power_saving.h:38-40). _autoPowerSaving maps to ForceAll(): when enabled,
+  // every flag reads as "power saving ON" so all animations are disabled.
+  bool powerSaving(int flag) => _autoPowerSaving || (_powerSavingFlags & flag != 0);
   bool get animationsEnabled => !powerSaving(kPowerSavingAnimations);
   bool get stickersPanelAnimEnabled => !powerSaving(kPowerSavingStickersPanel);
   bool get stickersChatAnimEnabled => !powerSaving(kPowerSavingStickersChat);
@@ -2547,6 +2793,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _autoPowerSaving = v;
     _saveWindowPrefs();
     notifyListeners();
+    // 1:1 with AyuGram PowerSaving::SetForceAll (power_saving.cpp:35-50):
+    // toggling "auto power saving" forces all power-saving flags on/off at the
+    // engine level. Forward force_all so the backend tracks ForceAll() state.
+    _engine.callGeneric('__engine', 'SetPowerSaving', {
+      'flags': _powerSavingFlags,
+      'force_all': _autoPowerSaving,
+    }).catchError((_) {});
   }
 
   void setPowerSaving(int flag, bool on) {
@@ -2559,6 +2812,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _engine.callGeneric('__engine', 'SetPowerSaving', {
       'flags': _powerSavingFlags,
+      'force_all': _autoPowerSaving,
     }).catchError((_) {});
   }
 
@@ -3473,6 +3727,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _channelBottomButton = data['channelBottomButton'] as int? ?? 2;
       _quickAdminShortcuts = data['quickAdminShortcuts'] as bool? ?? true;
       _showMessageShot = data['showMessageShot'] as bool? ?? true;
+      final messageShotData =
+          data['messageShotSettings'] as Map<String, dynamic>?;
+      _messageShotSettings = messageShotData != null
+          ? MessageShotSettings.fromJson(messageShotData)
+          : MessageShotSettings();
       _hideFastShare = data['hideFastShare'] as bool? ?? false;
       _saveDeletedMessages = data['saveDeletedMessages'] as bool? ?? true;
       _saveMessagesHistory = data['saveMessagesHistory'] as bool? ?? true;
@@ -3720,6 +3979,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'channelBottomButton': _channelBottomButton,
         'quickAdminShortcuts': _quickAdminShortcuts,
         'showMessageShot': _showMessageShot,
+        'messageShotSettings': _messageShotSettings.toJson(),
         'hideFastShare': _hideFastShare,
         'saveDeletedMessages': _saveDeletedMessages,
         'saveMessagesHistory': _saveMessagesHistory,
