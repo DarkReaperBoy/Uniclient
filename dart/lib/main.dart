@@ -524,11 +524,21 @@ class _UniClientAppState extends State<UniClientApp>
       return chat.isMuted;
     };
     _tray.updateNotificationsItem(
-        enabled: _notifSystem.settings.desktopNotify);
+        enabled: _notifSystem.settings.desktopNotify,
+        show: !appState.passcodeLocked);
 
-    // §37.12: Sync passcode lock state into notification system.
+    // §37.12: Sync passcode lock state into notification system AND the tray
+    // menu. AyuGram subscribes to passcodeLockChanges() and calls rebuildMenu()
+    // which omits the notifications toggle while locked (tray.cpp:57-60,97) so
+    // users can't change notification settings from the tray while the app is
+    // passcode-locked. We mirror that by hiding the notifications tray item.
     _passcodeLockSyncListener = () {
-      _notifSystem.passcodeLocked = appState.passcodeLocked;
+      final locked = appState.passcodeLocked;
+      _notifSystem.passcodeLocked = locked;
+      _tray.updateNotificationsItem(
+        enabled: _notifSystem.settings.desktopNotify,
+        show: !locked,
+      );
     };
     appState.addListener(_passcodeLockSyncListener!);
     _notifSystem.passcodeLocked = appState.passcodeLocked;

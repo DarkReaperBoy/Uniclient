@@ -380,10 +380,21 @@ static void tray_method_call_handler(FlMethodChannel* channel,
     if (self->notifications_item &&
         fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
       FlValue* enabled_val = fl_value_lookup_string(args, "enabled");
+      FlValue* show_val = fl_value_lookup_string(args, "show");
       gboolean enabled = enabled_val ? fl_value_get_bool(enabled_val) : TRUE;
-      gtk_menu_item_set_label(GTK_MENU_ITEM(self->notifications_item),
-                              enabled ? "Disable Notifications"
-                                      : "Enable Notifications");
+      // `show` defaults to TRUE when omitted (backward compatible). When the
+      // passcode lock is engaged the item is hidden entirely, matching
+      // AyuGram's rebuildMenu() which omits the notifications action while
+      // Core::App().passcodeLocked() (tray.cpp:97).
+      gboolean show = show_val ? fl_value_get_bool(show_val) : TRUE;
+      if (show) {
+        gtk_menu_item_set_label(GTK_MENU_ITEM(self->notifications_item),
+                                enabled ? "Disable Notifications"
+                                        : "Enable Notifications");
+        gtk_widget_show(self->notifications_item);
+      } else {
+        gtk_widget_hide(self->notifications_item);
+      }
     }
 #endif
     fl_method_call_respond_success(method_call, nullptr, nullptr);

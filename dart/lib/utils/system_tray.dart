@@ -176,12 +176,22 @@ class SystemTray {
     }
   }
 
-  /// Update the notifications toggle tray item label.
-  Future<void> updateNotificationsItem({required bool enabled}) async {
+  /// Update the notifications toggle tray item label, and optionally hide it.
+  ///
+  /// When [show] is false the item is removed from the menu entirely, matching
+  /// AyuGram's `rebuildMenu()` which omits the notifications action while the
+  /// passcode lock is engaged (`tray.cpp:97` `if (!Core::App().passcodeLocked())`).
+  /// AyuGram subscribes to `passcodeLockChanges()` and rebuilds the menu so the
+  /// user can't toggle notification settings from the tray while locked.
+  Future<void> updateNotificationsItem({
+    required bool enabled,
+    bool show = true,
+  }) async {
     if (!isAvailable) return;
     try {
       await _channel.invokeMethod<void>('setNotificationsTrayItem', {
         'enabled': enabled,
+        'show': show,
       });
     } catch (e) {
       Debug.log('TRAY', 'setNotificationsTrayItem failed: $e');
