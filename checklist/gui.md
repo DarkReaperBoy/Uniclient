@@ -6,7 +6,7 @@
 
 ## Findings
 
-- [ ] [CRITICAL] File size limit mismatch — `web_drop_web.dart:56` sets `_kMaxFileSizeBytes = 4 * 1024 * 1024 * 1024` (4,096 MB), but AyuGram/Telegram Desktop enforces `kMaxFileSize = 4000 * 1024 * 1024` (4,000 MB) in `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/core/file_location.cpp:19`. This allows 96 MB oversized files that would be rejected by the backend. The comment claims "premium limit" but the value is incorrect.
+- ✓ [CLOSED 2026-05-29] File size limit — `web_drop_web.dart:56` `_kMaxFileSizeBytes` corrected to `4000 * 1024 * 1024` (4000 MiB), matching AyuGram `kFileSizePremiumLimit` (`storage/localimageloader.h:25`) and the drag-drop reject at `storage/storage_media_prepare.cpp:150`. Verified by byte-exact value comparison + clean `flutter analyze`. (web-only file — no visual/desktop render to screenshot.)
 
 ## Verification
 
@@ -34,7 +34,12 @@
 
 ## Recommendation
 
-Correct the `_kMaxFileSizeBytes` constant from `4 * 1024 * 1024 * 1024` to `4000 * 1024 * 1024` to match Telegram's official file size limit and prevent oversized files from being accepted during drag-drop.
+✓ Done & verified 2026-05-29 — `web_drop_web.dart:56` = `4000 * 1024 * 1024` (4000 MiB).
+NOTE: the desktop drag-drop limit `chat_view.dart:18123` still has the identical bug (4096 MiB) — logged as a new finding below.
+
+# chat_view — desktop drag-drop file size limit
+
+- [ ] [CRITICAL] File size limit mismatch (desktop drag-drop) — `chat_view.dart:18123` sets `_kMaxDragFileSize = 4 * 1024 * 1024 * 1024` (4,096 MiB), used at `chat_view.dart:18143` (`if (size > _kMaxDragFileSize) return _DragZoneLayout.none;`) to reject dragged files. AyuGram enforces `kFileSizePremiumLimit = 4'000 * int64(1024 * 1024)` (4,000 MiB) in `storage/localimageloader.h:25`, checked at `storage/storage_media_prepare.cpp:150` & `:217`. Allows 96 MiB oversized files the backend rejects. The comment `// 4 GB (kFileSizePremiumLimit)` is wrong — `kFileSizePremiumLimit` is 4000 MiB, not 4096 MiB. Desktop sibling of the now-fixed `web_drop_web.dart:56` bug; found during its verification. Fix: change to `4000 * 1024 * 1024`.
 
 # notification_manager_default — DefaultManager logic deviations
 
