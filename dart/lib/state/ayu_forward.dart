@@ -104,10 +104,13 @@ class AyuForward {
   static bool isForwarding(String peerId) {
     final p = _activeForwards[peerId];
     if (p == null) return false;
+    // totalCount is now reset per-chunk (0 during the brief preparing window
+    // before the first chunk seeds it), so detect an active forward by the
+    // chunk count instead of the per-chunk message count.
     return p.phase != AyuForwardPhase.finished
         && p.chunkIndex <= p.totalChunks
         && !p.isCancelled
-        && ((p.totalChunks > 0 && p.totalCount > 0) || p.phase == AyuForwardPhase.downloading);
+        && (p.totalChunks > 0 || p.phase == AyuForwardPhase.downloading);
   }
 
   static void _scheduleCleanup(String toChatId) {
@@ -161,7 +164,15 @@ class AyuForward {
     List<CachedMessage> messages,
     ChatInfo sourceChat,
   ) {
-    if (isChatRestricted(sourceChat)) {
+    // Full AyuForward: if the source chat OR any message's sender has
+    // noForwards, the ENTIRE batch must go through the re-send path. Mirrors
+    // C++ isFullAyuForwardNeeded = item->from()->isAyuNoForwards()
+    // || item->history()->peer->isAyuNoForwards() (ayu_forward.cpp:233-235),
+    // which routes the whole draft through forwardMessages (apiwrap.cpp:3487).
+    // This also keeps buildChunks consistent with needsIntelligentForward,
+    // which already checks m.senderNoForwards.
+    if (isChatRestricted(sourceChat) ||
+        messages.any((m) => m.senderNoForwards)) {
       return [ForwardChunk(ForwardMethod.resendAsOwn, messages)];
     }
 
@@ -225,14 +236,16 @@ class AyuForward {
 
     if (progress != null) {
       _activeForwards[toChatId] = progress;
+      // Per-chunk progress: do NOT seed a global total here. AyuGram resets
+      // state->totalMessages / state->sentMessages for every chunk inside the
+      // loop (ayu_forward.cpp:291-306), so each chunk shows its own "N/N"
+      // rather than a cumulative count across the whole batch.
       progress.update(
         phase: AyuForwardPhase.preparing,
-        total: messages.length,
         chunks: chunks.length,
       );
     }
 
-    int sentSoFar = 0;
     try {
       for (int i = 0; i < chunks.length; i++) {
         if (progress?.isCancelled == true) break;
@@ -241,7 +254,14 @@ class AyuForward {
         final phase = chunk.method == ForwardMethod.resendAsOwn
             ? AyuForwardPhase.downloading
             : AyuForwardPhase.sending;
-        progress?.update(phase: phase, chunk: i + 1);
+        // Reset progress for this chunk: total = this chunk's size, sent = 0
+        // (mirrors state->totalMessages = chunk.items.size(); sentMessages = 0).
+        progress?.update(
+          phase: phase,
+          chunk: i + 1,
+          total: chunk.messages.length,
+          sent: 0,
+        );
 
         switch (chunk.method) {
           case ForwardMethod.native:
@@ -254,10 +274,11 @@ class AyuForward {
               silent: silent,
               scheduleDate: scheduleDate,
             );
-            sentSoFar += chunk.messages.length;
-            progress?.update(sent: sentSoFar);
+            // Chunk finished: sent = total (state->sentMessages = totalMessages).
+            progress?.update(sent: chunk.messages.length);
           case ForwardMethod.resendAsOwn:
             final albumGroups = _groupByAlbum(chunk.messages);
+            int sentInChunk = 0;
             for (final group in albumGroups) {
               if (progress?.isCancelled == true) break;
               progress?.update(phase: AyuForwardPhase.downloading);
@@ -272,7 +293,7 @@ class AyuForward {
                   scheduleDate: scheduleDate,
                   dropCaptions: dropCaptions,
                 );
-                sentSoFar += group.length;
+                sentInChunk += group.length;
               } else {
                 await engine.resendAsOwn(
                   accountId, sourceChatId, group.first.msgId, toChatId,
@@ -280,17 +301,17 @@ class AyuForward {
                   scheduleDate: scheduleDate,
                   dropCaptions: dropCaptions,
                 );
-                sentSoFar++;
+                sentInChunk++;
               }
               progress?.update(
                 phase: AyuForwardPhase.sending,
-                sent: sentSoFar,
+                sent: sentInChunk,
               );
             }
         }
       }
     } finally {
-      progress?.update(phase: AyuForwardPhase.finished, sent: sentSoFar);
+      progress?.update(phase: AyuForwardPhase.finished);
       _scheduleCleanup(toChatId);
     }
   }

@@ -148,6 +148,7 @@ class _UniClientAppState extends State<UniClientApp>
   VoidCallback? _closeBehaviorSyncListener;
   VoidCallback? _passcodeLockSyncListener;
   VoidCallback? _notifSettingsSyncListener;
+  VoidCallback? _audioSettingsSyncListener;
   String _lastAppIcon = '';
   AppState? _appStateRef;
   ChatState? _chatStateRef;
@@ -339,6 +340,25 @@ class _UniClientAppState extends State<UniClientApp>
     if (!kIsWeb && configDir.isNotEmpty) {
       context.read<AudioService>().setConfigDir(configDir);
     }
+
+    // Sync media-player playback settings (speed / repeat / autoplay) from
+    // AppState into AudioService and keep them live as settings change. The
+    // speed sync re-applies the rate to any currently-playing track, mirroring
+    // Instance::updatePlaybackSpeed on settings change.
+    _appStateRef ??= appState;
+    final audioService = context.read<AudioService>();
+    void applyAudioSettings() {
+      audioService.setPlaybackSpeeds(
+        voice: appState.voicePlaybackSpeed,
+        audio: appState.audioPlaybackSpeed,
+      );
+      audioService.setRepeatMode(
+          AudioRepeatMode.values[appState.playerRepeatMode.clamp(0, 2)]);
+      audioService.setAutoplayNextDisabled(appState.disableAutoplayNext);
+    }
+    applyAudioSettings();
+    _audioSettingsSyncListener = applyAudioSettings;
+    appState.addListener(_audioSettingsSyncListener!);
 
     if (appState.spellcheckerEnabled) {
       UniSpellCheckService.instance.loadDictionaries(appState.enabledDictionaries);
@@ -2192,6 +2212,9 @@ class _UniClientAppState extends State<UniClientApp>
     }
     if (_notifSettingsSyncListener != null && _appStateRef != null) {
       _appStateRef!.removeListener(_notifSettingsSyncListener!);
+    }
+    if (_audioSettingsSyncListener != null && _appStateRef != null) {
+      _appStateRef!.removeListener(_audioSettingsSyncListener!);
     }
     if (_chatStateRef != null) _chatStateRef!.onNotification = null;
     // Persist emoji keywords state (recent emojis, variant prefs).

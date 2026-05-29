@@ -511,6 +511,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _showAddFilterInContextMenu = 1;
   bool _showMessageSeconds = false;
 
+  // Media player playback settings (mirror AyuGram core_settings.h:
+  // voicePlaybackSpeed/audioPlaybackSpeed + playerRepeatMode, and the
+  // OptionDisableAutoplayNext toggle). Speeds default to 1.0 (normal speed);
+  // repeat 0=none. Consumed by AudioService via main.dart sync.
+  double _voicePlaybackSpeed = 1.0; // voice & video messages
+  double _audioPlaybackSpeed = 1.0; // music tracks
+  int _playerRepeatMode = 0; // 0=none, 1=one, 2=all
+  bool _disableAutoplayNext = false;
+
   // §54.14: AyuGram General settings.
   int _translationProvider = 0; // 0=Telegram, 1=Google, 2=Yandex, 3=Native
   bool _disableStories = false;
@@ -884,6 +893,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int get showMessageDetailsInContextMenu => _showMessageDetailsInContextMenu;
   int get showAddFilterInContextMenu => _showAddFilterInContextMenu;
   bool get showMessageSeconds => _showMessageSeconds;
+
+  // Media player playback settings.
+  double get voicePlaybackSpeed => _voicePlaybackSpeed;
+  double get audioPlaybackSpeed => _audioPlaybackSpeed;
+  int get playerRepeatMode => _playerRepeatMode;
+  bool get disableAutoplayNext => _disableAutoplayNext;
 
   // §54.14: AyuGram General settings getters.
   int get translationProvider => _translationProvider;
@@ -1657,6 +1672,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _showMessageDetailsInContextMenu = 2;
     _showAddFilterInContextMenu = 1;
     _showMessageSeconds = false;
+    _voicePlaybackSpeed = 1.0;
+    _audioPlaybackSpeed = 1.0;
+    _playerRepeatMode = 0;
+    _disableAutoplayNext = false;
     _translationProvider = 0;
     _disableStories = false;
     _disableOpenLinkWarning = false;
@@ -1780,6 +1799,39 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setShowRepeatMessageInContextMenu(int v) {
     if (_showRepeatMessageInContextMenu == v) return;
     _showRepeatMessageInContextMenu = v.clamp(0, 2);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  // Media player playback settings. Speed is clamped to Telegram's 0.5x–2.5x
+  // range; setting 1.0 means "normal speed".
+  void setVoicePlaybackSpeed(double v) {
+    final speed = v.clamp(0.5, 2.5).toDouble();
+    if (_voicePlaybackSpeed == speed) return;
+    _voicePlaybackSpeed = speed;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setAudioPlaybackSpeed(double v) {
+    final speed = v.clamp(0.5, 2.5).toDouble();
+    if (_audioPlaybackSpeed == speed) return;
+    _audioPlaybackSpeed = speed;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setPlayerRepeatMode(int v) {
+    final mode = v.clamp(0, 2);
+    if (_playerRepeatMode == mode) return;
+    _playerRepeatMode = mode;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setDisableAutoplayNext(bool v) {
+    if (_disableAutoplayNext == v) return;
+    _disableAutoplayNext = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -3686,6 +3738,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _showMessageDetailsInContextMenu = data['showMessageDetailsInContextMenu'] as int? ?? 2;
       _showAddFilterInContextMenu = data['showAddFilterInContextMenu'] as int? ?? 1;
       _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
+      _voicePlaybackSpeed =
+          ((data['voicePlaybackSpeed'] as num?)?.toDouble() ?? 1.0).clamp(0.5, 2.5).toDouble();
+      _audioPlaybackSpeed =
+          ((data['audioPlaybackSpeed'] as num?)?.toDouble() ?? 1.0).clamp(0.5, 2.5).toDouble();
+      _playerRepeatMode = (data['playerRepeatMode'] as int? ?? 0).clamp(0, 2);
+      _disableAutoplayNext = data['disableAutoplayNext'] as bool? ?? false;
       // §54.14: AyuGram General settings.
       final rawTp = data['translationProvider'];
       if (rawTp is String) {
@@ -3946,6 +4004,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showMessageDetailsInContextMenu': _showMessageDetailsInContextMenu,
         'showAddFilterInContextMenu': _showAddFilterInContextMenu,
         'showMessageSeconds': _showMessageSeconds,
+        'voicePlaybackSpeed': _voicePlaybackSpeed,
+        'audioPlaybackSpeed': _audioPlaybackSpeed,
+        'playerRepeatMode': _playerRepeatMode,
+        'disableAutoplayNext': _disableAutoplayNext,
         'translationProvider': const ['telegram', 'google', 'yandex', 'native'][_translationProvider.clamp(0, 3)],
         'disableStories': _disableStories,
         'disableOpenLinkWarning': _disableOpenLinkWarning,

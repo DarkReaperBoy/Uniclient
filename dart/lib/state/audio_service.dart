@@ -6,6 +6,9 @@ import 'package:media_kit/media_kit.dart';
 
 import '../bridge/engine_service.dart';
 
+/// Playlist repeat mode for the media player (mirrors AyuGram RepeatMode).
+enum AudioRepeatMode { none, one, all }
+
 class AudioService extends ChangeNotifier {
   final EngineService _engine;
 
@@ -26,6 +29,14 @@ class AudioService extends ChangeNotifier {
   List<int> _currentFileRef = const [];
   bool _isSong = false;
   final List<StreamSubscription> _subs = [];
+
+  // Playback speed & auto-advance settings, synced from AppState (mirror
+  // AyuGram voicePlaybackSpeed/audioPlaybackSpeed + playerRepeatMode +
+  // OptionDisableAutoplayNext). Speeds default to 1.0 (normal speed).
+  double _voicePlaybackSpeed = 1.0; // voice & video messages
+  double _audioPlaybackSpeed = 1.0; // music tracks
+  AudioRepeatMode _repeatMode = AudioRepeatMode.none;
+  bool _autoplayNextDisabled = false;
 
   DateTime? _listenStartTime;
   int _accumulatedMs = 0;
@@ -51,6 +62,16 @@ class AudioService extends ChangeNotifier {
   String get currentPerformer => _currentPerformer;
   String get currentTitle => _currentTitle;
   int get currentMsgTimestamp => _currentMsgTimestamp;
+
+  double get voicePlaybackSpeed => _voicePlaybackSpeed;
+  double get audioPlaybackSpeed => _audioPlaybackSpeed;
+  AudioRepeatMode get repeatMode => _repeatMode;
+  bool get autoplayNextDisabled => _autoplayNextDisabled;
+
+  /// Playback speed for the current track — music (songs) use
+  /// [audioPlaybackSpeed]; voice/video messages use [voicePlaybackSpeed].
+  /// Mirrors LookupPlaybackSpeed (media_player_instance.cpp:65-74).
+  double get _currentSpeed => _isSong ? _audioPlaybackSpeed : _voicePlaybackSpeed;
 
   double get progress =>
       _duration.inMilliseconds > 0
@@ -124,6 +145,37 @@ class AudioService extends ChangeNotifier {
     }
   }
 
+  /// Update playback speeds (called when AppState settings change). Re-applies
+  /// the relevant speed to the currently-playing track immediately, mirroring
+  /// Instance::updatePlaybackSpeed (media_player_instance.cpp:1183-1189).
+  void setPlaybackSpeeds({double? voice, double? audio}) {
+    var changed = false;
+    if (voice != null && voice != _voicePlaybackSpeed) {
+      _voicePlaybackSpeed = voice;
+      changed = true;
+    }
+    if (audio != null && audio != _audioPlaybackSpeed) {
+      _audioPlaybackSpeed = audio;
+      changed = true;
+    }
+    if (changed) {
+      _player?.setRate(_currentSpeed);
+      notifyListeners();
+    }
+  }
+
+  void setRepeatMode(AudioRepeatMode mode) {
+    if (_repeatMode == mode) return;
+    _repeatMode = mode;
+    notifyListeners();
+  }
+
+  void setAutoplayNextDisabled(bool value) {
+    if (_autoplayNextDisabled == value) return;
+    _autoplayNextDisabled = value;
+    notifyListeners();
+  }
+
   Future<void> playVoice(String filePath, String msgId, {
     String chatId = '',
     String performer = '',
@@ -191,10 +243,32 @@ class AudioService extends ChangeNotifier {
       _playing = false;
       _position = Duration.zero;
       notifyListeners();
+      // Auto-advance on completion — mirrors AyuGram StoppedAtEnd handling
+      // (media_player_instance.cpp:1300-1310):
+      //   repeat-one    → re-seek to 0 and replay the same track
+      //   autoplay off  → stop (playback stays finished)
+      //   otherwise     → move to the next track (next() stops if none queued)
+      if (_repeatMode == AudioRepeatMode.one) {
+        final p = _player;
+        if (p != null) {
+          _position = Duration.zero;
+          p.seek(Duration.zero);
+          p.play();
+        }
+      } else if (_autoplayNextDisabled) {
+        stop();
+      } else {
+        next();
+      }
     }));
 
     try {
       await player.open(Media(filePath));
+      // Apply playback speed (music → audioPlaybackSpeed, voice/video message →
+      // voicePlaybackSpeed) — mirrors streamingOptions.speed = LookupPlaybackSpeed.
+      if (_player == player) {
+        await player.setRate(_currentSpeed);
+      }
       final savedPos = _savedPositions[_currentDocId];
       if (savedPos != null && savedPos > Duration.zero) {
         await player.seek(savedPos);

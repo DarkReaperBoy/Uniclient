@@ -24,6 +24,11 @@ class AuthState extends ChangeNotifier {
   DateTime? _lastSrpIdInvalidTime;
   static const _kSrpIdInvalidTimeout = Duration(seconds: 60);
 
+  // Last-entered 2FA password, retained so a transparent SRP_ID_INVALID retry
+  // can re-submit it without prompting the user again. Cleared on success,
+  // cancel, and clear().
+  String? _last2faPassword;
+
   Timer? _qrExpiryTimer;
 
   /// File path for CLI automation input.
@@ -89,6 +94,12 @@ class AuthState extends ChangeNotifier {
     final auth = _currentAuth;
     if (auth == null) return;
 
+    // Retain the 2FA password so a transparent SRP_ID_INVALID retry can
+    // re-submit it without bouncing the user back to a blank prompt.
+    if (auth.state == '2fa') {
+      _last2faPassword = input;
+    }
+
     Debug.log('AUTH', 'submitInput(${input.length > 20 ? '${input.substring(0, 20)}...' : input}) for ${auth.accountId}');
     _submitting = true;
     _error = null;
@@ -105,43 +116,55 @@ class AuthState extends ChangeNotifier {
           final now = DateTime.now();
           if (_lastSrpIdInvalidTime != null &&
               now.difference(_lastSrpIdInvalidTime!) < _kSrpIdInvalidTimeout) {
+            // Storm — repeated SRP_ID_INVALID within the timeout. Surface a
+            // server error instead of retrying forever. Mirrors
+            // handleSrpIdInvalid → showError(ServerError)
+            // (intro_password_check.cpp:171-173).
             _error = 'Server error. Please try again later.';
             Debug.log('AUTH', 'SRP_ID_INVALID storm detected — aborting');
           } else {
+            // First occurrence — TRANSPARENT retry: re-fetch fresh SRP params
+            // and auto-resubmit the SAME password the user already entered. No
+            // error is shown and the user is NOT bounced back to a blank prompt.
+            // Mirrors handleSrpIdInvalid → requestPasswordData → passwordChecked
+            // (intro_password_check.cpp:174-176), which re-runs the SRP check
+            // automatically without any UI feedback.
             _lastSrpIdInvalidTime = now;
+            final retryPassword = _last2faPassword;
+            AuthStateData? freshAuth;
             try {
-              final freshAuth = await _engine.startAuth(auth.accountId);
-              if (freshAuth != null && freshAuth.state == '2fa') {
-                _currentAuth = freshAuth;
-                Debug.log('AUTH', 'SRP_ID_INVALID — re-fetched fresh SRP params');
-              } else {
-                _currentAuth = AuthStateData(
-                  accountId: auth.accountId,
-                  platform: auth.platform,
-                  state: '2fa',
-                  label: auth.label.isNotEmpty ? auth.label : 'Two-Factor Password',
-                  hint: auth.hint,
-                  hasRecovery: auth.hasRecovery,
-                  sentTo: auth.sentTo,
-                );
-              }
-            } catch (_) {
-              _currentAuth = AuthStateData(
-                accountId: auth.accountId,
-                platform: auth.platform,
-                state: '2fa',
-                label: auth.label.isNotEmpty ? auth.label : 'Two-Factor Password',
-                hint: auth.hint,
-                hasRecovery: auth.hasRecovery,
-                sentTo: auth.sentTo,
-              );
+              freshAuth = await _engine.startAuth(auth.accountId);
+            } catch (e) {
+              Debug.log('AUTH', 'SRP_ID_INVALID — fresh-params fetch failed: $e');
             }
-            _error = 'Password verification failed. Please try again.';
-            Debug.log('AUTH', 'SRP_ID_INVALID — restored 2FA state for re-entry');
+            if (freshAuth != null) {
+              _currentAuth = freshAuth;
+            }
+            if (retryPassword != null &&
+                retryPassword.isNotEmpty &&
+                _currentAuth?.state == '2fa') {
+              Debug.log('AUTH',
+                  'SRP_ID_INVALID — re-fetched params, auto-resubmitting password');
+              // Transparent re-submit. submitInput resets _submitting/_error and
+              // calls notifyListeners itself, so return here to avoid clobbering
+              // its result with the stale error state below.
+              await submitInput(retryPassword);
+              return;
+            }
+            // No retained password (or unexpected state) — leave the freshly
+            // fetched 2fa state in place WITHOUT an error so the user can simply
+            // re-enter. Still no forced error message.
+            Debug.log('AUTH', 'SRP_ID_INVALID — awaiting 2FA re-entry');
           }
         } else {
           _error = rawError;
         }
+      }
+
+      // Drop the retained 2FA password once the step was accepted (auth moved
+      // past the 2fa prompt without an error).
+      if (result != null && result.state != 'error' && result.state != '2fa') {
+        _last2faPassword = null;
       }
 
       Debug.log('AUTH', 'submitInput → state=${result?.state} label=${result?.label}');
@@ -178,6 +201,7 @@ class AuthState extends ChangeNotifier {
     _currentAuth = null;
     _submitting = false;
     _error = null;
+    _last2faPassword = null;
     _stopAutoPoll();
     _qrExpiryTimer?.cancel();
     _qrExpiryTimer = null;
@@ -189,6 +213,7 @@ class AuthState extends ChangeNotifier {
     _currentAuth = null;
     _submitting = false;
     _error = null;
+    _last2faPassword = null;
     _stopAutoPoll();
     _qrExpiryTimer?.cancel();
     _qrExpiryTimer = null;
@@ -200,6 +225,16 @@ class AuthState extends ChangeNotifier {
   void _handleAuthEvent(AuthStateEvent event) {
     Debug.log('AUTH', 'event: account=${event.accountId} state=${event.state} error=${event.error}');
     if (_currentAuth == null || _currentAuth!.accountId != event.accountId) return;
+
+    // Clear any stale error when applying a non-error state transition, mirroring
+    // AyuGram clearing the error label on every step change. Surface the error
+    // only when the incoming event itself is an error (intro_password_check.cpp
+    // hides the error on each step and shows it on failure).
+    if (event.state == 'error') {
+      if (event.error.isNotEmpty) _error = event.error;
+    } else {
+      _error = null;
+    }
 
     if (event.fullData != null) {
       _currentAuth = event.fullData;
