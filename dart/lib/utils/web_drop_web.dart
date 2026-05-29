@@ -53,7 +53,7 @@ class _WebDropZoneState extends State<_WebDropZone> {
   DateTime _lastDragUpdate = DateTime.fromMillisecondsSinceEpoch(0);
   static const _kDragUpdateThrottleMs = 16; // ~60Hz max
   static const _kMaxConcurrentReads = 4;
-  static const _kMaxFileSizeBytes = 4 * 1024 * 1024 * 1024; // 4 GB (premium limit)
+  static const _kMaxFileSizeBytes = 4000 * 1024 * 1024; // 4000 MB (premium limit; matches Core::kMaxFileSize)
 
   late final JSFunction _onDragEnter;
   late final JSFunction _onDragOver;
