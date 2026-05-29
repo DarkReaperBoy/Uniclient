@@ -94,14 +94,6 @@ NOTE: the desktop drag-drop limit `chat_view.dart:18123` still has the identical
 
 # app_state — AppState settings state management
 
-- [ ] [CRITICAL] `_autoPowerSaving` flag is never consulted in `powerSaving()` or any derived getter — when auto power saving is enabled, `animationsEnabled`, `stickersPanelAnimEnabled`, `emojiReactionsAnimEnabled`, `chatEffectsAnimEnabled`, and `animDuration()` all still return "animations ON", so auto power saving has zero visual effect — `app_state.dart:2533-2542` ← `AyuGram/SourceFiles/ui/power_saving.h:38-40` (`On(flag) { return ForceAll() || (Current() & flag); }` — ForceAll maps to autoPowerSaving but is not checked)
-
-- [ ] [CRITICAL] `_proxyRotationEnabled` and `_proxyRotationTimeout` are never included in the `_syncProxyToEngine()` payload — proxy rotation is fully unwired from the engine; toggling it in the UI persists to disk but the Go backend never receives the rotation enabled flag or timeout value — `app_state.dart:2217-2237` ← `AyuGram/SourceFiles/core/core_settings_proxy.h` (`proxyRotationEnabled`, `proxyRotationTimeout` are real settings that must be forwarded)
-
-- [ ] [MAJOR] `MessageShotSettings` class is entirely absent — AyuGram defines 12+ configurable message screenshot fields (showBackground, showDate, showReactions, showHeaderDecorations, showColorfulReplies, revealSpoilers, embeddedThemeType, cloudThemeId, cloudThemeAccessHash, cloudThemeDocumentId, cloudThemeTitle, cloudThemeAccountId); Dart only has the boolean toggle `_showMessageShot` — `app_state.dart:376` ← `AyuGram/SourceFiles/ayu/ayu_settings.h:184-238` (full `MessageShotSettings` class)
-
-- [ ] [MAJOR] `setAutoPowerSaving()` doesn't call the engine at all — changing the auto power saving toggle updates in-memory state and saves to disk but never sends `SetPowerSaving` to the engine, so the engine-level flag (corresponding to `PowerSaving::SetForceAll`) is never toggled — `app_state.dart:2545-2550` ← `AyuGram/SourceFiles/ui/power_saving.cpp:35-50` (`SetForceAll` must be called when auto power saving changes)
-
 - ✓ [CLOSED 2026-05-29 — FALSE POSITIVE] `passcodeCanTry()` (`app_state.dart:2860-2874`) escalating lockout (5/10/15/20/25/≥30 s) is an EXACT 1:1 match to AyuGram `passcodeCanTry()` at `settings.h:116-127` (same `switch (cPasscodeBadTries())`: 3→5000 … 7→25000, default 30000). The finding cited `config.h:35 WrongPasscodeTimeout=1500` as ground truth, but that constant is UNUSED dead code (zero .cpp references; real retry logic lives in settings.h). Dart replicates AyuGram ground truth 1:1 — spec-compliant, NO change needed (do not 'fix' to flat 1500 ms; that would BREAK parity).
 
 # audio_service — AudioService state management
@@ -115,8 +107,6 @@ NOTE: the desktop drag-drop limit `chat_view.dart:18123` still has the identical
 - [ ] [MAJOR] SRP_ID_INVALID first-occurrence forces user to re-enter password with an error message, but AyuGram silently retries with fresh SRP params transparently — the user should never see an error on the first SRP_ID_INVALID; only if it storms (within timeout) should an error show — `auth_state.dart:104-141` ← `intro_password_check.cpp:169-178`
 
 - [ ] [MAJOR] `_error` is never cleared inside `_handleAuthEvent` — if `submitInput` sets `_error` and the engine later pushes a state-change event (e.g. auth method auto-selected, QR rotated, state advanced by background task), the stale error message remains displayed alongside the new state until the next user action — `auth_state.dart:200-234` (no `_error = null` in handler) ← `intro_password_check.cpp:125-128` (errors always cleared on step transitions)
-
-- [ ] [MAJOR] Race condition in `startAuth`: `_currentAuth` is set to `null` at line 67-68 before the `await`, so any engine auth events arriving while the request is in-flight hit the `_currentAuth == null` guard at line 202 and are silently dropped — startup events emitted by the engine before the response returns are lost — `auth_state.dart:67-68,202` ← `intro_widget.cpp` (event subscription is always live; state pointer is never null during a live flow)
 
 # ayu_forward — Forward state machine and intelligent chunking
 
