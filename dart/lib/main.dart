@@ -567,6 +567,10 @@ class _UniClientAppState extends State<UniClientApp>
     chatState.onNotification = (data) {
       final accounts = appState.accounts;
       final isMulti = accounts.length > 1;
+      // Keep the notification system's active account fresh so the
+      // notifyFromAll=false filter silences other accounts (it compares
+      // data.accountId against this — an empty value would suppress everything).
+      _notifSystem.activeAccountId = appState.activeAccountId;
       String acctUsername = '';
       if (isMulti) {
         final acct = accounts.where((a) => a.id == data.accountId).firstOrNull;

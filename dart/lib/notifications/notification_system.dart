@@ -132,8 +132,12 @@ class NotificationSystem {
   // Per-account session state for cross-device dedup
   final Map<String, _AccountSessionState> _accountStates = {};
 
-  // Notifications waiting for mute state resolution, keyed by 'accountId:chatId'
-  final Map<String, NotificationData> _settingWaiters = {};
+  // Notifications waiting for mute state resolution, keyed by thread key.
+  // Each thread holds the FULL queue of pending notifications so that every
+  // message arriving during the unknown-mute window is dispatched once the
+  // state resolves — C++ keeps the queue on the Thread object and showNext()
+  // walks it, dispatching all N (notifications_manager.cpp:473-482, 699+).
+  final Map<String, List<NotificationData>> _settingWaiters = {};
 
   NotificationManager get manager => _manager;
   ManagerType get activeManagerType => _manager.type;
@@ -260,10 +264,13 @@ class NotificationSystem {
 
     if (!_passesDedup(effectiveData)) return;
 
-    // Buffer notifications with unknown mute state for later processing
+    // Buffer notifications with unknown mute state for later processing.
+    // Queue ALL of them per thread — not just the first — so none are lost
+    // when the state resolves (C++ keeps the full queue on the Thread).
     if (effectiveData.muteStateUnknown) {
-      final key = '${effectiveData.accountId}:${effectiveData.chatId}';
-      _settingWaiters.putIfAbsent(key, () => effectiveData);
+      _settingWaiters
+          .putIfAbsent(_threadKey(effectiveData), () => [])
+          .add(effectiveData);
       return;
     }
 
@@ -277,9 +284,11 @@ class NotificationSystem {
   }
 
   bool _shouldNotifyForType(NotificationData data) {
-    if (!_settings.notifyFromAll &&
-        _activeAccountId.isNotEmpty &&
-        data.accountId != _activeAccountId) {
+    // C++: `!notifyFromAll() && &thread->session().account() != domain().active()`
+    // (notifications_manager.cpp:342-345). No "skip if unset" fallback — the
+    // active account is always known (wired from AppState in main.dart), so the
+    // filter genuinely silences other accounts instead of being a no-op.
+    if (!_settings.notifyFromAll && data.accountId != _activeAccountId) {
       return false;
     }
     if (data.isReaction || data.isPollVote) return _settings.reactionsNotify;
@@ -287,6 +296,28 @@ class NotificationSystem {
     if (data.isGroup) return _settings.groupsNotify;
     return _settings.privateChatsNotify;
   }
+
+  // Thread key — uniquely identifies a (peer, topic/sublist) the way C++ keys
+  // _whenMaps/_whenAlerts/_settingWaiters by not_null<Data::Thread*>. A topic
+  // or monoforum sublist is a DISTINCT key from the parent chat, so per-topic
+  // clears never collide with another topic's dedup/alert state
+  // (notifications_manager.cpp:212-215, 468, 508-540).
+  String _threadKey(NotificationData data) => _threadKeyOf(
+      data.accountId, data.chatId, data.topicRootId, data.sublistPeerId);
+
+  String _threadKeyOf(
+      String accountId, String chatId, String topicRootId, String sublistPeerId) {
+    if (topicRootId.isNotEmpty) return '$accountId:$chatId:t:$topicRootId';
+    if (sublistPeerId.isNotEmpty) return '$accountId:$chatId:s:$sublistPeerId';
+    return '$accountId:$chatId';
+  }
+
+  // True when [key] is the chat thread itself or one of its topic/sublist
+  // sub-threads — used by chat-level clears (≈ C++ clearFromHistory, which
+  // matches every thread whose owningHistory() == history). The trailing ':'
+  // guard prevents chatId "12" from matching chatId "123".
+  bool _keyInChat(String key, String chatKey) =>
+      key == chatKey || key.startsWith('$chatKey:');
 
   _ItemNotificationType _notifType(NotificationData data) {
     if (data.isReaction) return _ItemNotificationType.reaction;
@@ -297,7 +328,7 @@ class NotificationSystem {
   bool _passesDedup(NotificationData data) {
     if (data.messageId.isEmpty) return true;
 
-    final threadKey = '${data.accountId}:${data.chatId}';
+    final threadKey = _threadKey(data);
     final key = _NotificationKey(data.messageId, _notifType(data));
     final now = DateTime.now();
 
@@ -372,7 +403,7 @@ class NotificationSystem {
       _dispatch(data);
       return;
     }
-    final chatKey = '${data.accountId}:${data.chatId}';
+    final chatKey = _threadKey(data);
     late final Timer timer;
     timer = Timer(delay, () {
       final timers = _pendingTimers[chatKey];
@@ -412,7 +443,7 @@ class NotificationSystem {
 
     final byChat = <String, List<NotificationData>>{};
     for (final n in _groupedBuffer) {
-      byChat.putIfAbsent('${n.accountId}:${n.chatId}', () => []).add(n);
+      byChat.putIfAbsent(_threadKey(n), () => []).add(n);
     }
     _groupedBuffer.clear();
 
@@ -510,7 +541,7 @@ class NotificationSystem {
 
     final forceSilent = effectiveData.isSilent || effectiveData.soundNone || (isNative && dnd);
 
-    final threadKey = '${effectiveData.accountId}:${effectiveData.chatId}';
+    final threadKey = _threadKey(effectiveData);
     final now = DateTime.now();
     final lastAlert = _lastAlertPerThread[threadKey];
     final alertAllowed =
@@ -549,29 +580,47 @@ class NotificationSystem {
   void checkDelayed() {
     if (_settingWaiters.isEmpty) return;
 
+    final query = onQueryMuteState;
     final promoted = <NotificationData>[];
-    final toRemove = <String>[];
+    final emptyKeys = <String>[];
+
     for (final entry in _settingWaiters.entries) {
-      var data = entry.value;
-      if (data.muteStateUnknown) {
-        final query = onQueryMuteState;
-        if (query != null) {
-          final liveMuted = query(data.accountId, data.chatId);
-          if (liveMuted == null) continue;
+      final queue = entry.value;
+      final kept = <NotificationData>[];
+      // All entries in a thread queue share the same chat, so the live mute
+      // state is queried once and reused for the whole queue.
+      bool? liveMuted;
+      var queried = false;
+
+      for (var data in queue) {
+        if (data.muteStateUnknown) {
+          if (!queried) {
+            liveMuted = query?.call(data.accountId, data.chatId);
+            queried = true;
+          }
+          if (liveMuted == null) {
+            kept.add(data); // still unknown (or no resolver) — keep waiting
+            continue;
+          }
           data = data.copyWith(
             muteStateUnknown: false,
             isMuted: liveMuted,
             isSenderMuted: liveMuted,
           );
-        } else {
-          continue;
         }
+        if (data.isMuted && data.isSenderMuted) continue; // resolved muted: drop
+        promoted.add(data);
       }
-      toRemove.add(entry.key);
-      if (data.isMuted && data.isSenderMuted) continue;
-      promoted.add(data);
+
+      if (kept.isEmpty) {
+        emptyKeys.add(entry.key);
+      } else {
+        queue
+          ..clear()
+          ..addAll(kept);
+      }
     }
-    for (final key in toRemove) {
+    for (final key in emptyKeys) {
       _settingWaiters.remove(key);
     }
 
@@ -590,30 +639,42 @@ class NotificationSystem {
     required String chatId,
     required bool isMuted,
     bool isSenderMuted = true,
+    String topicRootId = '',
+    String sublistPeerId = '',
   }) {
-    final key = '$accountId:$chatId';
-    final data = _settingWaiters[key];
-    if (data != null) {
-      _settingWaiters[key] = data.copyWith(
-        muteStateUnknown: false,
-        isMuted: isMuted,
-        isSenderMuted: isSenderMuted,
-      );
+    final key = _threadKeyOf(accountId, chatId, topicRootId, sublistPeerId);
+    final queue = _settingWaiters[key];
+    if (queue != null) {
+      // Resolve EVERY queued notification for the thread, not just the first.
+      for (var i = 0; i < queue.length; i++) {
+        queue[i] = queue[i].copyWith(
+          muteStateUnknown: false,
+          isMuted: isMuted,
+          isSenderMuted: isSenderMuted,
+        );
+      }
     }
     checkDelayed();
   }
 
   void clearForChat(String accountId, String chatId) {
     _manager.clearForChat(accountId, chatId);
+    // Clear the chat thread AND all its topic/sublist sub-threads (≈ C++
+    // clearFromHistory → clearForThreadIf(owningHistory() == history)).
     final chatKey = '$accountId:$chatId';
-    _whenMaps.remove(chatKey);
-    _lastAlertPerThread.remove(chatKey);
-    _settingWaiters.remove(chatKey);
-    final chatTimers = _pendingTimers.remove(chatKey);
-    if (chatTimers != null) {
-      for (final t in chatTimers) {
-        t.cancel();
+    _whenMaps.removeWhere((k, _) => _keyInChat(k, chatKey));
+    _lastAlertPerThread.removeWhere((k, _) => _keyInChat(k, chatKey));
+    _settingWaiters.removeWhere((k, _) => _keyInChat(k, chatKey));
+    final chatTimers = <Timer>[];
+    _pendingTimers.removeWhere((k, timers) {
+      if (_keyInChat(k, chatKey)) {
+        chatTimers.addAll(timers);
+        return true;
       }
+      return false;
+    });
+    for (final t in chatTimers) {
+      t.cancel();
     }
     _groupedBuffer.removeWhere(
         (n) => n.accountId == accountId && n.chatId == chatId);
@@ -631,19 +692,43 @@ class NotificationSystem {
   void clearIncomingFromTopic(
       String accountId, String chatId, String topicRootId) {
     _manager.clearForTopic(accountId, chatId, topicRootId);
-    _lastAlertPerThread.remove('$accountId:$chatId:$topicRootId');
+    _lastAlertPerThread.remove(_threadKeyOf(accountId, chatId, topicRootId, ''));
   }
 
   void clearIncomingFromSublist(
       String accountId, String chatId, String sublistPeerId) {
     _manager.clearForSublist(accountId, chatId, sublistPeerId);
-    _lastAlertPerThread.remove('$accountId:$chatId:$sublistPeerId');
+    _lastAlertPerThread
+        .remove(_threadKeyOf(accountId, chatId, '', sublistPeerId));
   }
 
   void clearForAccount(String accountId) {
     _manager.clearForAccount(accountId);
-    _whenMaps.removeWhere((k, _) => k.startsWith('$accountId:'));
-    _lastAlertPerThread.removeWhere((k, _) => k.startsWith('$accountId:'));
+    // C++ clearFromSession → clearForThreadIf cancels the wait timer and drops
+    // ALL per-thread state for the session atomically. Mirror that here: leaving
+    // _pendingTimers/_settingWaiters/_groupedBuffer/_accountStates dirty would
+    // let already-scheduled timers fire AFTER logout and dispatch stale data.
+    final prefix = '$accountId:';
+    _whenMaps.removeWhere((k, _) => k.startsWith(prefix));
+    _lastAlertPerThread.removeWhere((k, _) => k.startsWith(prefix));
+    _settingWaiters.removeWhere((k, _) => k.startsWith(prefix));
+    final accountTimers = <Timer>[];
+    _pendingTimers.removeWhere((k, timers) {
+      if (k.startsWith(prefix)) {
+        accountTimers.addAll(timers);
+        return true;
+      }
+      return false;
+    });
+    for (final t in accountTimers) {
+      t.cancel();
+    }
+    _groupedBuffer.removeWhere((n) => n.accountId == accountId);
+    if (_groupedBuffer.isEmpty) {
+      _groupedTimer?.cancel();
+      _groupedTimer = null;
+    }
+    _accountStates.remove(accountId);
   }
 
   void clearAll() {
