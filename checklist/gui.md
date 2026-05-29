@@ -4,17 +4,13 @@
 
 # system_unlock — Biometric detection incomplete, missing `known` field, no Apple Watch support
 
-- [ ] [CRITICAL] Missing `known` field in SystemUnlockStatus class — `dart/lib/utils/system_unlock.dart:10-19` ← `AyuGramDesktop/Telegram/lib_base/base/system_unlock.h:14-23`. AyuGram's `SystemUnlockAvailability` struct has `known: 1` (bool flag) indicating whether the status has been determined. Dart version has only `available`, `withBiometrics`, `withCompanion`. This breaks compatibility with the spec and makes it impossible to distinguish "not yet checked" from "checked but unavailable".
 
 - [ ] [CRITICAL] Apple Watch companion detection is hardcoded false and never checked — `dart/lib/utils/system_unlock.dart:16` ← `AyuGramDesktop/Telegram/lib_base/base/platform/mac/base_system_unlock_mac.mm:35-39`. AyuGram checks `LAPolicyDeviceOwnerAuthenticationWithWatch` on macOS 10.15+. Dart hardcodes `withCompanion = false` in the constructor and never actually queries LocalAuthentication for watch availability. On supported devices, this silently fails to enable watch unlock.
 
-- [ ] [MAJOR] Incorrect biometric availability checking logic — `dart/lib/utils/system_unlock.dart:33` ← `AyuGramDesktop/Telegram/lib_base/base/platform/mac/base_system_unlock_mac.mm:28-32`. Dart uses `canCheckBiometrics || isDeviceSupported()` (OR logic). AyuGram checks two separate policies: (1) `LAPolicyDeviceOwnerAuthenticationWithBiometrics` (for biometric specifically, only when `lookupDetails=true`), (2) `LAPolicyDeviceOwnerAuthentication` (general device auth). The OR logic doesn't distinguish these cases correctly.
 
-- [ ] [MAJOR] No stateful caching of biometric/companion status — `dart/lib/utils/system_unlock.dart:29-46` ← `AyuGramDesktop/Telegram/lib_base/base/platform/mac/base_system_unlock_mac.mm:48-61`. AyuGram caches the result in a static `rpl::variable` and on subsequent calls with `lookupDetails=false`, it preserves the previously-detected `withBiometrics` and `withCompanion` values (lines 53-56: `refreshed.withBiometrics = now.available && now.withBiometrics`). Dart's `getSystemUnlockStatus()` re-checks every time it's called, causing unnecessary repeated queries to LocalAuthentication.
 
 - [ ] [MINOR] Error handling doesn't distinguish TouchID lockout from user cancellation — `dart/lib/utils/system_unlock.dart:60-61` ← `AyuGramDesktop/Telegram/lib_base/base/platform/mac/base_system_unlock_mac.mm:76`. AyuGram specifically checks `error.code == LAErrorTouchIDLockout` to return `FloodError`. Dart catches all exceptions as `floodError` (line 61), conflating user cancellation, invalid state, and actual lockout into one result type. This prevents proper error reporting to the UI.
 
-- [ ] [MINOR] Platform-specific unlock labels/icons don't reflect actual capability detection — `dart/lib/utils/system_unlock.dart:65-77, 79-91`. Labels say "Use Touch ID", "Use Apple Watch", "Use system password" but there's no guarantee these are actually available (since `withCompanion` is hardcoded false and biometric detection is incomplete). Should return empty string or different label if capability not actually detected.
 
 # web_drop — File drag-and-drop utility for web platform
 
