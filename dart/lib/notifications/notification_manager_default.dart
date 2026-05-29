@@ -38,6 +38,7 @@ class DefaultManager extends NotificationManager {
   final Queue<DefaultNotificationItem> _queue = Queue();
   final Map<String, Timer> _dismissTimers = {};
   Timer? _inputCheckTimer;
+  Timer? _hideAllHideTimer;
   DateTime _lastUserInputTime = DateTime.now();
   int _nextId = 0;
   int _maxVisible = 3;
@@ -50,6 +51,8 @@ class DefaultManager extends NotificationManager {
   NotificationStartHidingCallback? onStartHiding;
   NotificationUpdateDisplayCallback? onUpdateDisplay;
   VoidCallbackNoArgs? onHideAllChanged;
+  VoidCallbackNoArgs? onStartHidingHideAll;
+  VoidCallbackNoArgs? onStopHidingHideAll;
   bool Function(String id)? isStickyCheck;
 
   List<DefaultNotificationItem> get activeNotifications =>
@@ -156,6 +159,18 @@ class DefaultManager extends NotificationManager {
         _startDismissTimer(item.id);
       }
     }
+    // The HideAll button fades out together with the notification rows when the
+    // cursor leaves the stack, but only while fewer than two notifications are
+    // still queued — matching AyuGram's
+    //   if (_hideAll && _queuedNotifications.size() < 2) _hideAll->startHiding();
+    // (notifications_manager_default.cpp:207-209). The fade is deferred by the
+    // same dismiss delay the rows use so the whole stack hides in sync.
+    if (showHideAll && _queue.length < 2 && _hideAllHideTimer == null) {
+      _hideAllHideTimer = Timer(_dismissDuration, () {
+        _hideAllHideTimer = null;
+        onStartHidingHideAll?.call();
+      });
+    }
   }
 
   void stopAllHiding() {
@@ -163,9 +178,20 @@ class DefaultManager extends NotificationManager {
       t.cancel();
     }
     _dismissTimers.clear();
+    // Cancel any pending HideAll fade and restore the button to full opacity
+    // when the cursor re-enters — matching AyuGram's
+    //   if (_hideAll) _hideAll->stopHiding();
+    // (notifications_manager_default.cpp:217-219).
+    _hideAllHideTimer?.cancel();
+    _hideAllHideTimer = null;
+    if (showHideAll) {
+      onStopHidingHideAll?.call();
+    }
   }
 
   void hideAll() {
+    _hideAllHideTimer?.cancel();
+    _hideAllHideTimer = null;
     for (final t in _dismissTimers.values) {
       t.cancel();
     }
@@ -296,6 +322,8 @@ class DefaultManager extends NotificationManager {
 
   @override
   void clearAllFast() {
+    _hideAllHideTimer?.cancel();
+    _hideAllHideTimer = null;
     for (final t in _dismissTimers.values) {
       t.cancel();
     }
@@ -329,6 +357,7 @@ class DefaultManager extends NotificationManager {
   @override
   void dispose() {
     _inputCheckTimer?.cancel();
+    _hideAllHideTimer?.cancel();
     for (final t in _dismissTimers.values) {
       t.cancel();
     }

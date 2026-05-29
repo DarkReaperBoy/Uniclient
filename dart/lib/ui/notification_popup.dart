@@ -147,6 +147,8 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     with TickerProviderStateMixin {
   final List<_PopupState> _popups = [];
   bool _showHideAll = false;
+  double _hideAllOpacity = 1.0;
+  bool _hideAllHiding = false;
   bool _hasReceivedInput = false;
   bool _updateDisplayScheduled = false;
 
@@ -158,6 +160,8 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     widget.manager.onStartHiding = _onStartHiding;
     widget.manager.onUpdateDisplay = _onUpdateDisplay;
     widget.manager.onHideAllChanged = _updateHideAllVisibility;
+    widget.manager.onStartHidingHideAll = _onStartHidingHideAll;
+    widget.manager.onStopHidingHideAll = _onStopHidingHideAll;
     widget.manager.isStickyCheck = _isPopupSticky;
   }
 
@@ -176,6 +180,8 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       widget.manager.onStartHiding = _onStartHiding;
       widget.manager.onUpdateDisplay = _onUpdateDisplay;
       widget.manager.onHideAllChanged = _updateHideAllVisibility;
+      widget.manager.onStartHidingHideAll = _onStartHidingHideAll;
+      widget.manager.onStopHidingHideAll = _onStopHidingHideAll;
       widget.manager.isStickyCheck = _isPopupSticky;
     }
   }
@@ -186,6 +192,11 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     _hasReceivedInput = false;
     setState(() {
       _popups.add(popup);
+      // A freshly shown notification re-activates the stack, so the HideAll
+      // button returns to full opacity — matching AyuGram's moveWidgets()
+      // calling _hideAll->stopHiding() whenever the button stays visible.
+      _hideAllHiding = false;
+      _hideAllOpacity = 1.0;
       _recalcPositions();
     });
     Future.delayed(const Duration(milliseconds: 16), () {
@@ -301,7 +312,32 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
 
   void _updateHideAllVisibility() {
     if (!mounted) return;
-    setState(() => _showHideAll = widget.manager.showHideAll);
+    final next = widget.manager.showHideAll;
+    setState(() {
+      // When the button transitions from hidden to shown it must start fully
+      // visible rather than stuck at the opacity left over from a prior fade.
+      if (next && !_showHideAll) {
+        _hideAllHiding = false;
+        _hideAllOpacity = 1.0;
+      }
+      _showHideAll = next;
+    });
+  }
+
+  void _onStartHidingHideAll() {
+    if (!mounted) return;
+    setState(() {
+      _hideAllHiding = true;
+      _hideAllOpacity = 0.0;
+    });
+  }
+
+  void _onStopHidingHideAll() {
+    if (!mounted) return;
+    setState(() {
+      _hideAllHiding = false;
+      _hideAllOpacity = 1.0;
+    });
   }
 
   bool _anyReplyOpen() => _popups.any((p) => p.replyOpen);
@@ -534,12 +570,17 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
         Positioned(
           left: xPos,
           top: hideAllY,
-          child: _HideAllButton(
-            width: width,
-            bgColor: lightBtnBg,
-            borderColor: borderColor,
-            accentColor: accentColor,
-            onTap: _hideAll,
+          child: AnimatedOpacity(
+            opacity: _hideAllOpacity,
+            duration: _hideAllHiding ? _slowHideDuration : _fastHideDuration,
+            curve: _hideAllHiding ? Curves.easeInCirc : Curves.linear,
+            child: _HideAllButton(
+              width: width,
+              bgColor: lightBtnBg,
+              borderColor: borderColor,
+              accentColor: accentColor,
+              onTap: _hideAll,
+            ),
           ),
         ),
       );
