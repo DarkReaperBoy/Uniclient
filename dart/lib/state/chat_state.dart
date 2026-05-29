@@ -9,6 +9,7 @@ import '../models/engine_models.dart';
 import '../utils/debug.dart';
 import '../notifications/notification_types.dart';
 import '../state/app_state.dart';
+import '../state/audio_service.dart';
 import '../state/ayu_forward.dart';
 import '../ui/custom_emoji_cache.dart';
 import '../ui/message_bubble.dart';
@@ -37,6 +38,10 @@ class ChatState extends ChangeNotifier {
   final Map<String, Map<String, String>> _avatarCache = {}; // "accountId:chatId" → {senderId → b64}
   final Map<String, String> _altQualityPaths = {}; // "msgId:seq" → local path
   final Map<String, DownloadProgressEvent> _downloadProgress = {}; // msgId → latest progress
+  // ── Media-player playlist (auto-advance, next/previous) ──
+  AudioService? _audioServiceRef; // set once from main.dart for download-driven autoplay
+  String? _pendingAutoplayMsgId; // neighbour track awaiting download before it can play
+  String? _pendingAutoplayFromMsgId; // audio context msgId when the neighbour was queued
   int _groupOnlineCount = 0; // online members in active group/channel chat
   GroupCallInfo? _activeGroupCall; // active group call in current chat
   PersonalCallInfo? _activePersonalCall; // active 1:1 call
@@ -2686,6 +2691,120 @@ class ChatState extends ChangeNotifier {
     _engine.requestDownload(msg.accountId, msg.chatId, msg.msgId);
   }
 
+  // ── Media-player playlist navigation ──────────────────────────────────────
+  // Mirrors AyuGram Media::Player::Instance::moveInPlaylist
+  // (media_player_instance.cpp:531). The playlist is the active chat's shared-
+  // media overview for ONE kind: music (MusicFile) when the current track is a
+  // song, otherwise voice + round-video messages (RoundVoiceFile, which AyuGram
+  // bundles together). AyuGram's slice is a flat_set<MsgId> in ascending order,
+  // so delta +1 (next) advances to a newer message and -1 (previous) to an
+  // older one. Our _messages list is newest-first, so a newer message sits at a
+  // lower index.
+
+  /// Register the shared [AudioService] so a track queued for download-then-play
+  /// (see [moveAudioInPlaylist]) can start once its file arrives. Called once
+  /// from main.dart where both providers are in scope.
+  void setAudioService(AudioService audio) {
+    _audioServiceRef = audio;
+  }
+
+  /// The active chat's ordered audio playlist, newest-first. [isSong] selects
+  /// music (mediaType 3); otherwise voice + round video (mediaType 4/5).
+  List<CachedMessage> _audioPlaylist(String chatId, bool isSong) {
+    final items = _messages.where((m) {
+      if (m.chatId != chatId) return false;
+      return isSong ? m.mediaType == 3 : (m.mediaType == 4 || m.mediaType == 5);
+    }).toList();
+    // Newest-first by numeric msgId, so direction stays correct even if the
+    // in-memory order was perturbed by inserts/edits.
+    items.sort((a, b) =>
+        (int.tryParse(b.msgId) ?? 0).compareTo(int.tryParse(a.msgId) ?? 0));
+    return items;
+  }
+
+  /// Step [delta] within the current track's playlist and play the neighbour,
+  /// mirroring AyuGram moveInPlaylist (delta +1 = next/newer, -1 = previous/
+  /// older). Leaves playback stopped when there is no neighbour (matches
+  /// moveInPlaylist returning false → StoppedAtEnd stays finished). If the
+  /// neighbour isn't cached yet it is downloaded first, then played on arrival
+  /// (AyuGram streams it; we play once the file is local).
+  void moveAudioInPlaylist(AudioService audio, int delta) {
+    if (_disposed) return;
+    _audioServiceRef = audio;
+    final chatId = audio.currentChatId;
+    final curMsgId = audio.currentMsgId;
+    if (chatId.isEmpty || curMsgId.isEmpty) return;
+    final playlist = _audioPlaylist(chatId, audio.currentIsSong);
+    final curIdx = playlist.indexWhere((m) => m.msgId == curMsgId);
+    if (curIdx < 0) return; // current track not in the loaded playlist
+    // Newest-first list: next (delta +1, newer) is a lower index.
+    final targetIdx = curIdx - delta;
+    if (targetIdx < 0 || targetIdx >= playlist.length) return; // no neighbour
+    _playAudioMessage(audio, playlist[targetIdx], fromMsgId: curMsgId);
+  }
+
+  /// Play [msg] as the active audio track. Downloads first if not cached,
+  /// deferring playback to [_handleDownloadComplete] via [_pendingAutoplayMsgId].
+  void _playAudioMessage(AudioService audio, CachedMessage msg,
+      {required String fromMsgId}) {
+    if (msg.mediaLocalPath.isEmpty) {
+      _pendingAutoplayMsgId = msg.msgId;
+      _pendingAutoplayFromMsgId = fromMsgId;
+      if (msg.mediaDownloadState != 1) requestDownload(msg);
+      return;
+    }
+    _pendingAutoplayMsgId = null;
+    _pendingAutoplayFromMsgId = null;
+    _startAudioPlayback(audio, msg);
+  }
+
+  /// Hand [msg] to the [AudioService], reconstructing the song access-hash /
+  /// file-reference from mediaExtra exactly as the message-bubble play buttons do.
+  void _startAudioPlayback(AudioService audio, CachedMessage msg) {
+    final isSong = msg.mediaType == 3;
+    int accessHash = 0;
+    List<int> fileRef = const [];
+    if (isSong) {
+      final parts = msg.mediaExtra.split(':');
+      if (parts.length == 2) {
+        accessHash = int.tryParse(parts[0]) ?? 0;
+        try {
+          fileRef = base64.decode(parts[1]);
+        } catch (_) {}
+      }
+    }
+    audio.playVoice(
+      msg.mediaLocalPath,
+      msg.msgId,
+      chatId: msg.chatId,
+      performer: isSong ? msg.audioPerformer : msg.senderName,
+      title: isSong ? msg.audioTitle : '',
+      msgTimestamp: msg.timestamp,
+      accountId: msg.accountId,
+      docId: msg.mediaRemoteRef,
+      accessHash: accessHash,
+      fileRef: fileRef,
+      isSong: isSong,
+    );
+  }
+
+  /// If [msg] is the neighbour queued by [moveAudioInPlaylist] while it
+  /// downloaded, and the audio context hasn't moved on since, start it now.
+  void _maybeAutoplayDownloaded(CachedMessage msg) {
+    final audio = _audioServiceRef;
+    if (audio == null || _pendingAutoplayMsgId != msg.msgId) return;
+    // Abort if the user started a different track while we were downloading.
+    if (audio.currentMsgId != _pendingAutoplayFromMsgId) {
+      _pendingAutoplayMsgId = null;
+      _pendingAutoplayFromMsgId = null;
+      return;
+    }
+    if (msg.mediaLocalPath.isEmpty) return; // download produced no file
+    _pendingAutoplayMsgId = null;
+    _pendingAutoplayFromMsgId = null;
+    _startAudioPlayback(audio, msg);
+  }
+
   String? getAltQualityPath(String msgId, int seq) => _altQualityPaths['$msgId:$seq'];
 
   void requestAltQualityDownload(CachedMessage msg, int seq) {
@@ -2721,6 +2840,7 @@ class ChatState extends ChangeNotifier {
         mediaDownloadState: 2, // DownloadComplete
       );
       notifyListeners();
+      _maybeAutoplayDownloaded(_messages[idx]);
     }
   }
 

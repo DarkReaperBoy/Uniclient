@@ -63,6 +63,12 @@ class AudioService extends ChangeNotifier {
   String get currentTitle => _currentTitle;
   int get currentMsgTimestamp => _currentMsgTimestamp;
 
+  /// Whether the current track is a music file (true) versus a voice or
+  /// round-video message (false). Selects which chat-media playlist the
+  /// auto-advance walks (music vs voice+round), mirroring AyuGram's separate
+  /// MusicFile / RoundVoiceFile shared-media overviews.
+  bool get currentIsSong => _isSong;
+
   double get voicePlaybackSpeed => _voicePlaybackSpeed;
   double get audioPlaybackSpeed => _audioPlaybackSpeed;
   AudioRepeatMode get repeatMode => _repeatMode;

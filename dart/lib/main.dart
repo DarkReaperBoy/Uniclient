@@ -347,6 +347,15 @@ class _UniClientAppState extends State<UniClientApp>
     // Instance::updatePlaybackSpeed on settings change.
     _appStateRef ??= appState;
     final audioService = context.read<AudioService>();
+    // Wire media-player playlist navigation. next()/previous() and completion
+    // auto-advance walk the active chat's audio playlist through ChatState,
+    // mirroring AyuGram moveInPlaylist(data, ±1, …) (media_player_instance.cpp).
+    // AudioService.previous() keeps its own "restart if >3s in" guard and only
+    // calls onPreviousTrack when it actually needs to change tracks.
+    chatState.setAudioService(audioService);
+    audioService.onNextTrack = () => chatState.moveAudioInPlaylist(audioService, 1);
+    audioService.onPreviousTrack =
+        () => chatState.moveAudioInPlaylist(audioService, -1);
     void applyAudioSettings() {
       audioService.setPlaybackSpeeds(
         voice: appState.voicePlaybackSpeed,
