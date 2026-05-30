@@ -736,11 +736,13 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
               ),
               if (hasMaster) ...[
                 // Separator: 1px wide, height = 2*toggle.border + toggle.diameter
-                // (= 2*2 + 16 = 20 for the non-material AyuToggle), filled with
-                // textBgOver (= windowBgOver) (settings_ayu_utils.cpp:162-187).
+                // = 2*2 + 14 = 18. powerSavingButtonNoIcon.toggle = infoProfileToggle
+                // = Toggle(defaultToggle) → border 2px, diameter 14px (widgets.style
+                // defaultToggle). Filled with textBgOver (= windowBgOver, inherited
+                // from defaultSettingsButton) (settings_ayu_utils.cpp:170-171,182-186).
                 Container(
                   width: 1,
-                  height: 20,
+                  height: 18,
                   color: context.palette.windowBgOver,
                 ),
                 GestureDetector(
@@ -778,7 +780,10 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     child: AnimatedRotation(
                       turns: _open ? 0.5 : 0.0,
-                      duration: const Duration(milliseconds: 200),
+                      // slideWrapDuration = 150ms; the arrow rotates in sync with
+                      // the SlideWrap expand/collapse, not slower
+                      // (settings_ayu_utils.cpp:296, basic.style:96).
+                      duration: const Duration(milliseconds: 150),
                       curve: Curves.easeOutCubic,
                       // permissionsExpandIcon = "info/edit/expand_arrow_small"
                       // tinted windowBoldFg — a Telegram chevron, not a Material
