@@ -111,42 +111,11 @@ Four numeric constants audited against AyuGram Desktop ground truth: 3 deviated 
 
 - ✓ [CLOSED 2026-05-30 — FALSE POSITIVE, left unchanged] [MAJOR] Message-load `limit = _isFirstLoad ? 30 : 50` is CORRECT. `_loadMessages` (`chat_state.dart:2142`) loads the **main chat history** via `getMessages` → mirrors the real Telegram Desktop loader `history/history_widget.cpp:216-217` (`kMessagesPerPageFirst = 30` / `kMessagesPerPage = 50`, used at cpp:4403,4419,4485-4486,4543,4611,4621) — byte-exact. The checklist mis-cited `ayu/ui/message_history/history_inner.cpp:66-68` (`kMessagesFirstPage=20`/`kMessagesPerPage=30`), which is AyuGram's **message edit-history viewer** (namespace `MessageHistory`, paginating one message's edit revisions, `InnerWidget::requestMore` cpp:725) — wrong reference. Changing 30/50 → 20/30 would BREAK desktop parity. Do NOT "fix" this. VERIFIED 1:1 against both AyuGram files.
 
-## telegram_palette — Colorize exclusion and contrast enforcement bugs
+# theme_file / chat_settings — newly found during verify (2026-05-30)
 
-- [ ] [CRITICAL] `stickerPanPremium1` and `stickerPanPremium2` incorrectly excluded from accent colorization — passed without `s()` in `colorize()` but NOT listed in C++ `kColorizeIgnoredKeys` — `telegram_palette.dart:1727-1728` ← `window_themes_embedded.cpp:33-102`
+- [ ] [MAJOR] `writeCloudMeta` serializes cloud-theme `id`/`accessHash` as SIGNED decimal — high-bit-set uint64 hashes are stored as negative Dart ints (correct bit pattern for MTProto), but `writeCloudMeta` emits e.g. `// ACCESS: -1` instead of AyuGram's unsigned `18446744073709551615` (`window_theme_editor.cpp:352-353` = `QString::number(uint64)`). Breaks export round-trip: AyuGram's `toULongLong("-1")`→0 AND Dart's own `_parseUint64("-1")`→null both drop the metadata. ~50% of random access hashes have the high bit set. Fix: write `BigInt.from(value).toUnsigned(64).toString()`. — `theme_file.dart:198-199` ← `window_theme_editor.cpp:352-353`. (Surfaced verifying the int.tryParse→uint64 READ fix, which is now correct; only the WRITE side remains signed.)
 
-- [ ] [CRITICAL] `historyCallArrowInFg`, `historyCallArrowInFgSelected`, `historyCallArrowMissedInFg`, `historyCallArrowMissedInFgSelected`, `historyCallArrowOutFg`, `historyCallArrowOutFgSelected` incorrectly excluded from colorization — passed without `s()` but NOT in `kColorizeIgnoredKeys` — `telegram_palette.dart:1740-1745` ← `window_themes_embedded.cpp:33-102`
-
-- [ ] [CRITICAL] `historyPeerUserpicFg`, `historyPeerSavedMessagesBg`, `historyPeerArchiveUserpicBg`, `historyPeerSavedMessagesBg2` incorrectly excluded from colorization — NOT in `kColorizeIgnoredKeys` — `telegram_palette.dart:1749-1752` ← `window_themes_embedded.cpp:33-102`
-
-- [ ] [MAJOR] Static colorize cache shared across all `TelegramPalette` instances — `_cachedColorizeResult`, `_cachedColorizeBaseHash`, `_cachedColorizeAccentHash`, `_cachedColorizeThreshold` are `static` class variables; if multiple theme instances coexist, one instance's colorize call invalidates another's cache, producing stale results — `telegram_palette.dart:1307-1310` ← `style_palette_colorizer.cpp` (no equivalent; C++ uses per-instance colorizer struct)
-
-# theme_file — Theme file parsing & caching
-
-- [ ] [CRITICAL] `_parseZipTheme` reads background file from ZIP with no byte-size limit — AyuGram enforces `kThemeBackgroundSizeLimit = 4 MB` (`window_theme.h:42`) via `readFileContent(..., kThemeBackgroundSizeLimit)`. A ZIP containing a multi-hundred-MB background.jpg will be loaded entirely into memory before any validation. — `theme_file.dart:331` ← `AyuGramDesktop/Telegram/SourceFiles/window/themes/window_theme.cpp:251` + `window_theme.h:42`
-
-- [ ] [CRITICAL] `accessHash` parsed with `int.tryParse` (signed int64) — Telegram access hashes are `uint64`; values with the high bit set (> 9 223 372 036 854 775 807) will cause `int.tryParse` to return `null`, silently dropping `CloudThemeMeta`. AyuGram uses `toULongLong()` (uint64). — `theme_file.dart:102,218` ← `AyuGramDesktop/Telegram/SourceFiles/window/themes/window_theme_editor.cpp:369`
-
-- [ ] [MAJOR] Corrupted/oversized background is silently ignored instead of being a fatal error — AyuGram's `LoadTheme` returns `false` and refuses the theme when a background file exists but fails pixel-dimension checks. Dart logs a debug print and continues loading the theme without a background, diverging from the spec. — `theme_file.dart:332-337` ← `AyuGramDesktop/Telegram/SourceFiles/window/themes/window_theme.cpp:332-341`
-
-- [ ] [MAJOR] Background file search order depends on ZIP archive order instead of explicit priority — AyuGram tries files in hard-coded order: `background.jpg` → `background.png` → `tiled.jpg` → `tiled.png` (and only sets `tiled=true` before trying tiled files). Dart iterates the archive and takes the first matching entry; a ZIP where `tiled.png` appears before `background.jpg` in the central directory would produce `tiled=true` in Dart and `tiled=false` in AyuGram. — `theme_file.dart:305-318` ← `AyuGramDesktop/Telegram/SourceFiles/window/themes/window_theme.cpp:263-275`
-
-- [ ] [MAJOR] `_readImageDimensions` only recognises JPEG SOF0 (0xC0) and SOF2 (0xC2) markers — SOF1 (extended sequential DCT, 0xC1), SOF3 (lossless, 0xC3), and arithmetic-coded SOF variants (0xC9–0xCB, 0xCD–0xCF) are not handled; valid JPEGs using these variants will fail dimension extraction and be rejected as backgrounds. AyuGram delegates to `QImageReader::size()` which handles all valid JPEG types. — `theme_file.dart:279` ← `AyuGramDesktop/Telegram/SourceFiles/window/themes/window_theme.cpp:326-337`
-
-# theme_name_generator — Color and word list mismatches vs AyuGram
-
-- [ ] [CRITICAL] Color values don't match AyuGram — "Berry" is rgb(142, 68, 173) in Dart but rgb(142, 0, 0) in AyuGram, breaking color-to-name mapping consistency. The color distance algorithm will match different colors to different names on mobile vs desktop. Replace Dart's _colors list with AyuGram's exact kColors values (102 colors from window_themes_generate_name.cpp:16-116). Example: Berry should be 0x8e0000 (bright red), not purple. `theme_name_generator.dart:38-140` ← `AyuGramDesktop/Telegram/SourceFiles/window/themes/window_themes_generate_name.cpp:16-116`
-
-- [ ] [CRITICAL] Adjectives list differs from AyuGram — Dart has ~80 custom adjectives but AyuGram has 108 standard ones. This causes the same color to generate different theme names (e.g., "Ancient Berry" vs "Antique Berry"). Replace _adjectives with exact list from kAdjectives. `theme_name_generator.dart:142-163` ← `AyuGramDesktop/Telegram/SourceFiles/window/themes/window_themes_generate_name.cpp:118-226`
-
-- [ ] [CRITICAL] Nouns list is wrong terminology and doesn't match AyuGram — Dart calls them "_nouns" but AyuGram calls them "kSubjectives". The actual word lists are completely different (Dart has poetic words like "Ambrosia", "Cascade", "Echo" while AyuGram has "Attack", "Avalanche", "Blast", "Burst", "Candy", "Carnival"). Replace _nouns with exact kSubjectives list. `theme_name_generator.dart:165-183` ← `AyuGramDesktop/Telegram/SourceFiles/window/themes/window_themes_generate_name.cpp:228-310`
-
-**Impact**: Theme names generated on mobile will differ from desktop because:
-1. Same accent color gets mapped to different base colors (different color name)
-2. Different adjectives/subjectives randomly chosen (different modifiers)
-3. Result: user creates a "Antique Bronze" theme on desktop but it would be called "Ancient Berry" on mobile
-
-**Solution**: Replace all three constants (_colors, _adjectives, _nouns) with exact copies from AyuGram's kColors, kAdjectives, and kSubjectives.
+- [ ] [MAJOR] Accent-swatch `Row` overflows by ~12px at 400px (default mobile width) — the 8 preset circles + custom-color button sit in a fixed `Row` inside `Padding(horizontal: 22)`, producing a visible RenderFlex overflow (yellow/black stripes) in oneColumn mode. Should be a `Wrap` or a horizontally-scrollable list. Pre-existing layout bug, unrelated to the colorize/theme-data audit; surfaced during its mobile-mode verification. — `chat_settings_screen.dart:988`
 
 # wallpaper — Wallpaper rendering & animation
 
