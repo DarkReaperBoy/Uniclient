@@ -157,12 +157,6 @@ All edits in `dart/lib/ui/ayu_section_builder.dart`; built debug + launched, Ayu
 - NO CHANGE (acceptable approximation) — `_TgCheckboxPainter` geometry: TDesktop's check is drawn by the animated CheckView path system (vsize/xsize/stroke/vshift interpolation, checkbox.cpp:150-229). The Dart static checkmark (0.25,0.5)→(0.42,0.67)→(0.75,0.33) is a visually faithful Telegram-style check; exact sub-pixel anim geometry is not replicable as a static path (cosmetic).
 - NO CHANGE (architectural) — `ayuSettingsScaffold` AppBar title: uniclient is a Flutter Material app using push-navigation + AppBars across ALL settings screens; the 17px w600 title matches the app-wide convention. TDesktop's inline-panel/boxTitle pattern does not apply — converting only this scaffold to a borderless inline panel would break navigation consistency with every other screen.
 
-## ayu_section_builder — Beta badge text color uses hardcoded white instead of windowFgActive
-
-- [ ] [MAJOR] `_AyuSettingToggle` inline beta badge uses `color: Colors.white` but C++ uses `textFg: windowFgActive` (which is theme-dependent, not always white) — `ayu_section_builder.dart:343` ← `AyuGram/SourceFiles/settings/settings.style:148`
-
-- [ ] [MAJOR] `_BetaBadgeOverlay` also uses `color: Colors.white` for badge text instead of theme `windowFgActive` — `ayu_section_builder.dart:270` ← `AyuGram/SourceFiles/settings/settings.style:148`
-
 ## ayu_section_builder — Beta badge rounding radius is wrong
 
 - [ ] [MAJOR] `_BetaBadgeOverlay` uses `BorderRadius.circular(4)` as rounding. C++ computes the radius as `st::ayuBetaBadgePadding.left()` = 4px applied via `drawRoundedRect`. The Dart's circular-4 result matches numerically, but `_AyuSettingToggle`'s inline badge also uses `BorderRadius.circular(4)` — matches. No deviation here (informational; both are 4px).
