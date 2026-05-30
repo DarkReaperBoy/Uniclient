@@ -978,42 +978,80 @@ class _AccentColorPalette extends StatelessWidget {
   static const _circleSize = 24.0;
   static const _ringWidth = 2.0;
   static const _ringSkip = 2.0;
+  // Outer rendered size of each swatch widget (circle + selection-ring margin),
+  // matching _AccentCircle/_CustomColorButton (24 + (2+2)*2 = 32).
+  static const _swatchOuterSize = _circleSize + (_ringWidth + _ringSkip) * 2;
+  // Cap the even-distribution width so the strip does not over-spread on wide
+  // desktop panels; on narrower columns it shrinks to fit (and distributes).
+  static const _maxStripWidth = 520.0;
+  // Fixed gap used only in the horizontal-scroll fallback (sub-minimum widths).
+  static const _scrollGap = 10.0;
 
   @override
   Widget build(BuildContext context) {
     final presets = TelegramPalette.accentsForTheme(themeId);
     if (presets.isEmpty) return const SizedBox.shrink();
+
+    final swatches = <Widget>[
+      for (final color in presets)
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onColorSelected(color),
+          child: _AccentCircle(
+            color: color,
+            selected: _colorsMatch(color, currentColor),
+            size: _circleSize,
+            ringWidth: _ringWidth,
+            ringSkip: _ringSkip,
+          ),
+        ),
+      GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _showHslPicker(context),
+        child: _CustomColorButton(
+          size: _circleSize,
+          isSelected: _isCustomColor(presets),
+          currentColor: currentColor,
+        ),
+      ),
+    ];
+
+    // AyuGram (settings_chat.cpp:404-424) spreads the accent swatches evenly
+    // across the available width: skip = (width - size*count) / (count - 1).
+    // We replicate that with space-between when the swatches fit, capping the
+    // distribution width so it doesn't over-spread on wide desktop panels, and
+    // falling back to a horizontal scroll on sub-minimum widths so the row never
+    // overflows (the bug this fixes: a fixed-gap Row clipped ~12px at 400px).
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22),
-      child: Row(
-        children: [
-          ...presets.map((color) {
-            final selected = _colorsMatch(color, currentColor);
-            return Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => onColorSelected(color),
-                child: _AccentCircle(
-                  color: color,
-                  selected: selected,
-                  size: _circleSize,
-                  ringWidth: _ringWidth,
-                  ringSkip: _ringSkip,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _maxStripWidth),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final fits =
+                  constraints.maxWidth >= _swatchOuterSize * swatches.length;
+              if (fits) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: swatches,
+                );
+              }
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (var i = 0; i < swatches.length; i++) ...[
+                      if (i > 0) const SizedBox(width: _scrollGap),
+                      swatches[i],
+                    ],
+                  ],
                 ),
-              ),
-            );
-          }),
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _showHslPicker(context),
-            child: _CustomColorButton(
-              size: _circleSize,
-              isSelected: _isCustomColor(presets),
-              currentColor: currentColor,
-            ),
+              );
+            },
           ),
-        ],
+        ),
       ),
     );
   }

@@ -195,8 +195,8 @@ Uint8List exportThemeFile(ThemeFileData data) {
 
 String writeCloudMeta(CloudThemeMeta meta) {
   return '// THEME EDITOR SERVICE INFO START\n'
-      '// ID: ${meta.id}\n'
-      '// ACCESS: ${meta.accessHash}\n'
+      '// ID: ${_uint64ToString(meta.id)}\n'
+      '// ACCESS: ${_uint64ToString(meta.accessHash)}\n'
       '// THEME EDITOR SERVICE INFO END\n\n';
 }
 
@@ -310,6 +310,14 @@ int? _parseUint64(String s) {
   if (b == null || b.isNegative || b.bitLength > 64) return null;
   return b.toSigned(64).toInt();
 }
+
+// Serialize a uint64 (stored as a signed Dart int holding the correct MTProto
+// bit pattern) as its UNSIGNED decimal string, matching AyuGram's
+// QString::number(uint64) (window_theme_editor.cpp:352-353). High-bit-set id /
+// accessHash values would otherwise be written as negative (e.g. "-1"), which
+// both AyuGram's toULongLong("-1")→0 and our own _parseUint64("-1")→null reject,
+// silently dropping the cloud-theme metadata on export round-trip.
+String _uint64ToString(int value) => BigInt.from(value).toUnsigned(64).toString();
 
 ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
   final Archive archive;
