@@ -3532,6 +3532,28 @@ class EngineService {
     await _callAsync('__engine', 'TogglePeerTranslations', Uint8List.fromList(payload));
   }
 
+  /// Toggles channel-wide admin auto-translation (channels.toggleAutotranslation).
+  /// Distinct from [togglePeerTranslations] which is a per-user preference.
+  Future<void> toggleChannelAutoTranslation(String accountId, String chatId, bool enabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'enabled': enabled,
+    }));
+    await _callAsync('__engine', 'ToggleChannelAutoTranslation', Uint8List.fromList(payload));
+  }
+
+  /// Returns bot edit/manage gating info: has_verifier_settings, starref_allowed,
+  /// starref_commission.
+  Future<Map<String, dynamic>> getBotManageInfo(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetBotManageInfo', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
   Future<void> togglePreHistoryHidden(String accountId, String chatId, bool hidden) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

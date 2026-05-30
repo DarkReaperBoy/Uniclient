@@ -2227,6 +2227,31 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.TogglePeerTranslations(params.AccountID, params.ChatID, params.Disabled)
 
+	case "ToggleChannelAutoTranslation":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ToggleChannelAutoTranslation(params.AccountID, params.ChatID, params.Enabled)
+
+	case "GetBotManageInfo":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		info, err := e.GetBotManageInfo(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(info)
+
 	case "SetChatReactionsMode":
 		var params struct {
 			AccountID string   `json:"account_id"`

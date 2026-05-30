@@ -72,9 +72,48 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   bool _origJoinToSend = false;
   bool _origJoinRequest = false;
 
+  // Channel sub-type & admin capability flags (from GetChatPermissionFlags),
+  // mirroring AyuGram ChannelData::* used by edit_peer_info_box fillManageSection.
+  bool _isMegagroupFlag = false;
+  bool _isBroadcastFlag = false;
+  bool _isGigagroupFlag = false;
+  bool _amCreator = false;
+  bool _hasAdminRights = false;
+  bool _adminCanChangeInfo = false;
+  bool _canSetStickers = false;
+  String _migratedFromChatId = '';
+
+  // Bot manage gating (from GetBotManageInfo + revenue stats).
+  bool _botHasVerifierSettings = false;
+  bool _botStarRefAllowed = false;
+  bool _botHasCurrencyBalance = false;
+  bool _botHasCreditsBalance = false;
+
   bool get _isChannel => widget.chat.type == ChatType.channel;
   bool get _isBot => widget.chat.isBot;
   bool get _isMegagroup => !_isChannel && !_isBot && widget.chat.type == ChatType.group;
+
+  // ── Derived capability getters (1:1 with AyuGram data_channel.cpp) ──
+  // NOTE: the engine maps a broadcast channel to ChatType.channel but a
+  // SUPERGROUP (megagroup) to ChatType.group, so the Dart `_isChannel` getter
+  // is broadcast-only. AyuGram's `isChannel()` means "is a tg.Channel" (broadcast
+  // OR supergroup) — captured here by `_isChannelOrSuper` from the loaded flags.
+  bool get _isChannelOrSuper => _isBroadcastFlag || _isMegagroupFlag;
+  // canEditInformation() for a broadcast = (adminRights & ChangeInfo) || amCreator.
+  bool get _canEditInformation => _isBroadcastFlag && (_adminCanChangeInfo || _amCreator);
+  // canEditSignatures() = isBroadcast && canEditInformation; box also requires !isMegagroup.
+  bool get _canEditSignatures => _isBroadcastFlag && _canEditInformation && !_isMegagroupFlag;
+  // canEditAutoTranslate() = isBroadcast && canEditInformation.
+  bool get _canEditAutoTranslate => _isBroadcastFlag && _canEditInformation;
+  // canViewKicked = isChannel && (isMegagroup ? (isBroadcast || isGigagroup) : true).
+  bool get _canViewKicked =>
+      _isChannelOrSuper && (_isMegagroupFlag ? (_isBroadcastFlag || _isGigagroupFlag) : true);
+  // hasRecentActions = isChannel && (hasAdminRights || amCreator).
+  bool get _hasRecentActions => _isChannelOrSuper && (_hasAdminRights || _amCreator);
+  // canEditStickers() = (flags & CanSetStickers); box requires isChannel.
+  bool get _canEditStickers => _isChannelOrSuper && _canSetStickers;
+  // canDelete() = amCreator(); box: canDeleteChannel = isChannel && canDelete().
+  bool get _canDeleteChannel => _isChannelOrSuper && _amCreator;
 
   static const int _antispamMinMembers = 100;
 
@@ -92,6 +131,46 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     _forumEnabled = widget.chat.isForum;
     _loadDescription();
     _loadChatFullInfo();
+    if (_isBot) _loadBotManageInfo();
+  }
+
+  /// Loads bot edit/manage gating info so currency/credits/affiliate/verify rows
+  /// only render when applicable (1:1 with AyuGram SlideWrap.toggle gating).
+  Future<void> _loadBotManageInfo() async {
+    final engine = context.read<EngineService>();
+    bool verifier = false;
+    bool starRefAllowed = false;
+    bool hasCurrency = false;
+    bool hasCredits = false;
+    try {
+      final info = await engine.getBotManageInfo(
+        widget.chat.accountId,
+        widget.chat.chatId,
+      );
+      verifier = info['has_verifier_settings'] == true;
+      starRefAllowed = info['starref_allowed'] == true;
+    } catch (_) {}
+    // Balances: the rows stay hidden until a non-zero balance is confirmed.
+    try {
+      final stats = await engine.getStarsRevenueStats(
+        widget.chat.accountId,
+        widget.chat.chatId,
+      );
+      if (stats != null) {
+        final current = stats['current_balance'] as int? ?? 0;
+        final overall = stats['overall_revenue'] as int? ?? 0;
+        hasCredits = current > 0;
+        hasCurrency = overall > 0 || current > 0;
+      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _botHasVerifierSettings = verifier;
+        _botStarRefAllowed = starRefAllowed;
+        _botHasCurrencyBalance = hasCurrency;
+        _botHasCreditsBalance = hasCredits;
+      });
+    }
   }
 
   Future<void> _loadDescription() async {
@@ -151,6 +230,14 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           _origJoinRequest = _joinRequest;
           _antispamEnabled = flags['antispam'] == true;
           _antispamLoaded = true;
+          _isMegagroupFlag = flags['is_megagroup'] == true;
+          _isBroadcastFlag = flags['is_broadcast'] == true;
+          _isGigagroupFlag = flags['is_gigagroup'] == true;
+          _amCreator = flags['am_creator'] == true;
+          _hasAdminRights = flags['has_admin_rights'] == true;
+          _adminCanChangeInfo = flags['admin_can_change_info'] == true;
+          _canSetStickers = flags['can_set_stickers'] == true;
+          _migratedFromChatId = (flags['migrated_from_chat_id'] as String?) ?? '';
         });
       }
     } catch (_) {
@@ -226,15 +313,24 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                     const SizedBox(height: 6),
                     _buildAntiSpamSection(textColor, subTextColor, accentColor),
                   ],
-                  if (!_isChannel && !_isBot) ...[
+                  // Group sticker set is a channel/supergroup capability
+                  // (canEditStickers = isChannel && CanSetStickers), not a
+                  // regular-group feature.
+                  if (_canEditStickers) ...[
                     Divider(height: 1, color: dividerColor),
                     const SizedBox(height: 6),
                     _buildStickerSection(textColor, subTextColor, accentColor),
                   ],
-                  Divider(height: 1, color: dividerColor),
-                  const SizedBox(height: 6),
-                  _buildDeleteButton(attentionColor),
-                  const SizedBox(height: 12),
+                  // Delete is only offered when the user can actually delete the
+                  // peer: canDeleteChannel = isChannel && canDelete() (amCreator).
+                  // AyuGram's deleteWithConfirmation asserts a non-null channel, so
+                  // legacy groups, bots and non-creator admins get no Delete row.
+                  if (_canDeleteChannel) ...[
+                    Divider(height: 1, color: dividerColor),
+                    const SizedBox(height: 6),
+                    _buildDeleteButton(attentionColor),
+                    const SizedBox(height: 12),
+                  ],
                 ],
               ),
             ),
@@ -544,7 +640,10 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           toggleValue: _noForwards,
           onTap: () => setState(() => _noForwards = !_noForwards),
         ),
-        if (!_isChannel) ...[
+        // Join-to-send / approve-members are megagroup-only (AyuGram gates these
+        // on _peer->isMegagroup() in fillPrivacyTypeButton); regular chats and
+        // broadcast channels don't expose them.
+        if (_isMegagroupFlag) ...[
           _EditRow(
             icon: Icons.login,
             label: 'Members Must Join to Send',
@@ -567,37 +666,42 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           ),
         ],
         if (_isChannel) ...[
-          _EditRow(
-            icon: Icons.translate,
-            label: 'Auto-Translation',
-            value: '',
-            textColor: textColor,
-            subTextColor: subTextColor,
-            isToggle: true,
-            toggleValue: _autoTranslateLoaded ? !_autoTranslateDisabled : false,
-            onTap: () => _toggleAutoTranslate(),
-          ),
-          _EditRow(
-            icon: Icons.draw_outlined,
-            label: 'Sign Messages',
-            value: '',
-            textColor: textColor,
-            subTextColor: subTextColor,
-            isToggle: true,
-            toggleValue: _signMessagesLoaded ? _signMessages : false,
-            onTap: () => _toggleSignMessages(),
-          ),
-          if (_signMessages)
+          // canEditAutoTranslate = isBroadcast && canEditInformation.
+          if (_canEditAutoTranslate)
             _EditRow(
-              icon: Icons.person_outline,
-              label: 'Sign Profiles',
+              icon: Icons.translate,
+              label: 'Auto-Translation',
               value: '',
               textColor: textColor,
               subTextColor: subTextColor,
               isToggle: true,
-              toggleValue: _signProfiles,
-              onTap: () => _toggleSignProfiles(),
+              toggleValue: _autoTranslateLoaded ? !_autoTranslateDisabled : false,
+              onTap: () => _toggleAutoTranslate(),
             ),
+          // canEditSignatures = isBroadcast && canEditInformation && !isMegagroup.
+          if (_canEditSignatures) ...[
+            _EditRow(
+              icon: Icons.draw_outlined,
+              label: 'Sign Messages',
+              value: '',
+              textColor: textColor,
+              subTextColor: subTextColor,
+              isToggle: true,
+              toggleValue: _signMessagesLoaded ? _signMessages : false,
+              onTap: () => _toggleSignMessages(),
+            ),
+            if (_signMessages)
+              _EditRow(
+                icon: Icons.person_outline,
+                label: 'Sign Profiles',
+                value: '',
+                textColor: textColor,
+                subTextColor: subTextColor,
+                isToggle: true,
+                toggleValue: _signProfiles,
+                onTap: () => _toggleSignProfiles(),
+              ),
+          ],
           if (chat.type == ChatType.channel)
             _EditRow(
               icon: Icons.monetization_on_outlined,
@@ -912,23 +1016,30 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   }
 
   Future<void> _toggleAutoTranslate() async {
+    // Required boost level comes from the server appConfig
+    // (channel_autotranslation_level_min), surfaced via GetChatPermissionFlags;
+    // it falls back to AyuGram's default of 3 only if unset.
     final minLevel = _autoTranslateMinLevel > 0 ? _autoTranslateMinLevel : 3;
-    if (_autoTranslateDisabled && _boostLevel < minLevel) {
+    final enabled = !_autoTranslateDisabled; // current on/off state
+    final target = !enabled; // state we are toggling to
+    // Enabling auto-translation requires the channel to have reached minLevel.
+    if (target && _boostLevel < minLevel) {
       _showBoostRequiredDialog(_boostLevel, minLevel);
       return;
     }
     final engine = context.read<EngineService>();
-    final newVal = !_autoTranslateDisabled;
-    setState(() => _autoTranslateDisabled = newVal);
+    setState(() => _autoTranslateDisabled = !target);
     try {
-      await engine.togglePeerTranslations(
+      // Channel-wide admin toggle (channels.toggleAutotranslation) takes the
+      // ENABLED state — distinct from the per-user togglePeerTranslations.
+      await engine.toggleChannelAutoTranslation(
         widget.chat.accountId,
         widget.chat.chatId,
-        newVal,
+        target,
       );
     } catch (e) {
       if (mounted) {
-        setState(() => _autoTranslateDisabled = !newVal);
+        setState(() => _autoTranslateDisabled = target); // revert
         showTelegramToast(context, 'Failed: $e');
       }
     }
@@ -1293,30 +1404,37 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
               }
             },
           ),
-        _EditRow(
-          icon: Icons.monetization_on_outlined,
-          label: 'Currency Balance',
-          value: '',
-          textColor: textColor,
-          subTextColor: subTextColor,
-          onTap: () => _showRevenueStats(textColor, subTextColor, isCurrency: true),
-        ),
-        _EditRow(
-          icon: Icons.stars_outlined,
-          label: 'Credits Balance',
-          value: '',
-          textColor: textColor,
-          subTextColor: subTextColor,
-          onTap: () => _showRevenueStats(textColor, subTextColor, isCurrency: false),
-        ),
-        _EditRow(
-          icon: Icons.handshake_outlined,
-          label: 'Affiliate Program',
-          value: '',
-          textColor: textColor,
-          subTextColor: subTextColor,
-          onTap: () => _showAffiliateProgramDialog(textColor, subTextColor),
-        ),
+        // Currency/Credits rows stay hidden until a non-zero balance is confirmed
+        // (AyuGram wraps them in SlideWrap.toggle(!balance.isEmpty())).
+        if (_botHasCurrencyBalance)
+          _EditRow(
+            icon: Icons.monetization_on_outlined,
+            label: 'Currency Balance',
+            value: '',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            onTap: () => _showRevenueStats(textColor, subTextColor, isCurrency: true),
+          ),
+        if (_botHasCreditsBalance)
+          _EditRow(
+            icon: Icons.stars_outlined,
+            label: 'Credits Balance',
+            value: '',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            onTap: () => _showRevenueStats(textColor, subTextColor, isCurrency: false),
+          ),
+        // Affiliate (star-ref) setup is gated by the server appConfig
+        // (Info::BotStarRef::Setup::Allowed → starref_program_allowed).
+        if (_botStarRefAllowed)
+          _EditRow(
+            icon: Icons.handshake_outlined,
+            label: 'Affiliate Program',
+            value: '',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            onTap: () => _showAffiliateProgramDialog(textColor, subTextColor),
+          ),
         _EditRow(
           icon: Icons.info_outline,
           label: 'Edit Intro',
@@ -1341,14 +1459,17 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           subTextColor: subTextColor,
           onTap: () => _openBotFather(widget.chat.username),
         ),
-        _EditRow(
-          icon: Icons.verified_outlined,
-          label: 'Verify Accounts',
-          value: '',
-          textColor: textColor,
-          subTextColor: subTextColor,
-          onTap: () => _showVerifyAccountsDialog(textColor, subTextColor),
-        ),
+        // Verify Accounts is only available when the bot actually has verifier
+        // settings (AyuGram fillBotVerifyAccounts gates on botInfo->verifierSettings).
+        if (_botHasVerifierSettings)
+          _EditRow(
+            icon: Icons.verified_outlined,
+            label: 'Verify Accounts',
+            value: '',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            onTap: () => _showVerifyAccountsDialog(textColor, subTextColor),
+          ),
       ],
     );
   }
@@ -1764,20 +1885,23 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             initialTab: _MemberTab.members,
           ),
         ),
-        _EditRow(
-          icon: Icons.person_remove_outlined,
-          label: 'Removed Users',
-          value: '',
-          textColor: textColor,
-          subTextColor: subTextColor,
-          onTap: () => showMemberListScreen(
-            context,
-            accountId: widget.chat.accountId,
-            chatId: widget.chat.chatId,
-            isChannel: _isChannel,
-            initialTab: _MemberTab.kicked,
+        // canViewKicked = isChannel && (isMegagroup ? (isBroadcast||isGigagroup) : true):
+        // plain megagroups cannot show a removed-users list.
+        if (_canViewKicked)
+          _EditRow(
+            icon: Icons.person_remove_outlined,
+            label: 'Removed Users',
+            value: '',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            onTap: () => showMemberListScreen(
+              context,
+              accountId: widget.chat.accountId,
+              chatId: widget.chat.chatId,
+              isChannel: _isChannel,
+              initialTab: _MemberTab.kicked,
+            ),
           ),
-        ),
         if (_pendingRequestsCount > 0)
           _EditRow(
             icon: Icons.person_add_outlined,
@@ -1793,21 +1917,24 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
               initialTab: _MemberTab.requests,
             ),
           ),
-        _EditRow(
-          icon: Icons.history,
-          label: 'Recent Actions',
-          value: '',
-          textColor: textColor,
-          subTextColor: subTextColor,
-          onTap: () => showAdminLogScreen(
-            context,
-            accountId: widget.chat.accountId,
-            chatId: widget.chat.chatId,
-            chatTitle: widget.chat.title,
-            chatAvatarPath: widget.chat.avatarPath,
-            isChannel: _isChannel,
+        // hasRecentActions = isChannel && (hasAdminRights || amCreator): the admin
+        // log is only visible to admins/creators.
+        if (_hasRecentActions)
+          _EditRow(
+            icon: Icons.history,
+            label: 'Recent Actions',
+            value: '',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            onTap: () => showAdminLogScreen(
+              context,
+              accountId: widget.chat.accountId,
+              chatId: widget.chat.chatId,
+              chatTitle: widget.chat.title,
+              chatAvatarPath: widget.chat.avatarPath,
+              isChannel: _isChannel,
+            ),
           ),
-        ),
         _EditRow(
           icon: Icons.bar_chart,
           label: 'Statistics',
@@ -1879,139 +2006,29 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     );
   }
 
-  Future<void> _showStatisticsScreen() async {
-    final engine = context.read<EngineService>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        title: Text('Statistics', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
-        content: SizedBox(
-          width: 320,
-          height: 300,
-          child: FutureBuilder<Map<String, dynamic>>(
-            future: _isChannel
-                ? engine.getBroadcastStats(widget.chat.accountId, widget.chat.chatId)
-                : engine.getMegagroupStats(widget.chat.accountId, widget.chat.chatId),
-            builder: (ctx, snap) {
-              if (snap.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snap.hasError) {
-                return Center(child: Text('Failed to load statistics:\n${snap.error}',
-                    style: TextStyle(color: subTextColor, fontSize: 13), textAlign: TextAlign.center));
-              }
-              final data = snap.data ?? {};
-              if (data.isEmpty) {
-                return Center(child: Text('No statistics available yet.',
-                    style: TextStyle(color: subTextColor, fontSize: 14)));
-              }
-              return ListView(
-                children: data.entries.map((e) {
-                  final val = e.value;
-                  final display = val is Map ? (val['current'] ?? val).toString() : '$val';
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text(e.key.replaceAll('_', ' '),
-                            style: TextStyle(color: subTextColor, fontSize: 13))),
-                        Text(display, style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500)),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx),
-              child: Text('Close', style: TextStyle(color: subTextColor))),
-        ],
+  void _showStatisticsScreen() {
+    // AyuGram navigates to a full Info::ChannelStatistics section page (charts,
+    // growth graphs, overview counters, recent posts) — not a flat dialog.
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _StatisticsScreen(
+        accountId: widget.chat.accountId,
+        chatId: widget.chat.chatId,
+        title: widget.chat.title,
+        isBroadcast: _isChannel,
       ),
-    );
+    ));
   }
 
-  Future<void> _showBoostsScreen(Color textColor, Color subTextColor) async {
-    final engine = context.read<EngineService>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
-    final accentColor = PaletteProvider.of(context).windowBgActive;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        title: Text('Boosts', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
-        content: SizedBox(
-          width: 320,
-          height: 300,
-          child: FutureBuilder<Map<String, dynamic>>(
-            future: engine.getBoosts(widget.chat.accountId, widget.chat.chatId),
-            builder: (ctx, snap) {
-              if (snap.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snap.hasError) {
-                return Center(child: Text('Failed to load boosts:\n${snap.error}',
-                    style: TextStyle(color: subTextColor, fontSize: 13), textAlign: TextAlign.center));
-              }
-              final data = snap.data ?? {};
-              final level = data['my_boost_level'] as int? ?? data['level'] as int? ?? 0;
-              final boosts = data['boosts'] as int? ?? 0;
-              final currentLevelBoosts = data['current_level_boosts'] as int? ?? 0;
-              final nextLevelBoosts = data['next_level_boosts'] as int? ?? 0;
-              final premiumAudience = data['premium_audience'] as Map? ?? {};
-              return ListView(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Column(
-                      children: [
-                        Text('Level $level', style: TextStyle(color: accentColor, fontSize: 24, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 4),
-                        Text('$boosts boosts', style: TextStyle(color: textColor, fontSize: 15)),
-                        if (nextLevelBoosts > 0) ...[
-                          const SizedBox(height: 8),
-                          LinearProgressIndicator(
-                            value: currentLevelBoosts > 0 && nextLevelBoosts > 0
-                                ? (boosts - currentLevelBoosts) / (nextLevelBoosts - currentLevelBoosts)
-                                : 0,
-                            backgroundColor: subTextColor.withValues(alpha: 0.2),
-                            valueColor: AlwaysStoppedAnimation(accentColor),
-                          ),
-                          const SizedBox(height: 4),
-                          Text('$boosts / $nextLevelBoosts for Level ${level + 1}',
-                              style: TextStyle(color: subTextColor, fontSize: 12)),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (premiumAudience.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text('Premium audience: ${premiumAudience['part'] ?? '?'}%',
-                          style: TextStyle(color: subTextColor, fontSize: 13)),
-                    ),
-                ],
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx),
-              child: Text('Close', style: TextStyle(color: subTextColor))),
-        ],
+  void _showBoostsScreen(Color textColor, Color subTextColor) {
+    // AyuGram navigates to a full Info::Boosts section page with the level
+    // header, progress, premium-audience breakdown and the boosters list.
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _BoostsScreen(
+        accountId: widget.chat.accountId,
+        chatId: widget.chat.chatId,
+        title: widget.chat.title,
       ),
-    );
+    ));
   }
 
   Future<void> _showMonetizationScreen(Color textColor, Color subTextColor) async {
@@ -2345,6 +2362,12 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             onPressed: () {
               final engine = context.read<EngineService>();
               engine.deleteChat(widget.chat.accountId, widget.chat.chatId);
+              // Also delete the migrated-from legacy chat, matching AyuGram's
+              // deleteChannel() which removes channel->migrateFrom() via
+              // deleteConversation when non-null — otherwise it is orphaned.
+              if (_migratedFromChatId.isNotEmpty) {
+                engine.deleteChat(widget.chat.accountId, _migratedFromChatId);
+              }
               Navigator.pop(ctx);
               Navigator.pop(context, true);
             },
@@ -7309,6 +7332,742 @@ class _MemberRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Statistics — full section page (AyuGram Info::ChannelStatistics / Megagroup)
+// Renders overview counters with growth %, real line charts parsed from the
+// Telegram StatsGraph JSON, and the recent-posts interaction list.
+// ════════════════════════════════════════════════════════════════════════
+
+class _StatisticsScreen extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final String title;
+  final bool isBroadcast;
+
+  const _StatisticsScreen({
+    required this.accountId,
+    required this.chatId,
+    required this.title,
+    required this.isBroadcast,
+  });
+
+  @override
+  State<_StatisticsScreen> createState() => _StatisticsScreenState();
+}
+
+class _StatisticsScreenState extends State<_StatisticsScreen> {
+  Map<String, dynamic>? _data;
+  Object? _error;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final engine = context.read<EngineService>();
+    try {
+      final data = widget.isBroadcast
+          ? await engine.getBroadcastStats(widget.accountId, widget.chatId)
+          : await engine.getMegagroupStats(widget.accountId, widget.chatId);
+      if (mounted) setState(() { _data = data; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e; _loading = false; });
+    }
+  }
+
+  static String _humanize(String key) {
+    final parts = key.split('_');
+    return parts.map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
+  }
+
+  static String _fmtNum(num v) {
+    if (v == v.roundToDouble()) {
+      final s = v.round().toString();
+      return s.replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
+    }
+    return v.toStringAsFixed(2);
+  }
+
+  static String _fmtDate(int epochSec) {
+    if (epochSec <= 0) return '';
+    final d = DateTime.fromMillisecondsSinceEpoch(epochSec * 1000);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0);
+    final cardColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+
+    Widget body;
+    if (_loading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (_error != null) {
+      body = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text('Failed to load statistics:\n$_error',
+              style: TextStyle(color: subTextColor, fontSize: 14), textAlign: TextAlign.center),
+        ),
+      );
+    } else {
+      final data = _data ?? {};
+      final periodMin = data['period_min'] as int? ?? 0;
+      final periodMax = data['period_max'] as int? ?? 0;
+
+      // Overview counter cards (value is a {current, previous, growth} map, or a plain number).
+      final overview = <Widget>[];
+      for (final entry in data.entries) {
+        final key = entry.key;
+        if (key == 'charts' || key == 'recent_posts' || key == 'period_min' || key == 'period_max') {
+          continue;
+        }
+        final val = entry.value;
+        num? current;
+        double growth = 0;
+        if (val is Map) {
+          final c = val['current'];
+          if (c is num) current = c;
+          final g = val['growth'];
+          if (g is num) growth = g.toDouble();
+        } else if (val is num) {
+          current = val;
+        }
+        if (current == null) continue;
+        final isPct = key == 'enabled_notifications';
+        overview.add(_StatCard(
+          label: _humanize(key),
+          value: isPct ? '${current.toStringAsFixed(2)}%' : _fmtNum(current),
+          growth: growth,
+          cardColor: cardColor,
+          textColor: textColor,
+          subTextColor: subTextColor,
+        ));
+      }
+
+      final charts = (data['charts'] as List?) ?? const [];
+      final chartWidgets = <Widget>[];
+      for (final ch in charts) {
+        if (ch is! Map) continue;
+        final dataStr = ch['data'];
+        if (dataStr is! String || dataStr.isEmpty) continue; // skip async-only graphs
+        final parsed = _StatChart.parse(ch['title'] as String? ?? '', dataStr);
+        if (parsed != null) {
+          chartWidgets.add(Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: parsed.build(cardColor, textColor, subTextColor),
+          ));
+        }
+      }
+
+      final recentPosts = (data['recent_posts'] as List?) ?? const [];
+
+      body = ListView(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        children: [
+          if (periodMin > 0 && periodMax > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Text('${_fmtDate(periodMin)} – ${_fmtDate(periodMax)}',
+                  style: TextStyle(color: subTextColor, fontSize: 13)),
+            ),
+          if (overview.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Wrap(spacing: 8, runSpacing: 8, children: overview),
+            ),
+          if (chartWidgets.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              child: Text('Graphs',
+                  style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+            ...chartWidgets,
+          ],
+          if (recentPosts.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              child: Text('Recent posts',
+                  style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+            ...recentPosts.whereType<Map>().map((p) => _RecentPostRow(
+                  post: p,
+                  cardColor: cardColor,
+                  textColor: textColor,
+                  subTextColor: subTextColor,
+                  accentColor: accentColor,
+                )),
+          ],
+          if (overview.isEmpty && chartWidgets.isEmpty && recentPosts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Text('No statistics available yet.',
+                    style: TextStyle(color: subTextColor, fontSize: 14)),
+              ),
+            ),
+        ],
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: cardColor,
+        foregroundColor: textColor,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Statistics', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            Text(widget.title, style: TextStyle(fontSize: 12, color: subTextColor)),
+          ],
+        ),
+      ),
+      body: body,
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final double growth;
+  final Color cardColor;
+  final Color textColor;
+  final Color subTextColor;
+
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.growth,
+    required this.cardColor,
+    required this.textColor,
+    required this.subTextColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final width = (MediaQuery.of(context).size.width - 24 - 8) / 2;
+    final growthColor = growth > 0
+        ? const Color(0xFF4FAD2D)
+        : (growth < 0 ? const Color(0xFFE53935) : subTextColor);
+    return Container(
+      width: width.clamp(120.0, 400.0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Flexible(
+                child: Text(value,
+                    style: TextStyle(color: textColor, fontSize: 19, fontWeight: FontWeight.w700),
+                    overflow: TextOverflow.ellipsis),
+              ),
+              if (growth != 0) ...[
+                const SizedBox(width: 6),
+                Text('${growth > 0 ? '+' : ''}${growth.toStringAsFixed(1)}%',
+                    style: TextStyle(color: growthColor, fontSize: 13, fontWeight: FontWeight.w600)),
+              ],
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(color: subTextColor, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentPostRow extends StatelessWidget {
+  final Map post;
+  final Color cardColor;
+  final Color textColor;
+  final Color subTextColor;
+  final Color accentColor;
+
+  const _RecentPostRow({
+    required this.post,
+    required this.cardColor,
+    required this.textColor,
+    required this.subTextColor,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final views = post['views'] as int? ?? 0;
+    final forwards = post['forwards'] as int? ?? 0;
+    final reactions = post['reactions'] as int? ?? 0;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text('${_StatisticsScreenState._fmtNum(views)} views',
+                style: TextStyle(color: textColor, fontSize: 14)),
+          ),
+          Icon(Icons.share_outlined, size: 14, color: subTextColor),
+          const SizedBox(width: 3),
+          Text(_StatisticsScreenState._fmtNum(forwards),
+              style: TextStyle(color: subTextColor, fontSize: 13)),
+          const SizedBox(width: 12),
+          Icon(Icons.favorite_border, size: 14, color: subTextColor),
+          const SizedBox(width: 3),
+          Text(_StatisticsScreenState._fmtNum(reactions),
+              style: TextStyle(color: subTextColor, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+}
+
+/// A parsed Telegram statistics graph (columns of values, named/colored series).
+class _StatChart {
+  final String title;
+  final List<List<double>> series; // each entry: a y-series of values
+  final List<String> names;
+  final List<Color> colors;
+
+  _StatChart(this.title, this.series, this.names, this.colors);
+
+  static Color _hex(String? s) {
+    if (s == null || s.isEmpty) return const Color(0xFF50A2E9);
+    var h = s.replaceAll('#', '');
+    if (h.length == 6) h = 'FF$h';
+    final v = int.tryParse(h, radix: 16);
+    return v == null ? const Color(0xFF50A2E9) : Color(v);
+  }
+
+  static _StatChart? parse(String title, String jsonStr) {
+    try {
+      final obj = json.decode(jsonStr);
+      if (obj is! Map) return null;
+      final columns = obj['columns'];
+      if (columns is! List) return null;
+      final types = (obj['types'] as Map?) ?? const {};
+      final names = (obj['names'] as Map?) ?? const {};
+      final colors = (obj['colors'] as Map?) ?? const {};
+      final series = <List<double>>[];
+      final seriesNames = <String>[];
+      final seriesColors = <Color>[];
+      for (final col in columns) {
+        if (col is! List || col.isEmpty) continue;
+        final id = col.first.toString();
+        if (id == 'x' || types[id] == 'x') continue; // skip the x axis
+        final ys = <double>[];
+        for (var i = 1; i < col.length; i++) {
+          final v = col[i];
+          ys.add(v is num ? v.toDouble() : 0);
+        }
+        if (ys.isEmpty) continue;
+        series.add(ys);
+        seriesNames.add((names[id] as String?) ?? id);
+        seriesColors.add(_hex(colors[id] as String?));
+      }
+      if (series.isEmpty) return null;
+      return _StatChart(title, series, seriesNames, seriesColors);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Widget build(Color cardColor, Color textColor, Color subTextColor) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 150,
+            width: double.infinity,
+            child: CustomPaint(painter: _StatGraphPainter(series, colors)),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            children: List.generate(names.length, (i) => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(width: 10, height: 10,
+                    decoration: BoxDecoration(color: colors[i], shape: BoxShape.circle)),
+                const SizedBox(width: 4),
+                Text(names[i], style: TextStyle(color: subTextColor, fontSize: 12)),
+              ],
+            )),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatGraphPainter extends CustomPainter {
+  final List<List<double>> series;
+  final List<Color> colors;
+
+  _StatGraphPainter(this.series, this.colors);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (series.isEmpty) return;
+    double minY = double.infinity, maxY = -double.infinity;
+    var maxLen = 0;
+    for (final s in series) {
+      maxLen = s.length > maxLen ? s.length : maxLen;
+      for (final v in s) {
+        if (v < minY) minY = v;
+        if (v > maxY) maxY = v;
+      }
+    }
+    if (maxLen < 2 || !minY.isFinite || !maxY.isFinite) return;
+    if (maxY == minY) maxY = minY + 1;
+
+    // Horizontal guide lines.
+    final guide = Paint()
+      ..color = const Color(0x22808080)
+      ..strokeWidth = 1;
+    for (var g = 0; g <= 4; g++) {
+      final y = size.height * g / 4;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), guide);
+    }
+
+    for (var si = 0; si < series.length; si++) {
+      final s = series[si];
+      if (s.length < 2) continue;
+      final paint = Paint()
+        ..color = (si < colors.length ? colors[si] : const Color(0xFF50A2E9))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round;
+      final path = Path();
+      for (var i = 0; i < s.length; i++) {
+        final x = size.width * i / (s.length - 1);
+        final y = size.height - (s[i] - minY) / (maxY - minY) * size.height;
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StatGraphPainter old) => old.series != series;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Boosts — full section page (AyuGram Info::Boosts): level header, progress,
+// premium-audience breakdown and the paginated boosters list.
+// ════════════════════════════════════════════════════════════════════════
+
+class _BoostsScreen extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final String title;
+
+  const _BoostsScreen({
+    required this.accountId,
+    required this.chatId,
+    required this.title,
+  });
+
+  @override
+  State<_BoostsScreen> createState() => _BoostsScreenState();
+}
+
+class _BoostsScreenState extends State<_BoostsScreen> {
+  Map<String, dynamic>? _status;
+  Object? _error;
+  bool _loadingStatus = true;
+
+  final List<Map<String, dynamic>> _boosters = [];
+  String _offset = '';
+  int _total = 0;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+    _loadMoreBoosters();
+  }
+
+  Future<void> _loadStatus() async {
+    final engine = context.read<EngineService>();
+    try {
+      final s = await engine.getBoosts(widget.accountId, widget.chatId);
+      if (mounted) setState(() { _status = s; _loadingStatus = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e; _loadingStatus = false; });
+    }
+  }
+
+  Future<void> _loadMoreBoosters() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    final engine = context.read<EngineService>();
+    try {
+      final res = await engine.getBoostsList(widget.accountId, widget.chatId, offset: _offset);
+      final list = (res['boosters'] as List?) ?? const [];
+      final next = res['next_offset'] as String? ?? '';
+      if (mounted) {
+        setState(() {
+          _total = res['count'] as int? ?? _total;
+          _boosters.addAll(list.whereType<Map>().map((e) => e.cast<String, dynamic>()));
+          _offset = next;
+          _hasMore = next.isNotEmpty && list.isNotEmpty;
+          _loadingMore = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() { _loadingMore = false; _hasMore = false; });
+    }
+  }
+
+  static String _fmtDate(int epochSec) {
+    if (epochSec <= 0) return '';
+    final d = DateTime.fromMillisecondsSinceEpoch(epochSec * 1000);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0);
+    final cardColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+
+    final data = _status ?? {};
+    final level = data['my_boost_level'] as int? ?? data['level'] as int? ?? 0;
+    final boosts = data['boosts'] as int? ?? 0;
+    final currentLevelBoosts = data['current_level_boosts'] as int? ?? 0;
+    final nextLevelBoosts = data['next_level_boosts'] as int? ?? 0;
+    final premiumAudience = data['premium_audience'] as Map? ?? const {};
+
+    double progress = 0;
+    if (nextLevelBoosts > currentLevelBoosts) {
+      progress = (boosts - currentLevelBoosts) / (nextLevelBoosts - currentLevelBoosts);
+      progress = progress.clamp(0.0, 1.0);
+    }
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: cardColor,
+        foregroundColor: textColor,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Boosts', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            Text(widget.title, style: TextStyle(fontSize: 12, color: subTextColor)),
+          ],
+        ),
+      ),
+      body: _loadingStatus
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text('Failed to load boosts:\n$_error',
+                        style: TextStyle(color: subTextColor, fontSize: 14), textAlign: TextAlign.center),
+                  ),
+                )
+              : NotificationListener<ScrollNotification>(
+                  onNotification: (n) {
+                    if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+                      _loadMoreBoosters();
+                    }
+                    return false;
+                  },
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    children: [
+                      // Level + progress header.
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(12)),
+                        child: Column(
+                          children: [
+                            Text('Level $level',
+                                style: TextStyle(color: accentColor, fontSize: 26, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            Text('$boosts ${boosts == 1 ? 'boost' : 'boosts'}',
+                                style: TextStyle(color: textColor, fontSize: 15)),
+                            if (nextLevelBoosts > 0) ...[
+                              const SizedBox(height: 12),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: progress,
+                                  minHeight: 8,
+                                  backgroundColor: subTextColor.withValues(alpha: 0.2),
+                                  valueColor: AlwaysStoppedAnimation(accentColor),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text('$boosts / $nextLevelBoosts for Level ${level + 1}',
+                                  style: TextStyle(color: subTextColor, fontSize: 12)),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (premiumAudience.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                          child: Text(
+                            'Premium audience: ${((premiumAudience['part'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}%',
+                            style: TextStyle(color: subTextColor, fontSize: 13),
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                        child: Text(
+                          _total > 0 ? 'Boosters · $_total' : 'Boosters',
+                          style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      if (_boosters.isEmpty && !_loadingMore)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Text('No boosters yet.',
+                              style: TextStyle(color: subTextColor, fontSize: 14)),
+                        ),
+                      ..._boosters.map((b) => _BoosterRow(
+                            booster: b,
+                            cardColor: cardColor,
+                            textColor: textColor,
+                            subTextColor: subTextColor,
+                            accentColor: accentColor,
+                            dateText: _fmtDate(b['expires'] as int? ?? 0),
+                          )),
+                      if (_loadingMore)
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+class _BoosterRow extends StatelessWidget {
+  final Map<String, dynamic> booster;
+  final Color cardColor;
+  final Color textColor;
+  final Color subTextColor;
+  final Color accentColor;
+  final String dateText;
+
+  const _BoosterRow({
+    required this.booster,
+    required this.cardColor,
+    required this.textColor,
+    required this.subTextColor,
+    required this.accentColor,
+    required this.dateText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (booster['user_name'] as String?)?.trim();
+    final isGiveaway = booster['giveaway'] == true;
+    final isGift = booster['gift'] == true;
+    final isUnclaimed = booster['unclaimed'] == true;
+    final multiplier = booster['multiplier'] as int? ?? 0;
+    final displayName = (name != null && name.isNotEmpty)
+        ? name
+        : (isUnclaimed ? 'Unclaimed' : (isGiveaway ? 'Giveaway' : 'Unknown'));
+    final letter = displayName.isNotEmpty ? displayName[0].toUpperCase() : '?';
+
+    final badges = <String>[];
+    if (isGiveaway) badges.add('Giveaway');
+    if (isGift) badges.add('Gift');
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: accentColor.withValues(alpha: 0.85),
+            child: Text(letter, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(displayName,
+                    style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (dateText.isNotEmpty)
+                  Text('Expires $dateText', style: TextStyle(color: subTextColor, fontSize: 12)),
+              ],
+            ),
+          ),
+          if (badges.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(badges.join(' · '),
+                  style: TextStyle(color: accentColor, fontSize: 11, fontWeight: FontWeight.w500)),
+            ),
+          if (multiplier > 1)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text('×$multiplier',
+                  style: TextStyle(color: accentColor, fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
+        ],
       ),
     );
   }

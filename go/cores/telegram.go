@@ -15660,6 +15660,16 @@ type ChatPermissionFlags struct {
 	LinkedChatID         string `json:"linked_chat_id"`
 	PendingRequestsCount int    `json:"pending_requests_count"`
 	BoostLevel           int    `json:"boost_level"`
+	// Channel sub-type and admin capability flags (mirror AyuGram ChannelData::*).
+	IsMegagroup           bool   `json:"is_megagroup"`
+	IsBroadcast           bool   `json:"is_broadcast"`
+	IsGigagroup           bool   `json:"is_gigagroup"`
+	AmCreator             bool   `json:"am_creator"`
+	HasAdminRights        bool   `json:"has_admin_rights"`
+	AdminCanChangeInfo    bool   `json:"admin_can_change_info"`
+	CanSetStickers        bool   `json:"can_set_stickers"`
+	AutoTranslateMinLevel int    `json:"auto_translate_min_level"`
+	MigratedFromChatID    string `json:"migrated_from_chat_id"`
 }
 
 type DefaultBannedRights struct {
@@ -15907,17 +15917,22 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 	result, err := t.api.ChannelsGetFullChannel(t.ctx, &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash})
 	if err != nil { return nil, err }
 	t.cacheEntities(result.Users, result.Chats)
-	flags := &ChatPermissionFlags{}
+	flags := &ChatPermissionFlags{AutoTranslateMinLevel: 3}
 	if fc, ok := result.FullChat.(*tg.ChannelFull); ok {
 		flags.SlowmodeSeconds = fc.SlowmodeSeconds
 		flags.Antispam = fc.Antispam
 		flags.PreHistoryHidden = fc.HiddenPrehistory
 		flags.NoTranslations = fc.TranslationsDisabled
 		flags.PendingRequestsCount = fc.RequestsPending
+		flags.CanSetStickers = fc.CanSetStickers
 		if lc, ok := fc.GetLinkedChatID(); ok && lc != 0 {
 			flags.LinkedChatID = fmt.Sprintf("-100%d", lc)
 		}
+		if mf, ok := fc.GetMigratedFromChatID(); ok && mf != 0 {
+			flags.MigratedFromChatID = fmt.Sprintf("-%d", mf)
+		}
 	}
+	flags.AutoTranslateMinLevel = t.appConfigIntNoLock("channel_autotranslation_level_min", 3)
 	for _, c := range result.Chats {
 		if cc, ok := c.(*tg.Channel); ok && cc.ID == ch.ChannelID {
 			flags.JoinToSend = cc.JoinToSend
@@ -15927,6 +15942,14 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 			flags.Signatures = cc.Signatures
 			flags.SignatureProfiles = cc.SignatureProfiles
 			flags.HasUsername = len(cc.Usernames) > 0 || cc.Username != ""
+			flags.IsMegagroup = cc.Megagroup
+			flags.IsBroadcast = cc.Broadcast
+			flags.IsGigagroup = cc.Gigagroup
+			flags.AmCreator = cc.Creator
+			if ar, ok := cc.GetAdminRights(); ok {
+				flags.HasAdminRights = true
+				flags.AdminCanChangeInfo = ar.ChangeInfo
+			}
 			if lvl, ok := cc.GetLevel(); ok {
 				flags.BoostLevel = lvl
 			}
@@ -15934,6 +15957,109 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 		}
 	}
 	return flags, nil
+}
+
+// appConfigRawNoLock reads a single appConfig key's raw JSON value.
+// Caller must hold t.mu (read lock).
+func (t *TelegramCore) appConfigRawNoLock(key string) (tg.JSONValueClass, bool) {
+	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	if err != nil {
+		return nil, false
+	}
+	cfg, ok := result.(*tg.HelpAppConfig)
+	if !ok || cfg.Config == nil {
+		return nil, false
+	}
+	obj, ok := cfg.Config.(*tg.JSONObject)
+	if !ok {
+		return nil, false
+	}
+	for _, kv := range obj.Value {
+		if kv.Key == key {
+			return kv.Value, true
+		}
+	}
+	return nil, false
+}
+
+// appConfigIntNoLock reads an integer appConfig value. Caller must hold t.mu.
+func (t *TelegramCore) appConfigIntNoLock(key string, def int) int {
+	if v, ok := t.appConfigRawNoLock(key); ok {
+		if n, ok := v.(*tg.JSONNumber); ok {
+			return int(n.Value)
+		}
+	}
+	return def
+}
+
+// appConfigBoolNoLock reads a boolean appConfig value. Caller must hold t.mu.
+func (t *TelegramCore) appConfigBoolNoLock(key string, def bool) bool {
+	if v, ok := t.appConfigRawNoLock(key); ok {
+		if b, ok := v.(*tg.JSONBool); ok {
+			return b.Value
+		}
+	}
+	return def
+}
+
+// ToggleChannelAutoTranslation enables/disables admin auto-translation for a
+// broadcast channel (channels.toggleAutotranslation). This is the channel-wide
+// admin setting, distinct from the per-user messages.togglePeerTranslations.
+func (t *TelegramCore) ToggleChannelAutoTranslation(chatID string, enabled bool) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return err
+	}
+	ch, ok := peer.(*tg.PeerChannel)
+	if !ok {
+		return fmt.Errorf("not a channel")
+	}
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	_, err = t.api.ChannelsToggleAutotranslation(t.ctx, &tg.ChannelsToggleAutotranslationRequest{
+		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		Enabled: enabled,
+	})
+	return err
+}
+
+// GetBotManageInfo returns gating info for the bot edit/manage box:
+// whether the bot has verifier settings, whether star-ref setup is allowed by
+// the server appConfig, and the bot's star-ref commission (per-mille).
+func (t *TelegramCore) GetBotManageInfo(chatID string) (map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	id, err := tgUserID(chatID)
+	if err != nil {
+		return nil, err
+	}
+	hash := t.getCachedUserHash(id)
+	result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: id, AccessHash: hash})
+	if err != nil {
+		return nil, err
+	}
+	t.cacheEntities(result.Users, nil)
+	out := map[string]interface{}{
+		"has_verifier_settings": false,
+		"starref_allowed":       t.appConfigBoolNoLock("starref_program_allowed", false),
+		"starref_commission":    0,
+	}
+	if bi, ok := result.FullUser.GetBotInfo(); ok {
+		if _, ok := bi.GetVerifierSettings(); ok {
+			out["has_verifier_settings"] = true
+		}
+	}
+	if srp, ok := result.FullUser.GetStarrefProgram(); ok {
+		out["starref_commission"] = srp.CommissionPermille
+	}
+	return out, nil
 }
 
 // GetParticipants returns participants of a channel or supergroup with filtering.

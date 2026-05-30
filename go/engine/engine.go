@@ -1439,6 +1439,7 @@ type ChatPermissionFlags struct {
 	NoForwards           bool   `json:"no_forwards"`
 	JoinRequest          bool   `json:"join_request"`
 	IsForum              bool   `json:"is_forum"`
+	Antispam             bool   `json:"antispam"`
 	Signatures           bool   `json:"signatures"`
 	SignatureProfiles     bool   `json:"signature_profiles"`
 	PreHistoryHidden     bool   `json:"pre_history_hidden"`
@@ -1446,6 +1447,16 @@ type ChatPermissionFlags struct {
 	HasUsername           bool   `json:"has_username"`
 	LinkedChatID         string `json:"linked_chat_id"`
 	PendingRequestsCount int    `json:"pending_requests_count"`
+	BoostLevel           int    `json:"boost_level"`
+	IsMegagroup           bool   `json:"is_megagroup"`
+	IsBroadcast           bool   `json:"is_broadcast"`
+	IsGigagroup           bool   `json:"is_gigagroup"`
+	AmCreator             bool   `json:"am_creator"`
+	HasAdminRights        bool   `json:"has_admin_rights"`
+	AdminCanChangeInfo    bool   `json:"admin_can_change_info"`
+	CanSetStickers        bool   `json:"can_set_stickers"`
+	AutoTranslateMinLevel int    `json:"auto_translate_min_level"`
+	MigratedFromChatID    string `json:"migrated_from_chat_id"`
 }
 
 func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissionFlags, error) {
@@ -1470,6 +1481,7 @@ func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissi
 		NoForwards:           cf.NoForwards,
 		JoinRequest:          cf.JoinRequest,
 		IsForum:              cf.IsForum,
+		Antispam:             cf.Antispam,
 		Signatures:           cf.Signatures,
 		SignatureProfiles:     cf.SignatureProfiles,
 		PreHistoryHidden:     cf.PreHistoryHidden,
@@ -1477,7 +1489,49 @@ func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissi
 		HasUsername:           cf.HasUsername,
 		LinkedChatID:         cf.LinkedChatID,
 		PendingRequestsCount: cf.PendingRequestsCount,
+		BoostLevel:           cf.BoostLevel,
+		IsMegagroup:           cf.IsMegagroup,
+		IsBroadcast:           cf.IsBroadcast,
+		IsGigagroup:           cf.IsGigagroup,
+		AmCreator:             cf.AmCreator,
+		HasAdminRights:        cf.HasAdminRights,
+		AdminCanChangeInfo:    cf.AdminCanChangeInfo,
+		CanSetStickers:        cf.CanSetStickers,
+		AutoTranslateMinLevel: cf.AutoTranslateMinLevel,
+		MigratedFromChatID:    cf.MigratedFromChatID,
 	}, nil
+}
+
+// ToggleChannelAutoTranslation toggles admin channel-wide auto-translation.
+func (e *Engine) ToggleChannelAutoTranslation(accountID, chatID string, enabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type toggler interface {
+		ToggleChannelAutoTranslation(chatID string, enabled bool) error
+	}
+	g, ok := acc.Core.(toggler)
+	if !ok {
+		return fmt.Errorf("platform does not support channel auto-translation")
+	}
+	return g.ToggleChannelAutoTranslation(chatID, enabled)
+}
+
+// GetBotManageInfo returns bot edit/manage gating info.
+func (e *Engine) GetBotManageInfo(accountID, chatID string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetBotManageInfo(chatID string) (map[string]interface{}, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support bot manage info")
+	}
+	return g.GetBotManageInfo(chatID)
 }
 
 type DefaultBannedRights struct {
