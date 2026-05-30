@@ -1480,24 +1480,9 @@ class _CoverGradient extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            Positioned(
-              left: 10,
-              top: 30,
-              child: Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 70,
-                color: palette.introCoverIconsFg.withValues(alpha: 0.12),
-              ),
-            ),
-            Positioned(
-              right: 10,
-              top: 40,
-              child: Icon(
-                Icons.forum_outlined,
-                size: 60,
-                color: palette.introCoverIconsFg.withValues(alpha: 0.12),
-              ),
-            ),
+            // AyuGram's intro cover is the paper-plane illustration on a plain
+            // gradient (intro_qr.cpp:531-548) — no chat-bubble/forum Material
+            // icon decorations, so they are intentionally omitted here.
             Positioned(
               left: 50,
               top: 46,
@@ -1698,13 +1683,21 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
     _callTimer?.cancel();
     _callTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) { t.cancel(); return; }
+      var reachedZero = false;
       setState(() {
         _callSecondsLeft--;
         if (_callSecondsLeft <= 0) {
           t.cancel();
           _calling = true;
+          reachedZero = true;
         }
       });
+      if (reachedZero) {
+        // AyuGram auto-requests the call the instant the countdown reaches
+        // zero (CodeWidget::sendCall -> MTPauth_ResendCode,
+        // intro_code.cpp:302-338) rather than waiting for a manual tap.
+        widget.onResendCode?.call();
+      }
     });
   }
 
@@ -1925,7 +1918,10 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final bgColor = isDark ? const Color(0xFF202B36) : const Color(0xFFEFEFEF);
+    // AyuGram fills each code-digit cell with windowBgOver — a theme palette
+    // color, not a hardcoded constant (intro_code_input.cpp:131 st::windowBgOver),
+    // so the cells follow custom themes.
+    final bgColor = context.palette.windowBgOver;
     final unfocusedBorder =
         isDark ? const Color(0xFF3A4A5A) : const Color(0xFFD0D0D0);
     final focusedBorder = context.palette.activeLineFg;
