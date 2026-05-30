@@ -123,16 +123,17 @@ class AyuGramSettingsScreen extends StatelessWidget {
 
           // Categories section (§54.17)
           Padding(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 6),
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 9),
             child: Text('Categories',
                 style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     color: sectionLabelColor)),
           ),
 
           _FlatCategoryButton(
-            icon: Icons.emoji_emotions_outlined,
+            // AyuGram = menuIconGroupReactions ("menu/group_reactions" = heart)
+            icon: Icons.favorite_border,
             label: 'AyuGram',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const GhostSettingsPage()),
@@ -144,7 +145,8 @@ class AyuGramSettingsScreen extends StatelessWidget {
             onTap: () => _pushPage(context, appState, const AyuFiltersPage()),
           ),
           _FlatCategoryButton(
-            icon: Icons.photo_library_outlined,
+            // General = menuIconShowAll ("menu/all_media" = 2x2 grid)
+            icon: Icons.grid_view_outlined,
             label: 'General',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const AyuGeneralPage()),
@@ -163,7 +165,8 @@ class AyuGramSettingsScreen extends StatelessWidget {
             onTap: () => _pushPage(context, appState, const AyuChatsPage()),
           ),
           _FlatCategoryButton(
-            icon: Icons.star_border,
+            // Other = menuIconFave ("menu/favorite" = star outline)
+            icon: Icons.star_outline,
             label: 'Other',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const AyuOtherPage()),
@@ -175,11 +178,11 @@ class AyuGramSettingsScreen extends StatelessWidget {
 
           // Links section (§54.17)
           Padding(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 6),
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 9),
             child: Text('Links',
                 style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     color: sectionLabelColor)),
           ),
 
@@ -310,12 +313,18 @@ class _FlatCategoryButton extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+        // AyuGram settingsButton: padding margins(60px,10,22,10), iconLeft 20px.
+        // Outer left=20 puts the icon's left edge at 20px; the 40px box ends at
+        // 60px so the label starts at 60px (settingsButton.padding.left).
+        padding: const EdgeInsets.fromLTRB(20, 10, 22, 10),
         child: Row(
           children: [
             SizedBox(
-              width: 57,
-              child: Icon(icon, size: 24, color: iconColor),
+              width: 40,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Icon(icon, size: 24, color: iconColor),
+              ),
             ),
             Expanded(
               child: Text(label,
