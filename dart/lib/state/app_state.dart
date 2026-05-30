@@ -525,17 +525,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _disableStories = false;
   bool _disableOpenLinkWarning = false;
   bool _collapseSimilarChannels = true;
-  bool _hideSimilarChannelsTab = false;
+  bool _hideSimilarChannels = false;
   bool _disableNotifyDelay = false;
   bool _filterZalgo = false;
   bool _improveLinkPreviews = false;
   int _showPeerId = 2; // 0=Hide, 1=Telegram API, 2=Bot API
   bool _spoofWebviewAsAndroid = false;
-  bool _increaseContentHeight = false;
-  bool _increaseContentWidth = false;
-  bool _confirmStickers = false;
-  bool _confirmGifs = false;
-  bool _confirmVoiceMessages = false;
+  bool _increaseWebviewHeight = false;
+  bool _increaseWebviewWidth = false;
+  bool _stickerConfirmation = false;
+  bool _gifConfirmation = false;
+  bool _voiceConfirmation = false;
 
   bool _showIpInWebRtcCalls = false;
 
@@ -905,17 +905,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get disableStories => _disableStories;
   bool get disableOpenLinkWarning => _disableOpenLinkWarning;
   bool get collapseSimilarChannels => _collapseSimilarChannels;
-  bool get hideSimilarChannelsTab => _hideSimilarChannelsTab;
+  bool get hideSimilarChannels => _hideSimilarChannels;
   bool get disableNotifyDelay => _disableNotifyDelay;
   bool get filterZalgo => _filterZalgo;
   bool get improveLinkPreviews => _improveLinkPreviews;
   int get showPeerId => _showPeerId;
   bool get spoofWebviewAsAndroid => _spoofWebviewAsAndroid;
-  bool get increaseContentHeight => _increaseContentHeight;
-  bool get increaseContentWidth => _increaseContentWidth;
-  bool get confirmStickers => _confirmStickers;
-  bool get confirmGifs => _confirmGifs;
-  bool get confirmVoiceMessages => _confirmVoiceMessages;
+  bool get increaseWebviewHeight => _increaseWebviewHeight;
+  bool get increaseWebviewWidth => _increaseWebviewWidth;
+  bool get stickerConfirmation => _stickerConfirmation;
+  bool get gifConfirmation => _gifConfirmation;
+  bool get voiceConfirmation => _voiceConfirmation;
 
   bool get showIpInWebRtcCalls => _showIpInWebRtcCalls;
 
@@ -1680,17 +1680,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _disableStories = false;
     _disableOpenLinkWarning = false;
     _collapseSimilarChannels = true;
-    _hideSimilarChannelsTab = false;
+    _hideSimilarChannels = false;
     _disableNotifyDelay = false;
     _filterZalgo = false;
     _improveLinkPreviews = false;
     _showPeerId = 2;
     _spoofWebviewAsAndroid = false;
-    _increaseContentHeight = false;
-    _increaseContentWidth = false;
-    _confirmStickers = false;
-    _confirmGifs = false;
-    _confirmVoiceMessages = false;
+    _increaseWebviewHeight = false;
+    _increaseWebviewWidth = false;
+    _stickerConfirmation = false;
+    _gifConfirmation = false;
+    _voiceConfirmation = false;
     _showIpInWebRtcCalls = false;
     _showAttachButton = true;
     _showCommandsButton = true;
@@ -1903,9 +1903,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _saveWindowPrefs();
   }
-  void setHideSimilarChannelsTab(bool v) {
-    if (_hideSimilarChannelsTab == v) return;
-    _hideSimilarChannelsTab = v;
+  void setHideSimilarChannels(bool v) {
+    if (_hideSimilarChannels == v) return;
+    _hideSimilarChannels = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1939,33 +1939,33 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _saveWindowPrefs();
   }
-  void setIncreaseContentHeight(bool v) {
-    if (_increaseContentHeight == v) return;
-    _increaseContentHeight = v;
+  void setIncreaseWebviewHeight(bool v) {
+    if (_increaseWebviewHeight == v) return;
+    _increaseWebviewHeight = v;
     notifyListeners();
     _saveWindowPrefs();
   }
-  void setIncreaseContentWidth(bool v) {
-    if (_increaseContentWidth == v) return;
-    _increaseContentWidth = v;
+  void setIncreaseWebviewWidth(bool v) {
+    if (_increaseWebviewWidth == v) return;
+    _increaseWebviewWidth = v;
     notifyListeners();
     _saveWindowPrefs();
   }
-  void setConfirmStickers(bool v) {
-    if (_confirmStickers == v) return;
-    _confirmStickers = v;
+  void setStickerConfirmation(bool v) {
+    if (_stickerConfirmation == v) return;
+    _stickerConfirmation = v;
     notifyListeners();
     _saveWindowPrefs();
   }
-  void setConfirmGifs(bool v) {
-    if (_confirmGifs == v) return;
-    _confirmGifs = v;
+  void setGifConfirmation(bool v) {
+    if (_gifConfirmation == v) return;
+    _gifConfirmation = v;
     notifyListeners();
     _saveWindowPrefs();
   }
-  void setConfirmVoiceMessages(bool v) {
-    if (_confirmVoiceMessages == v) return;
-    _confirmVoiceMessages = v;
+  void setVoiceConfirmation(bool v) {
+    if (_voiceConfirmation == v) return;
+    _voiceConfirmation = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -3771,17 +3771,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _disableStories = data['disableStories'] as bool? ?? false;
       _disableOpenLinkWarning = data['disableOpenLinkWarning'] as bool? ?? false;
       _collapseSimilarChannels = data['collapseSimilarChannels'] as bool? ?? true;
-      _hideSimilarChannelsTab = data['hideSimilarChannelsTab'] as bool? ?? false;
+      _hideSimilarChannels = data['hideSimilarChannels'] as bool? ?? false;
       _disableNotifyDelay = data['disableNotifyDelay'] as bool? ?? false;
       _filterZalgo = data['filterZalgo'] as bool? ?? false;
       _improveLinkPreviews = data['improveLinkPreviews'] as bool? ?? false;
       _showPeerId = data['showPeerId'] as int? ?? 2;
       _spoofWebviewAsAndroid = data['spoofWebviewAsAndroid'] as bool? ?? false;
-      _increaseContentHeight = data['increaseContentHeight'] as bool? ?? false;
-      _increaseContentWidth = data['increaseContentWidth'] as bool? ?? false;
-      _confirmStickers = data['confirmStickers'] as bool? ?? false;
-      _confirmGifs = data['confirmGifs'] as bool? ?? false;
-      _confirmVoiceMessages = data['confirmVoiceMessages'] as bool? ?? false;
+      _increaseWebviewHeight = data['increaseWebviewHeight'] as bool? ?? false;
+      _increaseWebviewWidth = data['increaseWebviewWidth'] as bool? ?? false;
+      _stickerConfirmation = data['stickerConfirmation'] as bool? ?? false;
+      _gifConfirmation = data['gifConfirmation'] as bool? ?? false;
+      _voiceConfirmation = data['voiceConfirmation'] as bool? ?? false;
       _showIpInWebRtcCalls = data['showIpInWebRtcCalls'] as bool? ?? false;
       // §54.9: Message field button toggles.
       _showAttachButton = data['showAttachButton'] as bool? ?? true;
@@ -4029,17 +4029,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'disableStories': _disableStories,
         'disableOpenLinkWarning': _disableOpenLinkWarning,
         'collapseSimilarChannels': _collapseSimilarChannels,
-        'hideSimilarChannelsTab': _hideSimilarChannelsTab,
+        'hideSimilarChannels': _hideSimilarChannels,
         'disableNotifyDelay': _disableNotifyDelay,
         'filterZalgo': _filterZalgo,
         'improveLinkPreviews': _improveLinkPreviews,
         'showPeerId': _showPeerId,
         'spoofWebviewAsAndroid': _spoofWebviewAsAndroid,
-        'increaseContentHeight': _increaseContentHeight,
-        'increaseContentWidth': _increaseContentWidth,
-        'confirmStickers': _confirmStickers,
-        'confirmGifs': _confirmGifs,
-        'confirmVoiceMessages': _confirmVoiceMessages,
+        'increaseWebviewHeight': _increaseWebviewHeight,
+        'increaseWebviewWidth': _increaseWebviewWidth,
+        'stickerConfirmation': _stickerConfirmation,
+        'gifConfirmation': _gifConfirmation,
+        'voiceConfirmation': _voiceConfirmation,
         'showIpInWebRtcCalls': _showIpInWebRtcCalls,
         'showAttachButton': _showAttachButton,
         'showCommandsButton': _showCommandsButton,

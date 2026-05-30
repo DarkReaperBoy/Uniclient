@@ -61,10 +61,10 @@ class AyuGeneralPage extends StatelessWidget {
     b.addCollapsibleToggle(
       label: 'Disable Similar Channels',
       isExpanded: appState.collapseSimilarChannels ||
-          appState.hideSimilarChannelsTab,
+          appState.hideSimilarChannels,
       onMasterToggle: (v) {
         appState.setCollapseSimilarChannels(v);
-        appState.setHideSimilarChannelsTab(v);
+        appState.setHideSimilarChannels(v);
       },
       children: [
         AyuNestedCheckboxItem(
@@ -74,8 +74,8 @@ class AyuGeneralPage extends StatelessWidget {
         ),
         AyuNestedCheckboxItem(
           label: 'Hide Similar Channels Tab',
-          value: appState.hideSimilarChannelsTab,
-          onChanged: (v) => appState.setHideSimilarChannelsTab(v),
+          value: appState.hideSimilarChannels,
+          onChanged: (v) => appState.setHideSimilarChannels(v),
         ),
       ],
     );
@@ -145,22 +145,22 @@ class AyuGeneralPage extends StatelessWidget {
 
     b.addCollapsibleToggle(
       label: 'Bigger Window',
-      isExpanded: appState.increaseContentHeight ||
-          appState.increaseContentWidth,
+      isExpanded: appState.increaseWebviewHeight ||
+          appState.increaseWebviewWidth,
       onMasterToggle: (v) {
-        appState.setIncreaseContentHeight(v);
-        appState.setIncreaseContentWidth(v);
+        appState.setIncreaseWebviewHeight(v);
+        appState.setIncreaseWebviewWidth(v);
       },
       children: [
         AyuNestedCheckboxItem(
           label: 'Increase Content Height',
-          value: appState.increaseContentHeight,
-          onChanged: (v) => appState.setIncreaseContentHeight(v),
+          value: appState.increaseWebviewHeight,
+          onChanged: (v) => appState.setIncreaseWebviewHeight(v),
         ),
         AyuNestedCheckboxItem(
           label: 'Increase Content Width',
-          value: appState.increaseContentWidth,
-          onChanged: (v) => appState.setIncreaseContentWidth(v),
+          value: appState.increaseWebviewWidth,
+          onChanged: (v) => appState.setIncreaseWebviewWidth(v),
         ),
       ],
     );
@@ -172,22 +172,22 @@ class AyuGeneralPage extends StatelessWidget {
     b.addSettingToggle(
       label: 'For Stickers',
       subtitle: 'Confirm before sending a sticker',
-      value: appState.confirmStickers,
-      onChanged: (v) => appState.setConfirmStickers(v),
+      value: appState.stickerConfirmation,
+      onChanged: (v) => appState.setStickerConfirmation(v),
     );
 
     b.addSettingToggle(
       label: 'For GIFs',
       subtitle: 'Confirm before sending a GIF',
-      value: appState.confirmGifs,
-      onChanged: (v) => appState.setConfirmGifs(v),
+      value: appState.gifConfirmation,
+      onChanged: (v) => appState.setGifConfirmation(v),
     );
 
     b.addSettingToggle(
       label: 'For Voice Messages',
       subtitle: 'Confirm before sending a voice message',
-      value: appState.confirmVoiceMessages,
-      onChanged: (v) => appState.setConfirmVoiceMessages(v),
+      value: appState.voiceConfirmation,
+      onChanged: (v) => appState.setVoiceConfirmation(v),
     );
 
     b.addSkip(24);
