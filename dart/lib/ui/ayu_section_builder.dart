@@ -12,30 +12,38 @@ class AyuSectionBuilder {
 
   AyuSectionBuilder({required this.isDark, this.useMaterial = false});
 
-  Color get _accentColor =>
-      isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
-
   void addSectionTitle(String title) {
     // AyuGram has no separate "section title" — every header is a
-    // defaultSubsectionTitle: font(boxFontSize=14 semibold), windowActiveTextFg,
-    // defaultSubsectionTitlePadding = margins(22,7,10,9). Match it 1:1
-    // (settings.style / layers.style:148-155).
-    _children.add(Padding(
-      padding: const EdgeInsets.fromLTRB(22, 7, 10, 9),
-      child: Text(title,
-          style: TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w600, color: _accentColor)),
+    // defaultSubsectionTitle: font(boxFontSize=14 semibold), textFg
+    // windowActiveTextFg, defaultSubsectionTitlePadding = margins(22,7,10,9).
+    // Match it 1:1 (settings.style / layers.style:148-154). Use the palette's
+    // windowActiveTextFg (#168acd light / #6ab3f3 dark) — NOT windowBgActive
+    // (#3390ec), which is a different, brighter blue.
+    _children.add(Builder(
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(22, 7, 10, 9),
+        child: Text(title,
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: context.palette.windowActiveTextFg)),
+      ),
     ));
   }
 
   void addSubsectionTitle(String title) {
-    // defaultSubsectionTitle = font(boxFontSize=14 semibold), windowActiveTextFg,
-    // defaultSubsectionTitlePadding = margins(22,7,10,9) (layers.style:148-155).
-    _children.add(Padding(
-      padding: const EdgeInsets.fromLTRB(22, 7, 10, 9),
-      child: Text(title,
-          style: TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w600, color: _accentColor)),
+    // defaultSubsectionTitle = font(boxFontSize=14 semibold), textFg
+    // windowActiveTextFg, defaultSubsectionTitlePadding = margins(22,7,10,9)
+    // (layers.style:148-154).
+    _children.add(Builder(
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(22, 7, 10, 9),
+        child: Text(title,
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: context.palette.windowActiveTextFg)),
+      ),
     ));
   }
 
