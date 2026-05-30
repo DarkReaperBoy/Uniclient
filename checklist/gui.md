@@ -111,18 +111,6 @@ Four numeric constants audited against AyuGram Desktop ground truth: 3 deviated 
 
 - ✓ [CLOSED 2026-05-30 — FALSE POSITIVE, left unchanged] [MAJOR] Message-load `limit = _isFirstLoad ? 30 : 50` is CORRECT. `_loadMessages` (`chat_state.dart:2142`) loads the **main chat history** via `getMessages` → mirrors the real Telegram Desktop loader `history/history_widget.cpp:216-217` (`kMessagesPerPageFirst = 30` / `kMessagesPerPage = 50`, used at cpp:4403,4419,4485-4486,4543,4611,4621) — byte-exact. The checklist mis-cited `ayu/ui/message_history/history_inner.cpp:66-68` (`kMessagesFirstPage=20`/`kMessagesPerPage=30`), which is AyuGram's **message edit-history viewer** (namespace `MessageHistory`, paginating one message's edit revisions, `InnerWidget::requestMore` cpp:725) — wrong reference. Changing 30/50 → 20/30 would BREAK desktop parity. Do NOT "fix" this. VERIFIED 1:1 against both AyuGram files.
 
-## advanced_settings_screen — Advanced Settings Screen Audit
-
-- [ ] [CRITICAL] "When Closing Window" section visibility is inverted: shown when `showTrayIcon == true` but AyuGram shows it only when tray is DISABLED (`workMode == WindowOnly`), meaning the section appears when it should be hidden and vice versa — `advanced_settings_screen.dart:711` ← `settings_advanced.cpp:357-362`
-
-- [ ] [CRITICAL] Screen reader section visibility is wrong: Dart shows the section whenever `_screenReaderDetected` is true, but AyuGram shows it only when BOTH a screen reader is detected AND `ScreenReaderModeDisabled()` returns true (i.e., the mode is already disabled by user) — section should only appear in that specific state — `advanced_settings_screen.dart:1209` ← `settings_advanced.cpp:1185-1188`
-
-- [ ] [CRITICAL] Screen reader toggle semantics are inverted: Dart has `value: appState.screenReaderOptimized` with label "Screen reader optimization" (on = optimization active), but AyuGram's toggle starts `toggled = rpl::single(disabled)` with label "Disable screen reader mode" — the toggle controls disabling the mode, not enabling it — `advanced_settings_screen.dart:1218-1228` ← `settings_advanced.cpp:1199-1217`
-
-- [ ] [MAJOR] Hardware video acceleration toggle incorrectly shows a restart dialog on every change: `_showRestartDialog` is called unconditionally after toggling, but AyuGram simply saves settings with no restart prompt for this specific toggle — `advanced_settings_screen.dart:902-905` ← `settings_advanced.cpp:855-864`
-
-- [ ] [MAJOR] "When Closing Window" radio button order is wrong: Dart order is `['Quit', 'Close to the taskbar', 'Run in background']` (indices 0,1,2), but AyuGram renders them as RunInBackground first, CloseToTaskbar second, Quit last — `advanced_settings_screen.dart:719` ← `settings_advanced.cpp:391-399`
-
 ## auth_screen — Auth screen vs AyuGram intro_* sources
 
 - [ ] [CRITICAL] Email verification step (`EmailStatus::SetupRequired` / `intro_email.cpp`) is entirely absent from `auth_screen.dart`. AyuGram introduces a dedicated `EmailWidget` step when `getData()->emailStatus == EmailStatus::SetupRequired`, collects an email address, calls `MTPaccount_SendVerifyEmailCode`, then navigates to `CodeWidget`. The Dart `AuthStateData` model has no `email` or `emailPatternSetup` field and `_buildStepContent` has no `'email'` branch — the whole flow is dropped. — `auth_screen.dart:563-630` ← `AyuGram/intro/intro_email.cpp:30-145` and `intro/intro_widget.h:66-69`
