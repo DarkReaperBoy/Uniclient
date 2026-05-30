@@ -130,6 +130,25 @@ type TelegramCore struct {
 	authDoneCh      chan struct{} // closed when auth completes (for interactive flow)
 	authErrCh       chan error    // auth error channel (for interactive flow)
 
+	// Captured sent-code delivery info — read by the engine after Authenticate
+	// returns "otp_required" so the OTP step shows the correct delivery mode.
+	// Mirrors AyuGram's getData()->codeByTelegram / codeByFragmentUrl / callTimeout.
+	authCodeByTelegram  bool   // sentCode.Type == AuthSentCodeTypeApp (code shown in Telegram app)
+	authCodeFragmentURL string // sentCode.Type == AuthSentCodeTypeFragmentSMS → URL to open
+	authCodeTimeout     int    // sentCode.Timeout (seconds until the call countdown fires)
+	authCodeLength      int    // expected code length for the current sent code
+
+	// Email-setup-required interactive flow (EmailStatus::SetupRequired).
+	// Closed when the sent code requires a login email to be set up first.
+	authEmailReady chan struct{}
+	emailSetupMode bool   // true while the email→verify→signin detour is active
+	emailNewHash   string // phone_code_hash from the sentCode returned after email verification
+
+	// QR login-token push refresh. qrRefreshCb is invoked from the OnLoginToken
+	// update handler so the engine can immediately re-export the token (or finish
+	// login) the instant the phone scans the QR — AyuGram's checkForTokenUpdate.
+	qrRefreshCb func()
+
 	// Call state
 	activeCalls   map[int64]*tgCall       // callID → active call
 	pendingDH     map[int64]*pendingDHState // callID → DH exchange state
@@ -304,6 +323,20 @@ func (t *TelegramCore) initClient() {
 			Message:  converted,
 			Platform: tgPlatform,
 		})
+		return nil
+	})
+
+	// QR login: the server pushes updateLoginToken the instant another device
+	// scans the QR. Mirror AyuGram QrWidget::checkForTokenUpdate — fire the
+	// refresh callback so the engine re-exports the token (which then resolves
+	// to success/migrate) immediately instead of waiting for the expiry timer.
+	dispatcher.OnLoginToken(func(ctx context.Context, e tg.Entities, u *tg.UpdateLoginToken) error {
+		t.mu.RLock()
+		cb := t.qrRefreshCb
+		t.mu.RUnlock()
+		if cb != nil {
+			cb()
+		}
 		return nil
 	})
 
@@ -960,6 +993,9 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 		}
 		t.authSignUpCh = make(chan [2]string, 1)
 		t.authSignUpReady = make(chan struct{})
+		t.authEmailReady = make(chan struct{})
+		t.emailSetupMode = false
+		t.emailNewHash = ""
 	}
 	close(t.authSetupDone)
 
@@ -1089,6 +1125,11 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 		case <-authDone:
 			// Session was already valid — no OTP needed.
 			return nil
+		case <-t.authEmailReady:
+			// Server requires a login email to be set up before sending the
+			// phone code (EmailStatus::SetupRequired). The gotd flow is parked in
+			// Code(); the engine now drives the email detour on preAuthAPI.
+			return fmt.Errorf("email_setup_required")
 		case <-t.authCodeReady:
 			// OTP code was requested — return sentinel so caller knows to ask user.
 			return fmt.Errorf("otp_required")
@@ -1252,6 +1293,253 @@ func (t *TelegramCore) ResendOTPCode() error {
 		PhoneCodeHash: hash,
 	})
 	return err
+}
+
+// AuthCodeInfo returns the delivery details captured from the last sent code so
+// the engine can render the OTP step correctly (Telegram-app code, Fragment URL,
+// call countdown, length). Mirrors AyuGram getData()->codeBy*/callTimeout.
+func (t *TelegramCore) AuthCodeInfo() (codeByTelegram bool, fragmentURL string, timeout, length int) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.authCodeByTelegram, t.authCodeFragmentURL, t.authCodeTimeout, t.authCodeLength
+}
+
+// EmailSetupRequired reports whether the current auth flow is parked waiting for
+// a login email to be set up (AuthSentCodeTypeSetUpEmailRequired).
+func (t *TelegramCore) EmailSetupRequired() bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.emailSetupMode
+}
+
+// SetQRRefreshCallback installs the callback fired when an updateLoginToken
+// arrives during QR login (used by the engine to push an immediate refresh).
+func (t *TelegramCore) SetQRRefreshCallback(cb func()) {
+	t.mu.Lock()
+	t.qrRefreshCb = cb
+	t.mu.Unlock()
+}
+
+// NoTelegramCode resends the login code via the next available method (SMS/call)
+// and flips the flow out of Telegram-app delivery, returning the new code length
+// and call countdown. Mirrors AyuGram CodeWidget::noTelegramCode → ResendCode →
+// codeByTelegram=false + callStatus/callTimeout from the next type.
+func (t *TelegramCore) NoTelegramCode() (codeLength, timeout int, err error) {
+	t.mu.RLock()
+	api := t.preAuthAPI
+	hash := t.authPhoneHash
+	phone := t.phone
+	t.mu.RUnlock()
+	if api == nil || hash == "" {
+		return 0, 0, fmt.Errorf("no auth flow in progress")
+	}
+	res, err := api.AuthResendCode(t.ctx, &tg.AuthResendCodeRequest{
+		PhoneNumber:   phone,
+		PhoneCodeHash: hash,
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	sc, ok := res.(*tg.AuthSentCode)
+	if !ok {
+		return 0, 0, fmt.Errorf("unexpected resend result: %T", res)
+	}
+	length := 5
+	if l, ok := sc.Type.(interface{ GetLength() int }); ok {
+		length = l.GetLength()
+	}
+	timeout = sc.Timeout
+	if timeout <= 0 {
+		timeout = 60
+	}
+	t.mu.Lock()
+	t.authPhoneHash = sc.PhoneCodeHash
+	t.authCodeByTelegram = false
+	t.authCodeFragmentURL = ""
+	t.authCodeTimeout = timeout
+	t.authCodeLength = length
+	t.mu.Unlock()
+	return length, timeout, nil
+}
+
+// SendVerifyEmailCodeDuringAuth sends a verification code to the given email as
+// part of the login-email setup flow, returning the masked pattern and code
+// length. Mirrors AyuGram EmailWidget → MTPaccount_SendVerifyEmailCode with
+// emailVerifyPurposeLoginSetup(phone, phoneHash).
+func (t *TelegramCore) SendVerifyEmailCodeDuringAuth(email string) (pattern string, length int, err error) {
+	t.mu.RLock()
+	api := t.preAuthAPI
+	hash := t.authPhoneHash
+	phone := t.phone
+	t.mu.RUnlock()
+	if api == nil {
+		return "", 0, fmt.Errorf("no auth flow in progress")
+	}
+	res, err := api.AccountSendVerifyEmailCode(t.ctx, &tg.AccountSendVerifyEmailCodeRequest{
+		Purpose: &tg.EmailVerifyPurposeLoginSetup{
+			PhoneNumber:   phone,
+			PhoneCodeHash: hash,
+		},
+		Email: email,
+	})
+	if err != nil {
+		return "", 0, err
+	}
+	return res.EmailPattern, res.Length, nil
+}
+
+// VerifyEmailDuringAuth confirms the email verification code and returns the
+// freshly-sent phone code's length (the server sends a phone code once the email
+// is verified). Mirrors AyuGram CodeWidget::isEmailVerification → VerifyEmail →
+// emailVerifiedLogin{sent_code}. Returns phoneLength=0 when the response carries
+// a final authorization (login already complete).
+func (t *TelegramCore) VerifyEmailDuringAuth(code string) (phoneLength int, byTelegram bool, timeout int, err error) {
+	t.mu.RLock()
+	api := t.preAuthAPI
+	phone := t.phone
+	hash := t.authPhoneHash
+	t.mu.RUnlock()
+	if api == nil {
+		return 0, false, 0, fmt.Errorf("no auth flow in progress")
+	}
+	res, err := api.AccountVerifyEmail(t.ctx, &tg.AccountVerifyEmailRequest{
+		Purpose: &tg.EmailVerifyPurposeLoginSetup{
+			PhoneNumber:   phone,
+			PhoneCodeHash: hash,
+		},
+		Verification: &tg.EmailVerificationCode{Code: code},
+	})
+	if err != nil {
+		return 0, false, 0, err
+	}
+	verified, ok := res.(*tg.AccountEmailVerifiedLogin)
+	if !ok {
+		// account.emailVerified (non-login) — unexpected here; treat as done.
+		return 0, false, 0, fmt.Errorf("unexpected email verify response: %T", res)
+	}
+	sc, ok := verified.SentCode.(*tg.AuthSentCode)
+	if !ok {
+		return 0, false, 0, fmt.Errorf("unexpected sent code after email verify: %T", verified.SentCode)
+	}
+	length := 5
+	if l, ok := sc.Type.(interface{ GetLength() int }); ok {
+		length = l.GetLength()
+	}
+	if _, isApp := sc.Type.(*tg.AuthSentCodeTypeApp); isApp {
+		byTelegram = true
+	}
+	timeout = sc.Timeout
+	t.mu.Lock()
+	t.emailNewHash = sc.PhoneCodeHash
+	t.authPhoneHash = sc.PhoneCodeHash
+	t.authCodeByTelegram = byTelegram
+	t.authCodeLength = length
+	t.authCodeTimeout = timeout
+	t.mu.Unlock()
+	return length, byTelegram, timeout, nil
+}
+
+// SubmitPhoneCodeAfterEmail completes login for the email-setup detour by signing
+// in with the phone code delivered after email verification. The normal gotd
+// flow is parked in Code(), so this drives auth.SignIn directly on preAuthAPI and
+// finalizes the session. Returns "2fa_required"/"signup_required" like SubmitOTP.
+func (t *TelegramCore) SubmitPhoneCodeAfterEmail(code string) error {
+	t.mu.RLock()
+	api := t.preAuthAPI
+	phone := t.phone
+	hash := t.emailNewHash
+	t.mu.RUnlock()
+	if api == nil || hash == "" {
+		return fmt.Errorf("no email auth flow in progress")
+	}
+	res, err := api.AuthSignIn(t.ctx, &tg.AuthSignInRequest{
+		PhoneNumber:   phone,
+		PhoneCodeHash: hash,
+		PhoneCode:     code,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "SESSION_PASSWORD_NEEDED") {
+			return fmt.Errorf("2fa_required")
+		}
+		return fmt.Errorf("%w: %s", ErrAuth, err)
+	}
+	switch a := res.(type) {
+	case *tg.AuthAuthorization:
+		t.finishEmailAuth(a)
+		return nil
+	case *tg.AuthAuthorizationSignUpRequired:
+		return fmt.Errorf("signup_required")
+	default:
+		return fmt.Errorf("%w: unexpected sign-in response %T", ErrAuth, res)
+	}
+}
+
+// finishEmailAuth promotes the parked email-setup connection to an authenticated
+// session: it caches self info, publishes the API, and unblocks Authenticate.
+func (t *TelegramCore) finishEmailAuth(a *tg.AuthAuthorization) {
+	t.mu.Lock()
+	t.api = t.preAuthAPI
+	t.authed = true
+	t.emailSetupMode = false
+	done := t.authDoneCh
+	t.mu.Unlock()
+	if u, ok := a.User.(*tg.User); ok {
+		name := strings.TrimSpace(u.FirstName + " " + u.LastName)
+		if name == "" {
+			name = u.Username
+		}
+		t.mu.Lock()
+		t.selfID = u.ID
+		t.selfName = name
+		t.mu.Unlock()
+		t.peerMu.Lock()
+		t.userAccessHash[u.ID] = u.AccessHash
+		if name != "" {
+			t.userNames[u.ID] = name
+		}
+		t.peerMu.Unlock()
+	}
+	if done != nil {
+		select {
+		case <-done:
+		default:
+			close(done)
+		}
+	}
+}
+
+// Submit2FAAfterEmail completes a 2FA-protected login for the email-setup detour
+// by running the SRP check directly on preAuthAPI (the gotd flow is parked in
+// Code() so its Password() callback is unreachable). Mirrors the SRP path used
+// in Authenticate for the normal flow.
+func (t *TelegramCore) Submit2FAAfterEmail(password string) error {
+	t.mu.RLock()
+	api := t.preAuthAPI
+	t.mu.RUnlock()
+	if api == nil {
+		return fmt.Errorf("no email auth flow in progress")
+	}
+	pwd, err := api.AccountGetPassword(t.ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %s", ErrAuth, err)
+	}
+	hash, err := auth.PasswordHash(
+		[]byte(password),
+		pwd.SRPID, pwd.SRPB, pwd.SecureRandom, pwd.CurrentAlgo,
+	)
+	if err != nil {
+		return fmt.Errorf("%w: %s", ErrAuth, err)
+	}
+	res, err := api.AuthCheckPassword(t.ctx, hash)
+	if err != nil {
+		return fmt.Errorf("%w: %s", ErrAuth, err)
+	}
+	a, ok := res.(*tg.AuthAuthorization)
+	if !ok {
+		return fmt.Errorf("%w: unexpected check-password response %T", ErrAuth, res)
+	}
+	t.finishEmailAuth(a)
+	return nil
 }
 
 // RequestRecoveryDuringAuth requests password recovery email during 2FA auth step.
@@ -12689,35 +12977,70 @@ func (t *TelegramCore) exportQRLoginToken() (string, int, error) {
 		return url, expiry, nil
 
 	case *tg.AuthLoginTokenSuccess:
-		authResult, ok := v.Authorization.(*tg.AuthAuthorization)
-		if !ok {
-			return "", 0, fmt.Errorf("unexpected auth type: %T", v.Authorization)
+		if err := t.acceptQRAuthorization(v.Authorization); err != nil {
+			return "", 0, err
 		}
-		u, ok := authResult.User.(*tg.User)
-		if !ok {
-			return "", 0, fmt.Errorf("unexpected user type: %T", authResult.User)
-		}
-		t.mu.Lock()
-		t.authed = true
-		t.selfID = u.ID
-		t.selfName = strings.TrimSpace(u.FirstName + " " + u.LastName)
-		if t.selfName == "" {
-			t.selfName = u.Username
-		}
-		t.mu.Unlock()
-		t.peerMu.Lock()
-		t.userAccessHash[u.ID] = u.AccessHash
-		if t.selfName != "" {
-			t.userNames[u.ID] = t.selfName
-		}
-		t.peerMu.Unlock()
 		return "", 0, nil // empty URL = accepted
 
 	case *tg.AuthLoginTokenMigrateTo:
-		return "", 0, fmt.Errorf("DC migration required (DC %d)", v.DCID)
+		// The login token belongs to another DC. Switch the client's main DC and
+		// import the token there to finish the login — AyuGram QrWidget::importTo
+		// (setMainDcId + MTPauth_ImportLoginToken). gotd's Client.MigrateTo moves
+		// the active connection; AuthImportLoginToken then resolves to success.
+		if err := t.client.MigrateTo(t.ctx, v.DCID); err != nil {
+			return "", 0, fmt.Errorf("qr migrate to DC %d: %w", v.DCID, err)
+		}
+		imported, err := t.api.AuthImportLoginToken(t.ctx, v.Token)
+		if err != nil {
+			return "", 0, fmt.Errorf("qr import login token: %w", err)
+		}
+		switch res := imported.(type) {
+		case *tg.AuthLoginTokenSuccess:
+			if err := t.acceptQRAuthorization(res.Authorization); err != nil {
+				return "", 0, err
+			}
+			return "", 0, nil // empty URL = accepted
+		case *tg.AuthLoginToken:
+			// Server handed back a fresh token on the new DC; show it and keep polling.
+			url := "tg://login?token=" + base64.RawURLEncoding.EncodeToString(res.Token)
+			expiry := int(res.Expires) - int(time.Now().Unix())
+			if expiry < 0 {
+				expiry = 30
+			}
+			return url, expiry, nil
+		default:
+			return "", 0, fmt.Errorf("unexpected import token type: %T", imported)
+		}
 	}
 
 	return "", 0, fmt.Errorf("unexpected token type: %T", result)
+}
+
+// acceptQRAuthorization caches self-user info from a successful QR login token.
+func (t *TelegramCore) acceptQRAuthorization(auth tg.AuthAuthorizationClass) error {
+	authResult, ok := auth.(*tg.AuthAuthorization)
+	if !ok {
+		return fmt.Errorf("unexpected auth type: %T", auth)
+	}
+	u, ok := authResult.User.(*tg.User)
+	if !ok {
+		return fmt.Errorf("unexpected user type: %T", authResult.User)
+	}
+	t.mu.Lock()
+	t.authed = true
+	t.selfID = u.ID
+	t.selfName = strings.TrimSpace(u.FirstName + " " + u.LastName)
+	if t.selfName == "" {
+		t.selfName = u.Username
+	}
+	t.mu.Unlock()
+	t.peerMu.Lock()
+	t.userAccessHash[u.ID] = u.AccessHash
+	if t.selfName != "" {
+		t.userNames[u.ID] = t.selfName
+	}
+	t.peerMu.Unlock()
+	return nil
 }
 
 // --- Auth flow ---
@@ -12766,6 +13089,38 @@ func (f *telegramAuthFlow) Code(ctx context.Context, sentCode *tg.AuthSentCode) 
 	if sentCode != nil && f.core != nil {
 		f.core.mu.Lock()
 		f.core.authPhoneHash = sentCode.PhoneCodeHash
+		f.core.authCodeTimeout = sentCode.Timeout
+		f.core.authCodeByTelegram = false
+		f.core.authCodeFragmentURL = ""
+		// Classify the delivery type (AyuGram CodeWidget::updateDescText).
+		switch ct := sentCode.Type.(type) {
+		case *tg.AuthSentCodeTypeApp:
+			f.core.authCodeByTelegram = true
+			f.core.authCodeLength = ct.Length
+		case *tg.AuthSentCodeTypeFragmentSMS:
+			f.core.authCodeFragmentURL = ct.URL
+			if ct.Length > 0 {
+				f.core.authCodeLength = ct.Length
+			}
+		case *tg.AuthSentCodeTypeSetUpEmailRequired:
+			// The account must set up a login email before the phone code can be
+			// sent (EmailStatus::SetupRequired). Signal the engine and PARK here:
+			// returning would tear down client.Run and the connection. Staying
+			// blocked keeps preAuthAPI alive so the engine can drive the
+			// email→verify→sign-in detour on it. Mirrors intro_email.cpp.
+			emailReady := f.core.authEmailReady
+			f.core.emailSetupMode = true
+			f.core.mu.Unlock()
+			if emailReady != nil {
+				close(emailReady)
+			}
+			<-ctx.Done()
+			return "", ctx.Err()
+		default:
+			if l, ok := sentCode.Type.(interface{ GetLength() int }); ok {
+				f.core.authCodeLength = l.GetLength()
+			}
+		}
 		f.core.mu.Unlock()
 	}
 	if f.code != "" {

@@ -258,6 +258,9 @@ class AuthState extends ChangeNotifier {
         avatarB64: existing?.avatarB64 ?? '',
         recoverable: existing?.recoverable ?? false,
         codeByTelegram: existing?.codeByTelegram ?? false,
+        codeByFragmentUrl: existing?.codeByFragmentUrl ?? '',
+        email: existing?.email ?? '',
+        emailPatternSetup: existing?.emailPatternSetup ?? '',
         tosText: existing?.tosText ?? '',
         options: existing?.options ?? const [],
       );

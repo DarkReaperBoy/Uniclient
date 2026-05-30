@@ -10,6 +10,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
 import '../l10n/strings.dart';
@@ -68,6 +69,7 @@ class _AuthScreenState extends State<AuthScreen>
 
   final _codeController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
   final _codeFocusNode = FocusNode();
   final _phoneFocusNode = FocusNode();
   final _firstNameController = TextEditingController();
@@ -100,6 +102,7 @@ class _AuthScreenState extends State<AuthScreen>
     _recoveryCodeController.dispose();
     _codeController.dispose();
     _phoneController.dispose();
+    _emailController.dispose();
     _codeFocusNode.dispose();
     _phoneFocusNode.dispose();
     _firstNameController.dispose();
@@ -129,10 +132,11 @@ class _AuthScreenState extends State<AuthScreen>
     'choose' => 0,
     'qr' => 1,
     'input' => 2,
-    'otp' => 3,
-    '2fa' => 4,
-    'signup' => 5,
-    'ready' || 'error' => 6,
+    'email' => 3,
+    'otp' => 4,
+    '2fa' => 5,
+    'signup' => 6,
+    'ready' || 'error' => 7,
     _ => -1,
   };
 
@@ -142,6 +146,19 @@ class _AuthScreenState extends State<AuthScreen>
 
   void _submit(AuthState authState) {
     final data = authState.currentAuth;
+    // Fragment delivery: the primary button opens the Fragment URL where the
+    // code can be read, rather than submitting a typed code (intro_code.cpp:367).
+    if (data?.state == 'otp' && (data?.codeByFragmentUrl.isNotEmpty ?? false)) {
+      _openFragmentUrl(data!.codeByFragmentUrl);
+      return;
+    }
+    if (data?.state == 'email') {
+      final email = _emailController.text.trim();
+      if (email.isEmpty || !email.contains('@')) return;
+      setState(() => _showErrorBorder = false);
+      authState.submitInput(email);
+      return;
+    }
     if (data?.state == 'input' && data?.fieldType == 'phone') {
       final code = _codeController.text.replaceAll(RegExp(r'\D'), '');
       final phone = _phoneController.text.replaceAll(RegExp(r'\D'), '');
@@ -206,47 +223,20 @@ class _AuthScreenState extends State<AuthScreen>
     _inputController.clear();
   }
 
-  void _showDidntGetCodeDialog(AuthState authState) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        final theme = Theme.of(ctx);
-        return AlertDialog(
-          title: const Text("Didn't get the code?"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'If you have Telegram on another device, you should receive the code there.',
-                style: theme.textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'You can also request a code via a phone call.',
-                style: theme.textTheme.bodyMedium,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                authState.cancelAuth();
-              },
-              child: const Text('Edit Phone Number'),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                await authState.submitInput('__resend_code');
-              },
-              child: const Text('Request a Call'),
-            ),
-          ],
-        );
-      },
-    );
+  /// AyuGram CodeWidget::noTelegramCode — resend the code via the next method
+  /// (SMS/call) and switch out of Telegram-app delivery. The engine flips
+  /// codeByTelegram=false and restarts the call countdown (intro_code.cpp:440).
+  void _noTelegramCode(AuthState authState) {
+    setState(() => _showErrorBorder = false);
+    authState.submitInput('__no_telegram_code');
+  }
+
+  Future<void> _openFragmentUrl(String url) async {
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      Debug.error('AUTH', 'Failed to open Fragment URL', e);
+    }
   }
 
   Future<void> _pickSignupAvatar() async {
@@ -275,21 +265,27 @@ class _AuthScreenState extends State<AuthScreen>
   bool _canGoBack(AuthStateData? data) {
     if (data == null) return false;
     return switch (data.state) {
-      'input' || 'otp' || '2fa' || 'qr' => true,
+      'input' || 'otp' || '2fa' || 'qr' || 'email' => true,
       _ => false,
     };
   }
 
   bool _showNext(AuthStateData? data) {
     if (data == null) return false;
+    // Fragment delivery: the code step gets a bottom button that opens the
+    // Fragment URL instead of accepting a typed code (intro_code.cpp:367-373).
+    if (data.state == 'otp' && data.codeByFragmentUrl.isNotEmpty) return true;
     return switch (data.state) {
-      'input' || '2fa' || 'signup' => true,
+      'input' || '2fa' || 'signup' || 'email' => true,
       _ => false,
     };
   }
 
   String _nextButtonText(AuthStateData? data) {
     if (data == null) return 'Next';
+    if (data.state == 'otp' && data.codeByFragmentUrl.isNotEmpty) {
+      return 'Open Fragment'; // lng_intro_fragment_button
+    }
     return switch (data.state) {
       'signup' => TrStrings.lngIntroFinish(),
       _ => 'Next',
@@ -553,6 +549,7 @@ class _AuthScreenState extends State<AuthScreen>
       'otp' => 'Enter Verification Code',
       '2fa' => 'Enter Your Password',
       'qr' => 'Scan QR Code',
+      'email' => 'Choose a login email',
       'signup' => 'Your Name',
       'ready' => 'Authenticated!',
       'error' => 'Authentication Error',
@@ -568,6 +565,9 @@ class _AuthScreenState extends State<AuthScreen>
     }
     if (state == 'signup') {
       return _buildSignUp(data!, authState, theme);
+    }
+    if (state == 'email') {
+      return _buildEmail(data!, authState, theme);
     }
     final hasCover = _hasCover(state);
     return Column(
@@ -934,6 +934,92 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
+  /// Login-email setup step (EmailStatus::SetupRequired). Collects an email
+  /// address; the engine then sends a verification code via
+  /// MTPaccount_SendVerifyEmailCode and advances to the code step.
+  /// Ref: AyuGram intro/intro_email.cpp:30-145.
+  Widget _buildEmail(
+      AuthStateData data, AuthState authState, ThemeData theme) {
+    // Prefill the address once when entering the step (intro_email.cpp:84).
+    if (_emailController.text.isEmpty && data.email.isNotEmpty) {
+      _emailController.text = data.email;
+    }
+    return Column(
+      key: const ValueKey('email'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.alternate_email, size: 48, color: theme.colorScheme.primary),
+        const SizedBox(height: 16),
+        Text(
+          'Choose a login email', // lng_intro_email_setup_title
+          style: theme.textTheme.headlineMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: Text(
+            // lng_settings_cloud_login_email_about
+            'You will receive Telegram login codes via email and not SMS. '
+            'Please enter an email address to which you have access.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodySmall?.color,
+              height: 1.4,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 24),
+        if (authState.error != null) ...[
+          SizedBox(
+            width: double.infinity,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                _mapEmailError(authState.error!),
+                style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        SizedBox(
+          width: double.infinity,
+          child: TextField(
+            controller: _emailController,
+            autofocus: true,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(authState),
+            decoration: const InputDecoration(
+              labelText: 'Enter Login Email', // lng_settings_cloud_login_email_placeholder
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _mapEmailError(String raw) {
+    final upper = raw.toUpperCase();
+    if (upper.contains('EMAIL_NOT_ALLOWED')) {
+      return 'This email address is not allowed.';
+    }
+    if (upper.contains('EMAIL_INVALID')) {
+      return 'Please enter a valid email address.';
+    }
+    if (upper.contains('EMAIL_HASH_EXPIRED')) return 'Email confirmation expired.';
+    if (upper.contains('FLOOD')) {
+      return 'Too many attempts. Please try again later.';
+    }
+    return raw;
+  }
+
   void _handleForgotPassword(AuthStateData data, AuthState authState) async {
     if (data.hasRecovery) {
       await authState.submitInput('__request_recovery');
@@ -1133,16 +1219,27 @@ class _AuthScreenState extends State<AuthScreen>
   Widget _buildInput(AuthStateData data, AuthState authState, ThemeData theme) {
     final isOtp = data.state == 'otp';
     final isPhone = data.state == 'input' && data.fieldType == 'phone';
+    final isFragment = isOtp && data.codeByFragmentUrl.isNotEmpty;
 
     return Column(
       children: [
-        if (data.sentTo.isNotEmpty) ...[
+        if (isFragment) ...[
+          // lng_intro_fragment_about — direct the user to Fragment for the code.
+          Text(
+            'Get the code in the Anonymous Numbers section on Fragment.',
+            style: theme.textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+        ] else if (data.sentTo.isNotEmpty) ...[
           Text('Code sent to ${data.sentTo}',
               style: theme.textTheme.bodySmall),
           const SizedBox(height: 12),
         ],
         if (isOtp)
           _OtpCodeInput(
+            key: ValueKey(
+                'otp_${data.codeByTelegram}_${data.codeByFragmentUrl.isNotEmpty}_${data.emailPatternSetup.isNotEmpty}'),
             digitCount: data.codeLength > 0 ? data.codeLength : 5,
             hasError: _showErrorBorder,
             onComplete: (code) {
@@ -1150,7 +1247,7 @@ class _AuthScreenState extends State<AuthScreen>
               authState.submitInput(code);
             },
             timeoutSecs: data.timeoutSecs,
-            onDidntGetCode: () => _showDidntGetCodeDialog(authState),
+            onDidntGetCode: () => _noTelegramCode(authState),
             onResendCode: () => authState.submitInput('__resend_code'),
             codeByTelegram: data.codeByTelegram,
           )
@@ -1546,6 +1643,7 @@ class _OtpCodeInput extends StatefulWidget {
   final bool codeByTelegram;
 
   const _OtpCodeInput({
+    super.key,
     required this.digitCount,
     required this.hasError,
     required this.onComplete,
@@ -1609,7 +1707,10 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
     for (var i = 0; i < widget.digitCount; i++) {
       _digitAnimControllers[i].value = 0.0;
     }
-    if (widget.timeoutSecs > 0) {
+    // AyuGram updateDescText: while the code is delivered via the Telegram app
+    // the call countdown is cancelled (only the "no telegram code" link shows);
+    // the countdown begins once delivery switches to SMS/call.
+    if (widget.timeoutSecs > 0 && !widget.codeByTelegram) {
       _callSecondsLeft = widget.timeoutSecs;
       _startCallTimer();
     }
@@ -2021,7 +2122,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
             ),
           ),
         ),
-        if (widget.timeoutSecs > 0) ...[
+        if (widget.timeoutSecs > 0 && !widget.codeByTelegram) ...[
           const SizedBox(height: 16),
           _calling
               ? TextButton(

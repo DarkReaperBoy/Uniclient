@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"uniclient/cores"
@@ -16,6 +17,7 @@ const (
 	AuthState2FA     = "2fa"
 	AuthStateQR      = "qr"
 	AuthStateSignUp  = "signup"
+	AuthStateEmail   = "email"
 	AuthStateReady   = "ready"
 	AuthStateError   = "error"
 )
@@ -44,6 +46,9 @@ type AuthState struct {
 	Message        string       `json:"message,omitempty"`         // error state
 	Recoverable    bool         `json:"recoverable,omitempty"`     // error state
 	CodeByTelegram bool         `json:"code_by_telegram,omitempty"` // otp state: code sent via Telegram app
+	CodeByFragmentUrl string    `json:"code_by_fragment_url,omitempty"` // otp state: open this URL instead of typing a code
+	Email             string    `json:"email,omitempty"`                // email state: prefilled address
+	EmailPatternSetup string    `json:"email_pattern_setup,omitempty"`  // otp state: masked email the verify code went to
 }
 
 type AuthOption struct {
@@ -132,6 +137,15 @@ func (e *Engine) SubmitAuthInput(accountID, input string) (*AuthState, error) {
 
 	flow.state = next
 
+	// Entering QR: install the push-refresh callback so an updateLoginToken
+	// (phone scanned the code) re-exports the token immediately rather than
+	// waiting for the expiry poll. Mirrors AyuGram QrWidget::checkForTokenUpdate.
+	if next.State == AuthStateQR {
+		if tc, ok := flow.core.(*cores.TelegramCore); ok {
+			tc.SetQRRefreshCallback(func() { go e.onQRTokenUpdate(accountID) })
+		}
+	}
+
 	// If ready, finalize.
 	if next.State == AuthStateReady {
 		e.finalizeAuth(accountID, acc, flow)
@@ -139,6 +153,53 @@ func (e *Engine) SubmitAuthInput(accountID, input string) (*AuthState, error) {
 
 	e.emitEvent(EventAuthState, accountID, next)
 	return next, nil
+}
+
+// onQRTokenUpdate re-exports the QR login token after an updateLoginToken push
+// and emits the resulting state to the UI. On acceptance the session is
+// finalized. Mirrors AyuGram QrWidget::checkForTokenUpdate → refreshCode().
+// Runs in its own goroutine (off the MTProto update path) to avoid blocking.
+func (e *Engine) onQRTokenUpdate(accountID string) {
+	authFlowsMu.Lock()
+	flow, ok := authFlows[accountID]
+	authFlowsMu.Unlock()
+	if !ok {
+		return
+	}
+
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+
+	if flow.state == nil || flow.state.State != AuthStateQR {
+		return
+	}
+	tc, ok := flow.core.(*cores.TelegramCore)
+	if !ok {
+		return
+	}
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return
+	}
+
+	url, expires, accepted, err := tc.RefreshQRToken()
+	if err != nil {
+		return
+	}
+
+	base := &AuthState{AccountID: accountID, Platform: acc.Platform}
+	if accepted {
+		telegramReadyState(flow, base)
+		flow.state = base
+		e.finalizeAuth(accountID, acc, flow)
+		e.emitEvent(EventAuthState, accountID, base)
+		return
+	}
+	base.State = AuthStateQR
+	base.QRData = []byte(url)
+	base.QRExpiresIn = expires
+	flow.state = base
+	e.emitEvent(EventAuthState, accountID, base)
 }
 
 // CancelAuth cancels an in-progress auth flow.
@@ -401,49 +462,102 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			}
 			return base, nil
 		}
+		tc, ok := flow.core.(*cores.TelegramCore)
+		if !ok {
+			return nil, fmt.Errorf("expected TelegramCore for phone auth")
+		}
+		if err.Error() == "email_setup_required" {
+			// The account must set up a login email before a phone code is sent
+			// (intro_email.cpp / EmailStatus::SetupRequired).
+			base.State = AuthStateEmail
+			base.FieldType = "email"
+			base.Label = "Add Email"
+			base.Hint = "Enter an email address to secure your account"
+			return base, nil
+		}
 		if err.Error() != "otp_required" {
 			return nil, err
 		}
-		base.State = AuthStateOTP
-		base.CodeLength = 5
-		base.SentTo = "Telegram app"
-		base.TimeoutSecs = 60
-		base.CodeByTelegram = true
-		return base, nil
+		return telegramOTPState(tc, base), nil
 	case AuthStateOTP:
-		if input == "__resend_code" {
-			tc, ok := flow.core.(*cores.TelegramCore)
-			if !ok {
-				return nil, fmt.Errorf("expected TelegramCore for OTP resend")
+		tc, ok := flow.core.(*cores.TelegramCore)
+		if !ok {
+			return nil, fmt.Errorf("expected TelegramCore for OTP")
+		}
+		if input == "__no_telegram_code" {
+			// AyuGram CodeWidget::noTelegramCode — resend via the next method and
+			// switch out of Telegram-app delivery into the call-countdown mode.
+			length, timeout, err := tc.NoTelegramCode()
+			if err != nil {
+				return nil, fmt.Errorf("no-telegram-code resend: %w", err)
 			}
+			base.State = AuthStateOTP
+			base.CodeLength = length
+			base.SentTo = "SMS"
+			base.TimeoutSecs = timeout
+			base.CodeByTelegram = false
+			base.CanResend = true
+			return base, nil
+		}
+		if input == "__resend_code" {
 			if err := tc.ResendOTPCode(); err != nil {
 				return nil, fmt.Errorf("resend code: %w", err)
 			}
+			byTg, fragURL, timeout, length := tc.AuthCodeInfo()
+			if length <= 0 {
+				length = 5
+			}
 			base.State = AuthStateOTP
-			base.CodeLength = 5
+			base.CodeLength = length
 			base.SentTo = "Telegram"
-			base.TimeoutSecs = 60
+			base.TimeoutSecs = timeout
+			base.CodeByTelegram = byTg
+			base.CodeByFragmentUrl = fragURL
 			base.CanResend = true
 			return base, nil
+		}
+		// Email-setup detour: the first code entered here verifies the email; the
+		// server then sends a phone code which we sign in with manually.
+		if flow.collected["email_mode"] == "verify" {
+			phoneLen, byTg, timeout, err := tc.VerifyEmailDuringAuth(input)
+			if err != nil {
+				return nil, err
+			}
+			flow.collected["email_mode"] = "phone"
+			base.State = AuthStateOTP
+			if phoneLen <= 0 {
+				phoneLen = 5
+			}
+			base.CodeLength = phoneLen
+			base.SentTo = "Telegram"
+			base.TimeoutSecs = timeout
+			base.CodeByTelegram = byTg
+			return base, nil
+		}
+		if flow.collected["email_mode"] == "phone" {
+			err := tc.SubmitPhoneCodeAfterEmail(input)
+			if err == nil {
+				return telegramReadyState(flow, base), nil
+			}
+			if err.Error() == "2fa_required" {
+				base.State = AuthState2FA
+				base.Label = "Two-Factor Password"
+				base.HasRecovery = false
+				return base, nil
+			}
+			if err.Error() == "signup_required" {
+				base.State = AuthStateSignUp
+				base.Label = "Enter your name and add a profile photo"
+				return base, nil
+			}
+			return nil, err
 		}
 		flow.collected["otp"] = input
 		// For Telegram user mode, use the interactive SubmitOTP method.
 		if flow.collected["method"] != "bot_token" {
-			tc, ok := flow.core.(*cores.TelegramCore)
-			if !ok {
-				return nil, fmt.Errorf("expected TelegramCore for OTP submit")
-			}
 			err := tc.SubmitOTP(input)
 			if err == nil {
-				base.State = AuthStateReady
-				if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
-					base.DisplayName = profile.DisplayName
-					if base.DisplayName == "" {
-						base.DisplayName = profile.Username
-					}
-					base.AvatarB64 = profile.AvatarB64
-				}
-				return base, nil
+				return telegramReadyState(flow, base), nil
 			}
 			if err.Error() == "2fa_required" {
 				base.State = AuthState2FA
@@ -502,21 +616,46 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			if !ok {
 				return nil, fmt.Errorf("expected TelegramCore for 2FA submit")
 			}
-			err := tc.Submit2FA(input)
+			// In the email-setup detour the gotd flow is parked, so the SRP check
+			// must run on preAuthAPI directly.
+			var err error
+			if flow.collected["email_mode"] == "phone" {
+				err = tc.Submit2FAAfterEmail(input)
+			} else {
+				err = tc.Submit2FA(input)
+			}
 			if err == nil {
-				base.State = AuthStateReady
-				if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
-					base.DisplayName = profile.DisplayName
-					if base.DisplayName == "" {
-						base.DisplayName = profile.Username
-					}
-					base.AvatarB64 = profile.AvatarB64
-				}
-				return base, nil
+				return telegramReadyState(flow, base), nil
 			}
 			return nil, err
 		}
 		return tryAuth(flow, base)
+	case AuthStateEmail:
+		// Login-email setup (intro_email.cpp). Collect the address, send the
+		// verification code, then move to the OTP step in email-verify mode.
+		tc, ok := flow.core.(*cores.TelegramCore)
+		if !ok {
+			return nil, fmt.Errorf("expected TelegramCore for email setup")
+		}
+		email := strings.TrimSpace(input)
+		if email == "" {
+			return nil, fmt.Errorf("EMAIL_INVALID")
+		}
+		pattern, length, err := tc.SendVerifyEmailCodeDuringAuth(email)
+		if err != nil {
+			return nil, err
+		}
+		flow.collected["email"] = email
+		flow.collected["email_mode"] = "verify"
+		if length <= 0 {
+			length = 6
+		}
+		base.State = AuthStateOTP
+		base.CodeLength = length
+		base.SentTo = pattern
+		base.Email = email
+		base.EmailPatternSetup = pattern
+		return base, nil
 	case AuthStateSignUp:
 		// Input format: "firstName\nlastName"
 		tc, ok := flow.core.(*cores.TelegramCore)
@@ -543,6 +682,45 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 		return nil, err
 	}
 	return nil, fmt.Errorf("unexpected state %s for telegram", flow.state.State)
+}
+
+// telegramReadyState marks the flow authenticated and fills the display profile.
+func telegramReadyState(flow *authFlow, base *AuthState) *AuthState {
+	base.State = AuthStateReady
+	if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
+		base.DisplayName = profile.DisplayName
+		if base.DisplayName == "" {
+			base.DisplayName = profile.Username
+		}
+		base.AvatarB64 = profile.AvatarB64
+	}
+	return base
+}
+
+// telegramOTPState builds the OTP step from the code-delivery details captured by
+// the core (Telegram-app code, Fragment URL, SMS) — AyuGram updateDescText.
+func telegramOTPState(tc *cores.TelegramCore, base *AuthState) *AuthState {
+	byTg, fragURL, timeout, length := tc.AuthCodeInfo()
+	if length <= 0 {
+		length = 5
+	}
+	if timeout <= 0 {
+		timeout = 60
+	}
+	base.State = AuthStateOTP
+	base.CodeLength = length
+	base.TimeoutSecs = timeout
+	base.CodeByTelegram = byTg
+	base.CodeByFragmentUrl = fragURL
+	switch {
+	case fragURL != "":
+		base.SentTo = "Fragment"
+	case byTg:
+		base.SentTo = "Telegram app"
+	default:
+		base.SentTo = "SMS"
+	}
+	return base
 }
 
 func splitSignUpInput(input string) [2]string {
