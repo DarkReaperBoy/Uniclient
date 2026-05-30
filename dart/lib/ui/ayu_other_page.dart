@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +15,7 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'ayu_section_builder.dart';
+import 'telegram_toast.dart';
 
 class AyuOtherPage extends StatelessWidget {
   const AyuOtherPage({super.key});
@@ -469,23 +472,46 @@ class _DonateInfoBox extends StatefulWidget {
   static String _donateAmountTon = '3.50';
   static String _donateAmountRub = '386';
   static String _donateUsername = 'ayugramOwner';
-  static bool _rcFetched = false;
-  static bool _rcFetching = false;
 
-  static Future<void> _fetchRcConfig() async {
-    if (_rcFetched || _rcFetching) return;
-    _rcFetching = true;
+  // RC-config endpoints — primary AyuGram CDN, then the exteraGram fallback
+  // (mirrors RCManager kPrimaryUrl / kExteraUrl, rc_manager.cpp:15-16).
+  static const String _rcPrimaryUrl =
+      'https://update.ayugram.one/rc/current/desktop2';
+  static const String _rcFallbackUrl =
+      'https://api.exteragram.app/api/v1/profiles/compact';
+
+  static Timer? _rcRefreshTimer;
+  static Future<void>? _rcInFlight;
+
+  /// Mirrors AyuGram `RCManager::start()` (`ayu/utils/rc_manager.cpp:33-42`):
+  /// fetch the RC config immediately, then refresh it every hour via a
+  /// repeating timer (`_timer->start(60 * 60 * 1000)`). Previously the config
+  /// was fetched once and then stayed stale for the entire session, so donate
+  /// amounts/username never updated. Safe to call repeatedly — the timer is
+  /// created only once.
+  static void _startRcManager() {
+    _makeRcRequest();
+    _rcRefreshTimer ??= Timer.periodic(
+      const Duration(hours: 1),
+      (_) => _makeRcRequest(),
+    );
+  }
+
+  /// One RC round-trip, deduplicated so concurrent callers share the in-flight
+  /// request (analogue of C++ `clearSentRequest()` keeping a single live reply).
+  static Future<void> _makeRcRequest() {
+    return _rcInFlight ??= _sendRcRequest();
+  }
+
+  static Future<void> _sendRcRequest() async {
     try {
-      final data = await _tryFetchRcFrom(
-              'https://update.ayugram.one/rc/current/desktop2') ??
-          await _tryFetchRcFrom(
-              'https://api.exteragram.app/api/v1/profiles/compact');
+      final data = await _tryFetchRcFrom(_rcPrimaryUrl) ??
+          await _tryFetchRcFrom(_rcFallbackUrl);
       if (data != null) {
         _applyRcData(data);
-        _rcFetched = true;
       }
     } catch (_) {} finally {
-      _rcFetching = false;
+      _rcInFlight = null;
     }
   }
 
@@ -534,7 +560,10 @@ class _DonateInfoBoxState extends State<_DonateInfoBox> {
   @override
   void initState() {
     super.initState();
-    _DonateInfoBox._fetchRcConfig().then((_) {
+    // Kick off the immediate fetch + hourly refresh, and rebuild once the
+    // current request lands so the freshest donate amounts/username show.
+    _DonateInfoBox._startRcManager();
+    _DonateInfoBox._makeRcRequest().then((_) {
       if (mounted) setState(() {});
     });
     _usernameRecognizer = TapGestureRecognizer()
@@ -587,91 +616,109 @@ class _DonateInfoBoxState extends State<_DonateInfoBox> {
     return Dialog(
       backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SvgPicture.asset(
-              'assets/icons/ayu/donates/support_logo.svg',
-              width: 96,
-              height: 96,
-            ),
-            const SizedBox(height: 16),
-            Text('Support AyuGram Desktop',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: textColor)),
-            const SizedBox(height: 12),
-            Text.rich(
-              TextSpan(
-                style: TextStyle(fontSize: 13, color: subtextColor),
-                children: [
-                  const TextSpan(
-                      text: 'Support AyuGram development by donating. '
-                          'Minimum amounts: \$'),
-                  TextSpan(text: '${_DonateInfoBox._donateAmountUsd}, '),
-                  WidgetSpan(
-                    alignment: PlaceholderAlignment.middle,
-                    child: SvgPicture.asset(
-                      'assets/icons/ayu/donates/ton.svg',
-                      width: 14,
-                      height: 14,
-                    ),
-                  ),
-                  const TextSpan(text: ' '),
-                  TextSpan(text: '${_DonateInfoBox._donateAmountTon} TON, '),
-                  TextSpan(text: '${_DonateInfoBox._donateAmountRub}₽.'),
-                ],
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            _DonateInfoRow(
-              icon: Icons.monetization_on,
-              title: 'Make a donation',
-              description: 'Use the crypto buttons or visit Boosty.',
-              textColor: textColor,
-              subtextColor: subtextColor,
-            ),
-            const SizedBox(height: 12),
-            _DonateInfoRow(
-              icon: Icons.photo_camera,
-              title: 'Send proof',
-              descriptionSpan: TextSpan(
-                children: [
-                  const TextSpan(text: 'Forward your payment confirmation to '),
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SvgPicture.asset(
+                  'assets/icons/ayu/donates/support_logo.svg',
+                  width: 96,
+                  height: 96,
+                ),
+                const SizedBox(height: 16),
+                Text('Support AyuGram Desktop',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: textColor)),
+                const SizedBox(height: 12),
+                Text.rich(
                   TextSpan(
-                    text: '@${_DonateInfoBox._donateUsername}',
-                    style: TextStyle(color: accentColor),
-                    recognizer: _usernameRecognizer,
+                    style: TextStyle(fontSize: 13, color: subtextColor),
+                    children: [
+                      const TextSpan(
+                          text: 'Support AyuGram development by donating. '
+                              'Minimum amounts: \$'),
+                      TextSpan(text: '${_DonateInfoBox._donateAmountUsd}, '),
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: SvgPicture.asset(
+                          'assets/icons/ayu/donates/ton.svg',
+                          width: 14,
+                          height: 14,
+                        ),
+                      ),
+                      const TextSpan(text: ' '),
+                      TextSpan(
+                          text: '${_DonateInfoBox._donateAmountTon} TON, '),
+                      TextSpan(text: '${_DonateInfoBox._donateAmountRub}₽.'),
+                    ],
                   ),
-                  const TextSpan(text: ' on Telegram.'),
-                ],
-              ),
-              textColor: textColor,
-              subtextColor: subtextColor,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                _DonateInfoRow(
+                  icon: Icons.monetization_on,
+                  title: 'Make a donation',
+                  description: 'Use the crypto buttons or visit Boosty.',
+                  textColor: textColor,
+                  subtextColor: subtextColor,
+                ),
+                const SizedBox(height: 12),
+                _DonateInfoRow(
+                  icon: Icons.photo_camera,
+                  title: 'Send proof',
+                  descriptionSpan: TextSpan(
+                    children: [
+                      const TextSpan(
+                          text: 'Forward your payment confirmation to '),
+                      TextSpan(
+                        text: '@${_DonateInfoBox._donateUsername}',
+                        style: TextStyle(color: accentColor),
+                        recognizer: _usernameRecognizer,
+                      ),
+                      const TextSpan(text: ' on Telegram.'),
+                    ],
+                  ),
+                  textColor: textColor,
+                  subtextColor: subtextColor,
+                ),
+                const SizedBox(height: 12),
+                _DonateInfoRow(
+                  icon: Icons.verified,
+                  title: 'Receive your badge',
+                  description:
+                      'After verification, you will receive a supporter badge.',
+                  textColor: textColor,
+                  subtextColor: subtextColor,
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child:
+                        Text('Close', style: TextStyle(color: accentColor)),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            _DonateInfoRow(
-              icon: Icons.verified,
-              title: 'Receive your badge',
-              description:
-                  'After verification, you will receive a supporter badge.',
-              textColor: textColor,
-              subtextColor: subtextColor,
+          ),
+          // Top-right close button — mirrors AyuGram
+          // `box->addTopButton(st::boxTitleClose, ...)`
+          // (donate_info_box.cpp:137), in addition to the bottom Close button.
+          Positioned(
+            top: 8,
+            right: 8,
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              child: Icon(Icons.close, size: 20, color: subtextColor),
             ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text('Close', style: TextStyle(color: accentColor)),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -748,119 +795,131 @@ class _DonateQrBox extends StatelessWidget {
         isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     final buttonColor =
         isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+
+    void copyAddress() {
+      Clipboard.setData(ClipboardData(text: address));
+      // Single copy path — matches AyuGram's lone copy button showing
+      // `Ui::Toast::Show(tr::lng_text_copied)` (donate_qr_box.cpp:148-151).
+      showTelegramToast(context, 'Text copied to clipboard');
+    }
+
     return Dialog(
       backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const SizedBox(width: 32),
-                Text('QR code',
-                    style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: textColor)),
-                GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: Icon(Icons.close, size: 20, color: subtextColor),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.all(12),
-              child: Stack(
-                alignment: Alignment.center,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // AyuGram sizes the box to int(aboutWidth * 1.25) = int(390 * 1.25)
+          // = 487 and fills the QR to the box width minus boxRowPadding
+          // (donate_qr_box.cpp:77,94). Cap to the available width so the box
+          // still fits narrow (mobile) screens.
+          const ayuBoxWidth = 487.0;
+          final boxWidth = math.min(ayuBoxWidth, constraints.maxWidth);
+          // QR fills the box minus the dialog padding (24*2) and the white
+          // QR-container padding (12*2), replacing the old fixed 180px.
+          final qrSize =
+              (boxWidth - 48 - 24).clamp(120.0, ayuBoxWidth).toDouble();
+          // Center logo scales with the QR (C++ kCenterRatio = 0.20,
+          // donate_qr_box.cpp:54-65) instead of a fixed 36px square.
+          final centerSize = qrSize * 0.20;
+          return SizedBox(
+            width: boxWidth,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  QrImageView(
-                    data: address,
-                    version: QrVersions.auto,
-                    size: 180,
-                    eyeStyle: const QrEyeStyle(
-                        eyeShape: QrEyeShape.square, color: Colors.black),
-                    dataModuleStyle: const QrDataModuleStyle(
-                        dataModuleShape: QrDataModuleShape.square,
-                        color: Colors.black),
-                  ),
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        svgAsset,
-                        width: 32,
-                        height: 32,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const SizedBox(width: 32),
+                      Text('QR code',
+                          style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              color: textColor)),
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child:
+                            Icon(Icons.close, size: 20, color: subtextColor),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        QrImageView(
+                          data: address,
+                          version: QrVersions.auto,
+                          size: qrSize,
+                          eyeStyle: const QrEyeStyle(
+                              eyeShape: QrEyeShape.square,
+                              color: Colors.black),
+                          dataModuleStyle: const QrDataModuleStyle(
+                              dataModuleShape: QrDataModuleShape.square,
+                              color: Colors.black),
+                        ),
+                        Container(
+                          width: centerSize,
+                          height: centerSize,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: SvgPicture.asset(
+                            svgAsset,
+                            width: centerSize,
+                            height: centerSize,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Address display — a plain label (no tap-to-copy), like
+                  // AyuGram's InviteLinkLabel; the copy button below is the
+                  // only copy path (donate_qr_box.cpp:142-158).
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1B2836)
+                          : const Color(0xFFF0F0F0),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      address,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: subtextColor,
+                        fontFamily: 'monospace',
+                      ),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: copyAddress,
+                      child:
+                          Text('Copy', style: TextStyle(color: buttonColor)),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: address));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Address copied')),
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF1B2836)
-                      : const Color(0xFFF0F0F0),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        address,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: subtextColor,
-                          fontFamily: 'monospace',
-                        ),
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(Icons.copy, size: 14, color: subtextColor),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: address));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Address copied to clipboard')),
-                  );
-                },
-                child: Text('Copy', style: TextStyle(color: buttonColor)),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
