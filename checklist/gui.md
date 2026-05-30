@@ -111,46 +111,6 @@ Four numeric constants audited against AyuGram Desktop ground truth: 3 deviated 
 
 - ✓ [CLOSED 2026-05-30 — FALSE POSITIVE, left unchanged] [MAJOR] Message-load `limit = _isFirstLoad ? 30 : 50` is CORRECT. `_loadMessages` (`chat_state.dart:2142`) loads the **main chat history** via `getMessages` → mirrors the real Telegram Desktop loader `history/history_widget.cpp:216-217` (`kMessagesPerPageFirst = 30` / `kMessagesPerPage = 50`, used at cpp:4403,4419,4485-4486,4543,4611,4621) — byte-exact. The checklist mis-cited `ayu/ui/message_history/history_inner.cpp:66-68` (`kMessagesFirstPage=20`/`kMessagesPerPage=30`), which is AyuGram's **message edit-history viewer** (namespace `MessageHistory`, paginating one message's edit revisions, `InnerWidget::requestMore` cpp:725) — wrong reference. Changing 30/50 → 20/30 would BREAK desktop parity. Do NOT "fix" this. VERIFIED 1:1 against both AyuGram files.
 
-# wallpaper — Wallpaper rendering & animation
-
-## Summary
-The `wallpaper.dart` file implements chat wallpaper rendering with support for solid colors, gradients, images, and patterns. The implementation includes animated multi-color gradients and pattern overlays. Overall structure is sound, but there are a few issues to verify:
-
-## Findings
-
-- [ ] [MAJOR] Gradient rotation logic may not match AyuGram for complex (3+ color) gradients — `wallpaper.dart:370-389` ← `AyuGram/data/data_wall_paper.cpp:260-263`
-  - AyuGram's `gradientRotation()` explicitly returns 0 for complex gradients with the comment "In case of complex gradients rotation value is dynamic"
-  - The Dart code animates rotation even for 3+ color gradients, but the base `gradientRotation` parameter should be 0 for these
-  - Need to verify: is the animation progress being calculated independently from stored rotation, or does the baseRotation affect 3+ color gradients?
-
-- [ ] [MAJOR] Pattern inversion logic appears correct but relies on luminance calculation — `wallpaper.dart:675-686` ← verify against AyuGram UI utils
-  - The code inverts pattern when background is dark (HSV value <= 0.3)
-  - This matches typical light/dark pattern switching logic, but exact threshold and algorithm should be verified against AyuGram source
-
-- [ ] [MAJOR] Image encoding constants need verification — `wallpaper.dart:727-730`
-  - JPEG quality: 87 (typical)
-  - Thumb size: 320px (reasonable)
-  - Max wallpaper size: 2960px (verify against Telegram limits)
-  - Max aspect ratio: 40:1 (verify against Telegram limits)
-
-- [ ] [MINOR] Average color computation uses sampling strategy (`step = imageBytes.length ~/ 1000`) — `wallpaper.dart:704`
-  - Samples every ~1KB of image data for speed
-  - Acceptable for average color, but verify this doesn't cause significant color drift on small images
-
-- [ ] [MINOR] Animation respects power-saving mode correctly — `wallpaper.dart:329-334, 528-533`
-  - Pauses/resumes animation based on AppState power-saving flag
-  - Looks correct, matches expected behavior
-
-## No Critical Issues Found
-
-- No placeholder/stub callbacks ✓
-- No hardcoded fake data ✓
-- All UI elements are functional (not cosmetic) ✓
-- Pattern and gradient rendering logic is implemented ✓
-- Animation loop is properly managed ✓
-- Lifecycle (initState/dispose) is correctly handled ✓
-- shouldRepaint logic is appropriate ✓
-
 # active_sessions_screen — Active Sessions Screen Audit
 
 - [ ] [CRITICAL] Double-write of custom device model: `_showRenameDialog` calls both `engine.setCustomDeviceModel()` AND `appState.customDeviceModel = text`, but `AppState.customDeviceModel` setter already calls `_engine.callGeneric(accountId, 'SetDeviceModel', ...)` internally — this fires two separate engine calls for the same rename, with one going to `SetCustomDeviceModel` and the other to the non-existent `SetDeviceModel` handler — `active_sessions_screen.dart:790-791` ← `app_state.dart:2521`
