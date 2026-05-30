@@ -502,9 +502,31 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
-          onTap: () {
-            if (_channelId != null) {
-              context.read<ChatState>().openChatById(_channelId!);
+          onTap: () async {
+            final chatState = context.read<ChatState>();
+            final appState = context.read<AppState>();
+            final engine = context.read<EngineService>();
+            var id = _channelId;
+            if (id == null) {
+              // Resolve on-demand. AyuGram's mouseReleaseEvent calls
+              // showPeerByLink unconditionally (avatar_corners_preview.cpp:93-102),
+              // resolving the username then navigating regardless of any prior
+              // failed/in-flight resolution — so a null channel must not no-op.
+              try {
+                final account = appState.activeAccount;
+                if (account != null) {
+                  id = await engine.resolveUsername(
+                      account.id, 'AyuGramReleases');
+                  if (mounted && id != null) {
+                    setState(() => _channelId = id);
+                  }
+                }
+              } catch (_) {
+                // resolve failed — nothing to open
+              }
+            }
+            if (id != null && mounted) {
+              chatState.openChatById(id);
             }
           },
           child: Container(
@@ -1091,6 +1113,22 @@ class _AppIconPickerState extends State<_AppIconPicker> {
               setState(() => _prevSelected = _selected);
               final newIcon = name == 'default' ? '' : name;
               widget.onChanged(newIcon);
+              // Apply live at the click site — mirrors AyuGram applyIcon()
+              // (icon_picker.cpp:42), which refreshes the window-frame + tray
+              // icon immediately before persisting so the change shows without a
+              // restart. main.dart's appIcon listener also applies it via
+              // setAppIcon→notifyListeners; this co-located call matches AyuGram
+              // and drives the native updateAppIcon handler directly
+              // (linux/my_application.cc:432 → gtk_window_set_icon + tray icon).
+              () async {
+                try {
+                  await const MethodChannel('com.uniclient.app/tray')
+                      .invokeMethod('updateAppIcon',
+                          {'icon': newIcon.isEmpty ? 'default' : newIcon});
+                } catch (_) {
+                  // native tray plugin unavailable (e.g. non-Linux) — ignore
+                }
+              }();
             },
             child: Stack(
               alignment: Alignment.center,

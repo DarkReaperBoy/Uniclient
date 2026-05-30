@@ -471,6 +471,7 @@ class _BubbleRadiusSliderState extends State<_BubbleRadiusSlider> {
     super.didUpdateWidget(old);
     if (old.value != widget.value) {
       _localValue = widget.value;
+      _committedValue = widget.value;
     }
   }
 
@@ -514,10 +515,12 @@ class _BubbleRadiusSliderState extends State<_BubbleRadiusSlider> {
               min: 0,
               max: 16,
               divisions: 16,
+              // Live preview only — never persists per-frame (mirrors
+              // _WideMultiplierSlider). Persisting here would fire
+              // setBubbleRadius → notifyListeners → full page rebuild on
+              // every drag frame. Persist solely in onChangeEnd.
               onChanged: (v) {
-                final newVal = v.round();
-                setState(() => _localValue = newVal);
-                widget.onChanged(newVal);
+                setState(() => _localValue = v.round());
               },
               onChangeEnd: (v) {
                 final newVal = v.round();
@@ -730,9 +733,13 @@ class _MessagePreviewStandalone extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.palette;
     final radiusLarge = bubbleRadius.toDouble();
-    final radiusSmall = showTail
-        ? (radiusLarge * 6 / 16).clamp(0.0, 6.0)
-        : radiusLarge;
+    // Telegram bubble corner math (ui/chat message_bubble): the tail-side corner
+    // uses a fixed small radius (st::bubbleRadiusSmall ≈ 4px), clamped so it
+    // never exceeds the configured large radius; with the tail hidden every
+    // corner uses the large radius. (Was an arbitrary radiusLarge*6/16 factor.)
+    const double bubbleRadiusSmall = 4.0;
+    final radiusSmall =
+        showTail ? bubbleRadiusSmall.clamp(0.0, radiusLarge) : radiusLarge;
     final senderColor = simpleQuotesAndReplies
         ? p.windowBgActive
         : p.historyPeer4NameFg;
@@ -861,8 +868,15 @@ class _MessagePreviewStandalone extends StatelessWidget {
                         shape: BoxShape.circle,
                         color: p.msgServiceBg,
                       ),
-                      child: Icon(Icons.shortcut,
-                          size: 16, color: p.msgServiceFg),
+                      // Fast-share/forward swoosh (st::historyFastShareIcon) —
+                      // a right-pointing curved arrow, i.e. a horizontally
+                      // mirrored reply arrow. Icons.shortcut is an angular
+                      // redirect glyph, not Telegram's curved forward arrow.
+                      child: Transform.flip(
+                        flipX: true,
+                        child: Icon(Icons.reply,
+                            size: 16, color: p.msgServiceFg),
+                      ),
                     ),
                   ],
                 ],
