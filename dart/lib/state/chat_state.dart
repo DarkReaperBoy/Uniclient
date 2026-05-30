@@ -114,8 +114,8 @@ class ChatState extends ChangeNotifier {
   bool _savedSublistsFirstLoad = true;
   SavedSublistInfo? _activeSublist;
   List<SavedSublistInfo> _recentSublists = [];
-  static const _kFirstPerPage = 10;
-  static const _kPerPage = 50;
+  static const _kFirstPerPage = 20; // AyuGram kListFirstPerPage (data_saved_messages.cpp:33)
+  static const _kPerPage = 100; // AyuGram kListPerPage (data_saved_messages.cpp:32)
   static const _kLoadedSublistsMinCount = 20;
   static const _kRecentSublistsMax = 5;
 
@@ -126,7 +126,7 @@ class ChatState extends ChangeNotifier {
 
   // §24.5: Recently opened chats for Ctrl+Tab switcher overlay.
   final List<String> _chatOpenHistory = []; // chatId list, most-recent first
-  static const _maxChatOpenHistory = 30;
+  static const _maxChatOpenHistory = 50; // AyuGram kMaxChatEntryHistorySize (window_session_controller.cpp:138)
 
   // ── Business bot bar state (§30.11) ──
   ConnectedBotInfo? _connectedBot;
@@ -1305,7 +1305,7 @@ class ChatState extends ChangeNotifier {
         _pinnedSublists = pinned;
       } catch (_) {}
 
-      // First batch: kFirstPerPage=10 non-pinned sublists
+      // First batch: kListFirstPerPage=20 non-pinned sublists
       final (sublists, total) = _engine.getSavedSublists(
         accountId,
         limit: _kFirstPerPage,
