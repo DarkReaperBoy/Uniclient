@@ -113,10 +113,6 @@ Four numeric constants audited against AyuGram Desktop ground truth: 3 deviated 
 
 # ayu_filters_page — Audit Findings
 
-## ayu_filters_page — "Clear All" doesn't call FiltersCacheController::rebuildCache + fireUpdate
-
-- [ ] [MAJOR] In AyuGram, clearing all filters calls `AyuDatabase::deleteAllFilters()`, `AyuDatabase::deleteAllExclusions()`, then `FiltersCacheController::rebuildCache()` and `FiltersCacheController::fireUpdate()` — two separate steps: DB mutation then cache invalidation + UI signal. The Dart implementation calls `appState.filterEngine.clearAll()` then `appState.saveFilterEngine()`. The `clearAll()` correctly calls `rebuildCache()` and `notifyListeners()`, but `saveFilterEngine()` only calls `_saveWindowPrefs()`. There is no equivalent of `fireUpdate()` that would trigger message list re-renders for already-displayed messages — the chat list will not re-check filtered messages after a clear. — `ayu_filters_page.dart:247-249` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_filters.cpp:240-247`
-
 ## ayu_filters_page — "Select Chat" type filter is wrong (DMs and channels included, Dart filters them out)
 
 - [ ] [MAJOR] The C++ `fillTopBarMenu` "Select Chat" action opens `ShowChooseRecipientBox` with types `Bot | Group | Broadcast` only — DMs (plain users) are excluded. The Dart `_SelectChatDialog` when `onChatSelected == null` (the per-dialog flow) filters to `ChatType.group || ChatType.channel || ChatType.topic || isBot` — which matches the spec. However, when `onChatSelected != null` (used for the Shadow Ban "Select Chat" dialog at line 802-817), `_filterChats` returns ALL chats without type filtering (line 302: `if (widget.onChatSelected != null) return chats;`). This means the Shadow Ban "Add" dialog can select any chat including channels and topics, but AyuGram's shadow ban only targets users/peers, not broadcast channels. — `ayu_filters_page.dart:301-309` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_filters.cpp:199-215`
