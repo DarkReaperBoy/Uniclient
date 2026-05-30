@@ -528,8 +528,10 @@ class _NavigationButton extends StatelessWidget {
 }
 
 // Telegram's ColorIndexToPaletteIndex map (chat_style.cpp:1205), shared by the
-// userpic rows so fallback avatar colors match AyuGram exactly.
-const _kUserpicColorRemap = <int>[0, 2, 4, 1, 6, 3, 5];
+// userpic rows so fallback avatar colors match AyuGram exactly. EmptyUserpic::
+// UserpicColor(realId % 7) feeds this map (empty_userpic.cpp:293), and the rest of
+// the app's userpic rows use the same table.
+const _kUserpicColorRemap = <int>[0, 7, 4, 1, 6, 3, 5];
 
 /// Per-dialog filter row showing the dialog's userpic — mirrors AyuGram's
 /// PerDialogFiltersListRow (per_dialog_filter.cpp:43-58), which paints the real
@@ -1710,8 +1712,10 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
       }
 
       if (!changes.hasChanges && peersToResolve.isEmpty) {
+        // ayu_FiltersToastFailNoChanges (lang.strings) — shown when the import
+        // produces no filter changes and no peers to resolve (HasChanges false).
         messenger.showSnackBar(
-          const SnackBar(content: Text('No changes')),
+          const SnackBar(content: Text('Filters are the same as current.')),
         );
         return;
       }
@@ -1779,21 +1783,25 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
     final subtitleColor =
         isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
 
-    // Order mirrors AyuGram's ChangeSummaryText (filters_utils.cpp:79-138):
-    // new → removed → updated filters, then new → removed exclusions, then dialogs.
-    final lines = <String>[];
-    if (newFilters > 0) lines.add('$newFilters new filter${newFilters != 1 ? "s" : ""}');
-    if (removedFilters > 0) lines.add('$removedFilters removed filter${removedFilters != 1 ? "s" : ""}');
-    if (updatedFilters > 0) lines.add('$updatedFilters updated filter${updatedFilters != 1 ? "s" : ""}');
-    if (newExclusions > 0) lines.add('$newExclusions new exclusion${newExclusions != 1 ? "s" : ""}');
-    if (removedExclusions > 0) lines.add('$removedExclusions removed exclusion${removedExclusions != 1 ? "s" : ""}');
-    if (dialogsToResolve > 0) lines.add('$dialogsToResolve dialog${dialogsToResolve != 1 ? "s" : ""} to be resolved');
+    // Order + wording mirror AyuGram's ChangeSummaryText (filters_utils.cpp:79-138)
+    // and the ayu_FiltersSheet* lang strings ("**{count}** new filters", etc.): a
+    // bold count followed by the noun phrase, ordered new → removed → updated
+    // filters, then new → removed exclusions, then dialogs to resolve.
+    String plural(int n, String one, String other) => n == 1 ? one : other;
+    final lines = <(int, String)>[];
+    if (newFilters > 0) lines.add((newFilters, plural(newFilters, ' new filter', ' new filters')));
+    if (removedFilters > 0) lines.add((removedFilters, plural(removedFilters, ' removed filter', ' removed filters')));
+    if (updatedFilters > 0) lines.add((updatedFilters, plural(updatedFilters, ' updated filter', ' updated filters')));
+    if (newExclusions > 0) lines.add((newExclusions, plural(newExclusions, ' new exclusion', ' new exclusions')));
+    if (removedExclusions > 0) lines.add((removedExclusions, plural(removedExclusions, ' removed exclusion', ' removed exclusions')));
+    if (dialogsToResolve > 0) lines.add((dialogsToResolve, plural(dialogsToResolve, ' dialog to resolve', ' dialogs to resolve')));
 
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1B2836) : Colors.white,
-        title: Text('Import filters',
+        // ayu_FiltersSheetTitle (lang.strings) — the C++ confirm box title.
+        title: Text('Apply filter changes?',
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1802,14 +1810,25 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
             Text('The following changes will be applied:',
                 style: TextStyle(fontSize: 14, color: subtitleColor)),
             const SizedBox(height: 12),
-            for (final line in lines)
+            for (final (count, suffix) in lines)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Row(
                   children: [
                     Text('•  ', style: TextStyle(fontSize: 14, color: textColor)),
-                    Expanded(child: Text(line,
-                        style: TextStyle(fontSize: 14, color: textColor))),
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          style: TextStyle(fontSize: 14, color: textColor),
+                          children: [
+                            TextSpan(
+                                text: '$count',
+                                style: const TextStyle(fontWeight: FontWeight.w600)),
+                            TextSpan(text: suffix),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
