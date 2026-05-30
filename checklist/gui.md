@@ -113,10 +113,6 @@ Four numeric constants audited against AyuGram Desktop ground truth: 3 deviated 
 
 # ayu_filters_page — Audit Findings
 
-## ayu_filters_page — Filter edit uses Dart RegExp (RE2) instead of ICU regex engine
-
-- [ ] [CRITICAL] Regex validation uses Dart's `RegExp` (RE2 engine) which differs fundamentally from AyuGram's ICU `icu::RegexPattern`. The Dart code warns "Not supported in Go RE2 engine: lookahead, lookbehind, and backreferences are unavailable" but AyuGram Desktop uses ICU which DOES support all of these. The warning is architecturally backward — a filter valid in AyuGram Desktop (ICU) may be rejected by the Dart validator as "unsupported", and vice versa a pattern that passes Dart validation may fail at the engine. The error message on line 1242 referencing "Go RE2 engine" is incorrect since AyuGram uses ICU. — `ayu_filters_page.dart:1231-1251` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/filters/edit_filter.cpp:57-99`
-
 ## ayu_filters_page — "Clear All" doesn't call FiltersCacheController::rebuildCache + fireUpdate
 
 - [ ] [MAJOR] In AyuGram, clearing all filters calls `AyuDatabase::deleteAllFilters()`, `AyuDatabase::deleteAllExclusions()`, then `FiltersCacheController::rebuildCache()` and `FiltersCacheController::fireUpdate()` — two separate steps: DB mutation then cache invalidation + UI signal. The Dart implementation calls `appState.filterEngine.clearAll()` then `appState.saveFilterEngine()`. The `clearAll()` correctly calls `rebuildCache()` and `notifyListeners()`, but `saveFilterEngine()` only calls `_saveWindowPrefs()`. There is no equivalent of `fireUpdate()` that would trigger message list re-renders for already-displayed messages — the chat list will not re-check filtered messages after a clear. — `ayu_filters_page.dart:247-249` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_filters.cpp:240-247`
