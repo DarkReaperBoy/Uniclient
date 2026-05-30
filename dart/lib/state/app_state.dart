@@ -2029,8 +2029,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
   bool isBlocked(int id) => _blockedIds.contains(id);
 
+  // The Dart [AyuFilterEngine] is the authoritative filter store — there is no
+  // separate Go filter engine; regex matching runs in-process via Dart's RegExp
+  // (filterEngine.isFiltered) and is persisted inside the window prefs JSON
+  // (toJson()/loadFromJson). After a filter mutation this both persists the change
+  // and broadcasts AppState — the equivalent of AyuGram's FiltersCacheController::
+  // fireUpdate() — so settings screens (context.select/watch) and the chat list
+  // re-render against the new filter state.
   void saveFilterEngine() {
     _saveWindowPrefs();
+    notifyListeners();
   }
 
   // §54.9: Message field button toggle setters.

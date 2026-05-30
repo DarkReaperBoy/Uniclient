@@ -89,9 +89,10 @@ class AyuFiltersPage extends StatelessWidget {
           status.write('$exclCount excluded');
         }
         final dialogName = _resolveDialogName(chatState, dId);
-        b.addWidget(_NavigationButton(
-          label: dialogName,
-          subtitle: status.toString(),
+        b.addWidget(_PerDialogFilterRow(
+          dialogId: dId,
+          name: dialogName,
+          status: status.toString(),
           isDark: isDark,
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => ChangeNotifierProvider.value(
@@ -299,7 +300,12 @@ class _SelectChatDialogState extends State<_SelectChatDialog> {
   }
 
   List<ChatInfo> _filterChats(List<ChatInfo> chats) {
-    if (widget.onChatSelected != null) return chats;
+    if (widget.onChatSelected != null) {
+      // Shadow Ban "Select Chat" targets a message sender — AyuGram restricts the
+      // chooser to Bot | User only (info_wrap_widget.cpp:473-476), excluding
+      // groups, channels and topics.
+      return chats.where((c) => c.type == ChatType.dm || c.isBot).toList();
+    }
     return chats.where((c) =>
       c.type == ChatType.group ||
       c.type == ChatType.channel ||
@@ -486,13 +492,11 @@ class _SelectChatDialogState extends State<_SelectChatDialog> {
 
 class _NavigationButton extends StatelessWidget {
   final String label;
-  final String? subtitle;
   final bool isDark;
   final VoidCallback onTap;
 
   const _NavigationButton({
     required this.label,
-    this.subtitle,
     required this.isDark,
     required this.onTap,
   });
@@ -506,25 +510,10 @@ class _NavigationButton extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                      style: TextStyle(
-                          fontSize: 14,
-                          color: isDark ? Colors.white : Colors.black87)),
-                  if (subtitle != null && subtitle!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(subtitle!,
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? const Color(0xFF6D7F8F)
-                                  : const Color(0xFF999999))),
-                    ),
-                ],
-              ),
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : Colors.black87)),
             ),
             Icon(Icons.chevron_right,
                 size: 20,
@@ -533,6 +522,129 @@ class _NavigationButton extends StatelessWidget {
                     : const Color(0xFF999999)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// Telegram's ColorIndexToPaletteIndex map (chat_style.cpp:1205), shared by the
+// userpic rows so fallback avatar colors match AyuGram exactly.
+const _kUserpicColorRemap = <int>[0, 2, 4, 1, 6, 3, 5];
+
+/// Per-dialog filter row showing the dialog's userpic — mirrors AyuGram's
+/// PerDialogFiltersListRow (per_dialog_filter.cpp:43-58), which paints the real
+/// peer avatar when the dialog is known and a colored "U" circle otherwise.
+class _PerDialogFilterRow extends StatefulWidget {
+  final String dialogId;
+  final String name;
+  final String status;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _PerDialogFilterRow({
+    required this.dialogId,
+    required this.name,
+    required this.status,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_PerDialogFilterRow> createState() => _PerDialogFilterRowState();
+}
+
+class _PerDialogFilterRowState extends State<_PerDialogFilterRow> {
+  String? _avatarPath;
+  bool _avatarExists = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveAvatar();
+  }
+
+  void _resolveAvatar() {
+    final chatState = context.read<ChatState>();
+    for (final chat in chatState.chats) {
+      if (chat.chatId == widget.dialogId && chat.avatarPath.isNotEmpty) {
+        _updateAvatarExists(chat.avatarPath);
+        return;
+      }
+    }
+  }
+
+  Future<void> _updateAvatarExists(String path) async {
+    final exists = await File(path).exists();
+    if (mounted) {
+      setState(() {
+        _avatarPath = path;
+        _avatarExists = exists;
+      });
+    }
+  }
+
+  int get _colorIndex {
+    final raw = widget.dialogId
+        .replaceFirst(RegExp(r'^-100'), '')
+        .replaceFirst('-', '');
+    final id = int.tryParse(raw) ?? 0;
+    return _kUserpicColorRemap[id.abs() % 7];
+  }
+
+  String get _letter =>
+      widget.name.isNotEmpty ? widget.name[0].toUpperCase() : 'U';
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: widget.onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+        child: Row(children: [
+          CircleAvatar(
+            radius: 23,
+            backgroundColor: context.palette.peerUserpicBg(_colorIndex),
+            backgroundImage:
+                _avatarExists ? FileImage(File(_avatarPath!)) : null,
+            child: _avatarExists
+                ? null
+                : Text(_letter,
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: widget.isDark ? Colors.white : Colors.black87)),
+                if (widget.status.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(widget.status,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: widget.isDark
+                                ? const Color(0xFF6D7F8F)
+                                : const Color(0xFF999999))),
+                  ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right,
+              size: 20,
+              color: widget.isDark
+                  ? const Color(0xFF6D7F8F)
+                  : const Color(0xFF999999)),
+        ]),
       ),
     );
   }
@@ -1231,18 +1343,20 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
   static final _icuOnlyPatterns = RegExp(
     r'\\[pP]\{|\\[pP][A-Z]|\\[QEGKk]|\[\[:');
 
-  static final _re2Unsupported = RegExp(
-    r'\(\?[=!]|\(\?<[=!]|\(\?P<|\\[1-9]');
-
   String? _validateRegex(String pattern) {
     if (pattern.isEmpty) return null;
     try {
-      RegExp(pattern, caseSensitive: !_caseInsensitive);
-      if (_re2Unsupported.hasMatch(pattern)) {
-        return 'Not supported in Go RE2 engine: lookahead, lookbehind, and backreferences are unavailable';
-      }
+      // The running filter engine is Dart's RegExp (ayu_filter.dart
+      // _CompiledPattern, multiLine: true) — NOT Go's RE2. Like AyuGram Desktop's
+      // ICU engine it supports lookahead, lookbehind and backreferences, so — just
+      // like AyuGram's validateRegex (edit_filter.cpp:57-99, which only compiles the
+      // pattern with icu::RegexPattern) — the sole hard failure is one that does not
+      // compile. Compile with the same flags the engine uses so validation matches
+      // runtime behaviour exactly.
+      RegExp(pattern, multiLine: true, caseSensitive: !_caseInsensitive);
       if (_icuOnlyPatterns.hasMatch(pattern)) {
-        _warning = 'Uses ICU-specific syntax — may behave differently in AyuGram Desktop';
+        _warning =
+            'Uses Unicode-property/POSIX syntax — may behave differently than in AyuGram Desktop';
       }
       return null;
     } on FormatException catch (e) {
@@ -1665,10 +1779,12 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
     final subtitleColor =
         isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
 
+    // Order mirrors AyuGram's ChangeSummaryText (filters_utils.cpp:79-138):
+    // new → removed → updated filters, then new → removed exclusions, then dialogs.
     final lines = <String>[];
     if (newFilters > 0) lines.add('$newFilters new filter${newFilters != 1 ? "s" : ""}');
-    if (updatedFilters > 0) lines.add('$updatedFilters updated filter${updatedFilters != 1 ? "s" : ""}');
     if (removedFilters > 0) lines.add('$removedFilters removed filter${removedFilters != 1 ? "s" : ""}');
+    if (updatedFilters > 0) lines.add('$updatedFilters updated filter${updatedFilters != 1 ? "s" : ""}');
     if (newExclusions > 0) lines.add('$newExclusions new exclusion${newExclusions != 1 ? "s" : ""}');
     if (removedExclusions > 0) lines.add('$removedExclusions removed exclusion${removedExclusions != 1 ? "s" : ""}');
     if (dialogsToResolve > 0) lines.add('$dialogsToResolve dialog${dialogsToResolve != 1 ? "s" : ""} to be resolved');

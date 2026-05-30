@@ -433,9 +433,20 @@ class _ChatViewState extends State<ChatView>
   final _highlightMsgKey = GlobalKey();
   final _highlightQueue = <String>[];
 
+  // Regex/shadow-ban filter store. The message list reads it via context.read in
+  // _filterMessages, so subscribe here to re-filter the open chat when filters
+  // change elsewhere (e.g. Settings → Filters) — AyuGram's fireUpdate() equivalent.
+  Listenable? _filterEngineListenable;
+
+  void _onFilterEngineChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
+    _filterEngineListenable = context.read<AppState>().filterEngine
+      ..addListener(_onFilterEngineChanged);
     _loadHiddenPins();
     _selectionAnimCtrl = AnimationController(
       duration: const Duration(milliseconds: 200),
@@ -549,6 +560,7 @@ class _ChatViewState extends State<ChatView>
       _savedScrollOffsets[_lastChatId!] = _scrollController.offset;
     }
     _searchController.removeListener(_onSearchQueryChanged);
+    _filterEngineListenable?.removeListener(_onFilterEngineChanged);
     final cs = context.read<ChatState>();
     if (cs.onNewActiveMessage == _handleNewActiveMessage) {
       cs.onNewActiveMessage = null;

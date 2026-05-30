@@ -330,7 +330,11 @@ class AyuFilterEngine extends ChangeNotifier {
       _exclusionsByDialog[dialogId] ?? const {};
 
   bool hasFilters() => _filters.isNotEmpty;
-  bool hasPerDialogFilters() => _filters.any((f) => !f.isShared);
+  // AyuGram's PerDialogFiltersListController::prepare() lists a dialog if it has
+  // per-dialog filters OR exclusions (per_dialog_filter.cpp:86-102), so a dialog
+  // with only exclusions still surfaces a Per-Dialog section.
+  bool hasPerDialogFilters() =>
+      _filters.any((f) => !f.isShared) || _exclusions.isNotEmpty;
 
   Set<String> dialogIdsWithFilters() {
     final ids = <String>{};
@@ -338,6 +342,9 @@ class AyuFilterEngine extends ChangeNotifier {
       if (f.dialogId != null && f.dialogId!.isNotEmpty) {
         ids.add(f.dialogId!);
       }
+    }
+    for (final e in _exclusions) {
+      if (e.dialogId.isNotEmpty) ids.add(e.dialogId);
     }
     return ids;
   }
@@ -470,6 +477,12 @@ class AyuFilterEngine extends ChangeNotifier {
     try {
       client.connectionTimeout = const Duration(seconds: 10);
       final request = await client.postUrl(Uri.parse('https://dpaste.com/api/v2/'));
+      // dpaste returns the snippet URL in the Location header (HTTP 201/302).
+      // Dart's HttpClient follows redirects by default, which consumes the 302 and
+      // drops the Location header — disable it so we can read the URL, matching
+      // AyuGram's QNetworkReply (no auto-redirect) in FilterUtils::publishFilters
+      // (filters_utils.cpp:344-391, success = NoError && location.isValid()).
+      request.followRedirects = false;
       final boundary = '----DartFormBoundary${DateTime.now().millisecondsSinceEpoch}';
       request.headers.set('Content-Type', 'multipart/form-data; boundary=$boundary');
       final body = StringBuffer();
@@ -486,10 +499,9 @@ class AyuFilterEngine extends ChangeNotifier {
       final response = await request.close();
       await response.drain<void>();
       String pasteUrl = '';
-      if (response.statusCode == 201 &&
-          response.headers['location'] != null &&
-          response.headers['location']!.isNotEmpty) {
-        pasteUrl = response.headers['location']!.first;
+      final location = response.headers['location'];
+      if (location != null && location.isNotEmpty) {
+        pasteUrl = location.first;
       }
       if (!pasteUrl.startsWith('http')) return (url: null, error: 'Failed to publish filters');
       if (!pasteUrl.endsWith('.txt')) pasteUrl = '$pasteUrl.txt';
