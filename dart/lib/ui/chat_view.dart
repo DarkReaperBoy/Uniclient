@@ -10293,6 +10293,7 @@ class _VoiceListenBar extends StatefulWidget {
   final String filePath;
   final Duration duration;
   final bool isVideoRound;
+  final List<double> waveform;
   final VoidCallback onSend;
   final VoidCallback onDelete;
 
@@ -10300,6 +10301,7 @@ class _VoiceListenBar extends StatefulWidget {
     required this.filePath,
     required this.duration,
     required this.isVideoRound,
+    required this.waveform,
     required this.onSend,
     required this.onDelete,
   });
@@ -10314,24 +10316,12 @@ class _VoiceListenBarState extends State<_VoiceListenBar> {
   Duration _position = Duration.zero;
   Duration _totalDuration = Duration.zero;
   final List<StreamSubscription> _subs = [];
-  late final List<double> _waveformBars;
 
   @override
   void initState() {
     super.initState();
     _totalDuration = widget.duration;
-    _waveformBars = _generateWaveform(widget.filePath);
     _initPlayer();
-  }
-
-  List<double> _generateWaveform(String path) {
-    final hash = path.hashCode;
-    const count = 48;
-    final bars = List<double>.generate(count, (i) {
-      final seed = (hash * 31 + i * 17) & 0x7FFFFFFF;
-      return 0.15 + (seed % 1000) / 1000.0 * 0.85;
-    });
-    return bars;
   }
 
   Future<void> _initPlayer() async {
@@ -10468,7 +10458,7 @@ class _VoiceListenBarState extends State<_VoiceListenBar> {
                 height: 28,
                 child: CustomPaint(
                   painter: _WaveformPainter(
-                    bars: _waveformBars,
+                    bars: widget.waveform,
                     progress: progress,
                     activeColor: accentColor,
                     inactiveColor: accentColor.withValues(alpha: inactiveAlpha),
@@ -14146,11 +14136,14 @@ class _ComposeAreaState extends State<_ComposeArea>
   Duration _recordingDuration = Duration.zero;
   bool _isRecordingLocked = false;
   AudioRecorder? _audioRecorder;
+  StreamSubscription<Amplitude>? _amplitudeSub;
+  final List<double> _recordedAmplitudes = <double>[];
   String? _recordingFilePath;
   bool _isListenPreview = false;
   String? _previewFilePath;
   Duration _previewDuration = Duration.zero;
   bool _previewIsVideoRound = false;
+  List<double> _previewWaveform = const <double>[];
   double _lockDragStartY = 0;
   double _lockDragStartX = 0;
   int _trackingPointerId = -1;
@@ -14238,6 +14231,8 @@ class _ComposeAreaState extends State<_ComposeArea>
     }
     widget.controller.removeListener(_onTextLengthChanged);
     widget.controller.removeListener(_scheduleUpdateFades);
+    _amplitudeSub?.cancel();
+    _amplitudeSub = null;
     _audioRecorder?.stop().catchError((_) {}).whenComplete(() => _audioRecorder?.dispose());
     _audioRecorder = null;
     ChatView.startRecordVoiceRequest = null;
@@ -14271,11 +14266,29 @@ class _ComposeAreaState extends State<_ComposeArea>
     _lockShowController.forward(from: 0.0);
     GestureBinding.instance.pointerRouter.addGlobalRoute(_onGlobalPointerEvent);
     _audioRecorder?.dispose();
+    _amplitudeSub?.cancel();
+    _recordedAmplitudes.clear();
     _audioRecorder = AudioRecorder();
-    _audioRecorder!.start(
+    final recorder = _audioRecorder!;
+    recorder.start(
       const RecordConfig(encoder: AudioEncoder.opus, numChannels: 1, sampleRate: 48000),
       path: filePath,
     ).catchError((_) {});
+    // Capture real mic amplitude (dBFS) live so the listen-preview shows the
+    // actual recorded waveform instead of a placeholder — matching Telegram,
+    // which builds the voice waveform from the real signal. record_linux pipes
+    // raw PCM through amplitude monitoring, so this yields true levels on Linux.
+    try {
+      _amplitudeSub = recorder
+          .onAmplitudeChanged(const Duration(milliseconds: 60))
+          .listen(
+        (amp) {
+          if (!mounted || _audioRecorder != recorder) return;
+          _recordedAmplitudes.add(amp.current);
+        },
+        onError: (_) {},
+      );
+    } catch (_) {}
     _recordingTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (_recordingStart != null) {
         setState(() {
@@ -14318,10 +14331,13 @@ class _ComposeAreaState extends State<_ComposeArea>
     final wasLocked = _isRecordingLocked;
     _recordingTimer?.cancel();
     _recordingTimer = null;
+    _amplitudeSub?.cancel();
+    _amplitudeSub = null;
     _lockShowController.reverse();
     final wasVideoRound = _isVideoRound;
     final duration = _recordingDuration;
     final filePath = _recordingFilePath;
+    final waveform = _buildWaveformFromAmplitudes();
     final recorder = _audioRecorder;
     _audioRecorder = null;
     _recordingFilePath = null;
@@ -14351,6 +14367,7 @@ class _ComposeAreaState extends State<_ComposeArea>
           _previewFilePath = sendPath;
           _previewDuration = duration;
           _previewIsVideoRound = wasVideoRound;
+          _previewWaveform = waveform;
         });
       }).catchError((_) {
         recorder.dispose();
@@ -14409,9 +14426,42 @@ class _ComposeAreaState extends State<_ComposeArea>
     if (path != null) File(path).delete().catchError((_) {});
   }
 
+  /// Convert captured dBFS amplitude samples into normalized 0..1 bar heights
+  /// for the listen-preview waveform. Mirrors Telegram, which builds the voice
+  /// waveform from the real recorded signal (never a placeholder).
+  List<double> _buildWaveformFromAmplitudes() {
+    if (_recordedAmplitudes.isEmpty) return const <double>[];
+    const floorDb = -50.0;
+    var maxLevel = 0.0;
+    final levels = <double>[];
+    for (final db in _recordedAmplitudes) {
+      double level;
+      if (db <= floorDb) {
+        level = 0.0;
+      } else if (db >= 0.0) {
+        level = 1.0;
+      } else {
+        level = (db - floorDb) / (0.0 - floorDb);
+      }
+      levels.add(level);
+      if (level > maxLevel) maxLevel = level;
+    }
+    // Normalize to the loudest moment so the waveform fills the bar height,
+    // matching Telegram's peak scaling while preserving the real shape.
+    if (maxLevel > 0.05) {
+      for (var i = 0; i < levels.length; i++) {
+        levels[i] = (levels[i] / maxLevel).clamp(0.0, 1.0);
+      }
+    }
+    return levels;
+  }
+
   void _cancelRecording() {
     _recordingTimer?.cancel();
     _recordingTimer = null;
+    _amplitudeSub?.cancel();
+    _amplitudeSub = null;
+    _recordedAmplitudes.clear();
     if (_trackingPointerId >= 0) {
       GestureBinding.instance.pointerRouter.removeGlobalRoute(_onGlobalPointerEvent);
       _trackingPointerId = -1;
@@ -15426,6 +15476,7 @@ class _ComposeAreaState extends State<_ComposeArea>
           filePath: _previewFilePath!,
           duration: _previewDuration,
           isVideoRound: _previewIsVideoRound,
+          waveform: _previewWaveform,
           onSend: _sendPreviewRecording,
           onDelete: _discardPreviewRecording,
         ),
