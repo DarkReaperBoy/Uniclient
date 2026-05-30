@@ -704,11 +704,13 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   // §14.7.4: Run in Background / Close to Taskbar / Quit radios. Linux/BSD only.
-  // Only shown when tray icon is supported and enabled (matching AyuGram's TrayIconSupported guard).
+  // AyuGram (settings_advanced.cpp:357-362) shows this section only when the tray
+  // icon is DISABLED (workMode == WindowOnly) — when there is no tray to minimize
+  // to, the user must choose what closing the window does.
   List<Widget> _buildWindowCloseBehavior(bool isDark) {
     if (!Platform.isLinux) return const [];
     final appState = context.read<AppState>();
-    if (!appState.showTrayIcon) return const [];
+    if (appState.showTrayIcon) return const [];
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor =
@@ -716,14 +718,19 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
-    const labels = ['Quit', 'Close to the taskbar', 'Run in background'];
+    // Display order matches AyuGram (settings_advanced.cpp:391-399): Run in
+    // background first, Close to taskbar, Quit last. Each radio keeps its
+    // persisted CloseBehavior value (Quit=0, CloseToTaskbar=1, RunInBackground=2,
+    // core_settings.h:117-121).
+    const labels = ['Run in background', 'Close to the taskbar', 'Quit'];
+    const values = [2, 1, 0];
     return [
       _SubsectionTitle(title: 'When Closing Window', color: accentColor),
       for (var i = 0; i < labels.length; i++)
         _AdvancedRadioRow(
           label: labels[i],
-          selected: appState.windowCloseBehavior == i,
-          onTap: () => appState.setWindowCloseBehavior(i),
+          selected: appState.windowCloseBehavior == values[i],
+          onTap: () => appState.setWindowCloseBehavior(values[i]),
           textColor: textColor,
           accentColor: accentColor,
           hoverBg: hoverBg,
@@ -899,10 +906,9 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
       _AdvancedToggleRow(
         label: 'Enable hardware acceleration for video',
         value: appState.hardwareAccelVideo,
-        onChanged: (v) {
-          appState.setHardwareAccelVideo(v);
-          _showRestartDialog(context, isDark);
-        },
+        // AyuGram (settings_advanced.cpp:855-864) just saves the setting for this
+        // toggle — no restart prompt (unlike the OpenGL/ANGLE backend below).
+        onChanged: (v) => appState.setHardwareAccelVideo(v),
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -1206,7 +1212,12 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
 
   List<Widget> _buildScreenReader(bool isDark) {
     final appState = context.read<AppState>();
-    if (!_screenReaderDetected) return const [];
+    // AyuGram (settings_advanced.cpp:1185-1188) builds this section only when a
+    // screen reader is detected AND screen reader mode is already disabled — it is
+    // the "undo" control for the disable action taken from the main-window bar.
+    if (!_screenReaderDetected || !appState.screenReaderModeDisabled) {
+      return const [];
+    }
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor = context.palette.windowBgActive;
@@ -1215,12 +1226,17 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
 
     return [
       _SubsectionTitle(title: 'Screen Reader', color: accentColor),
+      // AyuGram (settings_advanced.cpp:1199-1217): the toggle is "Disable screen
+      // reader mode", bound to ScreenReaderModeDisabled — ON = mode disabled.
       _AdvancedToggleRow(
-        label: 'Screen reader optimization',
-        value: appState.screenReaderOptimized,
+        label: 'Disable screen reader mode',
+        value: appState.screenReaderModeDisabled,
         onChanged: (v) {
-          appState.setScreenReaderOptimized(v);
-          SemanticsService.announce('Screen reader optimization ${v ? "enabled" : "disabled"}', TextDirection.ltr);
+          appState.setScreenReaderModeDisabled(v);
+          SemanticsService.announce(
+            'Screen reader mode ${v ? "disabled" : "enabled"}',
+            TextDirection.ltr,
+          );
         },
         textColor: textColor,
         accentColor: accentColor,

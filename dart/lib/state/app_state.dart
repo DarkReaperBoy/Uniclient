@@ -348,7 +348,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _spellcheckerEnabled = true;
   bool _spellcheckerAutoDownload = true;
   Set<String> _enabledDictionaries = {};
-  bool _screenReaderOptimized = false;
+  bool _screenReaderModeDisabled = false;
   bool _autoUpdateEnabled = true;
   bool _installBetaVersions = false;
   int _downloadPathMode = 0; // 0=default, 1=temp, 2=custom
@@ -696,7 +696,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get spellcheckerEnabled => _spellcheckerEnabled;
   bool get spellcheckerAutoDownload => _spellcheckerAutoDownload;
   Set<String> get enabledDictionaries => Set.unmodifiable(_enabledDictionaries);
-  bool get screenReaderOptimized => _screenReaderOptimized;
+  bool get screenReaderModeDisabled => _screenReaderModeDisabled;
   bool get autoUpdateEnabled => _autoUpdateEnabled;
   bool get installBetaVersions => _installBetaVersions;
   int get downloadPathMode => _downloadPathMode;
@@ -2392,10 +2392,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
-  void setScreenReaderOptimized(bool v) {
-    if (_screenReaderOptimized == v) return;
-    _screenReaderOptimized = v;
-    if (v) {
+  // Mirrors AyuGram Ui::SetScreenReaderModeDisabled (lib_ui/ui/screen_reader_mode.cpp):
+  // when the mode is NOT disabled, screen-reader optimizations are active
+  // (ScreenReaderModeActive = !disabled && detected), so make sure the semantics
+  // tree is built to serve a connected reader.
+  void setScreenReaderModeDisabled(bool v) {
+    if (_screenReaderModeDisabled == v) return;
+    _screenReaderModeDisabled = v;
+    if (!v) {
       WidgetsBinding.instance.ensureSemantics();
     }
     notifyListeners();
@@ -3575,7 +3579,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _spellcheckerAutoDownload = data['spellcheckerAutoDownload'] as bool? ?? true;
       final dicts = data['enabledDictionaries'] as List<dynamic>?;
       if (dicts != null) _enabledDictionaries = dicts.cast<String>().toSet();
-      _screenReaderOptimized = data['screenReaderOptimized'] as bool? ?? false;
+      _screenReaderModeDisabled = data['screenReaderModeDisabled'] as bool? ?? false;
       _autoUpdateEnabled = data['autoUpdateEnabled'] as bool? ?? true;
       _installBetaVersions = data['installBetaVersions'] as bool? ?? false;
       _downloadPathMode = data['downloadPathMode'] as int? ?? 0;
@@ -3891,7 +3895,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'spellcheckerEnabled': _spellcheckerEnabled,
         'spellcheckerAutoDownload': _spellcheckerAutoDownload,
         'enabledDictionaries': _enabledDictionaries.toList(),
-        'screenReaderOptimized': _screenReaderOptimized,
+        'screenReaderModeDisabled': _screenReaderModeDisabled,
         'autoUpdateEnabled': _autoUpdateEnabled,
         'installBetaVersions': _installBetaVersions,
         'downloadPathMode': _downloadPathMode,
