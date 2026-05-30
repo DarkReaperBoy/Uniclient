@@ -172,6 +172,28 @@ Four numeric constants audited against AyuGram Desktop ground truth: 3 deviated 
 
 # ayu_section_builder — Audit Findings
 
+**[STAGE-1 2026-05-30 — 19 items addressed: 13 FIXED, 6 NO-CHANGE — pending Stage-2 verify]**
+All edits in `dart/lib/ui/ayu_section_builder.dart`; built debug + launched, Ayu Chats + General pages render subsection/section titles, section-divider bands, collapsible toggles (separator + flush-right master toggle + nested checks), slider, and BETA badge with no crash/overflow (`ayu_section_builder` absent from all error stacks).
+- FIXED — inline `_AyuSettingToggle` BETA badge text `Colors.white` → `context.palette.windowFgActive` (settings.style:148 `settingsPremiumNewBadge.textFg: windowFgActive`).
+- FIXED — `_BetaBadgeOverlay` BETA text `Colors.white` → `windowFgActive` (same ref).
+- NO CHANGE — badge rounding radius: checklist itself confirms "No deviation" (`ayuBetaBadgePadding.left()`=4 = `BorderRadius.circular(4)`).
+- FIXED — `_BetaBadgeOverlay` left offset: added `hasIcon` param; base = `(hasIcon ? 60 : 22) + textWidth + 4` to mirror `st.padding.left()` (22 noIcon / 60 icon) + `settingsPremiumNewBadgePosition.x()`=4 (settings.style:15,26; settings_ayu_utils.cpp:69-72). (`addBetaBadge`/overlay is currently unused — only the inline `showBetaBadge` path is wired — so this hardens latent code.)
+- FIXED — `addSectionDivider`: 1px line → `skip(6)` + 8px `boxDividerBg` full-bleed band + `skip(6)` (ayu_builder.cpp:263-267; boxDividerHeight=8, defaultVerticalListSkip=6).
+- FIXED — `addSubsectionTitle` font 13 → 14px w600 (`defaultSubsectionTitle` = font(boxFontSize=14 semibold), layers.style:148-150).
+- NO CHANGE — `addSubsectionTitle` padding: checklist confirms "No deviation" (already margins(22,7,10,9)).
+- FIXED — `addSectionTitle` (invented): aligned to `defaultSubsectionTitle` style (15px→14px w600, top padding 14→7 = margins(22,7,10,9)). Method kept (it is the primary header on 5 Ayu pages) but now matches AyuGram's single header style.
+- FIXED — `addDescription`: font 12→14, padding symmetric(22,4) → margins(22,8,22,16), color `windowSubTextFg` (defaultBoxDividerLabelPadding, widgets.style:693-699).
+- FIXED — `addDividerText`: now a `boxDividerBg` band with the label on top, font 12→14, padding → margins(22,8,22,16) (vertical_list.cpp:50-67, DividerLabel).
+- FIXED — slider `showTitle`: added `showTitle` (default true) to `addSlider`/`_AyuSlider`; `false` drops the whole label+value row (ayu_builder.cpp:193-207, ayu_builder.h:73).
+- FIXED — collapsible expand arrow: `Icons.expand_more` → `_ExpandArrowPainter` chevron tinted `windowBoldFg` (permissionsExpandIcon = "info/edit/expand_arrow_small", info.style:1314); rotation kept via AnimatedRotation 0.5.
+- FIXED — collapsible expand: added 0→1 opacity `TweenAnimationBuilder` (150ms easeOutCubic) inside `AnimatedSize`, so rows fade in on expand (SlideWrap = height+opacity, settings_ayu_utils.cpp:286-301; slideWrapDuration=150, Dart already 150ms).
+- FIXED — collapsible separator: height 18 → 20 (= 2*border + diameter = 2*2 + 16 for the non-material AyuToggle), color → `windowBgOver` (`st.textBgOver`), settings_ayu_utils.cpp:162-187.
+- FIXED — collapsible master toggle 70px area: `Center` → `Align(centerRight)` so the toggle is flush-right and lines up with normal list toggles (rightsButtonToggleWidth=70, settings_ayu_utils.cpp:175-188, boxes.style:587).
+- NO CHANGE — `_NestedCheckbox` indent: checklist confirms "No deviation" (57px = powerSavingButton.padding.left).
+- NO CHANGE (false-positive) — `_NestedCheckbox` Shift+click: `HardwareKeyboard.instance.isShiftPressed` IS the Flutter analog of Qt `clickModifiers() & ShiftModifier` — reads current physical-key state at tap time, works on desktop. Mobile has no Shift key, so the lock gesture is desktop-only BY NATURE, identical to AyuGram (Qt yields no Shift on touch). Functionally equivalent; no more-robust API exists.
+- NO CHANGE (acceptable approximation) — `_TgCheckboxPainter` geometry: TDesktop's check is drawn by the animated CheckView path system (vsize/xsize/stroke/vshift interpolation, checkbox.cpp:150-229). The Dart static checkmark (0.25,0.5)→(0.42,0.67)→(0.75,0.33) is a visually faithful Telegram-style check; exact sub-pixel anim geometry is not replicable as a static path (cosmetic).
+- NO CHANGE (architectural) — `ayuSettingsScaffold` AppBar title: uniclient is a Flutter Material app using push-navigation + AppBars across ALL settings screens; the 17px w600 title matches the app-wide convention. TDesktop's inline-panel/boxTitle pattern does not apply — converting only this scaffold to a borderless inline panel would break navigation consistency with every other screen.
+
 ## ayu_section_builder — Beta badge text color uses hardcoded white instead of windowFgActive
 
 - [ ] [MAJOR] `_AyuSettingToggle` inline beta badge uses `color: Colors.white` but C++ uses `textFg: windowFgActive` (which is theme-dependent, not always white) — `ayu_section_builder.dart:343` ← `AyuGram/SourceFiles/settings/settings.style:148`

@@ -12,29 +12,30 @@ class AyuSectionBuilder {
 
   AyuSectionBuilder({required this.isDark, this.useMaterial = false});
 
-  Color get _textColor => isDark ? Colors.white : Colors.black87;
-  Color get _subtitleColor =>
-      isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
   Color get _accentColor =>
       isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
-  Color get _dividerColor =>
-      isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
 
   void addSectionTitle(String title) {
-    _children.add(Padding(
-      padding: const EdgeInsets.fromLTRB(22, 14, 10, 9),
-      child: Text(title,
-          style: TextStyle(
-              fontSize: 15, fontWeight: FontWeight.w600, color: _accentColor)),
-    ));
-  }
-
-  void addSubsectionTitle(String title) {
+    // AyuGram has no separate "section title" — every header is a
+    // defaultSubsectionTitle: font(boxFontSize=14 semibold), windowActiveTextFg,
+    // defaultSubsectionTitlePadding = margins(22,7,10,9). Match it 1:1
+    // (settings.style / layers.style:148-155).
     _children.add(Padding(
       padding: const EdgeInsets.fromLTRB(22, 7, 10, 9),
       child: Text(title,
           style: TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w600, color: _accentColor)),
+              fontSize: 14, fontWeight: FontWeight.w600, color: _accentColor)),
+    ));
+  }
+
+  void addSubsectionTitle(String title) {
+    // defaultSubsectionTitle = font(boxFontSize=14 semibold), windowActiveTextFg,
+    // defaultSubsectionTitlePadding = margins(22,7,10,9) (layers.style:148-155).
+    _children.add(Padding(
+      padding: const EdgeInsets.fromLTRB(22, 7, 10, 9),
+      child: Text(title,
+          style: TextStyle(
+              fontSize: 14, fontWeight: FontWeight.w600, color: _accentColor)),
     ));
   }
 
@@ -66,6 +67,7 @@ class AyuSectionBuilder {
     required String Function(int) formatLabel,
     required ValueChanged<int> onChanged,
     ValueChanged<int>? onFinalChanged,
+    bool showTitle = true,
   }) {
     _children.add(_AyuSlider(
       label: label,
@@ -76,6 +78,7 @@ class AyuSectionBuilder {
       onChanged: onChanged,
       onFinalChanged: onFinalChanged,
       isDark: isDark,
+      showTitle: showTitle,
     ));
   }
 
@@ -116,22 +119,30 @@ class AyuSectionBuilder {
     ));
   }
 
-  void addBetaBadge(String text, {required String labelText}) {
+  void addBetaBadge(String text, {required String labelText, bool hasIcon = false}) {
     if (_children.isEmpty) return;
     final lastWidget = _children.removeLast();
     _children.add(_BetaBadgeOverlay(
       badge: text,
       isDark: isDark,
-      child: lastWidget,
       labelText: labelText,
+      hasIcon: hasIcon,
+      child: lastWidget,
     ));
   }
 
   void addSectionDivider() {
+    // AyuGram addSectionDivider() = addSkip + addDivider + addSkip
+    // (ayu_builder.cpp:263-267). addSkip = defaultVerticalListSkip (6px);
+    // addDivider = BoxContentDivider of boxDividerHeight (8px) filled with
+    // boxDividerBg (windowBgOver) — a full-bleed band, not a 1px line.
     _children.add(Column(
       children: [
         const SizedBox(height: 6),
-        Container(height: 1, color: _dividerColor),
+        Builder(
+          builder: (context) => Container(
+              height: 8, width: double.infinity, color: context.palette.boxDividerBg),
+        ),
         const SizedBox(height: 6),
       ],
     ));
@@ -142,24 +153,35 @@ class AyuSectionBuilder {
   }
 
   void addDescription(String text) {
-    _children.add(Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
-      child: Text(text,
-          style: TextStyle(fontSize: 12, color: _subtitleColor)),
+    // Divider-text label metrics (no bar): defaultTextStyle (14px),
+    // windowSubTextFg, defaultBoxDividerLabelPadding = margins(22,8,22,16)
+    // (widgets.style:693-699).
+    _children.add(Builder(
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
+        child: Text(text,
+            style: TextStyle(
+                fontSize: 14, color: context.palette.windowSubTextFg)),
+      ),
     ));
   }
 
   void addDividerText(String text) {
-    _children.add(Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(height: 1, color: _dividerColor),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 7, 22, 0),
+    // AyuGram Ui::AddDividerText -> DividerLabel: the label sits ON a
+    // boxDividerBg band (defaultDividerBar) with defaultTextStyle (14px),
+    // windowSubTextFg, defaultBoxDividerLabelPadding = margins(22,8,22,16)
+    // (vertical_list.cpp:50-67, widgets.style:687-703).
+    _children.add(Builder(
+      builder: (context) {
+        final p = context.palette;
+        return Container(
+          width: double.infinity,
+          color: p.boxDividerBg,
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
           child: Text(text,
-              style: TextStyle(fontSize: 12, color: _subtitleColor)),
-        ),
-      ],
+              style: TextStyle(fontSize: 14, color: p.windowSubTextFg)),
+        );
+      },
     ));
   }
 
@@ -193,12 +215,14 @@ class _BetaBadgeOverlay extends StatefulWidget {
   final bool isDark;
   final Widget child;
   final String? labelText;
+  final bool hasIcon;
 
   const _BetaBadgeOverlay({
     required this.badge,
     required this.isDark,
     required this.child,
     this.labelText,
+    this.hasIcon = false,
   });
 
   @override
@@ -233,10 +257,14 @@ class _BetaBadgeOverlayState extends State<_BetaBadgeOverlay> {
         maxLines: 1,
         textDirection: TextDirection.ltr,
       )..layout();
-      _leftOffset = 22 + _textPainter!.width + 4;
+      // AddBetaBadge positions x = st.padding.left() + parent->fullTextWidth()
+      // + settingsPremiumNewBadgePosition.x() (=4). padding.left() is 22px for
+      // settingsButtonNoIcon, 60px for settingsButton (icon variant)
+      // (settings.style:15,26; settings_ayu_utils.cpp:69-72).
+      _leftOffset = (widget.hasIcon ? 60 : 22) + _textPainter!.width + 4;
     } else {
       _textPainter = null;
-      _leftOffset = 26;
+      _leftOffset = widget.hasIcon ? 60 : 26;
     }
   }
 
@@ -258,19 +286,21 @@ class _BetaBadgeOverlayState extends State<_BetaBadgeOverlay> {
           child: Align(
             alignment: Alignment.centerLeft,
             child: Builder(builder: (context) {
-              final badgeColor = context.palette.windowBgActive;
+              final p = context.palette;
               return Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
-                  color: badgeColor,
+                  color: p.windowBgActive,
                   borderRadius: BorderRadius.circular(4),
                 ),
+                // settingsPremiumNewBadge.textFg = windowFgActive — theme
+                // dependent, not hardcoded white (settings.style:144-149).
                 child: Text(widget.badge,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white)),
+                        color: p.windowFgActive)),
               );
             }),
           ),
@@ -332,19 +362,21 @@ class _AyuSettingToggle extends StatelessWidget {
                       if (showBetaBadge) ...[
                         const SizedBox(width: 4),
                         Builder(builder: (context) {
-                          final badgeColor = context.palette.windowBgActive;
+                          final p = context.palette;
                           return Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 4, vertical: 1),
                             decoration: BoxDecoration(
-                              color: badgeColor,
+                              color: p.windowBgActive,
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: const Text('BETA',
+                            // settingsPremiumNewBadge.textFg = windowFgActive
+                            // (settings.style:148), not hardcoded white.
+                            child: Text('BETA',
                                 style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
-                                    color: Colors.white)),
+                                    color: p.windowFgActive)),
                           );
                         }),
                       ],
@@ -385,6 +417,7 @@ class _AyuSlider extends StatefulWidget {
   final ValueChanged<int> onChanged;
   final ValueChanged<int>? onFinalChanged;
   final bool isDark;
+  final bool showTitle;
 
   const _AyuSlider({
     required this.label,
@@ -395,6 +428,7 @@ class _AyuSlider extends StatefulWidget {
     required this.onChanged,
     this.onFinalChanged,
     required this.isDark,
+    this.showTitle = true,
   });
 
   @override
@@ -425,21 +459,26 @@ class _AyuSliderState extends State<_AyuSlider> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(widget.label,
+          // AyuGram SliderArgs.showTitle=false skips the title button and the
+          // value label width hint (ayu_builder.cpp:193-207); we drop the whole
+          // label+value row.
+          if (widget.showTitle)
+            Row(
+              children: [
+                Expanded(
+                  child: Text(widget.label,
+                      style: TextStyle(
+                          fontSize: 14,
+                          color:
+                              widget.isDark ? Colors.white : Colors.black87)),
+                ),
+                Text(widget.formatLabel(displayValue),
                     style: TextStyle(
                         fontSize: 14,
-                        color: widget.isDark ? Colors.white : Colors.black87)),
-              ),
-              Text(widget.formatLabel(displayValue),
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: context.palette.windowBgActive)),
-            ],
-          ),
+                        fontWeight: FontWeight.w500,
+                        color: context.palette.windowBgActive)),
+              ],
+            ),
           SliderTheme(
             data: SliderThemeData(
               activeTrackColor: accentColor,
@@ -662,11 +701,7 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
       toggleValue = widget.children.any((c) => !c.isLocked && c.value);
     }
 
-    final accentColor = context.palette.windowBgActive;
     final textColor = widget.isDark ? Colors.white : Colors.black87;
-    final dividerColor = widget.isDark
-        ? const Color(0xFF2B3C4C)
-        : const Color(0xFFD5D5D5);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -700,10 +735,13 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                 ),
               ),
               if (hasMaster) ...[
+                // Separator: 1px wide, height = 2*toggle.border + toggle.diameter
+                // (= 2*2 + 16 = 20 for the non-material AyuToggle), filled with
+                // textBgOver (= windowBgOver) (settings_ayu_utils.cpp:162-187).
                 Container(
                   width: 1,
-                  height: 18,
-                  color: dividerColor,
+                  height: 20,
+                  color: context.palette.windowBgOver,
                 ),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
@@ -716,9 +754,13 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                     }
                     widget.onMasterToggle!(v);
                   },
+                  // rightsButtonToggleWidth = 70px; the toggle is aligned flush
+                  // right so it lines up with normal toggles in the list
+                  // (settings_ayu_utils.cpp:175-188, boxes.style:587).
                   child: SizedBox(
                     width: 70,
-                    child: Center(
+                    child: Align(
+                      alignment: Alignment.centerRight,
                       child: IgnorePointer(
                         child: AyuToggle(
                           value: toggleValue,
@@ -738,10 +780,13 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                       turns: _open ? 0.5 : 0.0,
                       duration: const Duration(milliseconds: 200),
                       curve: Curves.easeOutCubic,
-                      child: Icon(
-                        Icons.expand_more,
-                        size: 20,
-                        color: accentColor,
+                      // permissionsExpandIcon = "info/edit/expand_arrow_small"
+                      // tinted windowBoldFg — a Telegram chevron, not a Material
+                      // glyph (info.style:1314).
+                      child: CustomPaint(
+                        size: const Size(20, 20),
+                        painter: _ExpandArrowPainter(
+                            color: context.palette.windowBoldFg),
                       ),
                     ),
                   ),
@@ -749,24 +794,36 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
             ],
           ),
         ),
+        // AyuGram expands via Ui::SlideWrap (height + opacity, easeOutCubic,
+        // slideWrapDuration = 150ms) — settings_ayu_utils.cpp:286-301.
+        // AnimatedSize handles height; a 0->1 opacity tween fades the rows in
+        // on expand (AnimatedSize alone only animates height).
         AnimatedSize(
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
           child: _open
-              ? Column(
-                  children: widget.children
-                      .map((item) => _NestedCheckbox(
-                            label: item.label,
-                            value: item.value,
-                            onChanged: item.onChanged,
-                            isDark: widget.isDark,
-                            isLocked: item.isLocked,
-                            onLockToggle: item.lockSetter,
-                            canLock: !item.isLocked ? canLockMore : true,
-                          ))
-                      .toList(),
+              ? TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 150),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, opacity, child) =>
+                      Opacity(opacity: opacity, child: child),
+                  child: Column(
+                    children: widget.children
+                        .map((item) => _NestedCheckbox(
+                              label: item.label,
+                              value: item.value,
+                              onChanged: item.onChanged,
+                              isDark: widget.isDark,
+                              isLocked: item.isLocked,
+                              onLockToggle: item.lockSetter,
+                              canLock: !item.isLocked ? canLockMore : true,
+                            ))
+                        .toList(),
+                  ),
                 )
-              : const SizedBox.shrink(),
+              : const SizedBox(width: double.infinity, height: 0),
         ),
       ],
     );
@@ -908,6 +965,37 @@ class _TgCheckboxPainter extends CustomPainter {
       old.checked != checked ||
       old.activeColor != activeColor ||
       old.borderColor != borderColor;
+}
+
+/// Telegram "info/edit/expand_arrow_small" — a thin downward chevron, replacing
+/// Material's `Icons.expand_more`. Tinted windowBoldFg, rotated 180° on expand
+/// by the parent AnimatedRotation (info.style:1314).
+class _ExpandArrowPainter extends CustomPainter {
+  final Color color;
+
+  _ExpandArrowPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    const halfW = 4.5;
+    const halfH = 2.25;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final path = Path()
+      ..moveTo(cx - halfW, cy - halfH)
+      ..lineTo(cx, cy + halfH)
+      ..lineTo(cx + halfW, cy - halfH);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_ExpandArrowPainter old) => old.color != color;
 }
 
 Scaffold ayuSettingsScaffold({
