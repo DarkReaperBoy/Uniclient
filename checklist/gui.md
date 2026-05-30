@@ -111,12 +111,6 @@ Four numeric constants audited against AyuGram Desktop ground truth: 3 deviated 
 
 - ✓ [CLOSED 2026-05-30 — FALSE POSITIVE, left unchanged] [MAJOR] Message-load `limit = _isFirstLoad ? 30 : 50` is CORRECT. `_loadMessages` (`chat_state.dart:2142`) loads the **main chat history** via `getMessages` → mirrors the real Telegram Desktop loader `history/history_widget.cpp:216-217` (`kMessagesPerPageFirst = 30` / `kMessagesPerPage = 50`, used at cpp:4403,4419,4485-4486,4543,4611,4621) — byte-exact. The checklist mis-cited `ayu/ui/message_history/history_inner.cpp:66-68` (`kMessagesFirstPage=20`/`kMessagesPerPage=30`), which is AyuGram's **message edit-history viewer** (namespace `MessageHistory`, paginating one message's edit revisions, `InnerWidget::requestMore` cpp:725) — wrong reference. Changing 30/50 → 20/30 would BREAK desktop parity. Do NOT "fix" this. VERIFIED 1:1 against both AyuGram files.
 
-# theme_file / chat_settings — newly found during verify (2026-05-30)
-
-- [ ] [MAJOR] `writeCloudMeta` serializes cloud-theme `id`/`accessHash` as SIGNED decimal — high-bit-set uint64 hashes are stored as negative Dart ints (correct bit pattern for MTProto), but `writeCloudMeta` emits e.g. `// ACCESS: -1` instead of AyuGram's unsigned `18446744073709551615` (`window_theme_editor.cpp:352-353` = `QString::number(uint64)`). Breaks export round-trip: AyuGram's `toULongLong("-1")`→0 AND Dart's own `_parseUint64("-1")`→null both drop the metadata. ~50% of random access hashes have the high bit set. Fix: write `BigInt.from(value).toUnsigned(64).toString()`. — `theme_file.dart:198-199` ← `window_theme_editor.cpp:352-353`. (Surfaced verifying the int.tryParse→uint64 READ fix, which is now correct; only the WRITE side remains signed.)
-
-- [ ] [MAJOR] Accent-swatch `Row` overflows by ~12px at 400px (default mobile width) — the 8 preset circles + custom-color button sit in a fixed `Row` inside `Padding(horizontal: 22)`, producing a visible RenderFlex overflow (yellow/black stripes) in oneColumn mode. Should be a `Wrap` or a horizontally-scrollable list. Pre-existing layout bug, unrelated to the colorize/theme-data audit; surfaced during its mobile-mode verification. — `chat_settings_screen.dart:988`
-
 # wallpaper — Wallpaper rendering & animation
 
 ## Summary
