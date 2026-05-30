@@ -96,10 +96,6 @@ NOTE: the desktop drag-drop limit `chat_view.dart:18123` still has the identical
 
 - ✓ [CLOSED 2026-05-29 — FALSE POSITIVE] `passcodeCanTry()` (`app_state.dart:2860-2874`) escalating lockout (5/10/15/20/25/≥30 s) is an EXACT 1:1 match to AyuGram `passcodeCanTry()` at `settings.h:116-127` (same `switch (cPasscodeBadTries())`: 3→5000 … 7→25000, default 30000). The finding cited `config.h:35 WrongPasscodeTimeout=1500` as ground truth, but that constant is UNUSED dead code (zero .cpp references; real retry logic lives in settings.h). Dart replicates AyuGram ground truth 1:1 — spec-compliant, NO change needed (do not 'fix' to flat 1500 ms; that would BREAK parity).
 
-# audio_service — AudioService state management
-
-- [ ] [MAJOR] No auto-advance to next track on completion — the `completed` stream listener resets state and stops, but never calls `onNextTrack()` or `next()`. AyuGram calls `moveInPlaylist(data, 1, true)` when `StoppedAtEnd` (unless repeat-one or `OptionDisableAutoplayNext`), so music and voice messages auto-advance to the next item. In Dart, playback silently stops after each track. — `audio_service.dart:186-194` (completed listener, no next call) ← `media_player_instance.cpp:1300-1310` (StoppedAtEnd → moveInPlaylist)
-
 # chat_state — Pagination & Navigation Constants Wrong
 
 ## Summary
