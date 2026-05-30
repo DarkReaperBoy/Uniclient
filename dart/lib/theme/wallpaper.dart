@@ -39,6 +39,16 @@ class WallpaperData {
   bool get isImage => type == WallpaperType.image;
   bool get isSolid => type == WallpaperType.solid;
 
+  /// Effective gradient rotation used for rendering, mirroring AyuGram's
+  /// `WallPaper::gradientRotation()` (data/data_wall_paper.cpp:260-263):
+  /// "In case of complex gradients rotation value is dynamic." — for 3+ color
+  /// gradients the stored rotation is ignored and 0 is returned. The raw
+  /// [gradientRotation] is kept intact for storage/share-URL round-tripping,
+  /// exactly as AyuGram keeps `_rotation` raw and applies this rule only in the
+  /// accessor.
+  int get effectiveGradientRotation =>
+      backgroundColors.length < 3 ? gradientRotation : 0;
+
   static WallpaperData fromColors(List<Color> colors) {
     if (colors.isEmpty) return none;
     if (colors.length == 1) {
@@ -210,13 +220,13 @@ class ChatWallpaper extends StatelessWidget {
     if (colors.length == 2) {
       return _TwoColorGradient(
         colors: colors,
-        rotation: wallpaper.gradientRotation,
+        rotation: wallpaper.effectiveGradientRotation,
       );
     }
 
     return _MultiColorGradient(
       colors: colors,
-      rotation: wallpaper.gradientRotation,
+      rotation: wallpaper.effectiveGradientRotation,
     );
   }
 
@@ -249,7 +259,7 @@ class ChatWallpaper extends StatelessWidget {
     final colors = wallpaper.backgroundColors;
     if (wallpaper.patternBytes == null) {
       if (colors.length >= 2) {
-        return _MultiColorGradient(colors: colors, rotation: wallpaper.gradientRotation);
+        return _MultiColorGradient(colors: colors, rotation: wallpaper.effectiveGradientRotation);
       } else if (colors.isNotEmpty) {
         return ColoredBox(color: colors.first);
       }
@@ -258,7 +268,7 @@ class ChatWallpaper extends StatelessWidget {
 
     return _PatternWallpaper(
       backgroundColors: colors,
-      gradientRotation: wallpaper.gradientRotation,
+      gradientRotation: wallpaper.effectiveGradientRotation,
       patternBytes: wallpaper.patternBytes!,
       intensity: wallpaper.patternIntensity,
       opacity: wallpaper.patternOpacity.clamp(0.0, 1.0),
@@ -697,15 +707,25 @@ class _PatternWallpaperPainter extends CustomPainter {
 }
 
 Color computeAverageColor(Uint8List imageBytes) {
-  if (imageBytes.length < 4) return const Color(0xFF527C41);
+  final decoded = img.decodeImage(imageBytes);
+  if (decoded == null) return const Color(0xFF527C41);
 
-  int r = 0, g = 0, b = 0;
-  int count = 0;
-  final step = math.max(1, imageBytes.length ~/ 1000);
-  for (int i = 0; i + 2 < imageBytes.length; i += step) {
-    r += imageBytes[i];
-    g += imageBytes[i + 1];
-    b += imageBytes[i + 2];
+  final total = decoded.width * decoded.height;
+  if (total == 0) return const Color(0xFF527C41);
+
+  // Average the DECODED pixels, mirroring AyuGram's Ui::CountAverageColor
+  // (ui/chat/chat_theme.cpp:880-902), which sums every pixel's R/G/B and divides
+  // by the pixel count. We sample up to ~1000 evenly-spaced pixels for speed
+  // (small images < 1000px are averaged in full). The previous implementation
+  // averaged the raw *encoded* JPEG/PNG bytes — compressed data unrelated to the
+  // visible color — which produced a wrong wallpaper tint for image backgrounds.
+  final stride = math.max(1, total ~/ 1000);
+  int r = 0, g = 0, b = 0, count = 0;
+  for (int idx = 0; idx < total; idx += stride) {
+    final px = decoded.getPixel(idx % decoded.width, idx ~/ decoded.width);
+    r += px.r.toInt();
+    g += px.g.toInt();
+    b += px.b.toInt();
     count++;
   }
 
@@ -734,11 +754,22 @@ Uint8List encodeWallpaperJpeg(Uint8List imageBytes) {
   if (decoded == null) return imageBytes;
 
   var image = decoded;
-  final aspect = image.width / image.height;
-  if (aspect > _kMaxAspectRatio || aspect < 1 / _kMaxAspectRatio) {
-    return imageBytes;
+
+  // Crop overly wide/tall images down to the max aspect ratio, center-cropped,
+  // exactly like AyuGram's Ui::PreprocessBackgroundImage
+  // (ui/chat/chat_theme.cpp:949-957) — it crops, it does NOT skip the image.
+  if (image.width > _kMaxAspectRatio * image.height) {
+    final w = (_kMaxAspectRatio * image.height).round();
+    image = img.copyCrop(image,
+      x: (image.width - w) ~/ 2, y: 0, width: w, height: image.height);
+  } else if (image.height > _kMaxAspectRatio * image.width) {
+    final h = (_kMaxAspectRatio * image.width).round();
+    image = img.copyCrop(image,
+      x: 0, y: (image.height - h) ~/ 2, width: image.width, height: h);
   }
 
+  // Scale down so the longest side is at most kMaxSize (2960), matching
+  // image.scaled(kMaxSize, kMaxSize, KeepAspectRatio) (chat_theme.cpp:958-964).
   final longest = math.max(image.width, image.height);
   if (longest > _kMaxWallpaperSize) {
     final scale = _kMaxWallpaperSize / longest;
