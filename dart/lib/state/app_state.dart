@@ -2813,7 +2813,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String get customFontFamily => _customFontFamily;
   set customFontFamily(String v) { if (_customFontFamily != v) { _customFontFamily = v; _saveWindowPrefs(); notifyListeners(); } }
   String get customDeviceModel => _customDeviceModel;
-  set customDeviceModel(String v) { if (_customDeviceModel != v) { _customDeviceModel = v; _engine.callGeneric(_activeAccountId, 'SetDeviceModel', {'model': v}).catchError((_) {}); _saveWindowPrefs(); notifyListeners(); } }
+  // Pure local-state setter: persists to prefs + notifies. The engine call is
+  // owned by the caller (ActiveSessionsScreen._showRenameDialog →
+  // engine.setCustomDeviceModel → 'SetCustomDeviceModel' handler), so this
+  // setter must NOT fire its own engine call. Previously it called a
+  // non-existent 'SetDeviceModel' handler, double-writing on every rename.
+  set customDeviceModel(String v) { if (_customDeviceModel != v) { _customDeviceModel = v; _saveWindowPrefs(); notifyListeners(); } }
 
   bool get recordVideoMessages => _recordVideoMessages;
   set recordVideoMessages(bool value) {

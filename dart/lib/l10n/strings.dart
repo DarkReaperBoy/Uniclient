@@ -122,6 +122,19 @@ class TrStrings {
   static String lngSettingsSave() => 'Save';
   static String lngAyuBoxActionReset() => 'Reset';
 
+  // Active sessions termination (settings_active_sessions.cpp,
+  // self_destruction_box.cpp). Confirm-box copy matches AyuGram's
+  // Ui::MakeConfirmBox + st::attentionBoxButton ("Terminate") usage.
+  static String lngSettingsResetButton() => 'Terminate';
+  static String lngSettingsResetOneSure() =>
+      'Do you want to terminate this session?';
+  static String lngSettingsResetSure() =>
+      'Are you sure you want to terminate\nall other sessions?';
+  static String lngSelfDestructSessionsTitle() => 'Session termination';
+  static String lngSelfDestructSessionsDescription() =>
+      "If you don't come online from a specific session at least once within "
+      'this period, it will be terminated.';
+
   // AyuForward status strings (ayu_forward.cpp:64-89)
   static String lngAyuForwardStatusPreparing() => 'Preparing...';
   static String lngAyuForwardStatusForwarding() => 'Forwarding messages';

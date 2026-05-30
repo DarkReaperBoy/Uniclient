@@ -6,6 +6,7 @@ import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../l10n/strings.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 
@@ -221,21 +222,23 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     super.dispose();
   }
 
+  // Parse `last_active` (Go serializes it as an RFC 3339 `time.Time`,
+  // base.go:577) into a real DateTime so newest-first ordering survives
+  // timezone-offset variation in the wire format. A lexicographic string
+  // compare silently mis-sorts e.g. "...Z" against "...+05:30".
+  static DateTime _lastActive(Map<String, dynamic> s) {
+    final raw = s['last_active'] as String? ?? '';
+    return DateTime.tryParse(raw)?.toUtc() ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+  }
+
   void _recomputeCachedLists() {
     final other = _sessions.where((s) => s['is_current'] != true && s['password_pending'] != true).toList();
-    other.sort((a, b) {
-      final aDate = a['last_active'] as String? ?? '';
-      final bDate = b['last_active'] as String? ?? '';
-      return bDate.compareTo(aDate);
-    });
+    other.sort((a, b) => _lastActive(b).compareTo(_lastActive(a)));
     _cachedOtherSessions = other;
 
     final incomplete = _sessions.where((s) => s['password_pending'] == true).toList();
-    incomplete.sort((a, b) {
-      final aDate = a['last_active'] as String? ?? '';
-      final bDate = b['last_active'] as String? ?? '';
-      return bDate.compareTo(aDate);
-    });
+    incomplete.sort((a, b) => _lastActive(b).compareTo(_lastActive(a)));
     _cachedIncompleteSessions = incomplete;
 
     final infos = <String, _DeviceInfo>{};
@@ -299,7 +302,14 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final ok = await engine.terminateSession(appState.activeAccountId, sessionId);
     if (!mounted) return;
     if (ok) {
-      _loadSessions();
+      // Match AyuGram SessionsContent::terminateOne (settings_active_sessions
+      // .cpp:857-867): remove the row from the local list and re-render
+      // immediately via showData, instead of a full GetSessions round-trip
+      // that makes the row linger until the network reply lands.
+      setState(() {
+        _sessions.removeWhere((s) => (s['id'] as String? ?? '') == sessionId);
+        _recomputeCachedLists();
+      });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to terminate session')),
@@ -373,7 +383,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
                   child: Text(
-                    'Session termination',
+                    TrStrings.lngSelfDestructSessionsTitle(),
                     style: TextStyle(
                       color: textColor,
                       fontSize: 17,
@@ -384,7 +394,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(22, 10, 22, 14),
                   child: Text(
-                    'If you don\'t come online from a specific session at least once within this period, it will be terminated.',
+                    TrStrings.lngSelfDestructSessionsDescription(),
                     style: TextStyle(color: subtextColor, fontSize: 13, height: 1.4),
                   ),
                 ),
@@ -425,7 +435,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
                         child: Text(
-                          'Cancel',
+                          TrStrings.lngCancel(),
                           style: TextStyle(color: subtextColor),
                         ),
                       ),
@@ -438,12 +448,26 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                           final ok = await engine.setSessionAutoTerminateDays(
                             appState.activeAccountId, selected,
                           );
-                          if (ok && mounted) {
-                            setState(() => _autoTerminateDays = selected);
+                          if (!mounted) return;
+                          if (ok) {
+                            // Reactive back-channel: reload the TTL the server
+                            // actually accepted instead of optimistically
+                            // trusting `selected`. Mirrors AyuGram binding the
+                            // label to authorizations().updateTTL via rpl
+                            // (settings_active_sessions.cpp:1003-1009).
+                            await _loadAutoTerminateDays();
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Failed to update session termination period',
+                                ),
+                              ),
+                            );
                           }
                         },
                         child: Text(
-                          'Save',
+                          TrStrings.lngSettingsSave(),
                           style: TextStyle(color: accentColor, fontWeight: FontWeight.w500),
                         ),
                       ),
@@ -458,60 +482,60 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     );
   }
 
-  void _showTerminateConfirmation(String sessionId, String deviceName) {
+  // Shared reset/terminate confirm box. Mirrors AyuGram's
+  // SessionsContent::terminate → Ui::MakeConfirmBox: a titleless box with the
+  // reset message, a red attention-styled "Terminate" confirm button
+  // (st::attentionBoxButton / lng_settings_reset_button) and a Cancel button
+  // (settings_active_sessions.cpp:829-848).
+  void _showResetConfirmBox(String message, VoidCallback onConfirmed) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
+    final accentColor = context.palette.windowBgActive;
+    final attentionColor = context.palette.attentionButtonFg;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
-        title: const Text('Terminate Session'),
-        content: Text('Are you sure you want to terminate the session on "$deviceName"?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        content: Text(
+          message,
+          style: TextStyle(color: textColor, fontSize: 14, height: 1.4),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(
+              TrStrings.lngCancel(),
+              style: TextStyle(color: accentColor),
+            ),
           ),
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: attentionColor),
             onPressed: () {
               Navigator.pop(ctx);
-              _terminateSession(sessionId);
+              onConfirmed();
             },
-            child: const Text('Terminate'),
+            child: Text(
+              TrStrings.lngSettingsResetButton(),
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),
     );
   }
 
+  void _showTerminateConfirmation(String sessionId) {
+    _showResetConfirmBox(
+      TrStrings.lngSettingsResetOneSure(),
+      () => _terminateSession(sessionId),
+    );
+  }
+
   void _showTerminateAllConfirmation() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
-        title: const Text('Terminate All Other Sessions'),
-        content: const Text('Are you sure you want to terminate all other sessions?'),
-        titleTextStyle: TextStyle(
-          color: isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222),
-          fontSize: 17,
-          fontWeight: FontWeight.w600,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _terminateAllOther();
-            },
-            child: const Text('Terminate'),
-          ),
-        ],
-      ),
+    _showResetConfirmBox(
+      TrStrings.lngSettingsResetSure(),
+      _terminateAllOther,
     );
   }
 
@@ -703,7 +727,6 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                             Navigator.pop(ctx);
                             _showTerminateConfirmation(
                               session['id'] as String? ?? '',
-                              device,
                             );
                           },
                           child: const Text(
@@ -780,21 +803,30 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(TrStrings.lngCancel()),
           ),
           TextButton(
             onPressed: () async {
               final text = controller.text.trim();
               Navigator.pop(ctx);
-              try {
-                await engine.setCustomDeviceModel(appState.activeAccountId, text);
+              // Single engine call → 'SetCustomDeviceModel'. The
+              // customDeviceModel setter no longer fires its own (previously
+              // bogus 'SetDeviceModel') call, so this writes exactly once.
+              // setCustomDeviceModel returns false on failure (never throws),
+              // so gate the local update on the bool result.
+              final ok = await engine.setCustomDeviceModel(
+                appState.activeAccountId, text);
+              if (!mounted) return;
+              if (ok) {
                 appState.customDeviceModel = text;
-                if (mounted) setState(() {});
-              } catch (_) {
-                // Engine call failed — don't update local state
+                setState(() {});
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Failed to rename device')),
+                );
               }
             },
-            child: const Text('Save'),
+            child: Text(TrStrings.lngSettingsSave()),
           ),
         ],
       ),
@@ -868,7 +900,6 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                         showTerminate: true,
                         onTerminate: () => _showTerminateConfirmation(
                           incompleteSessions[index]['id'] as String? ?? '',
-                          incompleteSessions[index]['device'] as String? ?? 'Unknown',
                         ),
                         onTap: () => _showSessionInfoBox(incompleteSessions[index]),
                       ),
@@ -895,7 +926,6 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                         showTerminate: true,
                         onTerminate: () => _showTerminateConfirmation(
                           otherSessions[index]['id'] as String? ?? '',
-                          otherSessions[index]['device'] as String? ?? 'Unknown',
                         ),
                         onTap: () => _showSessionInfoBox(otherSessions[index]),
                       ),
@@ -910,9 +940,14 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   SliverToBoxAdapter(
                     child: _buildEmptyPlaceholder(subtextColor),
                   ),
-                SliverToBoxAdapter(
-                  child: _buildAutoTerminateSection(textColor, subtextColor, dividerColor, accentColor),
-                ),
+                // AyuGram gates the TTL section on the OTHER-sessions count:
+                // ttlWrap->toggleOn(_list->itemsCount() > 0)
+                // (settings_active_sessions.cpp:1030). With no other sessions
+                // only the placeholder (toggleOn count == 0) is shown.
+                if (otherSessions.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _buildAutoTerminateSection(textColor, subtextColor, dividerColor, accentColor),
+                  ),
               ],
             );
 
