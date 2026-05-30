@@ -119,14 +119,6 @@ Four numeric constants audited against AyuGram Desktop ground truth: 3 deviated 
 
 - [ ] [CRITICAL] `historyPeerUserpicFg`, `historyPeerSavedMessagesBg`, `historyPeerArchiveUserpicBg`, `historyPeerSavedMessagesBg2` incorrectly excluded from colorization — NOT in `kColorizeIgnoredKeys` — `telegram_palette.dart:1749-1752` ← `window_themes_embedded.cpp:33-102`
 
-- [ ] [CRITICAL] `settingsIconFg` (white icon shape) incorrectly excluded from colorization — only `settingsIconBg*` variants are in `kColorizeIgnoredKeys`, not `settingsIconFg` — `telegram_palette.dart:1753` ← `window_themes_embedded.cpp:89-96`
-
-- [ ] [CRITICAL] `youtubePlayIconBg`, `youtubePlayIconFg`, `videoPlayIconBg`, `videoPlayIconFg` incorrectly excluded from colorization — NOT in `kColorizeIgnoredKeys` — `telegram_palette.dart:1797-1800` ← `window_themes_embedded.cpp:33-102`
-
-- [ ] [CRITICAL] `mapPointDrop`, `mapPointDot` incorrectly excluded from colorization — NOT in `kColorizeIgnoredKeys` — `telegram_palette.dart:1810-1811` ← `window_themes_embedded.cpp:33-102`
-
-- [ ] [CRITICAL] NightGreen theme missing file icon contrast enforcement — `_enforceContrast(includeFileIcons: windowBg == const Color(0xFF17212B))` enables file icon checking only for Night (windowBg=0xFF17212B); NightGreen also has file icon `keepContrast` pairs in C++ but is skipped because its windowBg (0xFF282E33) ≠ 0xFF17212B — `telegram_palette.dart:1961` ← `window_themes_embedded.cpp:156-167`
-
 - [ ] [MAJOR] Static colorize cache shared across all `TelegramPalette` instances — `_cachedColorizeResult`, `_cachedColorizeBaseHash`, `_cachedColorizeAccentHash`, `_cachedColorizeThreshold` are `static` class variables; if multiple theme instances coexist, one instance's colorize call invalidates another's cache, producing stale results — `telegram_palette.dart:1307-1310` ← `style_palette_colorizer.cpp` (no equivalent; C++ uses per-instance colorizer struct)
 
 # theme_file — Theme file parsing & caching
@@ -148,8 +140,6 @@ Four numeric constants audited against AyuGram Desktop ground truth: 3 deviated 
 - [ ] [CRITICAL] Adjectives list differs from AyuGram — Dart has ~80 custom adjectives but AyuGram has 108 standard ones. This causes the same color to generate different theme names (e.g., "Ancient Berry" vs "Antique Berry"). Replace _adjectives with exact list from kAdjectives. `theme_name_generator.dart:142-163` ← `AyuGramDesktop/Telegram/SourceFiles/window/themes/window_themes_generate_name.cpp:118-226`
 
 - [ ] [CRITICAL] Nouns list is wrong terminology and doesn't match AyuGram — Dart calls them "_nouns" but AyuGram calls them "kSubjectives". The actual word lists are completely different (Dart has poetic words like "Ambrosia", "Cascade", "Echo" while AyuGram has "Attack", "Avalanche", "Blast", "Burst", "Candy", "Carnival"). Replace _nouns with exact kSubjectives list. `theme_name_generator.dart:165-183` ← `AyuGramDesktop/Telegram/SourceFiles/window/themes/window_themes_generate_name.cpp:228-310`
-
-- [ ] [MAJOR] Function behavior differs from AyuGram — AyuGram uses `ranges::min_element` with a distance comparator (C++ STL), Dart uses a manual for loop. While functionally equivalent, the algorithm should be verified to produce identical distance calculations. The formula is identical but verify boundary conditions. `theme_name_generator.dart:4-30` ← `AyuGramDesktop/Telegram/SourceFiles/window/themes/window_themes_generate_name.cpp:314-351`
 
 **Impact**: Theme names generated on mobile will differ from desktop because:
 1. Same accent color gets mapped to different base colors (different color name)
