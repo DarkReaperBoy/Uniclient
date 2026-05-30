@@ -1,15 +1,20 @@
 /// Web (WASM) bridge implementation.
 ///
-/// Loads cores.wasm via the Go wasm_exec.js runtime, then calls
-/// the exported BridgeCall/BridgeSetEventCallback functions via JS interop.
+/// cores.wasm is loaded by the Go wasm_exec.js runtime in web/index.html, whose
+/// main() (go/cmd/bridge/main_js.go) registers `bridgeCall` and
+/// `bridgeSetEventCallback` on globalThis via syscall/js. We call them through
+/// JS interop below. Unlike native FFI there are no pointers: bytes cross the
+/// boundary as JS Uint8Array values, and async events are delivered by a JS
+/// callback (push) rather than the native BridgeNextEvent pull loop, because the
+/// single-threaded JS event loop cannot block to pull.
 library;
 
 import 'dart:async';
 import 'dart:js_interop';
 import 'dart:typed_data';
 
-// JS interop bindings to the Go WASM exports.
-// These are set on globalThis by the Go WASM runtime.
+// JS interop bindings to the functions registered on globalThis by the Go WASM
+// runtime (go/cmd/bridge/main_js.go).
 
 @JS('bridgeCall')
 external JSUint8Array _jsBridgeCall(JSUint8Array data);

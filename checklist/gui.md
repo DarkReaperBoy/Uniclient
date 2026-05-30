@@ -265,6 +265,15 @@ All edits in `dart/lib/ui/ayu_section_builder.dart`; built debug + launched, Ayu
 
 # bridge_web — Web WASM Bridge Implementation Audit
 
+**[STAGE-1 2026-05-30 — 3 CRITICAL marshaling items addressed — pending Stage-2 verify]**
+Root cause confirmed: `go/cmd/bridge/main.go` is cgo (`import "C"` + `//export`), which is implicitly excluded from `GOOS=js GOARCH=wasm`, so there was NO wasm entry point at all — `scripts/build_go.sh web` failed with "build constraints exclude all Go files", and the JS functions `bridge_web.dart` imports (`bridgeCall`, `bridgeSetEventCallback`) never existed. cgo `//export` cannot expose functions to JS, and WASM has no raw pointers for the FFI pointer/length signatures.
+FIX — new `go/cmd/bridge/main_js.go` (`//go:build js && wasm`) registers, via `syscall/js`, exactly the names `bridge_web.dart` expects, with no pointers crossing the boundary (JS `Uint8Array` ⇄ Go `[]byte` via `js.CopyBytesToGo`/`js.CopyBytesToJS`):
+- FIXED item 1 (name mismatch) — `globalThis.bridgeCall(req: Uint8Array) -> Uint8Array` now exists (dispatches `bridge.Call`); the Dart `@JS('bridgeCall')` import is now correct as-is.
+- FIXED item 2 (pointer/length signature incompatible with JS) — wasm export takes/returns `Uint8Array`; marshaling handled internally, no `*byte`/`*int32`.
+- FIXED item 3 (event callback parameter mismatch) — `globalThis.bridgeSetEventCallback(fn|null)` wires `bridge.SetEventCallback` to a JS callback invoked with a `Uint8Array` per event (push model: the single-threaded JS event loop cannot block to pull like native `BridgeNextEvent`).
+`main.go` untouched (its implicit cgo constraint already excludes it from wasm); both files are mutually exclusive by build tag. `bridge_web.dart` needed only a doc-comment correction (the API it imports already matched the fix). VERIFIED: `gofmt -e` parses main_js.go (exit 0); native `scripts/build_go.sh linux` still builds (main_js.go correctly excluded); `flutter analyze lib/bridge/` clean for bridge_web.dart; app builds/launches/renders desktop chat list, no crash.
+REMAINING (separate, out-of-scope item — NOT one of the 3 findings): `scripts/build_go.sh web` still does not fully compile because the engine's calling cores depend on native-only WebRTC — `pion/webrtc` full API (`TrackRemote`, `TrackLocalStaticRTP`, …) is excluded on `js/wasm`, and `livekit/server-sdk-go` (via `bale.go`) needs it. This usage is pervasive and inline in the single-file cores (telegram.go alone: 259 refs; bale/matrix/rubika/deltachat: 16–35 each), so excluding it from wasm requires splitting all 5 cores into native/wasm halves with stubs — plus the engine uses native filesystem/TCP/SQLite that won't run on wasm. That is a multi-session engine port beyond this section's bridge-marshaling findings and beyond ralph's one-section / one-file-per-core constraints. The bridge entry point is now correct and ready for when the cores gain wasm support.
+
 ## CRITICAL ISSUES
 
 - [ ] **[CRITICAL] Function name mismatch: Dart imports `bridgeCall` but Go exports `BridgeCallWithLen`** — `bridge_web.dart:14-15` ← `go/cmd/bridge/main.go:27` + `scripts/build_go.sh:57`
