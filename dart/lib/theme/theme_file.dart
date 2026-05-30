@@ -99,7 +99,7 @@ PaletteParseResult? parsePaletteText(
       final colonPos = stripped.indexOf(': ');
       if (colonPos >= 0) {
         final key = stripped.substring(0, colonPos).toUpperCase();
-        final value = int.tryParse(stripped.substring(colonPos + 2).trim());
+        final value = _parseUint64(stripped.substring(colonPos + 2).trim());
         if (value != null) {
           if (key == 'ID') serviceId = value;
           if (key == 'ACCESS') serviceHash = value;
@@ -215,7 +215,7 @@ CloudThemeMeta? readCloudMeta(String text) {
     final colonPos = stripped.indexOf(': ');
     if (colonPos < 0) continue;
     final key = stripped.substring(0, colonPos).toUpperCase();
-    final value = int.tryParse(stripped.substring(colonPos + 2).trim());
+    final value = _parseUint64(stripped.substring(colonPos + 2).trim());
     if (value == null) continue;
     if (key == 'ID') id = value;
     if (key == 'ACCESS') accessHash = value;
@@ -276,7 +276,14 @@ bool _isValidBackgroundImage(Uint8List bytes) {
     while (i + 9 < bytes.length) {
       if (bytes[i] != 0xFF) { i++; continue; }
       final marker = bytes[i + 1];
-      if (marker == 0xC0 || marker == 0xC2) {
+      // All JPEG SOF markers (0xC0-0xCF) carry frame dimensions EXCEPT
+      // DHT(0xC4), JPG(0xC8) and DAC(0xCC). AyuGram uses QImageReader::size()
+      // which handles every SOF variant, not just SOF0/SOF2.
+      if (marker >= 0xC0 &&
+          marker <= 0xCF &&
+          marker != 0xC4 &&
+          marker != 0xC8 &&
+          marker != 0xCC) {
         final h = (bytes[i + 5] << 8) | bytes[i + 6];
         final w = (bytes[i + 7] << 8) | bytes[i + 8];
         return (w > 0 && h > 0) ? (w, h) : null;
@@ -287,6 +294,21 @@ bool _isValidBackgroundImage(Uint8List bytes) {
     }
   }
   return null;
+}
+
+// AyuGram kThemeBackgroundSizeLimit (window_theme.h:42): backgrounds larger than
+// this are rejected to bound memory use when parsing untrusted theme archives.
+const int _kThemeBackgroundSizeLimit = 4 * 1024 * 1024;
+
+/// Parses a uint64 decimal string into Dart's signed 64-bit int, preserving the
+/// bit pattern. Telegram access hashes are uint64; values with the high bit set
+/// exceed int64 max and int.tryParse would return null (silently dropping the
+/// cloud-theme metadata). Mirrors AyuGram's toULongLong(). Returns null if the
+/// string is not a valid 0..2^64-1 integer.
+int? _parseUint64(String s) {
+  final b = BigInt.tryParse(s.trim());
+  if (b == null || b.isNegative || b.bitLength > 64) return null;
+  return b.toSigned(64).toInt();
 }
 
 ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
@@ -302,19 +324,29 @@ ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
   ArchiveFile? bgFile;
   bool tiled = false;
 
+  final Map<String, ArchiveFile> entries = {};
   for (final file in archive) {
     final name = file.name.toLowerCase();
+    entries.putIfAbsent(name, () => file);
     if (paletteFile == null &&
         (name == 'colors.tdesktop-theme' || name == 'colors.tdesktop-palette')) {
       paletteFile = file;
-    } else if (bgFile == null) {
-      if (name == 'background.jpg' || name == 'background.png') {
-        bgFile = file;
-        tiled = false;
-      } else if (name == 'tiled.jpg' || name == 'tiled.png') {
-        bgFile = file;
-        tiled = true;
-      }
+    }
+  }
+  // AyuGram (window_theme.cpp:262-275) probes backgrounds in a FIXED priority
+  // order rather than archive iteration order, marking tiled=true only for the
+  // tiled.* names: background.jpg > background.png > tiled.jpg > tiled.png.
+  for (final (cname, ctiled) in [
+    ('background.jpg', false),
+    ('background.png', false),
+    ('tiled.jpg', true),
+    ('tiled.png', true),
+  ]) {
+    final f = entries[cname];
+    if (f != null) {
+      bgFile = f;
+      tiled = ctiled;
+      break;
     }
   }
 
@@ -328,12 +360,20 @@ ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
 
   Uint8List? bgBytes;
   if (bgFile != null) {
-    final raw = Uint8List.fromList(bgFile.content as List<int>);
-    if (_isValidBackgroundImage(raw)) {
-      bgBytes = raw;
-    } else {
-      debugPrint('THEME: background image rejected (invalid format or oversized)');
+    // AyuGram bounds the background to kThemeBackgroundSizeLimit (4 MB,
+    // window_theme.h:42) and LoadTheme refuses the whole theme if a present
+    // background is oversized or invalid. Check the uncompressed size BEFORE
+    // touching .content so a zip-bomb can't be fully decompressed into memory.
+    if (bgFile.size > _kThemeBackgroundSizeLimit) {
+      debugPrint('THEME: background too large (${bgFile.size} bytes) — theme rejected');
+      return null;
     }
+    final raw = Uint8List.fromList(bgFile.content as List<int>);
+    if (!_isValidBackgroundImage(raw)) {
+      debugPrint('THEME: background image invalid/oversized — theme rejected');
+      return null;
+    }
+    bgBytes = raw;
   }
 
   return ThemeFileData(

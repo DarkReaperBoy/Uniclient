@@ -1313,7 +1313,10 @@ class TelegramPalette {
     final origAccent = windowBgActive;
     if (colorEq(origAccent, newAccent)) return this;
 
-    final baseHash = origAccent.value;
+    // Distinct base themes (e.g. dayBlue & classicDay) share windowBgActive,
+    // so keying the colorize cache on windowBgActive alone returned a stale
+    // result for the second theme. Mix in the base palette's instance identity.
+    final baseHash = Object.hash(origAccent.value, identityHashCode(this));
     final accentHash = newAccent.value;
     if (_cachedColorizeResult != null &&
         _cachedColorizeBaseHash == baseHash &&
@@ -1724,8 +1727,8 @@ class TelegramPalette {
       stickerPanDeleteBg: s(stickerPanDeleteBg),
       stickerPanDeleteFg: s(stickerPanDeleteFg),
       stickerPreviewBg: s(stickerPreviewBg),
-      stickerPanPremium1: stickerPanPremium1,
-      stickerPanPremium2: stickerPanPremium2,
+      stickerPanPremium1: s(stickerPanPremium1),
+      stickerPanPremium2: s(stickerPanPremium2),
       historyTextInFgSelected: s(historyTextInFgSelected),
       historyTextOutFgSelected: s(historyTextOutFgSelected),
       historyLinkInFg: s(historyLinkInFg),
@@ -1737,19 +1740,19 @@ class TelegramPalette {
       historyFileNameOutFg: s(historyFileNameOutFg),
       historyFileNameOutFgSelected: s(historyFileNameOutFgSelected),
       historyOutIconFgSelected: s(historyOutIconFgSelected),
-      historyCallArrowInFg: historyCallArrowInFg,
-      historyCallArrowInFgSelected: historyCallArrowInFgSelected,
-      historyCallArrowMissedInFg: historyCallArrowMissedInFg,
-      historyCallArrowMissedInFgSelected: historyCallArrowMissedInFgSelected,
-      historyCallArrowOutFg: historyCallArrowOutFg,
-      historyCallArrowOutFgSelected: historyCallArrowOutFgSelected,
+      historyCallArrowInFg: s(historyCallArrowInFg),
+      historyCallArrowInFgSelected: s(historyCallArrowInFgSelected),
+      historyCallArrowMissedInFg: s(historyCallArrowMissedInFg),
+      historyCallArrowMissedInFgSelected: s(historyCallArrowMissedInFgSelected),
+      historyCallArrowOutFg: s(historyCallArrowOutFg),
+      historyCallArrowOutFgSelected: s(historyCallArrowOutFgSelected),
       historyUnreadBarBorder: s(historyUnreadBarBorder),
       historyForwardChooseBg: s(historyForwardChooseBg),
       historyForwardChooseFg: s(historyForwardChooseFg),
-      historyPeerUserpicFg: historyPeerUserpicFg,
-      historyPeerSavedMessagesBg: historyPeerSavedMessagesBg,
-      historyPeerArchiveUserpicBg: historyPeerArchiveUserpicBg,
-      historyPeerSavedMessagesBg2: historyPeerSavedMessagesBg2,
+      historyPeerUserpicFg: s(historyPeerUserpicFg),
+      historyPeerSavedMessagesBg: s(historyPeerSavedMessagesBg),
+      historyPeerArchiveUserpicBg: s(historyPeerArchiveUserpicBg),
+      historyPeerSavedMessagesBg2: s(historyPeerSavedMessagesBg2),
       settingsIconFg: settingsIconFg,
       msgInServiceFgSelected: s(msgInServiceFgSelected),
       msgOutServiceFgSelected: s(msgOutServiceFgSelected),
