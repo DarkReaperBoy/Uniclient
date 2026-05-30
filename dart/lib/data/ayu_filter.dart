@@ -211,8 +211,10 @@ String _extractSingleText(CachedMessage msg, {Set<String>? extractedUrls}) {
           }
         }
       }
-    } catch (e) {
-      debugPrint('FILTER: entity extraction failed for msg ${msg.msgId}: $e');
+    } catch (_) {
+      // contentRich that isn't a JSON entities array carries no URL entities to
+      // extract; visible-text matching (above) still applies. Silent like every
+      // other contentRich consumer (chat_state, message_bubble, notifications).
     }
   }
 

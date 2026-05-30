@@ -845,7 +845,7 @@ class CachedMessage {
       senderColorId: j['sender_color_id'] as int? ?? 0,
       contentText: safeStr(j['content_text'] as String? ?? ''),
       contentRaw: safeStr(rawStr),
-      contentRich: safeStr(j['content_rich'] as String? ?? ''),
+      contentRich: _decodeContentRich(j['content_rich'] as String? ?? ''),
       timestamp: j['timestamp'] as int? ?? 0,
       editedAt: j['edited_at'] as int? ?? 0,
       status: MsgStatus.fromInt(j['status'] as int? ?? 0),
@@ -986,6 +986,23 @@ class CachedMessage {
       return json.decode(utf8.decode(bytes)) as Map<String, dynamic>;
     } catch (_) {
       return const {};
+    }
+  }
+
+  // content_rich is a Go []byte holding the entities-JSON array. When a message
+  // arrives over the JSON event stream (msg_received → MsgReceivedEvent), Go's
+  // json.Marshal base64-encodes that []byte (exactly like content_raw above), so
+  // j['content_rich'] is base64 — NOT the JSON array consumers expect. Decode it
+  // back to the entities-JSON text. The proto/RPC path (engine_service.dart)
+  // already utf8-decodes the raw bytes, so a value that is not valid base64
+  // (e.g. an already-decoded JSON array beginning with '[') falls through
+  // unchanged via the catch.
+  static String _decodeContentRich(String richStr) {
+    if (richStr.isEmpty) return '';
+    try {
+      return safeStr(utf8.decode(base64Decode(richStr)));
+    } catch (_) {
+      return safeStr(richStr);
     }
   }
 
