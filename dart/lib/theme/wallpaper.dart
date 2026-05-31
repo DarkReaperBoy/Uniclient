@@ -441,8 +441,9 @@ Uint8List _linearGradientPixels(List<Color> colors, int rotation, int size) {
   return out;
 }
 
-/// Dither tier from `DitherImage` (image_prepare.cpp:880-897).
-int _ditherShiftForSize(int w, int h) {
+/// Dither tier (`kBits`) from `DitherImage` (image_prepare.cpp:880-897). The
+/// returned value is the template argument `kBits` of `DitherGeneric<kBits>`.
+int _ditherBitsForSize(int w, int h) {
   final mn = math.min(w, h);
   final mx = math.max(w, h);
   if (mx >= 1024 && mn >= 512) return 4;
@@ -452,23 +453,29 @@ int _ditherShiftForSize(int w, int h) {
   return 0;
 }
 
-/// Port of `DitherImage` (image_prepare.cpp:880-897): a spatial dither that
-/// jitters each pixel's sample position by a small random offset, breaking up
-/// banding on large/dark gradients. Deterministic (seeded) so it never relies
-/// on `Math.random`.
+/// Port of `DitherImage` + `DitherGeneric<kBits>` (image_prepare.cpp:101-170,
+/// 880-897): each pixel copies from a nearby pixel offset by a random amount
+/// inside a `kSquareSide × kSquareSide` window (`kSquareSide = 1 << kBits`),
+/// each axis offset lying in `[-kShift, kShift-1]` (`kShift = kSquareSide / 2`)
+/// and taken from the low / high nibbles of one random byte — exactly as the
+/// C++ does (`shiftx = (shift & kMask) - kShift`,
+/// `shifty = ((shift >> 4) & kMask) - kShift`). Breaks up banding on large/dark
+/// gradients. Deterministic (seeded) so it never relies on `Math.random`.
 Uint8List _ditherPixels(Uint8List src, int w, int h, int seed) {
-  final shift = _ditherShiftForSize(w, h);
-  if (shift == 0) return src;
+  final bits = _ditherBitsForSize(w, h);
+  if (bits == 0) return src;
+  final squareSide = 1 << bits; // kSquareSide
+  final shiftHalf = squareSide >> 1; // kShift
+  final mask = squareSide - 1; // kMask
   final out = Uint8List(src.length);
   int rng = seed & 0x7fffffff;
   if (rng == 0) rng = 1;
-  final span = 2 * shift + 1;
   for (int y = 0; y < h; y++) {
     for (int x = 0; x < w; x++) {
       rng = (rng * 1103515245 + 12345) & 0x7fffffff;
-      final dx = (rng % span) - shift;
-      rng = (rng * 1103515245 + 12345) & 0x7fffffff;
-      final dy = (rng % span) - shift;
+      final rnd = (rng >> 16) & 0xff; // one random byte per pixel (the C++ uchar)
+      final dx = (rnd & mask) - shiftHalf; // shiftx ∈ [-kShift, kShift-1]
+      final dy = ((rnd >> 4) & mask) - shiftHalf; // shifty ∈ [-kShift, kShift-1]
       int sx = x + dx;
       if (sx < 0) sx = 0; else if (sx >= w) sx = w - 1;
       int sy = y + dy;
