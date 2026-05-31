@@ -717,27 +717,59 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 0),
           child: Row(
             children: [
+              // Label + checked/total count + expand arrow — one tappable area.
+              // AyuGram's AddInnerToggle places the arrow at
+              // labelLeft + label->naturalWidth() (hugging the RIGHT edge of the
+              // text, NOT flush right) and it coexists with the master toggle on
+              // the far right (settings_ayu_utils.cpp:228-285). Flexible lets the
+              // text take its natural width so the arrow hugs it, shrinking with
+              // ellipsis only when the label is too long (matching the C++
+              // min(labelLeft+naturalWidth, labelRight-arrowWidth) clamp).
               Expanded(
                 child: InkWell(
                   onTap: () => setState(() => _open = !_open),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: widget.label,
-                            style: TextStyle(fontSize: 14, color: textColor),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: widget.label,
+                                  style: TextStyle(
+                                      fontSize: 14, color: textColor),
+                                ),
+                                TextSpan(
+                                  text: '  $checkedCount/$totalCount',
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: textColor),
+                                ),
+                              ],
+                            ),
                           ),
-                          TextSpan(
-                            text: '  $checkedCount/$totalCount',
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: textColor),
+                        ),
+                        const SizedBox(width: 4),
+                        AnimatedRotation(
+                          turns: _open ? 0.5 : 0.0,
+                          // slideWrapDuration = 150ms; the arrow rotates in sync
+                          // with the SlideWrap expand/collapse, easeOutCubic
+                          // (settings_ayu_utils.cpp:296, basic.style:96).
+                          duration: const Duration(milliseconds: 150),
+                          curve: Curves.easeOutCubic,
+                          // permissionsExpandIcon = "info/edit/expand_arrow_small"
+                          // (24×24) tinted windowBoldFg — a Telegram chevron, not
+                          // a Material glyph (info.style:1314).
+                          child: CustomPaint(
+                            size: const Size(20, 20),
+                            painter: _ExpandArrowPainter(
+                                color: context.palette.windowBoldFg),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -781,29 +813,7 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                     ),
                   ),
                 ),
-              ] else
-                InkWell(
-                  onTap: () => setState(() => _open = !_open),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: AnimatedRotation(
-                      turns: _open ? 0.5 : 0.0,
-                      // slideWrapDuration = 150ms; the arrow rotates in sync with
-                      // the SlideWrap expand/collapse, not slower
-                      // (settings_ayu_utils.cpp:296, basic.style:96).
-                      duration: const Duration(milliseconds: 150),
-                      curve: Curves.easeOutCubic,
-                      // permissionsExpandIcon = "info/edit/expand_arrow_small"
-                      // tinted windowBoldFg — a Telegram chevron, not a Material
-                      // glyph (info.style:1314).
-                      child: CustomPaint(
-                        size: const Size(20, 20),
-                        painter: _ExpandArrowPainter(
-                            color: context.palette.windowBoldFg),
-                      ),
-                    ),
-                  ),
-                ),
+              ],
             ],
           ),
         ),
