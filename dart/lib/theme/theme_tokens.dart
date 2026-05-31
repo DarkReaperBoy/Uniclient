@@ -31,7 +31,7 @@ abstract final class TgTokens {
   static const EdgeInsets boxPadding =
       EdgeInsets.fromLTRB(24, 14, 24, 8);
   static const double boxOptionListSkip = 20;
-  static const double boxRadius = 8;
+  static const double boxRadius = 6;
   static const Duration boxDuration = Duration(milliseconds: 200);
   static const double boxButtonHeight = 34;
   static const EdgeInsets boxButtonPadding =
@@ -124,7 +124,7 @@ abstract final class TgTokens {
 
   // §56.9 — miscellaneous tokens
 
-  static const double defaultInputFieldHeight = 47;
+  static const double defaultInputFieldHeight = 55; // widgets.style:1070 defaultInputField.heightMin
   static const double defaultInputFieldFontSize = 14;
   static const double defaultRadioSize = 22;
   static const double defaultRadioStroke = 2;
@@ -132,8 +132,9 @@ abstract final class TgTokens {
   static const double defaultMultiSelectRadius = 8;
   static const double defaultRoundShadowBlur = 8;
   static const Offset defaultRoundShadowOffset = Offset(0, 2);
-  static const double menuIconSize = 20;
-  static const double radialSize = 44;
+  // menuIconSize removed: invented/unsourced — no such token exists anywhere in
+  // AyuGram (menu item icons are sized by their icon assets, not a scalar token).
+  static const double radialSize = 50; // basic.style:118 radialSize size(50px,50px)
   static const double radialLine = 3;
 
   // §56.10 — palette quick-reference (22 most-referenced tokens)
@@ -147,11 +148,11 @@ abstract final class TgTokens {
   // attentionButtonFg.
 
   // §56.11 — derived / compound values
-  static const double infoProfilePhotoSize = 88;
-  static const double settingsProfileCoverHeight = 112; // settingsPhotoTop(8) + photo(88) + settingsPhotoBottom(16)
+  static const double infoProfilePhotoSize = 72; // info.style:527 infoProfilePhotoInnerSize
+  static const double settingsProfileCoverHeight = 162; // settings.style:205 settingsInfoPhotoHeight (photo: settingsInfoPhotoSize 100px)
   static const double defaultVerticalListSkipDouble = 12; // defaultVerticalListSkip * 2
-  static const Duration defaultRadioDuration = Duration(milliseconds: 100);
-  static const Duration defaultRadioDurationDouble = Duration(milliseconds: 200);
+  static const Duration defaultRadioDuration = Duration(milliseconds: 120); // widgets.style:868 defaultRadio.duration = universalDuration
+  static const Duration defaultRadioDurationDouble = Duration(milliseconds: 240); // defaultRadioDuration * 2
 
   // §56.12 — false-positive st:: identifiers (NOT style tokens)
   // These appear in spec pseudocode but are C++ types/flags, not style tokens:
