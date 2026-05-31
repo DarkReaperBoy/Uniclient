@@ -139,8 +139,6 @@ exactly. No placeholders, stubs, empty callbacks, mock data, or unwired UI in
 this file. The one substantive deviation is at the call site, which feeds the
 wrong palette color in as the "accent".
 
-- [ ] [MAJOR] Theme name is generated from the wrong palette color. AyuGram derives the accent for `GenerateName` from `st::windowActiveTextFg` (default `#168acd`), but the Dart call site passes `windowBgActive` (default `#40a7e3`) into `generateThemeName`. They are distinct palette entries (`telegram_palette.dart` defines both), so for the same theme the nearest-color lookup resolves to a different base name (e.g. ≈"Indigo" vs ≈"Blue" for the default palette) — a different generated theme name than Telegram Desktop / AyuGram produces. Note `main.dart:2540` already uses `windowActiveTextFg` as the accent, so the editor call site is internally inconsistent too. — `dart/lib/ui/theme_editor.dart:1314` ← `AyuGram/Telegram/SourceFiles/window/themes/window_theme_editor_box.cpp:773` (accent = `st::windowActiveTextFg->c`, consumed at `:790` `GenerateName(collected.accent)`)
-
 ## Notes (below CRITICAL/MAJOR threshold — not actioned)
 
 - The C++ `kColors` is a `base::flat_map<uint32, const char*>`, so `ranges::min_element` iterates in **color-hex-sorted** order, whereas the Dart `_colors` list iterates in **declaration order**. Both pick the first strict minimum, so on an *exact* redmean-distance tie between two palette colors they could pick different names. This only affects measure-zero exact-tie inputs and still yields a valid name (which is further randomized by the adjective/subjective suffix), so it is MINOR. — `theme_name_generator.dart:15-27` ← `window_themes_generate_name.cpp:16,345`
