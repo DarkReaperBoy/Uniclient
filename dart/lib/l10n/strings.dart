@@ -81,7 +81,14 @@ class TrStrings {
   static String lngNotifReactedToStickerPlain(String emoji) =>
       '$emoji to your sticker';
   static String lngNotifReactedToGif(String emoji) => '$emoji to your GIF';
-  static String lngNotifReactedToPoll(String emoji) => '$emoji to your poll';
+  static String lngNotifReactedToPoll(String emoji, String question) =>
+      question.isEmpty
+          ? '$emoji to your poll'
+          : '$emoji to your poll "$question"';
+  static String lngNotifReactedToQuiz(String emoji, String question) =>
+      question.isEmpty
+          ? '$emoji to your quiz'
+          : '$emoji to your quiz "$question"';
   static String lngNotifReactedToLocation(String emoji) =>
       '$emoji to your location';
   static String lngNotifReactedToContact(String emoji, String name) =>

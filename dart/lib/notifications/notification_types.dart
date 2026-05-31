@@ -83,6 +83,21 @@ class NotificationData {
   final bool isHidden;
   final String senderId;
   final String contentRich;
+  // Whether this message's chat is the Saved Messages / self chat. Distinguishes
+  // a fired self-reminder ("📅 Reminder") from a scheduled message sent to
+  // another chat ("📅 PeerName"), and gates the "You" subtitle — mirrors
+  // AyuGram's peer->isSelf() checks in notificationHeader() and
+  // doShowNativeNotification (notifications_manager.cpp:1568,1582;
+  // history_item.cpp:2770).
+  final bool isSelf;
+  // Whether the user can send a text reply here (AyuGram's CanSendTexts(peer) &&
+  // (!topic || CanSendTexts(topic))). Gates the inline reply button. Defaults
+  // true so unrestricted chats keep the reply action.
+  // (notifications_manager.cpp:1097-1099)
+  final bool canSendText;
+  // Whether a reacted-to poll is a quiz (AyuGram poll->quiz()), selecting the
+  // quiz vs poll reaction notification string. (notifications_manager.cpp:1205)
+  final bool isQuiz;
 
   const NotificationData({
     required this.accountId,
@@ -140,6 +155,9 @@ class NotificationData {
     this.isHidden = false,
     this.senderId = '',
     this.contentRich = '',
+    this.isSelf = false,
+    this.canSendText = true,
+    this.isQuiz = false,
   });
 
   NotificationData copyWith({
@@ -198,6 +216,9 @@ class NotificationData {
     bool? isHidden,
     String? senderId,
     String? contentRich,
+    bool? isSelf,
+    bool? canSendText,
+    bool? isQuiz,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -255,13 +276,30 @@ class NotificationData {
       isHidden: isHidden ?? this.isHidden,
       senderId: senderId ?? this.senderId,
       contentRich: contentRich ?? this.contentRich,
+      isSelf: isSelf ?? this.isSelf,
+      canSendText: canSendText ?? this.canSendText,
+      isQuiz: isQuiz ?? this.isQuiz,
     );
   }
 }
 
 const _appName = 'UniClient';
 const _spoilerBlock = '▚';
-final _loginCodePattern = RegExp(r'(?<![\w\-#])(\d[\d\-]{2,6}\d)(?!\w|\-)');
+// AyuGram caps the notification body at kNotificationTextLimit and appends an
+// ellipsis (history_item.cpp:86,4325-4329).
+const _kNotificationTextLimit = 255;
+const _kEllipsis = '…';
+// TextWithForwardedChar prepends ONLY this glyph (no sender, no space) to a
+// single forwarded message (notifications_manager.cpp:81-86).
+const _forwardedChar = '➡️'; // ➡️
+// WrapFromScheduled prepends "📅 " to a fired scheduled message's title
+// (notifications_manager.cpp:1673-1675).
+const _scheduledPrefix = '\u{1F4C5} ';
+// SpoilerLoginCode pattern, 1:1 with history_item.cpp:106-107. NOTE the AyuGram
+// lookahead is (?!\w\-) — a two-char sequence (word char THEN hyphen), NOT a
+// character class — so a code immediately followed by a single word char (e.g.
+// "12345abc") is still masked.
+final _loginCodePattern = RegExp(r'(?<![\w\-#])(\d[\d\-]{2,6}\d)(?!\w\-)');
 
 
 class NotificationContent {
@@ -297,10 +335,21 @@ NotificationContent composeNotificationContent(
 }
 
 String _composeTitle(NotificationData data, NotificationSettings settings) {
-  if (!settings.previewName) return _appName;
+  // scheduled mirrors AyuGram's
+  //   !hideNameAndPhoto && !reactionFrom && (out() || isSelf()) && isFromScheduled()
+  // (notifications_manager.cpp:1566-1569), where hideNameAndPhoto == !previewName.
+  final scheduled = settings.previewName &&
+      !data.isReaction &&
+      !data.isPollVote &&
+      (data.isOutgoing || data.isSelf) &&
+      data.isScheduled;
 
   String title;
-  if (data.isScheduled && data.isOutgoing) {
+  if (!settings.previewName) {
+    title = _appName;
+  } else if (scheduled && data.isSelf) {
+    // Only a self-reminder collapses to "Reminder"; a scheduled message fired to
+    // another chat keeps that chat's name (and gets the 📅 prefix below).
     title = TrStrings.lngNotifReminder();
   } else if (data.isMonoforumSublist && data.sublistPeerName.isNotEmpty) {
     title = '${data.sublistPeerName} (${data.chatTitle})';
@@ -310,12 +359,17 @@ String _composeTitle(NotificationData data, NotificationSettings settings) {
     title = data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName;
   }
 
-  if (data.isScheduled && !data.isOutgoing) {
-    title = '\u{1F4C5} $title';
-  }
-
+  // addTargetAccountName — applied UNCONDITIONALLY, including the hidden-preview
+  // case, so multi-account users always see which account was notified
+  // (notifications_manager.cpp:1585 + 1248-1268).
   if (data.multiAccount && data.accountUsername.isNotEmpty) {
     title = '$title ➜ ${data.accountUsername}';
+  }
+
+  // WrapFromScheduled — prepend 📅 to the WHOLE title (account suffix included)
+  // when a scheduled message fires (notifications_manager.cpp:1658).
+  if (scheduled) {
+    title = '$_scheduledPrefix$title';
   }
 
   return title;
@@ -332,8 +386,15 @@ String _composeSubtitle(NotificationData data, NotificationSettings settings) {
     return '';
   }
 
+  // notificationHeader(): "You" whenever a scheduled message I sent fires in a
+  // non-self chat — regardless of chat type, 1-on-1 INCLUDED
+  // (history_item.cpp:2770-2771).
+  if (data.isOutgoing && data.isScheduled && !data.isSelf) {
+    return TrStrings.lngNotifYou();
+  }
+
+  // Group/channel: the sender's name (history_item.cpp:2772-2773).
   if (data.isGroup || data.isChannel) {
-    if (data.isScheduled && data.isOutgoing) return TrStrings.lngNotifYou();
     return data.senderName;
   }
 
@@ -353,27 +414,38 @@ String _composeBody(NotificationData data, NotificationSettings settings) {
 
   if (hideMessageText) return TrStrings.lngNotifNewMessage();
 
+  // Body ternary order mirrors AyuGram exactly
+  // (notifications_manager.cpp:1606-1616):
+  //   forwardedCount>1 → album(groupId) → TextWithForwardedChar(notificationText)
   if (data.forwardCount > 1) {
     return TrStrings.lngForwardMessages(data.forwardCount);
   }
-  if (data.forwardFrom.isNotEmpty && data.forwardCount <= 1) {
-    final fwdText = _messageTextForType(data);
-    return '➡️ ${data.forwardFrom}: $fwdText';
+  // Album: any message that is part of a media group shows "Album" BEFORE its
+  // own media string ("Photo"/"Video"). AyuGram branches on item->groupId().
+  if (data.groupedId.isNotEmpty) {
+    return TrStrings.lngInDlgAlbum();
   }
 
   var text = _messageTextForType(data);
   if (data.spoilerLoginCode) {
-    text = _maskLoginCodes(text);
+    text = _maskLoginCodes(text, data.contentRich);
+  }
+  text = _truncateNotification(text);
+  // TextWithForwardedChar: prepend the ➡️ glyph (no sender, no colon, no space)
+  // for a single forwarded message; gated purely on forwardedCount == 1.
+  if (data.forwardCount == 1) {
+    text = '$_forwardedChar$text';
   }
   return text;
 }
 
 // "{attachType}, {caption}" when a caption is present, else just the type —
 // mirrors AyuGram's WithCaptionNotificationText (data_media_types.cpp). The
-// caption is spoiler-masked the same way as the media itself.
+// caption's own spoiler entities are masked (▚) BEFORE the type prefix is added,
+// matching TextWithPermanentSpoiler operating on the composed text-with-entities.
 String _withCaption(String attachType, NotificationData data) {
   if (data.caption.isEmpty) return attachType;
-  return '$attachType, ${_applySpoiler(data.caption, data.hasSpoiler)}';
+  return '$attachType, ${_maskSpoilers(data.caption, data.contentRich)}';
 }
 
 String _messageTextForType(NotificationData data) {
@@ -410,29 +482,93 @@ String _messageTextForType(NotificationData data) {
     case 12: // invoice
       return data.invoiceTitle.isNotEmpty ? data.invoiceTitle : TrStrings.lngNotifInvoice();
     default:
-      return _applySpoiler(data.text, data.hasSpoiler);
+      return _maskSpoilers(data.text, data.contentRich);
   }
 }
 
-String _applySpoiler(String text, bool hasSpoiler) {
-  if (!hasSpoiler || text.isEmpty) return text;
-  return _spoilerBlock * text.length.clamp(1, 40);
+// TextWithPermanentSpoiler (notifications_manager.cpp:88-100): replace each
+// spoiler ENTITY range with ▚ repeated its EXACT length, leaving the rest of the
+// text intact (so `visible ||secret||` → `visible ▚▚▚▚▚▚`). Offsets/lengths are
+// UTF-16 code units (Telegram convention), which line up with Dart's native
+// String indexing; ▚ is a single BMP code unit, so each replacement preserves
+// length and keeps later spoiler offsets valid.
+String _maskSpoilers(String text, String contentRich) {
+  if (text.isEmpty || contentRich.isEmpty) return text;
+  List<dynamic> list;
+  try {
+    list = jsonDecode(contentRich) as List;
+  } catch (_) {
+    return text;
+  }
+  var result = text;
+  for (final e in list) {
+    if (e is! Map<String, dynamic>) continue;
+    if ((e['type'] as String? ?? '') != 'spoiler') continue;
+    final offset = e['offset'] as int? ?? 0;
+    final length = e['length'] as int? ?? 0;
+    if (length <= 0 || offset < 0 || offset + length > result.length) continue;
+    result = result.substring(0, offset) +
+        (_spoilerBlock * length) +
+        result.substring(offset + length);
+  }
+  return result;
 }
 
-String _maskLoginCodes(String text) {
-  return text.replaceAllMapped(_loginCodePattern, (m) {
-    return _spoilerBlock * m.group(0)!.length;
-  });
+// SpoilerLoginCode (history_item.cpp:105-124): mask only the FIRST code match,
+// and only if it does not intersect an existing entity.
+String _maskLoginCodes(String text, String contentRich) {
+  final m = _loginCodePattern.firstMatch(text);
+  if (m == null) return text;
+  final codeStart = m.start;
+  final codeLength = m.end - m.start;
+  if (_loginCodeIntersectsEntity(contentRich, codeStart)) return text;
+  return text.substring(0, codeStart) +
+      (_spoilerBlock * codeLength) +
+      text.substring(codeStart + codeLength);
+}
+
+// AyuGram guard (history_item.cpp:114-120): walk entities ordered by offset; if
+// an entity that STARTS before the code extends past the code's start, the
+// ranges intersect and masking is skipped entirely.
+bool _loginCodeIntersectsEntity(String contentRich, int codeStart) {
+  if (contentRich.isEmpty) return false;
+  List<dynamic> list;
+  try {
+    list = jsonDecode(contentRich) as List;
+  } catch (_) {
+    return false;
+  }
+  final ranges = <List<int>>[];
+  for (final e in list) {
+    if (e is! Map<String, dynamic>) continue;
+    final offset = e['offset'] as int? ?? 0;
+    final length = e['length'] as int? ?? 0;
+    if (length <= 0) continue;
+    ranges.add([offset, length]);
+  }
+  ranges.sort((a, b) => a[0].compareTo(b[0]));
+  for (final r in ranges) {
+    if (r[0] >= codeStart) break;
+    if (r[0] + r[1] > codeStart) return true;
+  }
+  return false;
+}
+
+// notificationText cap (history_item.cpp:4325-4329): truncate to 255 code units
+// and append an ellipsis.
+String _truncateNotification(String text) {
+  if (text.length <= _kNotificationTextLimit) return text;
+  return text.substring(0, _kNotificationTextLimit) + _kEllipsis;
 }
 
 List<NotifEntity> _composeBodyEntities(NotificationData data, NotificationSettings settings, String body) {
   if (!settings.previewText || data.contentRich.isEmpty) return const [];
   if (data.isReaction || data.isPollVote) return const [];
-  if (data.forwardFrom.isNotEmpty) return const [];
+  if (data.forwardFrom.isNotEmpty || data.forwardCount == 1) return const [];
   if (data.messageType != 0) return const [];
   final rawText = data.text;
   if (rawText.isEmpty || body.isEmpty) return const [];
-  if (body != rawText && body != _maskLoginCodes(rawText)) return const [];
+  if (body != rawText && body != _maskLoginCodes(rawText, data.contentRich)) return const [];
   try {
     final list = jsonDecode(data.contentRich) as List;
     final entities = <NotifEntity>[];
@@ -470,7 +606,12 @@ String _composeReactionText(NotificationData data, {required bool hideMessageTex
       return TrStrings.lngNotifReactedToStickerPlain(emoji);
     case 7: return TrStrings.lngNotifReactedToGif(emoji);
     case 8: return TrStrings.lngNotifReactedToFile(emoji);
-    case 9: return TrStrings.lngNotifReactedToPoll(emoji);
+    case 9:
+      // lng_reaction_poll / lng_reaction_quiz — include the poll question and
+      // distinguish quizzes (notifications_manager.cpp:1204-1213).
+      return data.isQuiz
+          ? TrStrings.lngNotifReactedToQuiz(emoji, data.pollQuestion)
+          : TrStrings.lngNotifReactedToPoll(emoji, data.pollQuestion);
     case 10: return TrStrings.lngNotifReactedToLocation(emoji);
     case 11:
       if (data.contactName.isNotEmpty) {
@@ -611,6 +752,10 @@ bool shouldHideReplyButton(
   if (data.isReaction || data.isPollVote) return true;
   if (data.messageId.isEmpty) return true;
   if (data.isScheduled && data.isOutgoing) return true;
+  // AyuGram hides the reply button when the user cannot send a text reply in the
+  // peer (and topic, if any) — banned / restricted / no post rights
+  // (notifications_manager.cpp:1097-1099).
+  if (!data.canSendText) return true;
   if (data.isChannel) return true;
   if (data.slowmodeActive) return true;
   if (data.requiresStars) return true;
