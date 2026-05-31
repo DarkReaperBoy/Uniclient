@@ -160,19 +160,37 @@ class AyuForward {
     return false;
   }
 
+  /// Mirrors C++ `isFullAyuForwardNeeded(item)` (ayu_forward.cpp:233-235):
+  ///   `item->from()->isAyuNoForwards() || item->history()->peer->isAyuNoForwards()`
+  /// True when the message's SENDER has the no-forwards flag, or the source
+  /// chat has it. AyuGram always evaluates this on a SINGLE message — the FIRST
+  /// forwarded message (`draft.items.front()`) — never the whole batch, so this
+  /// takes one message, not a list. Used to decide whether the ENTIRE batch is
+  /// re-sent as own (full AyuForward) vs. routed through per-chunk handling.
+  static bool isFullAyuForwardNeeded(CachedMessage message, ChatInfo sourceChat) {
+    return message.senderNoForwards || isChatRestricted(sourceChat);
+  }
+
   static List<ForwardChunk> buildChunks(
     List<CachedMessage> messages,
     ChatInfo sourceChat,
   ) {
-    // Full AyuForward: if the source chat OR any message's sender has
-    // noForwards, the ENTIRE batch must go through the re-send path. Mirrors
-    // C++ isFullAyuForwardNeeded = item->from()->isAyuNoForwards()
-    // || item->history()->peer->isAyuNoForwards() (ayu_forward.cpp:233-235),
-    // which routes the whole draft through forwardMessages (apiwrap.cpp:3487).
-    // This also keeps buildChunks consistent with needsIntelligentForward,
-    // which already checks m.senderNoForwards.
-    if (isChatRestricted(sourceChat) ||
-        messages.any((m) => m.senderNoForwards)) {
+    // Full AyuForward: the ENTIRE batch is re-sent as own ONLY when
+    // `isFullAyuForwardNeeded(items.front())` holds — the source chat has
+    // no-forwards, OR the FIRST forwarded message's sender has it. AyuGram keys
+    // this whole-batch decision off `draft.items.front()` ONLY
+    // (apiwrap.cpp:3487, share_box.cpp:1757, context_menu.cpp:842), never a
+    // per-message scan. In a multi-sender forward through an unrestricted chat
+    // where a LATER message's sender is restricted but the first isn't, AyuGram
+    // still forwards natively (per-chunk path below), preserving the "Forwarded
+    // from" attribution — using `.any` here would wrongly strip attribution and
+    // re-upload every message. Mirrors C++ isFullAyuForwardNeeded =
+    // item->from()->isAyuNoForwards() || item->history()->peer->isAyuNoForwards()
+    // (ayu_forward.cpp:233-235), consistent with needsIntelligentForward.
+    final fullResendNeeded = messages.isNotEmpty
+        ? isFullAyuForwardNeeded(messages.first, sourceChat)
+        : isChatRestricted(sourceChat);
+    if (fullResendNeeded) {
       return [ForwardChunk(ForwardMethod.resendAsOwn, messages)];
     }
 
@@ -320,8 +338,16 @@ class AyuForward {
     List<CachedMessage> messages,
     ChatInfo sourceChat,
   ) {
-    if (isChatRestricted(sourceChat)) return true;
-    if (messages.any((m) => m.senderNoForwards)) return true;
+    // AyuGram's caller gate (apiwrap.cpp:3487-3501, window_peer_menu.cpp:3248):
+    //   isFullAyuForwardNeeded(items.front()) || isAyuForwardNeeded(items)
+    // The first disjunct is FIRST-ITEM-ONLY (the front message's sender, or the
+    // source chat); the second is any-message message-level restriction
+    // (deleted / unsupportedTTL / ttlSeconds / per-message noForwards ==
+    // isMessageRestricted). A LATER message's restricted SENDER must NOT force
+    // the special path on its own — only the FRONT message's sender does, so we
+    // do not `.any(senderNoForwards)`.
+    if (messages.isEmpty) return isChatRestricted(sourceChat);
+    if (isFullAyuForwardNeeded(messages.first, sourceChat)) return true;
     return messages.any(isMessageRestricted);
   }
 }
