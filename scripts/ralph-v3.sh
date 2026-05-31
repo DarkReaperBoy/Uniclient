@@ -617,32 +617,7 @@ extract_ayugram_context() {
   echo "$context"
 }
 
-# ─── Tier routing: complexity-based skip/haiku/sonnet ─────────────
-get_file_tier() {
-  local dart_file="$1"
-  local lines callbacks switch_cases state_fields score
-  lines=$(wc -l < "$dart_file" 2>/dev/null || echo 0)
-
-  callbacks=$(grep -c "onTap:\|onPressed:\|onLongPress:\|bridge\.\|engine\.\|_engine\.\|\.call(" "$dart_file" 2>/dev/null || true)
-  callbacks="${callbacks//[^0-9]/}"; [[ -z "$callbacks" ]] && callbacks=0
-
-  switch_cases=$(grep -c "case '\|case \"" "$dart_file" 2>/dev/null || true)
-  switch_cases="${switch_cases//[^0-9]/}"; [[ -z "$switch_cases" ]] && switch_cases=0
-
-  state_fields=$(grep -c "bool _\|int _\|String _\|List<.*> _\|Map<.*> _\|late " "$dart_file" 2>/dev/null || true)
-  state_fields="${state_fields//[^0-9]/}"; [[ -z "$state_fields" ]] && state_fields=0
-
-  # Complexity score: weighted sum
-  score=$(( callbacks * 3 + switch_cases * 2 + state_fields + lines / 200 ))
-
-  if [[ $score -lt 3 ]]; then
-    echo "haiku"
-  elif [[ $score -lt 12 ]]; then
-    echo "haiku"
-  else
-    echo "sonnet"
-  fi
-}
+# (tier routing removed — every session uses the single Opus model $RALPH_MODEL)
 
 # ─── Skeleton extraction: reduce tokens by 80% ──────────────────
 extract_skeleton() {
@@ -861,7 +836,7 @@ invoke_claude() {
     --print \
     "${session_args[@]}" \
     --dangerously-skip-permissions \
-    --permission-mode auto \
+    --permission-mode bypassPermissions \
     --model "$model" \
     --effort "$effort" \
     --output-format stream-json \
@@ -897,7 +872,7 @@ invoke_claude() {
       --print \
       "${retry_session_args[@]}" \
       --dangerously-skip-permissions \
-      --permission-mode auto \
+      --permission-mode bypassPermissions \
       --model "$model" \
       --effort "$effort" \
       --output-format stream-json \
@@ -1110,7 +1085,7 @@ PROMPT_END
 }
 
 # ═════════════════════════════════════════════════════════════════
-# AUDIT: PER-FILE COMPARISON PROMPT (Sonnet, per dart file)
+# AUDIT: PER-FILE COMPARISON PROMPT (Opus, per dart file)
 # ═════════════════════════════════════════════════════════════════
 build_audit_prompt() {
   local dart_file="$1" chunk_id="$2"
@@ -1611,7 +1586,7 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
     run_static_scan
     run_palette_diff
 
-    # ── LAYER 1: Per-file audit (Dart vs AyuGram, parallel Sonnet) ─
+    # ── LAYER 1: Per-file audit (Dart vs AyuGram, parallel Opus) ─
     set_current_stage "MODE 2 / PHASE A: PER-FILE AUDIT" "cycle $AUDIT_CYCLE/$MAX_AUDIT_CYCLES" "parallel Dart file comparison"
     log "  Layer 1: Comparing Dart files against AyuGram source (skeleton mode)..."
 
@@ -1666,11 +1641,10 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
         continue
       fi
 
-      tier=$(get_file_tier "$dart_file")   # informational only — model is fixed below
       model="$RALPH_MODEL"
 
       PROMPT="$(build_audit_prompt "$dart_file" "$CHUNK_ID")"
-      log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart ($(wc -l < "$dart_file") lines, tier=$tier)"
+      log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart ($(wc -l < "$dart_file") lines)"
 
       this_chunk=$CHUNK_ID
       (
@@ -1760,11 +1734,10 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
           continue
         fi
 
-        tier=$(get_file_tier "$dart_file")   # informational only — model is fixed below
         model="$RALPH_MODEL"
 
         PROMPT="$(build_cleanup_prompt "$dart_file" "$CHUNK_ID")"
-        log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart (tier=$tier)"
+        log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart"
 
         this_chunk=$CHUNK_ID
         (
