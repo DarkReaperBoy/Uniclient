@@ -9340,18 +9340,39 @@ class _WebPagePreview extends StatelessWidget {
     if (confirmed != true || !context.mounted) return;
     final appState = context.read<AppState>();
     if (match != null) {
+      final isPat = match['pattern'] as bool? ?? false;
       final docId = match['doc_id'] as int? ?? 0;
       final docHash = match['doc_hash'] as int? ?? 0;
       final docRef = match['doc_ref'] as String? ?? '';
       if (docId > 0) {
         final data = await engine.downloadWallpaperDocument(message.accountId, docId, docHash, docRef);
         if (data != null && context.mounted) {
-          appState.setWallpaper(WallpaperData(
-            type: WallpaperType.image,
-            imageBytes: data,
-            patternIntensity: intensity,
-            gradientRotation: rotation,
-          ));
+          if (isPat) {
+            // Pattern wallpaper: the document is a (gzipped) SVG tiled over the
+            // background colors. Route through WallpaperType.pattern so it is
+            // decoded + composited correctly, instead of shown as a flat image.
+            var patColors = <Color>[];
+            final mc = match['colors'];
+            if (mc is List) {
+              for (final c in mc) {
+                if (c is int) patColors.add(Color(0xFF000000 | (c & 0xFFFFFF)));
+              }
+            }
+            if (patColors.isEmpty) patColors = _parseBgColors(bgColorStr);
+            appState.setWallpaper(WallpaperData.fromPattern(
+              patternBytes: data,
+              backgroundColors: patColors,
+              intensity: intensity,
+              rotation: rotation,
+            ));
+          } else {
+            appState.setWallpaper(WallpaperData(
+              type: WallpaperType.image,
+              imageBytes: data,
+              patternIntensity: intensity,
+              gradientRotation: rotation,
+            ));
+          }
           showTelegramToast(context, 'Background applied');
         }
         return;

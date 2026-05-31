@@ -4256,7 +4256,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final typeIdx = data['wallpaperType'] as int? ?? 0;
     final type = WallpaperType.values.elementAtOrNull(typeIdx) ?? WallpaperType.solid;
     final colorHexes = (data['wallpaperColors'] as List<dynamic>?)?.cast<String>() ?? [];
-    final intensity = data['wallpaperIntensity'] as int? ?? 40;
+    final intensity = data['wallpaperIntensity'] as int? ?? 50;
     final rotation = data['wallpaperRotation'] as int? ?? 0;
     final blurred = data['wallpaperBlurred'] as bool? ?? false;
     final tiled = data['wallpaperTiled'] as bool? ?? false;

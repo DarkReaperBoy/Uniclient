@@ -1,11 +1,14 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image/image.dart' as img;
-import 'package:provider/provider.dart';
-import '../state/app_state.dart';
+import 'package:vector_graphics/vector_graphics.dart' as vgfx;
 
 enum WallpaperType { solid, gradient, pattern, image }
 
@@ -22,7 +25,7 @@ class WallpaperData {
   const WallpaperData({
     this.type = WallpaperType.solid,
     this.backgroundColors = const [],
-    this.patternIntensity = 40,
+    this.patternIntensity = 50,
     this.gradientRotation = 0,
     this.blurred = false,
     this.imageBytes,
@@ -75,7 +78,7 @@ class WallpaperData {
   static WallpaperData fromPattern({
     required Uint8List patternBytes,
     required List<Color> backgroundColors,
-    int intensity = 40,
+    int intensity = 50,
     int rotation = 0,
   }) {
     return WallpaperData(
@@ -97,7 +100,7 @@ class WallpaperData {
 
     final params = uri.queryParameters;
     final bgColor = params['bg_color'] ?? '';
-    final intensity = int.tryParse(params['intensity'] ?? '') ?? 40;
+    final intensity = int.tryParse(params['intensity'] ?? '') ?? 50;
     final rotation = int.tryParse(params['rotation'] ?? '') ?? 0;
     final blur = params['mode'] == 'blur';
 
@@ -128,17 +131,25 @@ class WallpaperData {
     );
   }
 
+  /// Mirrors AyuGram `WallPaper::collectShareParams` (data_wall_paper.cpp:269-291)
+  /// + `StringFromColors` (:163-173): intensity is emitted only for patterns,
+  /// rotation only for exactly-2-color gradients, and the color separator is
+  /// `~` for >2 colors / `-` for <=2.
   String toUrlParams() {
     final parts = <String>[];
     if (backgroundColors.isNotEmpty) {
-      final hexes = backgroundColors.map((c) {
-        final hex = (c.value & 0xFFFFFF).toRadixString(16).padLeft(6, '0');
-        return hex;
-      }).join('~');
+      final sep = backgroundColors.length > 2 ? '~' : '-';
+      final hexes = backgroundColors
+          .map((c) => (c.value & 0xFFFFFF).toRadixString(16).padLeft(6, '0'))
+          .join(sep);
       parts.add('bg_color=$hexes');
     }
-    if (patternIntensity != 0) parts.add('intensity=$patternIntensity');
-    if (gradientRotation != 0) parts.add('rotation=$gradientRotation');
+    if (isPattern && patternIntensity != 0) {
+      parts.add('intensity=$patternIntensity');
+    }
+    if (gradientRotation != 0 && backgroundColors.length == 2) {
+      parts.add('rotation=$gradientRotation');
+    }
     if (blurred) parts.add('mode=blur');
     return parts.join('&');
   }
@@ -160,9 +171,12 @@ class WallpaperData {
     return null;
   }
 
+  /// Mirrors AyuGram `WallPaper::withUrlParams` rotation handling
+  /// (data_wall_paper.cpp:417-418): clamp to [0,315] then floor to the nearest
+  /// lower multiple of 45 — NOT round-to-nearest-then-wrap.
   static int _snapRotation(int degrees) {
-    final snapped = ((degrees + 22) ~/ 45) * 45;
-    return snapped % 360;
+    final clamped = degrees.clamp(0, 315);
+    return (clamped ~/ 45) * 45;
   }
 }
 
@@ -217,16 +231,12 @@ class ChatWallpaper extends StatelessWidget {
     if (colors.isEmpty) return ColoredBox(color: fallbackColor);
     if (colors.length == 1) return ColoredBox(color: colors.first);
 
-    if (colors.length == 2) {
-      return _TwoColorGradient(
-        colors: colors,
-        rotation: wallpaper.effectiveGradientRotation,
-      );
-    }
-
-    return _MultiColorGradient(
+    // 2 colors → linear (8-direction), 3-4 colors → Telegram's signature
+    // 4-point free-flowing complex gradient. Both static + dithered.
+    return _RasterGradient(
       colors: colors,
       rotation: wallpaper.effectiveGradientRotation,
+      fallbackColor: fallbackColor,
     );
   }
 
@@ -259,7 +269,11 @@ class ChatWallpaper extends StatelessWidget {
     final colors = wallpaper.backgroundColors;
     if (wallpaper.patternBytes == null) {
       if (colors.length >= 2) {
-        return _MultiColorGradient(colors: colors, rotation: wallpaper.effectiveGradientRotation);
+        return _RasterGradient(
+          colors: colors,
+          rotation: wallpaper.effectiveGradientRotation,
+          fallbackColor: fallbackColor,
+        );
       } else if (colors.isNotEmpty) {
         return ColoredBox(color: colors.first);
       }
@@ -277,143 +291,332 @@ class ChatWallpaper extends StatelessWidget {
   }
 }
 
-class _TwoColorGradient extends StatelessWidget {
-  final List<Color> colors;
-  final int rotation;
+// ===========================================================================
+// Gradient image generation — ports of AyuGram's `lib_ui/ui/image/image_prepare.cpp`.
+//
+// AyuGram renders the chat-background gradient as a raster (64px complex gradient
+// upscaled, or a linear gradient) which is then dithered. It is STATIC: it does
+// not animate on a timer; it only advances one 45° step (with a 200ms fade) when
+// an outgoing message is revealed (chat_theme.cpp:638-669). There is no continuous
+// timer anywhere in AyuGram, so we render a static, dithered raster image here.
+// ===========================================================================
 
-  const _TwoColorGradient({required this.colors, required this.rotation});
+// Complex gradient native size. AyuGram generates at 64px and smooth-upscales;
+// we generate at a slightly higher resolution so dithering has an effect, then
+// let the GPU smooth-scale to the target (FilterQuality.high).
+const int _kComplexGradientSize = 256;
+const int _kLinearGradientSize = 512;
 
-  @override
-  Widget build(BuildContext context) {
-    final alignment = _rotationToAlignment(rotation);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: alignment.$1,
-          end: alignment.$2,
-          colors: colors,
-        ),
-      ),
-    );
+/// Port of `GenerateSmallComplexGradient` (image_prepare.cpp:172-291):
+/// Telegram's signature multi-point free-flowing gradient. Four control points
+/// (taken from an 8-position ring by phase) are blended per-pixel by inverse
+/// 4th-power distance, with a swirl distortion applied to the sampling position.
+Uint8List _complexGradientPixels(
+    List<Color> colors, int rotation, double progress, int size) {
+  const positions = <List<double>>[
+    [0.80, 0.10],
+    [0.60, 0.20],
+    [0.35, 0.25],
+    [0.25, 0.60],
+    [0.20, 0.90],
+    [0.40, 0.80],
+    [0.65, 0.75],
+    [0.75, 0.40],
+  ];
+  List<List<double>> positionsForPhase(int phase) {
+    return List<List<double>>.generate(4, (i) {
+      final p = positions[(phase + i * 2) % 8];
+      return [p[0], 1.0 - p[1]];
+    });
   }
 
-  static (Alignment, Alignment) _rotationToAlignment(int degrees) {
-    final rad = degrees * math.pi / 180.0;
-    final dx = math.sin(rad);
-    final dy = -math.cos(rad);
-    return (Alignment(-dx, -dy), Alignment(dx, dy));
+  final phase = rotation.clamp(0, 315) ~/ 45;
+  final previous = positionsForPhase((phase + 1) % 8);
+  final current = positionsForPhase(phase);
+
+  final n = colors.length;
+  final cr = List<double>.generate(n, (i) => colors[i].red.toDouble());
+  final cg = List<double>.generate(n, (i) => colors[i].green.toDouble());
+  final cb = List<double>.generate(n, (i) => colors[i].blue.toDouble());
+  final colorX = List<double>.generate(
+      n, (i) => previous[i][0] + (current[i][0] - previous[i][0]) * progress);
+  final colorY = List<double>.generate(
+      n, (i) => previous[i][1] + (current[i][1] - previous[i][1]) * progress);
+
+  final out = Uint8List(size * size * 4);
+  final invsize = 1.0 / size;
+  int idx = 0;
+  for (int y = 0; y < size; y++) {
+    final cdy = (y * invsize) - 0.5;
+    final cdy2 = cdy * cdy;
+    for (int x = 0; x < size; x++) {
+      final cdx = (x * invsize) - 0.5;
+      final centerDistance = math.sqrt(cdx * cdx + cdy2);
+      final swirl = 0.35 * centerDistance;
+      final theta = swirl * swirl * 0.8 * 8.0;
+      final st = math.sin(theta);
+      final ct = math.cos(theta);
+      final pixelX = (0.5 + cdx * ct - cdy * st).clamp(0.0, 1.0);
+      final pixelY = (0.5 + cdx * st + cdy * ct).clamp(0.0, 1.0);
+
+      double dsum = 0, r = 0, g = 0, b = 0;
+      for (int i = 0; i < n; i++) {
+        final dx = pixelX - colorX[i];
+        final dy = pixelY - colorY[i];
+        final dist = math.max(0.0, 0.9 - math.sqrt(dx * dx + dy * dy));
+        final sq = dist * dist;
+        final fourth = sq * sq;
+        dsum += fourth;
+        r += fourth * cr[i];
+        g += fourth * cg[i];
+        b += fourth * cb[i];
+      }
+      final inv = dsum > 0 ? 1.0 / dsum : 0.0;
+      out[idx++] = (r * inv).round().clamp(0, 255);
+      out[idx++] = (g * inv).round().clamp(0, 255);
+      out[idx++] = (b * inv).round().clamp(0, 255);
+      out[idx++] = 255;
+    }
   }
+  return out;
 }
 
-class _MultiColorGradient extends StatefulWidget {
+/// Port of `GenerateLinearGradient` (image_prepare.cpp:916-966): a discrete
+/// 8-direction start/finalStop table. `colors[0]` sits at `start`, so for
+/// rotation 0 it is at the TOP (`{0,0}`) — fixing the previously-reversed
+/// direction.
+Uint8List _linearGradientPixels(List<Color> colors, int rotation, int size) {
+  final type = rotation.clamp(0, 315) ~/ 45;
+  double sx, sy, fx, fy;
+  switch (type) {
+    case 0:
+      sx = 0; sy = 0; fx = 0; fy = 1; break;
+    case 1:
+      sx = 1; sy = 0; fx = 0; fy = 1; break;
+    case 2:
+      sx = 1; sy = 0; fx = 0; fy = 0; break;
+    case 3:
+      sx = 1; sy = 1; fx = 0; fy = 0; break;
+    case 4:
+      sx = 0; sy = 1; fx = 0; fy = 0; break;
+    case 5:
+      sx = 0; sy = 1; fx = 1; fy = 0; break;
+    case 6:
+      sx = 0; sy = 0; fx = 1; fy = 0; break;
+    default: // 7
+      sx = 0; sy = 0; fx = 1; fy = 1; break;
+  }
+  final ax = fx - sx;
+  final ay = fy - sy;
+  final axisLen2 = ax * ax + ay * ay;
+  final n = colors.length;
+  final out = Uint8List(size * size * 4);
+  final denom = size > 1 ? (size - 1).toDouble() : 1.0;
+  int idx = 0;
+  for (int y = 0; y < size; y++) {
+    final ny = y / denom;
+    for (int x = 0; x < size; x++) {
+      final nx = x / denom;
+      double t;
+      if (axisLen2 == 0) {
+        t = 0;
+      } else {
+        t = (((nx - sx) * ax + (ny - sy) * ay) / axisLen2).clamp(0.0, 1.0);
+      }
+      final pos = t * (n - 1);
+      int i0 = pos.floor();
+      if (i0 < 0) i0 = 0;
+      if (i0 > n - 1) i0 = n - 1;
+      int i1 = i0 + 1;
+      if (i1 > n - 1) i1 = n - 1;
+      final f = pos - i0;
+      final a = colors[i0];
+      final b = colors[i1];
+      out[idx++] = (a.red + (b.red - a.red) * f).round().clamp(0, 255);
+      out[idx++] = (a.green + (b.green - a.green) * f).round().clamp(0, 255);
+      out[idx++] = (a.blue + (b.blue - a.blue) * f).round().clamp(0, 255);
+      out[idx++] = 255;
+    }
+  }
+  return out;
+}
+
+/// Dither tier from `DitherImage` (image_prepare.cpp:880-897).
+int _ditherShiftForSize(int w, int h) {
+  final mn = math.min(w, h);
+  final mx = math.max(w, h);
+  if (mx >= 1024 && mn >= 512) return 4;
+  if (mx >= 512 && mn >= 256) return 3;
+  if (mx >= 256 && mn >= 128) return 2;
+  if (mn >= 32) return 1;
+  return 0;
+}
+
+/// Port of `DitherImage` (image_prepare.cpp:880-897): a spatial dither that
+/// jitters each pixel's sample position by a small random offset, breaking up
+/// banding on large/dark gradients. Deterministic (seeded) so it never relies
+/// on `Math.random`.
+Uint8List _ditherPixels(Uint8List src, int w, int h, int seed) {
+  final shift = _ditherShiftForSize(w, h);
+  if (shift == 0) return src;
+  final out = Uint8List(src.length);
+  int rng = seed & 0x7fffffff;
+  if (rng == 0) rng = 1;
+  final span = 2 * shift + 1;
+  for (int y = 0; y < h; y++) {
+    for (int x = 0; x < w; x++) {
+      rng = (rng * 1103515245 + 12345) & 0x7fffffff;
+      final dx = (rng % span) - shift;
+      rng = (rng * 1103515245 + 12345) & 0x7fffffff;
+      final dy = (rng % span) - shift;
+      int sx = x + dx;
+      if (sx < 0) sx = 0; else if (sx >= w) sx = w - 1;
+      int sy = y + dy;
+      if (sy < 0) sy = 0; else if (sy >= h) sy = h - 1;
+      final di = (y * w + x) * 4;
+      final si = (sy * w + sx) * 4;
+      out[di] = src[si];
+      out[di + 1] = src[si + 1];
+      out[di + 2] = src[si + 2];
+      out[di + 3] = src[si + 3];
+    }
+  }
+  return out;
+}
+
+int _gradientSeed(List<Color> colors, int rotation) {
+  int h = 17 + rotation;
+  for (final c in colors) {
+    h = (h * 31 + c.value) & 0x7fffffff;
+  }
+  return h == 0 ? 1 : h;
+}
+
+/// Generates the static, dithered RGBA buffer for a 2-4 color gradient.
+Uint8List _generateGradientBytes(List<Color> colors, int rotation, int size) {
+  final raw = colors.length > 2
+      ? _complexGradientPixels(colors, rotation, 1.0, size)
+      : _linearGradientPixels(colors, rotation, size);
+  return _ditherPixels(raw, size, size, _gradientSeed(colors, rotation));
+}
+
+bool _sameColors(List<Color> a, List<Color> b) {
+  if (a.length != b.length) return false;
+  for (int i = 0; i < a.length; i++) {
+    if (a[i].value != b[i].value) return false;
+  }
+  return true;
+}
+
+Color _averageOf(List<Color> colors, Color fallback) {
+  if (colors.isEmpty) return fallback;
+  int r = 0, g = 0, b = 0;
+  for (final c in colors) {
+    r += c.red;
+    g += c.green;
+    b += c.blue;
+  }
+  final n = colors.length;
+  return Color.fromARGB(255, r ~/ n, g ~/ n, b ~/ n);
+}
+
+class _RasterGradient extends StatefulWidget {
   final List<Color> colors;
   final int rotation;
+  final Color fallbackColor;
 
-  const _MultiColorGradient({required this.colors, required this.rotation});
+  const _RasterGradient({
+    required this.colors,
+    required this.rotation,
+    required this.fallbackColor,
+  });
 
   @override
-  State<_MultiColorGradient> createState() => _MultiColorGradientState();
+  State<_RasterGradient> createState() => _RasterGradientState();
 }
 
-class _MultiColorGradientState extends State<_MultiColorGradient>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
+class _RasterGradientState extends State<_RasterGradient> {
+  ui.Image? _image;
+  int _genToken = 0;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
-    )..repeat();
+    _generate();
+  }
+
+  @override
+  void didUpdateWidget(_RasterGradient old) {
+    super.didUpdateWidget(old);
+    if (old.rotation != widget.rotation ||
+        !_sameColors(old.colors, widget.colors)) {
+      _generate();
+    }
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _image?.dispose();
     super.dispose();
+  }
+
+  void _generate() {
+    final colors = List<Color>.from(widget.colors);
+    final size =
+        colors.length > 2 ? _kComplexGradientSize : _kLinearGradientSize;
+    final bytes = _generateGradientBytes(colors, widget.rotation, size);
+    final token = ++_genToken;
+    ui.decodeImageFromPixels(bytes, size, size, ui.PixelFormat.rgba8888, (image) {
+      if (!mounted || token != _genToken) {
+        image.dispose();
+        return;
+      }
+      setState(() {
+        _image?.dispose();
+        _image = image;
+      });
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final powerSaving = context.watch<AppState>().powerSaving(AppState.kPowerSavingChatBackground);
-    if (powerSaving && _ctrl.isAnimating) {
-      _ctrl.stop();
-    } else if (!powerSaving && !_ctrl.isAnimating) {
-      _ctrl.repeat();
-    }
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (context, _) {
-        return CustomPaint(
-          painter: _MultiGradientPainter(
-            colors: widget.colors,
-            baseRotation: widget.rotation,
-            progress: _ctrl.value,
-          ),
-          size: Size.infinite,
-        );
-      },
+    return CustomPaint(
+      painter: _RasterGradientPainter(
+        image: _image,
+        fallback: _averageOf(widget.colors, widget.fallbackColor),
+      ),
+      size: Size.infinite,
     );
   }
 }
 
-class _MultiGradientPainter extends CustomPainter {
-  final List<Color> colors;
-  final int baseRotation;
-  final double progress;
+class _RasterGradientPainter extends CustomPainter {
+  final ui.Image? image;
+  final Color fallback;
 
-  _MultiGradientPainter({
-    required this.colors,
-    required this.baseRotation,
-    required this.progress,
-  });
+  _RasterGradientPainter({required this.image, required this.fallback});
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (colors.isEmpty) return;
-    if (colors.length == 1) {
-      canvas.drawRect(Offset.zero & size, Paint()..color = colors.first);
+    final rect = Offset.zero & size;
+    final image = this.image;
+    if (image == null) {
+      canvas.drawRect(rect, Paint()..color = fallback);
       return;
     }
-
-    final realRotation = (baseRotation * 2) % 720;
-    final phase = (realRotation ~/ 360).isOdd;
-    final t = phase ? 1.0 - progress * 0.5 : 0.5 + progress * 0.5;
-    final angle = (realRotation % 360 + t * 360) * math.pi / 180.0;
-
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-
-    final stops = <double>[];
-    for (int i = 0; i < colors.length; i++) {
-      stops.add(i / (colors.length - 1));
-    }
-
-    final dx = math.sin(angle);
-    final dy = -math.cos(angle);
-    final halfDiag = math.sqrt(cx * cx + cy * cy);
-    final startX = cx - dx * halfDiag;
-    final startY = cy - dy * halfDiag;
-    final endX = cx + dx * halfDiag;
-    final endY = cy + dy * halfDiag;
-
-    final paint = Paint()
-      ..shader = ui.Gradient.linear(
-        Offset(startX, startY),
-        Offset(endX, endY),
-        colors,
-        stops,
-      );
-
-    canvas.drawRect(Offset.zero & size, paint);
+    final src =
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+    canvas.drawImageRect(
+      image,
+      src,
+      rect,
+      Paint()..filterQuality = FilterQuality.high,
+    );
   }
 
   @override
-  bool shouldRepaint(_MultiGradientPainter old) =>
-      old.progress != progress ||
-      old.baseRotation != baseRotation ||
-      old.colors != colors;
+  bool shouldRepaint(_RasterGradientPainter old) =>
+      !identical(old.image, image) || old.fallback != fallback;
 }
 
 class _TiledImage extends StatefulWidget {
@@ -498,73 +701,166 @@ class _PatternWallpaper extends StatefulWidget {
   State<_PatternWallpaper> createState() => _PatternWallpaperState();
 }
 
-class _PatternWallpaperState extends State<_PatternWallpaper>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
+class _PatternWallpaperState extends State<_PatternWallpaper> {
+  ui.Image? _gradientImage;
   ui.Image? _patternImage;
+  int _gradToken = 0;
+  int _patToken = 0;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
-    )..repeat();
+    _generateGradient();
     _decodePattern();
   }
 
   @override
   void didUpdateWidget(_PatternWallpaper old) {
     super.didUpdateWidget(old);
+    if (old.gradientRotation != widget.gradientRotation ||
+        !_sameColors(old.backgroundColors, widget.backgroundColors)) {
+      _generateGradient();
+    }
     if (!identical(old.patternBytes, widget.patternBytes)) {
       _decodePattern();
     }
   }
 
-  void _decodePattern() {
-    ui.decodeImageFromList(widget.patternBytes, (image) {
-      if (mounted) setState(() => _patternImage = image);
+  @override
+  void dispose() {
+    _gradientImage?.dispose();
+    _patternImage?.dispose();
+    super.dispose();
+  }
+
+  void _generateGradient() {
+    final colors = List<Color>.from(widget.backgroundColors);
+    if (colors.length < 2) {
+      final token = ++_gradToken;
+      // No multi-stop gradient needed; painter fills solid / fallback.
+      if (_gradientImage != null) {
+        setState(() {
+          _gradientImage?.dispose();
+          _gradientImage = null;
+        });
+      }
+      _gradToken = token;
+      return;
+    }
+    final size =
+        colors.length > 2 ? _kComplexGradientSize : _kLinearGradientSize;
+    final bytes = _generateGradientBytes(colors, widget.gradientRotation, size);
+    final token = ++_gradToken;
+    ui.decodeImageFromPixels(bytes, size, size, ui.PixelFormat.rgba8888, (image) {
+      if (!mounted || token != _gradToken) {
+        image.dispose();
+        return;
+      }
+      setState(() {
+        _gradientImage?.dispose();
+        _gradientImage = image;
+      });
+    });
+  }
+
+  Future<void> _decodePattern() async {
+    final token = ++_patToken;
+    final image = await _decodePatternBytes(widget.patternBytes);
+    if (!mounted || token != _patToken) {
+      image?.dispose();
+      return;
+    }
+    setState(() {
+      _patternImage?.dispose();
+      _patternImage = image;
     });
   }
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final powerSaving = context.watch<AppState>().powerSaving(AppState.kPowerSavingChatBackground);
-    if (powerSaving && _ctrl.isAnimating) {
-      _ctrl.stop();
-    } else if (!powerSaving && !_ctrl.isAnimating) {
-      _ctrl.repeat();
-    }
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (context, _) {
-        return CustomPaint(
-          painter: _PatternWallpaperPainter(
-            colors: widget.backgroundColors,
-            baseRotation: widget.gradientRotation,
-            progress: _ctrl.value,
-            patternImage: _patternImage,
-            intensity: widget.intensity,
-            opacity: widget.opacity,
-            fallbackColor: widget.fallbackColor,
-          ),
-          size: Size.infinite,
-        );
-      },
+    return CustomPaint(
+      painter: _PatternWallpaperPainter(
+        colors: widget.backgroundColors,
+        gradientImage: _gradientImage,
+        patternImage: _patternImage,
+        intensity: widget.intensity,
+        opacity: widget.opacity,
+        fallbackColor: widget.fallbackColor,
+      ),
+      size: Size.infinite,
     );
   }
 }
 
+/// Decodes a Telegram wallpaper-pattern document. Pattern documents are
+/// `application/x-tgwallpattern`, i.e. a gzipped SVG (chat_theme.cpp:1079-1090
+/// `ReadBackgroundImage` un-gzips then rasterizes the SVG). Raster documents
+/// (jpg/png) fall through to the normal image decoder.
+Future<ui.Image?> _decodePatternBytes(Uint8List bytes) async {
+  var data = bytes;
+  // Gunzip if gzip-framed (magic 1f 8b).
+  if (data.length >= 2 && data[0] == 0x1f && data[1] == 0x8b) {
+    try {
+      data = Uint8List.fromList(GZipDecoder().decodeBytes(data));
+    } catch (_) {}
+  }
+  if (_looksLikeSvg(data)) {
+    return _rasterizeSvg(data);
+  }
+  return _decodeRaster(data);
+}
+
+bool _looksLikeSvg(Uint8List b) {
+  int i = 0;
+  while (i < b.length &&
+      (b[i] == 0x20 || b[i] == 0x09 || b[i] == 0x0a || b[i] == 0x0d || b[i] == 0xef || b[i] == 0xbb || b[i] == 0xbf)) {
+    i++;
+  }
+  if (i >= b.length || b[i] != 0x3c /* '<' */) return false;
+  final head =
+      String.fromCharCodes(b.sublist(i, math.min(b.length, i + 512))).toLowerCase();
+  return head.contains('<svg') || head.contains('<?xml');
+}
+
+Future<ui.Image?> _rasterizeSvg(Uint8List bytes) async {
+  try {
+    final svg = utf8.decode(bytes, allowMalformed: true);
+    final info = await vgfx.vg.loadPicture(SvgStringLoader(svg), null);
+    const target = 512;
+    int w = target, h = target;
+    final sz = info.size;
+    if (sz.width > 0 && sz.height > 0) {
+      if (sz.width >= sz.height) {
+        w = target;
+        h = math.max(1, (target * sz.height / sz.width).round());
+      } else {
+        h = target;
+        w = math.max(1, (target * sz.width / sz.height).round());
+      }
+    }
+    final image = await info.picture.toImage(w, h);
+    info.picture.dispose();
+    return image;
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<ui.Image?> _decodeRaster(Uint8List bytes) {
+  final completer = Completer<ui.Image?>();
+  try {
+    ui.decodeImageFromList(bytes, (image) {
+      if (!completer.isCompleted) completer.complete(image);
+    });
+  } catch (_) {
+    if (!completer.isCompleted) completer.complete(null);
+  }
+  return completer.future;
+}
+
 class _PatternWallpaperPainter extends CustomPainter {
   final List<Color> colors;
-  final int baseRotation;
-  final double progress;
+  final ui.Image? gradientImage;
   final ui.Image? patternImage;
   final int intensity;
   final double opacity;
@@ -572,8 +868,7 @@ class _PatternWallpaperPainter extends CustomPainter {
 
   _PatternWallpaperPainter({
     required this.colors,
-    required this.baseRotation,
-    required this.progress,
+    required this.gradientImage,
     required this.patternImage,
     required this.intensity,
     required this.opacity,
@@ -589,12 +884,12 @@ class _PatternWallpaperPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (patternImage == null) {
+    final rect = Offset.zero & size;
+    final pattern = patternImage;
+    if (pattern == null) {
       _drawGradient(canvas, size);
       return;
     }
-
-    final rect = Offset.zero & size;
 
     if (intensity >= 0) {
       _drawGradient(canvas, size);
@@ -608,17 +903,19 @@ class _PatternWallpaperPainter extends CustomPainter {
       if (_isPatternInverted()) {
         paint.colorFilter = _invertColorFilter;
       }
-      _tilePattern(canvas, size, patternImage!, paint);
+      _tilePattern(canvas, size, pattern, paint);
       canvas.restore();
     } else {
       canvas.saveLayer(rect, Paint());
       _drawGradient(canvas, size);
       _tilePattern(
-        canvas, size, patternImage!,
+        canvas,
+        size,
+        pattern,
         Paint()..blendMode = BlendMode.dstIn,
       );
       if (intensity > -100) {
-        final blackOpacity = 1.0 + (intensity / 100.0);
+        final blackOpacity = (1.0 + intensity / 100.0).clamp(0.0, 1.0);
         canvas.drawRect(
           rect,
           Paint()..color = Color.fromRGBO(0, 0, 0, blackOpacity),
@@ -629,56 +926,45 @@ class _PatternWallpaperPainter extends CustomPainter {
   }
 
   void _drawGradient(Canvas canvas, Size size) {
-    if (colors.isEmpty) {
-      canvas.drawRect(Offset.zero & size, Paint()..color = fallbackColor);
-      return;
-    }
-    if (colors.length == 1) {
-      canvas.drawRect(Offset.zero & size, Paint()..color = colors.first);
-      return;
-    }
-
-    final realRotation = (baseRotation * 2) % 720;
-    final phase = (realRotation ~/ 360).isOdd;
-    final t = phase ? 1.0 - progress * 0.5 : 0.5 + progress * 0.5;
-    final angle = (realRotation % 360 + t * 360) * math.pi / 180.0;
-
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final stops = <double>[];
-    for (int i = 0; i < colors.length; i++) {
-      stops.add(i / (colors.length - 1));
-    }
-    final dx = math.sin(angle);
-    final dy = -math.cos(angle);
-    final halfDiag = math.sqrt(cx * cx + cy * cy);
-
-    final paint = Paint()
-      ..shader = ui.Gradient.linear(
-        Offset(cx - dx * halfDiag, cy - dy * halfDiag),
-        Offset(cx + dx * halfDiag, cy + dy * halfDiag),
-        colors,
-        stops,
+    final rect = Offset.zero & size;
+    final gradient = gradientImage;
+    if (gradient != null) {
+      final src = Rect.fromLTWH(
+          0, 0, gradient.width.toDouble(), gradient.height.toDouble());
+      canvas.drawImageRect(
+        gradient,
+        src,
+        rect,
+        Paint()..filterQuality = FilterQuality.high,
       );
-    canvas.drawRect(Offset.zero & size, paint);
+    } else if (colors.length == 1) {
+      canvas.drawRect(rect, Paint()..color = colors.first);
+    } else {
+      canvas.drawRect(rect, Paint()..color = fallbackColor);
+    }
   }
 
+  /// Port of the pattern tiling in `chat_theme.cpp:122-210`: the pattern is
+  /// scaled (KeepAspectRatio) to fit a square the height of the area, then tiled
+  /// across BOTH rows and columns. The column count is forced odd and centered
+  /// (`((cx/2)*2)+1`), matching AyuGram's pattern layout.
   void _tilePattern(Canvas canvas, Size size, ui.Image pattern, Paint paint) {
-    final scaleY = size.height / pattern.height;
-    final scaledW = pattern.width * scaleY;
+    final scale = size.height / math.max(pattern.width, pattern.height);
+    final tw = pattern.width * scale;
+    final th = pattern.height * scale;
+    if (tw <= 0 || th <= 0) return;
     final src = Rect.fromLTWH(
-      0, 0, pattern.width.toDouble(), pattern.height.toDouble(),
-    );
-    final minCols = (size.width / scaledW).ceil();
-    final cols = ((minCols ~/ 2) * 2) + 1;
-    final totalWidth = cols * scaledW;
-    final xOffset = (size.width - totalWidth) / 2;
-
-    for (int x = 0; x < cols; x++) {
-      final dst = Rect.fromLTWH(
-        xOffset + x * scaledW, 0, scaledW, size.height,
-      );
-      canvas.drawImageRect(pattern, src, dst, paint);
+        0, 0, pattern.width.toDouble(), pattern.height.toDouble());
+    final cx = (size.width / tw).ceil();
+    final cy = (size.height / th).ceil();
+    final cols = ((cx ~/ 2) * 2) + 1;
+    final rows = cy;
+    final xshift = (size.width - cols * tw) / 2;
+    for (int y = 0; y < rows; y++) {
+      for (int x = 0; x < cols; x++) {
+        final dst = Rect.fromLTWH(xshift + x * tw, y * th, tw, th);
+        canvas.drawImageRect(pattern, src, dst, paint);
+      }
     }
   }
 
@@ -698,12 +984,12 @@ class _PatternWallpaperPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_PatternWallpaperPainter old) =>
-      old.progress != progress ||
-      old.baseRotation != baseRotation ||
+      !identical(old.gradientImage, gradientImage) ||
+      !identical(old.patternImage, patternImage) ||
       old.colors != colors ||
-      old.patternImage != patternImage ||
       old.intensity != intensity ||
-      old.opacity != opacity;
+      old.opacity != opacity ||
+      old.fallbackColor != fallbackColor;
 }
 
 Color computeAverageColor(Uint8List imageBytes) {
@@ -761,11 +1047,11 @@ Uint8List encodeWallpaperJpeg(Uint8List imageBytes) {
   if (image.width > _kMaxAspectRatio * image.height) {
     final w = (_kMaxAspectRatio * image.height).round();
     image = img.copyCrop(image,
-      x: (image.width - w) ~/ 2, y: 0, width: w, height: image.height);
+        x: (image.width - w) ~/ 2, y: 0, width: w, height: image.height);
   } else if (image.height > _kMaxAspectRatio * image.width) {
     final h = (_kMaxAspectRatio * image.width).round();
     image = img.copyCrop(image,
-      x: 0, y: (image.height - h) ~/ 2, width: image.width, height: h);
+        x: 0, y: (image.height - h) ~/ 2, width: image.width, height: h);
   }
 
   // Scale down so the longest side is at most kMaxSize (2960), matching
@@ -774,10 +1060,9 @@ Uint8List encodeWallpaperJpeg(Uint8List imageBytes) {
   if (longest > _kMaxWallpaperSize) {
     final scale = _kMaxWallpaperSize / longest;
     image = img.copyResize(image,
-      width: (image.width * scale).round(),
-      height: (image.height * scale).round(),
-      interpolation: img.Interpolation.linear,
-    );
+        width: (image.width * scale).round(),
+        height: (image.height * scale).round(),
+        interpolation: img.Interpolation.linear);
   }
 
   return Uint8List.fromList(img.encodeJpg(image, quality: _kJpegQuality));
@@ -794,10 +1079,9 @@ Uint8List generateWallpaperThumb(Uint8List imageBytes) {
 
   final scale = _kThumbSize / longest;
   final thumb = img.copyResize(decoded,
-    width: (decoded.width * scale).round(),
-    height: (decoded.height * scale).round(),
-    interpolation: img.Interpolation.linear,
-  );
+      width: (decoded.width * scale).round(),
+      height: (decoded.height * scale).round(),
+      interpolation: img.Interpolation.linear);
   return Uint8List.fromList(img.encodeJpg(thumb, quality: _kJpegQuality));
 }
 
