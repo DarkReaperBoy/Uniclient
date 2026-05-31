@@ -103,7 +103,8 @@ class _ThemePreviewPainter extends CustomPainter {
       const Rect.fromLTWH(filterLeft, filterTop, filterWidth, filterHeight),
       const Radius.circular(16),
     );
-    canvas.drawRRect(filterRect, Paint()..color = palette.windowBgOver);
+    // AyuGram fills the filter field with dialogsFilter.textBg = filterInputInactiveBg.
+    canvas.drawRRect(filterRect, Paint()..color = palette.filterInputInactiveBg);
     _drawText(canvas, 'Search', filterLeft + 14, filterTop + 8, 13,
         palette.windowSubTextFg, FontWeight.normal);
 
@@ -133,6 +134,14 @@ class _ThemePreviewPainter extends CustomPainter {
     const mutedFlags = [false, false, true, false, false, false, false, false];
     const pinnedFlags = [true, false, false, false, false, false, false, false];
     const statusFlags = [0, 0, 0, 0, 0, 2, 2, 0];
+    // AyuGram peer color index per row (the addRow() 2nd arg in generateData).
+    const peerIndices = [0, 7, 2, 1, 6, 3, 4, 5];
+    // Row::Type::Group rows (Evening Club, Old Pirates) get a chat-type icon.
+    const groupFlags = [false, false, false, true, true, false, false, false];
+    // Ui::Text::Colorized previews: 0=plain, -1=whole accent, n>0=first n chars.
+    const previewColorized = [0, 0, -1, -1, 4, 0, 0, -1];
+    // ColorIndexToPaletteIndex map (chat_style.cpp): colorIndex -> palette slot.
+    const colorIndexToPalette = [0, 7, 4, 1, 6, 3, 5];
     const activeIndex = 0;
 
     const double startY = 54;
@@ -148,38 +157,51 @@ class _ThemePreviewPainter extends CustomPainter {
         Paint()..color = isActive ? palette.dialogsBgActive : palette.dialogsBg,
       );
 
-      // Avatar circle
+      // Avatar circle — AyuGram empty userpic: vertical gradient color1(top)→
+      // color2(bottom); color slot = ColorIndexToPaletteIndex(peerIndex % 7).
       final avatarCx = _avatarLeft + _avatarSize / 2;
       final avatarCy = y + 8 + _avatarSize / 2;
-      final avatarColors = [
-        palette.historyPeer1UserpicBg,
-        palette.historyPeer8UserpicBg,
-        palette.historyPeer3UserpicBg,
-        palette.historyPeer2UserpicBg,
-        palette.historyPeer7UserpicBg,
-        palette.historyPeer4UserpicBg,
-        palette.historyPeer5UserpicBg,
-        palette.historyPeer6UserpicBg,
-      ];
+      final paletteSlot = colorIndexToPalette[peerIndices[i] % 7];
       canvas.drawCircle(
         Offset(avatarCx, avatarCy),
         _avatarSize / 2,
-        Paint()..color = avatarColors[i],
+        Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(avatarCx, avatarCy - _avatarSize / 2),
+            Offset(avatarCx, avatarCy + _avatarSize / 2),
+            [
+              palette.peerUserpicBg(paletteSlot),
+              palette.peerUserpicBg2(paletteSlot),
+            ],
+          ),
       );
+      // Initials, centered. AyuGram font = (size * 13) / 33 → 18px for a 46px avatar.
+      final initials = _initials(names[i]);
+      const initialsSize = 18.0;
+      final initialsW = _estimateTextWidth(initials, initialsSize);
       _drawText(
         canvas,
-        _initials(names[i]),
-        avatarCx - 8,
-        avatarCy - 8,
-        14,
+        initials,
+        avatarCx - initialsW / 2,
+        avatarCy - initialsSize / 2 - 1,
+        initialsSize,
         Colors.white,
         FontWeight.w500,
       );
 
+      // Chat-type icon (Group): AyuGram dialogsChatIcon before the name, then
+      // shift the name right by icon.width()(16) + dialogsChatTypeSkip(3) = 19.
+      double nameLeft = _textLeft;
+      if (groupFlags[i]) {
+        _drawGroupIcon(canvas, _textLeft, y + 13,
+            isActive ? palette.dialogsChatIconFgActive : palette.dialogsChatIconFg);
+        nameLeft += 19;
+      }
+
       // Name
       final nameFg = isActive ? palette.dialogsNameFgActive : palette.dialogsNameFg;
-      _drawText(canvas, names[i], _textLeft, y + 10, 13, nameFg, FontWeight.w600,
-          maxWidth: 155);
+      _drawText(canvas, names[i], nameLeft, y + 10, 13, nameFg, FontWeight.w600,
+          maxWidth: 155 - (nameLeft - _textLeft));
 
       // Sent status icon before date
       if (statusFlags[i] > 0) {
@@ -192,11 +214,43 @@ class _ThemePreviewPainter extends CustomPainter {
       final dateFg = isActive ? palette.dialogsDateFgActive : palette.dialogsDateFg;
       _drawTextRight(canvas, times[i], _dialogsWidth - 10, y + 12, 12, dateFg);
 
-      // Preview text
+      // Preview text — AyuGram wraps some previews in Ui::Text::Colorized, which
+      // renders in the dialogs text palette's linkFg = dialogsTextFgService accent.
       final previewFg = isActive ? palette.dialogsTextFgActive : palette.dialogsTextFg;
-      _drawText(canvas, previews[i], _textLeft, y + 34, 13, previewFg,
-          FontWeight.normal,
-          maxWidth: 170);
+      final previewLinkFg =
+          isActive ? palette.dialogsTextFgActive : palette.dialogsTextFgService;
+      final clen = previewColorized[i];
+      final List<TextSpan> previewSpans;
+      if (isActive || clen == 0) {
+        previewSpans = [
+          TextSpan(
+              text: previews[i],
+              style: TextStyle(fontSize: 13, color: previewFg)),
+        ];
+      } else if (clen < 0) {
+        previewSpans = [
+          TextSpan(
+              text: previews[i],
+              style: TextStyle(fontSize: 13, color: previewLinkFg)),
+        ];
+      } else {
+        previewSpans = [
+          TextSpan(
+              text: previews[i].substring(0, clen),
+              style: TextStyle(fontSize: 13, color: previewLinkFg)),
+          TextSpan(
+              text: previews[i].substring(clen),
+              style: TextStyle(fontSize: 13, color: previewFg)),
+        ];
+      }
+      final previewTp = TextPainter(
+        text: TextSpan(children: previewSpans),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      );
+      previewTp.layout(maxWidth: 170);
+      previewTp.paint(canvas, Offset(_textLeft, y + 34));
 
       // Unread badge
       if (unreadCounts[i] > 0) {
@@ -280,6 +334,14 @@ class _ThemePreviewPainter extends CustomPainter {
   void _drawMessageArea(Canvas canvas, double left, double chatWidth) {
     final areaBottom = _canvasHeight - _composeHeight;
 
+    // Clip to the history region so the oldest (topmost) bubble is cut cleanly at
+    // the top-bar edge instead of overlapping the top bar (matches AyuGram, where
+    // the first photo message is scrolled partly under the header).
+    canvas.save();
+    canvas.clipRect(
+      Rect.fromLTWH(left, _topBarHeight, chatWidth, areaBottom - _topBarHeight),
+    );
+
     var historyBottom = areaBottom - 8.0;
 
     // Bubble 6 (bottom): incoming with reply
@@ -332,6 +394,8 @@ class _ThemePreviewPainter extends CustomPainter {
 
     // Bubble 1: photo bubble (incoming)
     _drawPhotoBubbleBottomUp(canvas, left, chatWidth, historyBottom);
+
+    canvas.restore();
   }
 
   double _drawTextBubbleBottomUp(
@@ -479,10 +543,11 @@ class _ThemePreviewPainter extends CustomPainter {
   double _drawAudioBubbleBottomUp(Canvas canvas, double panelLeft,
       double chatWidth, double bottom) {
     const bubbleW = 260.0;
-    const bubbleH = 52.0;
-    const thumbSize = 33.0;
-    const thumbLeft = 8.0;
-    const thumbTop = 9.0;
+    // AyuGram msgFileLayout: padding(12,8,10,8), thumbSize 44 → height 8+44+8=60.
+    const bubbleH = 60.0;
+    const thumbSize = 44.0;
+    const thumbLeft = 12.0;
+    const thumbTop = 8.0;
 
     final bubbleX = panelLeft + chatWidth - bubbleW - 16;
     final y = bottom - bubbleH;
@@ -512,9 +577,9 @@ class _ThemePreviewPainter extends CustomPainter {
       ..color = Colors.white
       ..style = PaintingStyle.fill;
     final playPath = Path()
-      ..moveTo(circleCx - 4, circleCy - 7)
-      ..lineTo(circleCx + 7, circleCy)
-      ..lineTo(circleCx - 4, circleCy + 7)
+      ..moveTo(circleCx - 5, circleCy - 9)
+      ..lineTo(circleCx + 9, circleCy)
+      ..lineTo(circleCx - 5, circleCy + 9)
       ..close();
     canvas.drawPath(playPath, playPaint);
 
@@ -531,7 +596,7 @@ class _ThemePreviewPainter extends CustomPainter {
     const maxBarHeight = 16.0;
     const minBarHeight = 2.0;
     const normValue = 31;
-    final waveLeft = bubbleX + thumbLeft + thumbSize + 10;
+    final waveLeft = bubbleX + thumbLeft + thumbSize + 11;
     final waveBottom = y + thumbTop + thumbSize / 2 + maxBarHeight / 2;
     final waveRight = bubbleX + bubbleW - 50;
     final availW = waveRight - waveLeft;
@@ -570,11 +635,22 @@ class _ThemePreviewPainter extends CustomPainter {
 
   double _drawPhotoBubbleBottomUp(Canvas canvas, double panelLeft,
       double chatWidth, double bottom) {
-    const photoW = 200.0;
-    const photoH = 150.0;
+    // AyuGram: photoWidth/Height = ConvertScale(image/2), width clamped to the
+    // history width and msgMaxWidth(430). themeimage.jpg is 654x395 → 327x197.
+    double photoW = 327;
+    double photoH = 197;
+    if (photoImage != null) {
+      photoW = (photoImage!.width / 2).floorToDouble();
+      photoH = (photoImage!.height / 2).floorToDouble();
+    }
+    final maxPhotoW = math.min(chatWidth - 16 - 56, 430.0);
+    if (photoW > maxPhotoW) {
+      photoH = photoH * (maxPhotoW / photoW);
+      photoW = maxPhotoW;
+    }
     const captionH = 28.0;
-    const totalH = photoH + captionH;
-    const bubbleW = photoW;
+    final totalH = photoH + captionH;
+    final bubbleW = photoW;
 
     final bubbleX = panelLeft + 16;
     final y = bottom - totalH;
@@ -688,6 +764,33 @@ class _ThemePreviewPainter extends CustomPainter {
   }
 
   // ── Icon Drawing Helpers ──
+
+  // AyuGram dialogsChatIcon (Row::Type::Group) — a compact two-person glyph
+  // (~16x10) painted before group-row names in the dialogs list.
+  void _drawGroupIcon(Canvas canvas, double x, double y, Color color) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+    // Back person (left, slightly smaller).
+    canvas.drawCircle(Offset(x + 4.5, y + 2.6), 2.3, paint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(x + 0.8, y + 4.9, 7.4, 5.1),
+        const Radius.circular(2.5),
+      ),
+      paint,
+    );
+    // Front person (right), drawn over the back one to read as a group.
+    canvas.drawCircle(Offset(x + 10.8, y + 3.0), 2.8, paint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(x + 6.6, y + 5.5, 8.6, 4.5),
+        const Radius.circular(2.6),
+      ),
+      paint,
+    );
+  }
 
   void _drawMaterialIcon(Canvas canvas, IconData icon, double x, double y,
       double size, Color color) {
