@@ -1180,7 +1180,6 @@ class _MessageBubbleState extends State<MessageBubble> {
                   right: 4,
                   child: _SelectionCheckbox(
                     checked: isSelected,
-                    isDark: isDark,
                   ),
                 ),
               if (_hovered && !inSelectionMode)
@@ -7488,9 +7487,8 @@ class _RichMessageTextState extends State<_RichMessageText> {
 /// Animation: 160ms easeInOutQuad, bgDuration 0.75, fgDuration 1.0.
 class _SelectionCheckbox extends StatefulWidget {
   final bool checked;
-  final bool isDark;
 
-  const _SelectionCheckbox({required this.checked, required this.isDark});
+  const _SelectionCheckbox({required this.checked});
 
   @override
   State<_SelectionCheckbox> createState() => _SelectionCheckboxState();
@@ -7531,9 +7529,15 @@ class _SelectionCheckboxState extends State<_SelectionCheckbox>
   @override
   Widget build(BuildContext context) {
     const double size = 20.0;
-    final bgActive = widget.isDark
-        ? AppColors.selectionCheckBgActiveNight
-        : AppColors.selectionCheckBgActiveDay;
+    // msgSelectionCheck = RoundCheckbox(defaultPeerListCheck) { bgActive: boxTextFgGood; }
+    // (chat.style:1246-1247 + widgets.style:1237-1255). All colors are theme-aware
+    // and sourced from the live palette — bgActive: boxTextFgGood (per-theme:
+    // dayBlue/classicDay #4AB44A, night #5598DB, nightGreen its teal),
+    // bgInactive: overviewCheckBg, border/check glyph: overviewCheckFgActive.
+    final palette = context.palette;
+    final bgActive = palette.boxTextFgGood;
+    final bgInactive = palette.overviewCheckBg;
+    final checkFg = palette.overviewCheckFgActive;
 
     return SizedBox(
       width: size,
@@ -7551,6 +7555,8 @@ class _SelectionCheckboxState extends State<_SelectionCheckbox>
               bgProgress: bgT,
               fgProgress: fgT,
               bgActive: bgActive,
+              bgInactive: bgInactive,
+              checkFg: checkFg,
             ),
           );
         },
@@ -7563,11 +7569,15 @@ class _SelectionCheckboxPainter extends CustomPainter {
   final double bgProgress;
   final double fgProgress;
   final Color bgActive;
+  final Color bgInactive;
+  final Color checkFg;
 
   _SelectionCheckboxPainter({
     required this.bgProgress,
     required this.fgProgress,
     required this.bgActive,
+    required this.bgInactive,
+    required this.checkFg,
   });
 
   @override
@@ -7583,13 +7593,13 @@ class _SelectionCheckboxPainter extends CustomPainter {
       canvas.drawCircle(
         center,
         radius - strokeWidth / 2,
-        Paint()..color = AppColors.selectionCheckBgInactive.withValues(alpha: AppColors.selectionCheckBgInactive.a * inactiveAlpha),
+        Paint()..color = bgInactive.withValues(alpha: bgInactive.a * inactiveAlpha),
       );
       canvas.drawCircle(
         center,
         radius - strokeWidth / 2,
         Paint()
-          ..color = AppColors.selectionCheckBorder.withValues(alpha: AppColors.selectionCheckBorder.a * inactiveAlpha)
+          ..color = checkFg.withValues(alpha: checkFg.a * inactiveAlpha)
           ..style = PaintingStyle.stroke
           ..strokeWidth = strokeWidth,
       );
@@ -7630,7 +7640,7 @@ class _SelectionCheckboxPainter extends CustomPainter {
       canvas.drawPath(
         path,
         Paint()
-          ..color = AppColors.selectionCheckBorder.withValues(alpha: fgProgress)
+          ..color = checkFg.withValues(alpha: fgProgress)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0
           ..strokeCap = StrokeCap.round
@@ -7643,7 +7653,9 @@ class _SelectionCheckboxPainter extends CustomPainter {
   bool shouldRepaint(_SelectionCheckboxPainter oldDelegate) =>
       bgProgress != oldDelegate.bgProgress ||
       fgProgress != oldDelegate.fgProgress ||
-      bgActive != oldDelegate.bgActive;
+      bgActive != oldDelegate.bgActive ||
+      bgInactive != oldDelegate.bgInactive ||
+      checkFg != oldDelegate.checkFg;
 }
 
 // ── Album Layout Widget (spec §6.3) ──

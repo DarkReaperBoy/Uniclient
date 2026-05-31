@@ -1327,34 +1327,18 @@ void main() {
   // ── Theme / sizing constant tests ──
 
   group('Theme constants', () {
-    test('AppSizes has expected values', () {
-      expect(AppSizes.railWidth, 68);
-      expect(AppSizes.sidebarWidth, 272);
-      expect(AppSizes.emojiPanelWidth, 320);
-      expect(AppSizes.rightPanelWidth, 260);
-      expect(AppSizes.bubbleRadius, 18);
-      expect(AppSizes.avatarSize, 40);
-      expect(AppSizes.avatarSizeSmall, 32);
-      expect(AppSizes.railIconSize, 48);
-    });
-
-    test('AppTheme.dark produces dark brightness', () {
+    // AppSizes/AppColors were deleted as dead, theme-blind duplicates of
+    // TgTokens / TelegramPalette. Theme colors now flow from the palette.
+    test('AppTheme.dark produces dark brightness from the night palette', () {
       final theme = AppTheme.dark;
       expect(theme.brightness, Brightness.dark);
-      expect(theme.scaffoldBackgroundColor, AppColors.darkBase);
+      expect(theme.scaffoldBackgroundColor, TelegramPalette.night.windowBg);
     });
 
-    test('AppTheme.light produces light brightness', () {
+    test('AppTheme.light produces light brightness from the dayBlue palette', () {
       final theme = AppTheme.light;
       expect(theme.brightness, Brightness.light);
-      expect(theme.scaffoldBackgroundColor, AppColors.lightBase);
-    });
-
-    test('AppColors accent colors are correct hex values', () {
-      expect(AppColors.accent, const Color(0xFF4F6EF7));
-      expect(AppColors.danger, const Color(0xFFED4245));
-      expect(AppColors.online, const Color(0xFF3BA55C));
-      expect(AppColors.warning, const Color(0xFFFAA61A));
+      expect(theme.scaffoldBackgroundColor, TelegramPalette.dayBlue.windowBg);
     });
   });
 
