@@ -778,11 +778,11 @@ JQ_FMT='
         end
       else empty end
   elif $e.type == "system" and $e.subtype == "init" then
-    "\n  ┌─────────────────────────────────────────┐\n  │ 🚀 Session \($e.session_id // "")  │\n  └─────────────────────────────────────────┘\n"
+    "\n  ┌─────────────────────────────────────────┐\n  │ 🚀 [\(now|localtime|strftime("%H:%M:%S"))] Session \($e.session_id // "")  │\n  └─────────────────────────────────────────┘\n"
   elif $e.type == "result" then
     ($e.subtype // "unknown") as $subtype |
     (if $subtype == "success" then "✅" else "❌" end) as $icon |
-    "\n  ┌─────────────────────────────────────────┐\n  │ \($icon) \($subtype) — \(($e.duration_ms // 0) / 1000)s, $\($e.total_cost_usd // 0)  │\n  └─────────────────────────────────────────┘\n"
+    "\n  ┌─────────────────────────────────────────┐\n  │ \($icon) [\(now|localtime|strftime("%Y-%m-%d %H:%M:%S"))] \($subtype) — \(($e.duration_ms // 0) / 1000)s, $\($e.total_cost_usd // 0)  │\n  └─────────────────────────────────────────┘\n"
   else empty end'
 
 claude_result_subtype() {
@@ -848,7 +848,14 @@ invoke_claude() {
     [[ -n "$sid" ]] && { retry_session_args=(--resume "$sid"); retry_prompt="$resume_nudge"; }
   fi
 
-  local code=0
+  # Run claude to a file in the background, then pretty-print live by tailing it
+  # with --pid. Tailing the PID (instead of piping claude straight into jq) makes
+  # the formatter stop the instant the REAL claude process exits — even if the
+  # session left a background child (e.g. the launched app) holding an fd. Piping
+  # directly would block forever waiting for EOF on that still-open fd: the
+  # "✅ success box, then nothing" hang.
+  local code=0 claude_pid
+  : > "$iter_file.jsonl"
   "$CLAUDE_BIN" \
     --print \
     "${session_args[@]}" \
@@ -859,11 +866,12 @@ invoke_claude() {
     --output-format stream-json \
     --verbose \
     -p "$effective_prompt" \
-    2>&1 \
-    | tee "$iter_file.jsonl" \
+    > "$iter_file.jsonl" 2>&1 &
+  claude_pid=$!
+  tail -n +1 -f --pid="$claude_pid" "$iter_file.jsonl" 2>/dev/null \
     | jq -Rr --unbuffered --arg root "$PROJECT_ROOT/" "$JQ_FMT" \
-    | tee -a "$iter_file" \
-    || code=${PIPESTATUS[0]:-$?}
+    | tee -a "$iter_file" || true
+  if wait "$claude_pid"; then code=0; else code=$?; fi
 
   # Log cost from stream
   local cost duration
@@ -883,6 +891,7 @@ invoke_claude() {
     log "  ⏳ Failed (exit $code). Retrying in ${backoff}s..."
     sleep "$backoff"
     code=0
+    : > "$iter_file.jsonl"
     "$CLAUDE_BIN" \
       --print \
       "${retry_session_args[@]}" \
@@ -893,11 +902,12 @@ invoke_claude() {
       --output-format stream-json \
       --verbose \
       -p "$retry_prompt" \
-      2>&1 \
-      | tee "$iter_file.jsonl" \
+      > "$iter_file.jsonl" 2>&1 &
+    claude_pid=$!
+    tail -n +1 -f --pid="$claude_pid" "$iter_file.jsonl" 2>/dev/null \
       | jq -Rr --unbuffered --arg root "$PROJECT_ROOT/" "$JQ_FMT" \
-      | tee -a "$iter_file" \
-      || code=${PIPESTATUS[0]:-$?}
+      | tee -a "$iter_file" || true
+    if wait "$claude_pid"; then code=0; else code=$?; fi
     code=$(normalize_claude_exit "$code" "$iter_file.jsonl")
     # Re-extract cost
     cost=$(grep -o '"total_cost_usd":[0-9.]*' "$iter_file.jsonl" 2>/dev/null | tail -1 | grep -o '[0-9.]*' || echo "0")
