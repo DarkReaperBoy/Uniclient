@@ -590,7 +590,10 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final info = _classifyDevice(rawDevice, platform, appName, apiId: apiId, system: systemStr);
 
     final appStr = appVersion.isNotEmpty ? '$appName $appVersion' : appName;
-    final fullDate = isCurrent ? 'online' : _formatFullDate(lastActive);
+    // AyuGram's SessionInfoBox shows langDateTimeFull(unixtime::parse(activeTime))
+    // for EVERY session including the current one (settings_active_sessions.cpp:443) —
+    // activeTime is delivered for the current session too — not a literal "online".
+    final fullDate = _formatFullDate(lastActive);
 
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
@@ -648,7 +651,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 child: Padding(
                   padding: const EdgeInsets.only(left: 20, bottom: 8),
                   child: Text(
-                    'Session info',
+                    'Info',
                     style: TextStyle(
                       color: sectionTitleColor,
                       fontSize: 14,
@@ -670,7 +673,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 _SessionInfoRow(
                   icon: Icons.info_outline,
                   iconColor: iconColor,
-                  label: 'System',
+                  label: 'System version',
                   value: systemStr,
                   textColor: textColor,
                   subtextColor: subtextColor,
@@ -707,7 +710,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                   child: Text(
-                    'This location is based on the IP address and may not always be accurate.',
+                    'This location estimate is based on the IP address and may not always be accurate.',
                     style: TextStyle(color: subtextColor, fontSize: 12, height: 1.4),
                   ),
                 ),
@@ -744,7 +747,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                         ),
                         onPressed: () => Navigator.pop(ctx),
                         child: const Text(
-                          'OK',
+                          'Done',
                           style: TextStyle(fontWeight: FontWeight.w500),
                         ),
                       ),
@@ -772,7 +775,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
         title: Text(
-          'Rename Device',
+          'Rename current device',
           style: TextStyle(
             color: isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222),
             fontSize: 17,
@@ -1062,7 +1065,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
           child: Text(
-            'Interrupted sessions will have to go through the full authorization process with a new confirmation code.',
+            'Logs out all devices except for this one.',
             style: TextStyle(color: subtextColor, fontSize: 13),
           ),
         ),
@@ -1092,7 +1095,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
           child: Text(
-            'These attempts had the correct login code, but no password was provided. If these attempts weren\'t made by you, you can terminate them and change your 2FA password.',
+            'The devices above have no access to your messages. The code was entered correctly, but no correct password was given.',
             style: TextStyle(color: subtextColor, fontSize: 13),
           ),
         ),
@@ -1104,7 +1107,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
       child: Text(
-        'Active sessions',
+        'Active Devices',
         style: TextStyle(
           color: accentColor,
           fontSize: 14,
