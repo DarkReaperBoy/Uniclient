@@ -365,6 +365,7 @@ message EngineGetMessagesRequest {
   string chat_id    = 2;
   int64  before_ms  = 3; // 0 = most recent
   int32  limit      = 4;
+  int64  after_ms   = 5; // >0 = load messages NEWER than this (load-down after jump)
 }
 
 message EngineGetMessagesResponse {

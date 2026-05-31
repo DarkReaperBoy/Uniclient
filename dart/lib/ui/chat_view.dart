@@ -849,6 +849,12 @@ class _ChatViewState extends State<ChatView>
     if (pos.pixels >= pos.maxScrollExtent - preloadThreshold) {
       context.read<ChatState>().loadMoreMessages();
     }
+    // Reversed list: the bottom edge (minScrollExtent) is the newest message.
+    // After a jumpToMessage there are newer messages between the shown window
+    // and the present, so load them when scrolling back down (no-op otherwise).
+    if (pos.pixels <= pos.minScrollExtent + preloadThreshold) {
+      context.read<ChatState>().loadMoreMessagesDown();
+    }
     _updateFabVisibility();
     _updateStickyDate();
     // Spec §49.4: destroy unread bar when user scrolls to bottom.

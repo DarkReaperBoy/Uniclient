@@ -676,7 +676,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		msgs, err := e.GetMessages(req.AccountId, req.ChatId, req.BeforeMs, int(req.Limit))
+		msgs, err := e.GetMessages(req.AccountId, req.ChatId, req.BeforeMs, req.AfterMs, int(req.Limit))
 		if err != nil {
 			return nil, err
 		}

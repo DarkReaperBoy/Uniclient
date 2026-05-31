@@ -2803,11 +2803,12 @@ class EngineService {
 
   // ── Messages ──
 
-  Future<List<CachedMessage>> getMessages(String accountId, String chatId, {int beforeMs = 0, int limit = 50}) async {
+  Future<List<CachedMessage>> getMessages(String accountId, String chatId, {int beforeMs = 0, int afterMs = 0, int limit = 50}) async {
     final req = epb.EngineGetMessagesRequest()
       ..accountId = accountId
       ..chatId = chatId
       ..beforeMs = Int64(beforeMs)
+      ..afterMs = Int64(afterMs)
       ..limit = limit;
     final respBytes = await _callAsync('__engine', 'GetMessages', req.writeToBuffer());
     return Isolate.run(() {

@@ -452,7 +452,7 @@ func TestMessageCacheAndFTS(t *testing.T) {
 	}
 
 	// Get most recent.
-	msgs, err := eng.GetMessages(accID, "chat1", 0, 5)
+	msgs, err := eng.GetMessages(accID, "chat1", 0, 0, 5)
 	if err != nil {
 		t.Fatalf("GetMessages: %v", err)
 	}
@@ -502,7 +502,7 @@ func TestPendingMessage(t *testing.T) {
 	eng.ConfirmMessage(accID, "chat1", "local_abc", "server_123")
 
 	// Should be retrievable by server ID now.
-	msgs, _ := eng.GetMessages(accID, "chat1", 0, 10)
+	msgs, _ := eng.GetMessages(accID, "chat1", 0, 0, 10)
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 message, got %d", len(msgs))
 	}
@@ -905,7 +905,7 @@ func TestEnsureChatExists(t *testing.T) {
 	if chats[0].UnreadCount != 2 {
 		t.Errorf("dedup: unread_count must stay 2 after re-injecting m2, got %d", chats[0].UnreadCount)
 	}
-	msgs, _ := eng.GetMessages(accID, "newchat", 0, 50)
+	msgs, _ := eng.GetMessages(accID, "newchat", 0, 0, 50)
 	if len(msgs) != 2 {
 		t.Errorf("dedup: expected 2 cached messages, got %d", len(msgs))
 	}

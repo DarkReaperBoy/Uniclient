@@ -28,6 +28,11 @@ class ChatState extends ChangeNotifier {
   List<CachedMessage> _pinnedMessages = [];
   bool _loadingMessages = false;
   bool _hasMoreMessages = true;
+  // After a jumpToMessage the shown window sits in the past, so there are also
+  // NEWER messages to load when scrolling back toward the present (AyuGram's
+  // loadMessagesDown direction). Tracked separately from _hasMoreMessages.
+  bool _loadingMessagesDown = false;
+  bool _hasMoreMessagesDown = false;
   bool _isFirstLoad = true;
   DateTime? _jumpedUntil; // suppress polling refresh until this time
   final Map<String, ({String name, String action})> _typingUsers = {}; // chatId → (name, action)
@@ -286,6 +291,7 @@ class ChatState extends ChangeNotifier {
   bool get connectedBotPaused => _connectedBotPaused;
   bool get loadingMessages => _loadingMessages;
   bool get hasMoreMessages => _hasMoreMessages;
+  bool get hasMoreMessagesDown => _hasMoreMessagesDown;
   bool get hasArchivedChats => _hasArchivedChats;
 
   bool get hasArchivedUnread =>
@@ -494,12 +500,7 @@ class ChatState extends ChangeNotifier {
       _forumTopicsFetching.add(key);
       _engine.getForumTopics(accountId, chatId).then((topics) {
         if (_disposed) return;
-        topics.sort((a, b) {
-          final aId = int.tryParse(a.topMessageId) ?? 0;
-          final bId = int.tryParse(b.topMessageId) ?? 0;
-          return bId.compareTo(aId);
-        });
-        _forumRecentTopics[key] = topics.take(8).toList();
+        _forumRecentTopics[key] = _recentTopicsByDate(topics);
         notifyListeners();
       }).catchError((_) {
         _forumTopicsFetching.remove(key);
@@ -1064,6 +1065,7 @@ class ChatState extends ChangeNotifier {
     _hasMoreMessages = true;
     _isFirstLoad = true;
     _jumpedUntil = null;
+    _hasMoreMessagesDown = false;
     _groupOnlineCount = 0;
     _activeGroupCall = null;
     _connectedBot = null;
@@ -1132,6 +1134,7 @@ class ChatState extends ChangeNotifier {
     _hasMoreMessages = true;
     _isFirstLoad = true;
     _jumpedUntil = null; // clear jump lock on chat change
+    _hasMoreMessagesDown = false;
     _activeChannelId = null; // reset channel selection on chat change
     _hiddenKeyboardMsgId = null;
     _engine.setActiveChat(chat.accountId, chat.chatId);
@@ -1185,7 +1188,7 @@ class ChatState extends ChangeNotifier {
       _forumHasMore = topics.length >= 20;
       _activeTopicId = null;
       final key = '${chat.accountId}:${chat.chatId}';
-      _forumRecentTopics[key] = topics.take(8).toList();
+      _forumRecentTopics[key] = _recentTopicsByDate(topics);
       if (_forumHasMore) {
         _autoPreloadForumTopics(chat);
       }
@@ -1207,6 +1210,21 @@ class ChatState extends ChangeNotifier {
     });
   }
 
+  /// AyuGram Forum::reorderLastTopics (data/data_forum.cpp:233) — the recent-
+  /// topic names shown on a collapsed forum row are ordered purely by last-
+  /// message date (topMessageId proxy) DESCENDING, with NO pinned-first
+  /// priority. (Pinned-first is only for the full topic list, _sortTopics.)
+  /// Returns the top kShowTopicNamesCount (=8) without mutating [topics].
+  static List<ForumTopic> _recentTopicsByDate(List<ForumTopic> topics) {
+    final sorted = [...topics];
+    sorted.sort((a, b) {
+      final aId = int.tryParse(a.topMessageId) ?? 0;
+      final bId = int.tryParse(b.topMessageId) ?? 0;
+      return bId.compareTo(aId);
+    });
+    return sorted.take(8).toList();
+  }
+
   Future<void> openForum(ChatInfo chat) async {
     _forumParentChat = chat;
     _forumTopics = [];
@@ -1226,7 +1244,7 @@ class ChatState extends ChangeNotifier {
     } catch (_) {}
     _forumFirstLoadDone = true;
     final key = '${chat.accountId}:${chat.chatId}';
-    _forumRecentTopics[key] = _forumTopics.take(8).toList();
+    _forumRecentTopics[key] = _recentTopicsByDate(_forumTopics);
     notifyListeners();
   }
 
@@ -1279,7 +1297,7 @@ class ChatState extends ChangeNotifier {
     } catch (_) {}
     if (chat == _forumParentChat) {
       final key = '${chat.accountId}:${chat.chatId}';
-      _forumRecentTopics[key] = _forumTopics.take(8).toList();
+      _forumRecentTopics[key] = _recentTopicsByDate(_forumTopics);
       notifyListeners();
     }
   }
@@ -1709,6 +1727,11 @@ class ChatState extends ChangeNotifier {
     if (around.isNotEmpty) {
       _messages = around;
       _hasMoreMessages = true;
+      // The shown window ends at the target (in the past), so newer messages
+      // exist to load when scrolling down. The first loadMoreMessagesDown that
+      // returns empty clears this (harmless if the target was already latest).
+      _hasMoreMessagesDown = true;
+      _loadingMessagesDown = false;
       _jumpedUntil = DateTime.now().add(const Duration(seconds: 10));
       _pendingHighlightMsgId = highlightMsgId;
       notifyListeners();
@@ -1718,11 +1741,51 @@ class ChatState extends ChangeNotifier {
   /// Whether the message list is in a "jumped" state (not showing latest messages).
   bool get isJumped => _jumpedUntil != null && DateTime.now().isBefore(_jumpedUntil!);
 
+  /// Load messages NEWER than the currently-loaded newest, for scrolling back
+  /// toward the present after a jumpToMessage. Mirrors AyuGram
+  /// HistoryWidget::loadMessagesDown (history_widget.cpp:4522). New messages are
+  /// prepended (the list is newest-first); reaching the present clears the
+  /// jumped state so normal append/polling resumes.
+  Future<void> loadMoreMessagesDown() async {
+    if (_disposed || _loadingMessagesDown || !_hasMoreMessagesDown) return;
+    final chat = _activeChat;
+    if (chat == null || _messages.isEmpty) return;
+    _loadingMessagesDown = true;
+    const limit = 50;
+    final afterMs = _messages.first.timestamp;
+    final newer = await _engine.getMessages(
+        chat.accountId, chat.chatId, afterMs: afterMs, limit: limit);
+    if (_disposed) return;
+    _loadingMessagesDown = false;
+    if (newer.isEmpty) {
+      // Reached the present — resume normal (non-jumped) behaviour.
+      _hasMoreMessagesDown = false;
+      _jumpedUntil = null;
+      notifyListeners();
+      return;
+    }
+    // Prepend (newest-first), de-duping any same-timestamp boundary overlap.
+    final existingIds = _messages.map((m) => m.msgId).toSet();
+    _messages = [
+      ...newer.where((m) => !existingIds.contains(m.msgId)),
+      ..._messages,
+    ];
+    if (newer.length < limit) {
+      _hasMoreMessagesDown = false;
+      _jumpedUntil = null;
+    }
+    _preloadCustomEmoji(newer, chat.accountId);
+    _autoDownloadMedia(newer);
+    notifyListeners();
+  }
+
   /// Return to the latest messages (undo jumpToMessage).
   void returnToLatest() {
     final chat = _activeChat;
     if (chat == null) return;
     _jumpedUntil = null;
+    _hasMoreMessagesDown = false;
+    _loadingMessagesDown = false;
     _messages = [];
     _hasMoreMessages = true;
     _isFirstLoad = true;
@@ -2752,17 +2815,82 @@ class ChatState extends ChangeNotifier {
 
   /// Auto-download photos and small media for visible messages.
   void _autoDownloadMedia(List<CachedMessage> msgs) {
+    // Mirror AyuGram Data::AutoDownload::Should()/ShouldAutoPlay()
+    // (data/data_auto_download.cpp): gate every prefetch on the user's
+    // per-source/per-type auto-download settings + byte limits instead of a
+    // fixed policy. Source is the active chat's peer kind, matching
+    // SourceFromPeer() (User→private / Chat|Megagroup→group / Channel→channel).
+    final settings =
+        _appState.getAutoDownloadForSource(_autoDownloadSource(_activeChat));
+    final photos = settings['photos'] as bool? ?? true;
+    final files = settings['files'] as bool? ?? false;
+    final videos = settings['videos'] as bool? ?? true;
+    final gifs = settings['gifs'] as bool? ?? true;
+    final videoMessages = settings['videoMessages'] as bool? ?? true;
+    // Saved values are bytes (the settings UI persists MB×1MiB); the unsaved
+    // defaults are megabytes (10 / 50). Normalize both to a byte limit.
+    final downloadLimit = _autoDownloadBytes(settings['downloadLimit'], 10);
+    final autoPlayLimit = _autoDownloadBytes(settings['autoPlayLimit'], 50);
+
     for (final m in msgs) {
       if (!m.hasMedia || m.mediaDownloadState != 0) continue;
       if (m.mediaLocalPath.isNotEmpty) continue;
-      // Auto-download photos, stickers, GIFs, and small videos (<5MB).
-      final autoTypes = {1, 6, 7}; // photo, sticker, gif
-      if (autoTypes.contains(m.mediaType) ||
-          (m.mediaType == 2 && m.mediaFileSize > 0 && m.mediaFileSize < 5 * 1024 * 1024)) {
+      final size = m.mediaFileSize;
+      bool ok;
+      switch (m.mediaType) {
+        case 6: // sticker — AyuGram Should() always returns true for stickers
+          ok = true;
+          break;
+        case 1: // photo
+          ok = photos && _autoDownloadFits(size, downloadLimit);
+          break;
+        case 8: // file / document
+          ok = files && _autoDownloadFits(size, downloadLimit);
+          break;
+        case 7: // gif (auto-play media → AutoPlayGIF limit)
+          ok = gifs && _autoDownloadFits(size, autoPlayLimit);
+          break;
+        case 2: // video (auto-play media → AutoPlayVideo limit)
+          ok = videos && _autoDownloadFits(size, autoPlayLimit);
+          break;
+        case 5: // round video message (auto-play → AutoPlayVideoMessage limit)
+          ok = videoMessages && _autoDownloadFits(size, autoPlayLimit);
+          break;
+        default:
+          // voice (4), music (3) and non-media types are streamed on demand in
+          // AyuGram (Should() returns false), so they are not prefetched.
+          ok = false;
+      }
+      if (ok) {
         _engine.requestDownload(m.accountId, m.chatId, m.msgId);
       }
     }
   }
+
+  /// AyuGram Data::AutoDownload::SourceFromPeer — map the active chat to an
+  /// auto-download source key. Forum topics live in a megagroup → 'group'.
+  String _autoDownloadSource(ChatInfo? chat) {
+    switch (chat?.type) {
+      case ChatType.channel:
+        return 'channel';
+      case ChatType.group:
+      case ChatType.topic:
+        return 'group';
+      default:
+        return 'private';
+    }
+  }
+
+  /// Normalize a stored auto-download size limit (bytes once saved, megabytes
+  /// for the unsaved default) to a byte count.
+  int _autoDownloadBytes(Object? raw, double defaultMb) {
+    final v = (raw as num?)?.toDouble() ?? defaultMb;
+    return (v > 10000 ? v : v * 1024 * 1024).round();
+  }
+
+  /// AyuGram Single::shouldDownload — fetch only when the limit is positive and
+  /// the file fits. Unknown size (0) counts as fitting, matching `size<=limit`.
+  bool _autoDownloadFits(int size, int limit) => limit > 0 && size <= limit;
 
   void requestDownload(CachedMessage msg) {
     if (msg.mediaDownloadState == 1) return;

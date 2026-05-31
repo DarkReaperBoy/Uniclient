@@ -4085,6 +4085,7 @@ class EngineGetMessagesRequest extends $pb.GeneratedMessage {
     $core.String? chatId,
     $fixnum.Int64? beforeMs,
     $core.int? limit,
+    $fixnum.Int64? afterMs,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -4099,6 +4100,9 @@ class EngineGetMessagesRequest extends $pb.GeneratedMessage {
     if (limit != null) {
       $result.limit = limit;
     }
+    if (afterMs != null) {
+      $result.afterMs = afterMs;
+    }
     return $result;
   }
   EngineGetMessagesRequest._() : super();
@@ -4110,6 +4114,7 @@ class EngineGetMessagesRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'chatId')
     ..aInt64(3, _omitFieldNames ? '' : 'beforeMs')
     ..a<$core.int>(4, _omitFieldNames ? '' : 'limit', $pb.PbFieldType.O3)
+    ..aInt64(5, _omitFieldNames ? '' : 'afterMs')
     ..hasRequiredFields = false
   ;
 
@@ -4169,6 +4174,15 @@ class EngineGetMessagesRequest extends $pb.GeneratedMessage {
   $core.bool hasLimit() => $_has(3);
   @$pb.TagNumber(4)
   void clearLimit() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $fixnum.Int64 get afterMs => $_getI64(4);
+  @$pb.TagNumber(5)
+  set afterMs($fixnum.Int64 v) { $_setInt64(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasAfterMs() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearAfterMs() => clearField(5);
 }
 
 class EngineGetMessagesResponse extends $pb.GeneratedMessage {

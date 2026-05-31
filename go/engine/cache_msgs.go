@@ -76,30 +76,47 @@ type CachedMessage struct {
 	SenderNoForwards bool `json:"sender_no_forwards,omitempty"`
 }
 
-// GetMessages returns cached messages for a chat, paginated by timestamp.
-// If beforeMs is 0, returns the most recent messages.
+// GetMessages returns cached messages for a chat, paginated by timestamp,
+// always newest-first.
+//   - afterMs > 0: load messages NEWER than afterMs (the nearest ones), for
+//     scrolling back toward the present after a jumpToMessage. Mirrors AyuGram
+//     HistoryWidget::loadMessagesDown (history_widget.cpp:4522).
+//   - else beforeMs > 0: load messages OLDER than beforeMs (loadMessages).
+//   - else: the most recent messages (initial load).
 // Falls back to fetching from the core if cache is empty on initial load.
-func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int) ([]CachedMessage, error) {
+func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, limit int) ([]CachedMessage, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 
+	const cols = `account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
+			        content_text, content_raw, content_rich, timestamp, edited_at,
+			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at`
+
 	var rows *sql.Rows
 	var err error
-	if beforeMs > 0 {
+	reversed := false
+	if afterMs > 0 {
+		// Nearest messages strictly newer than afterMs: select ASC so we get the
+		// ones adjacent to the shown window (not the latest), then reverse to the
+		// newest-first contract below.
 		rows, err = e.db.Query(
-			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
-			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
+			`SELECT `+cols+`
+			 FROM messages
+			 WHERE account_id = ? AND chat_id = ? AND timestamp > ?
+			 ORDER BY timestamp ASC
+			 LIMIT ?`, accountID, chatID, afterMs, limit)
+		reversed = true
+	} else if beforeMs > 0 {
+		rows, err = e.db.Query(
+			`SELECT `+cols+`
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ? AND timestamp < ?
 			 ORDER BY timestamp DESC
 			 LIMIT ?`, accountID, chatID, beforeMs, limit)
 	} else {
 		rows, err = e.db.Query(
-			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
-			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
+			`SELECT `+cols+`
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ?
 			 ORDER BY timestamp DESC
@@ -113,6 +130,12 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 	if err != nil {
 		return msgs, err
 	}
+	if reversed {
+		// ASC → newest-first to match the rest of the API.
+		for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
+			msgs[i], msgs[j] = msgs[j], msgs[i]
+		}
+	}
 	e.populateMediaMetadata(msgs)
 	e.populateReplyPreviews(msgs)
 	e.populateAdminRanks(accountID, chatID, msgs)
@@ -121,7 +144,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 	// If cache has fewer messages than requested on initial load, fetch from
 	// core and cache. A few messages may have trickled in via the event stream
 	// but that doesn't mean we have the full history page.
-	if len(msgs) < limit && beforeMs == 0 {
+	if len(msgs) < limit && beforeMs == 0 && afterMs == 0 {
 		if acc, ok := e.getAccount(accountID); ok && acc.Core != nil {
 			log.Printf("[engine] GetMessages(%s, %s): cache empty, fetching live from core...", accountID, chatID)
 			live, liveErr := acc.Core.GetMessages(chatID, cores.PaginationOpts{Limit: limit})

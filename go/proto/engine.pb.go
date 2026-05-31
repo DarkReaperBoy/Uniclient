@@ -2939,6 +2939,7 @@ type EngineGetMessagesRequest struct {
 	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
 	BeforeMs      int64                  `protobuf:"varint,3,opt,name=before_ms,json=beforeMs,proto3" json:"before_ms,omitempty"` // 0 = most recent
 	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	AfterMs       int64                  `protobuf:"varint,5,opt,name=after_ms,json=afterMs,proto3" json:"after_ms,omitempty"` // >0 = load messages NEWER than this (load-down after jump)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2997,6 +2998,13 @@ func (x *EngineGetMessagesRequest) GetBeforeMs() int64 {
 func (x *EngineGetMessagesRequest) GetLimit() int32 {
 	if x != nil {
 		return x.Limit
+	}
+	return 0
+}
+
+func (x *EngineGetMessagesRequest) GetAfterMs() int64 {
+	if x != nil {
+		return x.AfterMs
 	}
 	return 0
 }
@@ -14836,13 +14844,14 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x10media_remote_ref\x18! \x01(\tR\x0emediaRemoteRef\x12\x1f\n" +
 	"\vmedia_extra\x18\" \x01(\tR\n" +
 	"mediaExtra\x12,\n" +
-	"\x12sender_no_forwards\x18# \x01(\bR\x10senderNoForwards\"\x85\x01\n" +
+	"\x12sender_no_forwards\x18# \x01(\bR\x10senderNoForwards\"\xa0\x01\n" +
 	"\x18EngineGetMessagesRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x1b\n" +
 	"\tbefore_ms\x18\x03 \x01(\x03R\bbeforeMs\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\x05R\x05limit\"W\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12\x19\n" +
+	"\bafter_ms\x18\x05 \x01(\x03R\aafterMs\"W\n" +
 	"\x19EngineGetMessagesResponse\x12:\n" +
 	"\bmessages\x18\x01 \x03(\v2\x1e.uniclient.EngineCachedMessageR\bmessages\"\xd5\x03\n" +
 	"\x18EngineSendMessageRequest\x12\x1d\n" +
