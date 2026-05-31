@@ -2,39 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_manager_native — Linux native notification manager (DBus + Flatpak portal)
-
-Audited against AyuGram `platform/linux/notifications_manager_linux.cpp` and
-`window/notifications_utilities.cpp` (`CachedUserpics` / `GenerateUserpic`).
-
-**Overall: faithful port.** DBus `Notify`/`CloseNotification`, `GetCapabilities`,
-`GetServerInformation`, `Inhibited`, all signal listeners (ActionInvoked,
-NotificationClosed reason==2 retention, NotificationReplied, ActivationToken,
-NameOwnerChanged reconnect), Flatpak portal fallback, sound LRU cache, and every
-`clearFor*` method are present and correctly wired to the engine
-(`onAction`→`markChatRead`/`openChat`, `onReply`→`sendMessage`). Placeholder
-gradient colors match the `historyPeerN UserpicBg` palette exactly,
-`paletteMap [0,7,4,1,6,3,5]` matches `ColorIndexToPaletteIndex` (chat_style.cpp:1205),
-image-key spec logic matches `GetImageKey()`, and body-markup/HTML-escaping match.
-The findings below are all in the avatar-rendering path.
-
-- [ ] [MAJOR] Real notification avatars are rendered as **squares, not circles** — `CachedUserpics.get` only `copyResize`s the avatar file and ships the raw RGBA, with no circular mask, so the userpic in the `image-data` DBus hint (and the Flatpak portal `icon`) has opaque square corners. AyuGram's `GenerateUserpic` → `PeerData::GenerateUserpicImage` always rounds the cloud avatar to a circle (`Images::Circle`) before handing it to the notification. The Dart *placeholder* path IS drawn as an anti-aliased circle (line 304), which makes the inconsistency obvious: avatar-less peers get a circle, peers with avatars (the common case) get a square. — `notification_manager_native.dart:95` ← `AyuGram/data/data_peer.cpp:517` (via `AyuGram/window/notifications_utilities.cpp:31`)
-
-- [ ] [MAJOR] Avatar downscaling uses **nearest-neighbour interpolation** (aliased / low quality). `img.copyResize(image, width: 64, height: 64)` omits the `interpolation:` argument, which defaults to `Interpolation.nearest` in image 4.8.0 — downscaling a full-resolution avatar (e.g. 640→64) just samples every Nth pixel, producing a jagged thumbnail. AyuGram scales the userpic with `Qt::SmoothTransformation`. Should pass `interpolation: Interpolation.average` (box filter, correct for downscale). — `notification_manager_native.dart:95` ← `AyuGram/data/data_peer.cpp:504`
-
-- [ ] [MAJOR] Flatpak portal path sets **no icon at all for avatar-less peers** — the portal branch only attaches an `icon` when `data.avatarPath.isNotEmpty` (line 831), with no placeholder/`EmptyUserpic` fallback and no app-icon fallback. The DBus branch correctly generates a colored-initials placeholder via `_generatePlaceholderUserpic` (lines 619-623), and AyuGram's GNotification branch always calls `GenerateUserpic` (which renders `EmptyUserpic` initials for peers without a photo) inside the `!hideNameAndPhoto` block, after defaulting the icon to the themed app icon. So under Flatpak, a notification from a peer without a profile photo shows up icon-less. — `notification_manager_native.dart:831` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:691` (and themed-icon fallback at `:556`)
-
-# notification_sound — NotificationSoundPlayer (default tone + playback)
-
-This file plays notification sounds via `media_kit` and, when no custom sound is
-supplied, **synthesizes a default tone at runtime**. AyuGram never synthesizes a
-sound — it plays the real bundled `msg_incoming.mp3` audio asset and applies
-volume through OpenAL `AL_GAIN`. Two findings below.
-
-- [ ] [CRITICAL] Default notification sound is a **fabricated static sine-wave chime**, not the real Telegram sound. `_generateNotificationTone()` builds a two-note C5→G5 chime in code and writes it to a temp WAV, which `_ensureDefaultSound()` uses as the default. AyuGram instead reads the real bundled asset `:/sounds/msg_incoming.mp3` (present at `AyuGram/../Telegram/Resources/sounds/msg_incoming.mp3`) via `getSoundPath("msg_incoming")` → embedded-resource fallback; uniclient bundles **no** sound asset at all. This is a 100% deviation from the source-of-truth audio and is a textbook banned placeholder ("no static waveforms" per CLAUDE.md). — `notification_sound.dart:61-86` (+ `:24-31` write, `:48` use) ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:995-1003` & `AyuGram/Telegram/SourceFiles/core/core_settings.cpp:1250`
-
-- [ ] [MAJOR] Volume is computed by **multiplying** global × per-chat (`globalVol * chatVol`), but AyuGram treats per-chat ringtone volume as an **override** of the global volume, not a multiplier: `AL_GAIN = (volumeOverride > 0) ? volumeOverride : notificationsVolume()/100`. With global=50% and per-chat=50%, AyuGram plays at 50% while uniclient plays at 25%. Compounding this, `data.perChatVolume` is **never populated** anywhere in the Dart codebase (always its default of 100), so AyuGram's per-chat ringtone-volume feature — sourced from `ringtoneVolume(peer, topicRootId, monoforumPeerId)` with fallback to the default-notify-type volume — is effectively absent. — `notification_sound.dart:51-53` ← `AyuGram/Telegram/SourceFiles/media/audio/media_audio_track.cpp:155-160` & `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:763-775`
-
 # notification_system — Window::Notifications::System port (scheduling, dedup, grouping, alert/sound, clears)
 
 `notification_system.dart` is a faithful port of AyuGram's `Window::Notifications::System`
