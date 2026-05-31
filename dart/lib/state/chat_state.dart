@@ -2552,6 +2552,11 @@ class ChatState extends ChangeNotifier {
         timestamp: msg.timestamp,
         messageType: msg.mediaType,
         isScheduled: msg.scheduleDate > 0,
+        // Saved Messages / self chat. Distinguishes a fired self-reminder
+        // ("📅 Reminder") from a scheduled message sent to another chat
+        // ("📅 PeerName") in _composeTitle, and gates the "You" subtitle —
+        // mirrors AyuGram's peer->isSelf() (notifications_manager.cpp:1582).
+        isSelf: chat?.isSelf ?? false,
         isForumTopic: msg.topicId.isNotEmpty,
         topicTitle: msg.topicName,
         forwardFrom: msg.forwardFrom,
@@ -2572,6 +2577,9 @@ class ChatState extends ChangeNotifier {
             ? msg.contentText
             : '',
         pollQuestion: msg.pollQuestion,
+        // Quiz vs regular poll — selects lng_reaction_quiz over lng_reaction_poll
+        // for a reaction to a quiz (AyuGram poll->quiz(), notifications_manager.cpp:1205).
+        isQuiz: msg.pollQuiz,
         gameTitle: msg.gameTitle,
         invoiceTitle: msg.invoiceTitle,
         contactName: msg.contactFirstName.isNotEmpty
@@ -2582,6 +2590,13 @@ class ChatState extends ChangeNotifier {
         slowmodeActive: (chat?.slowmodeNextSendDate ?? 0) > 0 &&
             chat!.slowmodeNextSendDate > DateTime.now().millisecondsSinceEpoch ~/ 1000,
         requiresStars: (chat?.starsToSend ?? 0) > 0,
+        // Whether the user can send a text reply here — gates the inline reply
+        // button (shouldHideReplyButton). The Go engine's computeWriteRestriction
+        // returns writeRestrictionType > 0 for ANY send restriction (banned /
+        // restricted / no-post-rights / forbidden / deactivated) and 0 only when
+        // no ban applies (telegram.go:16171), so 0 == can write. AyuGram hides the
+        // reply button on !CanSendTexts(peer) (notifications_manager.cpp:1097-1099).
+        canSendText: (chat?.writeRestrictionType ?? 0) == 0,
         spoilerLoginCode: isLoginCodeSender,
         contentRich: msg.contentRich,
         isReaction: msg.isReaction,
