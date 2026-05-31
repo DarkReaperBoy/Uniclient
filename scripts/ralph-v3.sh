@@ -753,28 +753,29 @@ circuit_breaker_record() {
 # ─── Stream formatter for pretty terminal output ────────────────
 JQ_FMT='
   try fromjson catch empty | . as $e |
+  (now|localtime|strftime("%H:%M:%S")) as $ts |
   if $e.type == "assistant" then
     ($e.message.content // [])[] |
       if .type == "text" then
-        "\n\(.text | split("\n") | map("  │ \(.)") | join("\n"))\n"
+        "\n  [\($ts)]\n\(.text | split("\n") | map("  │ \(.)") | join("\n"))\n"
       elif .type == "tool_use" then
-        if .name == "Read" then       "\n  📖 Read \(.input.file_path | ltrimstr($root))"
-        elif .name == "Edit" then     "\n  ✏️  Edit \(.input.file_path | ltrimstr($root))"
-        elif .name == "Write" then    "\n  📝 Write \(.input.file_path | ltrimstr($root))"
-        elif .name == "Bash" then     "\n  $ \(.input.command | gsub("\n"; " ; ") | .[:200])"
-        elif .name == "Grep" then     "\n  🔍 Grep \"\(.input.pattern // "")\" in \(.input.path // "." | ltrimstr($root))"
-        elif .name == "Glob" then     "\n  🔍 Glob \(.input.pattern // "")"
-        elif .name == "Agent" then    "\n  🤖 Agent: \(.input.description // "")"
-        else                          "\n  🔧 \(.name)"
+        if .name == "Read" then       "\n  [\($ts)] 📖 Read \(.input.file_path | ltrimstr($root))"
+        elif .name == "Edit" then     "\n  [\($ts)] ✏️  Edit \(.input.file_path | ltrimstr($root))"
+        elif .name == "Write" then    "\n  [\($ts)] 📝 Write \(.input.file_path | ltrimstr($root))"
+        elif .name == "Bash" then     "\n  [\($ts)] $ \(.input.command | gsub("\n"; " ; ") | .[:200])"
+        elif .name == "Grep" then     "\n  [\($ts)] 🔍 Grep \"\(.input.pattern // "")\" in \(.input.path // "." | ltrimstr($root))"
+        elif .name == "Glob" then     "\n  [\($ts)] 🔍 Glob \(.input.pattern // "")"
+        elif .name == "Agent" then    "\n  [\($ts)] 🤖 Agent: \(.input.description // "")"
+        else                          "\n  [\($ts)] 🔧 \(.name)"
         end
       else empty end
   elif $e.type == "user" then
     ($e.message.content // [])[] |
       if .type == "tool_result" then
         (.content | tostring | split("\n")) as $lines |
-        if ($lines | length) == 0 or ($lines[0] | length) == 0 then "  ✓"
-        elif ($lines[0] | test("(?i)^(error|fail|exception|fatal)")) then "  ❌ \($lines[0][:200])"
-        else "  ✓ \($lines[0][:160])"
+        if ($lines | length) == 0 or ($lines[0] | length) == 0 then "  [\($ts)] ✓"
+        elif ($lines[0] | test("(?i)^(error|fail|exception|fatal)")) then "  [\($ts)] ❌ \($lines[0][:200])"
+        else "  [\($ts)] ✓ \($lines[0][:160])"
         end
       else empty end
   elif $e.type == "system" and $e.subtype == "init" then
