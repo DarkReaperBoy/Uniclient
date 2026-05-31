@@ -11235,6 +11235,15 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		}
 		m.Extra["media_unread"] = true
 	}
+	// `mentioned` flag: this message personally mentions the user (@mention or a
+	// reply to their message). Lets the notification layer pierce a muted group
+	// for mentions, matching AyuGram's specialNotificationPeer().
+	if msg.Mentioned {
+		if m.Extra == nil {
+			m.Extra = make(map[string]interface{})
+		}
+		m.Extra["mentioned"] = true
+	}
 	if ttl, ok := msg.GetTTLPeriod(); ok && ttl > 0 {
 		if m.Extra == nil {
 			m.Extra = make(map[string]interface{})

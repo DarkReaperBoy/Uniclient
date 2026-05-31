@@ -92,6 +92,29 @@ class ChatState extends ChangeNotifier {
   void Function(String accountId, String chatId, String avatarPath)?
       onPeerAvatarUpdated;
 
+  /// Fired when a chat's inbox is read (markRead/markChatRead), so the
+  /// notification system dismisses that chat's already-shown incoming
+  /// notifications. Mirrors AyuGram's History::inboxRead → clearIncomingFromHistory
+  /// (history/history.cpp:2105).
+  void Function(String accountId, String chatId)? onChatRead;
+
+  /// Fired when a chat is opened/activated, so the notification system clears
+  /// that whole chat's notifications (all topics/sublists). Mirrors AyuGram
+  /// calling clearFromHistory(_history) on chat activation
+  /// (history/history_widget.cpp:4086).
+  void Function(String accountId, String chatId)? onChatActivated;
+
+  /// Fired when THIS account's own user status arrives (only ever from another
+  /// logged-in device), feeding the online-aware notification delay
+  /// (cOtherOnline). [lastSeenMs] is the exact was-online epoch-ms for offline
+  /// statuses, 0 otherwise.
+  void Function(String accountId, bool isOnline, int lastSeenMs)? onSelfStatus;
+
+  /// Fired when the chat list (and thus cached mute state) may have changed, so
+  /// the notification system can resolve notifications it parked while the mute
+  /// state was unknown (AyuGram's checkDelayed on settings arrival).
+  void Function()? onMuteStateMaybeResolved;
+
   /// Active channel/topic ID within a topic-type group.
   /// Null means "show all" (the default channel).
   String? _activeChannelId;
@@ -989,6 +1012,10 @@ class ChatState extends ChangeNotifier {
       _hasArchivedChats = _engine.getChatList(archived: true, limit: 1).isNotEmpty;
     }
     notifyListeners();
+    // A fresh chat list may have populated the mute state for chats that
+    // notified before their settings were cached — let the notification system
+    // resolve anything it parked as "mute unknown" (cheap no-op when empty).
+    onMuteStateMaybeResolved?.call();
   }
 
   /// Debounced version of loadChats — coalesces rapid event-driven reloads.
@@ -1096,6 +1123,9 @@ class ChatState extends ChangeNotifier {
     _chatHistoryIndex = 0;
     SpoilerRevealManager.instance.hideAll();
     _activeChat = chat;
+    // Opening a chat dismisses all of its on-screen notifications (every
+    // topic/sublist), like AyuGram's clearFromHistory on chat activation.
+    onChatActivated?.call(chat.accountId, chat.chatId);
     _openedUnreadCount = chat.unreadCount;
     _messages = [];
     _pinnedMessages = [];
@@ -1846,6 +1876,7 @@ class ChatState extends ChangeNotifier {
     final chat = _activeChat;
     if (chat == null || _messages.isEmpty) return;
     _engine.markChatRead(chat.accountId, chat.chatId, _messages.first.msgId);
+    onChatRead?.call(chat.accountId, chat.chatId);
   }
 
   // ── Chat operations ──
@@ -2065,6 +2096,7 @@ class ChatState extends ChangeNotifier {
     final upToId = chatMsgs.isNotEmpty ? chatMsgs.first.msgId : '';
     // Engine always resets unread count in DB; only calls core.MarkAsRead if upToId is non-empty.
     _engine.markChatRead(accountId, chatId, upToId);
+    onChatRead?.call(accountId, chatId);
     loadChats();
   }
 
@@ -2442,6 +2474,9 @@ class ChatState extends ChangeNotifier {
     // Track archive presence from chat updates.
     if (updated.isArchived) _hasArchivedChats = true;
     notifyListeners();
+    // This chat's mute state is now known — let the notification system flush
+    // anything it parked for it while the chat was uncached.
+    onMuteStateMaybeResolved?.call();
   }
 
   void _handleChatRemoved(ChatRemovedEvent event) {
@@ -2495,6 +2530,11 @@ class ChatState extends ChangeNotifier {
       final isLoginCodeSender = !msg.isOutgoing &&
           (loginCodePeerIds.contains(event.chatId) ||
               loginCodePeerIds.contains(msg.senderId));
+
+      // A message that personally mentions me (Telegram `mentioned` flag) in a
+      // group/channel pierces the chat mute (AyuGram specialNotificationPeer);
+      // a "mention" in a DM is just a normal message, so gate on non-DM.
+      final mentionsMeInGroup = msg.mentionsMe && chat?.type != ChatType.dm;
 
       onNotification!(NotificationData(
         accountId: event.accountId,
@@ -2555,10 +2595,15 @@ class ChatState extends ChangeNotifier {
         senderId: msg.senderId,
         // Forum-topic root id keys per-topic dedup/clear in NotificationSystem.
         topicRootId: msg.topicRootId,
-        // Muted-chat tracking. In a muted chat the sender is muted too, so the
-        // notification is skipped (AyuGram computeSkipState). Mention-bypass would
-        // require a per-message mentionsMe flag the backend doesn't expose yet.
-        isSenderMuted: chat?.isMuted ?? false,
+        // Muted-chat tracking. `isSenderMuted` is the mention SENDER's individual
+        // mute (AyuGram's isMuted(notifyBy)); we don't cache per-user mute, so it
+        // is false — meaning a mention from any sender pierces a muted group.
+        // `mentionsMe` carries the bypass eligibility; `muteStateUnknown` defers
+        // the decision when the chat isn't cached yet (mute genuinely unknown),
+        // matching AyuGram's SkipState::Unknown → checkDelayed.
+        isSenderMuted: false,
+        mentionsMe: mentionsMeInGroup,
+        muteStateUnknown: chat == null,
         // Reactor == peer only in 1:1 chats, where the reactor's name duplicates
         // the chat title, so it's hidden (AyuGram: reactionFrom != peer).
         isReactorPeer: (msg.isReaction || msg.isPollVote) &&
@@ -2869,6 +2914,14 @@ class ChatState extends ChangeNotifier {
 
   void _handleUserStatus(UserStatusEvent event) {
     if (_disposed) return;
+    // Our OWN status only ever reaches us from another logged-in device, so it
+    // is the cOtherOnline signal — route it to the notification delay instead
+    // of rendering it as a (meaningless) online dot on Saved Messages.
+    final selfId = _appState.selfUserIdFor(event.accountId);
+    if (selfId.isNotEmpty && event.userId == selfId) {
+      onSelfStatus?.call(event.accountId, event.isOnline, event.lastSeenMs);
+      return;
+    }
     // For DMs, the user ID typically maps to the chat ID.
     final key = '${event.accountId}:${event.userId}';
     final prevOnline = _onlineUsers[key];

@@ -636,6 +636,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Callback for toggling archive view in chat list (set by ChatListPanel).
   VoidCallback? onShowArchiveRequested;
 
+  /// Fired when an account is logged out / removed, so the notification system
+  /// can drop all of that session's notifications, pending timers and per-thread
+  /// state — otherwise already-scheduled dispatch timers fire after logout and
+  /// surface stale data. Mirrors AyuGram clearing the session's notifications on
+  /// Session::clear() (data/data_session.cpp:411, clearFromSession).
+  void Function(String accountId)? onAccountRemoved;
+
   Timer? _cmdPollTimer;
   Timer? _saveDebounceTimer;
 
@@ -649,6 +656,29 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _accountById = {for (final a in _accounts) a.id: a};
     _cachedActiveAccount = _accountById[_activeAccountId];
   }
+
+  /// Self user id for [accountId], or '' if unknown. Lets the notification layer
+  /// recognise this account's OWN status updates (which only arrive from another
+  /// logged-in device) and feed them into the online-aware notification delay.
+  String selfUserIdFor(String accountId) =>
+      _accountById[accountId]?.selfUserId ?? '';
+
+  /// Epoch-ms of the last local user interaction (the value AyuGram's online
+  /// tracking is built on, Core::App().lastNonIdleTime()).
+  int get lastNonIdleTime => _lastNonIdleTime;
+
+  /// Whether THIS desktop session counts as "online" for notification timing —
+  /// true while the user has interacted within the online window. Mirrors
+  /// AyuGram deriving the session online state from lastNonIdleTime
+  /// (api/api_updates.cpp updateOnline). Consumed by NotificationSystem's
+  /// countTiming to decide whether to cloud-delay a notification.
+  bool get isSessionOnline {
+    if (_lastNonIdleTime <= 0) return true;
+    return DateTime.now().millisecondsSinceEpoch - _lastNonIdleTime <
+        _kOnlineWindowMs;
+  }
+
+  static const int _kOnlineWindowMs = 60 * 1000;
 
   // ── Getters ──
 
@@ -3355,6 +3385,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void removeAccount(String accountId) {
     _engine.removeAccount(accountId);
+    // Drop the logged-out account's notification state (pending timers, queued
+    // waiters, on-screen toasts) before anything else can fire stale.
+    onAccountRemoved?.call(accountId);
     _accounts = _engine.listAccounts();
     _rebuildAccountLookup();
     _connStates.remove(accountId);

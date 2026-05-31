@@ -528,6 +528,11 @@ class CachedMessage {
   final bool mediaUnread;
   final int ttlSeconds;
 
+  // Whether this message personally mentions me (Telegram's `mentioned` flag —
+  // @mention or reply to my message). Used by the notification system to let a
+  // mention pierce a muted group (AyuGram specialNotificationPeer).
+  final bool mentionsMe;
+
   // Forum topic info (populated from contentRaw extra fields).
   final String topicId;    // topic root message ID (empty = not a forum topic message)
   final String topicName;  // topic title (may be empty if not cached)
@@ -730,6 +735,7 @@ class CachedMessage {
     this.deletedAt = 0,
     this.mediaUnread = false,
     this.ttlSeconds = 0,
+    this.mentionsMe = false,
     this.topicId = '',
     this.topicName = '',
     this.topicColorId = 0,
@@ -950,6 +956,7 @@ class CachedMessage {
       stickerPremium: extra['sticker_premium'] as bool? ?? false,
       mediaUnread: extra['media_unread'] as bool? ?? false,
       ttlSeconds: _safeInt(extra['ttl_seconds']),
+      mentionsMe: extra['mentioned'] as bool? ?? false,
       views: _safeInt(rawMsg['views']),
       forwards: _safeInt(rawMsg['forwards']),
       replyKeyboard: _decodeReplyKeyboard(extra['reply_keyboard']),
@@ -1249,6 +1256,7 @@ class CachedMessage {
     int? scheduleRepeatPeriod,
     bool? mediaUnread,
     int? ttlSeconds,
+    bool? mentionsMe,
     bool? isReaction,
     String? reactionEmoji,
     String? reactorName,
@@ -1389,6 +1397,7 @@ class CachedMessage {
     scheduleRepeatPeriod: scheduleRepeatPeriod ?? this.scheduleRepeatPeriod,
     mediaUnread: mediaUnread ?? this.mediaUnread,
     ttlSeconds: ttlSeconds ?? this.ttlSeconds,
+    mentionsMe: mentionsMe ?? this.mentionsMe,
     isReaction: isReaction ?? this.isReaction,
     reactionEmoji: reactionEmoji ?? this.reactionEmoji,
     reactorName: reactorName ?? this.reactorName,

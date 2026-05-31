@@ -63,6 +63,12 @@ class NotificationData {
   final String groupedId;
   final bool isPollVote;
   final bool isSenderMuted;
+  // Whether this message personally mentions me in a group/channel (AyuGram's
+  // mentionsMe() && !peer->isUser()). A mention pierces a muted chat: the
+  // notify-by peer becomes the sender, so the chat mute is bypassed unless the
+  // sender itself is individually muted ([isSenderMuted]).
+  // (notifications_manager.cpp:337-369, specialNotificationPeer)
+  final bool mentionsMe;
   final bool slowmodeActive;
   final bool requiresStars;
   final bool spoilerLoginCode;
@@ -119,6 +125,7 @@ class NotificationData {
     this.groupedId = '',
     this.isPollVote = false,
     this.isSenderMuted = false,
+    this.mentionsMe = false,
     this.slowmodeActive = false,
     this.requiresStars = false,
     this.spoilerLoginCode = false,
@@ -176,6 +183,7 @@ class NotificationData {
     String? groupedId,
     bool? isPollVote,
     bool? isSenderMuted,
+    bool? mentionsMe,
     bool? slowmodeActive,
     bool? requiresStars,
     bool? spoilerLoginCode,
@@ -232,6 +240,7 @@ class NotificationData {
       groupedId: groupedId ?? this.groupedId,
       isPollVote: isPollVote ?? this.isPollVote,
       isSenderMuted: isSenderMuted ?? this.isSenderMuted,
+      mentionsMe: mentionsMe ?? this.mentionsMe,
       slowmodeActive: slowmodeActive ?? this.slowmodeActive,
       requiresStars: requiresStars ?? this.requiresStars,
       spoilerLoginCode: spoilerLoginCode ?? this.spoilerLoginCode,

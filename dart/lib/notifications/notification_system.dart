@@ -107,6 +107,32 @@ class NotificationSystem {
   // Matches AyuGram's computeSkipState() pattern for checkDelayed().
   bool? Function(String accountId, String chatId)? onQueryMuteState;
 
+  // Fired whenever the active manager instance is swapped at runtime — most
+  // importantly when the native manager's async capability probe discovers the
+  // daemon lacks `inline-reply` and we fall back to the custom DefaultManager.
+  // The UI re-binds its custom-popup overlay to the new manager so toasts can
+  // actually render (the overlay is only mounted when defaultManager != null).
+  // Mirrors AyuGram firing `_managerChanged` on every manager swap so the rest
+  // of the app can react (window/notifications_manager.cpp:229).
+  void Function()? onManagerChanged;
+
+  // Live session-online query for the online-aware notification delay
+  // (countTiming). [onQuerySessionOnline] returns whether THIS device/session
+  // is currently online (active & focused); [onQueryLastSetOnlineMs] returns
+  // the epoch-ms when this session last went online. Both are read fresh at
+  // dispatch time, matching AyuGram reading `updates.lastWasOnline()` /
+  // `updates.lastSetOnline()` live in countTiming
+  // (window/notifications_manager.cpp:386-388).
+  bool Function()? onQuerySessionOnline;
+  int Function()? onQueryLastSetOnlineMs;
+
+  // Refreshes a notification's chat metadata (title/avatar/type/topic) from the
+  // live chat cache. Used when a notification parked with `muteStateUnknown`
+  // (chat not yet cached) is resolved: its title/avatar were empty placeholders
+  // at receive time, so they are re-derived from the now-loaded chat before it
+  // is finally shown. Returns the data unchanged if the chat is still unknown.
+  NotificationData Function(NotificationData data)? onRefreshChatData;
+
   static const _kMinimalDelay = Duration(milliseconds: 100);
   static const _kMinimalForwardDelay = Duration(milliseconds: 500);
   static const _kMinimalAlertDelay = Duration(milliseconds: 500);
@@ -230,6 +256,12 @@ class NotificationSystem {
                 'Daemon lacks required capabilities, falling back to custom');
             nm.dispose();
             _manager = DefaultManager();
+            _manager.updateSettings(_settings);
+            // Notify the UI so it mounts/re-binds the custom-popup overlay to
+            // this new DefaultManager — without this the overlay stays unbound
+            // (it was never created while native was active) and the manager
+            // stores items that nothing ever renders.
+            onManagerChanged?.call();
           }
         });
       case ManagerType.defaultPopup:
@@ -252,15 +284,25 @@ class NotificationSystem {
     if (data.isHidden) return;
     if (data.isOutgoing && !data.isScheduled) return;
 
-    if (!_shouldNotifyForType(data)) return;
+    // The per-type filter (channels/groups/private) needs the chat type, which
+    // is unknown until the chat is cached. When mute state is unknown, apply
+    // only the account filter now and defer the per-type decision to
+    // checkDelayed (re-evaluated once the chat — and its type — loads).
+    if (data.muteStateUnknown) {
+      if (!_settings.notifyFromAll && data.accountId != _activeAccountId) return;
+    } else if (!_shouldNotifyForType(data)) {
+      return;
+    }
 
-    // §37.7: Muted chat handling
+    // §37.7: Muted chat handling. A muted chat is silenced UNLESS the message
+    // personally mentions me and the mention sender isn't individually muted —
+    // AyuGram's notifyBy = specialNotificationPeer() bypass.
     var effectiveData = data;
     if (data.isMuted) {
       if (data.isScheduled && data.isOutgoing) {
         effectiveData = data.copyWith(isSilent: true);
-      } else if (!data.isSenderMuted) {
-        // Sender NOT muted in muted group (e.g. mention): show with sound
+      } else if (data.mentionsMe && !data.isSenderMuted) {
+        // Mention from a non-muted sender pierces the muted chat: show with sound.
       } else {
         return;
       }
@@ -380,18 +422,27 @@ class NotificationSystem {
 
     if (!_settings.disableNotificationsDelay) {
       final state = _accountStates[data.accountId];
-      if (state != null) {
-        final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-        final otherNotOld =
-            state.otherOnlineAt + _onlineCloudTimeoutSec > nowSec;
-        final otherLaterThanMe = state.otherOnlineAt * 1000 +
-                (DateTime.now().millisecondsSinceEpoch -
-                    state.lastSetOnlineAt) >
-            nowSec * 1000;
+      final otherOnlineAt = state?.otherOnlineAt ?? 0;
+      // Only relevant once another device has been seen online (cOtherOnline).
+      // With no other session active both branches are inert and the delay
+      // stays minimal — exactly AyuGram's behaviour when cOtherOnline()==0.
+      if (otherOnlineAt > 0) {
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+        final nowSec = nowMs ~/ 1000;
+        // Read this session's online state fresh (AyuGram reads
+        // updates.lastWasOnline()/lastSetOnline() live in countTiming); fall
+        // back to the last snapshot stored via updateSessionState.
+        final isOnline =
+            onQuerySessionOnline?.call() ?? state?.isOnline ?? true;
+        final lastSetOnlineMs =
+            onQueryLastSetOnlineMs?.call() ?? state?.lastSetOnlineAt ?? nowMs;
+        final otherNotOld = otherOnlineAt + _onlineCloudTimeoutSec > nowSec;
+        final otherLaterThanMe =
+            otherOnlineAt * 1000 + (nowMs - lastSetOnlineMs) > nowSec * 1000;
 
-        if (!state.isOnline && otherNotOld && otherLaterThanMe) {
+        if (!isOnline && otherNotOld && otherLaterThanMe) {
           delay = _cloudDelay;
-        } else if (state.otherOnlineAt >= nowSec) {
+        } else if (otherOnlineAt >= nowSec) {
           delay = _defaultDelay;
         }
       }
@@ -611,13 +662,22 @@ class NotificationSystem {
             kept.add(data); // still unknown (or no resolver) — keep waiting
             continue;
           }
-          data = data.copyWith(
-            muteStateUnknown: false,
-            isMuted: liveMuted,
-            isSenderMuted: liveMuted,
-          );
+          // Only the mute is resolved here; keep mentionsMe/isSenderMuted so the
+          // mention-bypass survives the deferral. Refresh chat metadata too —
+          // the data was captured before the chat was in cache, so its
+          // title/avatar/type were empty placeholders.
+          data = data.copyWith(muteStateUnknown: false, isMuted: liveMuted);
+          final refresh = onRefreshChatData;
+          if (refresh != null) data = refresh(data);
+          // The chat type is known now — apply the per-type filter that was
+          // deferred in onNewMessage while the chat was uncached.
+          if (!_shouldNotifyForType(data)) continue;
         }
-        if (data.isMuted && data.isSenderMuted) continue; // resolved muted: drop
+        // Resolved muted with no mention bypass → drop, mirroring the live
+        // muted-chat handling in onNewMessage.
+        if (data.isMuted && !(data.mentionsMe && !data.isSenderMuted)) {
+          continue;
+        }
         promoted.add(data);
       }
 

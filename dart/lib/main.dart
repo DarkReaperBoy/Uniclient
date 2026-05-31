@@ -562,6 +562,36 @@ class _UniClientAppState extends State<UniClientApp>
       if (chat == null) return null;
       return chat.isMuted;
     };
+    // §37: the native manager probes daemon capabilities asynchronously and, if
+    // the daemon can't do inline-reply, swaps itself for the custom in-app
+    // DefaultManager. Re-bind the popup overlay to that new manager so toasts
+    // actually render (mirrors AyuGram's _managerChanged → UI rewire).
+    _notifSystem.onManagerChanged = () {
+      if (!mounted) return;
+      final dm = _notifSystem.defaultManager;
+      if (dm != null && dm != _defaultNotifManager) {
+        setState(() => _defaultNotifManager = dm);
+      }
+    };
+    // §37.6.3: online-aware notification delay reads this session's online state
+    // live at dispatch time (AyuGram lastWasOnline()/lastSetOnline()).
+    _notifSystem.onQuerySessionOnline = () => appState.isSessionOnline;
+    _notifSystem.onQueryLastSetOnlineMs = () => appState.lastNonIdleTime;
+    // §37: a notification parked while its chat wasn't cached yet (mute unknown)
+    // gets its peer title/avatar/type re-derived once the chat loads, so it
+    // shows with full info instead of the empty placeholders captured at receipt.
+    _notifSystem.onRefreshChatData = (data) {
+      final chat = chatState.chats
+          .where((c) => c.accountId == data.accountId && c.chatId == data.chatId)
+          .firstOrNull;
+      if (chat == null) return data;
+      return data.copyWith(
+        chatTitle: chat.title,
+        avatarPath: chat.avatarPath,
+        isChannel: chat.type == ChatType.channel,
+        isGroup: chat.type == ChatType.group || chat.type == ChatType.topic,
+      );
+    };
     _tray.updateNotificationsItem(
         enabled: _notifSystem.settings.desktopNotify,
         show: !appState.passcodeLocked);
@@ -617,6 +647,37 @@ class _UniClientAppState extends State<UniClientApp>
     // notification->updatePeerPhoto() (notifications_manager_default.cpp:280-294).
     chatState.onPeerAvatarUpdated = (accountId, chatId, avatarPath) {
       _notifSystem.updateAvatarForPeer(accountId, chatId, avatarPath);
+    };
+    // §37: reading a chat's inbox dismisses its incoming notifications, and
+    // opening a chat clears all of that chat's notifications (every topic /
+    // sublist) — AyuGram inboxRead→clearIncomingFromHistory and
+    // chat-activation→clearFromHistory.
+    chatState.onChatRead = (accountId, chatId) {
+      _notifSystem.clearIncomingFromChat(accountId, chatId);
+    };
+    chatState.onChatActivated = (accountId, chatId) {
+      _notifSystem.clearForChat(accountId, chatId);
+    };
+    // Resolve notifications parked while their chat's mute state was unknown,
+    // once a fresh chat list may have cached it (cheap no-op when none waiting).
+    chatState.onMuteStateMaybeResolved = () => _notifSystem.checkDelayed();
+    // §37.6.3: this account's own status only ever arrives from another device —
+    // feed it into the cross-device online-aware notification delay.
+    chatState.onSelfStatus = (accountId, isOnlineElsewhere, lastSeenMs) {
+      final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final otherOnlineAt = isOnlineElsewhere
+          ? nowSec
+          : (lastSeenMs > 0 ? lastSeenMs ~/ 1000 : 0);
+      _notifSystem.updateSessionState(
+        accountId: accountId,
+        isOnline: appState.isSessionOnline,
+        otherOnlineAt: otherOnlineAt,
+        lastSetOnlineAt: appState.lastNonIdleTime,
+      );
+    };
+    // §37: drop a logged-out account's notification state before stale timers fire.
+    appState.onAccountRemoved = (accountId) {
+      _notifSystem.clearForAccount(accountId);
     };
 
     // Debug command poller — reads /tmp/uniclient_debug_cmd.json for
@@ -2231,7 +2292,15 @@ class _UniClientAppState extends State<UniClientApp>
     if (_audioSettingsSyncListener != null && _appStateRef != null) {
       _appStateRef!.removeListener(_audioSettingsSyncListener!);
     }
-    if (_chatStateRef != null) _chatStateRef!.onNotification = null;
+    if (_chatStateRef != null) {
+      _chatStateRef!.onNotification = null;
+      _chatStateRef!.onPeerAvatarUpdated = null;
+      _chatStateRef!.onChatRead = null;
+      _chatStateRef!.onChatActivated = null;
+      _chatStateRef!.onMuteStateMaybeResolved = null;
+      _chatStateRef!.onSelfStatus = null;
+    }
+    if (_appStateRef != null) _appStateRef!.onAccountRemoved = null;
     // Persist emoji keywords state (recent emojis, variant prefs).
     if (!kIsWeb && _appStateRef != null && _appStateRef!.configDir.isNotEmpty) {
       try {
