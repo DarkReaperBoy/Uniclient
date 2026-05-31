@@ -5235,6 +5235,7 @@ class EngineService {
   }
 
   void updateConfig({
+    String? accountId,
     String? theme,
     String? accentColor,
     double? fontScale,
@@ -5254,6 +5255,27 @@ class EngineService {
     bool? notifyGroups,
     bool? notifyMentionsOnly,
   }) {
+    // Per-account ghost override (AyuGram resolves ghost per session/userId).
+    // When [accountId] is set, the ghost flags update THAT account's override
+    // in the engine instead of the global config. Callers in this mode pass a
+    // full ghost profile (all 8 flags), so omitted flags default to false in
+    // the engine — do not use this for partial updates.
+    if (accountId != null) {
+      final payload = <String, dynamic>{
+        'account_id': accountId,
+        'send_read_receipts': sendReadReceipts ?? true,
+        'send_upload_progress': sendUploadProgress ?? true,
+        'send_read_stories': sendReadStories ?? true,
+        'send_online_packets': sendOnlinePackets ?? true,
+        'send_offline_after_online': sendOfflineAfterOnline ?? false,
+        'mark_read_after_action': markReadAfterAction ?? false,
+        'use_scheduled_messages': useScheduledMessages ?? false,
+        'send_without_sound': sendWithoutSound ?? false,
+      };
+      _callRaw('__engine', 'SetAccountGhost',
+          Uint8List.fromList(utf8.encode(json.encode(payload))));
+      return;
+    }
     final req = epb.EngineUpdateConfigRequest();
     if (theme != null) req.theme = theme;
     if (accentColor != null) req.accentColor = accentColor;
@@ -5310,6 +5332,12 @@ class EngineService {
       req.hasNotifyMentionsOnly_15 = true;
     }
     _callRaw('__engine', 'UpdateConfig', req.writeToBuffer());
+  }
+
+  /// Drop all per-account ghost overrides, so the global config governs every
+  /// account again (used when switching back to global Ghost Mode).
+  void clearAccountGhostOverrides() {
+    _callRaw('__engine', 'ClearAccountGhostOverrides', Uint8List(0));
   }
 
   // ── Global TTL (Auto-Delete Messages) ──

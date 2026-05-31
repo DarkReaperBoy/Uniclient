@@ -506,8 +506,7 @@ func (e *Engine) MarkChatRead(accountID, chatID, upToMsgID string) error {
 		"UPDATE chats SET unread_count = 0 WHERE account_id = ? AND chat_id = ?",
 		accountID, chatID)
 
-	cfg := e.GetConfig()
-	if cfg.SendReadReceipts {
+	if e.GhostFor(accountID).SendReadReceipts {
 		if acc, ok := e.getAccount(accountID); ok && acc.Core != nil && upToMsgID != "" {
 			acc.Core.MarkAsRead(chatID, upToMsgID)
 		}

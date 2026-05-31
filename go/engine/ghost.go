@@ -4,8 +4,8 @@ package engine
 // blocks reads but markReadAfterAction is enabled (the "read on interact"
 // pattern from AyuGram §51.10 — auto-read when user reacts or votes).
 func (e *Engine) ghostAutoRead(accountID, chatID, msgID string) {
-	cfg := e.GetConfig()
-	if cfg.SendReadReceipts || !cfg.MarkReadAfterAction {
+	g := e.GhostFor(accountID)
+	if g.SendReadReceipts || !g.MarkReadAfterAction {
 		return
 	}
 	acc, ok := e.getAccount(accountID)

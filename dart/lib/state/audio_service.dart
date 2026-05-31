@@ -12,7 +12,9 @@ enum AudioRepeatMode { none, one, all }
 class AudioService extends ChangeNotifier {
   final EngineService _engine;
 
-  AudioService(this._engine);
+  AudioService(this._engine) {
+    _subscribeToCallState();
+  }
 
   Player? _player;
   String _currentMsgId = '';
@@ -30,6 +32,18 @@ class AudioService extends ChangeNotifier {
   bool _isSong = false;
   final List<StreamSubscription> _subs = [];
 
+  // ── Pause-on-call (AyuGram Instance subscribes to currentCallValue +
+  // currentGroupCallValue and pauses/resumes the player for the call's
+  // duration — media_player_instance.cpp:188-200 & 1089-1110). ──
+  StreamSubscription? _callStateSub;
+  StreamSubscription? _groupCallStateSub;
+  bool _oneToOneCallActive = false;
+  bool _groupCallActive = false;
+  bool _callActive = false;
+  // Whether the current track was paused BY a call (so we only auto-resume the
+  // track the call paused — AyuGram's data->resumeOnCallEnd).
+  bool _resumeAfterCall = false;
+
   // Playback speed & auto-advance settings, synced from AppState (mirror
   // AyuGram voicePlaybackSpeed/audioPlaybackSpeed + playerRepeatMode +
   // OptionDisableAutoplayNext). Speeds default to 1.0 (normal speed).
@@ -44,8 +58,15 @@ class AudioService extends ChangeNotifier {
   static const _pauseTimeoutSec = 60;
   static const _minListenMs = 3000;
 
+  // AyuGram SaveLastPlaybackPosition selects the minimum length by
+  // document->isVideoFile() (media_player_instance.cpp:128-130, constants
+  // :55-56): only a real video FILE uses the 60s threshold; music, voice
+  // messages, AND round-video messages all use the 20-minute music threshold.
+  // No full video files flow through this service (videos play in the media
+  // viewer), so isVideoFile() is always false here → the music threshold
+  // always applies. Keyed off _isSong before, which wrongly gave voice/
+  // round-video messages the 60s threshold.
   static const _kMinLengthSavePosMusicSec = 20 * 60;
-  static const _kMinLengthSavePosVideoSec = 60;
   static const _kPositionNotifyThrottleMs = 250;
   static const _kMaxSavedPositions = 256;
   final Map<String, Duration> _savedPositions = {};
@@ -182,6 +203,56 @@ class AudioService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Subscribe to 1:1 and group call state so playback auto-pauses for the
+  /// duration of a call and resumes when it ends — mirrors AyuGram combining
+  /// currentCallValue() || currentGroupCallValue() (media_player_instance.cpp:188-200).
+  void _subscribeToCallState() {
+    _callStateSub = _engine.onCallState.listen((e) {
+      _setCallActivity(oneToOne: _isCallStateOngoing(e.call.state));
+    });
+    _groupCallStateSub = _engine.onGroupCallState.listen((e) {
+      // The engine emits group-call state for the local user's own call
+      // session; info.active is false once the call ends (events.go:463).
+      _setCallActivity(group: e.info.active);
+    });
+  }
+
+  /// True while a 1:1 call occupies the audio device. Terminal states
+  /// (ended/failed/busy) and the empty "no call" state release it.
+  static bool _isCallStateOngoing(String rawState) {
+    final s = rawState.toLowerCase();
+    if (s.isEmpty) return false;
+    return s != 'ended' && s != 'failed' && s != 'busy';
+  }
+
+  void _setCallActivity({bool? oneToOne, bool? group}) {
+    if (oneToOne != null) _oneToOneCallActive = oneToOne;
+    if (group != null) _groupCallActive = group;
+    final anyCall = _oneToOneCallActive || _groupCallActive;
+    if (anyCall == _callActive) return;
+    _callActive = anyCall;
+    if (anyCall) {
+      _pauseForCall();
+    } else {
+      _resumeAfterCallEnd();
+    }
+  }
+
+  /// AyuGram pauseOnCall (media_player_instance.cpp:1089-1101): only pause a
+  /// track that is actually playing, and remember to resume it on call end.
+  void _pauseForCall() {
+    if (_player == null || !_playing) return;
+    _resumeAfterCall = true;
+    _player!.pause();
+  }
+
+  /// AyuGram resumeOnCall (:1103-1110): resume only the track the call paused.
+  void _resumeAfterCallEnd() {
+    if (!_resumeAfterCall) return;
+    _resumeAfterCall = false;
+    _player?.play();
+  }
+
   Future<void> playVoice(String filePath, String msgId, {
     String chatId = '',
     String performer = '',
@@ -292,9 +363,12 @@ class AudioService extends ChangeNotifier {
 
   void previous() {
     if (_player == null) return;
-    if (_position.inSeconds > 3) {
-      _player!.seek(Duration.zero);
-    } else if (onPreviousTrack != null) {
+    // AyuGram's previous button calls moveInPlaylist(-1) unconditionally —
+    // there is NO position guard (media_player_instance.cpp:1119-1124); the
+    // button is simply disabled (previousAvailable()) when there is no previous
+    // track. So previous() always moves to the previous track. The seek-to-zero
+    // is only a fallback for when no previous-track callback is wired.
+    if (onPreviousTrack != null) {
       onPreviousTrack!();
     } else {
       _player!.seek(Duration.zero);
@@ -345,6 +419,8 @@ class AudioService extends ChangeNotifier {
     _playing = false;
     _position = Duration.zero;
     _duration = Duration.zero;
+    // The track is gone — nothing left for a call-end to resume.
+    _resumeAfterCall = false;
     if (old != null) {
       await old.dispose();
     }
@@ -368,7 +444,9 @@ class AudioService extends ChangeNotifier {
   void _savePositionIfNeeded() {
     if (_currentDocId.isEmpty || _position <= Duration.zero) return;
     final totalSec = _duration.inSeconds;
-    final minSec = _isSong ? _kMinLengthSavePosMusicSec : _kMinLengthSavePosVideoSec;
+    // Music threshold (20min) for everything this service plays — see the
+    // constant comment. Voice/round-video below 20min must NOT be saved.
+    const minSec = _kMinLengthSavePosMusicSec;
     if (totalSec >= minSec) {
       _savedPositions[_currentDocId] = _position;
       while (_savedPositions.length > _kMaxSavedPositions) {
@@ -439,6 +517,8 @@ class AudioService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _callStateSub?.cancel();
+    _groupCallStateSub?.cancel();
     _positionNotifyTimer?.cancel();
     _positionSaveTimer?.cancel();
     _pauseTimer?.cancel();

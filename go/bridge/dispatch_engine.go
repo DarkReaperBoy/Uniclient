@@ -1600,6 +1600,37 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.UpdateConfigFromBridge(changes)
 
+	case "SetAccountGhost":
+		var p struct {
+			AccountID              string `json:"account_id"`
+			SendReadReceipts       bool   `json:"send_read_receipts"`
+			SendUploadProgress     bool   `json:"send_upload_progress"`
+			SendReadStories        bool   `json:"send_read_stories"`
+			SendOnlinePackets      bool   `json:"send_online_packets"`
+			SendOfflineAfterOnline bool   `json:"send_offline_after_online"`
+			MarkReadAfterAction    bool   `json:"mark_read_after_action"`
+			UseScheduledMessages   bool   `json:"use_scheduled_messages"`
+			SendWithoutSound       bool   `json:"send_without_sound"`
+		}
+		if err := json.Unmarshal(payload, &p); err != nil {
+			return nil, err
+		}
+		e.SetAccountGhost(p.AccountID, engine.GhostFlags{
+			SendReadReceipts:       p.SendReadReceipts,
+			SendUploadProgress:     p.SendUploadProgress,
+			SendReadStories:        p.SendReadStories,
+			SendOnlinePackets:      p.SendOnlinePackets,
+			SendOfflineAfterOnline: p.SendOfflineAfterOnline,
+			MarkReadAfterAction:    p.MarkReadAfterAction,
+			UseScheduledMessages:   p.UseScheduledMessages,
+			SendWithoutSound:       p.SendWithoutSound,
+		})
+		return nil, nil
+
+	case "ClearAccountGhostOverrides":
+		e.ClearAccountGhostOverrides()
+		return nil, nil
+
 	case "MarkAsOnline":
 		type statusUpdater interface {
 			UpdateStatus(online bool) error

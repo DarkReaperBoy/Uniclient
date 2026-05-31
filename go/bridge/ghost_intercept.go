@@ -8,24 +8,28 @@ import (
 
 // ghostIntercept checks ghost mode settings and suppresses API calls
 // that should be blocked. Returns true if the call was suppressed.
-func ghostIntercept(method string, payload []byte, entry coreEntry) bool {
+// accountID is the core_id of the call's target account, so ghost flags
+// resolve per-account (AyuGram resolves ghost per session/userId).
+func ghostIntercept(method string, payload []byte, entry coreEntry, accountID string) bool {
 	if engineInstance == nil {
 		return false
 	}
-	cfg := engineInstance.GetConfig()
+	// SendTyping is a global (not per-account) ghost setting; the rest resolve
+	// per-account so background accounts enforce their own ghost profile.
+	g := engineInstance.GhostFor(accountID)
 
 	switch method {
 	case "SendTyping":
-		return !cfg.SendTyping
+		return !engineInstance.GetConfig().SendTyping
 
 	case "UpdateStatus":
-		if !cfg.SendOnlinePackets {
+		if !g.SendOnlinePackets {
 			var req pbcores.TelegramUpdateStatusRequest
 			if err := proto.Unmarshal(payload, &req); err == nil && req.Online {
 				return true
 			}
 		}
-		if cfg.SendOfflineAfterOnline {
+		if g.SendOfflineAfterOnline {
 			var req pbcores.TelegramUpdateStatusRequest
 			if err := proto.Unmarshal(payload, &req); err == nil && req.Online {
 				go ghostSendOffline(entry)
@@ -33,10 +37,10 @@ func ghostIntercept(method string, payload []byte, entry coreEntry) bool {
 		}
 
 	case "StoriesReadStories":
-		return !cfg.SendReadStories
+		return !g.SendReadStories
 
 	case "StoriesIncrementStoryViews":
-		return !cfg.SendReadStories
+		return !g.SendReadStories
 	}
 
 	return false

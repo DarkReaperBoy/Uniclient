@@ -361,7 +361,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _proxyForCalls = false;
   bool _callSameDevice = false;
   bool _proxyRotationEnabled = false;
-  int _proxyRotationTimeout = 60;
+  // AyuGram/Telegram-core default is 10s (core_settings_proxy.h:25
+  // kDefaultProxyRotationTimeout = 10). 60 is the MAX of {5,10,15,30,60}.
+  int _proxyRotationTimeout = 10;
   List<Map<String, dynamic>> _proxyList = [];
   Map<String, dynamic> _selectedProxyData = {};
   Map<String, Map<String, dynamic>> _autoDownloadSettings = {};
@@ -860,7 +862,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void ghostSettingChanged(String key) {
-    if (key == _ghostKey) _syncGhostToEngine();
+    // Global mode: only the shared '0' profile reaches the engine. Per-account
+    // mode: ANY account's change must be re-pushed, since each connected
+    // account carries its own override (not just the active one).
+    if (!_useGlobalGhostMode || key == _ghostKey) _syncGhostToEngine();
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -892,15 +897,45 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     ghostSettingChanged(key);
   }
 
+  // The 5 lockable ghost toggles (matches the 5 rows in ghost_settings_page).
+  static const _ghostLockFields = <String>{
+    'sendReadMessages',
+    'sendReadStories',
+    'sendOnlinePackets',
+    'sendUploadProgress',
+    'sendOfflinePacketAfterOnline',
+  };
+
   void toggleLockForKey(String key, String field) {
+    if (!_ghostLockFields.contains(field)) return;
     final s = _ghostModeSettings.putIfAbsent(key, GhostModeAccountSettings.new);
+    final isCurrentlyLocked = switch (field) {
+      'sendReadMessages' => s.sendReadMessagesLocked,
+      'sendReadStories' => s.sendReadStoriesLocked,
+      'sendOnlinePackets' => s.sendOnlinePacketsLocked,
+      'sendUploadProgress' => s.sendUploadProgressLocked,
+      'sendOfflinePacketAfterOnline' => s.sendOfflinePacketAfterOnlineLocked,
+      _ => false,
+    };
+    // AyuGram denies a lock that would leave zero unlocked toggles —
+    // settings_ayu_utils.cpp:386-396 (`if (lockedCount + 1 >= checkboxes.size()) return;`).
+    // This keeps the master Ghost Mode switch meaningful (never all-locked).
+    if (!isCurrentlyLocked) {
+      final lockedCount = [
+        s.sendReadMessagesLocked,
+        s.sendReadStoriesLocked,
+        s.sendOnlinePacketsLocked,
+        s.sendUploadProgressLocked,
+        s.sendOfflinePacketAfterOnlineLocked,
+      ].where((l) => l).length;
+      if (lockedCount + 1 >= _ghostLockFields.length) return;
+    }
     switch (field) {
       case 'sendReadMessages': s.sendReadMessagesLocked = !s.sendReadMessagesLocked;
       case 'sendReadStories': s.sendReadStoriesLocked = !s.sendReadStoriesLocked;
       case 'sendOnlinePackets': s.sendOnlinePacketsLocked = !s.sendOnlinePacketsLocked;
       case 'sendUploadProgress': s.sendUploadProgressLocked = !s.sendUploadProgressLocked;
       case 'sendOfflinePacketAfterOnline': s.sendOfflinePacketAfterOnlineLocked = !s.sendOfflinePacketAfterOnlineLocked;
-      default: return;
     }
     notifyListeners();
     _saveWindowPrefs();
@@ -1495,10 +1530,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (s.markReadAfterAction == v) return;
     s.markReadAfterAction = v;
     if (v) s.useScheduledMessages = false;
-    _engine.updateConfig(
-      markReadAfterAction: v,
-      useScheduledMessages: v ? false : null,
-    );
+    // Route through the per-account-aware sync so in "individual settings"
+    // mode this updates the ACTIVE account's override, not the global config.
+    _syncGhostToEngine();
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1508,10 +1542,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (s.useScheduledMessages == v) return;
     s.useScheduledMessages = v;
     if (v) s.markReadAfterAction = false;
-    _engine.updateConfig(
-      useScheduledMessages: v,
-      markReadAfterAction: v ? false : null,
-    );
+    _syncGhostToEngine();
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1520,7 +1551,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ensureGhostSettings();
     if (s.sendWithoutSound == v) return;
     s.sendWithoutSound = v;
-    _engine.updateConfig(sendWithoutSound: s.shouldSendWithoutSound);
+    _syncGhostToEngine();
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1768,17 +1799,46 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _syncGhostToEngine() {
-    final s = _ghostSettings;
-    _engine.updateConfig(
-      sendReadReceipts: s.sendReadMessages,
-      sendUploadProgress: s.sendUploadProgress,
-      sendReadStories: s.sendReadStories,
-      sendOnlinePackets: s.sendOnlinePackets,
-      sendOfflineAfterOnline: s.sendOfflinePacketAfterOnline,
-      markReadAfterAction: s.markReadAfterAction,
-      useScheduledMessages: s.useScheduledMessages,
-      sendWithoutSound: s.shouldSendWithoutSound,
-    );
+    if (_useGlobalGhostMode) {
+      // One shared profile → global engine config. Drop any stale per-account
+      // overrides so the shared profile governs every connected account.
+      final s = _ghostModeSettings['0'] ?? GhostModeAccountSettings();
+      _engine.updateConfig(
+        sendReadReceipts: s.sendReadMessages,
+        sendUploadProgress: s.sendUploadProgress,
+        sendReadStories: s.sendReadStories,
+        sendOnlinePackets: s.sendOnlinePackets,
+        sendOfflineAfterOnline: s.sendOfflinePacketAfterOnline,
+        markReadAfterAction: s.markReadAfterAction,
+        useScheduledMessages: s.useScheduledMessages,
+        sendWithoutSound: s.shouldSendWithoutSound,
+      );
+      _engine.clearAccountGhostOverrides();
+      return;
+    }
+    // "Individual settings for each account": push EACH connected account's own
+    // resolved profile as a per-account override, so simultaneously-connected
+    // background accounts enforce THEIR config instead of the foreground
+    // account's. AyuGram resolves ghost per session/userId — ayu_settings.cpp:437
+    // `ghost(uint64 userId)`. Ghost settings are keyed by selfUserId here, but
+    // the engine keys accounts by accountId, so we resolve per account and push
+    // by accountId (the engine's consumption points use accountId).
+    for (final acc in _accounts) {
+      final s = _ghostModeSettings[acc.selfUserId] ??
+          _ghostModeSettings['0'] ??
+          GhostModeAccountSettings();
+      _engine.updateConfig(
+        accountId: acc.id,
+        sendReadReceipts: s.sendReadMessages,
+        sendUploadProgress: s.sendUploadProgress,
+        sendReadStories: s.sendReadStories,
+        sendOnlinePackets: s.sendOnlinePackets,
+        sendOfflineAfterOnline: s.sendOfflinePacketAfterOnline,
+        markReadAfterAction: s.markReadAfterAction,
+        useScheduledMessages: s.useScheduledMessages,
+        sendWithoutSound: s.shouldSendWithoutSound,
+      );
+    }
   }
 
   void _autoMigrateGhostToGlobal() {
@@ -1913,10 +1973,50 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
+  /// Whether the "Native" translation provider (index 3) is usable on this
+  /// platform. Mirrors AyuGram's `Platform::IsTranslateProviderAvailable()`:
+  /// on Linux the native provider shells out to Crow Translate, so it is only
+  /// available when `crow`/`org.kde.CrowTranslate` is on PATH
+  /// (translate_provider_linux.cpp:20-38,86). Windows/macOS ship an OS
+  /// translation API, so it is always available there.
+  bool? _cachedNativeTranslateAvailable;
+  bool get nativeTranslateAvailable {
+    final cached = _cachedNativeTranslateAvailable;
+    if (cached != null) return cached;
+    bool available;
+    if (kIsWeb) {
+      available = false;
+    } else if (Platform.isLinux) {
+      available =
+          _hasExecutable('crow') || _hasExecutable('org.kde.CrowTranslate');
+    } else {
+      available = true;
+    }
+    _cachedNativeTranslateAvailable = available;
+    return available;
+  }
+
+  bool _hasExecutable(String name) {
+    final pathEnv = Platform.environment['PATH'] ?? '';
+    if (pathEnv.isEmpty) return false;
+    final sep = Platform.isWindows ? ';' : ':';
+    for (final dir in pathEnv.split(sep)) {
+      if (dir.isEmpty) continue;
+      try {
+        if (File('$dir${Platform.pathSeparator}$name').existsSync()) return true;
+      } catch (_) {}
+    }
+    return false;
+  }
+
   // §54.14: AyuGram General settings setters.
   void setTranslationProvider(int v) {
-    if (_translationProvider == v) return;
-    _translationProvider = v.clamp(0, 3);
+    var p = v.clamp(0, 3);
+    // AyuGram forces Native→Telegram when the platform provider is unavailable
+    // (ayu_settings.cpp:1008-1012 setter gate). Native is index 3, Telegram is 0.
+    if (p == 3 && !nativeTranslateAvailable) p = 0;
+    if (_translationProvider == p) return;
+    _translationProvider = p;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -3646,7 +3746,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _proxyForCalls = data['proxyForCalls'] as bool? ?? false;
       _callSameDevice = data['callSameDevice'] as bool? ?? false;
       _proxyRotationEnabled = data['proxyRotationEnabled'] as bool? ?? false;
-      _proxyRotationTimeout = data['proxyRotationTimeout'] as int? ?? 60;
+      // Default 10s — core_settings_proxy.h:25 (kDefaultProxyRotationTimeout).
+      _proxyRotationTimeout = data['proxyRotationTimeout'] as int? ?? 10;
       final pList = data['proxyList'] as List<dynamic>?;
       if (pList != null) _proxyList = pList.cast<Map<String, dynamic>>();
       final selProxy = data['selectedProxyData'] as Map<String, dynamic>?;
@@ -3812,6 +3913,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         _translationProvider = const {'telegram': 0, 'google': 1, 'yandex': 2, 'native': 3}[rawTp] ?? 0;
       } else {
         _translationProvider = (rawTp as int?) ?? 0;
+      }
+      // AyuGram validate() resets Native→default(Telegram) when the platform
+      // provider is unavailable (ayu_settings.cpp:511-515).
+      if (_translationProvider == 3 && !nativeTranslateAvailable) {
+        _translationProvider = 0;
       }
       _disableStories = data['disableStories'] as bool? ?? false;
       _disableOpenLinkWarning = data['disableOpenLinkWarning'] as bool? ?? false;

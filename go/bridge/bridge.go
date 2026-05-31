@@ -108,7 +108,7 @@ func Call(reqData []byte) []byte {
 		return marshalError("unknown core_id: " + req.CoreId)
 	}
 
-	if suppressed := ghostIntercept(req.Method, req.Payload, entry); suppressed {
+	if suppressed := ghostIntercept(req.Method, req.Payload, entry, req.CoreId); suppressed {
 		resp := &pb.BridgeResponse{Ok: true}
 		data, _ := proto.Marshal(resp)
 		return data

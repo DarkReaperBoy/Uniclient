@@ -109,6 +109,14 @@ type Engine struct {
 	autoDownloadMu       sync.RWMutex
 	autoDownloadSettings map[string]map[string]interface{}
 
+	// Per-account ghost overrides (AyuGram per-session ghost resolution,
+	// ayu_settings.cpp:437 ghost(uint64 userId)). When an account has an entry
+	// here, its ghost flags take precedence over the global config; otherwise
+	// the global config applies. Populated from Dart when the user picks
+	// "individual settings for each account".
+	ghostMu        sync.RWMutex
+	ghostOverrides map[string]GhostFlags
+
 	// Power saving flags bitmap from Dart UI.
 	powerSavingFlags int
 	// powerSavingForceAll mirrors AyuGram PowerSaving::ForceAll (auto power
@@ -558,6 +566,62 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 
 	return e.vault.SetConfig(e.config)
+}
+
+// GhostFlags holds the per-account ghost-mode toggles (AyuGram
+// GhostModeAccountSettings). Mirrors the 8 ghost fields of the global config.
+type GhostFlags struct {
+	SendReadReceipts       bool
+	SendUploadProgress     bool
+	SendReadStories        bool
+	SendOnlinePackets      bool
+	SendOfflineAfterOnline bool
+	MarkReadAfterAction    bool
+	UseScheduledMessages   bool
+	SendWithoutSound       bool
+}
+
+// SetAccountGhost stores a per-account ghost override. When set, GhostFor
+// returns these flags for the account instead of the global config — so
+// simultaneously-connected accounts each enforce their own ghost profile.
+func (e *Engine) SetAccountGhost(accountID string, g GhostFlags) {
+	e.ghostMu.Lock()
+	defer e.ghostMu.Unlock()
+	if e.ghostOverrides == nil {
+		e.ghostOverrides = make(map[string]GhostFlags)
+	}
+	e.ghostOverrides[accountID] = g
+}
+
+// ClearAccountGhostOverrides removes every per-account ghost override, so the
+// global config applies to all accounts again (global Ghost Mode).
+func (e *Engine) ClearAccountGhostOverrides() {
+	e.ghostMu.Lock()
+	defer e.ghostMu.Unlock()
+	e.ghostOverrides = nil
+}
+
+// GhostFor resolves the effective ghost flags for an account: the per-account
+// override if one is registered, otherwise the global config's ghost flags.
+// AyuGram resolves ghost per session/userId (ayu_settings.cpp:437).
+func (e *Engine) GhostFor(accountID string) GhostFlags {
+	e.ghostMu.RLock()
+	g, ok := e.ghostOverrides[accountID]
+	e.ghostMu.RUnlock()
+	if ok {
+		return g
+	}
+	cfg := e.GetConfig()
+	return GhostFlags{
+		SendReadReceipts:       cfg.SendReadReceipts,
+		SendUploadProgress:     cfg.SendUploadProgress,
+		SendReadStories:        cfg.SendReadStories,
+		SendOnlinePackets:      cfg.SendOnlinePackets,
+		SendOfflineAfterOnline: cfg.SendOfflineAfterOnline,
+		MarkReadAfterAction:    cfg.MarkReadAfterAction,
+		UseScheduledMessages:   cfg.UseScheduledMessages,
+		SendWithoutSound:       cfg.SendWithoutSound,
+	}
 }
 
 // Shutdown gracefully shuts down the engine: stops accepting operations,
