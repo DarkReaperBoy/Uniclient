@@ -2,19 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_types — notification title/subtitle/body composition vs AyuGram (notifications_manager.cpp + history_item.cpp + data_media_types.cpp)
-
-This file is pure logic (no widgets), so it was compared behaviorally against AyuGram's
-`NativeManager::doShowNotification` (title/subtitle/body assembly), `HistoryItem::notificationText`
-/`notificationHeader`, `Media::notificationText`, and `getNotificationOptions` (reply-button rights).
-Lang strings were cross-checked against `Telegram/Resources/langs/lang.strings`.
-
-- [ ] [MAJOR] Scheduled-message title logic is inverted vs AyuGram. AyuGram prepends "📅 " (`WrapFromScheduled`) to the title whenever a scheduled message fires for the sender — i.e. `(out() || isSelf()) && isFromScheduled()` — covering BOTH reminders ("📅 Reminder") and scheduled-to-other-chat ("📅 PeerName"). The Dart applies "📅 " only on `isScheduled && !isOutgoing` (the inverse), so: (a) self-reminders show plain "Reminder" with no 📅, and (b) the only place "Reminder" is produced is `isScheduled && isOutgoing`, which also matches scheduled-to-another-user, mislabeling those "Reminder" instead of "📅 PeerName". The Dart has no `isSelf` field to distinguish the two. — `notification_types.dart:291-303` ← `AyuGram/window/notifications_manager.cpp:1566-1584,1658` (`WrapFromScheduled` = `"📅 " + text` at `notifications_manager.cpp:1673-1675`)
-
-- [ ] [MAJOR] Reply button is shown in chats where the user cannot send text. AyuGram's `hideReplyButton` is true when `!Data::CanSendTexts(peer) && (!topic || !CanSendTexts(topic))` (banned/restricted/no-post-rights), in addition to broadcast/slowmode/stars. `shouldHideReplyButton` has no equivalent rights check (and `NotificationData` carries no `canSendText` field), so a reply button is offered for restricted groups/topics where replying would fail. — `notification_types.dart:591-606` ← `AyuGram/window/notifications_manager.cpp:1097-1103`
-
-- [ ] [MAJOR] Reaction-to-poll drops the poll question and quiz distinction. AyuGram emits `lng_reaction_poll` = `"{reaction} to your poll \"{title}\""` (and `lng_reaction_quiz` for quizzes), including the poll question. `lngNotifReactedToPoll(emoji)` = `"$emoji to your poll"` omits the title even though `data.pollQuestion` is available, and there is no quiz variant. — `notification_types.dart:461` (`strings.dart:84`) ← `AyuGram/window/notifications_manager.cpp:1204-1213` (`lang.strings:631-632`)
-
 # app_state — AyuGram settings store (ghost mode, message-shot, ayu/core settings persistence)
 
 `app_state.dart` faithfully reproduces `ayu/ayu_settings.{h,cpp}` (ghost mode, message-shot, all AyuGram toggle defaults), plus Telegram-core proxy/power-saving settings. Defaults, the `ghostModeActive`/`shouldSendWithoutSound` logic, the message-shot embedded/cloud-theme logic, the lock min-1-unlocked rule, the markRead↔scheduled mutual-exclusion, and all 11 PowerSaving flag bits were cross-checked and match. No placeholders/stubs/fake-data found. The items below are real behavioral/wiring divergences.
