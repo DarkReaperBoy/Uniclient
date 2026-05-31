@@ -2,24 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_manager_default — custom popup notification Manager (queue/timers/clear logic)
-
-`notification_manager_default.dart` is the controller half of AyuGram's `Window::Notifications::Default::Manager`
-(`notifications_manager_default.cpp`). It owns the active list + queue, dismiss/input timers, hide-all logic and the
-clear-by-{chat,item,topic,sublist,account} methods; the view half (fade/shift/paint) lives in `ui/notification_popup.dart`.
-Wiring into `notification_system.dart` is real: `showNotification`, `clearForChat/Topic/Sublist/Account`, `clearAll`,
-`updateAll`, `updateSettings` are all called. Timing constants match AyuGram (`_dismissDuration`=3000=`notifyWaitLongHide`,
-`_inputCheckInterval`=300, slow-hide 4000=`notifySlowHide`, fast 150=`notifyFastAnim`) and the count clamp `(1,5)` matches
-`kMaxNotificationsCount = 5` / default 3. The issues below are behavioral/wiring deviations, not visual sizing.
-
-- [ ] [MAJOR] Peer-photo refresh on download is never wired: `updateAvatar()` and `updateAvatarForPeer()` exist but are dead — no engine/download-completion event calls them anywhere in `lib/` (only definitions found). A notification shown before its peer photo is cached (`avatarPath` sourced from `chat?.avatarPath` at `chat_state.dart:2490`, may be empty) will therefore display an empty/placeholder userpic forever. AyuGram subscribes to `downloaderTaskFinished` per session and calls `notification->updatePeerPhoto()` to repaint the avatar as soon as it finishes downloading. — `notification_manager_default.dart:304-318` ← `AyuGram/window/notifications_manager_default.cpp:280-286` (and `updatePeerPhoto` body `:1052-1079`)
-
-- [ ] [MAJOR] `startAllHiding()` (called on hover-leave via popup `_onHoverExit`) starts a fresh 3000 ms dismiss timer per row (`_startDismissTimer` → fires `onStartHiding` after `_dismissDuration`) instead of beginning the fade immediately. AyuGram's `startAllHiding()` calls `notification->startHiding()` → `hideSlow()`, which animates opacity 1→0 starting at once. Net effect: a hovered-then-left notification lingers ~3 s fully opaque before fading (≈7 s total to disappear) vs AyuGram's immediate 4 s fade — wrong auto-hide-after-hover behavior. — `notification_manager_default.dart:153-161` ← `AyuGram/window/notifications_manager_default.cpp:202-211` (`startHiding`/`hideSlow` `:1238-1241`,`:554-568`)
-
-- [ ] [MAJOR] `hideAll()` (HideAll button / `clearAll`) drives `onStartHiding(id)` — which the popup turns into a 4000 ms *slow* fade (`_onStartHiding` → `_startSlowHide`, `notification_popup.dart:209-213,271-280`) — then force-calls `onDismiss(id)` after only 150 ms, hard-removing the widget at ≈96 % opacity. Result is an abrupt pop-out, not a fade. AyuGram's `doClearAll()` uses `unlinkHistory()` → `hideFast()`, a smooth 150 ms (`notifyFastAnim`) fade to transparent. The manager has no `onStartHidingFast` channel, so the popup's existing `_startFastHide` (150 ms) is never reachable from a clear-all. — `notification_manager_default.dart:202-209` ← `AyuGram/window/notifications_manager_default.cpp:375-381` (`unlinkHistory`→`hideFast` `:1202`,`:570-572`)
-
-- [ ] [MAJOR] `updateSettings()` omits the demo/sample branch of AyuGram's `settingsChanged()`: it handles corner + max-count re-shuffle but has no equivalent of `ChangeType::DemoIsShown/DemoIsHidden` → `_demoMasterOpacity` → `demoMasterOpacityCallback()`, which dims every live notification (and the HideAll button) while the notification-position sample is on screen. The Dart settings screen does show position samples (`notifications_settings_screen.dart:970-1027`, `_sampleOverlays`), so on Windows real custom popups will paint at full opacity over the demo instead of dimming. — `notification_manager_default.dart:341-355` ← `AyuGram/window/notifications_manager_default.cpp:162-184`
-
 # notification_manager_native — Linux native notification manager (DBus + Flatpak portal)
 
 Audited against AyuGram `platform/linux/notifications_manager_linux.cpp` and
