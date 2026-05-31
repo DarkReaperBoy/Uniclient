@@ -1311,7 +1311,7 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
     super.initState();
     final defaultName = widget.cloudMeta != null
         ? (widget.cloudMeta!.title ?? '')
-        : generateThemeName(widget.palette.windowBgActive);
+        : generateThemeName(widget.palette.windowActiveTextFg);
     _nameController = TextEditingController(text: defaultName);
     final defaultSlug = widget.cloudMeta != null
         ? (widget.cloudMeta!.slug ?? _generateSlug())
