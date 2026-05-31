@@ -175,6 +175,15 @@ class NotificationSystem {
     _manager.updateAll();
   }
 
+  /// Repaint on-screen custom-popup notifications for a peer once its userpic
+  /// finishes downloading. The native manager bakes the avatar into the DBus
+  /// image at show time and cannot update a live notification's icon, so this
+  /// targets the DefaultManager only — matching AyuGram's `updatePeerPhoto`
+  /// living in the custom Default manager.
+  void updateAvatarForPeer(String accountId, String chatId, String avatarPath) {
+    defaultManager?.updateAvatarForPeer(accountId, chatId, avatarPath);
+  }
+
   void setServerConfig({
     int? cloudDelayMs,
     int? defaultDelayMs,

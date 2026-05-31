@@ -418,6 +418,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _hideNotificationBadge = false;
   int _photoEditorHintCount = 0;
 
+  // §15: Transient — true while the notification-position sample is on screen
+  // (settings monitor preview). NOT persisted. Drives the custom-popup overlay's
+  // demo master opacity so live notifications dim while the sample is shown.
+  bool _notifDemoShown = false;
+
   // §15: Notification settings persistence
   bool _notifDesktopNotify = true;
   bool _notifFlashBounce = true;
@@ -2765,6 +2770,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   // §15: Notification settings getters/setters
+  // Transient demo-sample flag (not persisted) — only notifies listeners.
+  bool get notifDemoShown => _notifDemoShown;
+  void setNotifDemoShown(bool v) {
+    if (_notifDemoShown == v) return;
+    _notifDemoShown = v;
+    notifyListeners();
+  }
   bool get notifDesktopNotify => _notifDesktopNotify;
   set notifDesktopNotify(bool v) { if (_notifDesktopNotify != v) { _notifDesktopNotify = v; _saveWindowPrefs(); notifyListeners(); } }
   bool get notifFlashBounce => _notifFlashBounce;

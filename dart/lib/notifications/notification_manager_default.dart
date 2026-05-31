@@ -38,7 +38,6 @@ class DefaultManager extends NotificationManager {
   final Queue<DefaultNotificationItem> _queue = Queue();
   final Map<String, Timer> _dismissTimers = {};
   Timer? _inputCheckTimer;
-  Timer? _hideAllHideTimer;
   DateTime _lastUserInputTime = DateTime.now();
   int _nextId = 0;
   int _maxVisible = 3;
@@ -49,9 +48,11 @@ class DefaultManager extends NotificationManager {
   NotificationDisplayCallback? onShow;
   NotificationDismissCallback? onDismiss;
   NotificationStartHidingCallback? onStartHiding;
+  NotificationStartHidingCallback? onStartHidingFast;
   NotificationUpdateDisplayCallback? onUpdateDisplay;
   VoidCallbackNoArgs? onHideAllChanged;
   VoidCallbackNoArgs? onStartHidingHideAll;
+  VoidCallbackNoArgs? onStartHidingHideAllFast;
   VoidCallbackNoArgs? onStopHidingHideAll;
   bool Function(String id)? isStickyCheck;
 
@@ -154,22 +155,23 @@ class DefaultManager extends NotificationManager {
     final hasReplying =
         _active.any((n) => isStickyCheck != null && isStickyCheck!(n.id));
     if (hasReplying) return;
+    // Hover-leave begins the slow fade IMMEDIATELY — AyuGram's startAllHiding()
+    // calls notification->startHiding() → hideSlow(), which animates opacity
+    // 1→0 at once (no extra dismiss delay). Cancel any pending dismiss timer so
+    // it cannot double-fire, then start the fade now.
+    // (notifications_manager_default.cpp:202-211, startHiding/hideSlow :1238,:554)
     for (final item in _active) {
-      if (!_dismissTimers.containsKey(item.id)) {
-        _startDismissTimer(item.id);
-      }
+      _dismissTimers[item.id]?.cancel();
+      _dismissTimers.remove(item.id);
+      onStartHiding?.call(item.id);
     }
     // The HideAll button fades out together with the notification rows when the
     // cursor leaves the stack, but only while fewer than two notifications are
     // still queued — matching AyuGram's
     //   if (_hideAll && _queuedNotifications.size() < 2) _hideAll->startHiding();
-    // (notifications_manager_default.cpp:207-209). The fade is deferred by the
-    // same dismiss delay the rows use so the whole stack hides in sync.
-    if (showHideAll && _queue.length < 2 && _hideAllHideTimer == null) {
-      _hideAllHideTimer = Timer(_dismissDuration, () {
-        _hideAllHideTimer = null;
-        onStartHidingHideAll?.call();
-      });
+    // (notifications_manager_default.cpp:207-209).
+    if (showHideAll && _queue.length < 2) {
+      onStartHidingHideAll?.call();
     }
   }
 
@@ -178,20 +180,16 @@ class DefaultManager extends NotificationManager {
       t.cancel();
     }
     _dismissTimers.clear();
-    // Cancel any pending HideAll fade and restore the button to full opacity
-    // when the cursor re-enters — matching AyuGram's
+    // Restore the HideAll button to full opacity when the cursor re-enters —
+    // matching AyuGram's
     //   if (_hideAll) _hideAll->stopHiding();
     // (notifications_manager_default.cpp:217-219).
-    _hideAllHideTimer?.cancel();
-    _hideAllHideTimer = null;
     if (showHideAll) {
       onStopHidingHideAll?.call();
     }
   }
 
   void hideAll() {
-    _hideAllHideTimer?.cancel();
-    _hideAllHideTimer = null;
     for (final t in _dismissTimers.values) {
       t.cancel();
     }
@@ -199,9 +197,17 @@ class DefaultManager extends NotificationManager {
     final ids = _active.map((n) => n.id).toList();
     _active.clear();
     _queue.clear();
+    // AyuGram's doClearAll() unlinks every notification → hideFast(): a smooth
+    // 150ms (notifyFastAnim) fade to transparent, NOT an abrupt removal at full
+    // opacity. Drive the popup's FAST-hide channel for the rows and the HideAll
+    // button so they fade out together.
+    // (notifications_manager_default.cpp:375-381, unlinkHistory→hideFast :1202,:570)
     for (final id in ids) {
-      onStartHiding?.call(id);
+      onStartHidingFast?.call(id);
     }
+    onStartHidingHideAllFast?.call();
+    // Fallback for when no popup view is mounted to self-remove on fade-end:
+    // force-dismiss after the fast-hide animation would have completed.
     Timer(const Duration(milliseconds: 150), () {
       for (final id in ids) {
         onDismiss?.call(id);
@@ -309,8 +315,15 @@ class DefaultManager extends NotificationManager {
   }
 
   void updateAvatarForPeer(String accountId, String chatId, String newPath) {
+    // Only repaint when a real (non-empty) userpic just became available and it
+    // actually differs — mirrors AyuGram's updatePeerPhoto() guarding on
+    // PeerUserpicLoading / _userpicLoaded so it repaints once the download
+    // finishes (notifications_manager_default.cpp:1052-1079).
+    if (newPath.isEmpty) return;
     for (final item in _active) {
-      if (item.data.accountId == accountId && item.data.chatId == chatId) {
+      if (item.data.accountId == accountId &&
+          item.data.chatId == chatId &&
+          item.data.avatarPath != newPath) {
         item.data = item.data.copyWith(avatarPath: newPath);
         onUpdateDisplay?.call(item);
       }
@@ -322,8 +335,6 @@ class DefaultManager extends NotificationManager {
 
   @override
   void clearAllFast() {
-    _hideAllHideTimer?.cancel();
-    _hideAllHideTimer = null;
     for (final t in _dismissTimers.values) {
       t.cancel();
     }
@@ -342,6 +353,14 @@ class DefaultManager extends NotificationManager {
   void updateSettings(NotificationSettings settings) {
     _maxVisible = settings.maxNotificationCount.clamp(1, 5);
     _corner = settings.corner;
+    // NOTE: AyuGram's settingsChanged() also handles ChangeType::DemoIsShown/
+    // DemoIsHidden here, animating _demoMasterOpacity → demoMasterOpacityCallback()
+    // to dim every live notification + the HideAll button while the position
+    // sample is on screen (notifications_manager_default.cpp:162-184). In this
+    // codebase that master opacity is a pure VIEW concern, applied in
+    // NotificationPopupOverlay via its `demoDimmed` prop (driven by
+    // AppState.notifDemoShown), so it is intentionally not re-handled in this
+    // controller's settings path.
 
     while (_active.length > _maxVisible) {
       final excess = _active.first;
@@ -357,7 +376,6 @@ class DefaultManager extends NotificationManager {
   @override
   void dispose() {
     _inputCheckTimer?.cancel();
-    _hideAllHideTimer?.cancel();
     for (final t in _dismissTimers.values) {
       t.cancel();
     }

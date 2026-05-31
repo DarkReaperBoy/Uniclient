@@ -84,6 +84,14 @@ class ChatState extends ChangeNotifier {
 
   void Function(NotificationData data)? onNotification;
 
+  /// Fired when a peer's userpic finishes downloading (its [ChatInfo.avatarPath]
+  /// becomes a non-empty path that differs from before), so any on-screen
+  /// notification for that peer can repaint its avatar. Mirrors AyuGram
+  /// subscribing to `downloaderTaskFinished` per session and calling
+  /// `notification->updatePeerPhoto()` (notifications_manager_default.cpp:280-294).
+  void Function(String accountId, String chatId, String avatarPath)?
+      onPeerAvatarUpdated;
+
   /// Active channel/topic ID within a topic-type group.
   /// Null means "show all" (the default channel).
   String? _activeChannelId;
@@ -2402,10 +2410,18 @@ class ChatState extends ChangeNotifier {
   void _handleChatUpdated(ChatInfo updated) {
     if (_disposed) return;
     final idx = _chats.indexWhere((c) => c.accountId == updated.accountId && c.chatId == updated.chatId);
+    final String? oldAvatar = idx >= 0 ? _chats[idx].avatarPath : null;
     if (idx >= 0) {
       _chats[idx] = updated;
     } else {
       _chats.insert(0, updated);
+    }
+    // When a peer's userpic finishes downloading, repaint any on-screen
+    // notification for that peer — same event that refreshes chat-list avatars,
+    // mirroring AyuGram's downloaderTaskFinished → updatePeerPhoto().
+    if (updated.avatarPath.isNotEmpty && updated.avatarPath != oldAvatar) {
+      onPeerAvatarUpdated?.call(
+          updated.accountId, updated.chatId, updated.avatarPath);
     }
     // Update active chat if it matches.
     if (_activeChat?.accountId == updated.accountId && _activeChat?.chatId == updated.chatId) {

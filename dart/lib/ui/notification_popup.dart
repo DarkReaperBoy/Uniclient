@@ -128,6 +128,11 @@ class NotificationPopupOverlay extends StatefulWidget {
   final NotificationSettings settings;
   final bool isPasscodeLocked;
 
+  /// Demo master opacity: when true (the notification-position sample is on
+  /// screen), every live popup + the HideAll button dims to transparent and
+  /// stops intercepting pointer events. Mirrors AyuGram's _demoMasterOpacity.
+  final bool demoDimmed;
+
   const NotificationPopupOverlay({
     super.key,
     required this.manager,
@@ -136,6 +141,7 @@ class NotificationPopupOverlay extends StatefulWidget {
     this.onReplySend,
     this.settings = const NotificationSettings(),
     this.isPasscodeLocked = false,
+    this.demoDimmed = false,
   });
 
   @override
@@ -149,6 +155,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
   bool _showHideAll = false;
   double _hideAllOpacity = 1.0;
   bool _hideAllHiding = false;
+  bool _hideAllFastHiding = false;
   bool _hasReceivedInput = false;
   bool _updateDisplayScheduled = false;
 
@@ -158,9 +165,11 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     widget.manager.onShow = _onShow;
     widget.manager.onDismiss = _onDismissExternal;
     widget.manager.onStartHiding = _onStartHiding;
+    widget.manager.onStartHidingFast = _onStartHidingFast;
     widget.manager.onUpdateDisplay = _onUpdateDisplay;
     widget.manager.onHideAllChanged = _updateHideAllVisibility;
     widget.manager.onStartHidingHideAll = _onStartHidingHideAll;
+    widget.manager.onStartHidingHideAllFast = _onStartHidingHideAllFast;
     widget.manager.onStopHidingHideAll = _onStopHidingHideAll;
     widget.manager.isStickyCheck = _isPopupSticky;
   }
@@ -178,9 +187,11 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       widget.manager.onShow = _onShow;
       widget.manager.onDismiss = _onDismissExternal;
       widget.manager.onStartHiding = _onStartHiding;
+      widget.manager.onStartHidingFast = _onStartHidingFast;
       widget.manager.onUpdateDisplay = _onUpdateDisplay;
       widget.manager.onHideAllChanged = _updateHideAllVisibility;
       widget.manager.onStartHidingHideAll = _onStartHidingHideAll;
+      widget.manager.onStartHidingHideAllFast = _onStartHidingHideAllFast;
       widget.manager.onStopHidingHideAll = _onStopHidingHideAll;
       widget.manager.isStickyCheck = _isPopupSticky;
     }
@@ -196,6 +207,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       // button returns to full opacity — matching AyuGram's moveWidgets()
       // calling _hideAll->stopHiding() whenever the button stays visible.
       _hideAllHiding = false;
+      _hideAllFastHiding = false;
       _hideAllOpacity = 1.0;
       _recalcPositions();
     });
@@ -210,6 +222,14 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     final popup = _popups.where((p) => p.id == id).firstOrNull;
     if (popup == null || popup.hovered || popup.replyOpen) return;
     _startSlowHide(popup);
+  }
+
+  // HideAll / clear-all: a smooth 150ms fast fade (AyuGram hideFast), driven by
+  // the manager so even a hovered/reply-open row is force-cleared.
+  void _onStartHidingFast(String id) {
+    final popup = _popups.where((p) => p.id == id).firstOrNull;
+    if (popup == null) return;
+    _startFastHide(popup);
   }
 
   void _onUpdateDisplay(DefaultNotificationItem item) {
@@ -318,6 +338,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       // visible rather than stuck at the opacity left over from a prior fade.
       if (next && !_showHideAll) {
         _hideAllHiding = false;
+        _hideAllFastHiding = false;
         _hideAllOpacity = 1.0;
       }
       _showHideAll = next;
@@ -328,6 +349,19 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     if (!mounted) return;
     setState(() {
       _hideAllHiding = true;
+      _hideAllFastHiding = false;
+      _hideAllOpacity = 0.0;
+    });
+  }
+
+  // Fast 150ms fade of the HideAll button (clear-all). Keeping _hideAllHiding
+  // false makes the AnimatedOpacity use _fastHideDuration / linear, while
+  // _hideAllFastHiding keeps the button in the tree until the fade ends.
+  void _onStartHidingHideAllFast() {
+    if (!mounted) return;
+    setState(() {
+      _hideAllHiding = false;
+      _hideAllFastHiding = true;
       _hideAllOpacity = 0.0;
     });
   }
@@ -336,6 +370,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     if (!mounted) return;
     setState(() {
       _hideAllHiding = false;
+      _hideAllFastHiding = false;
       _hideAllOpacity = 1.0;
     });
   }
@@ -365,12 +400,11 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       popup.hovered = false;
     });
     if (_anyReplyOpen()) return;
+    // The manager begins the slow fade for every non-sticky row (and the
+    // HideAll button) IMMEDIATELY via onStartHiding/onStartHidingHideAll — no
+    // extra dismiss countdown. Matches AyuGram's leaveEventHook → startAllHiding
+    // → hideSlow() firing at once (notifications_manager_default.cpp:202-211).
     widget.manager.startAllHiding();
-    for (final p in _popups) {
-      if (!p.hovered && !p.replyOpen) {
-        _startHideCountdown(p);
-      }
-    }
   }
 
   void _onTapNotification(_PopupState popup) {
@@ -433,10 +467,10 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
   }
 
   void _hideAll() {
-    for (final p in List.of(_popups)) {
-      p.dispose();
-    }
-    setState(() => _popups.clear());
+    // Let the manager drive a smooth 150ms fast fade of every row + the button
+    // (→ onStartHidingFast / onStartHidingHideAllFast) instead of clearing the
+    // popups instantly — AyuGram's doClearAll() uses hideFast(), not an abrupt
+    // teardown.
     widget.manager.hideAll();
   }
 
@@ -559,7 +593,10 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       );
     }
 
-    if (_showHideAll && (_popups.length >= 2 || widget.manager.hasQueue)) {
+    // Keep the button mounted while it fast-fades on clear-all (_hideAllFastHiding)
+    // even though _showHideAll has already flipped false, so the fade is visible.
+    if ((_showHideAll || _hideAllFastHiding) &&
+        (_popups.length >= 2 || widget.manager.hasQueue)) {
       final lastShift = _popups.fold<double>(
           _notifyDeltaY, (sum, p) => sum + p.totalHeight + _notifyDeltaY);
       final hideAllY = isBottom
@@ -586,11 +623,27 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       );
     }
 
-    return Listener(
+    final stack = Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) => _onUserInput(),
       onPointerHover: (_) => _onUserInput(),
       child: Stack(children: children),
+    );
+
+    // Demo master opacity: while the notification-position sample is on screen
+    // (AppState.notifDemoShown → widget.demoDimmed), every live popup + the
+    // HideAll button dims to transparent over notifyFastAnim (150ms) and stops
+    // intercepting pointer events, so the sample stands alone — mirroring
+    // AyuGram's _demoMasterOpacity / demoMasterOpacityCallback()
+    // (notifications_manager_default.cpp:162-184, updateOpacity :591-593).
+    return IgnorePointer(
+      ignoring: widget.demoDimmed,
+      child: AnimatedOpacity(
+        opacity: widget.demoDimmed ? 0.0 : 1.0,
+        duration: _fastHideDuration,
+        curve: Curves.linear,
+        child: stack,
+      ),
     );
   }
 }

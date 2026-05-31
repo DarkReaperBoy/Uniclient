@@ -612,6 +612,12 @@ class _UniClientAppState extends State<UniClientApp>
       // (_notifAccountLabel uses the AyuGram isEmpty fallback, not null-coalesce).
       _notifSystem.onNewMessage(data);
     };
+    // §37: repaint a live custom-popup notification's avatar when the peer's
+    // userpic finishes downloading — AyuGram's downloaderTaskFinished →
+    // notification->updatePeerPhoto() (notifications_manager_default.cpp:280-294).
+    chatState.onPeerAvatarUpdated = (accountId, chatId, avatarPath) {
+      _notifSystem.updateAvatarForPeer(accountId, chatId, avatarPath);
+    };
 
     // Debug command poller — reads /tmp/uniclient_debug_cmd.json for
     // programmatic UI interaction (smoke testing on Wayland). Desktop-only.
@@ -2388,6 +2394,7 @@ class _UniClientAppState extends State<UniClientApp>
                   onTap: _onNotifTap,
                   settings: _notifSystem.settings,
                   isPasscodeLocked: context.watch<AppState>().passcodeLocked,
+                  demoDimmed: context.watch<AppState>().notifDemoShown,
                   onReplySend: (accountId, chatId, text) {
                     if (accountId.isNotEmpty && chatId.isNotEmpty && text.isNotEmpty) {
                       context.read<EngineService>().sendMessage(accountId, chatId, text);

@@ -906,6 +906,9 @@ class _NotificationMonitorWidgetState
   late final Listenable _mergedBarAnimation;
   int _oldCount = 0;
   final List<OverlayEntry> _sampleOverlays = [];
+  // Cached so _hideSampleNotifications() can clear the demo flag from dispose()
+  // (where context.read is unsafe).
+  AppState? _demoAppState;
 
   static const _screenW = 280.0;
   static const _screenH = 160.0;
@@ -944,6 +947,12 @@ class _NotificationMonitorWidgetState
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _demoAppState = context.read<AppState>();
+  }
+
+  @override
   void didUpdateWidget(covariant _NotificationMonitorWidget old) {
     super.didUpdateWidget(old);
     if (old.barCount != widget.barCount) {
@@ -970,6 +979,10 @@ class _NotificationMonitorWidgetState
   void _showSampleNotifications(_ScreenCorner corner) {
     _hideSampleNotifications();
     final count = widget.barCount;
+    // Dim live custom-popup notifications + the HideAll button while the sample
+    // is on screen (AyuGram DemoIsShown → _demoMasterOpacity). Set after the
+    // hide() above clears it, so the net state is "shown".
+    _demoAppState?.setNotifDemoShown(count > 0);
 
     if (!kIsWeb && Platform.isLinux) {
       for (var i = 0; i < count; i++) {
@@ -1032,6 +1045,8 @@ class _NotificationMonitorWidgetState
       entry.remove();
     }
     _sampleOverlays.clear();
+    // Sample dismissed → restore live notifications to full opacity.
+    _demoAppState?.setNotifDemoShown(false);
   }
 
   _ScreenCorner? _hitTest(Offset pos, Rect screenRect) {
