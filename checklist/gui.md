@@ -177,21 +177,14 @@ The items below are the values that do **not** match the ground-truth `.style` f
 
 ## Confirmed value mismatches
 
-- [ ] [CRITICAL] `boxRadius = 8` but AyuGram box corner radius is `6px` (33% too large — boxes/popups render visibly over-rounded). Only one `boxRadius:` token exists in the whole tree. — `theme_tokens.dart:34` ← `AyuGram/Telegram/lib_ui/ui/layers/layers.style:38`
-
-- [ ] [MAJOR] `infoProfilePhotoSize = 88` but AyuGram's named `infoProfilePhotoSize` = `size(infoProfilePhotoInnerSize, …)` where `infoProfilePhotoInnerSize: 72px` → 72×72 (22% too large). — `theme_tokens.dart:150` ← `AyuGram/Telegram/SourceFiles/info/info.style:527-528`
-
-- [ ] [MAJOR] `settingsProfileCoverHeight = 112` is hand-derived as `settingsPhotoTop(8)+photo(88)+settingsPhotoBottom(16)`, but the `88` photo is wrong and no AyuGram cover equals 112. The real settings profile-photo block is `settingsInfoPhotoHeight: 162px` with `settingsInfoPhotoSize: 100px` (112 vs 162 ≈ 31% short). — `theme_tokens.dart:151` ← `AyuGram/Telegram/SourceFiles/settings/settings.style:205-206`
-
-- [ ] [MAJOR] `radialSize = 44` but AyuGram `radialSize` = `size(50px, 50px)` → 50 (12% off). Only one `radialSize:` token exists in the whole tree. — `theme_tokens.dart:136` ← `AyuGram/Telegram/lib_ui/ui/basic.style:118`
-
-- [ ] [MAJOR] `defaultInputFieldHeight = 47` but `defaultInputField.heightMin: 55px` (14.5% off). No 47px input-field height exists anywhere in the tree (variants are 55px and 32px). The companion `defaultInputFieldFontSize = 14` is correct (`placeholderFont: font(semibold 14px)`). — `theme_tokens.dart:127` ← `AyuGram/Telegram/lib_ui/ui/widgets/widgets.style:1070`
-
-- [ ] [MAJOR] `defaultRadioDuration = 100ms` but `defaultRadio.duration: universalDuration` and `universalDuration: 120` → 120ms (16.7% off). — `theme_tokens.dart:153` ← `AyuGram/Telegram/lib_ui/ui/widgets/widgets.style:868` (+ `basic.style:131`)
-
-- [ ] [MAJOR] `defaultRadioDurationDouble = 200ms` is derived as `100×2`; since the radio duration is actually 120ms, the doubled value should be `240ms`. — `theme_tokens.dart:154` ← `AyuGram/Telegram/lib_ui/ui/basic.style:131`
-
-- [ ] [MAJOR] `menuIconSize = 20` is an invented/unsourced token — `grep menuIconSize` returns **0** results across all of `lib_ui/` and `SourceFiles/` (only the unrelated color `menuIconFg` exists). The value cannot be traced to any AyuGram style. — `theme_tokens.dart:135` ← `AyuGram/Telegram/lib_ui/ui/basic.style` (no such token)
+All 8 findings resolved & verified against AyuGram .style ground truth (2026-05-31):
+boxRadius 6 (layers.style:38), infoProfilePhotoSize 72 (info.style:527),
+settingsProfileCoverHeight 162 (settings.style:205), radialSize 50 (basic.style:118),
+defaultInputFieldHeight 55 (widgets.style:1070), defaultRadioDuration 120ms /
+defaultRadioDurationDouble 240ms (widgets.style:868 = universalDuration, basic.style:131),
+menuIconSize removed (0 occurrences across AyuGram lib_ui/+SourceFiles). Flutter build
+PASS; app launches & runs (engine init, chat list, live events) with no errors tied to
+these tokens.
 
 ## Notes (intentionally not flagged — cosmetic or doc-only, per audit rules)
 
