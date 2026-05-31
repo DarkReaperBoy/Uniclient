@@ -215,12 +215,6 @@ soft-light / destination-in pattern compositing (`wallpaper.dart:599-628` ←
 
 ## MAJOR
 
-- [ ] [MAJOR] 2-color linear gradient direction is reversed (~180°): `_rotationToAlignment` places `colors[0]` at the opposite end. rotation 0 → Dart puts `colors[0]` at bottom (`begin = Alignment(0, 1)`), AyuGram puts `colors[0]` at top (`start = {0,0}`) — `wallpaper.dart:300-305` ← `AyuGram/lib_ui/ui/image/image_prepare.cpp:931-944` (`GenerateLinearGradient` discrete 8-direction `start/finalStop` table, `colors[0]` at `start`).
-- [ ] [MAJOR] Default pattern intensity is `40`; AyuGram's `kDefaultIntensity` is `50`, so patterns render ~20% too faint by default (and URL parses with the wrong default) — `wallpaper.dart:25, 78, 100` ← `AyuGram/data/data_wall_paper.h:110` (`static constexpr auto kDefaultIntensity = 50;`), used in `data_wall_paper.cpp:389`.
-- [ ] [MAJOR] `_snapRotation` rounds to nearest 45 (`+22`) then wraps `% 360`; AyuGram floors after clamping to `[0,315]`. Diverges, e.g. 30° → Dart `45` vs AyuGram `0`; 340° → Dart `0` vs AyuGram `315` — `wallpaper.dart:163-166` ← `AyuGram/data/data_wall_paper.cpp:417-418` (`_rotation = (std::clamp(_rotation,0,315)/45)*45;`).
-- [ ] [MAJOR] Gradients are never dithered, so large/dark gradients band; AyuGram dithers every multi-color fill gradient — `wallpaper.dart:401-409, 656-663` (no dither step) ← `AyuGram/ui/chat/chat_theme.cpp:1195-1197` (`GenerateDitheredGradient` → `Images::DitherImage`) + `image_prepare.cpp:880-897`.
-- [ ] [MAJOR] `toUrlParams` emits `intensity` for **non-pattern** gradients and `rotation` for **3–4 color** gradients, and always joins colors with `~`. AyuGram emits intensity only `if (isPattern())`, rotation only when `backgroundColors().size() == 2`, and uses `-` as the separator for ≤2 colors — `wallpaper.dart:131-144` ← `AyuGram/data/data_wall_paper.cpp:269-291` (`collectShareParams`) + `163-173` (`StringFromColors`).
-- [ ] [MAJOR] Pattern tiling only ever draws a single horizontal row (scales pattern height to exactly fill `size.height`), whereas AyuGram fits the pattern into an `(area.height × area.height)` box with `KeepAspectRatio` and tiles across both rows and columns — diverges for non-square patterns (extra/cropped rows) — `wallpaper.dart:666-683` (`_tilePattern`) ← `AyuGram/ui/chat/chat_theme.cpp:122-128` (scale) + `172-210` (`rows = cy`, odd centered `cols`).
 
 # active_sessions_screen — Active Sessions / device management
 
