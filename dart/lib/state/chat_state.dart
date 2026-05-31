@@ -2566,6 +2566,13 @@ class ChatState extends ChangeNotifier {
         // Multi-account label appended to the title (AyuGram addTargetAccountName).
         multiAccount: _appState.accounts.length > 1,
         accountUsername: _notifAccountLabel(event.accountId),
+        // Per-chat ringtone volume override. AyuGram sources this from
+        // ringtoneVolume(peer, topicRootId, monoforumPeerId) (per-peer
+        // PeerNotifySettings); the Go bridge does not expose per-peer notify
+        // settings yet (AccountGetNotifySettings is skipped in dispatch_gen.go),
+        // so it stays 0 and NotificationSoundPlayer falls back to the global
+        // notification volume -- matching AyuGram's no-override fallback.
+        perChatVolume: 0,
       ));
     }
     // Refresh saved sublists when messages arrive in Saved Messages.

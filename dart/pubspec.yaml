@@ -45,6 +45,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
   fonts:
     - family: Inter
       fonts:
@@ -56,6 +57,7 @@ flutter:
         - asset: assets/fonts/Inter-Bold.ttf
           weight: 700
   assets:
+    - assets/sounds/msg_incoming.mp3
     - assets/icon/icon_256.png
     - assets/icon/icon_64.png
     - assets/images/themeimage.jpg

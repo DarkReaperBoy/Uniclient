@@ -56,6 +56,9 @@ class NotificationData {
   final bool isLiveLocation;
   final String soundDocumentPath;
   final bool soundNone;
+  // Per-chat ringtone volume OVERRIDE (0 = no override -> use the global
+  // notification volume). Mirrors AyuGram ringtoneVolume(peer, ...), which is 0
+  // unless the peer has a custom ringtone volume. (notifications_manager.cpp:763-775)
   final int perChatVolume;
   final String groupedId;
   final bool isPollVote;
@@ -112,7 +115,7 @@ class NotificationData {
     this.isLiveLocation = false,
     this.soundDocumentPath = '',
     this.soundNone = false,
-    this.perChatVolume = 100,
+    this.perChatVolume = 0,
     this.groupedId = '',
     this.isPollVote = false,
     this.isSenderMuted = false,

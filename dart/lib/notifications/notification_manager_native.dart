@@ -92,7 +92,22 @@ class CachedUserpics {
       final image = img.decodeImage(bytes);
       if (image == null) return null;
 
-      final resized = img.copyResize(image, width: _kPhotoSize, height: _kPhotoSize);
+      // Box-filter downscale (was nearest-neighbour) — matches AyuGram's
+      // Qt::SmoothTransformation. (data_peer.cpp:504)
+      final scaled = img.copyResize(
+        image,
+        width: _kPhotoSize,
+        height: _kPhotoSize,
+        interpolation: img.Interpolation.average,
+      );
+      // Round the avatar to an anti-aliased circle (transparent corners) before
+      // it ships in the image-data hint / portal icon, matching AyuGram
+      // GenerateUserpicImage -> Images::Circle. The hint declares 4 channels +
+      // alpha, so a 3-channel (JPEG) source must be widened to RGBA first.
+      // (data_peer.cpp:517)
+      final resized =
+          scaled.numChannels == 4 ? scaled : scaled.convert(numChannels: 4);
+      _applyCircleMask(resized);
       final rawRgba = resized.toUint8List();
       final pngBytes = Uint8List.fromList(img.encodePng(resized));
 
@@ -110,6 +125,33 @@ class CachedUserpics {
     } catch (e) {
       Debug.log('NOTIF', 'Userpic cache write failed: $e');
       return null;
+    }
+  }
+
+  // Multiplies each pixel's alpha by an anti-aliased circular coverage mask so a
+  // square avatar bitmap renders as a circle. Same coverage math as the
+  // placeholder path: coverage = (radius - dist + 0.5).clamp(0, 1).
+  static void _applyCircleMask(img.Image image) {
+    final w = image.width;
+    final h = image.height;
+    final center = (w - 1) / 2.0;
+    final radius = w / 2.0;
+    for (var py = 0; py < h; py++) {
+      for (var px = 0; px < w; px++) {
+        final dx = px - center;
+        final dy = py - center;
+        final dist = math.sqrt(dx * dx + dy * dy);
+        final coverage = (radius - dist + 0.5).clamp(0.0, 1.0);
+        final pixel = image.getPixel(px, py);
+        image.setPixelRgba(
+          px,
+          py,
+          pixel.r,
+          pixel.g,
+          pixel.b,
+          (pixel.a * coverage).round(),
+        );
+      }
     }
   }
 
@@ -828,9 +870,20 @@ class NativeManager extends NotificationManager {
       };
 
       final forceHideDetails = !settings.previewName && !settings.previewText;
-      if (!forceHideDetails && data.avatarPath.isNotEmpty) {
+      if (!forceHideDetails) {
         try {
-          final imgPath = await _userpicCache.get(data.avatarPath);
+          // Avatar peers -> rounded cloud userpic; avatar-less peers -> the
+          // colored-initials placeholder (EmptyUserpic), mirroring the DBus
+          // branch and AyuGram's GenerateUserpic which always renders an icon
+          // inside !hideNameAndPhoto. (notifications_manager_linux.cpp:691)
+          final String? imgPath;
+          if (data.avatarPath.isNotEmpty) {
+            imgPath = await _userpicCache.get(data.avatarPath);
+          } else {
+            final title =
+                data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName;
+            imgPath = await _generatePlaceholderUserpic(title);
+          }
           if (imgPath != null) {
             final pngBytes = await File(imgPath).readAsBytes();
             notifDict[DBusString('icon')] = DBusVariant(
