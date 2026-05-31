@@ -2,38 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# app_state — AyuGram settings store (ghost mode, message-shot, ayu/core settings persistence)
-
-`app_state.dart` faithfully reproduces `ayu/ayu_settings.{h,cpp}` (ghost mode, message-shot, all AyuGram toggle defaults), plus Telegram-core proxy/power-saving settings. Defaults, the `ghostModeActive`/`shouldSendWithoutSound` logic, the message-shot embedded/cloud-theme logic, the lock min-1-unlocked rule, the markRead↔scheduled mutual-exclusion, and all 11 PowerSaving flag bits were cross-checked and match. No placeholders/stubs/fake-data found. The items below are real behavioral/wiring divergences.
-
-- [ ] [MAJOR] Per-account Ghost Mode never reaches the engine for non-active accounts. `_syncGhostToEngine` pushes only the single *resolved active* `_ghostSettings`, and `setActiveAccountId` re-syncs only the account being switched to — `app_state.dart:1735` (`_syncGhostToEngine` reads one `_ghostSettings`) + `app_state.dart:3302` (re-sync only on active switch), and the engine call is global with no account id — `bridge/engine_service.dart:5237` (`updateConfig` → `'__engine'`, no `accountId` param). When the user picks "individual settings for each account" (`useGlobalGhostMode=false`, ghost_settings_page.dart:101), AyuGram resolves ghost per-session at send/activity time so every connected account enforces its *own* profile — `AyuGram/Telegram/SourceFiles/ayu/ayu_settings.cpp:437` (`ghost(uint64 userId)` keyed per account) ← so simultaneously-connected background accounts incorrectly run with the foreground account's ghost config.
-
-- [ ] [MAJOR] The wired-up ghost lock toggle drops AyuGram's "cannot lock the last unlocked toggle" guard. The ghost settings page calls the unconstrained `toggleLockForKey`, which flips the lock with no count check — `app_state.dart:860` (`toggleLockForKey`, no guard) called from `ui/ghost_settings_page.dart:141`-189; the constrained variant `toggleLock` (`app_state.dart:1504`-1546) is dead code never referenced by any widget. AyuGram denies the lock when it would leave zero unlocked entries — `AyuGram/Telegram/SourceFiles/ayu/ui/settings/settings_ayu_utils.cpp:386` (`if (lockedCount + 1 >= checkboxes.size()) return;`). Result: a uniclient user can lock all 5 toggles, making the master Ghost Mode switch a no-op — exactly the state AyuGram prevents.
-
-- [ ] [MAJOR] `setTranslationProvider` accepts the "Native" provider without the availability gate AyuGram enforces. The Dart setter only clamps to 0–3 and stores — `app_state.dart:1882` (`setTranslationProvider`, no availability check). The general settings UI offers Native on every desktop OS (`ui/ayu_general_page.dart:38`). AyuGram forces Native→Telegram when the platform provider is unavailable, in both the setter and on load — `AyuGram/Telegram/SourceFiles/ayu/ayu_settings.cpp:1008` (`setTranslationProvider` gates on `Platform::IsTranslateProviderAvailable()`) and `ayu_settings.cpp:511` (`validate()` resets Native when unavailable). On Linux this depends on a translate tool being installed (`platform/linux/translate_provider_linux.cpp:86`), so uniclient lets the user select a provider that can't translate.
-
-- [ ] [MAJOR] Proxy rotation timeout default is wrong: `60` instead of `10`. Both the field initializer and the load fallback use 60 — `app_state.dart:364` (`int _proxyRotationTimeout = 60;`) and `app_state.dart:3604` (`?? 60`). Telegram-core defines the default as 10 — `AyuGram/Telegram/SourceFiles/core/core_settings_proxy.h:25` (`kDefaultProxyRotationTimeout = 10`) used at `core_settings_proxy.h:81` (`int _proxyRotationTimeout = kDefaultProxyRotationTimeout;`). 60 is the max of the allowed set `{5,10,15,30,60}`, so default proxy rotation is 6× slower than upstream until the user overrides it.
-
-# audio_service — Music / voice / video-message player service (mirrors AyuGram `Media::Player::Instance`)
-
-Verified against AyuGram `media/player/media_player_instance.cpp`, `media_player_listen_tracker.cpp`,
-`media_player_widget.cpp`, and `media_common.h`.
-
-**Faithful parts (no action):** listen-time tracking (3s min, 60s pause-timeout, song-only,
-FILE_REFERENCE_ refresh-and-resend) matches `media_player_listen_tracker.cpp:19-96` exactly;
-`RepeatMode {none,one,all}` matches `media_common.h:16-20`; StoppedAtEnd auto-advance
-(repeat-one → replay, autoplay-off → stop, else next) matches `media_player_instance.cpp:1300-1308`;
-playback-speed selection (`_currentSpeed`) matches `LookupPlaybackSpeed` `:65-75`; read-saved-position-
-then-clear matches `streamingOptions` `:884-886`. Backend wiring is real (`reportMusicListen` /
-`refreshDocumentFileRef` reach the Go bridge; `onNextTrack`/`onPreviousTrack`/speed/repeat callbacks
-set in `main.dart:356-366`). No stubs, placeholders, fake data, or empty callbacks.
-
-- [ ] [MAJOR] `previous()` restarts the current track when playback is >3s in, instead of always moving to the previous track. AyuGram's previous button calls `instance()->previous()` → `moveInPlaylist(data, -1, false)` unconditionally — there is **no** position guard; previous always changes track (and the button is simply disabled via `previousAvailable()` when there is no previous track). Dart adds a `_position.inSeconds > 3` branch that re-seeks the current track to zero instead. — `audio_service.dart:293-302` ← `AyuGram/media/player/media_player_instance.cpp:1119-1124` (button handler `AyuGram/media/player/media_player_widget.cpp:757-758`)
-
-- [ ] [MAJOR] No pause/resume of playback while a call is active. AyuGram's `Instance` constructor subscribes to `currentCallValue` + `currentGroupCallValue` and calls `pauseOnCall(Voice)`/`pauseOnCall(Song)` when any call starts, then `resumeOnCall(...)` (via `resumeOnCallEnd`) when it ends — so the music/voice player auto-pauses for the duration of a call. `AudioService` has no call-state subscription at all (calls exist in this app: `engine_service.dart:75 onCallState`, `ui/call_panel.dart`, `ui/call_screen.dart`), so music keeps playing over call audio and never auto-resumes. — `audio_service.dart:12-55` & `185-269` (player streams only; no call handling) ← `AyuGram/media/player/media_player_instance.cpp:188-200` & `1089-1110`
-
-- [ ] [MAJOR] Position-save length threshold keyed off the wrong attribute. AyuGram's `SaveLastPlaybackPosition` selects the minimum length by `document->isVideoFile()`: a real video file uses `kMinLengthForSavePositionVideo` (60s), and **everything else — music, voice messages, and round-video messages — uses `kMinLengthForSavePositionMusic` (20min)**. Dart instead keys off `_isSong`: songs use 20min but voice/round-video messages use the 60s threshold. Net effect: a voice/round-video message 60s–20min long gets its playback position saved and restored on replay in Dart, which never happens in AyuGram (only full video files ever use the 60s threshold, and none flow through this service). — `audio_service.dart:371` ← `AyuGram/media/player/media_player_instance.cpp:128-130` (constants `:55-56`)
-
 # auth_state — auth flow controller (intro/* state machine)
 
 `auth_state.dart` is a `ChangeNotifier` controller, not a visual widget — it corresponds to AyuGram's `Intro::details` step controllers (`intro_phone/code/password_check/qr/signup/email`). Audit focuses on behavioral/wiring fidelity, not `.style` dimensions.
