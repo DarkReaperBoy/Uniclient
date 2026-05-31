@@ -14,8 +14,6 @@ Scope notes (verified correct, no finding):
 
 ## Findings
 
-- [ ] [MAJOR] `_lastSrpIdInvalidTime` storm-detection state leaks across auth flows. In AyuGram, `_lastSrpIdInvalidTime` is a per-`PasswordCheckWidget` member initialized to `0` (`intro_password_check.h:71`); the widget is recreated (`goReplace<PasswordCheckWidget>`) every time the flow re-enters the password step (intro_code.cpp:364, intro_qr.cpp:504), so the 60s storm window is scoped to a single password-entry attempt. In Dart, `AuthState` is a long-lived singleton and `_lastSrpIdInvalidTime` is never reset by `clear()` (auth_state.dart:212-221), `cancelAuth()` (auth_state.dart:196-209), `switchToMethod()` (auth_state.dart:179-193), or on successful 2FA. Result: if the user hits SRP_ID_INVALID, then backs out / switches account / retries and reaches the 2FA step again within 60s, the storm check `now.difference(_lastSrpIdInvalidTime!) < _kSrpIdInvalidTimeout` (auth_state.dart:117-118) fires on the FIRST SRP_ID_INVALID of the new attempt and surfaces a false `'Server error. Please try again later.'` while skipping the transparent re-fetch/retry — whereas AyuGram (fresh widget, `_lastSrpIdInvalidTime == 0`) would transparently retry. Fix: reset `_lastSrpIdInvalidTime = null` in `clear()`, `cancelAuth()`, `switchToMethod()`, and once 2FA is accepted (alongside the existing `_last2faPassword = null`). — `auth_state.dart:24,117-118,204,216` ← `AyuGram/Telegram/SourceFiles/intro/intro_password_check.h:71` (+ intro_password_check.cpp:169-179)
-
 # ayu_forward — intelligent forward (native + resend-as-own) routing & progress
 
 Audited `dart/lib/state/ayu_forward.dart` against AyuGram's
