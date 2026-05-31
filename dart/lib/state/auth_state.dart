@@ -21,6 +21,12 @@ class AuthState extends ChangeNotifier {
   Timer? _autoPollTimer;
   bool _autoInputBusy = false;
 
+  // Timestamp of the last SRP_ID_INVALID, used to detect a storm of repeats
+  // within the timeout window. Reset to null whenever the auth flow tears down
+  // or leaves the 2FA step, so the storm window is scoped to a single
+  // password-entry attempt — mirroring AyuGram's per-PasswordCheckWidget
+  // `_lastSrpIdInvalidTime = 0` (intro_password_check.h:71), which re-inits on
+  // every `goReplace<PasswordCheckWidget>`.
   DateTime? _lastSrpIdInvalidTime;
   static const _kSrpIdInvalidTimeout = Duration(seconds: 60);
 
@@ -161,10 +167,15 @@ class AuthState extends ChangeNotifier {
         }
       }
 
-      // Drop the retained 2FA password once the step was accepted (auth moved
-      // past the 2fa prompt without an error).
+      // Drop the retained 2FA password and reset the SRP-storm window once the
+      // step was accepted (auth moved past the 2fa prompt without an error).
+      // Mirrors AyuGram recreating a fresh PasswordCheckWidget — whose
+      // `_lastSrpIdInvalidTime` re-initializes to 0 — on each entry to the
+      // password step (intro_password_check.h:71, goReplace at
+      // intro_code.cpp:364 / intro_qr.cpp:504).
       if (result != null && result.state != 'error' && result.state != '2fa') {
         _last2faPassword = null;
+        _lastSrpIdInvalidTime = null;
       }
 
       Debug.log('AUTH', 'submitInput → state=${result?.state} label=${result?.label}');
@@ -184,6 +195,7 @@ class AuthState extends ChangeNotifier {
     _currentAuth = null;
     _submitting = false;
     _error = null;
+    _lastSrpIdInvalidTime = null;
     _stopAutoPoll();
     notifyListeners();
     await startAuth(accountId);
@@ -202,6 +214,7 @@ class AuthState extends ChangeNotifier {
     _submitting = false;
     _error = null;
     _last2faPassword = null;
+    _lastSrpIdInvalidTime = null;
     _stopAutoPoll();
     _qrExpiryTimer?.cancel();
     _qrExpiryTimer = null;
@@ -214,6 +227,7 @@ class AuthState extends ChangeNotifier {
     _submitting = false;
     _error = null;
     _last2faPassword = null;
+    _lastSrpIdInvalidTime = null;
     _stopAutoPoll();
     _qrExpiryTimer?.cancel();
     _qrExpiryTimer = null;
