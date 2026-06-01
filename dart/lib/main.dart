@@ -2750,8 +2750,18 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   }
 
   Future<void> _loadSystemUnlockPref() async {
+    if (!mounted) return;
+    final engine = context.read<EngineService>();
+    // The lock screen can mount during bootstrap, before the FFI bridge finishes
+    // init. Calling the engine then throws "Bridge not initialized" (logged as a
+    // GetPasscodeConfig crash). Wait for init (bounded) before reading the pref.
+    for (var attempt = 0; !engine.isInitialized && attempt < 50; attempt++) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (!mounted) return;
+    }
+    if (!engine.isInitialized) return;
     try {
-      final data = context.read<EngineService>().getPasscodeConfig();
+      final data = engine.getPasscodeConfig();
       if (mounted) {
         setState(() {
           _systemUnlockEnabled = data['systemUnlockEnabled'] as bool? ?? false;
@@ -2878,10 +2888,14 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   }
 
   void _doLogout() {
-    final appState = context.read<AppState>();
-    final activeId = appState.activeAccountId;
-    if (activeId.isEmpty) return;
-    appState.removeAccount(activeId);
+    // Forgot-passcode escape hatch. AyuGram's lock-screen logout passes
+    // account=nullptr (because Core::App().passcodeLocked() is true) into
+    // logoutWithChecks(nullptr) → logout(nullptr) → resetWithForgottenPasscode,
+    // which logs out EVERY account and clears the passcode. Removing only the
+    // active account would leave a multi-account user locked out with no way in.
+    // ← window/window_lock_widgets.cpp:106, window/window_controller.cpp:548,
+    //   core/application.cpp:943, main/main_domain.cpp:117.
+    context.read<AppState>().resetWithForgottenPasscode();
   }
 
   @override
@@ -2915,14 +2929,22 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
             final inputY = constraints.maxHeight / 3;
             return Stack(
               children: [
+                // AyuGram draws the header with style::al_center (H+V centered)
+                // inside QRect(0, inputY - passcodeHeaderHeight, width, 80), an
+                // 80px band ending at the input top — so its vertical centre is
+                // at inputY-40, not the input top - 80. ← window_lock_widgets.cpp:250
+                // (passcodeHeaderHeight 80 / passcodeHeaderFont 19px, boxes.style:290-291).
                 Positioned(
                   left: 0,
                   right: 0,
                   top: inputY - 80,
-                  child: Text(
-                    TrStrings.lngPasscodeEnter(),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 19, color: textColor),
+                  height: 80,
+                  child: Center(
+                    child: Text(
+                      TrStrings.lngPasscodeEnter(),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 19, color: textColor),
+                    ),
                   ),
                 ),
                 Positioned(

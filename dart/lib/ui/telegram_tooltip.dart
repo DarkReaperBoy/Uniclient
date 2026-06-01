@@ -94,7 +94,11 @@ class _TelegramTooltipState extends State<TelegramTooltip> {
     if (lifecycleState != null && lifecycleState != AppLifecycleState.resumed) {
       return;
     }
-    final overlay = Overlay.of(context, rootOverlay: true);
+    // maybeOf (not of): some hosts — e.g. the custom titlebar, which renders as
+    // a sibling of the Navigator in the MaterialApp builder — have no Overlay
+    // ancestor. Silently skip the popup there instead of throwing.
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
     _entry = OverlayEntry(
       builder: (_) => _TooltipOverlay(
         message: widget.message,

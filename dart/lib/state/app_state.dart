@@ -3562,6 +3562,45 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _shouldLockAt = 0;
   }
 
+  /// Lock-screen "forgot passcode" escape hatch. Mirrors AyuGram's
+  /// `Application::logout(nullptr)` → `Domain::resetWithForgottenPasscode`
+  /// (core/application.cpp:943-948, main/main_domain.cpp:117-126): the passcode
+  /// lock screen passes `account == nullptr` (Core::App().passcodeLocked() is
+  /// true), so EVERY account is logged out and the passcode is wiped — a user
+  /// who forgot the passcode can always get back in. Removing only the active
+  /// account (the old behaviour) left multi-account users locked out forever.
+  void resetWithForgottenPasscode() {
+    // Snapshot ids first — _engine.removeAccount mutates the account list.
+    final ids = _accounts.map((a) => a.id).toList();
+    for (final id in ids) {
+      try {
+        _engine.removeAccount(id);
+      } catch (_) {}
+      // Drop each logged-out account's notification state before stale timers fire.
+      onAccountRemoved?.call(id);
+      _connStates.remove(id);
+      _accountOrder.remove(id);
+    }
+    _accounts = _engine.listAccounts();
+    _rebuildAccountLookup();
+    _ensureActiveAccount();
+    _saveWindowPrefs();
+    // Forget the passcode unconditionally — this is the escape hatch, so the
+    // lock must always lift even if an engine removal left residue (AyuGram
+    // clears it via removePasscodeIfEmpty once every account is gone).
+    _passcodeLocked = false;
+    _passcodeBadTries = 0;
+    _passcodeLastTry = null;
+    _autoLockTimer?.cancel();
+    _shouldLockAt = 0;
+    try {
+      _engine.clearPasscode();
+    } catch (_) {}
+    _cachedHasPasscode = null;
+    _cachedAutoLockSeconds = null;
+    notifyListeners();
+  }
+
   /// Spec §3.2: drag-to-reorder accounts. Persists new order.
   void reorderAccounts(int oldIndex, int newIndex) {
     final ordered = accounts.toList();

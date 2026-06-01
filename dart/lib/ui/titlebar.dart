@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/telegram_palette.dart';
+import 'telegram_tooltip.dart';
 
 class _ButtonLayout {
   final List<_ButtonType> left;
@@ -260,57 +261,73 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
     final rightButtons =
         effectiveLayout.right.map((t) => _buildButton(t, palette)).toList();
 
-    return Container(
-      height: CustomTitlebar.height,
-      decoration: BoxDecoration(
-        color: bgColor,
-        border: Border(bottom: BorderSide(color: sepColor, width: 1)),
-      ),
-      child: Row(
-        children: [
-          ...leftButtons,
-          Expanded(
-            child: Listener(
-              onPointerDown: (e) {
-                if (e.buttons & 0x02 != 0) {
-                  _showWindowMenu();
-                } else if (e.buttons & 0x01 != 0) {
-                  _mousePressed = true;
-                  _dragTimer?.cancel();
-                }
-              },
-              onPointerUp: (_) {
-                _mousePressed = false;
-                _dragTimer?.cancel();
-                _dragTimer = null;
-              },
-              onPointerMove: (_) {
-                if (_mousePressed && _dragTimer == null) {
-                  _dragTimer = Timer(kDoubleTapTimeout, () {
-                    if (_mousePressed) {
-                      _mousePressed = false;
-                      _startDrag();
-                    }
-                    _dragTimer = null;
-                  });
-                }
-              },
-              behavior: HitTestBehavior.opaque,
-              child: GestureDetector(
-                onDoubleTap: () {
-                  _dragTimer?.cancel();
-                  _dragTimer = null;
-                  _mousePressed = false;
-                  _toggleMaximize();
-                },
-                behavior: HitTestBehavior.opaque,
-                child: const SizedBox.expand(),
-              ),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // First-frame guard: the Linux embedder briefly lays the window out at
+        // ~1px before the real size arrives. The fixed-width control buttons
+        // can't fit, overflowing this Row on the right (and the parent Column
+        // by the 24px bar height on the bottom) — the cold-start RenderFlex
+        // spam. Render nothing until there's room; the degenerate frame is
+        // invisible and self-heals on the next frame.
+        final minWidth =
+            (effectiveLayout.left.length + effectiveLayout.right.length) *
+                CustomTitlebar.buttonWidth;
+        if (constraints.maxWidth.isFinite && constraints.maxWidth < minWidth) {
+          return const SizedBox.shrink();
+        }
+        return Container(
+          height: CustomTitlebar.height,
+          decoration: BoxDecoration(
+            color: bgColor,
+            border: Border(bottom: BorderSide(color: sepColor, width: 1)),
           ),
-          ...rightButtons,
-        ],
-      ),
+          child: Row(
+            children: [
+              ...leftButtons,
+              Expanded(
+                child: Listener(
+                  onPointerDown: (e) {
+                    if (e.buttons & 0x02 != 0) {
+                      _showWindowMenu();
+                    } else if (e.buttons & 0x01 != 0) {
+                      _mousePressed = true;
+                      _dragTimer?.cancel();
+                    }
+                  },
+                  onPointerUp: (_) {
+                    _mousePressed = false;
+                    _dragTimer?.cancel();
+                    _dragTimer = null;
+                  },
+                  onPointerMove: (_) {
+                    if (_mousePressed && _dragTimer == null) {
+                      _dragTimer = Timer(kDoubleTapTimeout, () {
+                        if (_mousePressed) {
+                          _mousePressed = false;
+                          _startDrag();
+                        }
+                        _dragTimer = null;
+                      });
+                    }
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: GestureDetector(
+                    onDoubleTap: () {
+                      _dragTimer?.cancel();
+                      _dragTimer = null;
+                      _mousePressed = false;
+                      _toggleMaximize();
+                    },
+                    behavior: HitTestBehavior.opaque,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+              ...rightButtons,
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -406,10 +423,16 @@ class _WinButtonState extends State<_WinButton> {
 
   @override
   Widget build(BuildContext context) {
+    // Use TelegramTooltip, not Material Tooltip: the titlebar renders in the
+    // MaterialApp builder as a sibling of the Navigator, so it has no Overlay
+    // ancestor. Material Tooltip.build() calls debugCheckHasOverlay() and threw
+    // on every titlebar rebuild during cold start (the failed build left an
+    // ErrorWidget that overflowed the Row). TelegramTooltip checks for an
+    // overlay only lazily on hover (Overlay.maybeOf), so it never crashes.
     return Semantics(
       label: _semanticLabel,
       button: true,
-      child: Tooltip(
+      child: TelegramTooltip(
         message: _semanticLabel,
         child: MouseRegion(
           onEnter: (_) => setState(() => _hovered = true),
