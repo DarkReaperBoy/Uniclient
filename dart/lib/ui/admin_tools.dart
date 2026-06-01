@@ -1458,20 +1458,12 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         if (_hasPublicUsername)
           _EditRow(
             icon: Icons.link,
-            label: 'Public Links',
+            // lng_manage_peer_bot_public_link = "Public Link" (single username).
+            label: 'Public Link',
             value: '',
             textColor: textColor,
             subTextColor: subTextColor,
-            onTap: () async {
-              try {
-                final username = await engine.getChatUsername(widget.chat.accountId, widget.chat.chatId);
-                if (mounted && username.isNotEmpty) {
-                  showTelegramToast(context, 'Bot link: t.me/$username');
-                }
-              } catch (e) {
-                if (mounted) showTelegramToast(context, 'Failed: $e');
-              }
-            },
+            onTap: () => _showBotPublicLink(textColor, subTextColor),
           ),
         // Currency/Credits rows stay hidden until a non-zero balance is confirmed
         // (AyuGram wraps them in SlideWrap.toggle(!balance.isEmpty())).
@@ -1540,6 +1532,84 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             onTap: () => _showVerifyAccountsDialog(textColor, subTextColor),
           ),
       ],
+    );
+  }
+
+  // AyuGram's fillBotUsernamesButton opens UsernamesBox (edit_peer_info_box.cpp:1786).
+  // Editing/reordering a bot's usernames goes through the bots.* API, which the
+  // engine bridge doesn't expose for users (BotsToggleUsername is "Skipped" in
+  // dispatch_gen.go). For the common single-username bot this matches AyuGram's
+  // box: it shows the public link with copy/open actions.
+  Future<void> _showBotPublicLink(Color textColor, Color subTextColor) async {
+    final engine = context.read<EngineService>();
+    String username = widget.chat.username;
+    try {
+      final fetched = await engine.getChatUsername(widget.chat.accountId, widget.chat.chatId);
+      if (fetched.isNotEmpty) username = fetched;
+    } catch (_) {}
+    if (!mounted || username.isEmpty) return;
+    final link = 'https://t.me/$username';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Public Link', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'People can find your bot by this link and start it.',
+              style: TextStyle(color: subTextColor, fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            InkWell(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: link));
+                showTelegramToast(ctx, 'Link copied');
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        't.me/$username',
+                        style: TextStyle(color: accentColor, fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    Icon(Icons.copy, size: 18, color: accentColor),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: link));
+              showTelegramToast(ctx, 'Link copied');
+            },
+            child: Text('Copy', style: TextStyle(color: accentColor)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Close', style: TextStyle(color: subTextColor)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1816,7 +1886,14 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                             itemCount: filtered.length,
                             itemBuilder: (ctx, i) {
                               final c = filtered[i];
-                              final effectiveVerified = c.isVerified ^ toggledIds.contains(c.userId);
+                              // AyuGram derives the per-bot state from
+                              // peer->botVerifyDetails() with details->botId == bot
+                              // (verify_peers_box.cpp:94-95), NOT the global blue-check
+                              // (c.isVerified). That bot-verify detail isn't carried on
+                              // the contacts list, so we start from "not verified by this
+                              // bot" and track this session's grant/revoke toggles —
+                              // Telegram-verified users no longer appear pre-verified.
+                              final effectiveVerified = toggledIds.contains(c.userId);
                               return ListTile(
                                 dense: true,
                                 leading: Icon(
@@ -1907,6 +1984,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             isChannel: _isChannel,
             isForum: widget.chat.isForum,
             memberCount: widget.chat.memberCount,
+            // Charge-stars is a channel/supergroup paid-messages feature — never
+            // a legacy basic group (gotd 0.143 lacks the paidMessagesAvailable flag).
+            paidMessagesPossible: _isChannelOrSuper,
           ),
         ),
         _EditRow(
@@ -1937,6 +2017,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             accountId: widget.chat.accountId,
             chatId: widget.chat.chatId,
             isChannel: _isChannel,
+            isForum: widget.chat.isForum,
             initialTab: _MemberTab.admins,
           ),
         ),
@@ -1951,6 +2032,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             accountId: widget.chat.accountId,
             chatId: widget.chat.chatId,
             isChannel: _isChannel,
+            isForum: widget.chat.isForum,
             initialTab: _MemberTab.members,
           ),
         ),
@@ -1968,6 +2050,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
               accountId: widget.chat.accountId,
               chatId: widget.chat.chatId,
               isChannel: _isChannel,
+              isForum: widget.chat.isForum,
               initialTab: _MemberTab.kicked,
             ),
           ),
@@ -1983,6 +2066,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
               accountId: widget.chat.accountId,
               chatId: widget.chat.chatId,
               isChannel: _isChannel,
+              isForum: widget.chat.isForum,
               initialTab: _MemberTab.requests,
             ),
           ),
@@ -2100,60 +2184,16 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     ));
   }
 
-  Future<void> _showMonetizationScreen(Color textColor, Color subTextColor) async {
-    final engine = context.read<EngineService>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        title: Text('Monetization', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
-        content: SizedBox(
-          width: 320,
-          height: 250,
-          child: FutureBuilder<Map<String, dynamic>?>(
-            future: engine.getStarsRevenueStats(widget.chat.accountId, widget.chat.chatId),
-            builder: (ctx, snap) {
-              if (snap.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snap.hasError) {
-                return Center(child: Text('Failed to load earnings:\n${snap.error}',
-                    style: TextStyle(color: subTextColor, fontSize: 13), textAlign: TextAlign.center));
-              }
-              final data = snap.data;
-              if (data == null || data.isEmpty) {
-                return Center(child: Text('No monetization data available.\nEnable ads or paid content to start earning.',
-                    style: TextStyle(color: subTextColor, fontSize: 14), textAlign: TextAlign.center));
-              }
-              return ListView(
-                children: data.entries.map((e) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text(e.key.replaceAll('_', ' '),
-                            style: TextStyle(color: subTextColor, fontSize: 13))),
-                        Flexible(child: Text('${e.value}',
-                            style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500),
-                            textAlign: TextAlign.end)),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx),
-              child: Text('Close', style: TextStyle(color: subTextColor))),
-        ],
+  void _showMonetizationScreen(Color textColor, Color subTextColor) {
+    // AyuGram navigates to a full Channel Earn section (Info::ChannelEarn) with
+    // the Stars balance overview rather than a flat key:value dump.
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _MonetizationScreen(
+        accountId: widget.chat.accountId,
+        chatId: widget.chat.chatId,
+        title: widget.chat.title,
       ),
-    );
+    ));
   }
 
   Widget _buildStickerSection(Color textColor, Color subTextColor, Color accentColor) {
@@ -2480,6 +2520,10 @@ Future<void> showEditPeerPermissionsBox(
   required bool isChannel,
   required bool isForum,
   required int memberCount,
+  // AyuGram only builds the "Charge Stars for Messages" section when
+  // `channel && channel->paidMessagesAvailable()` — i.e. a real channel/
+  // supergroup, never a legacy basic group (edit_peer_permissions_box.cpp:1177).
+  bool paidMessagesPossible = false,
 }) {
   return showDialog(
     context: context,
@@ -2489,6 +2533,7 @@ Future<void> showEditPeerPermissionsBox(
       isChannel: isChannel,
       isForum: isForum,
       memberCount: memberCount,
+      paidMessagesPossible: paidMessagesPossible,
     ),
   );
 }
@@ -2497,8 +2542,11 @@ class _PermFlag {
   final String key;
   final String label;
   bool banned;
+  // Always-disabled flags (rendered but never editable), mirroring AyuGram's
+  // `disabledMessages` lock for EditRank in CreateEditRestrictions.
+  final bool locked;
 
-  _PermFlag({required this.key, required this.label, this.banned = false});
+  _PermFlag({required this.key, required this.label, this.banned = false, this.locked = false});
 }
 
 class _EditPeerPermissionsBox extends StatefulWidget {
@@ -2507,6 +2555,7 @@ class _EditPeerPermissionsBox extends StatefulWidget {
   final bool isChannel;
   final bool isForum;
   final int memberCount;
+  final bool paidMessagesPossible;
 
   const _EditPeerPermissionsBox({
     required this.accountId,
@@ -2514,6 +2563,7 @@ class _EditPeerPermissionsBox extends StatefulWidget {
     required this.isChannel,
     required this.isForum,
     required this.memberCount,
+    required this.paidMessagesPossible,
   });
 
   @override
@@ -2556,6 +2606,11 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
     );
     _expandAnim = CurvedAnimation(parent: _expandCtrl, curve: Curves.easeOutCubic);
     _sendPlain = _PermFlag(key: 'send_plain', label: 'Send text messages');
+    // AyuGram nests a single combined "Stickers & GIFs" permission
+    // (SendStickers|SendGifs|SendGames|SendInline → lng_rights_chat_stickers)
+    // plus Embed links / Send polls inside the "Send media" group — 9 rows.
+    // The Go DefaultBannedRights collapses gifs/games/inline onto send_stickers
+    // (telegram.go:16259-16262), so one `send_stickers` flag drives all four.
     _mediaFlags = [
       _PermFlag(key: 'send_photos', label: 'Send photos'),
       _PermFlag(key: 'send_videos', label: 'Send videos'),
@@ -2563,10 +2618,7 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
       _PermFlag(key: 'send_audios', label: 'Send music'),
       _PermFlag(key: 'send_voices', label: 'Send voice messages'),
       _PermFlag(key: 'send_docs', label: 'Send files'),
-      _PermFlag(key: 'send_stickers', label: 'Send stickers & GIFs'),
-      _PermFlag(key: 'send_gifs', label: 'Send GIFs'),
-      _PermFlag(key: 'send_games', label: 'Send games'),
-      _PermFlag(key: 'send_inline', label: 'Use inline bots'),
+      _PermFlag(key: 'send_stickers', label: 'Stickers & GIFs'),
       _PermFlag(key: 'embed_links', label: 'Send links'),
       _PermFlag(key: 'send_polls', label: 'Send polls'),
     ];
@@ -2574,6 +2626,9 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
       _PermFlag(key: 'invite_users', label: 'Add members'),
       if (widget.isForum) _PermFlag(key: 'manage_topics', label: 'Create topics'),
       _PermFlag(key: 'pin_messages', label: 'Pin messages'),
+      // EditRank is rendered but always locked (NestedRestrictionLabelsList →
+      // disabledMessages); lng_rights_group_edit_rank = "Edit own tags".
+      _PermFlag(key: 'edit_rank', label: 'Edit own tags', locked: true),
       _PermFlag(key: 'change_info', label: 'Change group info'),
     ];
     _loadRights();
@@ -2621,10 +2676,12 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
       rights['slowmode_seconds'] = _slowmodeValues[_slowmodeIndex];
       await engine.setDefaultBannedRights(widget.accountId, widget.chatId, rights);
       await engine.setBoostsUnrestrict(widget.accountId, widget.chatId, _boostsUnrestrict);
-      await engine.updatePaidMessagesPrice(
-        widget.accountId, widget.chatId, _chargeStars,
-        broadcastEnabled: widget.isChannel && _chargeStars > 0,
-      );
+      if (widget.paidMessagesPossible) {
+        await engine.updatePaidMessagesPrice(
+          widget.accountId, widget.chatId, _chargeStars,
+          broadcastEnabled: widget.isChannel && _chargeStars > 0,
+        );
+      }
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -2635,6 +2692,7 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
   }
 
   void _toggleFlag(_PermFlag flag) {
+    if (flag.locked) return;
     setState(() {
       flag.banned = !flag.banned;
       if (flag.key == 'send_plain' && flag.banned) {
@@ -2643,16 +2701,6 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
       }
       if (flag.key == 'embed_links' && !flag.banned) {
         _sendPlain.banned = false;
-      }
-      if (flag.key == 'send_stickers' && flag.banned) {
-        for (final dep in ['send_gifs', 'send_games', 'send_inline']) {
-          final f = _mediaFlags.cast<_PermFlag?>().firstWhere((f) => f!.key == dep, orElse: () => null);
-          if (f != null) f.banned = true;
-        }
-      }
-      if (['send_gifs', 'send_games', 'send_inline'].contains(flag.key) && !flag.banned) {
-        final stickers = _mediaFlags.cast<_PermFlag?>().firstWhere((f) => f!.key == 'send_stickers', orElse: () => null);
-        if (stickers != null) stickers.banned = false;
       }
     });
   }
@@ -2732,11 +2780,13 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
                         style: TextStyle(fontSize: 12, color: subTextColor),
                       ),
                     ),
-                    Divider(height: 1, color: dividerColor),
-                    const SizedBox(height: 12),
-                    _buildSectionHeader('Charge Stars', headerColor),
-                    const SizedBox(height: 4),
-                    _buildChargeStarsSection(accentColor, textColor, subTextColor),
+                    if (widget.paidMessagesPossible) ...[
+                      Divider(height: 1, color: dividerColor),
+                      const SizedBox(height: 12),
+                      _buildSectionHeader('Charge Stars', headerColor),
+                      const SizedBox(height: 4),
+                      _buildChargeStarsSection(accentColor, textColor, subTextColor),
+                    ],
                     Divider(height: 1, color: dividerColor),
                     const SizedBox(height: 12),
                     _buildAddExceptionButton(accentColor, textColor),
@@ -2797,11 +2847,16 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
 
   Widget _buildPermToggle(_PermFlag flag, Color accentColor, Color attentionColor, Color textColor) {
     final allowed = !flag.banned;
-    final isLocked = flag.key == 'embed_links' && _sendPlain.banned;
+    final dependencyLocked = flag.key == 'embed_links' && _sendPlain.banned;
+    final isLocked = flag.locked || dependencyLocked;
 
     return InkWell(
       onTap: () {
-        if (isLocked) {
+        if (flag.locked) {
+          showTelegramToast(context, 'You cannot change this permission.');
+          return;
+        }
+        if (dependencyLocked) {
           showTelegramToast(context, '"Send links" requires "Send text messages" to be allowed.');
           return;
         }
@@ -3125,6 +3180,7 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
           accountId: widget.accountId,
           chatId: widget.chatId,
           isChannel: widget.isChannel,
+          isForum: widget.isForum,
           initialTab: _MemberTab.restricted,
         );
       },
@@ -3302,6 +3358,9 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
     );
     _expandAnim = CurvedAnimation(parent: _expandCtrl, curve: Curves.easeOutCubic);
     _sendPlain = _PermFlag(key: 'send_plain', label: 'Send text messages');
+    // Same nested "Send media" group as the permissions box: a single combined
+    // "Stickers & GIFs" plus Embed links / Send polls live INSIDE the media
+    // group (NestedRestrictionLabelsList, edit_peer_permissions_box.cpp:81-94).
     _mediaFlags = [
       _PermFlag(key: 'send_photos', label: 'Send photos'),
       _PermFlag(key: 'send_videos', label: 'Send videos'),
@@ -3309,17 +3368,17 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
       _PermFlag(key: 'send_audios', label: 'Send music'),
       _PermFlag(key: 'send_voices', label: 'Send voice messages'),
       _PermFlag(key: 'send_docs', label: 'Send files'),
-      _PermFlag(key: 'send_stickers', label: 'Send stickers & GIFs'),
-      _PermFlag(key: 'send_gifs', label: 'Send GIFs'),
-      _PermFlag(key: 'send_games', label: 'Send games'),
-      _PermFlag(key: 'send_inline', label: 'Use inline bots'),
-    ];
-    _otherFlags = [
+      _PermFlag(key: 'send_stickers', label: 'Stickers & GIFs'),
       _PermFlag(key: 'embed_links', label: 'Send links'),
       _PermFlag(key: 'send_polls', label: 'Send polls'),
+    ];
+    _otherFlags = [
       _PermFlag(key: 'invite_users', label: 'Add members'),
       if (widget.isForum) _PermFlag(key: 'manage_topics', label: 'Create topics'),
       _PermFlag(key: 'pin_messages', label: 'Pin messages'),
+      // EditRank: user-specific restriction box → lng_rights_group_edit_rank_single
+      // = "Edit own tag"; always locked.
+      _PermFlag(key: 'edit_rank', label: 'Edit own tag', locked: true),
       _PermFlag(key: 'change_info', label: 'Change group info'),
     ];
     _loadDefaults();
@@ -3409,10 +3468,11 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
   }
 
   void _toggleFlag(_PermFlag flag) {
+    if (flag.locked) return;
     setState(() {
       flag.banned = !flag.banned;
       if (flag.key == 'send_plain' && flag.banned) {
-        final embedLinks = _otherFlags.firstWhere((f) => f.key == 'embed_links');
+        final embedLinks = _mediaFlags.firstWhere((f) => f.key == 'embed_links');
         embedLinks.banned = true;
       }
       if (flag.key == 'embed_links' && !flag.banned) {
@@ -3616,11 +3676,16 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
 
   Widget _buildPermToggle(_PermFlag flag, Color accentColor, Color attentionColor, Color textColor) {
     final allowed = !flag.banned;
-    final isLocked = flag.key == 'embed_links' && _sendPlain.banned;
+    final dependencyLocked = flag.key == 'embed_links' && _sendPlain.banned;
+    final isLocked = flag.locked || dependencyLocked;
 
     return InkWell(
       onTap: () {
-        if (isLocked) return;
+        if (flag.locked) {
+          showTelegramToast(context, 'You cannot change this permission.');
+          return;
+        }
+        if (dependencyLocked) return;
         _toggleFlag(flag);
       },
       child: Padding(
@@ -3832,6 +3897,9 @@ Future<bool?> showEditAdminBox(
   required MemberInfo member,
   required bool isChannel,
   String? promotedBy,
+  // AyuGram removes ManageTopics from group admin rights when !isForum
+  // (NestedAdminRightLabels, edit_peer_permissions_box.cpp:146-153).
+  bool isForum = false,
 }) {
   return showDialog<bool>(
     context: context,
@@ -3841,6 +3909,7 @@ Future<bool?> showEditAdminBox(
       member: member,
       isChannel: isChannel,
       promotedBy: promotedBy,
+      isForum: isForum,
     ),
   );
 }
@@ -3859,6 +3928,7 @@ class _EditAdminBox extends StatefulWidget {
   final MemberInfo member;
   final bool isChannel;
   final String? promotedBy;
+  final bool isForum;
 
   const _EditAdminBox({
     required this.accountId,
@@ -3866,6 +3936,7 @@ class _EditAdminBox extends StatefulWidget {
     required this.member,
     required this.isChannel,
     this.promotedBy,
+    this.isForum = false,
   });
 
   @override
@@ -3938,7 +4009,9 @@ class _EditAdminBoxState extends State<_EditAdminBox>
         _AdminFlag(key: 'delete_messages', label: 'Delete messages'),
         _AdminFlag(key: 'ban_users', label: 'Ban users'),
         _AdminFlag(key: 'invite_users', label: 'Invite users via link'),
-        _AdminFlag(key: 'manage_topics', label: 'Manage topics'),
+        // ManageTopics only for forum groups (NestedAdminRightLabels removes it
+        // when !options.isForum, edit_peer_permissions_box.cpp:146-153).
+        if (widget.isForum) _AdminFlag(key: 'manage_topics', label: 'Manage topics'),
         _AdminFlag(key: 'pin_messages', label: 'Pin messages'),
       ];
       _section2 = [
@@ -3948,6 +4021,9 @@ class _EditAdminBoxState extends State<_EditAdminBox>
       ];
       _section3 = [
         _AdminFlag(key: 'manage_call', label: 'Manage voice chats'),
+        // ManageRanks sits between Manage calls and Remain anonymous for groups
+        // (edit_peer_permissions_box.cpp:142); lng_rights_group_manage_ranks.
+        _AdminFlag(key: 'manage_ranks', label: 'Edit member tags'),
         _AdminFlag(key: 'anonymous', label: 'Remain anonymous'),
         _AdminFlag(key: 'add_admins', label: 'Add new admins'),
       ];
@@ -6682,6 +6758,7 @@ void showMemberListScreen(
   required String chatId,
   required bool isChannel,
   _MemberTab initialTab = _MemberTab.members,
+  bool isForum = false,
 }) {
   Navigator.of(context).push(
     MaterialPageRoute(
@@ -6690,6 +6767,7 @@ void showMemberListScreen(
         chatId: chatId,
         isChannel: isChannel,
         initialTab: initialTab,
+        isForum: isForum,
       ),
     ),
   );
@@ -6700,12 +6778,14 @@ class _MemberListScreen extends StatefulWidget {
   final String chatId;
   final bool isChannel;
   final _MemberTab initialTab;
+  final bool isForum;
 
   const _MemberListScreen({
     required this.accountId,
     required this.chatId,
     required this.isChannel,
     required this.initialTab,
+    this.isForum = false,
   });
 
   @override
@@ -6899,6 +6979,7 @@ class _MemberListScreenState extends State<_MemberListScreen>
             isChannel: widget.isChannel,
             accountId: widget.accountId,
             chatId: widget.chatId,
+            isForum: widget.isForum,
             onLoadMore: () => _loadPage(tab),
             onRefresh: () {
               _members[tab] = [];
@@ -6931,6 +7012,7 @@ class _MemberTabBody extends StatelessWidget {
   final Color subColor;
   final Color accentColor;
   final bool isDark;
+  final bool isForum;
 
   const _MemberTabBody({
     required this.members,
@@ -6946,6 +7028,7 @@ class _MemberTabBody extends StatelessWidget {
     required this.subColor,
     required this.accentColor,
     required this.isDark,
+    this.isForum = false,
   });
 
   bool get _showAddButton =>
@@ -7028,6 +7111,7 @@ class _MemberTabBody extends StatelessWidget {
             accentColor: accentColor,
             isDark: isDark,
             onRefresh: onRefresh,
+            isForum: isForum,
           );
         },
       ),
@@ -7160,6 +7244,7 @@ class _MemberRow extends StatelessWidget {
   final Color accentColor;
   final bool isDark;
   final VoidCallback onRefresh;
+  final bool isForum;
 
   const _MemberRow({
     required this.member,
@@ -7172,6 +7257,7 @@ class _MemberRow extends StatelessWidget {
     required this.accentColor,
     required this.isDark,
     required this.onRefresh,
+    this.isForum = false,
   });
 
   // Request rows show "requested to join …" with the request timestamp
@@ -7317,6 +7403,7 @@ class _MemberRow extends StatelessWidget {
             member: member,
             isChannel: isChannel,
             promotedBy: member.promotedBy,
+            isForum: isForum,
           ).then((changed) {
             if (changed == true) onRefresh();
           });
@@ -8252,6 +8339,185 @@ class _BoosterRow extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+// Channel Earn (Stars revenue) overview — AyuGram's Info::ChannelEarn section.
+// Shows the real Stars balance overview from payments.getStarsRevenueStats
+// (current/available/overall + USD conversion) instead of a raw key:value dump.
+class _MonetizationScreen extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final String title;
+
+  const _MonetizationScreen({
+    required this.accountId,
+    required this.chatId,
+    required this.title,
+  });
+
+  @override
+  State<_MonetizationScreen> createState() => _MonetizationScreenState();
+}
+
+class _MonetizationScreenState extends State<_MonetizationScreen> {
+  Map<String, dynamic>? _stats;
+  Object? _error;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final engine = context.read<EngineService>();
+    try {
+      final s = await engine.getStarsRevenueStats(widget.accountId, widget.chatId);
+      if (mounted) setState(() { _stats = s; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e; _loading = false; });
+    }
+  }
+
+  // usd_rate is the value of 1000 Stars in USD (matches _showRevenueStats).
+  static String _fmtUsd(int stars, double usdRate) {
+    if (usdRate <= 0) return '';
+    final usd = stars * usdRate / 1000;
+    return '≈ \$${usd.toStringAsFixed(2)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0);
+    final cardColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+    const starColor = Color(0xFFFFB800);
+
+    final data = _stats ?? const {};
+    final available = data['available_balance'] as int? ?? 0;
+    final current = data['current_balance'] as int? ?? 0;
+    final overall = data['overall_revenue'] as int? ?? 0;
+    final withdrawalEnabled = data['withdrawal_enabled'] as bool? ?? false;
+    final usdRate = (data['usd_rate'] as num?)?.toDouble() ?? 0.0;
+
+    Widget balanceTile(String label, int stars, {bool emphasize = false}) {
+      final usd = _fmtUsd(stars, usdRate);
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(fontSize: 13, color: subTextColor)),
+                  if (usd.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(usd, style: TextStyle(fontSize: 12, color: subTextColor.withValues(alpha: 0.7))),
+                  ],
+                ],
+              ),
+            ),
+            const Icon(Icons.star, size: 18, color: starColor),
+            const SizedBox(width: 4),
+            Text(
+              '$stars',
+              style: TextStyle(
+                fontSize: emphasize ? 20 : 16,
+                fontWeight: FontWeight.w700,
+                color: emphasize ? accentColor : textColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget body;
+    if (_loading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (_error != null) {
+      body = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text('Failed to load earnings:\n$_error',
+              style: TextStyle(color: subTextColor, fontSize: 14), textAlign: TextAlign.center),
+        ),
+      );
+    } else {
+      body = ListView(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(12)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
+                  child: Text('Stars Balance',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
+                ),
+                balanceTile('Available to withdraw', available, emphasize: true),
+                Divider(height: 1, color: bgColor),
+                balanceTile('Current balance', current),
+                Divider(height: 1, color: bgColor),
+                balanceTile('Total lifetime revenue', overall),
+                const SizedBox(height: 6),
+              ],
+            ),
+          ),
+          if (withdrawalEnabled)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle_outline, size: 16, color: accentColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Withdrawal is available for this balance.',
+                        style: TextStyle(fontSize: 12, color: subTextColor)),
+                  ),
+                ],
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: Text(
+              'You earn Stars from paid reactions, paid messages and other paid '
+              'content in this channel. Stars can be converted to Toncoin and '
+              'withdrawn once the balance reaches the minimum.',
+              style: TextStyle(fontSize: 12, color: subTextColor, height: 1.4),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: cardColor,
+        foregroundColor: textColor,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Monetization', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            Text(widget.title, style: TextStyle(fontSize: 12, color: subTextColor)),
+          ],
+        ),
+      ),
+      body: body,
     );
   }
 }

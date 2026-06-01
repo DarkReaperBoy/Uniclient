@@ -2667,6 +2667,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
           onMemberTap: widget.onMemberTap,
           accountId: widget.chat.accountId,
           chatId: widget.chat.chatId,
+          isForum: widget.chat.isForum,
         ),
       ],
       if (widget.chat.type == ChatType.group ||
@@ -2937,6 +2938,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               onMemberTap: widget.onMemberTap,
               accountId: widget.chat.accountId,
               chatId: widget.chat.chatId,
+              isForum: widget.chat.isForum,
             ),
             const SizedBox(height: 16),
           ]),
@@ -7246,6 +7248,7 @@ class _MembersSection extends StatefulWidget {
   final void Function(MemberInfo)? onMemberTap;
   final String accountId;
   final String chatId;
+  final bool isForum;
 
   const _MembersSection({
     required this.members,
@@ -7255,6 +7258,7 @@ class _MembersSection extends StatefulWidget {
     required this.accountId,
     required this.chatId,
     this.onMemberTap,
+    this.isForum = false,
   });
 
   @override
@@ -7461,6 +7465,7 @@ class _MembersSectionState extends State<_MembersSection> {
               accountId: widget.accountId,
               chatId: widget.chatId,
               onMutated: _refreshMembers,
+              isForum: widget.isForum,
             );
           },
         ),
@@ -7593,6 +7598,7 @@ class _MemberRow extends StatelessWidget {
   final String accountId;
   final String chatId;
   final VoidCallback? onMutated;
+  final bool isForum;
 
   const _MemberRow({
     required this.member,
@@ -7601,6 +7607,7 @@ class _MemberRow extends StatelessWidget {
     required this.chatId,
     this.onTap,
     this.onMutated,
+    this.isForum = false,
   });
 
   static String _formatLastSeen(String kind, int tsMs) {
@@ -7877,6 +7884,7 @@ class _MemberRow extends StatelessWidget {
             member: member,
             isChannel: chatId.startsWith('-100'),
             promotedBy: member.promotedBy,
+            isForum: isForum,
           ).then((_) => onMutated?.call());
         case 'demote':
           engine.demoteAdmin(accountId, chatId, member.userId).then((_) {
