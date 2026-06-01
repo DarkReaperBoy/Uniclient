@@ -327,29 +327,6 @@ choose→`submitInput(qr_code)`→`state=qr` and renders the live QR screen. Sec
 
 ## ayu_chats_page — deviations from AyuGram
 
-- [ ] [MAJOR] Edited-mark default is hardcoded English, not localized. Dart passes
-  `defaultValue: 'edited'` for the edited mark (`ayu_chats_page.dart:144`) and also falls back to a
-  literal `'edited'` in the preview (`ayu_chats_page.dart:919`). AyuGram's live default is the
-  **localized** string: `_editedMark(Core::IsAppLaunched() ? tr::lng_edited(tr::now) : QString("edited"))`
-  (`ayu_settings.cpp:358`) and the EditMarkBox is seeded with `tr::lng_edited(tr::now)`
-  (`settings_chats.cpp:189`). So non-English users get "edited" instead of their localized word. Use the
-  l10n "edited" string for both the default and the preview fallback. — `ayu_chats_page.dart:144` <- `settings_chats.cpp:189` / `ayu_settings.cpp:358`.
-
-- [ ] [MAJOR] Recent Stickers Count allows 0; AyuGram clamps the persisted value to **1..200**.
-  `ayu_settings.cpp:519` `validateRange(_recentStickersCount, 1, 200, ...)` (default 100,
-  `ayu_settings.h:648`). Dart slider is `steps:201` ⇒ values 0..200 (`ayu_chats_page.dart:65-67`),
-  letting the user select 0, which AyuGram's load-time clamp rejects (it would snap 0→1). Note
-  AyuGram's own slider is `.steps = 200+1` (`settings_chats.cpp:79`) so the UI stop count matches;
-  the gap is only that Dart's persisted 0 isn't clamped to the valid 1..200 range. Enforce min 1 (or
-  clamp on persist). — `ayu_chats_page.dart:65-69` <- `ayu_settings.cpp:519`.
-
-- [ ] [PARTIAL] AppState setter persistence not verified. Every toggle/slider/choose-button wires to
-  `appState.setXxx` (`ayu_chats_page.dart:28-273`). `app_state.dart` was not read (only its first 30
-  lines), so I cannot confirm these setters persist (vs no-ops). AyuGram setters all persist via
-  `AyuSettings::getInstance().setXxx` and serialize in `Serialize`/`Deserialize`
-  (`ayu_settings.cpp:1069-1234`). Verify the Dart counterparts actually write through.
-  — `ayu_chats_page.dart:28-273` <- app_state.dart (UNREAD).
-
 ## Notes (parity CONFIRMED — informational, NOT defects)
 
 - **Bubble Radius min 0 is CORRECT.** AyuGram clamps to **0..16** (`ayu_settings.cpp:517`
