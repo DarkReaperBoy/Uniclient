@@ -24472,20 +24472,59 @@ func (t *TelegramCore) MessagesGetEmojiGroups(hash int) (tg.MessagesEmojiGroupsC
 }
 
 // MessagesGetEmojiKeywords returns emoji search keywords for a language.
-func (t *TelegramCore) MessagesGetEmojiKeywords(langcode string) (*tg.EmojiKeywordsDifference, error) {
+// Returns interface{} so the engine's emojiKeywordsFetcher assertion (which
+// expects (interface{}, error)) matches — a typed *tg.EmojiKeywordsDifference
+// return silently failed that assertion, disabling the whole server keyword path.
+func (t *TelegramCore) MessagesGetEmojiKeywords(langcode string) (interface{}, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return nil, ErrAuth }
 	return t.api.MessagesGetEmojiKeywords(t.ctx, langcode)
+}
+
+// emojiKeywordDiffEntry is a platform-neutral emoji-keyword diff row that
+// preserves the added/deleted distinction (MTP emojiKeyword vs
+// emojiKeywordDeleted). A plain JSON round-trip of the gotd interface slice
+// would lose it, since both constructors marshal to identical fields.
+type emojiKeywordDiffEntry struct {
+	Keyword   string
+	Emoticons []string
+	Deleted   bool
+}
+
+type emojiKeywordDiffResult struct {
+	LangCode string
+	Version  int
+	Keywords []emojiKeywordDiffEntry
 }
 
 // MessagesGetEmojiKeywordsDifference returns updated emoji keywords since a version.
 func (t *TelegramCore) MessagesGetEmojiKeywordsDifference(langCode string, fromVersion int) (interface{}, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return nil, ErrAuth }
-	return t.api.MessagesGetEmojiKeywordsDifference(t.ctx, &tg.MessagesGetEmojiKeywordsDifferenceRequest{
+	raw, err := t.api.MessagesGetEmojiKeywordsDifference(t.ctx, &tg.MessagesGetEmojiKeywordsDifferenceRequest{
 		LangCode:    langCode,
 		FromVersion: fromVersion,
 	})
+	if err != nil {
+		return nil, err
+	}
+	out := &emojiKeywordDiffResult{LangCode: raw.LangCode, Version: raw.Version}
+	for _, kw := range raw.Keywords {
+		switch v := kw.(type) {
+		case *tg.EmojiKeywordDeleted:
+			out.Keywords = append(out.Keywords, emojiKeywordDiffEntry{
+				Keyword:   v.Keyword,
+				Emoticons: v.Emoticons,
+				Deleted:   true,
+			})
+		case *tg.EmojiKeyword:
+			out.Keywords = append(out.Keywords, emojiKeywordDiffEntry{
+				Keyword:   v.Keyword,
+				Emoticons: v.Emoticons,
+			})
+		}
+	}
+	return out, nil
 }
 
 // MessagesGetEmojiKeywordsLanguages returns available languages for emoji keywords.

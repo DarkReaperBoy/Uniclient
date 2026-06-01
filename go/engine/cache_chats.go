@@ -2209,6 +2209,9 @@ func (e *Engine) LoadStatsGraph(accountID, token string, x int64) (map[string]in
 type EmojiKeywordEntry struct {
 	Keyword   string   `json:"keyword"`
 	Emoticons []string `json:"emoticons"`
+	// Deleted marks a server-diff row that removes a keyword→emoji mapping
+	// (MTP emojiKeywordDeleted). Always false for the full (non-diff) fetch.
+	Deleted bool `json:"deleted,omitempty"`
 }
 
 type EmojiKeywordsResult struct {
@@ -2295,6 +2298,7 @@ func (e *Engine) GetEmojiKeywordsDifference(accountID, langCode string, fromVers
 		Keywords []struct {
 			Keyword   string   `json:"Keyword"`
 			Emoticons []string `json:"Emoticons"`
+			Deleted   bool     `json:"Deleted"`
 		} `json:"Keywords"`
 	}
 	if err := json.Unmarshal(b, &diff); err != nil {
@@ -2308,6 +2312,7 @@ func (e *Engine) GetEmojiKeywordsDifference(accountID, langCode string, fromVers
 		result.Keywords = append(result.Keywords, EmojiKeywordEntry{
 			Keyword:   kw.Keyword,
 			Emoticons: kw.Emoticons,
+			Deleted:   kw.Deleted,
 		})
 	}
 	return result, nil

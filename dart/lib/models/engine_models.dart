@@ -3725,11 +3725,20 @@ class CallHistoryEntry {
 class EmojiKeywordEntry {
   final String keyword;
   final List<String> emoticons;
-  const EmojiKeywordEntry({required this.keyword, required this.emoticons});
+
+  /// True for a server-diff row that removes a keyword→emoji mapping
+  /// (MTP `emojiKeywordDeleted`). Always false for the full keyword fetch.
+  final bool deleted;
+  const EmojiKeywordEntry({
+    required this.keyword,
+    required this.emoticons,
+    this.deleted = false,
+  });
 
   factory EmojiKeywordEntry.fromJson(Map<String, dynamic> j) => EmojiKeywordEntry(
     keyword: j['keyword'] as String? ?? '',
     emoticons: (j['emoticons'] as List<dynamic>?)?.cast<String>() ?? const [],
+    deleted: j['deleted'] as bool? ?? false,
   );
 }
 

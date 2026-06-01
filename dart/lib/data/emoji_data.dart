@@ -2727,6 +2727,129 @@ class _LangPack {
   }
 }
 
+/// A built-in suggestion candidate: the emoji entry plus, per keyword, the
+/// keyword split into words sorted by first character — the shape AyuGram's
+/// `Completer` needs for interior-word matching.
+class _LegacyCandidate {
+  final EmojiEntry entry;
+  final List<List<String>> wordLists;
+  const _LegacyCandidate(this.entry, this.wordLists);
+}
+
+/// A ranked built-in match (one per emoji), carrying the keys AyuGram's
+/// `Completer::prepareResult` uses to order suggestions.
+class _LegacyResult {
+  final EmojiEntry entry;
+  final int wordsUsed;
+  final bool firstCharGood;
+  final bool isExact;
+  const _LegacyResult(this.entry, this.wordsUsed, this.firstCharGood, this.isExact);
+}
+
+/// Mirrors `Completer::NormalizeQuery` (emoji_suggestions.cpp:193): drop every
+/// char that is not a letter or number, keeping '-'/'+' only when followed by a
+/// number or at the end. The query is already lowercased by `search()`.
+String _normalizeLegacyQuery(String q) {
+  final sb = StringBuffer();
+  for (int i = 0; i < q.length; i++) {
+    final c = q.codeUnitAt(i);
+    final isNum = c >= 0x30 && c <= 0x39;
+    final isLetter = c >= 0x61 && c <= 0x7A;
+    if (isLetter || isNum) {
+      sb.writeCharCode(c);
+    } else if (c == 0x2D || c == 0x2B) {
+      final atEnd = i + 1 == q.length;
+      final nextNum =
+          !atEnd && q.codeUnitAt(i + 1) >= 0x30 && q.codeUnitAt(i + 1) <= 0x39;
+      if (atEnd || nextNum) sb.writeCharCode(c);
+    }
+  }
+  return sb.toString();
+}
+
+/// Mirrors `Completer::matchQueryForCurrentItem` (emoji_suggestions.cpp:301):
+/// returns the words-used count on a match, or -1 on no match. Single-word
+/// replacements match only as a prefix-from-start; multi-word replacements allow
+/// interior-word matching via [_matchLegacyTail].
+int _matchLegacyWords(List<String> words, String q) {
+  if (words.length < 2) {
+    return _legacyStartsWith(words[0], q) ? 1 : -1;
+  }
+  final used = List<bool>.filled(words.length, false);
+  return _matchLegacyTail(words, q, 0, used, 1);
+}
+
+/// Mirrors `Completer::matchQueryTailStartingFrom` (emoji_suggestions.cpp:333):
+/// greedily assign query chunks (largest first) to distinct words whose first
+/// char matches the current query char, recursing until the query is consumed.
+int _matchLegacyTail(
+    List<String> words, String q, int position, List<bool> used, int wordsUsed) {
+  if (position >= q.length) return wordsUsed;
+  final firstChar = q.codeUnitAt(position);
+  final lo = _legacyLowerBound(words, firstChar);
+  for (int wi = lo; wi < words.length && words[wi].codeUnitAt(0) == firstChar; wi++) {
+    if (used[wi]) continue;
+    used[wi] = true;
+    final equal = _legacyEqualChars(q, position, words[wi]);
+    for (int check = equal; check > 0; check--) {
+      final r = _matchLegacyTail(words, q, position + check, used, wordsUsed + 1);
+      if (r >= 0) return r;
+    }
+    used[wi] = false;
+  }
+  return -1;
+}
+
+/// First index whose word starts with a char >= [ch] (lower_bound over the
+/// first-char-sorted word list, as `Completer::findWordsStartingWith` needs).
+int _legacyLowerBound(List<String> words, int ch) {
+  int lo = 0, hi = words.length;
+  while (lo < hi) {
+    final mid = (lo + hi) >> 1;
+    if (words[mid].codeUnitAt(0) < ch) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  return lo;
+}
+
+/// Mirrors `Completer::startsWithQuery` (emoji_suggestions.cpp:309).
+bool _legacyStartsWith(String word, String q) {
+  if (word.length < q.length) return false;
+  for (int i = 0; i < q.length; i++) {
+    if (word.codeUnitAt(i) != q.codeUnitAt(i)) return false;
+  }
+  return true;
+}
+
+/// Mirrors `Completer::findEqualCharsCount` (emoji_suggestions.cpp:358): chars
+/// of the query (from [position]) that match the word's prefix, capped. The
+/// first char is assumed equal (the word was found by it), so it starts at 1.
+int _legacyEqualChars(String q, int position, String word) {
+  final charsLeft = q.length - position;
+  final wordSize = word.length;
+  final possible = charsLeft < wordSize ? charsLeft : wordSize;
+  for (int equalTill = 1; equalTill < possible; equalTill++) {
+    if (word.codeUnitAt(equalTill) != q.codeUnitAt(position + equalTill)) {
+      return equalTill;
+    }
+  }
+  return possible;
+}
+
+/// Lower = higher priority, mirroring the stacked `stable_partition`s in
+/// `Completer::prepareResult` (emoji_suggestions.cpp:373): exact match, then
+/// words-used < 3, then < 2, then shortcode-first-char == query-first-char.
+int _legacyRankKey(_LegacyResult r) {
+  final exact = r.isExact ? 0 : 1;
+  final w3 = r.wordsUsed < 3 ? 0 : 1;
+  final w2 = r.wordsUsed < 2 ? 0 : 1;
+  final fc = r.firstCharGood ? 0 : 1;
+  return (exact << 3) | (w3 << 2) | (w2 << 1) | fc;
+}
+
 /// Manages emoji keyword data from server language packs with local fallback.
 class EmojiKeywords {
   EmojiKeywords._();
@@ -2764,6 +2887,23 @@ class EmojiKeywords {
     return max;
   }
 
+  /// Built-in suggestions pre-split into sorted words per keyword — the shape
+  /// AyuGram's `Completer` needs for interior-word matching (built once).
+  late final List<_LegacyCandidate> _legacyCandidates = _buildLegacyCandidates();
+
+  static List<_LegacyCandidate> _buildLegacyCandidates() {
+    final out = <_LegacyCandidate>[];
+    for (final e in kEmojiSuggestions) {
+      final lists = <List<String>>[];
+      for (final kw in e.keywords) {
+        final parts = kw.split('_').where((w) => w.isNotEmpty).toList()..sort();
+        lists.add(parts);
+      }
+      out.add(_LegacyCandidate(e, lists));
+    }
+    return out;
+  }
+
   void init({String? cacheDir, void Function()? saveCallback}) {
     if (cacheDir != null) {
       _cacheDir = cacheDir;
@@ -2773,8 +2913,6 @@ class EmojiKeywords {
       _onSave = saveCallback;
     }
   }
-
-  List<EmojiEntry> get _legacy => kEmojiSuggestions;
 
   void setSaveCallback(void Function() callback) {
     _onSave = callback;
@@ -2845,7 +2983,12 @@ class EmojiKeywords {
       if (key.isEmpty) continue;
       final existing = pack.keywords[key];
       if (existing == null) continue;
-      existing.removeWhere((e) => entry.value.contains(e));
+      // Stored emojis are postfixed via _applyPostfix (™→™️ etc.), but the
+      // server sends the raw deleted text, so postfix it too before matching.
+      // Mirrors AyuGram removing by LangPackEmoji::text once both sides share
+      // the same postfix rule (emoji_keywords.cpp:284-288).
+      final removeSet = entry.value.map(_applyPostfix).toSet();
+      existing.removeWhere(removeSet.contains);
       if (existing.isEmpty) {
         pack.keywords.remove(key);
       }
@@ -2928,12 +3071,26 @@ class EmojiKeywords {
 
   List<String> get recentEmojis => List.unmodifiable(_recentEmojis);
 
+  /// Resolves an emoji to the user's chosen skin-tone variant for inline
+  /// suggestions. Wired by the emoji panel — the single source of truth for
+  /// skin-tone preferences — mirroring AyuGram's `EmojiKeywords::ApplyVariants`
+  /// delegating to `Settings::lookupEmojiVariant`. When unset, suggestions keep
+  /// the default (yellow) tone.
+  String Function(String emoji)? skinToneResolver;
+
   void setVariant(String baseEmoji, String variant) {
     _variantPrefs[baseEmoji] = variant;
     _scheduleSave();
   }
 
-  String applyVariant(String emoji) => _variantPrefs[emoji] ?? emoji;
+  String applyVariant(String emoji) {
+    final resolver = skinToneResolver;
+    if (resolver != null) {
+      final resolved = resolver(emoji);
+      if (resolved.isNotEmpty) return resolved;
+    }
+    return _variantPrefs[emoji] ?? emoji;
+  }
 
   void loadState(Map<String, dynamic> data) {
     final recent = data['recent'] as List<dynamic>?;
@@ -3035,24 +3192,59 @@ class EmojiKeywords {
     List<EmojiEntry> prefixMatches,
   ) {
     if (_badSuggestionChar.hasMatch(q)) return;
-    for (final e in _legacy) {
-      if (seen.contains(e.emoji)) continue;
-      bool isExact = false;
-      bool isPrefix = false;
-      for (final kw in e.keywords) {
-        if (kw == q) {
-          isExact = true;
-          break;
-        } else if (kw.startsWith(q)) {
-          isPrefix = true;
+    final normalized = _normalizeLegacyQuery(q);
+    if (normalized.isEmpty) return;
+    final firstChar = normalized.codeUnitAt(0);
+
+    // Collect the best-ranked match per emoji, allowing interior-word matches
+    // (AyuGram Completer — e.g. "police" matches ":oncoming_police_car:"), then
+    // order them by Completer::prepareResult priority.
+    final results = <_LegacyResult>[];
+    for (final cand in _legacyCandidates) {
+      final emoji = cand.entry.emoji;
+      if (seen.contains(emoji)) continue;
+      _LegacyResult? best;
+      int bestKey = 0;
+      for (int ki = 0; ki < cand.wordLists.length; ki++) {
+        final words = cand.wordLists[ki];
+        if (words.isEmpty) continue;
+        final wordsUsed = _matchLegacyWords(words, normalized);
+        if (wordsUsed < 0) continue;
+        final rawKw = cand.entry.keywords[ki];
+        final candidate = _LegacyResult(
+          cand.entry,
+          wordsUsed,
+          rawKw.isNotEmpty && rawKw.codeUnitAt(0) == firstChar,
+          rawKw == q,
+        );
+        final key = _legacyRankKey(candidate);
+        if (best == null || key < bestKey) {
+          best = candidate;
+          bestKey = key;
         }
       }
-      if (isExact) {
-        seen.add(e.emoji);
-        exactMatches.add(e);
-      } else if (isPrefix) {
-        seen.add(e.emoji);
-        prefixMatches.add(e);
+      if (best != null) {
+        seen.add(emoji);
+        results.add(best);
+      }
+    }
+    if (results.isEmpty) return;
+
+    // Stable-sort by rank key; original (declaration) order breaks ties, exactly
+    // as the stacked stable_partitions in prepareResult preserve relative order.
+    final order = List<int>.generate(results.length, (i) => i);
+    order.sort((a, b) {
+      final ka = _legacyRankKey(results[a]);
+      final kb = _legacyRankKey(results[b]);
+      if (ka != kb) return ka - kb;
+      return a - b;
+    });
+    for (final i in order) {
+      final r = results[i];
+      if (r.isExact) {
+        exactMatches.add(r.entry);
+      } else {
+        prefixMatches.add(r.entry);
       }
     }
   }
@@ -3060,18 +3252,18 @@ class EmojiKeywords {
   List<EmojiEntry> _prioritizeRecent(List<EmojiEntry> list) {
     if (_recentEmojis.isEmpty || list.isEmpty) return list;
     final result = List<EmojiEntry>.from(list);
+    // Mirrors AyuGram PrioritizeRecent (emoji_keywords.cpp:650-672): for each
+    // recent, search the whole list from the start and rotate the match to the
+    // frontier ONLY when it sits strictly past it (`it > lastRecent`). A match
+    // already at (or before) the frontier does not advance it — so equal-front
+    // recents get leapfrogged, e.g. list [A,B] + recent [A,B] → [B,A].
     var lastRecent = 0;
     for (final recent in _recentEmojis) {
       final base = _stripSkinTone(recent);
-      final idx = result.indexWhere(
-        (e) => _stripSkinTone(e.emoji) == base,
-        lastRecent,
-      );
+      final idx = result.indexWhere((e) => _stripSkinTone(e.emoji) == base);
       if (idx > lastRecent) {
         final item = result.removeAt(idx);
         result.insert(lastRecent, item);
-        lastRecent++;
-      } else if (idx == lastRecent) {
         lastRecent++;
       }
     }

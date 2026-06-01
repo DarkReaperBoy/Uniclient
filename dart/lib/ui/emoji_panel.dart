@@ -10,6 +10,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../data/emoji_data.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import 'gesture_utils.dart';
@@ -43,7 +44,18 @@ void resetEmojiPrefsForAccountSwitch() {
   _emojiPrefsConfigDir = '';
 }
 
+/// Loads emoji skin-tone preferences and wires them into the keyword-suggestion
+/// engine so inline emoji suggestions render with the user's chosen tone
+/// (mirrors AyuGram `EmojiKeywords::ApplyVariants`). Idempotent for the same
+/// config dir; safe to call at startup.
+void initEmojiSuggestionVariants(String configDir) {
+  _loadEmojiPrefs(configDir);
+}
+
 void _loadEmojiPrefs(String configDir) {
+  // Keep inline emoji suggestions in sync with the chosen skin tone — the resolver
+  // reads the live _skinTonePrefs, so later selections take effect immediately.
+  EmojiKeywords.instance.skinToneResolver = _displayEmoji;
   if (_emojiPrefsLoaded && _emojiPrefsConfigDir == configDir) return;
   if (_emojiPrefsLoaded && _emojiPrefsConfigDir != configDir) {
     _skinTonePrefs = {};

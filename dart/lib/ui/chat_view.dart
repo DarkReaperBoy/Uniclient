@@ -3814,12 +3814,17 @@ class _ChatViewState extends State<ChatView>
           final result = await engine.getEmojiKeywordsDiff(accountId, lang, v);
           if (result != null) {
             final kwMap = <String, List<String>>{};
+            final deletedMap = <String, List<String>>{};
             for (final entry in result.keywords) {
-              kwMap[entry.keyword] = entry.emoticons;
+              if (entry.deleted) {
+                deletedMap[entry.keyword] = entry.emoticons;
+              } else {
+                kwMap[entry.keyword] = entry.emoticons;
+              }
             }
             ek.loadServerKeywordsDiff(
               keywords: kwMap,
-              deleted: const {},
+              deleted: deletedMap,
               version: result.version,
               langCode: result.langCode,
             );

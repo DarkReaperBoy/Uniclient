@@ -14,7 +14,8 @@ import '../models/engine_models.dart';
 import '../theme/theme_file.dart';
 import '../theme/telegram_palette.dart';
 import '../theme/wallpaper.dart';
-import '../ui/emoji_panel.dart' show resetEmojiPrefsForAccountSwitch;
+import '../ui/emoji_panel.dart'
+    show resetEmojiPrefsForAccountSwitch, initEmojiSuggestionVariants;
 import '../ui/media_viewer.dart';
 import '../utils/debug.dart';
 
@@ -3209,6 +3210,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     try {
       _configDir = configDir;
       _cacheDir = cacheDir;
+      // Wire skin-tone preferences into emoji suggestions from startup, so
+      // suggestions honor the chosen tone before the emoji panel is ever opened.
+      initEmojiSuggestionVariants(configDir);
       Debug.setCrashLogDir('$configDir/crash_reports');
       await _engine.init(
         configDir: configDir,
@@ -3481,6 +3485,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _activeAccountId = accountId;
     _cachedActiveAccount = _accountById[accountId];
     resetEmojiPrefsForAccountSwitch();
+    // Re-arm the suggestion skin-tone resolver after the reset so suggestions
+    // keep honoring the chosen tone without waiting for the panel to reopen.
+    initEmojiSuggestionVariants(_configDir);
     if (!_useGlobalGhostMode) _syncGhostToEngine();
     _autoMigrateGhostToGlobal();
     notifyListeners();
