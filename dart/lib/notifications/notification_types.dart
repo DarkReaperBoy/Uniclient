@@ -90,6 +90,13 @@ class NotificationData {
   // doShowNativeNotification (notifications_manager.cpp:1568,1582;
   // history_item.cpp:2770).
   final bool isSelf;
+  // Whether this message's chat is the Replies chat (the aggregated
+  // comments/replies service peer). AyuGram's GenerateUserpic routes
+  // peer->isRepliesChat() to EmptyUserpic::GenerateRepliesMessages — the
+  // dedicated white reply-arrow glyph on the saved-messages blue gradient —
+  // instead of colored initials, mirroring isSelf's Saved Messages bookmark
+  // branch. (notifications_utilities.cpp:29-30, empty_userpic.cpp:147-161)
+  final bool isReplies;
   // Whether the user can send a text reply here (AyuGram's CanSendTexts(peer) &&
   // (!topic || CanSendTexts(topic))). Gates the inline reply button. Defaults
   // true so unrestricted chats keep the reply action.
@@ -156,6 +163,7 @@ class NotificationData {
     this.senderId = '',
     this.contentRich = '',
     this.isSelf = false,
+    this.isReplies = false,
     this.canSendText = true,
     this.isQuiz = false,
   });
@@ -217,6 +225,7 @@ class NotificationData {
     String? senderId,
     String? contentRich,
     bool? isSelf,
+    bool? isReplies,
     bool? canSendText,
     bool? isQuiz,
   }) {
@@ -277,6 +286,7 @@ class NotificationData {
       senderId: senderId ?? this.senderId,
       contentRich: contentRich ?? this.contentRich,
       isSelf: isSelf ?? this.isSelf,
+      isReplies: isReplies ?? this.isReplies,
       canSendText: canSendText ?? this.canSendText,
       isQuiz: isQuiz ?? this.isQuiz,
     );

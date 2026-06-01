@@ -2631,6 +2631,11 @@ class ChatState extends ChangeNotifier {
         // ("📅 PeerName") in _composeTitle, and gates the "You" subtitle —
         // mirrors AyuGram's peer->isSelf() (notifications_manager.cpp:1582).
         isSelf: chat?.isSelf ?? false,
+        // Replies chat → dedicated reply-arrow glyph instead of "R" initials in
+        // the avatar-less notification userpic (mirrors isSelf's Saved Messages
+        // bookmark) — AyuGram GenerateUserpic peer->isRepliesChat()
+        // (notifications_utilities.cpp:29-30).
+        isReplies: chat?.isReplies ?? false,
         isForumTopic: msg.topicId.isNotEmpty,
         topicTitle: msg.topicName,
         forwardFrom: msg.forwardFrom,

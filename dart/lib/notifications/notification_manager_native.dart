@@ -442,13 +442,18 @@ class NativeManager extends NotificationManager {
   }
 
   // AyuGram GenerateUserpic (notifications_utilities.cpp:26-32): the self-chat
-  // (Saved Messages) gets the dedicated bookmark glyph, every other avatar-less
-  // peer gets the colored-initials placeholder. Returns the cache key for the
-  // generated userpic (rawRgba via _userpicCache.getRawRgba, path via getPath),
-  // or null on failure.
+  // (Saved Messages) gets the dedicated bookmark glyph, the Replies chat gets the
+  // dedicated reply-arrow glyph, every other avatar-less peer gets the
+  // colored-initials placeholder. Returns the cache key for the generated userpic
+  // (rawRgba via _userpicCache.getRawRgba, path via getPath), or null on failure.
   Future<String?> _generateUserpicGlyph(NotificationData data) async {
     if (data.isSelf) {
       return _generateSavedMessagesUserpic();
+    }
+    // peer->isRepliesChat() → EmptyUserpic::GenerateRepliesMessages, BEFORE the
+    // placeholder fallthrough (notifications_utilities.cpp:29-30).
+    if (data.isReplies) {
+      return _generateRepliesUserpic();
     }
     final name = data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName;
     final peerId = data.chatTitle.isNotEmpty ? data.chatId : data.senderId;
@@ -535,6 +540,38 @@ class NativeManager extends NotificationManager {
     }
   }
 
+  // Replies-chat userpic, mirroring AyuGram's GenerateUserpic →
+  // EmptyUserpic::GenerateRepliesMessages (notifications_utilities.cpp:29-30,
+  // empty_userpic.cpp:147-161,433-470): a white reply-arrow glyph
+  // (st::dialogsRepliesUserpic) on the SAME saved-messages blue gradient AyuGram
+  // uses for both (PaintRepliesMessages :441-442 == PaintSavedMessages :402-403,
+  // historyPeerSavedMessagesBg → Bg2 == palette slot 3). Returns the cache key.
+  Future<String?> _generateRepliesUserpic() async {
+    const cacheKey = '__replies';
+    try {
+      final existing = _userpicCache._cache[cacheKey];
+      if (existing != null && File(existing.filePath).existsSync()) {
+        existing.lastUsed = DateTime.now();
+        return cacheKey;
+      }
+      final cacheDir = p.join(Directory.systemTemp.path, 'uniclient_userpics');
+      await Directory(cacheDir).create(recursive: true);
+
+      const size = 64;
+      final image = img.Image(width: size, height: size, numChannels: 4);
+      img.fill(image, color: img.ColorRgba8(0, 0, 0, 0));
+      final pair = _userpicGradients[3]; // historyPeerSavedMessagesBg (blue)
+      _drawGradientCircle(image, pair[0], pair[1], size);
+      _drawRepliesIcon(image, size);
+
+      await _storeGeneratedUserpic(cacheKey, cacheDir, image, 'replies');
+      return cacheKey;
+    } catch (e) {
+      Debug.log('NOTIF', 'Replies userpic generation failed: $e');
+      return null;
+    }
+  }
+
   // EmptyUserpic::paintCircle background: a vertical gradient (top→bottom) clipped
   // to a circle with an anti-aliased edge (transparent corners).
   static void _drawGradientCircle(
@@ -594,6 +631,80 @@ class NativeManager extends NotificationManager {
           final a = pts[s];
           final b = pts[(s + 1) % pts.length];
           final d = _distToSegment(fx, fy, a[0], a[1], b[0], b[1]);
+          if (d < best) best = d;
+        }
+        final coverage = (half - best + 0.5).clamp(0.0, 1.0);
+        if (coverage <= 0) continue;
+        final bg = image.getPixel(px, py);
+        final inv = 1.0 - coverage;
+        final outA = (coverage * 255).round();
+        image.setPixelRgba(
+          px,
+          py,
+          (bg.r * inv + 255 * coverage).round(),
+          (bg.g * inv + 255 * coverage).round(),
+          (bg.b * inv + 255 * coverage).round(),
+          bg.a < outA ? outA : bg.a.toInt(),
+        );
+      }
+    }
+  }
+
+  // Paints EmptyUserpic's Replies glyph (PaintRepliesMessagesInner,
+  // empty_userpic.cpp:147-161 → st::dialogsRepliesUserpic) in white over the
+  // already-painted gradient circle. Ports the reply-arrow glyph used by the chat
+  // list's _RepliesIconPainter (chat_list_row.dart:1953-1996) into the raster img
+  // pipeline, using the same per-pixel distance-to-segment test as
+  // _drawSavedMessagesBookmark — which yields the round caps/joins the chat-list
+  // painter draws with StrokeCap.round / StrokeJoin.round. Geometry constants are
+  // byte-identical to that painter (stroke s*0.06, arrowSize s*0.16, leftX
+  // cx-s*0.08, tip at cy-s*0.06).
+  static void _drawRepliesIcon(img.Image image, int size) {
+    final s = size.toDouble();
+    final stroke = s * 0.06;
+    final half = stroke / 2.0;
+    final arrowSize = s * 0.16;
+    final cx = s / 2.0;
+    final cy = s / 2.0;
+    final leftX = cx - s * 0.08;
+    final tipX = leftX - arrowSize; // arrowhead apex
+    final tipY = cy - s * 0.06;
+
+    // Glyph as a list of line segments (x0,y0,x1,y1). Round caps/joins emerge
+    // from the per-pixel min-distance test below.
+    final segs = <List<double>>[
+      // Arrowhead: apex → upper-right, apex → lower-right.
+      [tipX, tipY, leftX, tipY - arrowSize * 0.7],
+      [tipX, tipY, leftX, tipY + arrowSize * 0.7],
+      // Body: horizontal stem from the apex to the curve start.
+      [tipX, tipY, leftX + s * 0.12, tipY],
+    ];
+    // Body curve: quadratic bezier (leftX+0.12s, tipY) ctrl (leftX+0.2s, tipY)
+    // → (leftX+0.2s, cy+0.04s), decomposed into short segments.
+    final p0x = leftX + s * 0.12, p0y = tipY;
+    final ctlx = leftX + s * 0.2, ctly = tipY;
+    final p2x = leftX + s * 0.2, p2y = cy + s * 0.04;
+    const steps = 12;
+    var prevX = p0x, prevY = p0y;
+    for (var k = 1; k <= steps; k++) {
+      final t = k / steps;
+      final mt = 1.0 - t;
+      final x = mt * mt * p0x + 2 * mt * t * ctlx + t * t * p2x;
+      final y = mt * mt * p0y + 2 * mt * t * ctly + t * t * p2y;
+      segs.add([prevX, prevY, x, y]);
+      prevX = x;
+      prevY = y;
+    }
+    // Vertical tail.
+    segs.add([p2x, p2y, p2x, cy + s * 0.12]);
+
+    for (var py = 0; py < size; py++) {
+      for (var px = 0; px < size; px++) {
+        final fx = px.toDouble();
+        final fy = py.toDouble();
+        var best = double.infinity;
+        for (final seg in segs) {
+          final d = _distToSegment(fx, fy, seg[0], seg[1], seg[2], seg[3]);
           if (d < best) best = d;
         }
         final coverage = (half - best + 0.5).clamp(0.0, 1.0);
