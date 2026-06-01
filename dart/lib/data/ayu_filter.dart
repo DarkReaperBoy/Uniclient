@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -130,17 +131,7 @@ class _CompiledPattern {
   final RegExp? pattern;
 
   _CompiledPattern(this.filter)
-      : pattern = _tryCompile(filter.text, filter.caseInsensitive);
-
-  static RegExp? _tryCompile(String text, bool caseInsensitive) {
-    if (text.isEmpty) return null;
-    try {
-      return RegExp(text, multiLine: true, caseSensitive: !caseInsensitive);
-    } catch (e) {
-      debugPrint('FILTER FAILED: $text — $e');
-      return null;
-    }
-  }
+      : pattern = compileFilterPattern(filter.text, filter.caseInsensitive);
 
   bool matches(String blob) {
     if (blob.isEmpty) return false;
@@ -148,6 +139,173 @@ class _CompiledPattern {
     final found = pattern!.hasMatch(blob);
     return filter.reversed ? !found : found;
   }
+}
+
+final _filterIdRng = Random.secure();
+final _hex32 = RegExp(r'^[0-9a-fA-F]{32}$');
+
+/// Generates a filter id in AyuGram's wire format: a 16-byte UUID v4 rendered as a
+/// dash-formatted 32-hex string (8-4-4-4-12). AyuGram stores filter ids as 16 raw
+/// bytes and serialises them this way (`filters_utils.cpp:445-451,484-492`); its
+/// `ParseFilterId` (`filters_utils.cpp:202-213`) strips the dashes and skips any id
+/// that isn't exactly 32 hex chars / 16 bytes, so every id we create must match this
+/// shape to survive a round-trip through real AyuGram.
+String generateFilterId() {
+  final bytes = List<int>.generate(16, (_) => _filterIdRng.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
+  final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+      '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+}
+
+/// Canonicalises a filter id into AyuGram's exported wire format. AyuGram hex-encodes
+/// the 16 stored bytes and inserts dashes at 8/13/18/23 ("make it look like java's
+/// UUID", `filters_utils.cpp:445-451`). We mirror that: any 32-hex id (with or without
+/// dashes) becomes a dash-formatted UUID; ids that aren't 16-byte hex are emitted
+/// unchanged (real AyuGram's `ParseFilterId` skips them, exactly as it would any
+/// malformed id).
+String _formatFilterIdForWire(String id) {
+  final stripped = id.replaceAll('-', '');
+  if (!_hex32.hasMatch(stripped)) return id;
+  return '${stripped.substring(0, 8)}-${stripped.substring(8, 12)}-'
+      '${stripped.substring(12, 16)}-${stripped.substring(16, 20)}-'
+      '${stripped.substring(20)}';
+}
+
+final _icuUnicodeEscape = RegExp(r'\\[pPu]\{');
+final _braceQuantifier = RegExp(r'\{\d+(?:,\d*)?\}');
+
+// POSIX/ICU character-class names mapped to pure-Dart class bodies. ASCII
+// approximations: ICU's classes are Unicode-aware, but these let the pattern compile
+// and match instead of being silently dropped (Dart's RegExp has no POSIX classes).
+const _posixClassBodies = <String, String>{
+  'alpha': 'a-zA-Z',
+  'digit': '0-9',
+  'alnum': 'a-zA-Z0-9',
+  'upper': 'A-Z',
+  'lower': 'a-z',
+  'space': r'\s',
+  'blank': r' \t',
+  'word': r'\w',
+  'xdigit': '0-9a-fA-F',
+  'cntrl': r'\x00-\x1f\x7f',
+  'graph': r'\x21-\x7e',
+  'print': r'\x20-\x7e',
+  'punct': r'''!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~''',
+};
+
+/// Compiles a filter pattern the way the running engine does, bridging AyuGram's ICU
+/// engine (`UREGEX_MULTILINE` always, plus `UREGEX_CASE_INSENSITIVE` —
+/// `filters_cache_controller.cpp:55-59`) and pure Dart's RegExp (no ICU). It translates
+/// the ICU-only constructs that appear in shared/imported filters into the closest Dart
+/// equivalents (POSIX classes, possessive quantifiers — see `_translateIcuPattern`) and
+/// opts into Unicode mode so `\p{...}`/`\u{...}` property escapes resolve like ICU.
+/// Attempts run most-faithful → most-permissive so a filter is dropped only when nothing
+/// compiles; returns null in that case (the engine then treats the filter as
+/// non-matching, matching AyuGram which skips a pattern whose compile fails —
+/// `filters_cache_controller.cpp:61-63`).
+RegExp? compileFilterPattern(String text, bool caseInsensitive) {
+  if (text.isEmpty) return null;
+  final translated = _translateIcuPattern(text);
+  final candidates = <String>[translated, if (translated != text) text];
+  // ICU recognises \p{...}/\u{...} unconditionally; Dart only does in Unicode mode.
+  final modes = _icuUnicodeEscape.hasMatch(translated)
+      ? const <bool>[true, false]
+      : const <bool>[false];
+  for (final candidate in candidates) {
+    for (final unicode in modes) {
+      try {
+        return RegExp(candidate,
+            multiLine: true, unicode: unicode, caseSensitive: !caseInsensitive);
+      } catch (_) {
+        // fall through to the next, more permissive, attempt
+      }
+    }
+  }
+  debugPrint('FILTER FAILED: $text');
+  return null;
+}
+
+/// Rewrites the ICU-only regex syntax AyuGram filters may contain into pure-Dart
+/// equivalents, in a single escape-aware pass (so literal `\+`, `\[`, … are never
+/// mangled). Dart has no ICU, so:
+///   • POSIX classes `[[:alpha:]]` (meaningful only inside a `[...]` set) → ASCII ranges.
+///   • possessive quantifiers `a++`/`a*+`/`a?+`/`a{n,m}+` → greedy (Dart has no atomic
+///     groups; greedy matches the same strings for filtering purposes).
+/// `\p{...}`/`\u{...}` escapes are left intact and handled via Unicode mode in
+/// `compileFilterPattern`. Returns the text unchanged when no ICU-only construct is found.
+String _translateIcuPattern(String text) {
+  final out = StringBuffer();
+  final n = text.length;
+  var i = 0;
+  var inClass = false;
+  while (i < n) {
+    final ch = text[i];
+    if (ch == '\\') {
+      out.write(ch);
+      if (i + 1 < n) out.write(text[i + 1]);
+      i += 2;
+      continue;
+    }
+    if (inClass) {
+      if (ch == ']') {
+        inClass = false;
+        out.write(ch);
+        i++;
+        continue;
+      }
+      if (ch == '[' && i + 1 < n && text[i + 1] == ':') {
+        final close = text.indexOf(':]', i + 2);
+        if (close >= 0) {
+          var name = text.substring(i + 2, close);
+          if (name.startsWith('^')) name = name.substring(1);
+          final body = _posixClassBodies[name];
+          if (body != null) {
+            out.write(body);
+            i = close + 2;
+            continue;
+          }
+        }
+      }
+      out.write(ch);
+      i++;
+      continue;
+    }
+    if (ch == '[') {
+      inClass = true;
+      out.write(ch);
+      i++;
+      // a leading ^ negates the set; a leading ] (incl. right after ^) is a literal member
+      if (i < n && text[i] == '^') {
+        out.write('^');
+        i++;
+      }
+      if (i < n && text[i] == ']') {
+        out.write(']');
+        i++;
+      }
+      continue;
+    }
+    if (ch == '*' || ch == '+' || ch == '?') {
+      out.write(ch);
+      i++;
+      if (i < n && text[i] == '+') i++; // possessive marker → greedy
+      continue;
+    }
+    if (ch == '{') {
+      final m = _braceQuantifier.matchAsPrefix(text, i);
+      if (m != null) {
+        out.write(m.group(0));
+        i = m.end;
+        if (i < n && text[i] == '+') i++; // possessive {n,m}+ → greedy
+        continue;
+      }
+    }
+    out.write(ch);
+    i++;
+  }
+  return out.toString();
 }
 
 const _mediaTypeNames = <int, int>{
@@ -237,12 +395,17 @@ int _serviceMessageType(CachedMessage msg) {
       case 'gift_stars': return 30;
       case 'giveaway_results': return 28;
       case 'boost': return 10;
-      case 'group_call': return 16;
+      // No 'group_call' case: AyuGram's service branch returns 16 only for a real 1-1
+      // media->call(); a group-call action has no MediaCall, so it falls through to
+      // TYPE_DATE (10). ← filters_utils.cpp:604-635
     }
   }
 
+  // media->photo() && !isUserpicSuggestion() → TYPE_ACTION_PHOTO (suggest_photo is
+  // handled above as 21). A service message with a video has no service path in
+  // AyuGram, so it — like everything else — falls through to TYPE_DATE (10).
+  // ← filters_utils.cpp:604-635
   if (msg.mediaType == 1) return 11;
-  if (msg.mediaType == 2) return 8;
 
   return 10;
 }
@@ -277,7 +440,10 @@ String extractMatchBlob(CachedMessage msg, {List<CachedMessage>? groupMessages})
       }
     }
   } else {
-    buf.write(_extractSingleText(msg, extractedUrls: entityUrls));
+    // AyuGram trims the single-message text too (`extractSingle(item).trimmed()`,
+    // filters_utils.cpp:668); patterns compile multiline, so leading/trailing
+    // whitespace on the first/last line would otherwise flip ^…/…$-anchored matches.
+    buf.write(_extractSingleText(msg, extractedUrls: entityUrls).trim());
   }
 
   for (final row in msg.inlineKeyboard) {
@@ -376,8 +542,20 @@ class AyuFilterEngine extends ChangeNotifier {
 
   Map<String, dynamic> exportFilters({Map<String, String> peers = const {}}) => {
     'version': _backupVersion,
-    'filters': _filters.map((f) => f.toJson()).toList(),
-    'exclusions': _exclusions.map((e) => e.toJson()).toList(),
+    // AyuGram exports each id as a dash-formatted 32-hex UUID and skips anything its
+    // ParseFilterId can't decode to 16 bytes, so canonicalise ids on the way out to
+    // guarantee filters (and the exclusions that reference them) round-trip into real
+    // AyuGram. ← filters_utils.cpp:202-213,445-451,484-492,734-737
+    'filters': _filters.map((f) {
+      final json = f.toJson();
+      json['id'] = _formatFilterIdForWire(f.id);
+      return json;
+    }).toList(),
+    'exclusions': _exclusions.map((e) {
+      final json = e.toJson();
+      json['filterId'] = _formatFilterIdForWire(e.filterId);
+      return json;
+    }).toList(),
     'removeFiltersById': <String>[],
     'removeExclusions': <Map<String, dynamic>>[],
     'peers': peers,
@@ -631,6 +809,23 @@ class AyuFilterEngine extends ChangeNotifier {
     final dialogId = msg.chatId;
     if (_filteredMessagesShown[dialogId] == true) return false;
 
+    // AyuGram evaluates filterBlocked() on EVERY call — before isEnabled() and before
+    // the regex cache lookup — and never stores the block/shadowban verdict in the
+    // per-message cache (it only marks the dialog via putHiddenBlockedMessage). That is
+    // what lets blocking/unblocking (or a shadowban change) re-hide/re-show already
+    // rendered messages on the next render, instead of leaving them stale until the
+    // next rebuildCache(). ← filters_controller.cpp:161-164,
+    // filters_cache_controller.cpp:177-180
+    if (_filterBlocked(msg, appState)) {
+      _hiddenBlockedChats.add(dialogId);
+      return true;
+    }
+
+    if (!_isEnabledForChat(chatType, appState)) return false;
+
+    // The per-message cache holds only regex verdicts (block verdicts are recomputed
+    // every call above), mirroring AyuGram's filteredMessages map, which is checked
+    // after isEnabled(). ← filters_controller.cpp:166-171
     final cacheKey = '${msg.chatId}:${msg.msgId}';
     final cached = _messageCache[cacheKey];
     if (cached != null) return cached;
@@ -639,36 +834,6 @@ class AyuFilterEngine extends ChangeNotifier {
       _groupIndex['$dialogId:${msg.groupedId}'] =
           groupMessages.map((m) => m.msgId).toSet();
     }
-
-    final senderId = _parseSenderId(msg.senderId);
-    if (senderId != null && msg.senderId != msg.chatId) {
-      if (appState.isShadowBanned(senderId)) {
-        _hiddenBlockedChats.add(dialogId);
-        _cacheResult(cacheKey, true);
-        return true;
-      }
-      if (appState.hideFromBlocked && appState.isBlocked(senderId)) {
-        _hiddenBlockedChats.add(dialogId);
-        _cacheResult(cacheKey, true);
-        return true;
-      }
-    }
-
-    final fwdId = _parseForwardSenderId(msg.forwardFrom);
-    if (fwdId != null) {
-      if (appState.isShadowBanned(fwdId)) {
-        _hiddenBlockedChats.add(dialogId);
-        _cacheResult(cacheKey, true);
-        return true;
-      }
-      if (appState.hideFromBlocked && appState.isBlocked(fwdId)) {
-        _hiddenBlockedChats.add(dialogId);
-        _cacheResult(cacheKey, true);
-        return true;
-      }
-    }
-
-    if (!_isEnabledForChat(chatType, appState)) return false;
 
     final blob = extractMatchBlob(msg, groupMessages: groupMessages);
 
@@ -692,6 +857,25 @@ class AyuFilterEngine extends ChangeNotifier {
     }
 
     _cacheResult(cacheKey, false);
+    return false;
+  }
+
+  // AyuGram's filterBlocked()/isBlocked() (filters_controller.cpp:30-37,95-136): a
+  // shadowbanned sender always hides the message; a *blocked* sender hides only when
+  // hideFromBlocked is on. Both apply to the direct sender (when it isn't the chat peer
+  // itself) and to a forwarded message's original sender. filtersEnabled is already
+  // guaranteed true by the caller. The verdict is intentionally NOT cached.
+  bool _filterBlocked(CachedMessage msg, AppState appState) {
+    final senderId = _parseSenderId(msg.senderId);
+    if (senderId != null && msg.senderId != msg.chatId) {
+      if (appState.isShadowBanned(senderId)) return true;
+      if (appState.hideFromBlocked && appState.isBlocked(senderId)) return true;
+    }
+    final fwdId = _parseForwardSenderId(msg.forwardFrom);
+    if (fwdId != null) {
+      if (appState.isShadowBanned(fwdId)) return true;
+      if (appState.hideFromBlocked && appState.isBlocked(fwdId)) return true;
+    }
     return false;
   }
 

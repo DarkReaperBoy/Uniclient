@@ -2677,7 +2677,9 @@ class _ChatViewState extends State<ChatView>
               if (pattern.isEmpty) return;
               final appState = context.read<AppState>();
               final filter = RegexFilter(
-                id: DateTime.now().microsecondsSinceEpoch.toString(),
+                // Must be AyuGram's 16-byte UUID wire format, or ParseFilterId drops the
+                // filter (and any exclusion referencing it) on import. ← filters_utils.cpp:202-213
+                id: generateFilterId(),
                 text: pattern,
                 enabled: true,
                 caseInsensitive: caseInsensitive.value,

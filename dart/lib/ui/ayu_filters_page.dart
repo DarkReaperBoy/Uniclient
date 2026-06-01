@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1347,33 +1346,26 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
 
   String? _validateRegex(String pattern) {
     if (pattern.isEmpty) return null;
-    try {
-      // The running filter engine is Dart's RegExp (ayu_filter.dart
-      // _CompiledPattern, multiLine: true) — NOT Go's RE2. Like AyuGram Desktop's
-      // ICU engine it supports lookahead, lookbehind and backreferences, so — just
-      // like AyuGram's validateRegex (edit_filter.cpp:57-99, which only compiles the
-      // pattern with icu::RegexPattern) — the sole hard failure is one that does not
-      // compile. Compile with the same flags the engine uses so validation matches
-      // runtime behaviour exactly.
-      RegExp(pattern, multiLine: true, caseSensitive: !_caseInsensitive);
+    // Validate through the SAME path the running engine uses (compileFilterPattern in
+    // ayu_filter.dart), which translates ICU-only POSIX/possessive syntax and enables
+    // Unicode mode for \p{...}. Like AyuGram's validateRegex (edit_filter.cpp:57-99,
+    // which only compiles the pattern with icu::RegexPattern) the sole hard failure is
+    // one that does not compile at all — after translation.
+    if (compileFilterPattern(pattern, _caseInsensitive) != null) {
       if (_icuOnlyPatterns.hasMatch(pattern)) {
         _warning =
             'Uses Unicode-property/POSIX syntax — may behave differently than in AyuGram Desktop';
       }
       return null;
+    }
+    // Couldn't compile even after ICU translation — surface the underlying Dart RegExp
+    // error message for the user, mirroring AyuGram's compile-failure path.
+    try {
+      RegExp(pattern, multiLine: true, caseSensitive: !_caseInsensitive);
+      return 'Invalid regular expression';
     } on FormatException catch (e) {
       return e.message;
     }
-  }
-
-  String _generateUuidV4() {
-    final rng = Random.secure();
-    final bytes = List<int>.generate(16, (_) => rng.nextInt(256));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
-        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
   void _save() {
@@ -1393,7 +1385,9 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
     final appState = context.read<AppState>();
     final engine = appState.filterEngine;
     final isNew = widget.filter == null;
-    final filterId = widget.filter?.id ?? _generateUuidV4();
+    // Shared generator (ayu_filter.dart) so settings-page and in-chat quick-action ids
+    // are both AyuGram-compatible 16-byte UUIDs. ← filters_utils.cpp:202-213
+    final filterId = widget.filter?.id ?? generateFilterId();
     final filter = RegexFilter(
       id: filterId,
       text: text,
