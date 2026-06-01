@@ -16490,6 +16490,75 @@ func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, 
 		limit = 200
 	}
 
+	// Pending join requests use a different endpoint (messages.getChatInviteImporters
+	// with the `requested` flag) and date/user-based paging, not ChannelsGetParticipants.
+	// Page from the start each call, skipping `offset` already-shown rows, then collect up
+	// to `limit`. Mirrors AyuGram RequestsBoxController::loadMoreRows (kFirstPageCount=16/
+	// kPerPage=200). PromotedDate carries the request timestamp for the row's status text.
+	if role == "requests" {
+		inputPeer := &tg.InputPeerChannel{ChannelID: ch.ChannelID, AccessHash: hash}
+		var users []User
+		extras := map[int64]ParticipantExtra{}
+		offsetDate := 0
+		var offsetUser tg.InputUserClass = &tg.InputUserEmpty{}
+		skipped := 0
+		for len(users) < limit {
+			batch := offset + limit - skipped - len(users)
+			if batch > 200 {
+				batch = 200
+			}
+			if batch <= 0 {
+				break
+			}
+			res, err := t.api.MessagesGetChatInviteImporters(t.ctx, &tg.MessagesGetChatInviteImportersRequest{
+				Requested:  true,
+				Peer:       inputPeer,
+				Q:          query,
+				OffsetDate: offsetDate,
+				OffsetUser: offsetUser,
+				Limit:      batch,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			t.cacheEntities(res.Users, nil)
+			userByID := make(map[int64]*tg.User, len(res.Users))
+			for _, u := range res.Users {
+				if uu, ok := u.(*tg.User); ok {
+					userByID[uu.ID] = uu
+				}
+			}
+			if len(res.Importers) == 0 {
+				break
+			}
+			for _, imp := range res.Importers {
+				offsetDate = imp.Date
+				if uu := userByID[imp.UserID]; uu != nil {
+					offsetUser = &tg.InputUser{UserID: uu.ID, AccessHash: uu.AccessHash}
+				} else {
+					offsetUser = &tg.InputUser{UserID: imp.UserID, AccessHash: t.getCachedUserHash(imp.UserID)}
+				}
+				if skipped < offset {
+					skipped++
+					continue
+				}
+				if len(users) >= limit {
+					break
+				}
+				if uu := userByID[imp.UserID]; uu != nil {
+					cu := t.convertUser(uu)
+					cu.Role = "member"
+					users = append(users, *cu)
+					extras[imp.UserID] = ParticipantExtra{PromotedDate: imp.Date}
+				}
+			}
+			if len(res.Importers) < batch {
+				break
+			}
+		}
+		return users, extras, nil
+	}
+
 	var filter tg.ChannelParticipantsFilterClass
 	switch role {
 	case "admins":

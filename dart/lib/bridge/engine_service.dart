@@ -382,6 +382,24 @@ class EngineService {
     await _callAsync('__engine', 'UnbanMember', Uint8List.fromList(payload));
   }
 
+  /// Approves (approved=true) or dismisses (approved=false) a pending join
+  /// request. Mirrors AyuGram's RequestsBoxController::processRequest →
+  /// messages.hideChatJoinRequest.
+  Future<void> processJoinRequest(
+    String accountId,
+    String chatId,
+    String userId,
+    bool approved,
+  ) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'user_id': userId,
+      'approved': approved,
+    }));
+    await _callAsync('__engine', 'ProcessJoinRequest', Uint8List.fromList(payload));
+  }
+
   Future<void> demoteAdmin(String accountId, String chatId, String userId) async {
     final req = epb.EngineDemoteAdminRequest()
       ..accountId = accountId

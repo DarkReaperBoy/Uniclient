@@ -1222,86 +1222,157 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     final currentColorId = fullInfo['peer_color_id'] as int? ?? -1;
     final currentStatusId = (fullInfo['emoji_status_id'] as int?) ?? 0;
     final currentBgEmojiId = (fullInfo['background_emoji_id'] as int?) ?? 0;
-    final statusCtrl = TextEditingController(text: currentStatusId != 0 ? '$currentStatusId' : '');
-    final bgEmojiCtrl = TextEditingController(text: currentBgEmojiId != 0 ? '$currentBgEmojiId' : '');
+
+    // Pre-load the custom-emoji pool + thumbnails so the dialog shows a real
+    // visual picker instead of asking the user to type document IDs. Mirrors
+    // AyuGram's edit_peer_color_box EmojiListWidget / EmojiStatusPanel
+    // (edit_peer_color_box.cpp:747) — the user can never know numeric IDs.
+    List<int> emojiIds = [];
+    Map<int, CustomEmojiThumbData> emojiThumbs = {};
+    try {
+      emojiIds = await engine.getBackgroundEmojiList(widget.chat.accountId);
+      if (emojiIds.isNotEmpty) {
+        emojiThumbs = await engine.getCustomEmojiThumbs(
+            widget.chat.accountId, emojiIds.take(60).toList());
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    // Ensure the currently-set emoji is selectable even if outside the pool.
+    final pickIds = <int>[
+      if (currentStatusId != 0 && !emojiIds.contains(currentStatusId)) currentStatusId,
+      if (currentBgEmojiId != 0 && !emojiIds.contains(currentBgEmojiId)) currentBgEmojiId,
+      ...emojiIds,
+    ];
 
     final result = await showDialog<(int, int, int)?>(
       context: context,
       builder: (ctx) {
         int selectedColor = currentColorId;
+        int selectedStatus = currentStatusId;
+        int selectedBgEmoji = currentBgEmojiId;
+
+        Widget emojiPicker(int selectedId, ValueChanged<int> onPick) {
+          return SizedBox(
+            height: 132,
+            child: SingleChildScrollView(
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  // "Off" chip — clears the emoji (AyuGram's no-emoji option).
+                  GestureDetector(
+                    onTap: () => onPick(0),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: selectedId == 0
+                            ? Border.all(color: accentColor, width: 2)
+                            : Border.all(color: subTextColor.withValues(alpha: 0.3)),
+                      ),
+                      child: Icon(Icons.block, size: 18, color: subTextColor),
+                    ),
+                  ),
+                  ...pickIds.map((id) {
+                    final isSel = id == selectedId;
+                    final b64 = emojiThumbs[id]?.thumbB64 ?? '';
+                    return GestureDetector(
+                      onTap: () => onPick(id),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: isSel ? accentColor.withValues(alpha: 0.1) : null,
+                          border: isSel ? Border.all(color: accentColor, width: 2) : null,
+                        ),
+                        child: b64.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: Image.memory(
+                                  base64Decode(b64),
+                                  width: 28,
+                                  height: 28,
+                                  fit: BoxFit.contain,
+                                  gaplessPlayback: true,
+                                  errorBuilder: (_, __, ___) =>
+                                      Icon(Icons.emoji_emotions_outlined, size: 20, color: subTextColor),
+                                ),
+                              )
+                            : Icon(Icons.emoji_emotions_outlined, size: 20, color: subTextColor),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          );
+        }
+
         return StatefulBuilder(
           builder: (ctx, setLocalState) => AlertDialog(
             backgroundColor: bgColor,
             title: Text('Color & Emoji', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
             content: SizedBox(
               width: 300,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Name Color', style: TextStyle(color: subTextColor, fontSize: 13)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: colors.map((c) {
-                      final color = c.dayColors.isNotEmpty
-                          ? Color(0xFF000000 | c.dayColors.first)
-                          : const Color(0xFF999999);
-                      final isSelected = c.colorId == selectedColor;
-                      return GestureDetector(
-                        onTap: () => setLocalState(() => selectedColor = c.colorId),
-                        child: Container(
-                          width: 36, height: 36,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: color,
-                            border: isSelected
-                                ? Border.all(color: accentColor, width: 2.5)
-                                : null,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Name Color', style: TextStyle(color: subTextColor, fontSize: 13)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: colors.map((c) {
+                        final color = c.dayColors.isNotEmpty
+                            ? Color(0xFF000000 | c.dayColors.first)
+                            : const Color(0xFF999999);
+                        final isSelected = c.colorId == selectedColor;
+                        return GestureDetector(
+                          onTap: () => setLocalState(() => selectedColor = c.colorId),
+                          child: Container(
+                            width: 36, height: 36,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: color,
+                              border: isSelected
+                                  ? Border.all(color: accentColor, width: 2.5)
+                                  : null,
+                            ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('Emoji Status ID', style: TextStyle(color: subTextColor, fontSize: 13)),
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: statusCtrl,
-                    style: TextStyle(color: textColor, fontSize: 14),
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      hintText: 'Custom emoji ID (0 to remove)',
-                      hintStyle: TextStyle(color: subTextColor.withValues(alpha: 0.5)),
-                      isDense: true,
-                      border: const UnderlineInputBorder(),
+                        );
+                      }).toList(),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text('Background Emoji ID', style: TextStyle(color: subTextColor, fontSize: 13)),
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: bgEmojiCtrl,
-                    style: TextStyle(color: textColor, fontSize: 14),
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      hintText: 'Background emoji ID (0 to remove)',
-                      hintStyle: TextStyle(color: subTextColor.withValues(alpha: 0.5)),
-                      isDense: true,
-                      border: const UnderlineInputBorder(),
-                    ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    Text('Emoji Status', style: TextStyle(color: subTextColor, fontSize: 13)),
+                    const SizedBox(height: 6),
+                    if (pickIds.isEmpty)
+                      Text('No custom emoji available',
+                          style: TextStyle(color: subTextColor.withValues(alpha: 0.6), fontSize: 12))
+                    else
+                      emojiPicker(selectedStatus, (id) => setLocalState(() => selectedStatus = id)),
+                    const SizedBox(height: 14),
+                    Text('Background Emoji', style: TextStyle(color: subTextColor, fontSize: 13)),
+                    const SizedBox(height: 6),
+                    if (pickIds.isEmpty)
+                      Text('No custom emoji available',
+                          style: TextStyle(color: subTextColor.withValues(alpha: 0.6), fontSize: 12))
+                    else
+                      emojiPicker(selectedBgEmoji, (id) => setLocalState(() => selectedBgEmoji = id)),
+                  ],
+                ),
               ),
             ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: TextStyle(color: subTextColor))),
               TextButton(
                 onPressed: () {
-                  final statusId = int.tryParse(statusCtrl.text.trim()) ?? 0;
-                  final bgEmojiId = int.tryParse(bgEmojiCtrl.text.trim()) ?? 0;
-                  Navigator.pop(ctx, (selectedColor, statusId, bgEmojiId));
+                  Navigator.pop(ctx, (selectedColor, selectedStatus, selectedBgEmoji));
                 },
                 child: Text('Save', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
               ),
@@ -1310,8 +1381,6 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         );
       },
     );
-    statusCtrl.dispose();
-    bgEmojiCtrl.dispose();
     if (result == null || !mounted) return;
     final (colorId, statusId, bgEmojiId) = result;
     try {
@@ -6914,7 +6983,9 @@ class _MemberTabBody extends StatelessWidget {
               ? 'No removed users'
               : tab == _MemberTab.restricted
                   ? 'No restricted users'
-                  : 'No participants found',
+                  : tab == _MemberTab.requests
+                      ? 'There are no pending join requests.'
+                      : 'No participants found',
           style: TextStyle(fontSize: 14, color: subColor),
         ),
       );
@@ -7103,7 +7174,30 @@ class _MemberRow extends StatelessWidget {
     required this.onRefresh,
   });
 
+  // Request rows show "requested to join …" with the request timestamp
+  // (member.promotedDate carries the join-request date). Mirrors AyuGram
+  // PrepareRequestedRowStatus (edit_peer_invite_link.cpp:1736).
+  String _requestedStatus() {
+    final ts = member.promotedDate;
+    if (ts <= 0) return 'wants to join';
+    final dt = DateTime.fromMillisecondsSinceEpoch(ts * 1000);
+    final now = DateTime.now();
+    final time =
+        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final dateOnly = DateTime(dt.year, dt.month, dt.day);
+    final today = DateTime(now.year, now.month, now.day);
+    final diff = today.difference(dateOnly).inDays;
+    if (diff == 0) return 'requested to join today at $time';
+    if (diff == 1) return 'requested to join yesterday at $time';
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    return 'requested to join ${months[dt.month - 1]} ${dt.day} at $time';
+  }
+
   String _statusText() {
+    if (tab == _MemberTab.requests) return _requestedStatus();
     if (member.customRank.isNotEmpty) return member.customRank;
     switch (member.role) {
       case 'creator':
@@ -7280,8 +7374,117 @@ class _MemberRow extends StatelessWidget {
     } catch (_) {}
   }
 
+  // Approves or dismisses a pending join request. Mirrors AyuGram
+  // RequestsBoxController::processRequest (edit_peer_requests_box.cpp:419):
+  // approve/dismiss fire immediately (no confirm), the row is removed, and an
+  // approval shows the "{user} has been added to the …" toast.
+  void _processRequest(BuildContext context, EngineService engine, bool approved) async {
+    try {
+      await engine.processJoinRequest(accountId, chatId, member.userId, approved);
+      if (context.mounted && approved) {
+        showTelegramToast(
+          context,
+          '${member.label} has been added to the ${isChannel ? 'channel' : 'group'}.',
+        );
+      }
+      onRefresh();
+    } catch (e) {
+      if (context.mounted) showTelegramToast(context, 'Failed: $e');
+    }
+  }
+
+  // Accept (filled accent) + Dismiss (light) buttons for a join-request row.
+  // Labels/sizing mirror requestsAcceptButton/requestsRejectButton + the
+  // lng_group_requests_add[_channel]/dismiss strings (boxes.style:1006).
+  Widget _buildRequestButtons(BuildContext context) {
+    final engine = context.read<EngineService>();
+    final lightBg = isDark
+        ? accentColor.withValues(alpha: 0.18)
+        : accentColor.withValues(alpha: 0.10);
+    Widget button(String label, bool filled, VoidCallback onTap) {
+      return Material(
+        color: filled ? accentColor : lightBg,
+        borderRadius: BorderRadius.circular(4),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            height: 30,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Center(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: filled ? Colors.white : accentColor,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        Flexible(
+          child: button(
+            isChannel ? 'Add to Channel' : 'Add to Group',
+            true,
+            () => _processRequest(context, engine, true),
+          ),
+        ),
+        const SizedBox(width: 9),
+        button('Dismiss', false, () => _processRequest(context, engine, false)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isRequest = tab == _MemberTab.requests;
+    final mainRow = Row(
+      children: [
+        _buildAvatar(),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      member.label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  _buildBadge(),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _statusText(),
+                style: TextStyle(fontSize: 13, color: _statusColor()),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
     return InkWell(
       onSecondaryTapDown: (d) => _showContextMenu(context, d.globalPosition),
       onLongPress: () {
@@ -7289,50 +7492,30 @@ class _MemberRow extends StatelessWidget {
         final pos = box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2));
         _showContextMenu(context, pos);
       },
-      child: SizedBox(
-        height: 56,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              _buildAvatar(),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            member.label,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: textColor,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        _buildBadge(),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _statusText(),
-                      style: TextStyle(fontSize: 13, color: _statusColor()),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
+      child: isRequest
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  mainRow,
+                  const SizedBox(height: 8),
+                  // Buttons left-aligned under the name (avatar 42 + 12 gap),
+                  // matching AyuGram requestAcceptPosition x≈71 (boxes.style:1016).
+                  Padding(
+                    padding: const EdgeInsets.only(left: 54),
+                    child: _buildRequestButtons(context),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-      ),
+            )
+          : SizedBox(
+              height: 56,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: mainRow,
+              ),
+            ),
     );
   }
 }

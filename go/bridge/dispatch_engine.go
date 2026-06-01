@@ -265,6 +265,18 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.UnbanMember(params.AccountID, params.ChatID, params.UserID)
 
+	case "ProcessJoinRequest":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			UserID    string `json:"user_id"`
+			Approved  bool   `json:"approved"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ProcessJoinRequest(params.AccountID, params.ChatID, params.UserID, params.Approved)
+
 	case "DemoteAdmin":
 		var req pb.EngineDemoteAdminRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

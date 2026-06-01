@@ -827,6 +827,23 @@ func (e *Engine) UnbanMember(accountID, chatID, userID string) error {
 	return fmt.Errorf("platform does not support UnbanMember")
 }
 
+// ProcessJoinRequest approves or dismisses a pending join request for a user
+// in a channel/supergroup or basic group. Mirrors AyuGram's
+// RequestsBoxController::processRequest (messages.hideChatJoinRequest).
+func (e *Engine) ProcessJoinRequest(accountID, chatID, userID string, approved bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type joinRequestProcessor interface {
+		HideChatJoinRequest(chatID, userID string, approved bool) error
+	}
+	if p, ok := acc.Core.(joinRequestProcessor); ok {
+		return p.HideChatJoinRequest(chatID, userID, approved)
+	}
+	return fmt.Errorf("platform does not support ProcessJoinRequest")
+}
+
 type AdminRights struct {
 	ChangeInfo     bool
 	DeleteMessages bool
