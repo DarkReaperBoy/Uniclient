@@ -3992,7 +3992,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _showChannelReactions = data['showChannelReactions'] as bool? ?? true;
       _showGroupReactions = data['showGroupReactions'] as bool? ?? true;
       _showPrivateChatReactions = data['showPrivateChatReactions'] as bool? ?? true;
-      _recentStickersCount = data['recentStickersCount'] as int? ?? 100;
+      // Clamp on load to AyuGram's valid range (validateRange 1..200,
+      // ayu_settings.cpp:519). setRecentStickersCount also clamps on set, so a
+      // stale/hand-edited 0 (or >200) from an older build is corrected here.
+      _recentStickersCount =
+          ((data['recentStickersCount'] as int?) ?? 100).clamp(1, 200);
       _channelBottomButton = data['channelBottomButton'] as int? ?? 2;
       _quickAdminShortcuts = data['quickAdminShortcuts'] as bool? ?? true;
       _showMessageShot = data['showMessageShot'] as bool? ?? true;

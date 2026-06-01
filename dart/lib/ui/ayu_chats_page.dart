@@ -141,7 +141,7 @@ class AyuChatsPage extends StatelessWidget {
       b.addWidget(_EditMarkButton(
         label: 'Edited mark text',
         currentValue: appState.editedMark,
-        defaultValue: 'edited',
+        defaultValue: TrStrings.lngEdited(),
         onSaved: (v) => appState.setEditedMark(v),
         isDark: isDark,
       ));
@@ -916,7 +916,7 @@ class _MessagePreviewStandalone extends StatelessWidget {
       } else {
         marks.add(Padding(
           padding: const EdgeInsets.only(right: 3),
-          child: Text('edited',
+          child: Text(TrStrings.lngEdited(),
               style: TextStyle(fontSize: 11, color: metaColor)),
         ));
       }

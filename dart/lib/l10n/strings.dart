@@ -130,6 +130,12 @@ class TrStrings {
   static String lngSettingsSave() => 'Save';
   static String lngAyuBoxActionReset() => 'Reset';
 
+  // Localized default "edited" mark (lang.strings:2838 "lng_edited" = "edited").
+  // AyuGram seeds the edited-mark default and the EditMarkBox with
+  // tr::lng_edited(tr::now) (ayu_settings.cpp:358, settings_chats.cpp:189),
+  // so non-English users get their localized word instead of literal "edited".
+  static String lngEdited() => 'edited';
+
   // Active sessions termination (settings_active_sessions.cpp,
   // self_destruction_box.cpp). Confirm-box copy matches AyuGram's
   // Ui::MakeConfirmBox + st::attentionBoxButton ("Terminate") usage.
