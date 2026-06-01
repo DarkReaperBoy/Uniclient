@@ -518,70 +518,31 @@ the "hidden-blocked dialogs cleared only on rebuild" behaviour all match AyuGram
 
 ## Findings
 
-- [ ] [MAJOR] Single (non-album) message text is NOT trimmed before matching, but
-  AyuGram trims it. Dart writes `buf.write(_extractSingleText(msg, ...))` with no
-  `.trim()` for the single-message branch, while the album branch does trim
-  (`ayu_filter.dart:273` trims, `:280` does not). AyuGram trims in BOTH branches:
-  album items `extractSingle(groupItem).trimmed()` and single
-  `text = extractSingle(item).trimmed()`. Because patterns compile with multiline
-  mode, leading/trailing whitespace on the first/last line changes whether
-  `^…`/`…$`-anchored regexes match. A message `" hello "` → AyuGram first line
-  `hello` (matches `^hello$`), Dart first line ` hello ` (does not). —
-  `ayu_filter.dart:280` ← `AyuGram/.../filters_utils.cpp:668`
+All 5 findings resolved & verified on 2026-06-01 against AyuGram source (code review +
+22-case unit test + live app, desktop 1024×768 + mobile 400×720, no FILTER FAILED):
+(1) Single (non-album) message text is now trimmed before matching, like AyuGram's
+`extractSingle(item).trimmed()` ← filters_utils.cpp:668.
+(2) Block/shadowban verdict is evaluated on EVERY isFiltered() call — before isEnabled()
+and before the regex cache — and never cached (only the dialog is marked via
+`_hiddenBlockedChats`), so block/unblock & shadowban changes re-hide/re-show already-rendered
+messages instead of going stale until rebuildCache() ← filters_controller.cpp:161-171.
+(3) Filter ids use AyuGram's 16-byte UUID-v4 wire format via shared `generateFilterId()`; the
+in-chat quick-filter no longer emits a decimal microsecond ts that ParseFilterId drops on import;
+`exportFilters` canonicalises every id/exclusion filterId ← filters_utils.cpp:202-213,445-451,734-737.
+(4) Service-type mapping dropped `group_call`→16 and `mediaType==2`→8; 16 is emitted only
+for a real 1-1 call, group calls/service videos fall through to TYPE_DATE (10) ← filters_utils.cpp:604-635.
+(5) ICU→Dart regex bridge: `compileFilterPattern()`/`_translateIcuPattern()` translate POSIX
+classes and possessive quantifiers in an escape-aware pass and opt into Unicode mode for
+`\p{...}`/`\u{...}`; the validator (`_validateRegex`) shares that path ← filters_cache_controller.cpp:55-59.
 
-- [ ] [MAJOR] Blocked/shadowban verdicts are written into the same `_messageCache`
-  and the cache is consulted BEFORE the block check, so block/unblock and
-  shadowban changes do not take effect on already-evaluated messages. Dart returns
-  the cached value at `ayu_filter.dart:636` before reaching the block checks at
-  `:643-669`, and those checks call `_cacheResult(cacheKey, true)` (`:647,651,660,665`),
-  persisting the block verdict. AyuGram deliberately evaluates `filterBlocked(item)`
-  on EVERY call, before the regex cache lookup, and never stores block verdicts in
-  its per-message cache (`filtered()`: block check at `filters_controller.cpp:161-164`
-  → `putHiddenBlockedMessage` only; regex cache checked afterwards at `:168`). Result:
-  in AyuGram, blocking/unblocking a sender re-hides/re-shows their already-rendered
-  messages on the next render; in the Dart they stay stale until `rebuildCache()`
-  (which block-state changes don't trigger). —
-  `ayu_filter.dart:634-636,643-669` ← `AyuGram/.../filters_controller.cpp:161-171`
+## Notes (known platform limitation — not flagged)
 
-- [ ] [MAJOR] Filter IDs are exported verbatim with no validation/normalization to
-  AyuGram's wire format, so filters created via the in-chat quick-action are
-  silently dropped when imported into real AyuGram. `RegexFilter.toJson`
-  (`ayu_filter.dart:46`) and `exportFilters` (`:379`) emit `id` as the raw string.
-  AyuGram requires each id to be a 16-byte value encoded as a 32-hex-char
-  (dash-formatted) UUID: `ParseFilterId` strips dashes and rejects anything whose
-  length isn't 32 / 16 bytes, and `prepareChanges` does `if (regex.id.empty()) continue;`.
-  The settings-page generator (`ayu_filters_page.dart:1369/1396 _generateUuidV4()`)
-  is compatible, but the chat quick-filter generator
-  `id: DateTime.now().microsecondsSinceEpoch.toString()` (`chat_view.dart:2674`)
-  produces a ~16-digit decimal → `ParseFilterId` returns empty → that filter (and
-  any exclusion referencing it) is skipped on AyuGram import, breaking the
-  cross-client sharing this feature exists for. —
-  `ayu_filter.dart:46,379` (+`chat_view.dart:2674`) ← `AyuGram/.../filters_utils.cpp:202-213,734-737`
-
-- [ ] [MAJOR] Service-message type mapping adds cases AyuGram doesn't have, yielding
-  different `<type>` values for some service messages. Dart `_serviceMessageType`
-  maps `group_call → 16` (`ayu_filter.dart:240`) and the fallback `mediaType==2 → 8`
-  (`:245`). AyuGram's `typeOfMessage` service branch only emits 16 for a real 1-1
-  `media->call()`; a group-call service action has no `MediaCall` and a video has no
-  service path, so both fall through to `return 10; // TYPE_DATE`
-  (`filters_utils.cpp:604-635`). So a `<type>16</type>` filter over-matches (catches
-  group calls) and a `<type>10</type>` filter under-matches in the Dart vs AyuGram.
-  (`phone_call→16`, `set_photo→11`, `suggest_photo→21`, `wallpaper→22`,
-  `gift_premium→18/25`, `gift_stars→30`, `giveaway_results→28`, `boost→10` are all
-  correct.) — `ayu_filter.dart:240,245` ← `AyuGram/.../filters_utils.cpp:604-635`
-
-- [ ] [MAJOR] Regex engine semantics differ: AyuGram compiles patterns with ICU
-  (`icu::RegexPattern::compile`, `UREGEX_MULTILINE` always + `UREGEX_CASE_INSENSITIVE`)
-  and matches via `icu::RegexMatcher::find()`. The Dart uses
-  `RegExp(text, multiLine: true, caseSensitive: !caseInsensitive)` (Dart's
-  ECMAScript/IRRegexp engine) with `pattern.hasMatch(blob)`. Flags and
-  search-anywhere semantics line up, but ICU-only syntax in a shared/imported
-  filter — POSIX classes (`[[:alpha:]]`), `\p{...}` Unicode-property escapes,
-  possessive quantifiers — either fails to compile (silently dropped at
-  `ayu_filter.dart:139-142`) or matches differently than it did in AyuGram. This is
-  a platform constraint (no ICU in pure Dart), but it means imported AyuGram filters
-  are not guaranteed to behave identically. —
-  `ayu_filter.dart:138` ← `AyuGram/.../filters_cache_controller.cpp:55-59`
+- Negated POSIX classes `[[:^alpha:]]` are translated to their *positive* body (the leading `^`
+  is stripped and the positive range emitted), so a negated POSIX class would match the opposite
+  set. This is a rare ICU-only construct and Dart character classes cannot express nested
+  set-negation the way ICU does, so it sits in the same "no ICU in pure Dart" bucket as finding 5.
+  The common POSIX classes (`[[:alpha:]]`, `[[:digit:]]`, combined) compile and match correctly. —
+  `ayu_filter.dart` (`_translateIcuPattern` POSIX branch)
 
 # emoji_data — emoji keyword search & language-pack manager
 
