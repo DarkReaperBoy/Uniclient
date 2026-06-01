@@ -34,7 +34,6 @@ mirror the C++. No placeholders, empty callbacks, TODOs, or mock data.
 
 ## Findings
 
-
 # chat_state — chat list / active chat / messages / folders / forum / saved-sublists state (ChangeNotifier)
 
 Audited `dart/lib/state/chat_state.dart` (2925 lines) against AyuGram Desktop C++ source.
@@ -214,7 +213,6 @@ soft-light / destination-in pattern compositing (`wallpaper.dart:599-628` ←
 `chat_theme.cpp:941`). The issues below are real deviations from that authority.
 
 ## MAJOR
-
 
 # active_sessions_screen — Active Sessions / device management
 
@@ -479,8 +477,6 @@ in the file's comments was cross-checked and is accurate (subsection title
 + thumb `7.5px` from `seekSize 15px`; divider band `8px` `boxDividerBg`). One genuine
 behavioral defect found:
 
-- [ ] [MAJOR] Slider has an off-by-one max: `_AyuSlider` sets `max: widget.steps` and `divisions: widget.steps`, which Flutter renders as `steps+1` discrete stops (indices `0..steps`). AyuGram passes `args.steps` as `valuesCount` to `setPseudoDiscrete`, which computes `sectionsCount = valuesCount - 1` → valid indices `0..steps-1`. Callers pass `steps = valuesCount` (AyuGram `settings_chats.cpp:79` `.steps = 200 + 1`; the Dart caller copies `steps: 201` with identity `indexToValue`). Result: the Dart "Recent Stickers Count" slider lets the user drag to index 201 and `onChanged` writes the out-of-range value **201** (AyuGram caps at 200); the thumb at value 200 also sits left of full-right since the track spans `0..201`. Fix: `max: (widget.steps - 1).toDouble()`, `divisions: widget.steps - 1`. — `ayu_section_builder.dart:503-505` (also init `502`, `464`) ← `Telegram/SourceFiles/ui/widgets/continuous_sliders.h:181-186` (via `ayu_builder.cpp:223-228`, caller `settings_chats.cpp:79`)
-
 # ayu_toggle — AyuGram `defaultToggle` switch (ToggleView replica)
 
 Audited `dart/lib/ui/ayu_toggle.dart` against AyuGram's `ToggleView` (`lib_ui/ui/widgets/checkbox.cpp`) and the `defaultToggle` style (`lib_ui/ui/widgets/widgets.style:874-890`).
@@ -488,8 +484,6 @@ Audited `dart/lib/ui/ayu_toggle.dart` against AyuGram's `ToggleView` (`lib_ui/ui
 The geometry/painting port is faithful: dimensions (border 2 / diameter 14|16 / width 14 / shift -2|1 / animPadding 2), `getSize` → totalW/totalH, track RRect, thumb ellipse, the material `animPadding` deflation (`interpolateToF(animPadding,0,t)=animPadding*(1-t)`, `animation_value.h:102`), and the color lerps (track + thumb-border = checkboxFg→windowBgActive, thumb-fill = windowBg) all match line-for-line. The XV/lock paint branches are correctly omitted — `defaultToggle` sets xsize/vsize/stroke = 0 and no lockIcon, so those branches never execute. `onChanged` is a real controlled-component callback wired by callers (`ayu_section_builder.dart:409`), not a stub.
 
 One behavioral deviation found:
-
-- [ ] [MAJOR] Non-material toggle animation runs at 150ms instead of 120ms. AyuGram switches **both** the duration **and** the curve on `isMaterialSwitches()`: material → `_duration` (=`st.duration`=150ms, `widgets.style:879`) + `easeOutCubic`; non-material → `st::defaultToggleDuration` (=`universalDuration`=120ms, `basic.style:131`) + `linear` (`checkbox.cpp:61-62`). The Dart port switches only the curve (`isMat ? Curves.easeOutCubic : Curves.linear`) but hardcodes the `AnimationController` duration to 150ms for both modes. Because `materialSwitches` is a real persisted, user-toggleable setting (`app_state.dart:979-980`, default true) that callers pass through as `isMaterial` (`ghost_settings_page.dart:367-370`), the non-material path is reachable and animates 25% too slow. Fix: make the controller duration `isMaterial ? 150ms : 120ms` to mirror the C++ duration switch. — `ayu_toggle.dart:30` (hardcoded `Duration(milliseconds: 150)`) ← `AyuGram/Telegram/lib_ui/ui/widgets/checkbox.cpp:61` (`isMaterialSwitches() ? _duration : st::defaultToggleDuration`; `defaultToggleDuration`=`universalDuration`=120, `AyuGram/Telegram/lib_ui/ui/basic.style:131`)
 
 # engine_service — FFI service-layer wrapper for the Go engine
 
@@ -506,10 +500,6 @@ no placeholder/mock data, no empty callbacks, no "coming soon" snackbars, no
 `getPaidMessagesConfig` commission 150‰) are last-resort error-path defaults that match
 Telegram's known config defaults; the real values always come from the engine, so they are
 not "faked data" violations. Only the two items below are genuine defects.
-
-- [ ] [MAJOR] Voice waveform decoder hardcodes a fixed 100-sample loop instead of deriving the sample count from the encoded byte length. AyuGram's `documentWaveformDecode` computes `valuesCount = (size * 8) / 5` and decodes exactly that many 5-bit bars, so it renders waveforms of any length. The Dart `_decode5BitWaveform` loops `for (int i = 0; i < 100; i++)` and relies on a `byteIdx >= raw.length` break. The per-bar bit math is equivalent, and the break correctly handles waveforms **shorter** than 100 samples, but any waveform **longer** than 100 samples (≥64 encoded bytes) is silently truncated to 100 bars. The decoder is the production path for both chat voice messages (`_cachedMsgFromProto` → `mediaWaveform`) and the shared-media audio list (`_sharedMediaItemFromProto` → `waveform`). (Standard Telegram voice messages are capped at 100 samples by the sender, so the common path matches; the deviation affects only over-length waveforms originating from other clients/bots.) — `engine_service.dart:6587` ← `AyuGram/Telegram/SourceFiles/data/data_document.cpp:1333`
-
-- [ ] [MAJOR] `dispose()` leaks two broadcast `StreamController`s — it closes 20 of the 22 controllers but omits `_msgReactionsUpdatedController` (declared `engine_service.dart:45`, fed at `engine_service.dart:6117`) and `_notifySettingsController` (declared `engine_service.dart:56`, fed at `engine_service.dart:6185`). On teardown these controllers are never `.close()`d, so their listeners never receive `onDone` and the resources are not released. No AyuGram C++ analog (this is a Dart object-lifecycle defect); reference is the in-file declaration/dispatch sites vs. the incomplete close list. — `engine_service.dart:5916` ← `engine_service.dart:45,56`
 
 # ayu_filter — Regex message-filtering engine
 
