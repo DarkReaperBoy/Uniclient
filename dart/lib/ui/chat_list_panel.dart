@@ -1095,6 +1095,7 @@ class _ChatListPanelState extends State<ChatListPanel>
             peerName: chat.title,
             canRevoke: chat.type == ChatType.dm,
             isBot: chat.isBot,
+            isInFolder: cs.isChatInAnyFolder(chat.chatId),
             peerAvatarPath: chat.avatarPath,
           ).then((r) {
             if (!r.confirmed) return;
@@ -1642,6 +1643,7 @@ class _ChatListPanelState extends State<ChatListPanel>
               peerName: chat.title,
               canRevoke: chat.type == ChatType.dm,
               isBot: chat.isBot,
+              isInFolder: chatState2.isChatInAnyFolder(chat.chatId),
               peerAvatarPath: chat.avatarPath,
             ).then((r) {
               if (!r.confirmed) return;
@@ -1663,6 +1665,7 @@ class _ChatListPanelState extends State<ChatListPanel>
               chatType: chat.type,
               peerName: chat.title,
               isBot: chat.isBot,
+              isInFolder: chatState2.isChatInAnyFolder(chat.chatId),
               peerAvatarPath: chat.avatarPath,
             ).then((r) {
               if (!r.confirmed) return;
@@ -5099,9 +5102,13 @@ class _ForumTopicListViewState extends State<_ForumTopicListView> {
           mode: DeleteBoxMode.leaveChat,
           chatType: parent.type,
           peerName: parent.title,
+          isInFolder: chatState.isChatInAnyFolder(parent.chatId),
           peerAvatarPath: parent.avatarPath,
         ).then((r) {
           if (r.confirmed) {
+            if (r.removeFromFolders) {
+              chatState.removeChatFromAllFolders(parent.accountId, parent.chatId);
+            }
             chatState.leaveChat(parent.accountId, parent.chatId);
             chatState.closeForum();
           }

@@ -287,6 +287,7 @@ type Message struct {
 	Views         int                    `json:"views,omitempty"`    // view count (channel posts)
 	Forwards      int                    `json:"forwards,omitempty"` // forward/share count (channel posts)
 	NoForwards    bool                   `json:"no_forwards,omitempty"` // message-level forwarding restriction (AyuNoForwards flag)
+	PaidPostType  int                    `json:"paid_post_type,omitempty"` // suggested-post payment type: 0=none, 1=stars, 2=ton (drives the delete-warning, delete_messages_box.cpp:527-548)
 	Platform      string                 `json:"platform"`
 	Extra         map[string]interface{} `json:"extra,omitempty"` // platform-specific metadata
 }

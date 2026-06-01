@@ -141,6 +141,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV38,
 	migrateV39,
 	migrateV40,
+	migrateV41,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -819,5 +820,15 @@ func migrateV40(tx *sql.Tx) error {
 		return nil
 	}
 	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN forward_from_id TEXT`)
+	return err
+}
+
+// migrateV41 adds paid_post_type column to messages table (suggested-post payment:
+// 0=none, 1=stars, 2=ton) for the paid-post delete warning.
+func migrateV41(tx *sql.Tx) error {
+	if columnExists(tx, "messages", "paid_post_type") {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN paid_post_type INTEGER NOT NULL DEFAULT 0`)
 	return err
 }

@@ -3178,6 +3178,9 @@ class _ChatViewState extends State<ChatView>
     final chat = chatState.activeChat;
     final count = _selectedMsgIds.length;
     final ids = _selectedMsgIds.toList();
+    final idSet = _selectedMsgIds;
+    final warnPaid = computePaidPostWarning(
+        chatState.messages.where((m) => idSet.contains(m.msgId)));
     showDeleteConfirmBox(
       context,
       mode: DeleteBoxMode.bulkMessages,
@@ -3186,6 +3189,8 @@ class _ChatViewState extends State<ChatView>
       messageCount: count,
       canRevoke: chat?.type == ChatType.dm,
       showModeratePanel: chat?.isAdmin == true,
+      isPaidPost: warnPaid != null,
+      paidPostType: warnPaid ?? PaidPostType.stars,
     ).then((result) {
       if (!result.confirmed) return;
       for (final id in ids) {
@@ -3197,6 +3202,7 @@ class _ChatViewState extends State<ChatView>
 
   void _showDeleteMessageConfirm(ChatState chatState, CachedMessage msg, ChatInfo? chat) {
     final isModerating = chat?.isAdmin == true && !msg.isOutgoing;
+    final warnPaid = computePaidPostWarning([msg]);
     showDeleteConfirmBox(
       context,
       mode: DeleteBoxMode.singleMessage,
@@ -3208,6 +3214,8 @@ class _ChatViewState extends State<ChatView>
       moderateFromName: isModerating ? msg.senderName : null,
       chatId: chat?.chatId,
       accountId: msg.accountId,
+      isPaidPost: warnPaid != null,
+      paidPostType: warnPaid ?? PaidPostType.stars,
     ).then((result) {
       if (result.confirmed) chatState.deleteMessage(msg.msgId);
     });
@@ -6535,6 +6543,7 @@ class _ChatTopBar extends StatelessWidget {
             peerName: chat.title,
             canRevoke: chat.type == ChatType.dm,
             isBot: chat.isBot,
+            isInFolder: chatState.isChatInAnyFolder(chat.chatId),
             peerAvatarPath: chat.avatarPath,
           ).then((r) {
             if (!r.confirmed) return;
@@ -6553,6 +6562,7 @@ class _ChatTopBar extends StatelessWidget {
             chatType: chat.type,
             peerName: chat.title,
             isBot: chat.isBot,
+            isInFolder: chatState.isChatInAnyFolder(chat.chatId),
             peerAvatarPath: chat.avatarPath,
           ).then((r) {
             if (!r.confirmed) return;

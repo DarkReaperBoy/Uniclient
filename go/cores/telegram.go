@@ -11219,6 +11219,14 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		m.Extra["no_forwards"] = true
 	}
 
+	// Paid suggested-post flags (Ton takes precedence over Stars, matching
+	// HistoryItem::paidType / FlagsFromMTP in history_item_helpers.cpp:871-875).
+	if msg.PaidSuggestedPostTon {
+		m.PaidPostType = 2
+	} else if msg.PaidSuggestedPostStars {
+		m.PaidPostType = 1
+	}
+
 	if gid, ok := msg.GetGroupedID(); ok && gid != 0 {
 		m.GroupedID = strconv.FormatInt(gid, 10)
 	}

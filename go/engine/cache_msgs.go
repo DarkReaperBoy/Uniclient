@@ -48,6 +48,7 @@ type CachedMessage struct {
 	HasMedia     bool   `json:"has_media"`
 	GroupedID    string `json:"grouped_id,omitempty"`
 	NoForwards   bool   `json:"no_forwards"`
+	PaidPostType int    `json:"paid_post_type,omitempty"` // suggested-post payment: 0=none, 1=stars, 2=ton
 
 	// Anti-recall metadata.
 	IsDeleted bool  `json:"is_deleted"`
@@ -91,7 +92,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 
 	const cols = `account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at`
+			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type`
 
 	var rows *sql.Rows
 	var err error
@@ -175,7 +176,7 @@ func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, e
 	rows, err := e.db.Query(
 		`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 		        content_text, content_raw, content_rich, timestamp, edited_at,
-		        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
+		        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type
 		 FROM messages
 		 WHERE account_id = ? AND chat_id = ? AND is_pinned = 1
 		 ORDER BY timestamp DESC`, accountID, chatID)
@@ -229,7 +230,7 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 			&m.AccountID, &m.ChatID, &m.MsgID, &localID, &senderID, &senderName, &senderRank, &m.SenderColorID,
 			&m.ContentText, &contentRaw, &contentRich, &m.Timestamp, &editedAt,
 			&m.Status, &replyToID, &replyPreview, &forwardFrom, &forwardFromID, &isPinned, &isOutgoing, &isService, &hasMedia, &groupedID,
-			&noForwards, &isDeleted, &deletedAt,
+			&noForwards, &isDeleted, &deletedAt, &m.PaidPostType,
 		); err != nil {
 			return msgs, err
 		}
@@ -444,8 +445,8 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		`INSERT INTO messages
 		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 		  content_raw, content_rich, content_text, timestamp, edited_at,
-		  status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, topic_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		  status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, topic_id, paid_post_type)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, chat_id, msg_id) DO UPDATE SET
 		  local_id=excluded.local_id, sender_id=excluded.sender_id, sender_name=excluded.sender_name,
 		  sender_rank=excluded.sender_rank, sender_color_id=excluded.sender_color_id,
@@ -454,11 +455,11 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		  reply_to_id=excluded.reply_to_id, reply_preview=excluded.reply_preview, forward_from=excluded.forward_from,
 		  forward_from_id=excluded.forward_from_id,
 		  is_pinned=excluded.is_pinned, is_outgoing=excluded.is_outgoing, is_service=excluded.is_service,
-		  has_media=excluded.has_media, grouped_id=excluded.grouped_id, no_forwards=excluded.no_forwards, topic_id=excluded.topic_id`,
+		  has_media=excluded.has_media, grouped_id=excluded.grouped_id, no_forwards=excluded.no_forwards, topic_id=excluded.topic_id, paid_post_type=excluded.paid_post_type`,
 		accountID, chatID, msg.ID, nil, msg.SenderID, msg.SenderName, nullStr(msg.SenderRank), msg.SenderColorID,
 		rawBytes, richBytes, msg.Text, ts, editedAt,
 		status, nullStr(msg.ReplyToID), nullStr(msg.ReplyPreview),
-		nullStr(msg.ForwardFrom), nullStr(msg.ForwardFromID), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards), nullStr(topicID))
+		nullStr(msg.ForwardFrom), nullStr(msg.ForwardFromID), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards), nullStr(topicID), msg.PaidPostType)
 
 	// Cache media references.
 	for i, att := range msg.Attachments {
@@ -489,6 +490,7 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		HasMedia:     hasMedia,
 		GroupedID:    msg.GroupedID,
 		NoForwards:   msg.NoForwards,
+		PaidPostType: msg.PaidPostType,
 	}
 
 	// Populate media metadata from what we just cached so the returned
@@ -2503,7 +2505,7 @@ func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, off
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
+			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ? AND is_deleted = 1 AND content_text LIKE ? ESCAPE '\'
 			 ORDER BY timestamp DESC
@@ -2512,7 +2514,7 @@ func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, off
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
+			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ? AND is_deleted = 1
 			 ORDER BY timestamp DESC

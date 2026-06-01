@@ -909,6 +909,17 @@ class ChatState extends ChangeNotifier {
     await loadFoldersForAccount(accountId);
   }
 
+  /// Whether [chatId] is in the "always include" list of any loaded folder.
+  /// Mirrors AyuGram's removeFromChatsFilters(history).empty() check
+  /// (moderate_messages_box.cpp:1034-1042) used to decide whether to offer the
+  /// "Remove … from all folders" checkbox in the delete/leave box.
+  bool isChatInAnyFolder(String chatId) {
+    for (final folder in _folders) {
+      if (folder.chatIds.contains(chatId)) return true;
+    }
+    return false;
+  }
+
   Future<void> removeChatFromAllFolders(String accountId, String chatId) async {
     for (final folder in _folders) {
       if (folder.chatIds.contains(chatId)) {

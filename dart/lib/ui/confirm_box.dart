@@ -453,6 +453,28 @@ class DeleteConfirmResult {
 
 enum PaidPostType { stars, ton }
 
+/// `stars_suggested_post_age_min` app-config default (main_app_config.cpp:249-251),
+/// expressed in milliseconds to match CachedMessage.timestamp (Unix ms).
+const int kSuggestedPostAgeMinMs = 86400 * 1000;
+
+/// Computes the paid-suggested-post delete warning for a set of messages, mirroring
+/// `DeleteMessagesBox::paidPostType` (delete_messages_box.cpp:527-548): a recent
+/// (now < date, or now-date ≤ the suggested-post age window) paid suggested post
+/// triggers the warning, with Ton taking precedence over Stars. Returns null when no
+/// message warrants a warning.
+PaidPostType? computePaidPostWarning(Iterable<CachedMessage> messages) {
+  final nowMs = DateTime.now().millisecondsSinceEpoch;
+  PaidPostType? result;
+  for (final m in messages) {
+    if (m.paidPostType == 0) continue;
+    if (m.timestamp > nowMs || nowMs - m.timestamp <= kSuggestedPostAgeMinMs) {
+      if (m.paidPostType == 2) return PaidPostType.ton; // Ton wins immediately
+      if (m.paidPostType == 1) result = PaidPostType.stars;
+    }
+  }
+  return result;
+}
+
 Future<DeleteConfirmResult> showDeleteConfirmBox(
   BuildContext context, {
   required DeleteBoxMode mode,
@@ -468,6 +490,7 @@ Future<DeleteConfirmResult> showDeleteConfirmBox(
   PaidPostType paidPostType = PaidPostType.stars,
   int messagesTTL = 0,
   bool isBot = false,
+  bool isInFolder = false,
   String peerAvatarPath = '',
   String? moderateFromId,
   String? moderateFromName,
@@ -492,6 +515,7 @@ Future<DeleteConfirmResult> showDeleteConfirmBox(
       paidPostType: paidPostType,
       messagesTTL: messagesTTL,
       isBot: isBot,
+      isInFolder: isInFolder,
       peerAvatarPath: peerAvatarPath,
       moderateFromId: moderateFromId,
       moderateFromName: moderateFromName,
@@ -517,6 +541,7 @@ class _DeleteContent extends StatefulWidget {
   final PaidPostType paidPostType;
   final int messagesTTL;
   final bool isBot;
+  final bool isInFolder;
   final String peerAvatarPath;
   final String? moderateFromId;
   final String? moderateFromName;
@@ -539,6 +564,7 @@ class _DeleteContent extends StatefulWidget {
     this.paidPostType = PaidPostType.stars,
     this.messagesTTL = 0,
     this.isBot = false,
+    this.isInFolder = false,
     this.peerAvatarPath = '',
     this.moderateFromId,
     this.moderateFromName,
@@ -762,6 +788,27 @@ class _DeleteContentState extends State<_DeleteContent> {
           ? 'Edit auto-delete settings'
           : 'Enable auto-delete';
 
+  // AyuGram maybeChatsFiltersCheckbox gate (moderate_messages_box.cpp:1045-1051):
+  // history = (isBot || !maybeUser) ? owner().history(peer) : nullptr, then only if
+  // removeFromChatsFilters(history) is non-empty. In Dart terms: a bot OR a non-user peer
+  // (group/channel/topic — never a plain user DM), and only when the chat is in ≥1 folder.
+  bool get _showRemoveFromFoldersCheckbox {
+    if (widget.mode != DeleteBoxMode.leaveChat) return false;
+    if (!widget.isInFolder) return false;
+    return widget.isBot || widget.chatType != ChatType.dm;
+  }
+
+  // AyuGram label selection (moderate_messages_box.cpp:1057-1063):
+  // bot → remove_bot; broadcast channel (isChannel && !isMegagroup) → remove_channel;
+  // otherwise (group/megagroup) → remove_group.
+  String get _removeFromFoldersLabel {
+    if (widget.isBot) return TrStrings.lngFiltersCheckboxRemoveBot();
+    if (widget.chatType == ChatType.channel) {
+      return TrStrings.lngFiltersCheckboxRemoveChannel();
+    }
+    return TrStrings.lngFiltersCheckboxRemoveGroup();
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -861,14 +908,20 @@ class _DeleteContentState extends State<_DeleteContent> {
                   : const SizedBox.shrink(),
             ),
           ],
+          // "Stop and block bot" — AyuGram maybeBotCheckbox (moderate_messages_box.cpp:1020-1032),
+          // shown for any bot peer regardless of folder membership.
           if (widget.isBot && widget.mode == DeleteBoxMode.leaveChat) ...[
             const SizedBox(height: kBoxMediumSkip),
             _checkbox(TrStrings.lngProfileBlockBot(), _blockBot,
                 (v) => setState(() => _blockBot = v ?? false), checkClr, textFg),
-            const SizedBox(height: kBoxLittleSkip),
-            // Bot-only gate (widget.isBot above) mirrors AyuGram's maybeBotCheckbox
-            // branch → lng_filters_checkbox_remove_bot (moderate_messages_box.cpp:1057-1058).
-            _checkbox(TrStrings.lngFiltersCheckboxRemoveBot(), _removeFromFolders,
+          ],
+          // "Remove {bot|group|channel} from all folders" — AyuGram maybeChatsFiltersCheckbox
+          // (moderate_messages_box.cpp:1045-1066): shown for a bot OR a group/channel (never a
+          // plain user DM), and only when the chat is actually in at least one folder. The label
+          // is chosen by entity type.
+          if (_showRemoveFromFoldersCheckbox) ...[
+            SizedBox(height: widget.isBot ? kBoxLittleSkip : kBoxMediumSkip),
+            _checkbox(_removeFromFoldersLabel, _removeFromFolders,
                 (v) => setState(() => _removeFromFolders = v ?? false), checkClr, textFg),
           ],
           if (_showAutoDeleteLink) ...[

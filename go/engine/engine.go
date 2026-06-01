@@ -1196,6 +1196,7 @@ func (e *Engine) GetScheduledMessages(accountID, chatID string) ([]CachedMessage
 			ScheduleDate: m.Timestamp.Unix(),
 			IsOutgoing:   m.IsOutgoing,
 			HasMedia:     hasMedia,
+			PaidPostType: m.PaidPostType,
 		}
 		if m.Extra != nil {
 			if v, ok := m.Extra["is_silent"].(bool); ok && v {

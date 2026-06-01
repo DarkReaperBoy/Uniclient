@@ -547,6 +547,10 @@ class CachedMessage {
   // Message-level forwarding restriction (AyuNoForwards flag).
   final bool noForwards;
 
+  // Suggested-post payment type: 0=none, 1=stars, 2=ton. Drives the paid-post
+  // delete warning (delete_messages_box.cpp:527-548 / HistoryItem::paidType).
+  final int paidPostType;
+
   // Unsupported TTL media (MessageMediaUnsupported with self-destruct timer).
   final bool unsupportedTTL;
 
@@ -742,6 +746,7 @@ class CachedMessage {
     this.viaBotName = '',
     this.mediaSpoiler = false,
     this.noForwards = false,
+    this.paidPostType = 0,
     this.unsupportedTTL = false,
     this.senderNoForwards = false,
     this.groupedId = '',
@@ -883,6 +888,7 @@ class CachedMessage {
       deletedAt: j['deleted_at'] as int? ?? 0,
       mediaSpoiler: j['media_spoiler'] as bool? ?? (extra['media_spoiler'] as bool? ?? false),
       noForwards: j['no_forwards'] as bool? ?? (extra['no_forwards'] as bool? ?? false),
+      paidPostType: j['paid_post_type'] as int? ?? (extra['paid_post_type'] as int? ?? 0),
       unsupportedTTL: extra['unsupported_ttl'] as bool? ?? false,
       senderNoForwards: j['sender_no_forwards'] as bool? ?? false,
       groupedId: j['grouped_id'] as String? ?? '',
@@ -1180,6 +1186,7 @@ class CachedMessage {
     String? viaBotName,
     bool? mediaSpoiler,
     bool? noForwards,
+    int? paidPostType,
     bool? unsupportedTTL,
     bool? senderNoForwards,
     String? groupedId,
@@ -1324,6 +1331,7 @@ class CachedMessage {
     viaBotName: viaBotName ?? this.viaBotName,
     mediaSpoiler: mediaSpoiler ?? this.mediaSpoiler,
     noForwards: noForwards ?? this.noForwards,
+    paidPostType: paidPostType ?? this.paidPostType,
     unsupportedTTL: unsupportedTTL ?? this.unsupportedTTL,
     senderNoForwards: senderNoForwards ?? this.senderNoForwards,
     groupedId: groupedId ?? this.groupedId,
