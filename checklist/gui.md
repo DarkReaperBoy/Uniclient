@@ -307,10 +307,7 @@ shake (4px/300ms), 2FA/recovery field tops (74/96/151/220) all match.
 **No placeholders, stubs, mock data, or unwired elements — no CRITICAL items.**
 The findings below are real deviations from AyuGram's behavior/values.
 
-- [ ] [MAJOR] OTP code-cell borders are not theme-driven and use the wrong palette tokens. AyuGram drives all three states from the theme palette — focused `windowActiveTextFg` (#168acd), unfocused `windowBgRipple`, error `activeLineFgError` — so cells follow custom themes. Dart hardcodes the unfocused border to `#3A4A5A`/`#D0D0D0` (ignores the theme entirely, visibly wrong under custom/dark themes), uses `activeLineFg` (#37a1de) for focus, and `colorScheme.error` for error. The Dart palette already exposes `windowBgRipple`/`windowActiveTextFg`/`activeLineFgError`, so the hardcode is avoidable. — `auth_screen.dart:2026` ← `intro/intro_code_input.cpp:339`
 - [ ] [MAJOR] Phone screen is missing the persistent "Log in by QR code" link. AyuGram's PhoneWidget always shows a `lng_phone_to_qr` ("Quick log in using QR code") link that jumps straight to the QR step; the Dart phone form (country picker + code + phone fields) has no QR link — only the reverse (QR → "Log in by phone number") exists at `auth_screen.dart:1182`. Reaching QR from phone requires Back→choose→pick-QR instead of one tap. — `auth_screen.dart:1302` ← `intro/intro_phone.cpp:111`
-- [ ] [MAJOR] 2FA "next" button is labeled "Next" instead of "Submit". AyuGram's PasswordCheckWidget overrides the next-button text to `lng_intro_submit` = "Submit" for the password step; the Dart `_nextButtonText` falls through to the default 'Next' for state `2fa`. — `auth_screen.dart:289` ← `intro/intro_password_check.cpp:405`
-- [ ] [MAJOR] Signup "finish" button is labeled "Start Messaging" instead of "Sign Up". AyuGram's SignupWidget sets next-button text to `lng_intro_finish` = "Sign Up"; the Dart's `TrStrings.lngIntroFinish()` (the function explicitly mirroring `lng_intro_finish`) returns 'Start Messaging' (`strings.dart:8`), so the wrong label renders. — `auth_screen.dart:290` ← `intro/intro_signup.cpp:209`
 
 # ayu_chats_page — audit vs AyuGram settings_chats.cpp
 
@@ -681,8 +678,6 @@ render the wrong text to users today, "latent" items are defined-but-not-yet-con
 and will render wrong text once wired.
 
 ## WIRED — wrong text shown to users now
-
-- [ ] [MAJOR] `lngIntroFinish()` returns `'Start Messaging'` but `lng_intro_finish` = `"Sign Up"`; this is wired to the signup submit button (`auth_screen.dart:290` `'signup' => TrStrings.lngIntroFinish()`), which in AyuGram shows "Sign Up". `'Start Messaging'` is the unrelated `lng_start_msgs` key (not used anywhere in AyuGram source). — `strings.dart:8` ← `AyuGram/Telegram/Resources/langs/lang.strings:383` (consumer `intro/intro_signup.cpp:210`, `intro/intro_widget.cpp:684`)
 
 - [ ] [MAJOR] `lngThemeReverting(count)` returns `'Theme will revert in $count second(s)'` but `lng_theme_reverting#one/#other` = `"Reverting to the old theme in {count} second(s)."` — wholesale-different sentence (and missing trailing period). Wired at `main.dart:2579`. — `strings.dart:16` ← `AyuGram/Telegram/Resources/langs/lang.strings:1086` (consumer `window/themes/window_theme_warning.cpp:113`)
 
