@@ -590,13 +590,7 @@ and will render wrong text once wired.
 
 ## WIRED — wrong text shown to users now
 
-- [ ] [MAJOR] `lngThemeReverting(count)` returns `'Theme will revert in $count second(s)'` but `lng_theme_reverting#one/#other` = `"Reverting to the old theme in {count} second(s)."` — wholesale-different sentence (and missing trailing period). Wired at `main.dart:2579`. — `strings.dart:16` ← `AyuGram/Telegram/Resources/langs/lang.strings:1086` (consumer `window/themes/window_theme_warning.cpp:113`)
-
-- [ ] [MAJOR] `lngAyuForwardStatusPreparing()` returns `'Preparing...'` but `ayu_AyuForwardStatusPreparing` = `"Forwarding messages"`. In AyuGram the Preparing state shows "Forwarding messages" (same string as the Sending state), never "Preparing...". Wired at `ayu_forward.dart:18`. — `strings.dart:139` ← `AyuGram/Telegram/Resources/langs/lang.strings:8323` (consumer `ayu/features/forward/ayu_forward.cpp:85`)
-
-- [ ] [MAJOR] Poll-vote notification strings drop the "your poll" ownership context that AyuGram uses. `lngNotifVotedInPoll()` = `'Voted in a poll'` vs `lng_poll_vote_notext` = `"voted in your poll"`; `lngNotifVotedFor(opt)` = `'Voted for «$option»'` vs `lng_poll_vote_option` = `"voted for \"{option}\" in your poll"` (omits "in your poll" + uses «» instead of straight quotes); `lngNotifVotedInPollNamed(q)` = `'Voted in poll: $question'` vs `lng_poll_vote` = `"voted in your poll \"{title}\""`. Wired at `notification_types.dart:478-488`. — `strings.dart:66` ← `AyuGram/Telegram/Resources/langs/lang.strings:637`
-
-- [ ] [MAJOR] Reaction notification strings are paraphrased rather than matched to the `lng_reaction_*` family. `lngNotifReactedToText(e,t)` = `'$emoji to: $text'` vs `lng_reaction_text` = `"{reaction} to your \"{text}\""`; `lngNotifReactedToContact(e,n)` = `'$emoji to contact: $name'` vs `lng_reaction_contact` = `"{reaction} to your contact {name}"`; `lngNotifReactedToLocation(e)` = `'$emoji to your location'` vs `lng_reaction_location` = `"{reaction} to your map"` (word substitution "location"→"map"). Wired at `notification_types.dart:462-471`. — `strings.dart:85` ← `AyuGram/Telegram/Resources/langs/lang.strings:621`
+_All wired string issues resolved — verified verbatim against `lang.strings`._
 
 ## LATENT — defined but not yet consumed; wrong values vs source
 
