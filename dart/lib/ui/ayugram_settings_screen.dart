@@ -13,6 +13,7 @@ import 'ayu_chats_page.dart';
 import 'ayu_filters_page.dart';
 import 'ayu_general_page.dart';
 import 'ayu_other_page.dart';
+import 'box_content_divider.dart';
 import 'ghost_settings_page.dart';
 import 'settings_style.dart';
 
@@ -24,8 +25,6 @@ class AyuGramSettingsScreen extends StatelessWidget {
     final appState = context.watch<AppState>();
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final dividerColor =
-        isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
     final sectionLabelColor =
         isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
     final subtitleColor =
@@ -118,7 +117,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
           ),
 
           const SizedBox(height: 32),
-          Container(height: 1, color: dividerColor),
+          const BoxContentDivider(),
           const SizedBox(height: 7),
 
           // Categories section (§54.17)
@@ -173,7 +172,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
           ),
 
           const SizedBox(height: 7),
-          Container(height: 1, color: dividerColor),
+          const BoxContentDivider(),
           const SizedBox(height: 7),
 
           // Links section (§54.17)
