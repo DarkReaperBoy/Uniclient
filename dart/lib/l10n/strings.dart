@@ -15,7 +15,7 @@ class TrStrings {
   // Theme confirmation overlay (window_theme_warning.cpp)
   static String lngThemeSureKeep() => 'Keep this theme?';
   static String lngThemeReverting(int count) =>
-      'Theme will revert in $count second${count == 1 ? '' : 's'}';
+      'Reverting to the old theme in $count second${count == 1 ? '' : 's'}.';
   static String lngThemeKeepChanges() => 'Keep Changes';
   static String lngThemeRevert() => 'Revert';
 
@@ -64,10 +64,11 @@ class TrStrings {
   static String lngNotifLiveLocation() => 'Live location';
   static String lngNotifContact() => 'Contact';
   static String lngNotifInvoice() => 'Invoice';
-  static String lngNotifVotedInPoll() => 'Voted in a poll';
-  static String lngNotifVotedFor(String option) => 'Voted for «$option»';
+  static String lngNotifVotedInPoll() => 'voted in your poll';
+  static String lngNotifVotedFor(String option) =>
+      'voted for "$option" in your poll';
   static String lngNotifVotedInPollNamed(String question) =>
-      'Voted in poll: $question';
+      'voted in your poll "$question"';
   static String lngNotifReactedToMessage(String emoji) =>
       '$emoji to your message';
   static String lngNotifReactedToPhoto(String emoji) => '$emoji to your photo';
@@ -91,15 +92,15 @@ class TrStrings {
           ? '$emoji to your quiz'
           : '$emoji to your quiz "$question"';
   static String lngNotifReactedToLocation(String emoji) =>
-      '$emoji to your location';
+      '$emoji to your map';
   static String lngNotifReactedToContact(String emoji, String name) =>
-      '$emoji to contact: $name';
+      '$emoji to your contact $name';
   static String lngNotifReactedToContactPlain(String emoji) =>
       '$emoji to your contact';
   static String lngNotifReactedToInvoice(String emoji) =>
       '$emoji to your invoice';
   static String lngNotifReactedToText(String emoji, String text) =>
-      '$emoji to: $text';
+      '$emoji to your "$text"';
 
   // Report reactions (info_profile_actions.cpp:1302-1339)
   static String lngReportReactionTitle() => 'Report reaction';
@@ -112,19 +113,23 @@ class TrStrings {
   static String lngEditAutoDeleteSettings() => 'Edit auto-delete settings';
 
   // Paid post types (delete_messages_box.cpp:563-576)
-  static String lngSuggestWarnTitleTon() => 'Delete TON Suggested Post';
-  static String lngSuggestWarnTitleStars() => 'Delete Stars Suggested Post';
+  static String lngSuggestWarnTitleTon() => 'TON will be lost';
+  static String lngSuggestWarnTitleStars() => 'Stars will be lost';
   static String lngSuggestWarnTextTon() =>
-      'This is a paid suggested post. The TON payment will be lost if you delete it. Are you sure you want to delete it anyway?';
+      "You won't receive **TON** for the post if you delete it now. "
+      'The post must remain visible for at least **24 hours** after it was published.';
   static String lngSuggestWarnTextStars() =>
-      'This is a paid suggested post. The Stars payment will be lost if you delete it. Are you sure you want to delete it anyway?';
+      "You won't receive **Stars** for the post if you delete it now. "
+      'The post must remain visible for at least **24 hours** after it was published.';
   static String lngSuggestWarnDeleteAnyway() => 'Delete Anyway';
 
   // Delete chat box (moderate_messages_box.cpp:1020-1066)
-  static String lngProfileBlockBot() => 'Block bot';
-  static String lngFiltersCheckboxRemoveBot() => 'Remove from chat folders';
-  static String lngFiltersCheckboxRemoveChannel() => 'Remove from chat folders';
-  static String lngFiltersCheckboxRemoveGroup() => 'Remove from chat folders';
+  static String lngProfileBlockBot() => 'Stop and block bot';
+  static String lngFiltersCheckboxRemoveBot() => 'Remove bot from all folders';
+  static String lngFiltersCheckboxRemoveChannel() =>
+      'Remove channel from all folders';
+  static String lngFiltersCheckboxRemoveGroup() =>
+      'Remove group from all folders';
 
   // Common dialog buttons (edit_mark_box.cpp:44-58, layers.style)
   static String lngSettingsSave() => 'Save';
@@ -150,7 +155,7 @@ class TrStrings {
       'this period, it will be terminated.';
 
   // AyuForward status strings (ayu_forward.cpp:64-89)
-  static String lngAyuForwardStatusPreparing() => 'Preparing...';
+  static String lngAyuForwardStatusPreparing() => 'Forwarding messages';
   static String lngAyuForwardStatusForwarding() => 'Forwarding messages';
   static String lngAyuForwardStatusLoadingMedia() => 'Loading media';
   static String lngAyuForwardStatusFinished() => 'Done';
