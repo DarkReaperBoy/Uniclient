@@ -550,15 +550,32 @@ Dart port of AyuGram's `chat_helpers/emoji_keywords.cpp` (LangPack manager, quer
 
 Core path is genuinely wired (NOT a stub): engine fetch in `chat_view.dart:3789` (`getEmojiKeywordsLanguages`→`getEmojiKeywords`/`getEmojiKeywordsDiff`), versioned diff, `recordRecent` on pick (`chat_view.dart:3874/3895`), recents persisted via `saveCallback` (`main.dart:321`), and `searchEmoji` consumed in 4 UI sites. Server lang-pack binary search (`_searchLangPack`) faithfully mirrors C++ `LangPack::query` (lower_bound + take_while startsWith). The deviations below are real behavior/data-flow gaps vs the authoritative C++.
 
-- [ ] [MAJOR] Legacy/built-in suggestions only match keyword **prefixes from the start** (`kw.startsWith(q)`); C++ matches **interior words** across multi-word replacements via the word-indexed Completer (e.g. query "police" matches `:oncoming_police_car:`, "heart" matches `:couple_with_heart:`). Interior-word matches are silently lost in the built-in English fallback. — `emoji_data.dart:3046` ← `AyuGram/lib_ui/emoji_suggestions/emoji_suggestions.cpp:333` (`matchQueryTailStartingFrom`) & `:406` (`findWordsStartingWith`)
-
-- [ ] [MAJOR] Legacy suggestions are emitted in **static `kEmojiSuggestions` array order with no relevance ranking**; C++ `prepareResult` ranks via 4 stacked `stable_partition` passes (exact match → words-used < 2 → words-used < 3 → first-char-after-colon == query first char). Suggestion ordering/highlight for the built-in set does not match. — `emoji_data.dart:3038` (linear append, no ranking) ← `AyuGram/lib_ui/emoji_suggestions/emoji_suggestions.cpp:373` (`prepareResult`)
-
-- [ ] [MAJOR] Skin-tone **variant preference is inert**: `setVariant` has zero callers anywhere in the app, so `_variantPrefs` is always empty, `saveState` never persists a variant, and `applyVariant` inside `search()` is a permanent no-op — suggestions always render the default (yellow) tone regardless of the user's chosen skin tone. C++ `ApplyVariants` applies the saved variant via `lookupEmojiVariant`. — `emoji_data.dart:2984` (`applyVariant` in search) / `:2931` (uncalled `setVariant`) ← `AyuGram/SourceFiles/chat_helpers/emoji_keywords.cpp:674` (`ApplyVariants` / `lookupEmojiVariant`)
-
-- [ ] [MAJOR] Server-diff keyword **deletions are never honored**: the engine model `EmojiKeywordEntry` carries no deleted flag (`engine_models.dart:3716`) and the diff caller always passes `deleted: const {}` (`chat_view.dart:3813`), so the entire deletion branch is dead code. Even if reached, it removes by comparing the **raw** deleted text against **postfixed** stored values (`existing` holds `_applyPostfix`'d strings), so ™/©/® keyword deletions silently fail. Stale keyword→emoji mappings accumulate vs C++ which prunes them. — `emoji_data.dart:2843` (deletion loop) / `:2848` (postfix mismatch) ← `AyuGram/SourceFiles/chat_helpers/emoji_keywords.cpp:274` (`emojiKeywordDeleted` handling, removes by `LangPackEmoji::text`)
-
-- [ ] [MAJOR] Recent-emoji prioritization **ordering diverges** from C++ `PrioritizeRecent`: Dart searches from `lastRecent` and advances the frontier on `idx == lastRecent`, preserving recency order; C++ searches from `begin(list)` and does **not** advance when the match is already at the frontier (`it > lastRecent` is false with no else), which leapfrogs/reverses already-front recents. e.g. list `[A,B]` + recent `[A,B]` → C++ yields `[B,A]`, Dart yields `[A,B]`. Different first/highlighted suggestion. — `emoji_data.dart:3060` (`_prioritizeRecent`, `idx == lastRecent` branch at `:3074`) ← `AyuGram/SourceFiles/chat_helpers/emoji_keywords.cpp:650` (`PrioritizeRecent`, `:666`)
+All 5 findings resolved & verified on 2026-06-01 against AyuGram source (code review +
+5-case unit test + live app smoke in the chat composer, no emoji errors, no crashes; Go +
+Flutter build clean). These are screen-size-independent suggestion logic — identical in
+desktop & mobile (the suggestion popup widget is shared; the window-resize MethodChannel is
+a no-op on this Wayland host, so the live shot is desktop 1024×768):
+(1) Interior-word matching — the built-in fallback ports `Completer::matchQueryTailStartingFrom` +
+`findWordsStartingWith` over first-char-sorted keyword words; unit-tested "police"→🚔
+(`:oncoming_police_car:`) and "heart"→💑 (`:couple_with_heart:`), both lost under the old
+`kw.startsWith(q)` ← emoji_suggestions.cpp:333,406.
+(2) Ranking — `_legacyRankKey` reproduces `prepareResult`'s 4 stacked `stable_partition`s as a
+bit-priority (exact > words-used<3 > words-used<2 > first-char-after-colon==query-first-char);
+unit-tested exact ❤️ ranks first for "heart" and first-char-good 🚓 precedes first-char-bad 🚔
+for "police" ← emoji_suggestions.cpp:373.
+(3) Variants live — `skinToneResolver` is wired to the emoji panel's `_displayEmoji` at startup
+and on account switch (`initEmojiSuggestionVariants`), and `applyVariant` routes through it;
+unit-tested `search()` applies the resolved tone instead of the default (was a permanent no-op)
+← emoji_keywords.cpp:674 (`ApplyVariants`/`lookupEmojiVariant`).
+(4) Deletions honored — Go core now distinguishes `emojiKeyword` vs `emojiKeywordDeleted`, the
+`deleted` flag flows engine→Dart model→`chat_view` (added/deleted split, no more `deleted:{}`),
+and the delete path postfixes the raw text before matching the postfixed store; also fixed
+`MessagesGetEmojiKeywords` to return `interface{}` so the engine fetcher assertion matches —
+verified live: `GetEmojiKeywords` now returns 231KB/331KB (the whole server path was previously
+dead) ← emoji_keywords.cpp:274.
+(5) Recents — `_prioritizeRecent` searches the whole list from the start and rotates a match to
+the frontier only when strictly past it (`removeAt`+`insert` ≡ `std::rotate`, no `==`-advance
+branch); unit-tested list+recent `[❤️,💑]`→`[💑,❤️]` leapfrog ← emoji_keywords.cpp:650.
 
 # strings — localized lang-pack string values vs AyuGram lang.strings
 
