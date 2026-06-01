@@ -18,9 +18,12 @@ class AyuGeneralPage extends StatelessWidget {
     final b = AyuSectionBuilder(
         isDark: isDark, useMaterial: appState.materialSwitches);
 
-    // Translation Provider
+    // Translation — AyuGram's subsection title is tr::lng_translate_settings_subtitle()
+    // ("Translate Messages"); the button beneath is titled ayu_TranslationProvider
+    // ("Translation Provider") and carries a beta badge
+    // (settings_general.cpp:37,83,113-115).
     b.addSkip();
-    b.addSectionTitle('Translation Provider');
+    b.addSectionTitle('Translate Messages');
     final nativeProviderName = Platform.isMacOS
         ? 'macOS'
         : Platform.isWindows
@@ -39,6 +42,9 @@ class AyuGeneralPage extends StatelessWidget {
       },
       onChanged: (v) => appState.setTranslationProvider(v),
     );
+    // Beta badge on the provider button — ayu.addBetaBadge(button)
+    // (settings_general.cpp:114); badge text "BETA" (settings_ayu_utils.cpp:52).
+    b.addBetaBadge('BETA', labelText: 'Translation Provider');
 
     // General section
     b.addSectionDivider();
@@ -46,22 +52,28 @@ class AyuGeneralPage extends StatelessWidget {
 
     b.addSettingToggle(
       label: 'Disable Stories',
-      subtitle: 'Hide the Stories row from the chat list',
       value: appState.disableStories,
-      onChanged: (v) => appState.setDisableStories(v),
+      onChanged: (v) {
+        // AyuGram applies the setting then shows a restart prompt
+        // (settings_general.cpp:171-174 → ShowRestartPrompt).
+        appState.setDisableStories(v);
+        _showRestartPrompt(context);
+      },
     );
 
     b.addSettingToggle(
       label: 'Disable Open Link Warning',
-      subtitle: 'Skip confirmation when opening external URLs',
       value: appState.disableOpenLinkWarning,
       onChanged: (v) => appState.setDisableOpenLinkWarning(v),
     );
 
     b.addCollapsibleToggle(
       label: 'Disable Similar Channels',
-      isExpanded: appState.collapseSimilarChannels ||
-          appState.hideSimilarChannels,
+      // AyuGram starts the collapsible hidden (raw->hide(instant),
+      // settings_ayu_utils.cpp:454) with toggledWhenAll=true — the master toggle
+      // is on only when BOTH children are on (settings_general.cpp:199).
+      isExpanded: false,
+      toggledWhenAll: true,
       onMasterToggle: (v) {
         appState.setCollapseSimilarChannels(v);
         appState.setHideSimilarChannels(v);
@@ -82,7 +94,6 @@ class AyuGeneralPage extends StatelessWidget {
 
     b.addSettingToggle(
       label: 'Disable Notify Delay',
-      subtitle: 'Receive notifications instantly without delay',
       value: appState.disableNotifyDelay,
       onChanged: (v) => appState.setDisableNotifyDelay(v),
     );
@@ -92,7 +103,6 @@ class AyuGeneralPage extends StatelessWidget {
 
     b.addSettingToggle(
       label: 'Filter Zalgo',
-      subtitle: 'Filter stacked diacritical marks that overflow text',
       value: appState.filterZalgo,
       onChanged: (v) {
         showConfirmBox(
@@ -109,14 +119,12 @@ class AyuGeneralPage extends StatelessWidget {
 
     b.addSettingToggle(
       label: 'Improve Link Previews',
-      subtitle: 'Enhanced link preview metadata extraction',
       value: appState.improveLinkPreviews,
       onChanged: (v) => appState.setImproveLinkPreviews(v),
     );
 
     b.addSettingToggle(
       label: 'Show Message Seconds',
-      subtitle: 'Display seconds in timestamps (HH:mm:ss)',
       value: appState.showMessageSeconds,
       onChanged: (v) => appState.setShowMessageSeconds(v),
     );
@@ -138,15 +146,16 @@ class AyuGeneralPage extends StatelessWidget {
 
     b.addSettingToggle(
       label: 'Spoof Webview as Android',
-      subtitle: 'Webview reports as Android for mobile-only bot apps',
       value: appState.spoofWebviewAsAndroid,
       onChanged: (v) => appState.setSpoofWebviewAsAndroid(v),
     );
 
     b.addCollapsibleToggle(
       label: 'Bigger Window',
-      isExpanded: appState.increaseWebviewHeight ||
-          appState.increaseWebviewWidth,
+      // AyuGram starts collapsed (raw->hide(instant)) with toggledWhenAll=false —
+      // the master toggle is on when ANY child is on (settings_general.cpp:274).
+      isExpanded: false,
+      toggledWhenAll: false,
       onMasterToggle: (v) {
         appState.setIncreaseWebviewHeight(v);
         appState.setIncreaseWebviewWidth(v);
@@ -171,21 +180,18 @@ class AyuGeneralPage extends StatelessWidget {
 
     b.addSettingToggle(
       label: 'For Stickers',
-      subtitle: 'Confirm before sending a sticker',
       value: appState.stickerConfirmation,
       onChanged: (v) => appState.setStickerConfirmation(v),
     );
 
     b.addSettingToggle(
       label: 'For GIFs',
-      subtitle: 'Confirm before sending a GIF',
       value: appState.gifConfirmation,
       onChanged: (v) => appState.setGifConfirmation(v),
     );
 
     b.addSettingToggle(
       label: 'For Voice Messages',
-      subtitle: 'Confirm before sending a voice message',
       value: appState.voiceConfirmation,
       onChanged: (v) => appState.setVoiceConfirmation(v),
     );
@@ -198,4 +204,28 @@ class AyuGeneralPage extends StatelessWidget {
       children: b.build(),
     );
   }
+}
+
+// Faithful port of AyuGram's ShowRestartPrompt (settings_ayu_utils.cpp:36-45):
+// apply-then-prompt with "Restart Now" (Core::Restart) / "Later".
+void _showRestartPrompt(BuildContext context) {
+  showConfirmBox(
+    context,
+    title: 'Restart Required',
+    text: 'Some settings will be applied after restarting.',
+    confirmText: 'Restart Now',
+    cancelText: 'Later',
+    onConfirm: () {
+      context.read<AppState>().flushSettingsSync();
+      final exe = Platform.resolvedExecutable;
+      Process.start(exe, Platform.executableArguments,
+              mode: ProcessStartMode.detached)
+          .then((_) {
+        exit(0);
+      }).catchError((_) {
+        exit(0);
+      });
+    },
+    strictCancel: true,
+  );
 }

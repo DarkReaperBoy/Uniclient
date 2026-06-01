@@ -291,7 +291,10 @@ class _BetaBadgeOverlayState extends State<_BetaBadgeOverlay> {
           left: _leftOffset,
           top: 0,
           bottom: 0,
-          child: Align(
+          // AyuGram's badge is WA_TransparentForMouseEvents
+          // (settings_ayu_utils.cpp:56) — taps fall through to the row below.
+          child: IgnorePointer(
+            child: Align(
             alignment: Alignment.centerLeft,
             child: Builder(builder: (context) {
               final p = context.palette;
@@ -311,6 +314,7 @@ class _BetaBadgeOverlayState extends State<_BetaBadgeOverlay> {
                         color: p.windowFgActive)),
               );
             }),
+            ),
           ),
         ),
       ],
