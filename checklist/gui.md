@@ -465,8 +465,6 @@ Audited against AyuGram `settings_main.cpp` (the `AyuMain` section: logo → ver
 
 ## Findings
 
-- [ ] [MAJOR] Section dividers are rendered as a 1px hairline `Container(height: 1, color: dividerColor)` instead of AyuGram's 8px `BoxContentDivider` band (fills `boxDividerBg` = `windowBgOver` gray, with top/bottom shadow hairlines). Affects both the Categories divider and the Links divider. Note: this is a systemic convention across the Dart settings port (e.g. `ghost_settings_page.dart:253`), so fixing it likely belongs in a shared divider widget rather than this file alone — `ayugram_settings_screen.dart:121` & `:176` ← `AyuGram/Telegram/SourceFiles/ayu/ui/settings/settings_main.cpp:98` & `:137` (resolves via `ui/vertical_list.cpp:27` `AddDivider` → `BoxContentDivider(st::boxDividerHeight)`, `lib_ui/ui/widgets/widgets.style:686` `boxDividerHeight: 8px`, `widgets.style:687-691` `defaultDividerBar{ bg: boxDividerBg; top/bottom shadows }`)
-
 ## ayu_other_page — AyuGram "Other" settings page (donations, crash reporting, URL scheme, reset)
 
 **Wiring verdict: all backend wiring is REAL — no stubs/placeholders.**
