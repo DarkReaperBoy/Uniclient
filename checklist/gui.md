@@ -300,12 +300,6 @@ NOT FLAGGED (cosmetic/minor): extra 1px divider after current row (AyuGram uses
 
 Audited `dart/lib/ui/admin_tools.dart` (8075 lines) against AyuGram Desktop C++ source. Slowmode values, charge-stars default (10), boosts-unrestrict range, channel admin-rights order/flags (incl. ManageDirect), media-group nesting of links/polls in the *permissions* box, invite-link form field order, and the admin-log action descriptions all match. The issues below are real deviations/gaps verified against the C++ source.
 
-## CRITICAL
-
-- [ ] [CRITICAL] Member-list "Requests" tab is view-only — join-request rows offer no Approve/Decline action (the context menu has branches only for admins/members/restricted/kicked, never `requests`, so a pending-request row shows just "View Profile"), and the engine exposes no approve/hide-request method at all. AyuGram's requests UI exposes per-row approve/dismiss via `processRequest(user, approved)`. The whole point of the requests view (acting on pending joins) is missing. — `admin_tools.dart:7170-7203` (also `_MemberRow.build` 7283-7337 has no action buttons; tab defined 6814, role 'requests' 6718) ← `AyuGram/boxes/peers/edit_peer_requests_box.h` (`processRequest`/`rowElementClicked`) + `edit_peer_requests_box.cpp`
-
-- [ ] [CRITICAL] "Color & Emoji" dialog asks the user to TYPE a numeric "Custom emoji ID" and "Background emoji ID" into number fields — no real user can know emoji document IDs, so the emoji-status feature is effectively a non-functional placeholder (only the color swatches work). AyuGram presents a real emoji picker (`EmojiStatusPanel` with `CustomChosen`). — `admin_tools.dart:1268-1294` ← `AyuGram/boxes/peers/edit_peer_color_box.cpp:747-754`
-
 ## MAJOR
 
 - [ ] [MAJOR] Permissions & Restrict editors split the single combined "Stickers, GIFs, games & inline" permission into FOUR separate toggles with wrong labels ("Send stickers & GIFs", "Send GIFs", "Send games", "Use inline bots"). AyuGram renders ONE checkbox (`SendStickers|SendGifs|SendGames|SendInline` → `lng_rights_chat_stickers`); the Dart cascade in `_toggleFlag` only papers over the structural mismatch, and the media count badge shows `/12` and `/10` instead of AyuGram's `/9`. — `admin_tools.dart:2497-2500` (perms) and `admin_tools.dart:3243-3246` (restricted) ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:88-91`
