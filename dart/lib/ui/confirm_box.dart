@@ -285,6 +285,7 @@ Future<void> showConfirmBox(
   bool strictCancel = false,
   void Function(String)? labelFilter,
   EdgeInsets? labelPadding,
+  bool boldMarkup = false,
 }) {
   bool confirmed = false;
   bool explicitCancel = false;
@@ -314,10 +315,12 @@ Future<void> showConfirmBox(
 
       final bodyWidget = labelFilter != null
           ? _buildLinkableText(text, textFg, linkFg, labelFilter)
-          : Text(
-              text,
-              style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
-            );
+          : boldMarkup
+              ? _buildBoldText(text, textFg)
+              : Text(
+                  text,
+                  style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
+                );
 
       return TelegramBox(
         title: title,
@@ -387,6 +390,37 @@ Widget _buildLinkableText(
       children: spans,
     ),
   );
+}
+
+// Renders `**bold**` markup as bold spans (Telegram `tr::rich` semantics), used
+// e.g. for the paid-post deletion warning whose lang strings embed **TON** /
+// **24 hours** (lang.strings:5420-5421). Plain text falls through unchanged.
+Widget _buildBoldText(String text, Color textFg) {
+  final boldPattern = RegExp(r'\*\*(.+?)\*\*');
+  final matches = boldPattern.allMatches(text);
+  final baseStyle = TextStyle(fontSize: 14, height: 22 / 14, color: textFg);
+
+  if (matches.isEmpty) {
+    return Text(text, style: baseStyle);
+  }
+
+  final spans = <InlineSpan>[];
+  int lastEnd = 0;
+  for (final match in matches) {
+    if (match.start > lastEnd) {
+      spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
+    }
+    spans.add(TextSpan(
+      text: match.group(1),
+      style: const TextStyle(fontWeight: FontWeight.w600),
+    ));
+    lastEnd = match.end;
+  }
+  if (lastEnd < text.length) {
+    spans.add(TextSpan(text: text.substring(lastEnd)));
+  }
+
+  return Text.rich(TextSpan(style: baseStyle, children: spans));
 }
 
 // ─── Delete / Leave ConfirmBox — §36.2 destructive variant ───────────────────
@@ -703,12 +737,13 @@ class _DeleteContentState extends State<_DeleteContent> {
     showConfirmBox(
       context,
       title: isTon
-          ? 'Delete TON Suggested Post'
-          : 'Delete Stars Suggested Post',
+          ? TrStrings.lngSuggestWarnTitleTon()
+          : TrStrings.lngSuggestWarnTitleStars(),
       text: isTon
-          ? 'This is a paid suggested post. The TON payment will be lost if you delete it. Are you sure you want to delete it anyway?'
-          : 'This is a paid suggested post. The Stars payment will be lost if you delete it. Are you sure you want to delete it anyway?',
-      confirmText: 'Delete Anyway',
+          ? TrStrings.lngSuggestWarnTextTon()
+          : TrStrings.lngSuggestWarnTextStars(),
+      boldMarkup: true,
+      confirmText: TrStrings.lngSuggestWarnDeleteAnyway(),
       isDestructive: true,
       onConfirm: () {
         _confirmedPaidPost = true;
@@ -828,10 +863,12 @@ class _DeleteContentState extends State<_DeleteContent> {
           ],
           if (widget.isBot && widget.mode == DeleteBoxMode.leaveChat) ...[
             const SizedBox(height: kBoxMediumSkip),
-            _checkbox('Block bot', _blockBot,
+            _checkbox(TrStrings.lngProfileBlockBot(), _blockBot,
                 (v) => setState(() => _blockBot = v ?? false), checkClr, textFg),
             const SizedBox(height: kBoxLittleSkip),
-            _checkbox('Remove from chat folders', _removeFromFolders,
+            // Bot-only gate (widget.isBot above) mirrors AyuGram's maybeBotCheckbox
+            // branch → lng_filters_checkbox_remove_bot (moderate_messages_box.cpp:1057-1058).
+            _checkbox(TrStrings.lngFiltersCheckboxRemoveBot(), _removeFromFolders,
                 (v) => setState(() => _removeFromFolders = v ?? false), checkClr, textFg),
           ],
           if (_showAutoDeleteLink) ...[
