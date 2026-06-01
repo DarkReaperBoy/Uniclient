@@ -216,88 +216,90 @@ class DefaultManager extends NotificationManager {
     onHideAllChanged?.call();
   }
 
+  // Shared clear path for the five engine-driven scope clears
+  // (chat/item/topic/sublist/account), mirroring AyuGram's doClearFrom* order:
+  //   1. Erase the matching QUEUE entries FIRST — so a queued notification for
+  //      the very scope being cleared can never be promoted into a freed slot
+  //      by the showNextFromQueue() that follows. (The old code ran a per-item
+  //      dismiss() loop BEFORE filtering the queue, and dismiss() promotes the
+  //      next queued item of ANY scope mid-loop, so a same-scope queued item
+  //      got promoted, shown, and then SURVIVED the late queue filter.)
+  //   2. Unlink each matching active notification → hideFast(): a smooth 150ms
+  //      (notifyFastAnim) fade via the popup's FAST-hide channel, NOT the abrupt
+  //      full-opacity teardown the old dismiss()->onDismiss path produced. This
+  //      is also the tap path (notification tap → clearForChat), so opening a
+  //      chat now fades its notifications instead of snapping them away.
+  //   3. showNextFromQueue(): refill the freed slots from the already-filtered
+  //      queue right away — AyuGram counts the fading/unlinked notifications as
+  //      free, so replacements appear immediately while the cleared rows fade.
+  // (notifications_manager_default.cpp:425-455 doClearFrom{History,Session,
+  //  Topic,Sublist} + :457-472 doClearFromItem; unlinkHistory->hideFast
+  //  :1193-1208,:570-572; showNextFromQueue :222-267)
+  void _clearScoped(bool Function(NotificationData data) matches) {
+    _queue.removeWhere((n) => matches(n.data));
+
+    final cleared =
+        _active.where((n) => matches(n.data)).map((n) => n.id).toList();
+    if (cleared.isEmpty) {
+      onHideAllChanged?.call();
+      return;
+    }
+    for (final id in cleared) {
+      _dismissTimers[id]?.cancel();
+      _dismissTimers.remove(id);
+      // Remove from the live set immediately (so it stops counting toward
+      // _maxVisible, exactly like AyuGram's isUnlinked() notifications) and
+      // drive the 150ms fast fade. The popup view self-removes when the
+      // animation ends and calls back dismiss() — a safe no-op once the item is
+      // gone from _active and the queue is filtered/full. With no view mounted
+      // to animate, fall back to an immediate removal so it can't get stuck.
+      _active.removeWhere((n) => n.id == id);
+      if (onStartHidingFast != null) {
+        onStartHidingFast!(id);
+      } else {
+        onDismiss?.call(id);
+      }
+    }
+    while (_queue.isNotEmpty && _active.length < _maxVisible) {
+      _displayItem(_queue.removeFirst());
+    }
+    onHideAllChanged?.call();
+  }
+
   @override
   void clearForChat(String accountId, String chatId) {
-    final toRemove = _active
-        .where(
-            (n) => n.data.accountId == accountId && n.data.chatId == chatId)
-        .map((n) => n.id)
-        .toList();
-    for (final id in toRemove) {
-      dismiss(id);
-    }
-    _queue.removeWhere(
-        (n) => n.data.accountId == accountId && n.data.chatId == chatId);
+    _clearScoped((d) => d.accountId == accountId && d.chatId == chatId);
   }
 
   @override
   void clearForItem(String accountId, String chatId, String messageId) {
-    final toRemove = _active
-        .where((n) =>
-            n.data.accountId == accountId &&
-            n.data.chatId == chatId &&
-            n.data.messageId == messageId)
-        .map((n) => n.id)
-        .toList();
-    for (final id in toRemove) {
-      dismiss(id);
-    }
-    _queue.removeWhere((n) =>
-        n.data.accountId == accountId &&
-        n.data.chatId == chatId &&
-        n.data.messageId == messageId);
+    _clearScoped((d) =>
+        d.accountId == accountId &&
+        d.chatId == chatId &&
+        d.messageId == messageId);
   }
 
   @override
   void clearForTopic(String accountId, String chatId, String topicRootId) {
-    final toRemove = _active
-        .where((n) =>
-            n.data.accountId == accountId &&
-            n.data.chatId == chatId &&
-            n.data.isForumTopic &&
-            n.data.topicRootId == topicRootId)
-        .map((n) => n.id)
-        .toList();
-    for (final id in toRemove) {
-      dismiss(id);
-    }
-    _queue.removeWhere((n) =>
-        n.data.accountId == accountId &&
-        n.data.chatId == chatId &&
-        n.data.isForumTopic &&
-        n.data.topicRootId == topicRootId);
+    _clearScoped((d) =>
+        d.accountId == accountId &&
+        d.chatId == chatId &&
+        d.isForumTopic &&
+        d.topicRootId == topicRootId);
   }
 
   @override
   void clearForSublist(String accountId, String chatId, String sublistPeerId) {
-    final toRemove = _active
-        .where((n) =>
-            n.data.accountId == accountId &&
-            n.data.chatId == chatId &&
-            n.data.isMonoforumSublist &&
-            n.data.sublistPeerId == sublistPeerId)
-        .map((n) => n.id)
-        .toList();
-    for (final id in toRemove) {
-      dismiss(id);
-    }
-    _queue.removeWhere((n) =>
-        n.data.accountId == accountId &&
-        n.data.chatId == chatId &&
-        n.data.isMonoforumSublist &&
-        n.data.sublistPeerId == sublistPeerId);
+    _clearScoped((d) =>
+        d.accountId == accountId &&
+        d.chatId == chatId &&
+        d.isMonoforumSublist &&
+        d.sublistPeerId == sublistPeerId);
   }
 
   @override
   void clearForAccount(String accountId) {
-    final toRemove = _active
-        .where((n) => n.data.accountId == accountId)
-        .map((n) => n.id)
-        .toList();
-    for (final id in toRemove) {
-      dismiss(id);
-    }
-    _queue.removeWhere((n) => n.data.accountId == accountId);
+    _clearScoped((d) => d.accountId == accountId);
   }
 
   @override
