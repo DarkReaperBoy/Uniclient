@@ -625,8 +625,6 @@ title position (24,13), title font 16px semibold, text top 60; passcode input `c
 (1,27,1,6) == `passcodeInput.textMargins`, submit width 225, system-unlock button 32×36, 16s
 (`15999ms`) auto-revert, escape→revert. All AppState/engine calls are real (not stubs).
 
-- [ ] [MINOR] Resize-triggered `Provider.of` in `dispose()` — on a window resize that flips the column count (oneColumn↔twoColumn), a widget in the main-UI tree calls `Provider.of`/`context.read` inside its `dispose()`, logging `ERROR FLUTTER: Looking up a deactivated widget's ancestor is unsafe` (stack: `Element.getElementForInheritedWidgetOfExactType` → `Provider._inheritedElementOf` → `Provider.of` `provider.dart:327`). Debug-mode only, self-recovering, no crash. NOT reproduced on a pure cold start with no interaction (0 occurrences across 3 cold starts) — only on a resize/layout-column transition; found 2026-06-01 during the passcode-lock cold-start verification. App-level stack frames were elided in the log so the exact widget is unidentified — triage: search `dart/lib/ui/*` for `context.read`/`context.watch`/`Provider.of(context…)` inside a `dispose()` override and cache the reference in `didChangeDependencies()` instead. ← `provider.dart:327`
-
 # engine_models — Dart engine model classes (JSON deserialization, constants, computed getters)
 
 `engine_models.dart` is a pure data-model layer (no widgets/callbacks/UI). Audit scope: hardcoded constants that must match Telegram/AyuGram values, decoding logic, and computed getters that drive UI decisions. Most of the file verified **correct** against AyuGram ground truth:
