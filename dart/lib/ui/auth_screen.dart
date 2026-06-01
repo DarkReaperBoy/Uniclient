@@ -288,6 +288,9 @@ class _AuthScreenState extends State<AuthScreen>
     }
     return switch (data.state) {
       'signup' => TrStrings.lngIntroFinish(),
+      // PasswordCheckWidget overrides next-button text to lng_intro_submit
+      // = "Submit" for the password step (intro_password_check.cpp:405-407).
+      '2fa' => TrStrings.lngIntroSubmit(),
       _ => 'Next',
     };
   }
@@ -1422,6 +1425,21 @@ class _AuthScreenState extends State<AuthScreen>
             ),
           ),
         ],
+        const SizedBox(height: 8),
+        // PhoneWidget always shows a persistent "Quick log in using QR code"
+        // link that jumps straight to the QR step (intro_phone.cpp:111-131,
+        // lng_phone_to_qr). switchToMethod('qr') restarts auth and selects the
+        // QR option at the choose step, mirroring the reverse QR→phone link.
+        TextButton(
+          onPressed: () => authState.switchToMethod('qr'),
+          child: Text(
+            'Quick log in using QR code',
+            style: TextStyle(
+              fontSize: 14,
+              color: context.palette.windowBgActive,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -2017,16 +2035,18 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     // AyuGram fills each code-digit cell with windowBgOver — a theme palette
     // color, not a hardcoded constant (intro_code_input.cpp:131 st::windowBgOver),
     // so the cells follow custom themes.
     final bgColor = context.palette.windowBgOver;
-    final unfocusedBorder =
-        isDark ? const Color(0xFF3A4A5A) : const Color(0xFFD0D0D0);
-    final focusedBorder = context.palette.activeLineFg;
-    final errorBorder = theme.colorScheme.error;
+    // Cell borders are theme-driven for all three states, matching
+    // CodeInput::unfocusAll (intro_code_input.cpp:334-341): focused
+    // windowActiveTextFg (#168acd), unfocused windowBgRipple, error
+    // activeLineFgError — so cells follow custom/dark themes instead of
+    // hardcoded constants.
+    final unfocusedBorder = context.palette.windowBgRipple;
+    final focusedBorder = context.palette.windowActiveTextFg;
+    final errorBorder = context.palette.activeLineFgError;
 
     return Column(
       children: [
