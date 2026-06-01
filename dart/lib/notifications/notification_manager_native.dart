@@ -164,6 +164,17 @@ class CachedUserpics {
     return null;
   }
 
+  // Resolve a generated/cached userpic's on-disk PNG path by its cache key
+  // (used by the Flatpak portal branch, which ships the icon as file bytes).
+  String? getPath(String key) {
+    final existing = _cache[key];
+    if (existing != null && File(existing.filePath).existsSync()) {
+      existing.lastUsed = DateTime.now();
+      return existing.filePath;
+    }
+    return null;
+  }
+
   void _ensureCleanupTimer() {
     _cleanupTimer ??= Timer.periodic(
       const Duration(seconds: 30),
@@ -281,101 +292,355 @@ class NativeManager extends NotificationManager {
     return p.basenameWithoutExtension(Platform.resolvedExecutable);
   }
 
-  static String _getInitials(String title) {
-    final trimmed = title.trim();
-    if (trimmed.isEmpty) return '?';
-    final words = trimmed.split(RegExp(r'\s+'));
-    if (words.length >= 2) {
-      return '${words[0][0]}${words[1][0]}'.toUpperCase();
+  // Telegram userpic gradient pairs (color1 top → color2 bottom), from
+  // lib_ui/ui/colors.palette (historyPeerN UserpicBg / UserpicBg2). Indexed by
+  // palette slot (historyPeer1 == 0 … historyPeer8 == 7).
+  static const List<List<List<int>>> _userpicGradients = [
+    [[0xff, 0x84, 0x5e], [0xd4, 0x52, 0x46]], // 0 red
+    [[0x9a, 0xd1, 0x64], [0x46, 0xba, 0x43]], // 1 green
+    [[0xe5, 0xca, 0x77], [0xe5, 0xca, 0x77]], // 2 yellow (unused)
+    [[0x5c, 0xaf, 0xfa], [0x40, 0x8a, 0xcf]], // 3 blue
+    [[0xb6, 0x94, 0xf9], [0x6c, 0x61, 0xdf]], // 4 purple
+    [[0xff, 0x8a, 0xac], [0xd9, 0x55, 0x74]], // 5 pink
+    [[0x5b, 0xcb, 0xe3], [0x35, 0x9a, 0xd4]], // 6 sea
+    [[0xfe, 0xbb, 0x5b], [0xf6, 0x81, 0x36]], // 7 orange
+  ];
+  // ColorIndexToPaletteIndex (chat_style.cpp:1205) over the 7 simple colours
+  // (kSimpleColorIndexCount): colorIndex (0..6) → palette slot above. Byte-exact
+  // with the in-app `_colorRemap` used by chat_list_panel.dart's avatars.
+  static const List<int> _paletteMap = [0, 7, 4, 1, 6, 3, 5];
+
+  // Unicode letter-or-number test (Qt QChar::isLetterOrNumber → categories
+  // L*/N*). Prefers Dart's Unicode-aware property escapes; if the engine rejects
+  // \p{...} it stays null and a range fallback is used so notifications can't
+  // break.
+  static final RegExp? _letterOrNumberRe = _tryUnicodeClass(r'[\p{L}\p{N}]');
+
+  static RegExp? _tryUnicodeClass(String pattern) {
+    try {
+      final re = RegExp(pattern, unicode: true);
+      return re.hasMatch('A') ? re : null;
+    } catch (_) {
+      return null;
     }
-    return words[0][0].toUpperCase();
   }
 
-  Future<String?> _generatePlaceholderUserpic(String title) async {
+  static bool _isLetterOrNumber(int r) {
+    final re = _letterOrNumberRe;
+    if (re != null) return re.hasMatch(String.fromCharCode(r));
+    // Fallback: common BMP letter/number ranges.
+    if (r >= 0x30 && r <= 0x39) return true; // 0-9
+    if (r >= 0x41 && r <= 0x5A) return true; // A-Z
+    if (r >= 0x61 && r <= 0x7A) return true; // a-z
+    if (r >= 0xC0 && r <= 0x24F && r != 0xD7 && r != 0xF7) return true; // Latin
+    if (r >= 0x370 && r <= 0x3FF) return true; // Greek
+    if (r >= 0x400 && r <= 0x4FF) return true; // Cyrillic
+    if (r >= 0x531 && r <= 0x58F) return true; // Armenian
+    if (r >= 0x5D0 && r <= 0x5EA) return true; // Hebrew
+    if (r >= 0x620 && r <= 0x64A) return true; // Arabic
+    if (r >= 0x660 && r <= 0x669) return true; // Arabic-Indic digits
+    if (r >= 0x0E00 && r <= 0x0E7F) return true; // Thai
+    if (r >= 0x3040 && r <= 0x30FF) return true; // Kana
+    if (r >= 0x4E00 && r <= 0x9FFF) return true; // CJK
+    if (r >= 0xAC00 && r <= 0xD7A3) return true; // Hangul
+    return false;
+  }
+
+  // Ui::Text::IsDiacritic (text.cpp:2042): non-spacing combining marks plus a
+  // couple of Arabic code points. Range-based so it needs no regex support.
+  static bool _isDiacritic(int r) {
+    if (r == 0x0674) return true; // Arabic Hamza above
+    if (r >= 0xFC5E && r <= 0xFC63) return true; // Arabic shadda ligatures
+    return (r >= 0x0300 && r <= 0x036F) || // Combining Diacritical Marks
+        (r >= 0x0483 && r <= 0x0489) || // Cyrillic combining
+        (r >= 0x0591 && r <= 0x05BD) || // Hebrew points
+        (r >= 0x0610 && r <= 0x061A) || // Arabic marks
+        (r >= 0x064B && r <= 0x065F) || // Arabic marks
+        r == 0x0670 || // Arabic superscript alef
+        (r >= 0x06D6 && r <= 0x06DC) ||
+        (r >= 0x1AB0 && r <= 0x1AFF) || // Combining Diacritical Marks Extended
+        (r >= 0x1DC0 && r <= 0x1DFF) || // Combining Diacritical Marks Supplement
+        (r >= 0x20D0 && r <= 0x20FF) || // Combining Marks for Symbols
+        (r >= 0xFE20 && r <= 0xFE2F); // Combining Half Marks
+  }
+
+  // Emoji keycap sequence (e.g. "1️⃣"): base [0-9 # *] + optional VS16 (U+FE0F)
+  // + U+20E3. Returns its length in runes, or 0 if it is not a keycap. Mirrors
+  // the leading Ui::Emoji::Find skip so a keycap digit isn't taken as an initial.
+  static int _keycapLength(List<int> runes, int i) {
+    final r = runes[i];
+    final isBase = (r >= 0x30 && r <= 0x39) || r == 0x23 || r == 0x2A;
+    if (!isBase) return 0;
+    var j = i + 1;
+    if (j < runes.length && runes[j] == 0xFE0F) j++;
+    if (j < runes.length && runes[j] == 0x20E3) return (j - i) + 1;
+    return 0;
+  }
+
+  // Port of EmptyUserpic::fillString (ui/empty_userpic.cpp:613-672): derives one
+  // or two initials from a PEER NAME, iterating Unicode CODE POINTS (not UTF-16
+  // code units), skipping emoji + non-BMP scraps, and preferring a second letter
+  // after a space (level 0) over one after a hyphen (level 1). Returns '' when
+  // the name has no usable letter — AyuGram then draws a bare gradient circle.
+  static String _getInitials(String name) {
+    final runes = name.runes.toList(growable: false);
+    final letters = <String>[];
+    final levels = <int>[];
+    var level = 0;
+    var letterFound = false;
+    var i = 0;
+    while (i < runes.length) {
+      final r = runes[i];
+      final kc = _keycapLength(runes, i);
+      if (kc > 0) {
+        i += kc;
+      } else if (r > 0xFFFF) {
+        // Non-BMP (emoji or astral char): AyuGram skips the surrogate pair and
+        // never derives an initial from it — so "🔥Squad" yields "S".
+        i++;
+      } else if (!letterFound && _isLetterOrNumber(r)) {
+        letterFound = true;
+        if (i + 1 < runes.length &&
+            runes[i + 1] <= 0xFFFF &&
+            _isDiacritic(runes[i + 1])) {
+          letters.add(String.fromCharCodes([r, runes[i + 1]]));
+          levels.add(level);
+          i += 2;
+        } else {
+          letters.add(String.fromCharCode(r));
+          levels.add(level);
+          i++;
+        }
+      } else {
+        if (r == 0x20) {
+          level = 0;
+          letterFound = false;
+        } else if (letterFound && r == 0x2D) {
+          level = 1;
+          letterFound = false;
+        }
+        i++;
+      }
+    }
+
+    if (letters.isEmpty) return '';
+    // Prefer the second letter to be after ' ', but it can also be after '-'.
+    var result = letters.first;
+    var bestIndex = 0;
+    var bestLevel = 2;
+    for (var k = letters.length; k != 1;) {
+      k--;
+      if (levels[k] < bestLevel) {
+        bestIndex = k;
+        bestLevel = levels[k];
+      }
+    }
+    if (bestIndex > 0) {
+      result += letters[bestIndex];
+    }
+    return result.toUpperCase();
+  }
+
+  // AyuGram GenerateUserpic (notifications_utilities.cpp:26-32): the self-chat
+  // (Saved Messages) gets the dedicated bookmark glyph, every other avatar-less
+  // peer gets the colored-initials placeholder. Returns the cache key for the
+  // generated userpic (rawRgba via _userpicCache.getRawRgba, path via getPath),
+  // or null on failure.
+  Future<String?> _generateUserpicGlyph(NotificationData data) async {
+    if (data.isSelf) {
+      return _generateSavedMessagesUserpic();
+    }
+    final name = data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName;
+    final peerId = data.chatTitle.isNotEmpty ? data.chatId : data.senderId;
+    return _generatePlaceholderUserpic(name, peerId);
+  }
+
+  // EmptyUserpic's colored-initials placeholder for an avatar-less peer. The
+  // gradient is keyed by the peer's colorIndex (DecideColorIndex(id) =
+  // id % kSimpleColorIndexCount, chat_style.cpp:1198-1199) parsed from [peerId]
+  // exactly the way the in-app avatars do (chat_list_panel.dart:3307), so the
+  // notification background matches what the UI shows for that chat. Initials
+  // come from the PEER NAME via fillString. Returns the cache key or null.
+  Future<String?> _generatePlaceholderUserpic(String name, String peerId) async {
     try {
-      final cacheKey = '__placeholder:$title';
+      final numId = int.tryParse(peerId) ?? peerId.hashCode.abs();
+      final colorIndex = numId.abs() % 7;
+      final initials = _getInitials(name);
+      final cacheKey = '__placeholder:$colorIndex:$initials';
       final existing = _userpicCache._cache[cacheKey];
       if (existing != null && File(existing.filePath).existsSync()) {
         existing.lastUsed = DateTime.now();
-        return existing.filePath;
+        return cacheKey;
       }
 
       final cacheDir = p.join(Directory.systemTemp.path, 'uniclient_userpics');
       await Directory(cacheDir).create(recursive: true);
 
-      // Telegram userpic gradient pairs (color1 top → color2 bottom), from
-      // lib_ui/ui/colors.palette (historyPeerN UserpicBg / UserpicBg2).
-      const gradients = [
-        [[0xff, 0x84, 0x5e], [0xd4, 0x52, 0x46]], // 0 red
-        [[0x9a, 0xd1, 0x64], [0x46, 0xba, 0x43]], // 1 green
-        [[0xe5, 0xca, 0x77], [0xe5, 0xca, 0x77]], // 2 yellow (unused)
-        [[0x5c, 0xaf, 0xfa], [0x40, 0x8a, 0xcf]], // 3 blue
-        [[0xb6, 0x94, 0xf9], [0x6c, 0x61, 0xdf]], // 4 purple
-        [[0xff, 0x8a, 0xac], [0xd9, 0x55, 0x74]], // 5 pink
-        [[0x5b, 0xcb, 0xe3], [0x35, 0x9a, 0xd4]], // 6 sea
-        [[0xfe, 0xbb, 0x5b], [0xf6, 0x81, 0x36]], // 7 orange
-      ];
-      // Name → colour index → palette index, matching EmptyUserpic's
-      // ColorIndexToPaletteIndex (chat_style.cpp:1205) over the 7 simple
-      // colours (kSimpleColorIndexCount). The notification layer only has a
-      // name, not the peer id, so we hash the title to pick the gradient.
-      const paletteMap = [0, 7, 4, 1, 6, 3, 5];
-      final pair = gradients[paletteMap[title.hashCode.abs() % 7]];
-      final top = pair[0];
-      final bottom = pair[1];
-
       const size = 64;
       final image = img.Image(width: size, height: size, numChannels: 4);
       img.fill(image, color: img.ColorRgba8(0, 0, 0, 0));
-      // Draw a circular userpic (EmptyUserpic::paintCircle) with a vertical
-      // gradient and an anti-aliased edge — transparent corners — instead of
-      // the old opaque flat-filled square.
-      final center = (size - 1) / 2.0;
-      final radius = size / 2.0;
-      for (var py = 0; py < size; py++) {
-        final t = py / (size - 1);
-        final r = (top[0] + (bottom[0] - top[0]) * t).round();
-        final g = (top[1] + (bottom[1] - top[1]) * t).round();
-        final b = (top[2] + (bottom[2] - top[2]) * t).round();
-        for (var px = 0; px < size; px++) {
-          final dx = px - center;
-          final dy = py - center;
-          final dist = math.sqrt(dx * dx + dy * dy);
-          final coverage = (radius - dist + 0.5).clamp(0.0, 1.0);
-          if (coverage <= 0) continue;
-          image.setPixelRgba(px, py, r, g, b, (coverage * 255).round());
+      final pair = _userpicGradients[_paletteMap[colorIndex]];
+      _drawGradientCircle(image, pair[0], pair[1], size);
+
+      if (initials.isNotEmpty) {
+        final font = img.arial24;
+        int textW = 0;
+        for (final cu in initials.codeUnits) {
+          final ch = font.characters[cu];
+          if (ch != null) textW += ch.xAdvance;
         }
+        final x = (size - textW) ~/ 2;
+        final y = (size - font.lineHeight) ~/ 2;
+        img.drawString(image, initials,
+            font: font, x: x, y: y,
+            color: img.ColorRgba8(255, 255, 255, 255));
       }
 
-      final initials = _getInitials(title);
-      final font = img.arial24;
-      int textW = 0;
-      for (final cu in initials.codeUnits) {
-        final ch = font.characters[cu];
-        if (ch != null) textW += ch.xAdvance;
-      }
-      final x = (size - textW) ~/ 2;
-      final y = (size - font.lineHeight) ~/ 2;
-      img.drawString(image, initials,
-          font: font, x: x, y: y,
-          color: img.ColorRgba8(255, 255, 255, 255));
-
-      final rawRgba = image.toUint8List();
-      final outPath = p.join(cacheDir, 'placeholder_${_randomFileId()}.png');
-      await File(outPath).writeAsBytes(Uint8List.fromList(img.encodePng(image)));
-
-      _userpicCache._cache[cacheKey] = _CachedUserpic(
-        filePath: outPath,
-        rawRgba: rawRgba,
-        lastUsed: DateTime.now(),
-      );
-      _userpicCache._ensureCleanupTimer();
-
-      return outPath;
+      await _storeGeneratedUserpic(cacheKey, cacheDir, image, 'placeholder');
+      return cacheKey;
     } catch (e) {
       Debug.log('NOTIF', 'Placeholder userpic generation failed: $e');
       return null;
     }
+  }
+
+  // Saved Messages bookmark userpic for the self-chat, mirroring AyuGram's
+  // GenerateUserpic → EmptyUserpic::GenerateSavedMessages
+  // (notifications_utilities.cpp:27, empty_userpic.cpp:394-431): a white bookmark
+  // glyph on the saved-messages blue gradient (historyPeerSavedMessagesBg, which
+  // aliases historyPeer4UserpicBg = palette slot 3). Returns the cache key.
+  Future<String?> _generateSavedMessagesUserpic() async {
+    const cacheKey = '__saved_messages';
+    try {
+      final existing = _userpicCache._cache[cacheKey];
+      if (existing != null && File(existing.filePath).existsSync()) {
+        existing.lastUsed = DateTime.now();
+        return cacheKey;
+      }
+      final cacheDir = p.join(Directory.systemTemp.path, 'uniclient_userpics');
+      await Directory(cacheDir).create(recursive: true);
+
+      const size = 64;
+      final image = img.Image(width: size, height: size, numChannels: 4);
+      img.fill(image, color: img.ColorRgba8(0, 0, 0, 0));
+      final pair = _userpicGradients[3]; // historyPeer4UserpicBg (blue)
+      _drawGradientCircle(image, pair[0], pair[1], size);
+      _drawSavedMessagesBookmark(image, size);
+
+      await _storeGeneratedUserpic(cacheKey, cacheDir, image, 'saved');
+      return cacheKey;
+    } catch (e) {
+      Debug.log('NOTIF', 'Saved Messages userpic generation failed: $e');
+      return null;
+    }
+  }
+
+  // EmptyUserpic::paintCircle background: a vertical gradient (top→bottom) clipped
+  // to a circle with an anti-aliased edge (transparent corners).
+  static void _drawGradientCircle(
+      img.Image image, List<int> top, List<int> bottom, int size) {
+    final center = (size - 1) / 2.0;
+    final radius = size / 2.0;
+    for (var py = 0; py < size; py++) {
+      final t = py / (size - 1);
+      final r = (top[0] + (bottom[0] - top[0]) * t).round();
+      final g = (top[1] + (bottom[1] - top[1]) * t).round();
+      final b = (top[2] + (bottom[2] - top[2]) * t).round();
+      for (var px = 0; px < size; px++) {
+        final dx = px - center;
+        final dy = py - center;
+        final dist = math.sqrt(dx * dx + dy * dy);
+        final coverage = (radius - dist + 0.5).clamp(0.0, 1.0);
+        if (coverage <= 0) continue;
+        image.setPixelRgba(px, py, r, g, b, (coverage * 255).round());
+      }
+    }
+  }
+
+  // Paints EmptyUserpic's Saved Messages bookmark outline (PaintSavedMessagesInner,
+  // empty_userpic.cpp:44-116) in white over the already-painted gradient circle.
+  // The geometry uses AyuGram's exact size-relative formulas; the outline is the
+  // closed rectangle-with-bottom-notch, stroked as an anti-aliased polyline via
+  // distance-to-segment (round joins, sub-pixel-faithful at this size).
+  static void _drawSavedMessagesBookmark(img.Image image, int size) {
+    final thickness = (size * 0.055).round();
+    final increment = (thickness % 2) + (size % 2);
+    final bw = (size * 0.15).round() * 2 + increment;
+    final bh = (size * 0.19).round() * 2 + increment;
+    final add = (size * 0.064).round();
+
+    final left = ((size - bw) ~/ 2).toDouble();
+    final top = ((size - bh) ~/ 2).toDouble();
+    final right = left + bw;
+    final bottom = top + bh;
+    final midX = (left + right) / 2.0;
+
+    // Bookmark outline: rectangle with a triangular notch cut into the bottom.
+    final pts = <List<double>>[
+      [left, top],
+      [right, top],
+      [right, bottom],
+      [midX, bottom - add],
+      [left, bottom],
+    ];
+
+    final half = thickness / 2.0;
+    for (var py = 0; py < size; py++) {
+      for (var px = 0; px < size; px++) {
+        final fx = px.toDouble();
+        final fy = py.toDouble();
+        var best = double.infinity;
+        for (var s = 0; s < pts.length; s++) {
+          final a = pts[s];
+          final b = pts[(s + 1) % pts.length];
+          final d = _distToSegment(fx, fy, a[0], a[1], b[0], b[1]);
+          if (d < best) best = d;
+        }
+        final coverage = (half - best + 0.5).clamp(0.0, 1.0);
+        if (coverage <= 0) continue;
+        final bg = image.getPixel(px, py);
+        final inv = 1.0 - coverage;
+        final outA = (coverage * 255).round();
+        image.setPixelRgba(
+          px,
+          py,
+          (bg.r * inv + 255 * coverage).round(),
+          (bg.g * inv + 255 * coverage).round(),
+          (bg.b * inv + 255 * coverage).round(),
+          bg.a < outA ? outA : bg.a.toInt(),
+        );
+      }
+    }
+  }
+
+  static double _distToSegment(
+      double px, double py, double ax, double ay, double bx, double by) {
+    final dx = bx - ax;
+    final dy = by - ay;
+    final lenSq = dx * dx + dy * dy;
+    var t = lenSq > 0 ? ((px - ax) * dx + (py - ay) * dy) / lenSq : 0.0;
+    if (t < 0.0) t = 0.0;
+    if (t > 1.0) t = 1.0;
+    final cx = ax + t * dx;
+    final cy = ay + t * dy;
+    final ex = px - cx;
+    final ey = py - cy;
+    return math.sqrt(ex * ex + ey * ey);
+  }
+
+  // Encodes [image] to a temp PNG, stores it + its raw RGBA under [cacheKey], and
+  // arms the cleanup timer. Shared by the placeholder + Saved Messages paths.
+  Future<void> _storeGeneratedUserpic(
+      String cacheKey, String cacheDir, img.Image image, String prefix) async {
+    final rawRgba = image.toUint8List();
+    final outPath = p.join(cacheDir, '${prefix}_${_randomFileId()}.png');
+    await File(outPath).writeAsBytes(Uint8List.fromList(img.encodePng(image)));
+    _userpicCache._cache[cacheKey] = _CachedUserpic(
+      filePath: outPath,
+      rawRgba: rawRgba,
+      lastUsed: DateTime.now(),
+    );
+    _userpicCache._ensureCleanupTimer();
   }
 
   Future<void> _initLinuxDBus() async {
@@ -655,13 +920,15 @@ class NativeManager extends NotificationManager {
     var imageHintSet = false;
     if (!forceHideDetails) {
       Uint8List? rawRgba;
-      if (data.avatarPath.isNotEmpty) {
+      if (!data.isSelf && data.avatarPath.isNotEmpty) {
         await _userpicCache.get(data.avatarPath);
         rawRgba = _userpicCache.getRawRgba(data.avatarPath);
       } else {
-        final title = data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName;
-        await _generatePlaceholderUserpic(title);
-        rawRgba = _userpicCache.getRawRgba('__placeholder:$title');
+        // Self-chat → Saved Messages bookmark glyph; any other avatar-less peer
+        // → colored-initials placeholder (GenerateUserpic,
+        // notifications_utilities.cpp:26-32).
+        final key = await _generateUserpicGlyph(data);
+        rawRgba = key != null ? _userpicCache.getRawRgba(key) : null;
       }
       if (rawRgba != null) {
         hints[DBusString(_imageDataKey)] = DBusVariant(
@@ -872,17 +1139,17 @@ class NativeManager extends NotificationManager {
       final forceHideDetails = !settings.previewName && !settings.previewText;
       if (!forceHideDetails) {
         try {
-          // Avatar peers -> rounded cloud userpic; avatar-less peers -> the
-          // colored-initials placeholder (EmptyUserpic), mirroring the DBus
-          // branch and AyuGram's GenerateUserpic which always renders an icon
-          // inside !hideNameAndPhoto. (notifications_manager_linux.cpp:691)
+          // Avatar peers -> rounded cloud userpic; self-chat -> Saved Messages
+          // bookmark glyph; any other avatar-less peer -> colored-initials
+          // placeholder (EmptyUserpic), mirroring the DBus branch and AyuGram's
+          // GenerateUserpic which always renders an icon inside !hideNameAndPhoto.
+          // (notifications_utilities.cpp:26-32, notifications_manager_linux.cpp:691)
           final String? imgPath;
-          if (data.avatarPath.isNotEmpty) {
+          if (!data.isSelf && data.avatarPath.isNotEmpty) {
             imgPath = await _userpicCache.get(data.avatarPath);
           } else {
-            final title =
-                data.chatTitle.isNotEmpty ? data.chatTitle : data.senderName;
-            imgPath = await _generatePlaceholderUserpic(title);
+            final key = await _generateUserpicGlyph(data);
+            imgPath = key != null ? _userpicCache.getPath(key) : null;
           }
           if (imgPath != null) {
             final pngBytes = await File(imgPath).readAsBytes();
