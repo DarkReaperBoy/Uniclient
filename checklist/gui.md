@@ -465,33 +465,6 @@ Audited against AyuGram `settings_main.cpp` (the `AyuMain` section: logo → ver
 
 ## Findings
 
-## ayu_other_page — AyuGram "Other" settings page (donations, crash reporting, URL scheme, reset)
-
-**Wiring verdict: all backend wiring is REAL — no stubs/placeholders.**
-Every callback is functional: Boosty/crypto buttons open URLs or a real generated QR (`_DonateQrBox`), "contact support" → `_DonateInfoBox` (correctly mirrors AyuGram's `tg://support` → `HandleSupport` → `FillDonateInfoBox`, `ayu_url_handlers.cpp:134-145`), crash toggle → `appState.setCrashReporting` → `Debug.crashReportingEnabled` (consumed at `utils/debug.dart:23`), Reset → `appState.resetAyuSettings()` (full reset), URL-scheme registration has real Linux/macOS/Windows impls, username link → `engine.resolveUsername` (real bridge call). Donate defaults (`5.00`/`3.50`/`386`/`ayugramOwner`) match `rc_manager.h:102-105`, and the RC fetch (primary→extera fallback) mirrors `rc_manager.cpp:15-16,54`. QR box sizing (487 = aboutWidth*1.25, `boxes.style:351`), center ratio 0.20, copy toast all match `donate_qr_box.cpp`.
-
-**The defects below are all displayed-text divergences from AyuGram's `lang.strings` (the C++ uses `tr::ayu_*` keys; the Dart hardcodes different English). For a 1:1 replication these show the user wrong/altered content.**
-
-- [ ] [MAJOR] Crash Reporting description has INVERTED semantics — Dart says reports are sent **"automatically"**, but AyuGram says the user is **"prompted"** and **decides** each time — `ayu_other_page.dart:106-107` ("Help improve AyuGram by automatically sending crash reports when the app encounters an error.") ← `AyuGram/Telegram/Resources/langs/lang.strings:8072` (`ayu_CrashReportingDescription` = "When this option is enabled, you'll be prompted to send a report after the app crashes. You can decide whether to send it or not.", used at `settings_other.cpp:192`)
-
-- [ ] [MAJOR] Support page description text entirely different + wrong link label — Dart shows "You can support AyuGram development through donations. For questions, [contact support]." but AyuGram shows "[Support Development] and get an unique badge!" (no "contact support" wording; the link text is "Support Development" and the message highlights earning a badge) — `ayu_other_page.dart:452-460` ← `AyuGram/Telegram/Resources/langs/lang.strings:8061-8062` (`ayu_SupportDescription1`/`2`, used at `settings_other.cpp:161-167`)
-
-- [ ] [MAJOR] DonateInfoBox header text wrong — Dart "Support AyuGram Desktop" vs AyuGram "Support Development" — `ayu_other_page.dart:632` ← `AyuGram/Telegram/Resources/langs/lang.strings:8063` (`ayu_SupportBoxHeader`, used at `donate_info_box.cpp:149-155`)
-
-- [ ] [MAJOR] DonateInfoBox intro text wrong AND donation amounts misplaced — Dart puts the amounts ("$5.00, [ton] 3.50 TON, 386₽") inside the top intro line, but AyuGram's intro (`ayu_SupportBoxInfo`) carries NO amounts ("By supporting the project, you not only contribute to its development but also get a unique badge.") — the amounts belong in the "Make a Donation" row instead — `ayu_other_page.dart:642-657` ← `AyuGram/Telegram/Resources/langs/lang.strings:8064` + `donate_info_box.cpp:157-162` (intro) and `donate_info_box.cpp:179-199` (amounts live in the donation row)
-
-- [ ] [MAJOR] DonateInfoBox "Make a Donation" row description wrong — Dart "Use the crypto buttons or visit Boosty." replaces AyuGram's "Transfer an amount of {amount1} ({amount2}) to any of the project's payment details. These can be found in the **Other** section of the app settings." — this is where the $/TON/₽ amounts should render (and they are dropped here) — `ayu_other_page.dart:663-669` ← `AyuGram/Telegram/Resources/langs/lang.strings:8066` (`ayu_SupportBoxMakeDonationInfo`, built at `donate_info_box.cpp:184-199`)
-
-- [ ] [MAJOR] DonateInfoBox "Send Proof" row text wrong + drops required detail — Dart header "Send proof" / "Forward your payment confirmation to @user on Telegram." omits AyuGram's instruction to send a **photo** that "clearly shows the amount, date, and time of the transfer" — `ayu_other_page.dart:671-688` ← `AyuGram/Telegram/Resources/langs/lang.strings:8067-8068` (`ayu_SupportBoxSendProofHeader`/`Info`, used at `donate_info_box.cpp:208-221`)
-
-- [ ] [MAJOR] DonateInfoBox "Receive Badge" row text wrong + drops detail — Dart "After verification, you will receive a supporter badge." omits AyuGram's "...a unique badge that will be displayed on your profile and visible to other users." — `ayu_other_page.dart:690-697` ← `AyuGram/Telegram/Resources/langs/lang.strings:8069-8070` (`ayu_SupportBoxReceiveBadgeHeader`/`Info`, used at `donate_info_box.cpp:225-235`)
-
-- [ ] [MAJOR] Reset-settings confirmation invents an extra paragraph + wrong confirm-button label — Dart adds "This will reset ghost mode, appearance, filters, and all other AyuGram preferences." (not in source) and labels the confirm button "Reset"; AyuGram is a single line and the confirm button is "Yes" (`lng_box_yes`) — `ayu_other_page.dart:273-277,296` ← `AyuGram/Telegram/Resources/langs/lang.strings:8074` (`ayu_ResetSettingsConfirmation`) + `settings_other.cpp:215,221` (`.confirmText = tr::lng_box_yes()`)
-
-- [ ] [MAJOR] QR box title wrong — Dart header "QR code" vs AyuGram box title "Get QR Code" (`lng_group_invite_context_qr`) — `ayu_other_page.dart:835` ← `AyuGram/Telegram/Resources/langs/lang.strings:2743` (set at `donate_qr_box.cpp:78`)
-
-- [ ] [MAJOR] Crash Reporting toggle has an invented subtitle — Dart adds inline subtitle "Send crash reports to developers"; AyuGram's toggle has only a title (`ayu_CrashReporting`) with the explanatory text in the divider below, no per-row subtitle — `ayu_other_page.dart:100` ← `AyuGram/Telegram/SourceFiles/ayu/ui/settings/settings_other.cpp:183-190` (`.title = tr::ayu_CrashReporting()` only)
-
 # ayu_section_builder — settings section widget toolkit (toggle/slider/choose/collapsible)
 
 Audited `dart/lib/ui/ayu_section_builder.dart` against AyuGram's `ayu_builder.cpp`,
