@@ -36,10 +36,6 @@ sound caching + `handlesSound`/DND contract match `VolumeSupported()`/`invokeIfN
 The 8 userpic gradient pairs (`:308-317`) and the `[0,7,4,1,6,3,5]` palette map (`:322`) are
 byte-exact with `lib_ui/ui/colors.palette` + `chat_style.cpp:1205`.
 
-The findings below are all confined to the **placeholder (avatar-less) userpic** path, where
-the Dart diverges from AyuGram's `GenerateUserpic` → `EmptyUserpic`.
-
-- [ ] [MAJOR] Replies-chat userpic uses colored initials instead of the dedicated Replies glyph. AyuGram's `GenerateUserpic` routes `peer->isRepliesChat()` → `EmptyUserpic::GenerateRepliesMessages`. (The sibling `peer->isSelf()` → `GenerateSavedMessages` bookmark branch is DONE & verified: `_generateUserpicGlyph` → `_generateSavedMessagesUserpic`.) The Dart still has no Replies branch: `NotificationData` has no `isReplies` field — though `ChatInfo.isReplies` exists and `chat_list_row.dart:1092` already renders `_RepliesMessagesUserpic` — and the notify builder at `chat_state.dart:2633` captures `isSelf` but not `isReplies`, so an avatar-less Replies chat falls through to `_generatePlaceholderUserpic` → colored "R" initials. Fix: add `isReplies` to `NotificationData`, plumb it from `chat?.isReplies` in `chat_state.dart`, and add a Replies-icon branch (port `PaintRepliesMessagesInner` / the `_RepliesIconPainter` glyph) in `_generateUserpicGlyph`. — `notification_manager_native.dart:449-456` ← `AyuGram/Telegram/SourceFiles/window/notifications_utilities.cpp:29-30` & `ui/empty_userpic.cpp:147-161`
 
 # notification_sound — NotificationSoundPlayer (media_kit) vs AyuGram Track/System sound playback
 
