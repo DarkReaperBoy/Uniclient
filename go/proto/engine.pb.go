@@ -9669,6 +9669,12 @@ type EngineGetWebPagePreviewResponse struct {
 	Type          string                 `protobuf:"bytes,6,opt,name=type,proto3" json:"type,omitempty"`
 	HasLargeMedia bool                   `protobuf:"varint,7,opt,name=has_large_media,json=hasLargeMedia,proto3" json:"has_large_media,omitempty"`
 	PendingTill   int64                  `protobuf:"varint,8,opt,name=pending_till,json=pendingTill,proto3" json:"pending_till,omitempty"`
+	Author        string                 `protobuf:"bytes,9,opt,name=author,proto3" json:"author,omitempty"`                                        // page author (drives small-vs-large media layout)
+	EmbedUrl      string                 `protobuf:"bytes,10,opt,name=embed_url,json=embedUrl,proto3" json:"embed_url,omitempty"`                   // non-empty => treated as a video page
+	HasPhoto      bool                   `protobuf:"varint,11,opt,name=has_photo,json=hasPhoto,proto3" json:"has_photo,omitempty"`                  // page has a photo attachment
+	HasDocument   bool                   `protobuf:"varint,12,opt,name=has_document,json=hasDocument,proto3" json:"has_document,omitempty"`         // page has a document attachment
+	HasUniqueGift bool                   `protobuf:"varint,13,opt,name=has_unique_gift,json=hasUniqueGift,proto3" json:"has_unique_gift,omitempty"` // page is a unique-star-gift attribute page
+	HasIv         bool                   `protobuf:"varint,14,opt,name=has_iv,json=hasIv,proto3" json:"has_iv,omitempty"`                           // page has an Instant View (cached page)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9757,6 +9763,48 @@ func (x *EngineGetWebPagePreviewResponse) GetPendingTill() int64 {
 		return x.PendingTill
 	}
 	return 0
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetAuthor() string {
+	if x != nil {
+		return x.Author
+	}
+	return ""
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetEmbedUrl() string {
+	if x != nil {
+		return x.EmbedUrl
+	}
+	return ""
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetHasPhoto() bool {
+	if x != nil {
+		return x.HasPhoto
+	}
+	return false
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetHasDocument() bool {
+	if x != nil {
+		return x.HasDocument
+	}
+	return false
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetHasUniqueGift() bool {
+	if x != nil {
+		return x.HasUniqueGift
+	}
+	return false
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetHasIv() bool {
+	if x != nil {
+		return x.HasIv
+	}
+	return false
 }
 
 type EngineBotCallbackRequest struct {
@@ -15462,7 +15510,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x1eEngineGetWebPagePreviewRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x10\n" +
-	"\x03url\x18\x02 \x01(\tR\x03url\"\x84\x02\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\"\xb8\x03\n" +
 	"\x1fEngineGetWebPagePreviewResponse\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x1b\n" +
 	"\tsite_name\x18\x02 \x01(\tR\bsiteName\x12\x14\n" +
@@ -15471,7 +15519,14 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\tthumb_b64\x18\x05 \x01(\tR\bthumbB64\x12\x12\n" +
 	"\x04type\x18\x06 \x01(\tR\x04type\x12&\n" +
 	"\x0fhas_large_media\x18\a \x01(\bR\rhasLargeMedia\x12!\n" +
-	"\fpending_till\x18\b \x01(\x03R\vpendingTill\"}\n" +
+	"\fpending_till\x18\b \x01(\x03R\vpendingTill\x12\x16\n" +
+	"\x06author\x18\t \x01(\tR\x06author\x12\x1b\n" +
+	"\tembed_url\x18\n" +
+	" \x01(\tR\bembedUrl\x12\x1b\n" +
+	"\thas_photo\x18\v \x01(\bR\bhasPhoto\x12!\n" +
+	"\fhas_document\x18\f \x01(\bR\vhasDocument\x12&\n" +
+	"\x0fhas_unique_gift\x18\r \x01(\bR\rhasUniqueGift\x12\x15\n" +
+	"\x06has_iv\x18\x0e \x01(\bR\x05hasIv\"}\n" +
 	"\x18EngineBotCallbackRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +

@@ -2908,6 +2908,12 @@ class WebPagePreview {
   final String type;
   final bool hasLargeMedia;
   final int pendingTill;
+  final String author;
+  final String embedUrl;
+  final bool hasPhoto;
+  final bool hasDocument;
+  final bool hasUniqueGift;
+  final bool hasIv;
 
   const WebPagePreview({
     this.url = '',
@@ -2918,15 +2924,61 @@ class WebPagePreview {
     this.type = '',
     this.hasLargeMedia = false,
     this.pendingTill = 0,
+    this.author = '',
+    this.embedUrl = '',
+    this.hasPhoto = false,
+    this.hasDocument = false,
+    this.hasUniqueGift = false,
+    this.hasIv = false,
   });
 
   bool get isPending => pendingTill > 0;
 
+  /// Classifies the raw server [type] string into the subset of AyuGram's
+  /// WebPageType values that [defaultSmallMedia] distinguishes, following the
+  /// same precedence as `ParseWebPageType` (data/data_web_page.cpp:125-189):
+  /// a non-empty embed URL forces `video` regardless of `type`, then the
+  /// explicit type strings, then the has-IV fallback (`ArticleWithIV`).
+  String get _typeKind {
+    if (type == 'video' || type == 'gif' || embedUrl.isNotEmpty) return 'video';
+    if (type == 'photo') return 'photo';
+    if (type == 'document') return 'document';
+    if (type == 'profile') return 'profile';
+    if (type == 'telegram_story') return 'story';
+    if (type.startsWith('telegram_')) return 'other';
+    if (hasIv) return 'articleWithIV';
+    return 'article';
+  }
+
+  /// Port of `WebPageData::computeDefaultSmallMedia`
+  /// (data/data_web_page.cpp:423-449) — decides small (true) vs large (false)
+  /// web-preview media layout. The `collage.items` short-circuit is omitted:
+  /// a collage is derived from the Instant-View page and is never populated for
+  /// a link preview, so that branch would always see an empty list here.
   bool get defaultSmallMedia {
-    if (type == 'profile') return true;
-    if (type == 'twitter' || type == 'facebook') return false;
-    if (title.isEmpty && description.isEmpty && siteName.isEmpty) return false;
-    if (thumbB64.isNotEmpty && type != 'video' && type != 'gif' && type != 'document') return true;
+    if (siteName.isEmpty &&
+        title.isEmpty &&
+        description.isEmpty &&
+        author.isEmpty) {
+      return false;
+    }
+    final kind = _typeKind;
+    if (!hasUniqueGift &&
+        !hasDocument &&
+        hasPhoto &&
+        kind != 'photo' &&
+        kind != 'document' &&
+        kind != 'story' &&
+        kind != 'video') {
+      if (kind == 'profile') {
+        return true;
+      } else if (siteName == 'Twitter' ||
+          siteName == 'Facebook' ||
+          kind == 'articleWithIV') {
+        return false;
+      }
+      return true;
+    }
     return false;
   }
 }
@@ -3579,9 +3631,15 @@ class ScheduledMessages {
   static const int kMaxScheduleHorizonDays = 365;
   static const int kRequestTimeLimitMs = 60000;
 
-  static bool isScheduledMsgId(int id) => id > _kServerMaxMsgId;
+  // Mirrors AyuGram's IsScheduledMsgId (data/components/scheduled_messages.cpp:112-114):
+  // a scheduled id sits strictly between ServerMaxMsgId and ScheduledMaxMsgId.
+  // Without the upper bound, shortcut/business ids (>= ScheduledMaxMsgId) would be
+  // misclassified as scheduled. (data/data_msg_id.h:80-82)
+  static bool isScheduledMsgId(int id) =>
+      id > _kServerMaxMsgId && id < _kScheduledMaxMsgId;
 
   static const int _kServerMaxMsgId = 1 << 56;
+  static const int _kScheduledMaxMsgId = _kServerMaxMsgId + (1 << 32);
 
   static bool canScheduleUntilOnline(ChatInfo peer) {
     return peer.type == ChatType.dm;

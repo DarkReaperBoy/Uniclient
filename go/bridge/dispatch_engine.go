@@ -3359,6 +3359,30 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				data = protowire.AppendTag(data, 8, protowire.VarintType)
 				data = protowire.AppendVarint(data, uint64(result.PendingTill))
 			}
+			if result.Author != "" {
+				data = protowire.AppendTag(data, 9, protowire.BytesType)
+				data = protowire.AppendString(data, result.Author)
+			}
+			if result.EmbedURL != "" {
+				data = protowire.AppendTag(data, 10, protowire.BytesType)
+				data = protowire.AppendString(data, result.EmbedURL)
+			}
+			if result.HasPhoto {
+				data = protowire.AppendTag(data, 11, protowire.VarintType)
+				data = protowire.AppendVarint(data, 1)
+			}
+			if result.HasDocument {
+				data = protowire.AppendTag(data, 12, protowire.VarintType)
+				data = protowire.AppendVarint(data, 1)
+			}
+			if result.HasUniqueGift {
+				data = protowire.AppendTag(data, 13, protowire.VarintType)
+				data = protowire.AppendVarint(data, 1)
+			}
+			if result.HasIV {
+				data = protowire.AppendTag(data, 14, protowire.VarintType)
+				data = protowire.AppendVarint(data, 1)
+			}
 		}
 		return data, nil
 

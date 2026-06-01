@@ -15463,9 +15463,30 @@ func (t *TelegramCore) GetWebPagePreviewFull(url string) (*WebPagePreviewResult,
 				if t, ok := wp.GetType(); ok {
 					r.Type = t
 				}
+				if a, ok := wp.GetAuthor(); ok {
+					r.Author = a
+				}
+				if e, ok := wp.GetEmbedURL(); ok {
+					r.EmbedURL = e
+				}
 				if wp.Photo != nil {
+					r.HasPhoto = true
 					if photo, ok := wp.Photo.(*tg.Photo); ok {
 						r.ThumbB64 = extractStrippedThumbB64(photo.Sizes)
+					}
+				}
+				if _, ok := wp.GetDocument(); ok {
+					r.HasDocument = true
+				}
+				if _, ok := wp.GetCachedPage(); ok {
+					r.HasIV = true
+				}
+				if attrs, ok := wp.GetAttributes(); ok {
+					for _, attr := range attrs {
+						if _, ok := attr.(*tg.WebPageAttributeUniqueStarGift); ok {
+							r.HasUniqueGift = true
+							break
+						}
 					}
 				}
 				return r, nil

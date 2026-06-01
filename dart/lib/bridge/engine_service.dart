@@ -1215,6 +1215,12 @@ class EngineService {
         thumbB64: resp.thumbB64,
         type: resp.type,
         hasLargeMedia: resp.hasLargeMedia,
+        author: resp.author,
+        embedUrl: resp.embedUrl,
+        hasPhoto: resp.hasPhoto,
+        hasDocument: resp.hasDocument,
+        hasUniqueGift: resp.hasUniqueGift,
+        hasIv: resp.hasIv,
       );
     } catch (_) {
       return null;

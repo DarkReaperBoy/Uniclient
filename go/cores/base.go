@@ -466,6 +466,12 @@ type WebPagePreviewResult struct {
 	Type          string `json:"type"`
 	HasLargeMedia bool   `json:"has_large_media"`
 	PendingTill   int64  `json:"pending_till"`
+	Author        string `json:"author"`
+	EmbedURL      string `json:"embed_url"`
+	HasPhoto      bool   `json:"has_photo"`
+	HasDocument   bool   `json:"has_document"`
+	HasUniqueGift bool   `json:"has_unique_gift"`
+	HasIV         bool   `json:"has_iv"`
 }
 
 type StarGiftItem struct {

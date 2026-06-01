@@ -12979,6 +12979,12 @@ class EngineGetWebPagePreviewResponse extends $pb.GeneratedMessage {
     $core.String? type,
     $core.bool? hasLargeMedia,
     $fixnum.Int64? pendingTill,
+    $core.String? author,
+    $core.String? embedUrl,
+    $core.bool? hasPhoto,
+    $core.bool? hasDocument,
+    $core.bool? hasUniqueGift,
+    $core.bool? hasIv,
   }) {
     final $result = create();
     if (url != null) {
@@ -13005,6 +13011,24 @@ class EngineGetWebPagePreviewResponse extends $pb.GeneratedMessage {
     if (pendingTill != null) {
       $result.pendingTill = pendingTill;
     }
+    if (author != null) {
+      $result.author = author;
+    }
+    if (embedUrl != null) {
+      $result.embedUrl = embedUrl;
+    }
+    if (hasPhoto != null) {
+      $result.hasPhoto = hasPhoto;
+    }
+    if (hasDocument != null) {
+      $result.hasDocument = hasDocument;
+    }
+    if (hasUniqueGift != null) {
+      $result.hasUniqueGift = hasUniqueGift;
+    }
+    if (hasIv != null) {
+      $result.hasIv = hasIv;
+    }
     return $result;
   }
   EngineGetWebPagePreviewResponse._() : super();
@@ -13020,6 +13044,12 @@ class EngineGetWebPagePreviewResponse extends $pb.GeneratedMessage {
     ..aOS(6, _omitFieldNames ? '' : 'type')
     ..aOB(7, _omitFieldNames ? '' : 'hasLargeMedia')
     ..aInt64(8, _omitFieldNames ? '' : 'pendingTill')
+    ..aOS(9, _omitFieldNames ? '' : 'author')
+    ..aOS(10, _omitFieldNames ? '' : 'embedUrl')
+    ..aOB(11, _omitFieldNames ? '' : 'hasPhoto')
+    ..aOB(12, _omitFieldNames ? '' : 'hasDocument')
+    ..aOB(13, _omitFieldNames ? '' : 'hasUniqueGift')
+    ..aOB(14, _omitFieldNames ? '' : 'hasIv')
     ..hasRequiredFields = false
   ;
 
@@ -13115,6 +13145,60 @@ class EngineGetWebPagePreviewResponse extends $pb.GeneratedMessage {
   $core.bool hasPendingTill() => $_has(7);
   @$pb.TagNumber(8)
   void clearPendingTill() => clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.String get author => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set author($core.String v) { $_setString(8, v); }
+  @$pb.TagNumber(9)
+  $core.bool hasAuthor() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearAuthor() => clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.String get embedUrl => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set embedUrl($core.String v) { $_setString(9, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasEmbedUrl() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearEmbedUrl() => clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.bool get hasPhoto => $_getBF(10);
+  @$pb.TagNumber(11)
+  set hasPhoto($core.bool v) { $_setBool(10, v); }
+  @$pb.TagNumber(11)
+  $core.bool hasHasPhoto() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearHasPhoto() => clearField(11);
+
+  @$pb.TagNumber(12)
+  $core.bool get hasDocument => $_getBF(11);
+  @$pb.TagNumber(12)
+  set hasDocument($core.bool v) { $_setBool(11, v); }
+  @$pb.TagNumber(12)
+  $core.bool hasHasDocument() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearHasDocument() => clearField(12);
+
+  @$pb.TagNumber(13)
+  $core.bool get hasUniqueGift => $_getBF(12);
+  @$pb.TagNumber(13)
+  set hasUniqueGift($core.bool v) { $_setBool(12, v); }
+  @$pb.TagNumber(13)
+  $core.bool hasHasUniqueGift() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearHasUniqueGift() => clearField(13);
+
+  @$pb.TagNumber(14)
+  $core.bool get hasIv => $_getBF(13);
+  @$pb.TagNumber(14)
+  set hasIv($core.bool v) { $_setBool(13, v); }
+  @$pb.TagNumber(14)
+  $core.bool hasHasIv() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearHasIv() => clearField(14);
 }
 
 class EngineBotCallbackRequest extends $pb.GeneratedMessage {

@@ -1140,6 +1140,12 @@ message EngineGetWebPagePreviewResponse {
   string type           = 6;
   bool   has_large_media = 7;
   int64  pending_till   = 8;
+  string author          = 9;   // page author (drives small-vs-large media layout)
+  string embed_url       = 10;  // non-empty => treated as a video page
+  bool   has_photo       = 11;  // page has a photo attachment
+  bool   has_document    = 12;  // page has a document attachment
+  bool   has_unique_gift = 13;  // page is a unique-star-gift attribute page
+  bool   has_iv          = 14;  // page has an Instant View (cached page)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
