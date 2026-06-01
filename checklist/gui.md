@@ -296,30 +296,6 @@ NOT FLAGGED (cosmetic/minor): extra 1px divider after current row (AyuGram uses
   to this port).
 -->
 
-# admin_tools — group/channel/bot admin management (Edit Peer Info, Permissions, Restrict, Edit Admin, Admin Log, Invite Links, Members, Statistics, Boosts)
-
-Audited `dart/lib/ui/admin_tools.dart` (8075 lines) against AyuGram Desktop C++ source. Slowmode values, charge-stars default (10), boosts-unrestrict range, channel admin-rights order/flags (incl. ManageDirect), media-group nesting of links/polls in the *permissions* box, invite-link form field order, and the admin-log action descriptions all match. The issues below are real deviations/gaps verified against the C++ source.
-
-## MAJOR
-
-- [ ] [MAJOR] Permissions & Restrict editors split the single combined "Stickers, GIFs, games & inline" permission into FOUR separate toggles with wrong labels ("Send stickers & GIFs", "Send GIFs", "Send games", "Use inline bots"). AyuGram renders ONE checkbox (`SendStickers|SendGifs|SendGames|SendInline` → `lng_rights_chat_stickers`); the Dart cascade in `_toggleFlag` only papers over the structural mismatch, and the media count badge shows `/12` and `/10` instead of AyuGram's `/9`. — `admin_tools.dart:2497-2500` (perms) and `admin_tools.dart:3243-3246` (restricted) ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:88-91`
-
-- [ ] [MAJOR] `_EditRestrictedBox` places "Send links" (embed_links) and "Send polls" (send_polls) as top-level flags OUTSIDE the collapsible "Send media" group, whereas AyuGram nests both inside the media sub-group (the `_EditPeerPermissionsBox` correctly nests them, so the two boxes are also inconsistent with each other). — `admin_tools.dart:3249-3250` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:92-93`
-
-- [ ] [MAJOR] Both permission editors omit the `EditRank` restriction ("Add new admins"/"Edit rank", `lng_rights_group_edit_rank` / `_single`). AyuGram's `NestedRestrictionLabelsList` includes it in the bottom group (rendered as a checkbox; only locked, never removed, via `disabledMessages`). — `admin_tools.dart:2504-2509` (perms `_otherFlags`) and `admin_tools.dart:3248-3255` (restricted `_otherFlags`) ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:99-102`
-
-- [ ] [MAJOR] `_EditAdminBox` group admin rights omit the `ManageRanks` toggle ("Manage rank", `lng_rights_group_manage_ranks`). AyuGram lists it for groups between "Manage voice chats" and "Remain anonymous"; the Dart group section3 only has manage_call/anonymous/add_admins. — `admin_tools.dart:3880-3884` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:140-145` (esp. :142)
-
-- [ ] [MAJOR] `_EditAdminBox` shows the "Manage topics" admin right for ALL groups (the widget has no `isForum` param, so it is always in section1). AyuGram removes `ManageTopics` from group admin rights when `!options.isForum`, so non-forum groups should not show it. — `admin_tools.dart:3866-3874` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:146-153`
-
-- [ ] [MAJOR] `_EditPeerPermissionsBox` renders the "Charge Stars for Messages" section unconditionally (for every group and channel). AyuGram only builds this section when `available = channel && channel->paidMessagesAvailable()`, so a regular group should not show a charge-stars toggle. — `admin_tools.dart:2667-2670` (always calls `_buildChargeStarsSection`) ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:1177,1182`
-
-- [ ] [MAJOR] "Verify Accounts" dialog uses each contact's global Telegram `isVerified` (blue-check) flag as the initial per-bot verification state (`effectiveVerified = c.isVerified ^ toggledIds.contains(...)`). AyuGram determines bot-specific verification from `peer->botVerifyDetails()` and checks `details->botId == bot` — so Telegram-verified users wrongly appear already verified-by-this-bot and tapping them tries to "remove" verification that was never granted. — `admin_tools.dart:1750` ← `AyuGram/boxes/peers/verify_peers_box.cpp:94-95`
-
-- [ ] [MAJOR] "Monetization" is a crude `AlertDialog` that dumps `getStarsRevenueStats` as raw `key: value` rows (`e.key.replaceAll('_',' ')` → `'${e.value}'`). AyuGram provides a full Channel Earn section (~1527-line widget: balances, withdraw button, ad-revenue toggle, charts). Statistics and Boosts got full screens here, but Monetization is a low-fidelity dump. — `admin_tools.dart:2063-2078` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp` (full section)
-
-- [ ] [MAJOR] Bot "Public Links" row only shows a toast `'Bot link: t.me/$username'` instead of opening the usernames-management UI. AyuGram's `fillBotUsernamesButton` opens `UsernamesBox` (add/activate/reorder multiple public usernames). The row looks like a manager entry but only echoes one link. — `admin_tools.dart:1396-1405` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1786-1835`
-
 # advanced_settings_screen — Advanced Settings page + sub-dialogs (Update, Data/Storage, Auto-download, Window/System, Performance, Power Saving, Spellchecker, Proxy, Local Storage, Recent Downloads, Experimental)
 
 Audited against AyuGram Desktop C++ (ground truth): `settings/sections/settings_advanced.cpp`, `settings/settings_experimental.cpp`, `settings/settings_power_saving.cpp`, `boxes/connection_box.cpp`, `boxes/auto_download_box.cpp`, `boxes/local_storage_box.cpp`, and backend wiring in `go/engine/`.
