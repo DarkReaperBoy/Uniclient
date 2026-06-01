@@ -223,18 +223,9 @@ Audited `dart/lib/ui/active_sessions_screen.dart` against AyuGram's
 `api/api_authorizations.cpp`, and `settings/settings.style`.
 
 **Wiring/structure/dimensions are faithful** — see the verified-OK notes at the
-bottom. The findings below are all displayed-text / data-content deviations from
-the AyuGram ground-truth lang strings.
-
-- [ ] [MAJOR] "Terminate all" description text is wrong content — Dart shows *"Interrupted sessions will have to go through the full authorization process with a new confirmation code."*, a string that does **not exist anywhere** in AyuGram's lang files. AyuGram's `lng_sessions_terminate_all_about` reads *"Logs out all devices except for this one."* The current text misinforms the user about what the button does. — `active_sessions_screen.dart:1065` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:968` (`tr::lng_sessions_terminate_all_about`, value at `Telegram/Resources/langs/lang.strings:1374`)
-
-- [ ] [MAJOR] "Incomplete login attempts" description text deviates from ground truth — Dart shows *"These attempts had the correct login code, but no password was provided. If these attempts weren't made by you, you can terminate them and change your 2FA password."* (not present in AyuGram lang). AyuGram's `lng_sessions_incomplete_about` reads *"The devices above have no access to your messages. The code was entered correctly, but no correct password was given."* — `active_sessions_screen.dart:1095` ← `settings_active_sessions.cpp:979` (`tr::lng_sessions_incomplete_about`, value at `lang.strings:1376`)
-
-- [ ] [MAJOR] Other-sessions section header text is wrong — Dart's `_buildOtherSectionHeader` renders *"Active sessions"*, but that is the **page title** (`lng_settings_sessions_title`). AyuGram's section header for the list of other devices is `lng_sessions_other_header` = *"Active Devices"*. The header should read "Active Devices", distinct from the screen title. — `active_sessions_screen.dart:1107` ← `settings_active_sessions.cpp:987` (`tr::lng_sessions_other_header`, value at `lang.strings:1371`)
-
-- [ ] [MAJOR] Current-session info box hard-codes "online" instead of the real last-active datetime — `_showSessionInfoBox` sets `fullDate = isCurrent ? 'online' : _formatFullDate(...)`. AyuGram's `SessionInfoBox` shows `langDateTimeFull(base::unixtime::parse(data.activeTime))` for **every** session including the current one (the activeTime field is delivered for the current session too), so the box should display the formatted timestamp, not the literal word "online". — `active_sessions_screen.dart:593` ← `settings_active_sessions.cpp:439-446` (`langDateTimeFull(... data.activeTime)`, cpp:443)
-
-- [ ] [MAJOR] Several info-box / dialog labels use different wording than AyuGram's canonical strings (more than casing): (a) System info-row label is *"System"* but AyuGram `lng_sessions_system` = *"System version"* (`active_sessions_screen.dart:673` ← `settings_active_sessions.cpp:460` / `lang.strings:1380`); (b) info-box subsection title is *"Session info"* but AyuGram `lng_sessions_info` = *"Info"* (`active_sessions_screen.dart:651` ← `settings_active_sessions.cpp:451` / `lang.strings:1377`); (c) info-box confirm button is *"OK"* but AyuGram `lng_about_done` = *"Done"* (`active_sessions_screen.dart:747` ← `settings_active_sessions.cpp:484`); (d) rename-dialog title is *"Rename Device"* but AyuGram `lng_settings_rename_device_title` = *"Rename current device"* (`active_sessions_screen.dart:775` ← `settings_active_sessions.cpp:124`); (e) location-disclaimer drops the word "estimate" — Dart *"This location is based on…"* vs AyuGram `lng_sessions_location_about` *"This location estimate is based on…"* (`active_sessions_screen.dart:710` ← `lang.strings:1384`).
+bottom. All displayed-text / data-content deviations from the AyuGram
+ground-truth lang strings have been fixed and verified (desktop + mobile,
+against live session data) — section closed.
 
 <!--
 VERIFIED OK (no findings) — checked thoroughly, all faithful to AyuGram:
