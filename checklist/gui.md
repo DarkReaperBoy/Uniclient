@@ -305,9 +305,12 @@ The file is well-wired: every interaction calls the real engine
 OTP cell geometry (40×50, 10px gap, 4px border, 20px font, 6px radius),
 shake (4px/300ms), 2FA/recovery field tops (74/96/151/220) all match.
 **No placeholders, stubs, mock data, or unwired elements — no CRITICAL items.**
-The findings below are real deviations from AyuGram's behavior/values.
-
-- [ ] [MAJOR] Phone screen is missing the persistent "Log in by QR code" link. AyuGram's PhoneWidget always shows a `lng_phone_to_qr` ("Quick log in using QR code") link that jumps straight to the QR step; the Dart phone form (country picker + code + phone fields) has no QR link — only the reverse (QR → "Log in by phone number") exists at `auth_screen.dart:1182`. Reaching QR from phone requires Back→choose→pick-QR instead of one tap. — `auth_screen.dart:1302` ← `intro/intro_phone.cpp:111`
+All MAJOR findings have been fixed and verified (desktop + mobile, against a live
+session). The last one — the persistent phone→QR "Quick log in using QR code" link
+(`lng_phone_to_qr`, `intro_phone.cpp:111`) — now sits below the phone field and uses
+`switchToMethod('qr_code')` (the engine's choose-step option id at `auth.go:279/385`;
+`'qr'` is only the state name). Tapping it in both modes drives
+choose→`submitInput(qr_code)`→`state=qr` and renders the live QR screen. Section closed.
 
 # ayu_chats_page — audit vs AyuGram settings_chats.cpp
 
