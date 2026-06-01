@@ -412,27 +412,23 @@ from the AyuGram source, confirmed against it.
 
 ## MAJOR findings
 
-- [ ] [MAJOR] Translation Provider is missing AyuGram's **beta badge**. AyuGram wraps the
-  provider button with `ayu.addBetaBadge(button)`; the Dart `addChooseButton` renders no
-  badge — `ayu_general_page.dart:31-41` ← `settings_general.cpp:113-115`
-- [ ] [MAJOR] "Disable Stories" does not trigger AyuGram's **restart prompt**. AyuGram's
-  setter calls `ShowRestartPrompt(controller)` after toggling; the Dart only calls
-  `setDisableStories(v)` with no restart prompt, so the option silently fails to take full
-  effect — `ayu_general_page.dart:47-52` ← `settings_general.cpp:171-174`
-- [ ] [MAJOR] Every toggle has a **fabricated subtitle** that does not exist in AyuGram.
-  AyuGram's `SettingToggleArgs`/`ToggleArgs` have no description field (title-only rows), and
-  no `*Description` lang strings exist for these settings — the Dart invents secondary text
-  on ~10 rows (e.g. "Hide the Stories row from the chat list", "Skip confirmation when
-  opening external URLs", "Enhanced link preview metadata extraction") —
-  `ayu_general_page.dart:49,56,85,95,112,119,141,174,181,188` ← `ayu_builder.h:22-43` (+ `settings_general.cpp:166-298`)
-- [ ] [MAJOR] "Disable Similar Channels" collapsible uses the wrong master-state logic.
-  AyuGram builds it with `toggledWhenAll = true` (master on only when BOTH children on),
-  but the Dart hardcodes `isExpanded: collapse || hide` (OR) — so with only one child on the
-  master state diverges from AyuGram — `ayu_general_page.dart:61-68` ← `settings_general.cpp:184-200` (`.toggledWhenAll = true` at :199; contrast Bigger Window `.toggledWhenAll = false` at :274, which the same Dart OR-logic does match — `ayu_general_page.dart:146-153`)
-- [ ] [MAJOR] Translation section header text differs. AyuGram's subsection title is
-  `tr::lng_translate_settings_subtitle()` (the Telegram "Translate" subtitle) with the button
-  beneath titled `ayu_TranslationProvider`; the Dart instead labels the section header itself
-  "Translation Provider" — `ayu_general_page.dart:23` ← `settings_general.cpp:37` (+ button title :83)
+All 5 findings resolved & verified in-app on 2026-06-01 (desktop 1024×768 + mobile 400×720)
+against AyuGram source:
+(1) Translation Provider now carries a "BETA" badge wrapped in `IgnorePointer` so taps fall
+through to the choose button — verified: tapping the badge opens the provider dialog
+← `settings_general.cpp:113-115` + `settings_ayu_utils.cpp:47-76`.
+(2) "Disable Stories" applies the setting then shows a "Restart Now"/"Later" prompt — verified
+apply-then-prompt in both modes; "Later" dismisses without restarting and keeps the setting
+← `settings_general.cpp:171-174` + `settings_ayu_utils.cpp:36-45`.
+(3) All 10 fabricated toggle subtitles removed — every General row renders title-only
+← `ayu_builder.h:22-43` (`ToggleArgs`/`SettingToggleArgs` have no description field).
+(4) Collapsibles now pass explicit `toggledWhenAll` and start collapsed — verified: Disable
+Similar Channels (`toggledWhenAll=true`, AND) shows master OFF at 1/2 and ON at 2/2; Bigger
+Window (`toggledWhenAll=false`, OR) shows master ON at 1/2
+← `settings_general.cpp:199,274` + `settings_ayu_utils.cpp:216-222,454`.
+(5) Translation subsection header is now "Translate Messages" (`lng_translate_settings_subtitle`)
+with the button beneath still titled "Translation Provider"
+← `settings_general.cpp:37,83` + `lang.strings:6911`.
 
 ## Confirmed correct vs AyuGram (PASS — no action)
 
