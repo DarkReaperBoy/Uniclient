@@ -1400,7 +1400,12 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
       enabled: _enabled,
       caseInsensitive: _caseInsensitive,
       reversed: _reversed,
-      dialogId: widget.filter?.dialogId,
+      // RegexEditBuilder: in the settings flow (showToast == false) the new/edited
+      // filter is scoped directly to the per-dialog context when one is present
+      // (widget.dialogId is non-null only in perDialog mode), otherwise it stays
+      // shared. ← edit_filter.cpp:198-200
+      //   if (!showToast && dialogId.has_value()) newFilter.dialogId = dialogId;
+      dialogId: widget.dialogId,
     );
 
     if (!isNew) {
@@ -1410,24 +1415,11 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
     }
     appState.saveFilterEngine();
 
-    final dialogId = widget.dialogId;
-    if (dialogId != null && filter.isShared) {
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.of(context).pop();
-      messenger.showSnackBar(SnackBar(
-        content: const Text('Filter added. Tap to restrict to this dialog.'),
-        action: SnackBarAction(
-          label: 'Restrict',
-          onPressed: () {
-            final updated = filter.copyWith(dialogId: dialogId);
-            engine.updateFilter(updated);
-            appState.saveFilterEngine();
-          },
-        ),
-      ));
-    } else {
-      Navigator.of(context).pop();
-    }
+    // The settings add/edit flow is silent (showToast == false): no toast/SnackBar.
+    // The "Restrict to this dialog" toast-with-action only exists for the message
+    // context-menu add flow — the sole showToast == true caller (context_menu.cpp:946),
+    // which is not reachable from this settings page. ← edit_filter.cpp:222-243
+    Navigator.of(context).pop();
   }
 
   @override
