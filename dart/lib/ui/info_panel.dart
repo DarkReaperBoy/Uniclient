@@ -4558,28 +4558,31 @@ class _GroupActionsSection extends StatelessWidget {
     );
   }
 
+  // Info-page leave routes through the same DeleteChatBox as the chat-list /
+  // top-bar leave (AyuGram DeleteAndLeaveHandler → DeleteChatBox), so a
+  // group/channel in a folder gets the "Remove … from all folders" checkbox
+  // (maybeChatsFiltersCheckbox) and a bot gets "Stop and block bot".
+  // ← info/profile/info_profile_actions.cpp:2978 → window/window_peer_menu.cpp:3901
+  //   → boxes/moderate_messages_box.cpp:949,1045
   void _confirmLeave(BuildContext context, ChatState chatState) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Leave Group'),
-        content: Text('Leave ${chat.title}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDD4B39)),
-            onPressed: () {
-              chatState.leaveChat(chat.accountId, chat.chatId);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Leave'),
-          ),
-        ],
-      ),
-    );
+    showDeleteConfirmBox(
+      context,
+      mode: DeleteBoxMode.leaveChat,
+      chatType: chat.type,
+      peerName: chat.title,
+      isBot: chat.isBot,
+      isInFolder: chatState.isChatInAnyFolder(chat.chatId),
+      peerAvatarPath: chat.avatarPath,
+    ).then((r) {
+      if (!r.confirmed) return;
+      if (r.blockBot && chat.isBot) {
+        chatState.blockUser(chat.accountId, chat.chatId);
+      }
+      if (r.removeFromFolders) {
+        chatState.removeChatFromAllFolders(chat.accountId, chat.chatId);
+      }
+      chatState.leaveChat(chat.accountId, chat.chatId);
+    });
   }
 }
 
@@ -4877,28 +4880,31 @@ class _ChannelActionsSection extends StatelessWidget {
     );
   }
 
+  // Info-page leave routes through the same DeleteChatBox as the chat-list /
+  // top-bar leave (AyuGram DeleteAndLeaveHandler → DeleteChatBox), so a
+  // channel/group in a folder gets the "Remove … from all folders" checkbox
+  // (maybeChatsFiltersCheckbox).
+  // ← info/profile/info_profile_actions.cpp:2978 → window/window_peer_menu.cpp:3901
+  //   → boxes/moderate_messages_box.cpp:949,1045
   void _confirmLeave(BuildContext context, ChatState chatState) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Leave Channel'),
-        content: Text('Leave ${chat.title}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDD4B39)),
-            onPressed: () {
-              chatState.leaveChat(chat.accountId, chat.chatId);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Leave'),
-          ),
-        ],
-      ),
-    );
+    showDeleteConfirmBox(
+      context,
+      mode: DeleteBoxMode.leaveChat,
+      chatType: chat.type,
+      peerName: chat.title,
+      isBot: chat.isBot,
+      isInFolder: chatState.isChatInAnyFolder(chat.chatId),
+      peerAvatarPath: chat.avatarPath,
+    ).then((r) {
+      if (!r.confirmed) return;
+      if (r.blockBot && chat.isBot) {
+        chatState.blockUser(chat.accountId, chat.chatId);
+      }
+      if (r.removeFromFolders) {
+        chatState.removeChatFromAllFolders(chat.accountId, chat.chatId);
+      }
+      chatState.leaveChat(chat.accountId, chat.chatId);
+    });
   }
 }
 
