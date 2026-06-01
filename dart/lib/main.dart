@@ -2922,7 +2922,16 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
           child: child,
         );
       },
-      child: Material(
+      // The lock screen is mounted in the MaterialApp builder as a sibling of
+      // the Navigator, so it has no Overlay ancestor of its own. The passcode
+      // TextField builds a text-selection overlay and the system-unlock
+      // IconButton shows a Material tooltip; both assert (debugCheckHasOverlay)
+      // that an Overlay exists above them, so a cold start logged "No Overlay
+      // widget found". Overlay.wrap gives the content its own Overlay ancestor —
+      // a single stable bottom entry that re-fires markNeedsBuild() on every
+      // rebuild, so reactive bits (error text, logout confirm, system-unlock
+      // button) stay live.
+      child: Overlay.wrap(child: Material(
         color: bgColor,
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -3123,7 +3132,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
             );
           },
         ),
-      ),
+      )),
     );
   }
 }
