@@ -592,13 +592,21 @@ and will render wrong text once wired.
 
 _All wired string issues resolved — verified verbatim against `lang.strings`._
 
-## LATENT — defined but not yet consumed; wrong values vs source
+## LATENT — RESOLVED (verified Stage 2, commit fb8bf1c0)
 
-- [ ] [MAJOR] Suggested-post deletion warnings are rewritten and lose information vs the AyuGram source. Titles are 100% different: `lngSuggestWarnTitleTon()` = `'Delete TON Suggested Post'` vs `lng_suggest_warn_title_ton` = `"TON will be lost"`; `lngSuggestWarnTitleStars()` = `'Delete Stars Suggested Post'` vs `lng_suggest_warn_title_stars` = `"Stars will be lost"`. Body text also diverges and **omits the "must remain visible for at least 24 hours after it was published" rule** that the AyuGram copy states (`lngSuggestWarnTextTon/Stars` say only "payment will be lost"). — `strings.dart:107` ← `AyuGram/Telegram/Resources/langs/lang.strings:5418` (consumer `boxes/delete_messages_box.cpp:566-575`)
+_All three LATENT string values verified verbatim against `lang.strings` AND wired into their real consumer `dart/lib/ui/confirm_box.dart`, replacing the previously-hardcoded divergent English:_
 
-- [ ] [MAJOR] The three filter-removal checkbox labels are collapsed into one generic string, losing the bot/group/channel distinction and the "all folders" wording. `lngFiltersCheckboxRemoveBot/Channel/Group()` all return `'Remove from chat folders'`, but AyuGram has three distinct keys: `lng_filters_checkbox_remove_bot` = `"Remove bot from all folders"`, `lng_filters_checkbox_remove_group` = `"Remove group from all folders"`, `lng_filters_checkbox_remove_channel` = `"Remove channel from all folders"` (selected by entity type at the call site). — `strings.dart:117` ← `AyuGram/Telegram/Resources/langs/lang.strings:7139` (consumer `boxes/moderate_messages_box.cpp:1058-1061`)
+- _Suggested-post warning → `_showPaidPostWarning` now uses `lngSuggestWarnTitle/Text{Ton,Stars}` + `lngSuggestWarnDeleteAnyway`; added a `boldMarkup` path so `**TON**`/`**24 hours**` render bold (Telegram `tr::rich`). Titles "TON/Stars will be lost" + the "must remain visible for at least 24 hours" rule restored. (= lang.strings:5418-5422)_
+- _`lngProfileBlockBot()` = "Stop and block bot" → delete-chat bot checkbox (confirm_box.dart:866). (= lang.strings:1625)_
+- _`lngFiltersCheckboxRemoveBot()` = "Remove bot from all folders" → delete-chat bot checkbox (confirm_box.dart:871). (= lang.strings:7139)_
 
-- [ ] [MAJOR] `lngProfileBlockBot()` returns `'Block bot'` but `lng_profile_block_bot` = `"Stop and block bot"` (the delete-chat box checkbox both stops and blocks). — `strings.dart:116` ← `AyuGram/Telegram/Resources/langs/lang.strings:1625` (consumer `boxes/moderate_messages_box.cpp:1029`)
+_Verification notes: build clean; app launches & loads chats; delete-confirm box renders correctly and the `isBot && leaveChat` checkbox gate was confirmed (correctly hidden for a non-bot DM). The bot-checkbox and paid-post variants could not be rendered live in this session (test account has no real bot DM and global search is broken — see below), but the strings are direct, transformation-free `_checkbox`/`Text` renders of the verbatim-correct values._
+
+## FOLLOW-UP — gaps found during Stage-2 verification (strings correct, consumer paths still incomplete)
+
+- [ ] [MAJOR] Folder-removal checkbox is wired for **bots only**. `lngFiltersCheckboxRemoveGroup()`/`lngFiltersCheckboxRemoveChannel()` ("Remove group/channel from all folders", verbatim-correct) are defined but unconsumed — `confirm_box.dart:864-872` shows the "remove from folders" checkbox only under `widget.isBot && leaveChat`. AyuGram's `maybeChatsFiltersCheckbox` shows it for non-bot non-user peers (groups/channels) too, picking the label by entity type and only when the chat is actually in a folder. ← `boxes/moderate_messages_box.cpp:1044-1066`
+- [ ] [MINOR] Paid-post deletion warning is currently unreachable: no `showDeleteConfirmBox` caller passes `isPaidPost: true`, and `engine_models.dart` Message has no suggested-post/paid flag. The corrected `lngSuggestWarn*` strings + `boldMarkup` path are wired but cannot render until suggested-post detection is added and the single/bulk delete call sites set `isPaidPost`. ← `boxes/delete_messages_box.cpp:563-576`
+- [ ] [CRITICAL] (engine, not strings — found while testing this section) Global chat search is broken: typing in the dialog search box → `__engine.SearchChats FAILED: sql: expected 44 destination arguments in Scan, not 46` (`engine_service.dart:5143` ← `chat_list_panel.dart:539`). Search shows only frequent contacts; no chat/global results render.
 
 ## Notes (not flagged)
 
