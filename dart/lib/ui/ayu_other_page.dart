@@ -97,14 +97,14 @@ class AyuOtherPage extends StatelessWidget {
       b.addSectionTitle('Other');
       b.addSettingToggle(
         label: 'Crash Reporting',
-        subtitle: 'Send crash reports to developers',
         value: appState.crashReporting,
         onChanged: (v) => appState.setCrashReporting(v),
         icon: Icons.bug_report_outlined,
       );
       b.addSkip();
-      b.addDescription('Help improve AyuGram by automatically sending '
-          'crash reports when the app encounters an error.');
+      b.addDescription("When this option is enabled, you'll be prompted to "
+          'send a report after the app crashes. You can decide whether to '
+          'send it or not.');
     }
 
     b.addSectionDivider();
@@ -270,11 +270,18 @@ class AyuOtherPage extends StatelessWidget {
             style: TextStyle(
                 color: isDark ? Colors.white : Colors.black87,
                 fontWeight: FontWeight.w600)),
-        content: Text(
-            'Are you sure you want to reset all AyuGram settings to defaults?\n\n'
-            'This will reset ghost mode, appearance, filters, and all other AyuGram preferences.',
-            style:
-                TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+        content: Text.rich(
+          TextSpan(
+            children: const [
+              TextSpan(text: 'Are you sure you want to reset '),
+              TextSpan(
+                  text: 'all',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              TextSpan(text: ' AyuGram preferences to their defaults?'),
+            ],
+          ),
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -293,7 +300,7 @@ class AyuOtherPage extends StatelessWidget {
                     content: Text('Done'), duration: Duration(seconds: 2)),
               );
             },
-            child: Text('Reset',
+            child: Text('Yes',
                 style: TextStyle(color: Colors.red.shade400)),
           ),
         ],
@@ -449,15 +456,12 @@ class _SupportDescriptionState extends State<_SupportDescription> {
         text: TextSpan(
           style: TextStyle(fontSize: 12, color: subtextColor),
           children: [
-            const TextSpan(
-                text: 'You can support AyuGram development through donations. '
-                    'For questions, '),
             TextSpan(
-              text: 'contact support',
+              text: 'Support Development',
               style: TextStyle(color: linkColor),
               recognizer: _recognizer,
             ),
-            const TextSpan(text: '.'),
+            const TextSpan(text: ' and get an unique badge!'),
           ],
         ),
       ),
@@ -629,58 +633,68 @@ class _DonateInfoBoxState extends State<_DonateInfoBox> {
                   height: 96,
                 ),
                 const SizedBox(height: 16),
-                Text('Support AyuGram Desktop',
+                Text('Support Development',
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: textColor)),
                 const SizedBox(height: 12),
-                Text.rich(
-                  TextSpan(
-                    style: TextStyle(fontSize: 13, color: subtextColor),
-                    children: [
-                      const TextSpan(
-                          text: 'Support AyuGram development by donating. '
-                              'Minimum amounts: \$'),
-                      TextSpan(text: '${_DonateInfoBox._donateAmountUsd}, '),
-                      WidgetSpan(
-                        alignment: PlaceholderAlignment.middle,
-                        child: SvgPicture.asset(
-                          'assets/icons/ayu/donates/ton.svg',
-                          width: 14,
-                          height: 14,
-                        ),
-                      ),
-                      const TextSpan(text: ' '),
-                      TextSpan(
-                          text: '${_DonateInfoBox._donateAmountTon} TON, '),
-                      TextSpan(text: '${_DonateInfoBox._donateAmountRub}₽.'),
-                    ],
-                  ),
+                Text(
+                  'By supporting the project, you not only contribute to its '
+                  'development but also get a unique badge.',
+                  style: TextStyle(fontSize: 13, color: subtextColor),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
                 _DonateInfoRow(
                   icon: Icons.monetization_on,
-                  title: 'Make a donation',
-                  description: 'Use the crypto buttons or visit Boosty.',
+                  title: 'Make a Donation',
+                  descriptionSpan: TextSpan(
+                    children: [
+                      TextSpan(
+                          text: 'Transfer an amount of '
+                              '\$${_DonateInfoBox._donateAmountUsd} ('),
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: SvgPicture.asset(
+                          'assets/icons/ayu/donates/ton.svg',
+                          width: 13,
+                          height: 13,
+                        ),
+                      ),
+                      TextSpan(
+                          text: '${_DonateInfoBox._donateAmountTon}, '
+                              '${_DonateInfoBox._donateAmountRub}₽) to any of '
+                              "the project's payment details. These can be "
+                              'found in the '),
+                      const TextSpan(
+                          text: 'Other',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      const TextSpan(text: ' section of the app settings.'),
+                    ],
+                  ),
                   textColor: textColor,
                   subtextColor: subtextColor,
                 ),
                 const SizedBox(height: 12),
                 _DonateInfoRow(
                   icon: Icons.photo_camera,
-                  title: 'Send proof',
+                  title: 'Send Proof of Payment',
                   descriptionSpan: TextSpan(
                     children: [
                       const TextSpan(
-                          text: 'Forward your payment confirmation to '),
+                          text: 'Send a photo of the payment confirmation '
+                              'to '),
                       TextSpan(
                         text: '@${_DonateInfoBox._donateUsername}',
-                        style: TextStyle(color: accentColor),
+                        style: TextStyle(
+                            color: accentColor,
+                            fontWeight: FontWeight.w600),
                         recognizer: _usernameRecognizer,
                       ),
-                      const TextSpan(text: ' on Telegram.'),
+                      const TextSpan(
+                          text: '. Make sure the photo clearly shows the '
+                              'amount, date, and time of the transfer.'),
                     ],
                   ),
                   textColor: textColor,
@@ -689,9 +703,11 @@ class _DonateInfoBoxState extends State<_DonateInfoBox> {
                 const SizedBox(height: 12),
                 _DonateInfoRow(
                   icon: Icons.verified,
-                  title: 'Receive your badge',
+                  title: 'Receive Your Badge',
                   description:
-                      'After verification, you will receive a supporter badge.',
+                      'After payment verification, you will receive a unique '
+                      'badge that will be displayed on your profile and '
+                      'visible to other users.',
                   textColor: textColor,
                   subtextColor: subtextColor,
                 ),
@@ -832,7 +848,7 @@ class _DonateQrBox extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const SizedBox(width: 32),
-                      Text('QR code',
+                      Text('Get QR Code',
                           style: TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w600,
