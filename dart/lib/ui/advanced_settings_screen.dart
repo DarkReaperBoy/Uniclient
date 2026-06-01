@@ -210,20 +210,38 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
 
   void _checkForUpdates() async {
     setState(() => _updateState = _UpdateState.checking);
+    // AyuGram's "Install beta versions" toggle restarts the UpdateChecker on the
+    // beta channel (settings_advanced.cpp:1093-1107). On the GitHub backend the
+    // stable channel is `/releases/latest` (skips prereleases); the beta channel
+    // is the full `/releases` list, newest-first, including prereleases.
+    final beta = context.read<AppState>().installBetaVersions;
     try {
       final client = HttpClient();
-      final request = await client.getUrl(
-        Uri.parse('https://api.github.com/repos/DarkReaperBoy/uniclient/releases/latest'),
-      );
+      final endpoint = beta
+          ? 'https://api.github.com/repos/DarkReaperBoy/uniclient/releases'
+          : 'https://api.github.com/repos/DarkReaperBoy/uniclient/releases/latest';
+      final request = await client.getUrl(Uri.parse(endpoint));
       request.headers.set('Accept', 'application/vnd.github.v3+json');
       request.headers.set('User-Agent', 'UniClient/$_appVersion');
       final response = await request.close();
       if (response.statusCode == 200) {
         final body = await response.transform(utf8.decoder).join();
-        final data = json.decode(body) as Map<String, dynamic>;
-        final tagName = (data['tag_name'] as String?) ?? '';
-        final remoteVersion = tagName.startsWith('v') ? tagName.substring(1) : tagName;
         client.close();
+        var tagName = '';
+        if (beta) {
+          final list = json.decode(body) as List<dynamic>;
+          // Newest non-draft release wins (prereleases included).
+          for (final entry in list) {
+            final r = entry as Map<String, dynamic>;
+            if (r['draft'] == true) continue;
+            tagName = (r['tag_name'] as String?) ?? '';
+            break;
+          }
+        } else {
+          final data = json.decode(body) as Map<String, dynamic>;
+          tagName = (data['tag_name'] as String?) ?? '';
+        }
+        final remoteVersion = tagName.startsWith('v') ? tagName.substring(1) : tagName;
         if (!mounted) return;
         if (remoteVersion.isNotEmpty && remoteVersion != _appVersion) {
           setState(() {
@@ -331,6 +349,14 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
+    // AyuGram wraps "Install beta versions" + "Check for updates" in a
+    // builder.scope whose visibility is `optionsShown = toggle->toggledValue()
+    // && !downloading` (settings_advanced.cpp:1002-1040). When auto-update is
+    // OFF (top-placed section) only the toggle + version status show; the
+    // options collapse. They re-appear once auto-update is ON and no download
+    // is in progress.
+    final optionsShown = appState.autoUpdateEnabled && !_downloadingUpdate;
+
     return [
       _SubsectionTitle(title: 'Software Update', color: accentColor),
       InkWell(
@@ -367,37 +393,45 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
           ),
         ),
       ),
-      if (_updateState != _UpdateState.checking)
+      if (optionsShown)
         _AdvancedToggleRow(
           label: 'Install beta versions',
           value: appState.installBetaVersions,
-          onChanged: (v) => appState.setInstallBetaVersions(v),
+          // AyuGram restarts the UpdateChecker on the beta channel when this
+          // toggles (cSetInstallBetaVersion + cSetLastUpdateCheck(0) +
+          // checker.start(), settings_advanced.cpp:1093-1107). Mirror that by
+          // re-running the check against the new channel.
+          onChanged: (v) {
+            appState.setInstallBetaVersions(v);
+            _checkForUpdates();
+          },
           textColor: textColor,
           accentColor: accentColor,
           hoverBg: hoverBg,
         ),
-      InkWell(
-        onTap: _updateState == _UpdateState.checking ? null : _checkForUpdates,
-        hoverColor: hoverBg,
-        splashColor: hoverBg.withValues(alpha: 0.5),
-        child: Padding(
-          padding:
-              const EdgeInsets.only(left: 22, right: 22, top: 10, bottom: 10),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Check for updates',
-              style: TextStyle(
-                fontSize: 15,
-                color: _updateState == _UpdateState.checking
-                    ? subtextColor
-                    : textColor,
+      if (optionsShown)
+        InkWell(
+          onTap: _updateState == _UpdateState.checking ? null : _checkForUpdates,
+          hoverColor: hoverBg,
+          splashColor: hoverBg.withValues(alpha: 0.5),
+          child: Padding(
+            padding:
+                const EdgeInsets.only(left: 22, right: 22, top: 10, bottom: 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Check for updates',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: _updateState == _UpdateState.checking
+                      ? subtextColor
+                      : textColor,
+                ),
               ),
             ),
           ),
         ),
-      ),
-      if (_updateState == _UpdateState.available)
+      if (appState.autoUpdateEnabled && _updateState == _UpdateState.available)
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
           child: SizedBox(
@@ -689,7 +723,11 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         accentColor: accentColor,
         hoverBg: hoverBg,
       ),
-      if (Platform.isLinux)
+      // AyuGram gates this on Ui::Platform::NativeWindowFrameSupported(), which
+      // is true on Windows AND Linux, false only on macOS
+      // (settings_advanced.cpp:329). The Wayland session uses a Qt-drawn frame,
+      // every other (X11, Windows) uses the system frame.
+      if (!Platform.isMacOS)
         _AdvancedToggleRow(
           label: Platform.environment['WAYLAND_DISPLAY'] != null
               ? 'Use Qt window frame'
@@ -778,11 +816,15 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         accentColor: accentColor,
         hoverBg: hoverBg,
       ),
+      // AyuGram only creates this checkbox when Platform::HasMonochromeSetting()
+      // is true — false on macOS (tray_mac.h:73), true on Windows/Linux where a
+      // monochrome panel icon exists (settings_advanced.cpp:457). It is shown
+      // only while the tray icon itself is enabled.
       AnimatedSize(
         duration: appState.animDuration(const Duration(milliseconds: 200)),
         curve: Curves.easeOutCubic,
         alignment: Alignment.topCenter,
-        child: appState.showTrayIcon
+        child: (appState.showTrayIcon && !Platform.isMacOS)
             ? _AdvancedCheckboxRow(
                 label: 'Use monochrome tray icon',
                 value: appState.monochromeTrayIcon,
@@ -1589,19 +1631,42 @@ class _AutoDownloadBoxState extends State<_AutoDownloadBox> {
     Navigator.of(context).pop();
   }
 
-  static const _sizeSteps = <double>[
-    0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500,
-    1024, 1536, 2048, 3072, 4096, 5120, 7168, 8192,
-  ];
+  // AyuGram's auto-download size slider is a 100-step pseudo-discrete curve
+  // (Export::View::kSizeValueCount = 100, Export::View::SizeLimitByIndex,
+  // export_view_settings.cpp:89-113), capped at kMaxBytesLimit = 8000*512KB =
+  // 4000 MB (data/data_auto_download.h:15) — far finer than the old 18-step
+  // ladder and ~half the old 8 GB max.
+  static const _kSizeValueCount = 100;
 
-  int _sizeToIndex(double mb) {
-    for (var i = 0; i < _sizeSteps.length; i++) {
-      if (_sizeSteps[i] >= mb) return i;
-    }
-    return _sizeSteps.length - 1;
+  // SizeLimitByIndex(index) in MB; index 0..99 maps to 1..4000 MB.
+  static double _sizeLimitByIndexMb(int index) {
+    final i = index.clamp(0, _kSizeValueCount - 1) + 1;
+    if (i <= 10) return i.toDouble();
+    if (i <= 30) return (10 + (i - 10) * 2).toDouble();
+    if (i <= 40) return (50 + (i - 30) * 5).toDouble();
+    if (i <= 60) return (100 + (i - 40) * 10).toDouble();
+    if (i <= 70) return (300 + (i - 60) * 20).toDouble();
+    if (i <= 80) return (500 + (i - 70) * 50).toDouble();
+    if (i <= 90) return (1000 + (i - 80) * 100).toDouble();
+    return (2000 + (i - 90) * 200).toDouble();
   }
 
-  double _indexToSize(int i) => _sizeSteps[i.clamp(0, _sizeSteps.length - 1)];
+  // Nearest index to a MB value — mirrors MediaSlider::setPseudoDiscrete, which
+  // picks the index minimising |valueByIndex(i) - from|.
+  int _sizeToIndex(double mb) {
+    var bestIdx = 0;
+    var bestDist = double.infinity;
+    for (var i = 0; i < _kSizeValueCount; i++) {
+      final d = (_sizeLimitByIndexMb(i) - mb).abs();
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+
+  double _indexToSize(int i) => _sizeLimitByIndexMb(i);
 
   String _formatSize(double mb) {
     if (mb >= 1024) {
@@ -1784,8 +1849,8 @@ class _AutoDownloadBoxState extends State<_AutoDownloadBox> {
             child: Slider(
               value: idx.toDouble(),
               min: 0,
-              max: (_sizeSteps.length - 1).toDouble(),
-              divisions: _sizeSteps.length - 1,
+              max: (_kSizeValueCount - 1).toDouble(),
+              divisions: _kSizeValueCount - 1,
               onChanged: (v) => onChanged(_indexToSize(v.round())),
             ),
           ),
@@ -1808,15 +1873,25 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
   int _timeLimitIdx = 15;
   bool _scanning = true;
 
-  static const _totalSizeSteps = <int>[
-    200, 500, 1024, 2048, 3072, 4096, 5120, 6144,
-    7168, 8192, 10240, 15360, 20480, 25600, 30720, 40960, 51200, 0,
-  ];
+  // AyuGram's local-storage limits are 18-step ladders computed from
+  // TotalSizeLimitInMB / MediaSizeLimitInMB (local_storage_box.cpp:32-55).
+  // There is NO unlimited option, and a 100 MB floor is enforced between the
+  // total and media limits (kMinimalSizeLimit, :34).
+  static const _kTotalSizeLimitsCount = 18;
+  static const _kMediaSizeLimitsCount = 18;
+  static const _kMinimalSizeLimitMb = 100;
 
-  static const _mediaSizeSteps = <int>[
-    100, 200, 500, 1024, 1536, 2048, 3072, 4096,
-    5120, 6144, 7168, 8192, 10240, 15360, 20480, 25600, 30720, 51200,
-  ];
+  static int _totalSizeLimitInMb(int index) =>
+      index < 8 ? (index + 2) * 100 : (index - 7) * 1024;
+  static int _mediaSizeLimitInMb(int index) =>
+      index < 9 ? (index + 1) * 100 : (index - 8) * 1024;
+
+  // [200,300,…,900, 1024,2048,…,10240]
+  static final _totalSizeSteps =
+      List<int>.generate(_kTotalSizeLimitsCount, _totalSizeLimitInMb);
+  // [100,200,…,900, 1024,2048,…,9216]
+  static final _mediaSizeSteps =
+      List<int>.generate(_kMediaSizeLimitsCount, _mediaSizeLimitInMb);
 
   static const _timeLimitLabels = <String>[
     '1 week', '2 weeks', '3 weeks',
@@ -1829,12 +1904,6 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
     'Images', 'Stickers', 'Voice Messages',
     'Video Messages', 'Animations', 'Media Cache',
   ];
-
-  static const _imageExts = {'.jpg', '.jpeg', '.png', '.webp', '.bmp'};
-  static const _stickerExts = {'.tgs', '.webm'};
-  static const _voiceExts = {'.ogg', '.oga'};
-  static const _videoMsgExts = {'.mp4'};
-  static const _animExts = {'.gif', '.lottie'};
 
   final _tagSizes = List<int>.filled(6, 0);
 
@@ -1849,117 +1918,82 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
   }
 
   int _findClosestIdx(List<int> steps, int value) {
+    // A persisted 0 came from the old "∞" option which AyuGram doesn't have —
+    // migrate it to the largest available limit.
+    if (value <= 0) return steps.length - 1;
     for (var i = 0; i < steps.length; i++) {
-      if (steps[i] >= value || steps[i] == 0) return i;
+      if (steps[i] >= value) return i;
     }
     return steps.length - 1;
   }
 
+  // AyuGram LocalStorageBox::updateMediaLimit (local_storage_box.cpp:496-514):
+  // after the total limit changes, lower the media limit until the 100 MB floor
+  // (total − media ≥ 100 MB) is satisfied.
+  void _adjustMediaForTotal() {
+    final total = _totalSizeSteps[_totalSizeIdx];
+    if (total - _mediaSizeSteps[_mediaSizeIdx] >= _kMinimalSizeLimitMb) return;
+    var index = 1;
+    while (index < _kMediaSizeLimitsCount &&
+        _mediaSizeSteps[index] * 2 <= total) {
+      index++;
+    }
+    index--;
+    _mediaSizeIdx = index;
+  }
+
+  // AyuGram LocalStorageBox::updateTotalLimit (local_storage_box.cpp:516-533):
+  // after the media limit changes, raise the total limit until the 100 MB floor
+  // is satisfied.
+  void _adjustTotalForMedia() {
+    final media = _mediaSizeSteps[_mediaSizeIdx];
+    if (_totalSizeSteps[_totalSizeIdx] - media >= _kMinimalSizeLimitMb) return;
+    var index = _kTotalSizeLimitsCount - 1;
+    while (index > 0 && _totalSizeSteps[index - 1] >= 2 * media) {
+      index--;
+    }
+    _totalSizeIdx = index;
+  }
+
   Future<void> _scanCacheDir() async {
     final appState = context.read<AppState>();
-
-    int engineCacheSize = 0;
     try {
-      engineCacheSize = appState.engine.getCacheSize();
-    } catch (_) {}
-
-    final cacheDir = appState.cacheDir;
-    if (cacheDir.isEmpty) {
-      if (mounted) {
-        setState(() {
-          if (engineCacheSize > 0) _tagSizes[5] = engineCacheSize;
-          _scanning = false;
-        });
-      }
-      return;
-    }
-    final dir = Directory(cacheDir);
-    if (!await dir.exists()) {
-      if (mounted) {
-        setState(() {
-          if (engineCacheSize > 0) _tagSizes[5] = engineCacheSize;
-          _scanning = false;
-        });
-      }
-      return;
-    }
-    final sizes = List<int>.filled(6, 0);
-    try {
-      await for (final entity in dir.list(recursive: true)) {
-        if (entity is! File) continue;
-        final size = await entity.length();
-        final ext = entity.path.split('.').last.toLowerCase();
-        final dotExt = '.$ext';
-        if (_imageExts.contains(dotExt)) {
-          sizes[0] += size;
-        } else if (_stickerExts.contains(dotExt)) {
-          sizes[1] += size;
-        } else if (_voiceExts.contains(dotExt)) {
-          sizes[2] += size;
-        } else if (_videoMsgExts.contains(dotExt) && entity.path.contains('video_message')) {
-          sizes[3] += size;
-        } else if (_animExts.contains(dotExt)) {
-          sizes[4] += size;
-        } else {
-          sizes[5] += size;
+      // Authoritative per-type cache accounting from the engine's cache DB —
+      // mirrors AyuGram's _stats.tagged byte counts. No filesystem extension
+      // guessing (opaque/hashed blobs are typed correctly in the DB). See
+      // Engine.GetCacheSizesByTag.
+      final result = await appState.engine.callGeneric(
+        '__engine',
+        'GetCacheSizesByTag',
+        {'account_id': appState.activeAccountId},
+      );
+      if (!mounted) return;
+      final sizes = (result?['sizes'] as List<dynamic>?) ?? const <dynamic>[];
+      setState(() {
+        for (var i = 0; i < _tagSizes.length; i++) {
+          _tagSizes[i] = (i < sizes.length) ? (sizes[i] as num).toInt() : 0;
         }
-      }
-    } catch (_) {}
-    final fileScanTotal = sizes.fold(0, (a, b) => a + b);
-    if (engineCacheSize > fileScanTotal) {
-      sizes[5] += engineCacheSize - fileScanTotal;
+        _scanning = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _scanning = false);
     }
-    if (!mounted) return;
-    setState(() {
-      for (var i = 0; i < 6; i++) _tagSizes[i] = sizes[i];
-      _scanning = false;
-    });
   }
 
   void _clearTag(int tagIdx) async {
     final appState = context.read<AppState>();
-    final cacheDir = appState.cacheDir;
-    if (cacheDir.isEmpty) return;
-    final dir = Directory(cacheDir);
-    if (!await dir.exists()) return;
-
-    final extsForTag = switch (tagIdx) {
-      0 => _imageExts,
-      1 => _stickerExts,
-      2 => _voiceExts,
-      3 => _videoMsgExts,
-      4 => _animExts,
-      _ => <String>{},
-    };
-
+    // Surgically clear only this tag's engine-cache entries (deletes the files
+    // and resets their DB rows). Mirrors AyuGram LocalStorageBox::clearByTag.
     try {
-      await for (final entity in dir.list(recursive: true)) {
-        if (entity is! File) continue;
-        final ext = '.${entity.path.split('.').last.toLowerCase()}';
-        if (tagIdx == 5) {
-          if (!_imageExts.contains(ext) && !_stickerExts.contains(ext) &&
-              !_voiceExts.contains(ext) && !_animExts.contains(ext) &&
-              !(ext == '.mp4' && entity.path.contains('video_message'))) {
-            await entity.delete();
-          }
-        } else if (tagIdx == 3) {
-          if (ext == '.mp4' && entity.path.contains('video_message')) {
-            await entity.delete();
-          }
-        } else if (extsForTag.contains(ext)) {
-          await entity.delete();
-        }
-      }
-    } catch (_) {}
-    try {
-      // Surgically clear only this tag's engine-cache entries (not the whole
-      // cache). Mirrors AyuGram LocalStorageBox::clearByTag.
-      appState.engine.callGeneric('__engine', 'ClearCacheByTag', {
+      await appState.engine.callGeneric('__engine', 'ClearCacheByTag', {
         'account_id': appState.activeAccountId,
         'tag': tagIdx,
-      }).catchError((_) => null);
+      });
     } catch (_) {}
-    if (mounted) setState(() => _tagSizes[tagIdx] = 0);
+    if (!mounted) return;
+    setState(() => _tagSizes[tagIdx] = 0);
+    // Re-query so the "Media cache" remainder stays consistent.
+    _scanCacheDir();
   }
 
   void _clearAll() async {
@@ -1967,17 +2001,6 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
     try {
       appState.engine.clearCache(accountId: appState.activeAccountId);
     } catch (_) {}
-    final cacheDir = appState.cacheDir;
-    if (cacheDir.isNotEmpty) {
-      final dir = Directory(cacheDir);
-      if (await dir.exists()) {
-        try {
-          await for (final entity in dir.list(recursive: true)) {
-            if (entity is File) await entity.delete();
-          }
-        } catch (_) {}
-      }
-    }
     if (mounted) {
       setState(() {
         for (var i = 0; i < _tagSizes.length; i++) _tagSizes[i] = 0;
@@ -1995,15 +2018,11 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
     Navigator.of(context).pop();
   }
 
+  // Mirrors AyuGram SizeLimitText (local_storage_box.cpp:61-67): whole GB when
+  // ≥ 1 GB, otherwise MB. All ladder steps ≥ 1024 are exact GB multiples.
   String _formatMb(int mb) {
-    if (mb == 0) return '∞';
-    if (mb >= 1024) {
-      final gb = mb / 1024;
-      return gb == gb.roundToDouble()
-          ? '${gb.round()} GB'
-          : '${gb.toStringAsFixed(1)} GB';
-    }
-    return '$mb MB';
+    final gb = mb ~/ 1024;
+    return gb > 0 ? '$gb GB' : '$mb MB';
   }
 
   int get _totalDataSize => _tagSizes.fold(0, (a, b) => a + b);
@@ -2066,16 +2085,7 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
               (v) {
                 setState(() {
                   _totalSizeIdx = v;
-                  if (_totalSizeSteps[v] != 0 &&
-                      (_mediaSizeSteps[_mediaSizeIdx] == 0 ||
-                          _mediaSizeSteps[_mediaSizeIdx] > _totalSizeSteps[v])) {
-                    for (var i = _mediaSizeSteps.length - 1; i >= 0; i--) {
-                      if (_mediaSizeSteps[i] <= _totalSizeSteps[v]) {
-                        _mediaSizeIdx = i;
-                        break;
-                      }
-                    }
-                  }
+                  _adjustMediaForTotal();
                 });
               },
               textColor,
@@ -2089,11 +2099,8 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
               _formatMb(_mediaSizeSteps[_mediaSizeIdx]),
               (v) {
                 setState(() {
-                  if (_totalSizeSteps[_totalSizeIdx] != 0 &&
-                      _mediaSizeSteps[v] > _totalSizeSteps[_totalSizeIdx]) {
-                    return;
-                  }
                   _mediaSizeIdx = v;
+                  _adjustTotalForMedia();
                 });
               },
               textColor,
@@ -2866,7 +2873,10 @@ enum _ProxyType { http, socks5, mtproto }
 
 enum _ProxyMode { disabled, system, custom }
 
-enum _ProxyStatus { online, available, checking, unavailable }
+// AyuGram ItemState (connection_box.cpp): Connecting is a distinct animated
+// state derived from the real MTP connection, separate from the ping-check
+// states (Available/Checking/Unavailable).
+enum _ProxyStatus { online, connecting, available, checking, unavailable }
 
 class _ProxyEntry {
   _ProxyType type;
@@ -2899,7 +2909,10 @@ class _ProxyEntry {
 
   String get title => '$typeLabel $host:$port';
 
-  bool get supportsCalls => type != _ProxyType.mtproto;
+  // AyuGram ProxyData::supportsCalls() returns false for ALL proxy types
+  // (mtproto_proxy_data.cpp:161-163) — the historical SOCKS5-only rule is
+  // commented out — so the "Use proxy for calls" toggle is never shown.
+  bool get supportsCalls => false;
 
   // Only SOCKS5 and MTPROTO proxies are shareable; HTTP proxies have no public
   // proxy link (ProxyDataIsShareable, connection_box.cpp:98-102).
@@ -2919,10 +2932,29 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
   bool _ipv6 = false;
   bool _proxyForCalls = false;
   bool _rotationEnabled = false;
-  int _rotationTimeout = 60;
+  int _rotationTimeout = 10;
   final List<_ProxyEntry> _proxies = [];
   int _selectedIndex = -1;
   final FocusNode _focusNode = FocusNode();
+
+  // AyuGram's discrete proxy rotation timeouts in seconds
+  // (core_settings_proxy.h:18-25), default 10s.
+  static const _kProxyRotationTimeouts = [5, 10, 15, 30, 60];
+
+  // ClosestProxyRotationTimeoutSection (connection_box.cpp:70-82): index of the
+  // timeout nearest to [value].
+  int _closestRotationSection(int value) {
+    var best = 0;
+    var bestDistance = 0;
+    for (var i = 0; i < _kProxyRotationTimeouts.length; i++) {
+      final distance = (_kProxyRotationTimeouts[i] - value).abs();
+      if (i == 0 || distance < bestDistance) {
+        best = i;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  }
 
   @override
   void initState() {
@@ -2949,7 +2981,68 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     if (_proxies.isNotEmpty && _mode == _ProxyMode.custom) {
       _selectedIndex = 0;
     }
-    _checkAllProxies();
+    // Pinging a proxy reveals the user's IP to its admin, so AyuGram gates the
+    // connectivity check behind a one-time confirmation (connection_box.cpp:
+    // 1824-1842). Deferred so the dialog has a stable context.
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _maybeStartProxyChecks());
+  }
+
+  void _maybeStartProxyChecks() {
+    if (!mounted || !_proxies.any((p) => !p.deleted)) return;
+    final appState = context.read<AppState>();
+    if (appState.proxyCheckIpWarningShown) {
+      _checkAllProxies();
+      return;
+    }
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Warning'),
+        content: const Text(
+            'This will expose your IP address to the admin of the proxy server.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Proceed'),
+          ),
+        ],
+      ),
+    ).then((proceed) {
+      if (!mounted) return;
+      if (proceed == true) {
+        context.read<AppState>().setProxyCheckIpWarningShown(true);
+        _checkAllProxies();
+      } else {
+        // Declined — don't reveal the IP; leave proxies unmeasured.
+        setState(() {
+          for (final p in _proxies) {
+            if (!p.deleted) {
+              p.status = _ProxyStatus.available;
+              p.pingMs = 0;
+            }
+          }
+        });
+      }
+    });
+  }
+
+  // Pings only once the user has accepted the IP-exposure warning; otherwise
+  // leaves the proxy unmeasured (neutral "Available").
+  void _maybeCheckProxy(int index) {
+    if (index < 0 || index >= _proxies.length) return;
+    if (context.read<AppState>().proxyCheckIpWarningShown) {
+      _checkProxy(index);
+    } else {
+      setState(() {
+        _proxies[index].status = _ProxyStatus.available;
+        _proxies[index].pingMs = 0;
+      });
+    }
   }
 
   void _syncToAppState() {
@@ -3005,9 +3098,11 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
       );
       if (!mounted) return;
       if (result != null && result['ok'] == true) {
-        final isActive = _mode == _ProxyMode.custom && _selectedIndex == index;
+        // A ping check only ever yields Available/Unavailable. Online vs
+        // Connecting for the active proxy is derived from the real connection
+        // state in _buildProxyRow (AyuGram updateView, connection_box.cpp:2255).
         setState(() {
-          proxy.status = isActive ? _ProxyStatus.online : _ProxyStatus.available;
+          proxy.status = _ProxyStatus.available;
           proxy.pingMs = (result['ping_ms'] as num?)?.toInt() ?? 0;
         });
       } else {
@@ -3075,11 +3170,6 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     final hasShareable = _proxies.any((p) => p.isShareable);
-    final showCallsToggle =
-        _mode == _ProxyMode.custom &&
-        _selectedIndex >= 0 &&
-        _selectedIndex < _proxies.length &&
-        _proxies[_selectedIndex].supportsCalls;
 
     return KeyboardListener(
       focusNode: _focusNode,
@@ -3178,44 +3268,10 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
             _proxyRadio('Use custom proxy', _ProxyMode.custom, textColor,
                 accentColor, hoverBg),
 
-            // "Use proxy for calls" toggle (conditional)
-            AnimatedSize(
-              duration: context.read<AppState>().animDuration(const Duration(milliseconds: 200)),
-              curve: Curves.easeOutCubic,
-              child: showCallsToggle
-                  ? InkWell(
-                      onTap: () {
-                          setState(() => _proxyForCalls = !_proxyForCalls);
-                          _syncToAppState();
-                        },
-                      hoverColor: hoverBg,
-                      child: Padding(
-                        padding: SettingsStyle.noIconPadding,
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Use proxy for calls',
-                                style:
-                                    TextStyle(fontSize: 14, color: textColor),
-                              ),
-                            ),
-                            Switch(
-                              value: _proxyForCalls,
-                              onChanged: (v) {
-                                  setState(() => _proxyForCalls = v);
-                                  _syncToAppState();
-                              },
-                              activeColor: accentColor,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
+            // AyuGram never shows a "Use proxy for calls" toggle here:
+            // ProxyData::supportsCalls() is false for every type
+            // (mtproto_proxy_data.cpp:161-163), so the control is omitted
+            // entirely. The persisted _proxyForCalls value is left untouched.
 
             // Proxy rotation toggle (visible when multiple proxies exist)
             if (_mode == _ProxyMode.custom && _proxies.length > 1) ...[
@@ -3253,13 +3309,15 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                       Text('Timeout: ${_rotationTimeout}s', style: TextStyle(fontSize: 13, color: subtextColor)),
                       Expanded(
                         child: Slider(
-                          value: _rotationTimeout.toDouble(),
-                          min: 10,
-                          max: 300,
-                          divisions: 29,
+                          value:
+                              _closestRotationSection(_rotationTimeout).toDouble(),
+                          min: 0,
+                          max: (_kProxyRotationTimeouts.length - 1).toDouble(),
+                          divisions: _kProxyRotationTimeouts.length - 1,
                           onChanged: (v) {
-                            setState(() => _rotationTimeout = v.round());
-                            context.read<AppState>().setProxyRotationTimeout(v.round());
+                            final secs = _kProxyRotationTimeouts[v.round()];
+                            setState(() => _rotationTimeout = secs);
+                            context.read<AppState>().setProxyRotationTimeout(secs);
                           },
                           activeColor: accentColor,
                         ),
@@ -3411,15 +3469,33 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
-    final statusColor = switch (proxy.status) {
+    // AyuGram derives Online/Connecting from the real MTP connection state for
+    // the selected + enabled proxy only (updateView, connection_box.cpp:2255-
+    // 2262); every other row shows its ping-check state.
+    final _ProxyStatus displayStatus;
+    if (!proxy.deleted &&
+        _mode == _ProxyMode.custom &&
+        _selectedIndex == index) {
+      final appState = context.watch<AppState>();
+      displayStatus =
+          appState.connStateFor(appState.activeAccountId) == ConnState.connected
+              ? _ProxyStatus.online
+              : _ProxyStatus.connecting;
+    } else {
+      displayStatus = proxy.status;
+    }
+
+    final statusColor = switch (displayStatus) {
       _ProxyStatus.online => const Color(0xFF4CAF50),
+      _ProxyStatus.connecting => accentColor,
       _ProxyStatus.available => accentColor,
       _ProxyStatus.checking => subtextColor,
       _ProxyStatus.unavailable => theme.colorScheme.error,
     };
-    final statusText = switch (proxy.status) {
+    final statusText = switch (displayStatus) {
       _ProxyStatus.online => 'Online',
-      _ProxyStatus.available => '${proxy.pingMs} ms',
+      _ProxyStatus.connecting => 'Connecting...',
+      _ProxyStatus.available => proxy.pingMs > 0 ? '${proxy.pingMs} ms' : 'Available',
       _ProxyStatus.checking => 'Checking...',
       _ProxyStatus.unavailable => 'Unavailable',
     };
@@ -3567,7 +3643,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
         _editProxy(index);
       case 'share':
         final p = _proxies[index];
-        Clipboard.setData(ClipboardData(text: _proxyToUrl(p)));
+        Clipboard.setData(ClipboardData(text: _proxyToPublicUrl(p)));
         showTelegramToast(context, 'Proxy link copied to clipboard');
       case 'qr':
         final p = _proxies[index];
@@ -3581,29 +3657,44 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     }
   }
 
-  // Builds the local tg:// proxy link. Mirrors ProxyDataToQueryPath
-  // (connection_box.cpp:104-126): SOCKS5 carries url-encoded user/pass when set,
-  // MTPROTO carries the secret, and HTTP has no link at all (not shareable).
-  String _proxyToUrl(_ProxyEntry p) {
+  // ProxyDataToQueryPath (connection_box.cpp:104-126): the bare query path with
+  // no scheme. SOCKS5 carries url-encoded user/pass when set, MTPROTO carries
+  // the secret, and HTTP has no link at all (not shareable).
+  String _proxyQueryPath(_ProxyEntry p) {
     switch (p.type) {
       case _ProxyType.socks5:
-        var url = 'tg://socks?server=${p.host}&port=${p.port}';
+        var q = 'socks?server=${p.host}&port=${p.port}';
         if (p.username.isNotEmpty) {
-          url += '&user=${Uri.encodeComponent(p.username)}';
+          q += '&user=${Uri.encodeComponent(p.username)}';
         }
         if (p.password.isNotEmpty) {
-          url += '&pass=${Uri.encodeComponent(p.password)}';
+          q += '&pass=${Uri.encodeComponent(p.password)}';
         }
-        return url;
+        return q;
       case _ProxyType.mtproto:
-        var url = 'tg://proxy?server=${p.host}&port=${p.port}';
+        var q = 'proxy?server=${p.host}&port=${p.port}';
         if (p.secret.isNotEmpty) {
-          url += '&secret=${p.secret}';
+          q += '&secret=${p.secret}';
         }
-        return url;
+        return q;
       case _ProxyType.http:
         return '';
     }
+  }
+
+  // ProxyDataToLocalLink (connection_box.cpp:128-131): the tg:// link, used only
+  // for the QR code.
+  String _proxyToUrl(_ProxyEntry p) {
+    final q = _proxyQueryPath(p);
+    return q.isEmpty ? '' : 'tg://$q';
+  }
+
+  // ProxyDataToPublicLink (connection_box.cpp:133-152): the shareable
+  // https://t.me/ link used by Share / Share proxy list (the QR keeps the tg://
+  // local link).
+  String _proxyToPublicUrl(_ProxyEntry p) {
+    final q = _proxyQueryPath(p);
+    return q.isEmpty ? '' : 'https://t.me/$q';
   }
 
   void _showQrDialog(_ProxyEntry proxy) {
@@ -3671,7 +3762,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
         _mode = _ProxyMode.custom;
       });
       _syncToAppState();
-      _checkProxy(_proxies.length - 1);
+      _maybeCheckProxy(_proxies.length - 1);
     }
   }
 
@@ -3683,51 +3774,194 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     if (result != null && mounted) {
       setState(() => _proxies[index] = result);
       _syncToAppState();
-      _checkProxy(index);
+      _maybeCheckProxy(index);
     }
   }
 
+  // AddProxyFromClipboard (connection_box.cpp:286-393): extract every candidate
+  // link, parse + validate each, de-dup against the list, and toast precisely.
   void _importFromClipboard() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null || !mounted) return;
+    if (!mounted || data?.text == null) return;
     final text = data!.text!;
-    final urls = RegExp(r'tg://(?:socks|proxy)\?[^\s]+').allMatches(text);
+    // ExtractLinkCandidates (connection_box.cpp:84-95).
+    final candidateRe = RegExp(
+        r'(?:https?://[^\s]+|tg://[^\s]+|(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/[^\s]+)',
+        caseSensitive: false);
+    final candidates =
+        candidateRe.allMatches(text).map((m) => m.group(0)!).toList();
+    final isSingle = candidates.length == 1;
+
     var added = 0;
-    for (final match in urls) {
-      final parsed = _parseProxyUrl(match.group(0)!);
-      if (parsed != null) {
-        _proxies.add(parsed);
-        added++;
+    var anySuccess = false;
+    var lastProblem = 'failed';
+    for (final c in candidates) {
+      final parsed = _parseProxyLink(c);
+      if (parsed.result == 'success' && parsed.proxy != null) {
+        anySuccess = true;
+        final p = parsed.proxy!;
+        if (_containsProxy(p)) {
+          if (isSingle) {
+            showTelegramToast(context, 'This proxy is already in the list.');
+          }
+        } else {
+          _proxies.add(p);
+          added++;
+          if (isSingle) {
+            showTelegramToast(context, 'Proxy was added from clipboard.');
+          }
+        }
+      } else if (!anySuccess) {
+        lastProblem = parsed.result;
       }
     }
-    if (added > 0 && mounted) {
+
+    if (added > 0) {
       setState(() {
         _selectedIndex = _proxies.length - 1;
         _mode = _ProxyMode.custom;
       });
       _syncToAppState();
-      showTelegramToast(context, 'Imported $added proxy(ies)');
-    } else if (mounted) {
-      showTelegramToast(context, 'No valid proxy URLs found');
+      if (!isSingle) showTelegramToast(context, 'Imported $added proxy(ies)');
+    } else if (!anySuccess && mounted) {
+      // connection_box.cpp:380-392 — failure messages.
+      final msg = switch (lastProblem) {
+        'incorrect' => 'This proxy link uses an invalid secret parameter.',
+        'unsupported' =>
+          'This proxy type is not supported or the link is invalid.',
+        'invalid' => 'The proxy link is invalid.',
+        _ => 'This is not a proxy link.',
+      };
+      showTelegramToast(context, msg);
     }
   }
 
-  _ProxyEntry? _parseProxyUrl(String url) {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return null;
-    final host = uri.queryParameters['server'] ?? '';
-    final port = int.tryParse(uri.queryParameters['port'] ?? '') ?? 0;
-    if (host.isEmpty || port == 0) return null;
+  // ProxyData::operator== (mtproto_proxy_data.cpp:189-198): equal by
+  // type/host/port and the credentials (user+password, or secret for Mtproto).
+  bool _containsProxy(_ProxyEntry p) {
+    return _proxies.any((e) =>
+        !e.deleted &&
+        e.type == p.type &&
+        e.host == p.host &&
+        e.port == p.port &&
+        e.username == p.username &&
+        e.password == p.password &&
+        e.secret == p.secret);
+  }
 
-    if (uri.host == 'socks' || url.contains('tg://socks')) {
-      return _ProxyEntry(type: _ProxyType.socks5, host: host, port: port);
+  // proceedUrl (connection_box.cpp:305-366): tg://socks → Socks5, tg://proxy →
+  // Mtproto (NEVER HTTP) with a validated secret; t.me public links are first
+  // converted to their tg:// local form. Result: 'success', 'failed' (not a
+  // proxy link), 'invalid', 'unsupported', or 'incorrect'.
+  ({_ProxyEntry? proxy, String result}) _parseProxyLink(String raw) {
+    var s = raw.trim();
+    final tme = RegExp(
+        r'^(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(socks|proxy)\?(.*)$',
+        caseSensitive: false);
+    final m = tme.firstMatch(s);
+    if (m != null) {
+      s = 'tg://${m.group(1)!.toLowerCase()}?${m.group(2)!}';
     }
-    final secret = uri.queryParameters['secret'] ?? '';
-    if (secret.isNotEmpty) {
-      return _ProxyEntry(
-          type: _ProxyType.mtproto, host: host, port: port, secret: secret);
+    final lower = s.toLowerCase();
+    final isSocks = lower.startsWith('tg://socks?');
+    final isProxy = lower.startsWith('tg://proxy?');
+    if (!isSocks && !isProxy) {
+      return (proxy: null, result: 'failed');
     }
-    return _ProxyEntry(type: _ProxyType.http, host: host, port: port);
+    final uri = Uri.tryParse(s);
+    if (uri == null) return (proxy: null, result: 'invalid');
+    final params = uri.queryParameters;
+    final host = params['server'] ?? '';
+    final port = int.tryParse(params['port'] ?? '') ?? 0;
+    if (host.isEmpty || port <= 0) {
+      return (proxy: null, result: 'invalid');
+    }
+    if (isSocks) {
+      return (
+        proxy: _ProxyEntry(
+          type: _ProxyType.socks5,
+          host: host,
+          port: port,
+          username: params['user'] ?? '',
+          password: params['pass'] ?? '',
+        ),
+        result: 'success',
+      );
+    }
+    // Mtproto: the secret is mandatory and validated (+/ → -/_ per :341).
+    final secret =
+        (params['secret'] ?? '').replaceAll('+', '-').replaceAll('/', '_');
+    if (secret.isEmpty) return (proxy: null, result: 'invalid');
+    final status = _mtprotoSecretStatus(secret);
+    if (status != 'valid') {
+      return (proxy: null, result: status);
+    }
+    return (
+      proxy: _ProxyEntry(
+        type: _ProxyType.mtproto,
+        host: host,
+        port: port,
+        secret: secret,
+      ),
+      result: 'success',
+    );
+  }
+
+  // MTP::ProxyData::MtprotoPasswordStatus (mtproto_proxy_data.cpp:16-159,
+  // 208-215): a secret is hex (≥32 even hex chars) or base64url (≥22 chars),
+  // with size/prefix rules deciding valid / incorrect / unsupported / invalid.
+  static String _mtprotoSecretStatus(String password) {
+    if (password.length < 2) return 'invalid';
+    bool isHex(String s) =>
+        s.length >= 32 &&
+        s.length.isEven &&
+        RegExp(r'^[0-9a-fA-F]+$').hasMatch(s);
+    String b64Inner(String s) {
+      var end = s.length;
+      for (var i = 0; i < 2; i++) {
+        if (end > 0 && s[end - 1] == '=') {
+          end--;
+        } else {
+          break;
+        }
+      }
+      return s.substring(0, end);
+    }
+    bool isB64(String s) =>
+        s.length >= 22 &&
+        s.length % 4 != 1 &&
+        RegExp(r'^[0-9a-zA-Z_-]+$').hasMatch(b64Inner(s));
+    bool inRange(String c, String lo, String hi) =>
+        c.compareTo(lo) >= 0 && c.compareTo(hi) <= 0;
+
+    if (isHex(password)) {
+      final size = password.length ~/ 2;
+      final t1 = password[0].toLowerCase();
+      final t2 = password[1].toLowerCase();
+      final valid = size == 16 ||
+          (size == 17 && t1 == 'd' && t2 == 'd') ||
+          (size >= 21 && t1 == 'e' && t2 == 'e');
+      if (valid) return 'valid';
+      if (size < 16) return 'invalid';
+      return 'unsupported';
+    }
+    if (isB64(password)) {
+      final size = (b64Inner(password).length * 3) ~/ 4;
+      final c0 = password[0];
+      final c1 = password[1];
+      final valid = size == 16 ||
+          (size == 17 &&
+              c0 == '3' &&
+              (inRange(c1, 'Q', 'Z') || inRange(c1, 'a', 'f'))) ||
+          (size >= 21 && c0 == '7' && inRange(c1, 'g', 'v'));
+      final incorrect =
+          size >= 21 && c0.toLowerCase() == 'e' && c1.toLowerCase() == 'e';
+      if (size < 16) return 'invalid';
+      if (valid) return 'valid';
+      if (incorrect) return 'incorrect';
+      return 'unsupported';
+    }
+    return 'invalid';
   }
 
   void _deleteAllProxies() {
@@ -3762,7 +3996,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
 
   void _shareList() {
     final urls =
-        _proxies.where((p) => p.isShareable).map(_proxyToUrl).join('\n');
+        _proxies.where((p) => p.isShareable).map(_proxyToPublicUrl).join('\n');
     Clipboard.setData(ClipboardData(text: urls));
     showTelegramToast(context, 'Proxy list copied to clipboard');
   }

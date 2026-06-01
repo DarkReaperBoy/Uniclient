@@ -1,5 +1,6 @@
 #include "win32_window.h"
 #include <dwmapi.h>
+#include <windowsx.h>
 #include <flutter_windows.h>
 #pragma comment(lib, "dwmapi.lib")
 
@@ -52,7 +53,26 @@ bool Win32Window::Create(const std::wstring& title, const Point& origin, const S
   if (!window_handle_) return false;
 
   UpdateTheme(window_handle_);
+  ApplyFrame();
   return OnCreate();
+}
+
+// Re-evaluates the window frame for the current frameless_ state. A 1px bottom
+// margin keeps the DWM drop shadow and smooth resizing alive on a frameless
+// window; WM_NCCALCSIZE removes the visible non-client frame.
+void Win32Window::ApplyFrame() {
+  if (!window_handle_) return;
+  MARGINS margins = frameless_ ? MARGINS{0, 0, 0, 1} : MARGINS{0, 0, 0, 0};
+  DwmExtendFrameIntoClientArea(window_handle_, &margins);
+  SetWindowPos(window_handle_, nullptr, 0, 0, 0, 0,
+               SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                   SWP_NOACTIVATE);
+}
+
+void Win32Window::SetFrameless(bool frameless) {
+  if (frameless_ == frameless) return;
+  frameless_ = frameless;
+  ApplyFrame();
 }
 
 Win32Window* Win32Window::GetThisFromHandle(HWND hwnd) noexcept {
@@ -120,6 +140,56 @@ LRESULT CALLBACK Win32Window::WndProc(HWND hwnd, UINT message, WPARAM wparam, LP
 LRESULT Win32Window::MessageHandler(HWND hwnd, UINT const message,
                                     WPARAM const wparam, LPARAM const lparam) noexcept {
   switch (message) {
+    case WM_NCCALCSIZE: {
+      // Frameless: report the whole window as client area (no native frame).
+      if (wparam == TRUE && frameless_) {
+        auto params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
+        // When maximized a top-level window is grown by the frame thickness on
+        // every side; inset by it so content isn't pushed off-screen and the
+        // taskbar stays reachable.
+        if (IsZoomed(hwnd)) {
+          const int fx =
+              GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
+          const int fy =
+              GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
+          params->rgrc[0].left += fx;
+          params->rgrc[0].top += fy;
+          params->rgrc[0].right -= fx;
+          params->rgrc[0].bottom -= fy;
+        }
+        return 0;
+      }
+      break;
+    }
+    case WM_NCHITTEST: {
+      // Frameless removes the native frame, so resize borders must be hit-tested
+      // manually. The titlebar strip stays HTCLIENT — Dart drives dragging via
+      // the channel's startDrag (WM_NCLBUTTONDOWN/HTCAPTION).
+      if (frameless_) {
+        const POINT cursor = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        RECT win;
+        GetWindowRect(hwnd, &win);
+        const int border =
+            IsZoomed(hwnd)
+                ? 0
+                : GetSystemMetrics(SM_CXSIZEFRAME) +
+                      GetSystemMetrics(SM_CXPADDEDBORDER);
+        const bool left = cursor.x < win.left + border;
+        const bool right = cursor.x >= win.right - border;
+        const bool top = cursor.y < win.top + border;
+        const bool bottom = cursor.y >= win.bottom - border;
+        if (top && left) return HTTOPLEFT;
+        if (top && right) return HTTOPRIGHT;
+        if (bottom && left) return HTBOTTOMLEFT;
+        if (bottom && right) return HTBOTTOMRIGHT;
+        if (left) return HTLEFT;
+        if (right) return HTRIGHT;
+        if (top) return HTTOP;
+        if (bottom) return HTBOTTOM;
+        return HTCLIENT;
+      }
+      break;
+    }
     case WM_DESTROY:
       window_handle_ = nullptr;
       OnDestroy();

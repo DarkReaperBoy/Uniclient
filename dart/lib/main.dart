@@ -2398,8 +2398,8 @@ class _UniClientAppState extends State<UniClientApp>
               key: _themeBoundaryKey,
               child: Column(
                 children: [
-                  if (!kIsWeb && Platform.isLinux && !appState.nativeWindowFrame) const CustomTitlebar(),
-                  if (!kIsWeb && Platform.isLinux && appState.nativeWindowFrame)
+                  if (!kIsWeb && (Platform.isLinux || Platform.isWindows) && !appState.nativeWindowFrame) const CustomTitlebar(),
+                  if (!kIsWeb && (Platform.isLinux || Platform.isWindows) && appState.nativeWindowFrame)
                     Builder(builder: (ctx) {
                       final isDark = Theme.of(ctx).brightness == Brightness.dark;
                       return Container(

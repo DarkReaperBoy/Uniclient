@@ -261,6 +261,66 @@ func (e *Engine) GetCacheSize() (int64, error) {
 	return total.Int64, nil
 }
 
+// GetCacheSizesByTag returns the per-tag cached byte counts for the Local
+// Storage box, keyed by the same tag indices as ClearCacheByTag (0=Images,
+// 1=Stickers, 2=Voice messages, 3=Video messages, 4=Animations, 5=Media cache).
+// This is the authoritative per-type accounting straight from the cache DB —
+// mirroring AyuGram's _stats.tagged byte counts (local_storage_box.cpp:419-456)
+// — instead of a filesystem extension heuristic. Tags 0..4 are summed by exact
+// media_type; tag 5 (Media cache) absorbs everything else (videos/audio/files
+// plus any uncategorised blobs), so the six tags always sum to the full cache
+// size — like AyuGram's kFakeMediaCacheTag → _statsBig.full row. If accountID is
+// non-empty the totals are scoped to that account.
+func (e *Engine) GetCacheSizesByTag(accountID string) ([6]int64, error) {
+	var sizes [6]int64
+
+	tagSum := func(types []int) (int64, error) {
+		placeholders := make([]string, len(types))
+		args := make([]interface{}, 0, len(types)+2)
+		args = append(args, DownloadComplete)
+		for i, t := range types {
+			placeholders[i] = "?"
+			args = append(args, t)
+		}
+		q := "SELECT COALESCE(SUM(file_size), 0) FROM media WHERE download_state = ? AND media_type IN (" + strings.Join(placeholders, ",") + ")"
+		if accountID != "" {
+			q += " AND account_id = ?"
+			args = append(args, accountID)
+		}
+		var total sql.NullInt64
+		if err := e.db.QueryRow(q, args...).Scan(&total); err != nil {
+			return 0, err
+		}
+		return total.Int64, nil
+	}
+
+	var categorized int64
+	for tag := 0; tag < 5; tag++ {
+		s, err := tagSum(mediaTypesForTag(tag))
+		if err != nil {
+			return sizes, err
+		}
+		sizes[tag] = s
+		categorized += s
+	}
+
+	q := "SELECT COALESCE(SUM(file_size), 0) FROM media WHERE download_state = ?"
+	args := []interface{}{DownloadComplete}
+	if accountID != "" {
+		q += " AND account_id = ?"
+		args = append(args, accountID)
+	}
+	var full sql.NullInt64
+	if err := e.db.QueryRow(q, args...).Scan(&full); err != nil {
+		return sizes, err
+	}
+	sizes[5] = full.Int64 - categorized
+	if sizes[5] < 0 {
+		sizes[5] = 0
+	}
+	return sizes, nil
+}
+
 // ClearCache deletes all downloaded media. If accountID is non-empty, only for that account.
 func (e *Engine) ClearCache(accountID string) error {
 	var rows *sql.Rows

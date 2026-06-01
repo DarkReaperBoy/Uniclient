@@ -1258,6 +1258,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ClearCacheByTag(params.AccountID, params.Tag)
 
+	case "GetCacheSizesByTag":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		sizes, err := e.GetCacheSizesByTag(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"sizes": sizes[:]})
+
 	case "SetProxy":
 		var params struct {
 			AccountID       string `json:"account_id"`

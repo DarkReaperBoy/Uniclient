@@ -364,6 +364,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // AyuGram/Telegram-core default is 10s (core_settings_proxy.h:25
   // kDefaultProxyRotationTimeout = 10). 60 is the MAX of {5,10,15,30,60}.
   int _proxyRotationTimeout = 10;
+  // One-time "this will expose your IP to the proxy admin" acknowledgement,
+  // persisted so the connectivity check warns only once (AyuGram
+  // checkIpWarningShown(), connection_box.cpp:1824-1842).
+  bool _proxyCheckIpWarningShown = false;
   List<Map<String, dynamic>> _proxyList = [];
   Map<String, dynamic> _selectedProxyData = {};
   Map<String, Map<String, dynamic>> _autoDownloadSettings = {};
@@ -747,6 +751,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get callSameDevice => _callSameDevice;
   bool get proxyRotationEnabled => _proxyRotationEnabled;
   int get proxyRotationTimeout => _proxyRotationTimeout;
+  bool get proxyCheckIpWarningShown => _proxyCheckIpWarningShown;
   List<Map<String, dynamic>> get proxyList => List.unmodifiable(_proxyList);
   Map<String, Map<String, dynamic>> get autoDownloadSettings => Map.unmodifiable(_autoDownloadSettings);
   String get cacheDir => _cacheDir;
@@ -2638,6 +2643,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _syncProxyToEngine();
   }
 
+  void setProxyCheckIpWarningShown(bool v) {
+    if (_proxyCheckIpWarningShown == v) return;
+    _proxyCheckIpWarningShown = v;
+    _saveWindowPrefs();
+  }
+
   void setProxyList(List<Map<String, dynamic>> list) {
     _proxyList = list;
     notifyListeners();
@@ -3278,7 +3289,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
             WidgetsBinding.instance.platformDispatcher.platformBrightness;
         updateTheme(brightness == Brightness.dark ? 'night' : 'day_blue');
       }
-      if (_nativeWindowFrame && Platform.isLinux) {
+      if (_nativeWindowFrame && (Platform.isLinux || Platform.isWindows)) {
         try {
           await _windowChannel.invokeMethod('setDecorated', true);
         } catch (_) {}
@@ -3705,8 +3716,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> setNativeWindowFrame(bool value) async {
     if (_nativeWindowFrame == value) return;
     _nativeWindowFrame = value;
-    // Tell GTK to add/remove window decorations.
-    if (Platform.isLinux) {
+    // Tell the native runner (GTK on Linux, Win32 on Windows) to add/remove the
+    // system window frame.
+    if (Platform.isLinux || Platform.isWindows) {
       try {
         await _windowChannel.invokeMethod('setDecorated', value);
       } catch (_) {}
@@ -3777,6 +3789,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _proxyRotationEnabled = data['proxyRotationEnabled'] as bool? ?? false;
       // Default 10s — core_settings_proxy.h:25 (kDefaultProxyRotationTimeout).
       _proxyRotationTimeout = data['proxyRotationTimeout'] as int? ?? 10;
+      _proxyCheckIpWarningShown =
+          data['proxyCheckIpWarningShown'] as bool? ?? false;
       final pList = data['proxyList'] as List<dynamic>?;
       if (pList != null) _proxyList = pList.cast<Map<String, dynamic>>();
       final selProxy = data['selectedProxyData'] as Map<String, dynamic>?;
@@ -4097,6 +4111,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'callSameDevice': _callSameDevice,
         'proxyRotationEnabled': _proxyRotationEnabled,
         'proxyRotationTimeout': _proxyRotationTimeout,
+        'proxyCheckIpWarningShown': _proxyCheckIpWarningShown,
         'proxyList': _proxyList,
         'selectedProxyData': _selectedProxyData,
         'autoDownloadSettings': _autoDownloadSettings,
