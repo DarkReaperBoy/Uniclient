@@ -5983,6 +5983,8 @@ class EngineService {
     _exportProgressController.close();
     _exportErrorController.close();
     _exportCompleteController.close();
+    _msgReactionsUpdatedController.close();
+    _notifySettingsController.close();
   }
 
   // ── Internal ──
@@ -6633,8 +6635,12 @@ class EngineService {
 
   static List<int> _decode5BitWaveform(List<int> raw) {
     if (raw.isEmpty) return const [];
+    // AyuGram documentWaveformDecode: valuesCount = (size * 8) / 5 — decode
+    // exactly that many 5-bit bars so waveforms of any length render in full
+    // (data_document.cpp:1333). The byteIdx guard below stays as a safety net.
+    final valuesCount = (raw.length * 8) ~/ 5;
     final samples = <int>[];
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < valuesCount; i++) {
       final bitOffset = i * 5;
       final byteIdx = bitOffset ~/ 8;
       final bitIdx = bitOffset % 8;

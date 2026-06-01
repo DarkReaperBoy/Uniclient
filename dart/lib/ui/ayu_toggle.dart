@@ -27,7 +27,12 @@ class _AyuToggleState extends State<AyuToggle>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 150),
+      // AyuGram switches BOTH duration and curve on isMaterialSwitches():
+      // material → _duration (150ms, widgets.style:879) + easeOutCubic;
+      // non-material → defaultToggleDuration (=universalDuration=120ms,
+      // basic.style:131) + linear (checkbox.cpp:61-62). The curve is switched
+      // in build(); the duration is switched here.
+      duration: Duration(milliseconds: widget.isMaterial ? 150 : 120),
       value: widget.value ? 1.0 : 0.0,
     );
   }
@@ -35,6 +40,12 @@ class _AyuToggleState extends State<AyuToggle>
   @override
   void didUpdateWidget(AyuToggle oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // materialSwitches is a live, user-toggleable setting; mirror AyuGram's
+    // per-animation-start duration read by re-deriving it when isMaterial flips.
+    if (oldWidget.isMaterial != widget.isMaterial) {
+      _controller.duration =
+          Duration(milliseconds: widget.isMaterial ? 150 : 120);
+    }
     if (oldWidget.value != widget.value) {
       if (widget.value) {
         _controller.forward();

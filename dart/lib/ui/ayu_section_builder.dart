@@ -505,8 +505,12 @@ class _AyuSliderState extends State<_AyuSlider> {
             child: Slider(
               value: _currentIndex.toDouble(),
               min: 0,
-              max: widget.steps.toDouble(),
-              divisions: widget.steps,
+              // AyuGram setPseudoDiscrete: sectionsCount = valuesCount - 1, so
+              // valid indices are 0..steps-1 (continuous_sliders.h:186). Callers
+              // pass steps = valuesCount, so subtract 1 here. Flutter renders
+              // `divisions: N` + `max: N` as N+1 stops, hence steps-1 for both.
+              max: (widget.steps - 1).toDouble(),
+              divisions: widget.steps - 1,
               onChanged: (d) {
                 final idx = d.round();
                 setState(() => _currentIndex = idx);
