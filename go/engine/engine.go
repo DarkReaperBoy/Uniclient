@@ -296,6 +296,70 @@ func (e *Engine) SetAutoDownloadSettings(source string, settings map[string]inte
 	log.Printf("[engine] SetAutoDownload: source=%s settings=%v", source, settings)
 }
 
+// ShouldAutoDownload reports whether a freshly-received attachment of the given
+// media type and size should be auto-downloaded for the given source
+// ("private"/"group"/"channel"), per the limits stored via
+// SetAutoDownloadSettings. Mirrors AyuGram's Data::AutoDownload per-source /
+// per-type bytesLimit gating (boxes/auto_download_box.cpp): a type only
+// auto-downloads when its toggle is on and the file is within the size limit.
+// When a source has no stored settings the AyuGram-faithful defaults apply
+// (photos/videos/GIFs/round videos on, files off; 10 MB / 50 MB limits) so the
+// feature works out of the box, matching the Dart getAutoDownloadForSource
+// defaults.
+func (e *Engine) ShouldAutoDownload(source string, mediaType int, fileSize int64) bool {
+	e.autoDownloadMu.RLock()
+	settings := e.autoDownloadSettings[source]
+	e.autoDownloadMu.RUnlock()
+
+	photos, files, videos, gifs, videoMsgs := true, false, true, true, true
+	var downloadLimit int64 = 10 * 1024 * 1024
+	var autoPlayLimit int64 = 50 * 1024 * 1024
+
+	if settings != nil {
+		boolOf := func(k string, def bool) bool {
+			if v, ok := settings[k].(bool); ok {
+				return v
+			}
+			return def
+		}
+		limitOf := func(k string, def int64) int64 {
+			switch v := settings[k].(type) {
+			case float64:
+				return int64(v)
+			case int:
+				return int64(v)
+			case int64:
+				return v
+			}
+			return def
+		}
+		photos = boolOf("photos", photos)
+		files = boolOf("files", files)
+		videos = boolOf("videos", videos)
+		gifs = boolOf("gifs", gifs)
+		videoMsgs = boolOf("videoMessages", videoMsgs)
+		downloadLimit = limitOf("downloadLimit", downloadLimit)
+		autoPlayLimit = limitOf("autoPlayLimit", autoPlayLimit)
+	}
+
+	within := func(limit int64) bool { return limit <= 0 || fileSize <= limit }
+
+	switch mediaType {
+	case MediaImage:
+		return photos && within(downloadLimit)
+	case MediaFile, MediaAudio:
+		return files && within(downloadLimit)
+	case MediaVideo:
+		return videos && within(autoPlayLimit)
+	case MediaGIF:
+		return gifs && within(autoPlayLimit)
+	case MediaVideoNote:
+		return videoMsgs && within(autoPlayLimit)
+	default:
+		return false
+	}
+}
+
 // SetPasscode stores the full passcode config in the vault.
 func (e *Engine) SetPasscode(data map[string]interface{}) error {
 	if err := e.vault.Put("passcode", "config", data); err != nil {

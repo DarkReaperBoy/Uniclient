@@ -304,6 +304,49 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 		ChatID:    chatID,
 		Message:   cached,
 	})
+
+	// Auto-download attachments per the user's auto-download settings.
+	e.maybeAutoDownload(accountID, chatID, msg)
+}
+
+// maybeAutoDownload queues low-priority downloads for an incoming message's
+// attachments when the per-source/per-type/per-size auto-download settings
+// allow it. Mirrors AyuGram firing document/photo load on message arrival.
+func (e *Engine) maybeAutoDownload(accountID, chatID string, msg *cores.Message) {
+	if msg == nil || msg.IsOutgoing || len(msg.Attachments) == 0 || e.media == nil {
+		return
+	}
+	source := e.autoDownloadSourceForChat(accountID, chatID)
+	if source == "" {
+		return
+	}
+	for i, att := range msg.Attachments {
+		mt := guessMediaType(att.MimeType, att.Name)
+		if e.ShouldAutoDownload(source, mt, att.Size) {
+			e.RequestDownload(accountID, chatID, msg.ID, i, 3)
+		}
+	}
+}
+
+// autoDownloadSourceForChat maps a chat's type to the auto-download source key
+// ("private"/"group"/"channel"). Returns "" for unknown chats (no auto-download).
+func (e *Engine) autoDownloadSourceForChat(accountID, chatID string) string {
+	var ct int
+	if err := e.db.QueryRow(
+		"SELECT type FROM chats WHERE account_id = ? AND chat_id = ?",
+		accountID, chatID).Scan(&ct); err != nil {
+		return ""
+	}
+	switch ct {
+	case ChatTypeDMVal:
+		return "private"
+	case ChatTypeGroupVal, ChatTypeTopicVal:
+		return "group"
+	case ChatTypeChanVal:
+		return "channel"
+	default:
+		return ""
+	}
 }
 
 // handleEditMessage saves pre-edit text (anti-recall §52.4) then updates the cached message.

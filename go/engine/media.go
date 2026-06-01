@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -291,19 +292,211 @@ func (e *Engine) ClearCache(accountID string) error {
 	return nil
 }
 
-// maybeEvict runs LRU eviction if cache exceeds max size.
+// mediaTypesForTag maps a Local Storage UI cache-tag index to the engine media
+// type ids it represents. Tag indices match the Dart Local Storage box rows:
+// 0=Images, 1=Stickers, 2=Voice messages, 3=Video messages, 4=Animations,
+// 5=Media cache (everything else / big files). Mirrors AyuGram's per-tag cache
+// buckets (kImageCacheTag/kStickerCacheTag/… in data/data_cloud_file / cache tags).
+func mediaTypesForTag(tag int) []int {
+	switch tag {
+	case 0:
+		return []int{MediaImage}
+	case 1:
+		return []int{MediaSticker}
+	case 2:
+		return []int{MediaVoice}
+	case 3:
+		return []int{MediaVideoNote}
+	case 4:
+		return []int{MediaGIF}
+	case 5:
+		return []int{MediaVideo, MediaAudio, MediaFile}
+	default:
+		return nil
+	}
+}
+
+// ClearCacheByTag deletes only the cached media files belonging to a single
+// Local Storage tag, leaving the rest of the cache intact. This mirrors
+// AyuGram's LocalStorageBox::clearByTag (boxes/local_storage_box.cpp:379-389),
+// where clicking "Clear" on one row surgically wipes that tag's entries only —
+// as opposed to ClearCache which nukes everything. If accountID is non-empty the
+// clear is scoped to that account.
+func (e *Engine) ClearCacheByTag(accountID string, tag int) error {
+	types := mediaTypesForTag(tag)
+	if len(types) == 0 {
+		return nil
+	}
+
+	placeholders := make([]string, len(types))
+	args := make([]interface{}, 0, len(types)+1)
+	for i, t := range types {
+		placeholders[i] = "?"
+		args = append(args, t)
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	selectQ := "SELECT local_path FROM media WHERE local_path IS NOT NULL AND media_type IN (" + inClause + ")"
+	updateQ := "UPDATE media SET local_path = NULL, download_state = 0 WHERE media_type IN (" + inClause + ")"
+	if accountID != "" {
+		selectQ += " AND account_id = ?"
+		updateQ += " AND account_id = ?"
+		args = append(args, accountID)
+	}
+
+	rows, err := e.db.Query(selectQ, args...)
+	if err != nil {
+		return err
+	}
+	var paths []string
+	for rows.Next() {
+		var path string
+		rows.Scan(&path)
+		paths = append(paths, path)
+	}
+	rows.Close()
+
+	for _, path := range paths {
+		os.Remove(path)
+	}
+	e.db.Exec(updateQ, args...)
+	return nil
+}
+
+// maybeEvict enforces all cache limits after a download completes: the
+// time-retention window, the per-media ("big files") size cap, and the total
+// cache size cap. Mirrors AyuGram's two-database (cache + cacheBig) model with
+// independent size limits plus a totalTimeLimit.
 func (mm *MediaManager) maybeEvict() {
+	mm.evictExpired()
+	mm.evictBigMedia()
+	mm.evictTotal()
+}
+
+// mediaVictim identifies one cached file targeted for eviction.
+type mediaVictim struct {
+	accID, chatID, msgID, localPath string
+	seq                             int
+	fileSize                        int64
+}
+
+// isThumb reports whether a local path lives in the account's thumbnail dir,
+// which is never evicted.
+func (e *Engine) isThumb(accID, localPath string) bool {
+	return filepath.Dir(localPath) == filepath.Join(e.mediaDir, accID, "thumb")
+}
+
+// dropVictim removes the file and clears its DB pointer.
+func (e *Engine) dropVictim(v mediaVictim) {
+	os.Remove(v.localPath)
+	e.db.Exec(
+		"UPDATE media SET local_path = NULL, download_state = 0 WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = ?",
+		v.accID, v.chatID, v.msgID, v.seq)
+}
+
+// bigMediaTypes are the large-file media types accounted against the separate
+// "media cache size limit" (AyuGram's cacheBig database): videos, documents,
+// music, voice, round videos, and animations.
+var bigMediaTypes = []int{MediaVideo, MediaFile, MediaAudio, MediaVoice, MediaVideoNote, MediaGIF}
+
+// evictExpired drops cached media not accessed within the retention window
+// (localStorageTimeDays). 0 days == keep forever. Mirrors AyuGram's
+// totalTimeLimit eviction.
+func (mm *MediaManager) evictExpired() {
+	e := mm.engine
+	days := e.localStorageTimeDays
+	if days <= 0 {
+		return
+	}
+	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
+	rows, err := e.db.Query(
+		`SELECT account_id, chat_id, msg_id, seq, local_path
+		 FROM media
+		 WHERE local_path IS NOT NULL AND download_state = ? AND last_accessed < ?`,
+		DownloadComplete, cutoff)
+	if err != nil {
+		return
+	}
+	var victims []mediaVictim
+	for rows.Next() {
+		var v mediaVictim
+		rows.Scan(&v.accID, &v.chatID, &v.msgID, &v.seq, &v.localPath)
+		victims = append(victims, v)
+	}
+	rows.Close()
+
+	for _, v := range victims {
+		if e.isThumb(v.accID, v.localPath) {
+			continue
+		}
+		e.dropVictim(v)
+	}
+}
+
+// evictBigMedia enforces the independent "media cache" size cap
+// (localStorageMediaMB) over large files only, evicting oldest-accessed first.
+func (mm *MediaManager) evictBigMedia() {
+	e := mm.engine
+	if e.localStorageMediaMB <= 0 {
+		return
+	}
+	limit := int64(e.localStorageMediaMB) * 1024 * 1024
+
+	placeholders := make([]string, len(bigMediaTypes))
+	typeArgs := make([]interface{}, len(bigMediaTypes))
+	for i, t := range bigMediaTypes {
+		placeholders[i] = "?"
+		typeArgs[i] = t
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	var size sql.NullInt64
+	e.db.QueryRow(
+		"SELECT COALESCE(SUM(file_size),0) FROM media WHERE download_state = ? AND local_path IS NOT NULL AND media_type IN ("+inClause+")",
+		append([]interface{}{DownloadComplete}, typeArgs...)...).Scan(&size)
+	if size.Int64 <= limit {
+		return
+	}
+
+	rows, err := e.db.Query(
+		"SELECT account_id, chat_id, msg_id, seq, local_path, file_size FROM media WHERE local_path IS NOT NULL AND download_state = ? AND media_type IN ("+inClause+") ORDER BY last_accessed ASC",
+		append([]interface{}{DownloadComplete}, typeArgs...)...)
+	if err != nil {
+		return
+	}
+	var victims []mediaVictim
+	for rows.Next() {
+		var v mediaVictim
+		rows.Scan(&v.accID, &v.chatID, &v.msgID, &v.seq, &v.localPath, &v.fileSize)
+		victims = append(victims, v)
+	}
+	rows.Close()
+
+	cur := size.Int64
+	for _, v := range victims {
+		if cur <= limit {
+			break
+		}
+		if e.isThumb(v.accID, v.localPath) {
+			continue
+		}
+		e.dropVictim(v)
+		cur -= v.fileSize
+	}
+}
+
+// evictTotal enforces the overall cache size cap (maxCache / total limit),
+// evicting oldest-accessed files of any type first.
+func (mm *MediaManager) evictTotal() {
 	e := mm.engine
 	if e.maxCache <= 0 {
 		return
 	}
-
 	size, _ := e.GetCacheSize()
 	if size <= e.maxCache {
 		return
 	}
 
-	// Evict oldest-accessed files until under limit.
 	rows, err := e.db.Query(
 		`SELECT account_id, chat_id, msg_id, seq, local_path, file_size
 		 FROM media
@@ -313,23 +506,22 @@ func (mm *MediaManager) maybeEvict() {
 	if err != nil {
 		return
 	}
-	defer rows.Close()
+	var victims []mediaVictim
+	for rows.Next() {
+		var v mediaVictim
+		rows.Scan(&v.accID, &v.chatID, &v.msgID, &v.seq, &v.localPath, &v.fileSize)
+		victims = append(victims, v)
+	}
+	rows.Close()
 
-	for rows.Next() && size > e.maxCache {
-		var accID, chatID, msgID, localPath string
-		var seq int
-		var fileSize int64
-		rows.Scan(&accID, &chatID, &msgID, &seq, &localPath, &fileSize)
-
-		// Never evict thumbnails.
-		if filepath.Dir(localPath) == filepath.Join(e.mediaDir, accID, "thumb") {
+	for _, v := range victims {
+		if size <= e.maxCache {
+			break
+		}
+		if e.isThumb(v.accID, v.localPath) {
 			continue
 		}
-
-		os.Remove(localPath)
-		e.db.Exec(
-			"UPDATE media SET local_path = NULL, download_state = 0 WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = ?",
-			accID, chatID, msgID, seq)
-		size -= fileSize
+		e.dropVictim(v)
+		size -= v.fileSize
 	}
 }

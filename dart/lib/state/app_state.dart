@@ -2711,8 +2711,37 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _engine.callGeneric('__engine', 'SetLocalStorageLimits', {
       'total_limit_mb': _localStorageTotalLimit,
       'media_limit_mb': _localStorageMediaLimit,
-      'time_limit_days': _localStorageTimeLimit,
+      'time_limit_days': _timeLimitIndexToDays(_localStorageTimeLimit),
     }).catchError((_) {});
+  }
+
+  // Converts the Keep-media time-limit slider index (0..15) into a real number
+  // of days for the engine's time-based eviction. Mirrors AyuGram's
+  // TimeLimitInDays (boxes/local_storage_box.cpp:69): indices 0..2 are weeks
+  // (1..3)*7, indices 3..14 are months (≈30 days with calendar nudges), and the
+  // final index ("Forever") yields 0 = no time limit.
+  int _timeLimitIndexToDays(int index) {
+    if (index < 3) return (index + 1) * 7;
+    if (index < 15) {
+      final month = index - 2;
+      final extra = month >= 12
+          ? 5
+          : month >= 10
+              ? 4
+              : month >= 8
+                  ? 3
+                  : month >= 7
+                      ? 2
+                      : month >= 5
+                          ? 1
+                          : month >= 3
+                              ? 0
+                              : month >= 2
+                                  ? -1
+                                  : 1; // month == 1
+      return month * 30 + extra;
+    }
+    return 0; // "Forever"
   }
 
   void addRecentDownload(String fileName, String filePath, int sizeBytes) {

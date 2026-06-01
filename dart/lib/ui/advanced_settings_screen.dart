@@ -1952,7 +1952,12 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
       }
     } catch (_) {}
     try {
-      appState.engine.clearCache(accountId: appState.activeAccountId);
+      // Surgically clear only this tag's engine-cache entries (not the whole
+      // cache). Mirrors AyuGram LocalStorageBox::clearByTag.
+      appState.engine.callGeneric('__engine', 'ClearCacheByTag', {
+        'account_id': appState.activeAccountId,
+        'tag': tagIdx,
+      }).catchError((_) => null);
     } catch (_) {}
     if (mounted) setState(() => _tagSizes[tagIdx] = 0);
   }
@@ -2896,7 +2901,10 @@ class _ProxyEntry {
 
   bool get supportsCalls => type != _ProxyType.mtproto;
 
-  bool get isShareable => !deleted;
+  // Only SOCKS5 and MTPROTO proxies are shareable; HTTP proxies have no public
+  // proxy link (ProxyDataIsShareable, connection_box.cpp:98-102).
+  bool get isShareable =>
+      !deleted && (type == _ProxyType.socks5 || type == _ProxyType.mtproto);
 }
 
 class _ProxiesBox extends StatefulWidget {
@@ -3573,15 +3581,29 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     }
   }
 
+  // Builds the local tg:// proxy link. Mirrors ProxyDataToQueryPath
+  // (connection_box.cpp:104-126): SOCKS5 carries url-encoded user/pass when set,
+  // MTPROTO carries the secret, and HTTP has no link at all (not shareable).
   String _proxyToUrl(_ProxyEntry p) {
-    final scheme = switch (p.type) {
-      _ProxyType.socks5 => 'tg://socks?server=${p.host}&port=${p.port}',
-      _ProxyType.http =>
-        'tg://proxy?server=${p.host}&port=${p.port}&type=http',
-      _ProxyType.mtproto =>
-        'tg://proxy?server=${p.host}&port=${p.port}&secret=${p.secret}',
-    };
-    return scheme;
+    switch (p.type) {
+      case _ProxyType.socks5:
+        var url = 'tg://socks?server=${p.host}&port=${p.port}';
+        if (p.username.isNotEmpty) {
+          url += '&user=${Uri.encodeComponent(p.username)}';
+        }
+        if (p.password.isNotEmpty) {
+          url += '&pass=${Uri.encodeComponent(p.password)}';
+        }
+        return url;
+      case _ProxyType.mtproto:
+        var url = 'tg://proxy?server=${p.host}&port=${p.port}';
+        if (p.secret.isNotEmpty) {
+          url += '&secret=${p.secret}';
+        }
+        return url;
+      case _ProxyType.http:
+        return '';
+    }
   }
 
   void _showQrDialog(_ProxyEntry proxy) {
@@ -4445,24 +4467,38 @@ class _DownloadPathOption extends StatelessWidget {
   }
 }
 
+// Full set of AyuGram Desktop experimental options, in the exact registration
+// order of settings_experimental.cpp:284-314 (SetupExperimental addToggle list).
 const _experimentalFlagDefs = <(String, String)>[
   ('tabbed-panel-show-on-click', 'Show tabbed panel by click'),
   ('forum-hide-chats-list', 'Hide chat list in forums'),
   ('dialogs-mute-icon', 'Mute icon in dialogs'),
   ('fractional-scaling-enabled', 'Enable precise High DPI scaling'),
+  ('high-dpi-downscale', 'High DPI downscale'),
   ('view-profile-in-chats-list-context-menu', 'Add "View Profile" to context menu'),
   ('show-peer-id-below-about', 'Show Peer IDs in Profile'),
+  ('show-channel-joined-below-about', 'Show Channel Joined Date in Profile'),
   ('use-small-msg-bubble-radius', 'Use small message bubble radius'),
   ('disable-autoplay-next', 'Disable auto-play of the next track'),
   ('webview-debug-enabled', 'Enable webview debugging'),
-  ('custom-notification', 'Force non-native notifications availability'),
-  ('freetype', 'FreeType font engine'),
-  ('prefer-ipv6', 'Prefer IPv6 connections'),
+  ('webview-legacy-edge', 'Force legacy Edge WebView'),
   ('auto-scroll-inactive-chat', 'Mark as read of inactive chat'),
   ('hide-reply-button', 'Hide reply button in notifications'),
-  ('hide-ai-button', 'Hide AI button'),
-  ('unlimited-recent-stickers', 'Unlimited recent stickers'),
+  ('custom-notification', 'Force non-native notifications availability'),
+  ('gnotification', 'GNotification'),
+  ('freetype', 'FreeType font engine'),
+  ('skip-url-scheme-register', 'Skip URL scheme register'),
+  ('deadlock-detector', 'Deadlock Detector'),
+  ('external-media-viewer', 'External media viewer'),
+  ('new-windows-size-as-first', 'Adjust size of new chat windows'),
+  ('prefer-ipv6', 'Prefer IPv6 connections'),
   ('fast-buttons-mode', 'Fast buttons mode'),
+  ('touchbar-disabled', 'Disable Touch Bar (macOS only).'),
+  ('alternative-scroll-processing', 'Use legacy scroll processing in profiles.'),
+  ('moderate-common-groups', 'Ban users from several groups at once.'),
+  ('force-compose-search-one-column', 'Force embedded search in chats'),
+  ('unlimited-recent-stickers', 'Unlimited recent stickers'),
+  ('hide-ai-button', 'Hide AI button'),
 ];
 
 const _flagsPrefix = 'tdesktop-flags:';
