@@ -348,6 +348,11 @@ class _ExportStepInfo {
 class _ExportPanelDialogState extends State<_ExportPanelDialog>
     with WidgetsBindingObserver {
   ExportPhase _phase = ExportPhase.settings;
+  /// Cached ChatState ref (set in didChangeDependencies) so dispose() can stop
+  /// the export bar without a context provider lookup — looking up an inherited
+  /// widget via context in dispose() throws "deactivated widget's ancestor is
+  /// unsafe".
+  ChatState? _chatStateRef;
 
   // Account data
   bool _personalInfo = true;
@@ -669,6 +674,12 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _chatStateRef = context.read<ChatState>();
+  }
+
+  @override
   void dispose() {
     _progressSub?.cancel();
     _errorSub?.cancel();
@@ -681,7 +692,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     }
     _scrollController.dispose();
     WidgetsBinding.instance.removeObserver(this);
-    context.read<ChatState>().stopExportBar();
+    _chatStateRef?.stopExportBar();
     super.dispose();
   }
 

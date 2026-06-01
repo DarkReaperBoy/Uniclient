@@ -137,6 +137,11 @@ class _ChatListPanelState extends State<ChatListPanel>
     with TickerProviderStateMixin {
   final _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
+  /// Cached AppState ref (set in didChangeDependencies) so dispose() can clear
+  /// its callback without a context provider lookup — looking up an inherited
+  /// widget via context in dispose() throws "deactivated widget's ancestor is
+  /// unsafe" when a column-count flip (oneColumn↔twoColumn) destroys this panel.
+  AppState? _appStateRef;
   bool _searching = false;
   bool _showArchived = false;
   List<ChatInfo> _loadedArchivedChats = []; // on-demand archived chats
@@ -215,6 +220,12 @@ class _ChatListPanelState extends State<ChatListPanel>
         if (mounted && !_showArchived) _toggleArchived();
       };
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _appStateRef = context.read<AppState>();
   }
 
   void _onChatListScroll() {
@@ -501,8 +512,8 @@ class _ChatListPanelState extends State<ChatListPanel>
     if (ChatListPanel.scrollToActiveChatRequest == _scrollToActiveChat) {
       ChatListPanel.scrollToActiveChatRequest = null;
     }
-    final appState = context.read<AppState>();
-    if (appState.onShowArchiveRequested != null) {
+    final appState = _appStateRef;
+    if (appState != null && appState.onShowArchiveRequested != null) {
       appState.onShowArchiveRequested = null;
     }
     _archiveAnimCtrl.dispose();

@@ -279,6 +279,11 @@ class _ChatViewState extends State<ChatView>
   static final _urlRegExp = RegExp(r'https?://[^\s<>"{}|\\^`\[\]]+', caseSensitive: false);
   final _composeController = _ChatRichTextEditingController();
   final _scrollController = ScrollController();
+  /// Cached ChatState ref (set in didChangeDependencies) so dispose() can clear
+  /// its callback without a context provider lookup — looking up an inherited
+  /// widget via context in dispose() throws "deactivated widget's ancestor is
+  /// unsafe" when a column-count flip (oneColumn↔twoColumn) destroys this view.
+  ChatState? _chatStateRef;
   String? _replyToId;
   String? _editingMsgId;
   String _editOriginalText = '';
@@ -561,8 +566,8 @@ class _ChatViewState extends State<ChatView>
     }
     _searchController.removeListener(_onSearchQueryChanged);
     _filterEngineListenable?.removeListener(_onFilterEngineChanged);
-    final cs = context.read<ChatState>();
-    if (cs.onNewActiveMessage == _handleNewActiveMessage) {
+    final cs = _chatStateRef;
+    if (cs != null && cs.onNewActiveMessage == _handleNewActiveMessage) {
       cs.onNewActiveMessage = null;
     }
     if (ChatView.editLastOutgoingRequest == _editLastOutgoing) {
@@ -676,6 +681,7 @@ class _ChatViewState extends State<ChatView>
     super.didChangeDependencies();
     // §49.6: Register new-message callback for auto-scroll behavior.
     final chatState = context.read<ChatState>();
+    _chatStateRef = chatState;
     chatState.onNewActiveMessage = _handleNewActiveMessage;
     final chatId = chatState.activeChat?.chatId;
     // §49.7: Save scroll position when chat closes (oneColumn back navigation).

@@ -53,6 +53,11 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
   int _shownPerRow = 1;
   int _shownRows = 1;
   final Map<String, Uint8List> _avatarCache = {};
+  /// Cached ChatState ref captured when the listener is added, so dispose() can
+  /// remove the listener from the exact same object without a context provider
+  /// lookup — looking up an inherited widget via context in dispose() throws
+  /// "deactivated widget's ancestor is unsafe".
+  ChatState? _chatStateRef;
 
   @override
   void initState() {
@@ -67,6 +72,7 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
 
   void _listenToChatState() {
     final chatState = context.read<ChatState>();
+    _chatStateRef = chatState;
     chatState.addListener(_onChatStateChanged);
   }
 
@@ -104,10 +110,7 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
-    try {
-      final chatState = context.read<ChatState>();
-      chatState.removeListener(_onChatStateChanged);
-    } catch (_) {}
+    _chatStateRef?.removeListener(_onChatStateChanged);
     super.dispose();
   }
 

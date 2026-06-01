@@ -2936,6 +2936,11 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
   final List<_ProxyEntry> _proxies = [];
   int _selectedIndex = -1;
   final FocusNode _focusNode = FocusNode();
+  /// Cached AppState ref (set in didChangeDependencies) so dispose() can persist
+  /// the proxy list without a context provider lookup — looking up an inherited
+  /// widget via context in dispose() throws "deactivated widget's ancestor is
+  /// unsafe".
+  AppState? _appStateRef;
 
   // AyuGram's discrete proxy rotation timeouts in seconds
   // (core_settings_proxy.h:18-25), default 10s.
@@ -3115,9 +3120,14 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _appStateRef = context.read<AppState>();
+  }
+
+  @override
   void dispose() {
-    final appState = context.read<AppState>();
-    appState.setProxyList(_proxies
+    _appStateRef?.setProxyList(_proxies
         .where((p) => !p.deleted)
         .map((p) => {
               'type': p.type.name,
