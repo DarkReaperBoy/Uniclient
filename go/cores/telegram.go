@@ -95,6 +95,12 @@ type TelegramCore struct {
 	// Custom dialer for proxy support
 	dialFunc dcs.DialFunc
 
+	// Proxy config (SOCKS5/HTTP/MTProto) installed by the engine; applied each
+	// time the gotd client is (re)initialised in initClient. Mirrors AyuGram's
+	// Application::setCurrentProxy, which routes MTProto through the proxy.
+	proxyMu  sync.RWMutex
+	proxyCfg ProxyConfig
+
 	// Update handler
 	dispatcher     *tg.UpdateDispatcher
 	updateHandlers []func(Update)
@@ -260,6 +266,17 @@ func (t *TelegramCore) Capabilities() []string {
 	}
 }
 
+// SetProxyConfig installs/updates the proxy used for connections. It takes
+// effect the next time the gotd client is (re)initialised (on connect/reconnect),
+// matching AyuGram's setCurrentProxy which reconnects active sessions on a proxy
+// change. The engine calls this on every Settings→Proxy change and right after
+// creating a core, so a saved proxy is applied before the first connect.
+func (t *TelegramCore) SetProxyConfig(cfg ProxyConfig) {
+	t.proxyMu.Lock()
+	t.proxyCfg = cfg
+	t.proxyMu.Unlock()
+}
+
 // initClient creates the gotd client with configured options.
 func (t *TelegramCore) initClient() {
 	dispatcher := tg.NewUpdateDispatcher()
@@ -270,8 +287,22 @@ func (t *TelegramCore) initClient() {
 		UpdateHandler:  dispatcher,
 	}
 
-	// Custom resolver for proxy support
-	if t.dialFunc != nil {
+	// Custom resolver for proxy support. A live ProxyConfig (installed by the
+	// engine from the user's Settings→Proxy) takes precedence and builds the
+	// right resolver (SOCKS5/HTTP tunnel or obfuscated MTProto). The legacy
+	// dialFunc set directly via TelegramConfig (tests) is the fallback.
+	t.proxyMu.RLock()
+	pcfg := t.proxyCfg
+	t.proxyMu.RUnlock()
+	if pcfg.active() {
+		if res, err := pcfg.resolver(); err != nil {
+			log.Printf("[telegram] proxy resolver build failed (%s %s:%d): %v — dialing direct",
+				pcfg.Type, pcfg.Host, pcfg.Port, err)
+		} else if res != nil {
+			opts.Resolver = res
+			log.Printf("[telegram] dialing through %s proxy %s:%d", pcfg.Type, pcfg.Host, pcfg.Port)
+		}
+	} else if t.dialFunc != nil {
 		opts.Resolver = dcs.Plain(dcs.PlainOptions{
 			Dial: t.dialFunc,
 		})

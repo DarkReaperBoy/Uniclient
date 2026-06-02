@@ -60,6 +60,8 @@ func (e *Engine) ConnectAccount(accountID string) error {
 		log.Printf("[engine] ConnectAccount(%s): create core failed: %v", accountID, err)
 		return fmt.Errorf("create core %s: %w", acc.Platform, err)
 	}
+	// Install any configured proxy before the core connects.
+	e.applyProxyToCore(core)
 
 	// Load saved credentials.
 	creds, err := e.LoadCredentials(accountID)

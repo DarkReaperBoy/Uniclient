@@ -724,9 +724,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   AccountInfo? get activeAccount => _cachedActiveAccount;
 
-  /// Spec §3.2: account limit — 200 if any account is premium, else 100.
-  int get maxAccountLimit =>
-      _accounts.any((a) => a.isPremium) ? kPremiumMaxAccounts : kMaxAccounts;
+  /// Account limit — each premium account raises the cap by exactly 1, capped
+  /// at kPremiumMaxAccounts. Matches AyuGram Domain::maxAccounts() =
+  /// min(premiumCount + kMaxAccounts, kPremiumMaxAccounts) (main_domain.cpp:503).
+  int get maxAccountLimit {
+    final premiumCount = _accounts.where((a) => a.isPremium).length;
+    return (premiumCount + kMaxAccounts).clamp(kMaxAccounts, kPremiumMaxAccounts);
+  }
 
   /// Whether a new account can be added (under the limit).
   bool get canAddAccount => _accounts.length < maxAccountLimit;
@@ -1500,11 +1504,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
+  // The five ghost toggles below route through the per-account-aware
+  // _syncGhostToEngine() (NOT a direct global updateConfig) so that in
+  // "individual settings for each account" mode they update the ACTIVE
+  // account's per-account override instead of the global config — matching the
+  // sibling setMarkReadAfterAction/setUseScheduledMessages and AyuGram's
+  // per-session ghost resolution (ayu_settings.cpp:437-448, 70-74).
   void setSendReadMessages(bool v) {
     final s = _ensureGhostSettings();
     if (s.sendReadMessages == v) return;
     s.sendReadMessages = v;
-    _engine.updateConfig(sendReadReceipts: v);
+    _syncGhostToEngine();
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1513,7 +1523,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ensureGhostSettings();
     if (s.sendReadStories == v) return;
     s.sendReadStories = v;
-    _engine.updateConfig(sendReadStories: v);
+    _syncGhostToEngine();
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1522,7 +1532,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ensureGhostSettings();
     if (s.sendOnlinePackets == v) return;
     s.sendOnlinePackets = v;
-    _engine.updateConfig(sendOnlinePackets: v);
+    _syncGhostToEngine();
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1531,7 +1541,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ensureGhostSettings();
     if (s.sendUploadProgress == v) return;
     s.sendUploadProgress = v;
-    _engine.updateConfig(sendUploadProgress: v);
+    _syncGhostToEngine();
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1540,7 +1550,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ensureGhostSettings();
     if (s.sendOfflinePacketAfterOnline == v) return;
     s.sendOfflinePacketAfterOnline = v;
-    _engine.updateConfig(sendOfflineAfterOnline: v);
+    _syncGhostToEngine();
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -2705,6 +2715,39 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  // Re-pushes engine-side settings that the Go engine holds in memory only (no
+  // disk persistence) so they survive an app restart. Called from initialize()
+  // after loading prefs — the same pattern as _syncGhostToEngine /
+  // _syncAntiRecallSettings. Without this, a restart drops the user's
+  // auto-download limits, local-storage caps and power-saving flags back to
+  // engine defaults.
+  void _resyncEngineSettings() {
+    // Per-source auto-download limits (engine ShouldAutoDownload reads these).
+    for (final entry in _autoDownloadSettings.entries) {
+      final payload = {'source': entry.key, ...entry.value};
+      for (final a in _accounts) {
+        _engine.callGeneric(a.id, 'SetAutoDownload', payload).catchError((_) {});
+      }
+    }
+    // Local-storage eviction limits (media/total caps + time-based eviction).
+    _engine.updateConfig(maxCacheSize: _localStorageTotalLimit * 1024 * 1024);
+    _engine.callGeneric('__engine', 'SetLocalStorageLimits', {
+      'total_limit_mb': _localStorageTotalLimit,
+      'media_limit_mb': _localStorageMediaLimit,
+      'time_limit_days': _timeLimitIndexToDays(_localStorageTimeLimit),
+    }).catchError((_) {});
+    // Power-saving flags + ForceAll state.
+    _engine.callGeneric('__engine', 'SetPowerSaving', {
+      'flags': _powerSavingFlags,
+      'force_all': _autoPowerSaving,
+    }).catchError((_) {});
+    // Notification sound volume is intentionally NOT pushed here: it is consumed
+    // entirely Dart-side (notification_sound.dart reads settings.volume), so it
+    // never reverts to an engine default on restart. (The engine has no
+    // SetNotificationVolume method — its server-side notify "global_volume" is a
+    // separate concept set through Get/UpdateNotifyConfig, not local playback.)
+  }
+
   void setAutoDownloadSettings(String source, Map<String, dynamic> settings) {
     _autoDownloadSettings[source] = settings;
     notifyListeners();
@@ -3460,6 +3503,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _syncGhostToEngine();
       // §52.2 Sync anti-recall settings to engine on startup.
       _syncAntiRecallSettings();
+      // Re-sync proxy + other in-memory-only engine settings on startup. The Go
+      // engine holds these in memory (no disk load), so without re-pushing them
+      // after loading prefs they silently revert to engine defaults on every
+      // restart — same reason ghost/anti-recall are re-synced above.
+      _syncProxyToEngine();
+      _resyncEngineSettings();
       WidgetsBinding.instance.addObserver(this);
       if (_systemDarkMode) {
         final brightness =
@@ -4042,13 +4091,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
       _customThemePath = data['customThemePath'] as String? ?? '';
-      // §25.15 AyuGram prefs
-      _bubbleRadius = (data['bubbleRadius'] as int?) ?? 16;
+      // §25.15 AyuGram prefs. AyuGram validate() clamps every out-of-range
+      // persisted value on load (ayu_settings.cpp:481-533); replicated here so a
+      // corrupt / hand-edited / version-downgraded prefs value can't flow into
+      // rendering. bubbleRadius → [0,16] (ayu_settings.cpp:518).
+      _bubbleRadius = ((data['bubbleRadius'] as int?) ?? 16).clamp(0, 16);
       _removeTail = data['removeTail'] as bool? ?? false;
       _materialSwitches = data['materialSwitches'] as bool? ?? true;
       final oldAvatarRadius = data['avatarCornerRadius'] as int?;
-      _avatarCorners = (data['avatarCorners'] as int?) ??
-          (oldAvatarRadius != null ? (oldAvatarRadius * 23 / 50).round().clamp(0, 23) : 23);
+      // avatarCorners → [0,kMaxAvatarCorners=23] (ayu_settings.cpp:520). The
+      // direct key was previously read raw (only the legacy-migration branch
+      // clamped), so an out-of-range value could reach the userpic renderer.
+      _avatarCorners = ((data['avatarCorners'] as int?) ??
+              (oldAvatarRadius != null ? (oldAvatarRadius * 23 / 50).round() : 23))
+          .clamp(0, 23);
       _singleCornerRadius = data['singleCornerRadius'] as bool? ?? false;
       _disableCustomBackgrounds = data['disableCustomBackgrounds'] as bool? ?? false;
       _hidePremiumStatuses = data['hidePremiumStatuses'] as bool? ?? false;
@@ -4167,13 +4223,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           ),
         };
       }
-      _showViewsPanelInContextMenu = data['showViewsPanelInContextMenu'] as int? ?? 1;
-      _showRepeatMessageInContextMenu = data['showRepeatMessageInContextMenu'] as int? ?? 0;
-      _showReactionsPanelInContextMenu = data['showReactionsPanelInContextMenu'] as int? ?? 1;
-      _showHideMessageInContextMenu = data['showHideMessageInContextMenu'] as int? ?? 0;
-      _showUserMessagesInContextMenu = data['showUserMessagesInContextMenu'] as int? ?? 2;
-      _showMessageDetailsInContextMenu = data['showMessageDetailsInContextMenu'] as int? ?? 2;
-      _showAddFilterInContextMenu = data['showAddFilterInContextMenu'] as int? ?? 1;
+      // Context-menu visibility enums → [0,2] (ayu_settings.cpp:506-514
+      // validateEnum). Read raw before; clamp now so a corrupt value can't slip
+      // through to the menu-visibility switch.
+      _showViewsPanelInContextMenu = ((data['showViewsPanelInContextMenu'] as int?) ?? 1).clamp(0, 2);
+      _showRepeatMessageInContextMenu = ((data['showRepeatMessageInContextMenu'] as int?) ?? 0).clamp(0, 2);
+      _showReactionsPanelInContextMenu = ((data['showReactionsPanelInContextMenu'] as int?) ?? 1).clamp(0, 2);
+      _showHideMessageInContextMenu = ((data['showHideMessageInContextMenu'] as int?) ?? 0).clamp(0, 2);
+      _showUserMessagesInContextMenu = ((data['showUserMessagesInContextMenu'] as int?) ?? 2).clamp(0, 2);
+      _showMessageDetailsInContextMenu = ((data['showMessageDetailsInContextMenu'] as int?) ?? 2).clamp(0, 2);
+      _showAddFilterInContextMenu = ((data['showAddFilterInContextMenu'] as int?) ?? 1).clamp(0, 2);
       _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
       _voicePlaybackSpeed =
           ((data['voicePlaybackSpeed'] as num?)?.toDouble() ?? 1.0).clamp(0.5, 2.5).toDouble();
@@ -4186,7 +4245,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (rawTp is String) {
         _translationProvider = const {'telegram': 0, 'google': 1, 'yandex': 2, 'native': 3}[rawTp] ?? 0;
       } else {
-        _translationProvider = (rawTp as int?) ?? 0;
+        // translationProvider enum → [0,3] (ayu_settings.cpp:516 validateEnum
+        // with max=3: Telegram/Google/Yandex/Native).
+        _translationProvider = ((rawTp as int?) ?? 0).clamp(0, 3);
       }
       // AyuGram validate() resets Native→default(Telegram) when the platform
       // provider is unavailable (ayu_settings.cpp:511-515).
@@ -4200,7 +4261,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _disableNotifyDelay = data['disableNotifyDelay'] as bool? ?? false;
       _filterZalgo = data['filterZalgo'] as bool? ?? false;
       _improveLinkPreviews = data['improveLinkPreviews'] as bool? ?? false;
-      _showPeerId = data['showPeerId'] as int? ?? 2;
+      // showPeerId → [0,2] (ayu_settings.cpp:505 validateEnum).
+      _showPeerId = ((data['showPeerId'] as int?) ?? 2).clamp(0, 2);
       _spoofWebviewAsAndroid = data['spoofWebviewAsAndroid'] as bool? ?? false;
       _increaseWebviewHeight = data['increaseWebviewHeight'] as bool? ?? false;
       _increaseWebviewWidth = data['increaseWebviewWidth'] as bool? ?? false;
@@ -4228,7 +4290,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // stale/hand-edited 0 (or >200) from an older build is corrected here.
       _recentStickersCount =
           ((data['recentStickersCount'] as int?) ?? 100).clamp(1, 200);
-      _channelBottomButton = data['channelBottomButton'] as int? ?? 2;
+      // channelBottomButton → [0,2] (ayu_settings.cpp:506 validateEnum).
+      _channelBottomButton = ((data['channelBottomButton'] as int?) ?? 2).clamp(0, 2);
       _quickAdminShortcuts = data['quickAdminShortcuts'] as bool? ?? true;
       _showMessageShot = data['showMessageShot'] as bool? ?? true;
       final messageShotData =
@@ -4236,6 +4299,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _messageShotSettings = messageShotData != null
           ? MessageShotSettings.fromJson(messageShotData)
           : MessageShotSettings();
+      // embeddedThemeType valid only as -1 (none) or 0..3 (DayBlue..NightGreen)
+      // — ayu_settings.cpp:525-531. On a corrupt value reset both the type and
+      // its accent color to defaults, matching validate().
+      final et = _messageShotSettings.embeddedThemeType;
+      if (et != -1 && (et < 0 || et > 3)) {
+        _messageShotSettings.embeddedThemeType = -1;
+        _messageShotSettings.embeddedThemeAccentColor = 0;
+      }
       _hideFastShare = data['hideFastShare'] as bool? ?? false;
       _saveDeletedMessages = data['saveDeletedMessages'] as bool? ?? true;
       _saveMessagesHistory = data['saveMessagesHistory'] as bool? ?? true;

@@ -266,7 +266,15 @@ func (e *Engine) SetAntiRecallSettings(saveDeleted, saveHistory, saveForBots boo
 	e.saveForBots = saveForBots
 }
 
-// SetProxy updates the engine proxy settings and reconfigures active connections.
+// proxyConfigurable is implemented by cores that can dial through a proxy.
+type proxyConfigurable interface {
+	SetProxyConfig(cores.ProxyConfig)
+}
+
+// SetProxy updates the engine proxy settings and pushes them to every live core
+// so the change takes effect on the next (re)connect. Mirrors AyuGram's
+// Application::setCurrentProxy (core/application.cpp:836), which installs the
+// proxy into MTProto and reconnects sessions.
 func (e *Engine) SetProxy(mode int, host string, port int, proxyType, user, pass, secret string, ipv6, forCalls, rotationEnabled bool, rotationTimeout int) {
 	e.proxyMu.Lock()
 	e.proxyMode = mode
@@ -283,6 +291,55 @@ func (e *Engine) SetProxy(mode int, host string, port int, proxyType, user, pass
 	e.proxyMu.Unlock()
 	log.Printf("[engine] SetProxy: mode=%d type=%s host=%s:%d ipv6=%v forCalls=%v rotation=%v/%ds",
 		mode, proxyType, host, port, ipv6, forCalls, rotationEnabled, rotationTimeout)
+	e.applyProxyToAllCores()
+}
+
+// currentProxyConfig builds the cores.ProxyConfig from the engine's stored proxy
+// settings. Only mode 2 (custom) installs a proxy; 0 (disabled) and 1 (system)
+// fall back to the default direct dialer.
+func (e *Engine) currentProxyConfig() cores.ProxyConfig {
+	e.proxyMu.RLock()
+	defer e.proxyMu.RUnlock()
+	return cores.ProxyConfig{
+		Enabled:  e.proxyMode == 2,
+		Type:     e.proxyType,
+		Host:     e.proxyHost,
+		Port:     e.proxyPort,
+		Username: e.proxyUser,
+		Password: e.proxyPass,
+		Secret:   e.proxySecret,
+		IPv6:     e.proxyIPv6,
+	}
+}
+
+// applyProxyToCore pushes the current proxy config to a single core (if it
+// supports proxying). Called right after a core is created so a saved proxy is
+// installed before the first connect.
+func (e *Engine) applyProxyToCore(core cores.Core) {
+	if core == nil {
+		return
+	}
+	if pc, ok := core.(proxyConfigurable); ok {
+		pc.SetProxyConfig(e.currentProxyConfig())
+	}
+}
+
+// applyProxyToAllCores pushes the current proxy config to every live core.
+func (e *Engine) applyProxyToAllCores() {
+	cfg := e.currentProxyConfig()
+	e.accountsMu.RLock()
+	cs := make([]cores.Core, 0, len(e.accounts))
+	for _, acc := range e.accounts {
+		if acc.Core != nil {
+			cs = append(cs, acc.Core)
+		}
+	}
+	e.accountsMu.RUnlock()
+	for _, c := range cs {
+		if pc, ok := c.(proxyConfigurable); ok {
+			pc.SetProxyConfig(cfg)
+		}
+	}
 }
 
 // SetAutoDownloadSettings stores per-source auto-download limits.

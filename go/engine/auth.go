@@ -85,6 +85,8 @@ func (e *Engine) StartAuth(accountID string) (*AuthState, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create core: %w", err)
 	}
+	// Install any configured proxy before the core connects.
+	e.applyProxyToCore(core)
 
 	// Get initial state.
 	initial := initialAuthState(acc.Platform, accountID)
