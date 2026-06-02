@@ -285,16 +285,6 @@ boxes it opens (`auto_download_box.cpp`, `local_storage_box.cpp`, `connection_bo
   `SetAutoDownload` / `SetLocalStorageLimits` to every account (`app_state.dart:2666-2701,2716`).
   No stubs, no placeholders, no fake data, no empty callbacks.
 
-## Findings
-
-- [ ] [MAJOR] Windows "Close to taskbar" checkbox is missing. On Windows (no tray present),
-  AyuGram shows a `Close to taskbar` checkbox inside System Integration that toggles the close
-  behavior between `CloseToTaskbar` and `Quit`. The Dart `_buildWindowCloseBehavior` returns `[]`
-  on any non-Linux platform, and `_buildSystemIntegration` only adds a Windows branch for
-  "Add to Send to menu" — so a Windows user with the tray disabled has no control over what
-  closing the window does (the Linux radio group is the only close-behavior UI). —
-  `advanced_settings_screen.dart:748-777` (Linux-only early return) and `advanced_settings_screen.dart:879-887` (only Windows branch in System Integration) ← `settings_advanced.cpp:585-621` (`#elif defined Q_OS_WIN` closeToTaskbar checkbox, shown via `!Core::App().tray().has()`)
-
 # auth_screen — Telegram intro/login flow (choose · QR · phone · email · OTP · 2FA · signup)
 
 Overall this file is a high-fidelity port. Every interactive element is wired to the
