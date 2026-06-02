@@ -2340,14 +2340,27 @@ func (e *Engine) SetLanguage(accountID, langCode string) error {
 // the core's preAuthAPI. Missing/deleted keys are omitted so the UI can fall
 // back to its embedded English baseline.
 func (e *Engine) GetLangStrings(accountID, langCode string, keys []string) (map[string]string, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
+	// During the intro/login flow the account's Core is still nil — the
+	// connected, auth-in-progress core lives in the auth flow (set in
+	// StartAuth, attached to the account only by finalizeAuth once login
+	// completes). The language picker only exists on the pre-auth intro, so
+	// fall back to the in-progress flow core, exactly the way onQRTokenUpdate
+	// and finalizeAuth reach it (authFlows is package-level in auth.go).
+	core := e.GetAccountCore(accountID)
+	if core == nil {
+		authFlowsMu.Lock()
+		if flow, ok := authFlows[accountID]; ok {
+			core = flow.core
+		}
+		authFlowsMu.Unlock()
+	}
+	if core == nil {
 		return nil, fmt.Errorf("account not found")
 	}
 	type langStringsGetter interface {
 		LangpackGetStringsMap(langCode string, keys []string) (map[string]string, error)
 	}
-	if g, ok := acc.Core.(langStringsGetter); ok {
+	if g, ok := core.(langStringsGetter); ok {
 		return g.LangpackGetStringsMap(langCode, keys)
 	}
 	return nil, fmt.Errorf("not supported")

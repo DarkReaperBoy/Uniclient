@@ -83,7 +83,14 @@ class LangPack extends ChangeNotifier {
       if (changed) notifyListeners();
       return;
     }
-    // Reflect the selection immediately (baseline), then overlay once fetched.
+    // Reflect the selection immediately on the English baseline — drop any
+    // previous language's overlay first, so switching A→B never leaves A's
+    // strings on screen while B is fetched. Then overlay B's cloud strings once
+    // fetched. If the fetch comes back empty (Telegram ships no `tdesktop` pack
+    // for this language — e.g. a community/RTL language not translated for
+    // Desktop), we stay on the English baseline, exactly as AyuGram falls back
+    // to its built-in English when the cloud pack lacks a string.
+    _overlay = const {};
     notifyListeners();
     if (accountId == null || accountId.isEmpty) return;
     try {
