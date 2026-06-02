@@ -295,8 +295,6 @@ real engine via `AuthState` (`submitInput`, `switchToMethod`, `cancelAuth`,
 74/151/220, next-slide 200). The findings below are behavioral-fidelity gaps vs
 AyuGram, not broken wiring.
 
-- [ ] [MAJOR] Auth screen is not localized despite exposing a "Change Language" control. AyuGram builds every intro string from the lang pack (`tr::lng_phone_title`, `tr::lng_intro_qr_step1..3`, `tr::lng_signin_desc`, etc.), so picking a language re-renders the intro in that language. Here the "Change Language" button calls `EngineService.updateConfig(language:)` (real engine call), but the auth UI text is hardcoded English literals ('Enter Phone Number', 'Scan QR Code', 'Next', the QR instructions, all dialogs…) and the few `TrStrings.*` helpers also return English (i18n is an app-wide pending item, `l10n/strings.dart:2`). Net effect: selecting a non-English language does not translate this screen, unlike AyuGram. App-wide root cause, but most visible here because the picker lives on this screen. — `auth_screen.dart:550` (`_title` literals) + `auth_screen.dart:2324` (Change Language → updateConfig) ← `AyuGram/intro/intro_phone.cpp:92` (`setTitleText(tr::lng_phone_title())` / `setDescriptionText(tr::lng_phone_desc())`)
-
 # ayu_appearance_page — AyuGram Appearance settings (App Icon, Avatar Corners, MD3/backgrounds/mono-font, Chat Folders, Tray & Drawer elements)
 
 Compared against `ayu/ui/settings/settings_appearance.cpp`, `ayu/ui/components/icon_picker.cpp`,
