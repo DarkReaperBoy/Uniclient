@@ -316,16 +316,16 @@ message preview, bubble radius + wide multiplier, context-menu elements, message
 elements, message-field popups. All toggles/choose-buttons/edit-mark box are wired to real
 `AppState` setters — no empty callbacks, no TODOs, no fake snackbars, no stubs. The message
 preview is a faithful hand-drawn approximation (the C++ renders a real `HistoryView::Element`,
-impossible in pure Flutter) wired to the live settings. Issues below are behavioral/perf
-deviations, not placeholders.
+impossible in pure Flutter) wired to the live settings.
 
-- [ ] [MAJOR] "Hide Reactions" master toggle uses ALL-semantics instead of AyuGram's ANY-semantics: the `addCollapsibleToggle` call omits `toggledWhenAll`, so it defaults to `true` (`ayu_section_builder.dart:116`), computing the master state as "checked only when every child is checked" (`ayu_section_builder.dart:713-715`). AyuGram passes `.toggledWhenAll = false`, so the master is checked when `count != 0` i.e. ANY child checked (`settings_ayu_utils.cpp:216-222`). Result: when only some reaction types are hidden, the Dart "Hide Reactions" toggle shows OFF and clicking it *hides all*, whereas AyuGram shows ON and clicking *un-hides all* — wrong displayed state + inverted click result. — `ayu_chats_page.dart:34-61` ← `AyuGram/SourceFiles/ayu/ui/settings/settings_chats.cpp:67`
-
-- [ ] [MAJOR] "Recent Stickers Count" slider persists + rebuilds the whole page on every drag frame. The slider is wired with `onChanged: (v) => appState.setRecentStickersCount(v)` and NO `onFinalChanged` (`ayu_chats_page.dart:63-70`); `_AyuSlider` fires `onChanged` on every drag frame (`ayu_section_builder.dart:514-518`) and `setRecentStickersCount` calls `notifyListeners()` (`app_state.dart:2274`), forcing a full `AyuChatsPage` rebuild each frame (page is `context.watch<AppState>()`, `ayu_chats_page.dart:18`). AyuGram sets `.onChanged = nullptr` (label-only live update) and persists only in `.onFinalChanged` on release — the exact per-frame-rebuild pattern the bubble/wide sliders were hand-written to avoid, reintroduced here. — `ayu_chats_page.dart:63-70` ← `AyuGram/SourceFiles/ayu/ui/settings/settings_chats.cpp:82-87`
-
-- [ ] [MAJOR] Bubble-radius live preview is missing during drag. The message preview reads `appState.bubbleRadius` (`ayu_chats_page.dart:117`), but `_BubbleRadiusSlider.onChanged` only updates its own local value label (`ayu_chats_page.dart:522-524`) and persists to AppState solely in `onChangeEnd` (`ayu_chats_page.dart:525-531`), so the preview bubble corners change only on release. AyuGram's slider `onChanged` calls `previewState->widget->setBubbleRadius(index)` every frame (`settings_chats.cpp:255-259`), which re-renders the preview live (`message_preview.cpp:194-200`). The preview-next-to-slider exists precisely for live feedback that Dart loses. — `ayu_chats_page.dart:178-182` ← `AyuGram/SourceFiles/ayu/ui/settings/settings_chats.cpp:255-259`
-
-- [ ] [MAJOR] Message-Field Elements (7 rows) and Message-Field Popups (2 rows) are missing their leading icons. Dart calls `addSettingToggle` with no `icon:` for Attach/Commands/TTL/Emoji/Voice/Gift/AI-Editor (`ayu_chats_page.dart:216-257`) and Attach-popup/Emoji-popup (`ayu_chats_page.dart:263-274`), though the builder fully supports icons (`ayu_section_builder.dart:50-57`) and the context-menu section right above does pass them. AyuGram gives every one of these toggles an icon (`.icon = { &st::messageFieldAttachIcon }` …`messageFieldCocoonAiIcon`), which are real defined icons (`ayu_icons.style:26-36`); presence of an icon also switches the row to the wider icon layout (`ayu_builder.cpp:75`), so Dart additionally uses the wrong (22px no-icon) row inset for these 9 rows. — `ayu_chats_page.dart:216-274` ← `AyuGram/SourceFiles/ayu/ui/settings/settings_chats.cpp:386-428`
+**Verified correct (all 4 prior MAJOR deviations fixed; confirmed in desktop 1024×768 + mobile 400×720):**
+Hide Reactions master uses ANY-semantics (`toggledWhenAll: false`) — shows ON at 1/3 and clicking it
+un-hides all (→0/3 OFF); Recent Stickers slider persists only on release (`onChanged: null` +
+`onFinalChanged`, so `setRecentStickersCount`→`notifyListeners` never fires per drag frame);
+bubble-radius preview updates live every drag frame via a `ValueNotifier` the slider pokes in
+`onChanged` (mid-drag screenshots showed corners rounding at intermediate values 4→14 before release),
+persisting + restart-prompt in `onChangeEnd`; all 7 message-field elements + 2 popups carry leading
+icons with the wide icon-row layout.
 
 # ayu_filters_page — Regex Filters settings (shared/shadow-ban/per-dialog + import/export)
 
