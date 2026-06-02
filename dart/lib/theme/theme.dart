@@ -41,29 +41,35 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: p.windowBg,
+        // AyuGram defaultInputField: borderRadius 0px (flat field), resting
+        // border borderFg=inputBorderFg, focused border borderFgActive=activeLineFg,
+        // border 1px / borderActive 2px (widgets.style:1058-1064).
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: p.windowBgRipple),
+          borderRadius: BorderRadius.zero,
+          borderSide: BorderSide(color: p.inputBorderFg),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: p.windowBgActive, width: 2),
+          borderRadius: BorderRadius.zero,
+          borderSide: BorderSide(color: p.activeLineFg, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         hintStyle: TextStyle(color: p.windowSubTextFg),
       ),
       scrollbarTheme: ScrollbarThemeData(
+        // AyuGram scrollbar thumb width = width − 2·deltax = 4px (defaultScrollArea
+        // 10−2·3, defaultSolidScroll 14−2·5; scroll_area.cpp:166); round 2px
+        // (defaultScrollArea.round, widgets.style:822).
         thumbColor: WidgetStateProperty.all(p.scrollBarBg),
-        radius: const Radius.circular(4),
-        thickness: WidgetStateProperty.all(6),
+        radius: const Radius.circular(2),
+        thickness: WidgetStateProperty.all(4),
       ),
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
           color: p.tooltipBg,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(3),
           border: Border.all(color: p.tooltipBorderFg, width: 1),
         ),
-        textStyle: TextStyle(fontSize: 12, color: p.tooltipFg, height: 1.3),
+        textStyle: TextStyle(fontSize: 13, color: p.tooltipFg, height: 1.3),
         padding: const EdgeInsets.fromLTRB(5, 2, 5, 2),
         waitDuration: const Duration(milliseconds: 1000),
         showDuration: Duration.zero,
