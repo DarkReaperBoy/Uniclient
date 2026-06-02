@@ -254,14 +254,6 @@ blend (wallpaper.dart:349-378) ← image_prepare.cpp:255-289; dither tiers
 PreprocessBackgroundImage chat_theme.cpp:949-964; pattern tiling odd-cols/xshift
 (wallpaper.dart:958-976) ← CacheBackgroundByRequest chat_theme.cpp:172-184.
 
-## Findings
-
-- [ ] [MAJOR] Chat-background gradient never advances on outgoing-message reveal — it is rendered fully static. AyuGram steps a 3+‑color (complex) gradient by one 45° phase with a fade each time an outgoing message appears (the signature Telegram "background shifts when you send" effect). The Dart renderer (`_RasterGradient`/`_RasterGradientState`) has no `AnimationController`, no send-event hook, and the file comment explicitly chooses a static raster. Resting visual is correct; the on-send state transition is absent. — `wallpaper.dart:294-302` (+ static `_RasterGradientState` `wallpaper.dart:545-598`) ← `AyuGram/ui/chat/chat_theme.cpp:638-669` (`generateNextBackgroundRotation`, `kAddRotationDoubled`, gated on `colors.size() >= 3`)
-
-- [ ] [MAJOR] `WallpaperData.fromUrl` cannot parse the canonical gradient share link. AyuGram's `withUrlParams` reads gradient colors **primarily from the URL path slug** (`ColorsFromString(_slug)`), falling back to `bg_color`/`gradient`/`color`/`slug` query params only if the slug yields nothing. The Dart reads colors **only** from the `bg_color` query param and ignores `pathSegments[1]` (the slug) entirely, so a normal link like `t.me/bg/3390ec-aa82e6` (no `bg_color` param) yields zero colors → returns `null`. It also omits the `gradient`/`color`/`slug` param fallbacks. (Method currently has zero callers — apply-wallpaper-from-link is unwired.) — `wallpaper.dart:97-116` ← `AyuGram/data/data_wall_paper.cpp:388-409`
-
-- [ ] [MAJOR] `toUrlParams` emits `bg_color` (and would emit `intensity`) for non-pattern wallpapers, contradicting the AyuGram format the comment claims to mirror. `collectShareParams` pushes `bg_color`/`intensity` **only inside `if (isPattern())`**; for solid/gradient wallpapers the colors belong in the URL path slug (`StringFromColors`, data_wall_paper.cpp:304), never as a `bg_color` query param. The Dart always appends `bg_color=...` whenever `backgroundColors` is non-empty, producing a malformed share string for gradients. (Method currently has zero callers.) — `wallpaper.dart:140-149` ← `AyuGram/data/data_wall_paper.cpp:269-291` (bg_color/intensity gated on `isPattern()`)
-
 # admin_tools — Group/Channel/Bot admin tools (edit peer, permissions, admin rights, invite links, members, admin log, statistics/boosts/earn)
 
 Audited `dart/lib/ui/admin_tools.dart` (8523 lines) against AyuGram Desktop C++ source. AyuGram C++ is the sole authority. Every finding cites both files with line numbers and was confirmed by reading the cited AyuGram lines. MINOR/COSMETIC findings omitted.
