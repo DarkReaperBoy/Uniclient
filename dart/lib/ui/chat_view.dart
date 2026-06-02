@@ -876,6 +876,11 @@ class _ChatViewState extends State<ChatView>
     if (!mounted) return;
     final chatState = context.read<ChatState>();
     if (msg.isOutgoing) {
+      // Step the chat-background complex gradient one phase on outgoing-message
+      // reveal — AyuGram's "background shifts when you send" effect
+      // (rotateComplexGradientBackground, gated on `item->out() || isSelf()`;
+      // history_widget.cpp:4096/7718). Only 3+-color gradients react.
+      ChatBackgroundRotator.instance.rotate();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_scrollController.hasClients) return;
         _smoothScrollTo(0, synthetic: true);
