@@ -56,6 +56,11 @@ class AyuAppearancePage extends StatelessWidget {
 
     b.addSectionDivider();
 
+    // AyuGram's BuildAppearance opens this group with
+    // addSubsectionTitle(tr::ayu_CategoryAppearance()) (settings_appearance.cpp:191)
+    // before the MaterialSwitches toggle — match the other groups' titles.
+    b.addSectionTitle('Appearance');
+
     b.addSettingToggle(
       label: 'MD3 Switch Style',
       subtitle: 'Use Material-style toggle switches throughout',
@@ -473,35 +478,49 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
         ),
       );
     } else {
-      const colors = [
-        Color(0xFFE17076), Color(0xFF7BC862), Color(0xFF65AADD),
-        Color(0xFFEE7AE6), Color(0xFF6EC9CB), Color(0xFFFAA774),
-        Color(0xFFA695E7), Color(0xFFED9B9B),
-      ];
-      final colorIdx = 'AyuGramReleases'.hashCode.abs() % colors.length;
-      avatarWidget = ClipRRect(
-        borderRadius: BorderRadius.circular(avatarRadius),
-        child: Container(
-          width: photoSize,
-          height: photoSize,
-          color: colors[colorIdx],
-          alignment: Alignment.center,
-          child: const Text('A',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w500)),
+      // EmptyUserpic fallback for @AyuGramReleases. AyuGram constructs it from
+      // Data::DecideColorIndex(peerFromChannel(ChannelId(2331068091))) over the
+      // fixed name "AyuGram Releases" (avatar_corners_preview.cpp:29-33):
+      //   colorIndex   = 2331068091 % kSimpleColorIndexCount(7) = 2
+      //   paletteIndex = ColorIndexToPaletteIndex[2] = 4   (chat_style.cpp:1205)
+      //   gradient     = historyPeer5UserpicBg/Bg2 (purple), painted top→bottom
+      //   initials     = "AR" (first letter + letter after the space,
+      //                  empty_userpic.cpp:656-672)
+      // The shape follows AyuUserpic::PaintShape (paintCircle → PaintShape,
+      // avatar_corners_preview.cpp:63), i.e. the same avatarRadius as the real
+      // userpic — square at corners 0, circle at 23.
+      avatarWidget = Container(
+        width: photoSize,
+        height: photoSize,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(avatarRadius),
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFB694F9), Color(0xFF6C61DF)],
+          ),
         ),
+        child: const Text('AR',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w500)),
       );
     }
 
+    // Full-width dialog row. AyuGram adds the preview with horizontal margin 0
+    // and only a 2px top margin (settings_appearance.cpp:150-154) and paints an
+    // edge-to-edge st::windowBg row with a full-width rectangular ripple
+    // (RippleAnimation::RectMask, avatar_corners_preview.cpp:43-90). The avatar
+    // sits at the standard 22px settings indent (userpicX = row.padding.left(10)
+    // + xShift(12) = 22) and the name/subtitle at nameLeft(68) + xShift(12) = 80
+    // (= 22 + photoSize 46 + 12 gap), aligned with every other settings row.
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+      padding: const EdgeInsets.only(top: 2),
       child: Material(
         color: bgColor,
-        borderRadius: BorderRadius.circular(8),
         child: InkWell(
-          borderRadius: BorderRadius.circular(8),
           onTap: () async {
             final chatState = context.read<ChatState>();
             final appState = context.read<AppState>();
@@ -529,50 +548,52 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
               chatState.openChatById(id);
             }
           },
-          child: Container(
+          child: SizedBox(
             height: 62,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: photoSize,
-                  height: photoSize,
-                  child: avatarWidget,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text('AyuGram Releases',
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: nameColor),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis),
-                          ),
-                          const SizedBox(width: 3),
-                          Icon(Icons.verified,
-                              size: 15,
-                              color: widget.isDark
-                                  ? const Color(0xFF6AB2F2)
-                                  : const Color(0xFF3390EC)),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text('Better late than never',
-                          style: TextStyle(fontSize: 13, color: previewColor),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                    ],
+            child: Padding(
+              padding: const EdgeInsets.only(left: 22, right: 22),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: photoSize,
+                    height: photoSize,
+                    child: avatarWidget,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text('AyuGram Releases',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: nameColor),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
+                            ),
+                            const SizedBox(width: 3),
+                            Icon(Icons.verified,
+                                size: 15,
+                                color: widget.isDark
+                                    ? const Color(0xFF6AB2F2)
+                                    : const Color(0xFF3390EC)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text('Better late than never',
+                            style: TextStyle(fontSize: 13, color: previewColor),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -925,6 +946,17 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 20),
                   child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              else if (fonts.isEmpty)
+                // font_selector.cpp:696-717: when the filtered list is empty the
+                // rows are hidden and a centered "No fonts found." FlatLabel
+                // (st::membersAbout) is shown in its place.
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Center(
+                    child: Text('No fonts found.',
+                        style: TextStyle(fontSize: 14, color: subtitleColor)),
+                  ),
                 )
               else
                 Focus(
