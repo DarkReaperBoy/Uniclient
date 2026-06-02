@@ -835,6 +835,31 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
               )
             : const SizedBox.shrink(),
       ),
+      // §14.7.5 (Windows): "Close to taskbar" checkbox. AyuGram builds this only
+      // on Windows (settings_advanced.cpp:585-621, `#elif defined Q_OS_WIN`) and
+      // shows it only while the tray is absent (`!Core::App().tray().has()`,
+      // reactive on workModeValue) — with no tray to minimize to, the user picks
+      // whether closing the window minimizes to the taskbar or quits the app. The
+      // checkbox toggles closeBehavior between CloseToTaskbar (1, checked) and
+      // Quit (0, unchecked). Linux instead exposes the 3-radio group in
+      // _buildWindowCloseBehavior; macOS shows neither (no taskbar concept).
+      if (Platform.isWindows)
+        AnimatedSize(
+          duration: appState.animDuration(const Duration(milliseconds: 200)),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: !appState.showTrayIcon
+              ? _AdvancedCheckboxRow(
+                  label: 'Close to taskbar',
+                  value: appState.windowCloseBehavior == 1,
+                  onChanged: (v) =>
+                      appState.setWindowCloseBehavior(v ? 1 : 0),
+                  textColor: textColor,
+                  accentColor: accentColor,
+                  hoverBg: hoverBg,
+                )
+              : const SizedBox.shrink(),
+        ),
       _AdvancedCheckboxRow(
         label: 'Launch at system startup',
         value: appState.launchAtStartup,
