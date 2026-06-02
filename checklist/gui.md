@@ -256,11 +256,7 @@ PreprocessBackgroundImage chat_theme.cpp:949-964; pattern tiling odd-cols/xshift
 
 # admin_tools — Group/Channel/Bot admin tools (edit peer, permissions, admin rights, invite links, members, admin log, statistics/boosts/earn)
 
-Stage-2 verification (commit d1af1a17, verified 2026-06-02): 37 of 38 items verified fixed against AyuGram C++ ground truth and closed. The ONE item below was NOT implemented and remains open — the channel earn/monetization section still fetches Stars (credits) revenue only.
-
-## _StatisticsScreen / _StatChart / _BoostsScreen / _MonetizationScreen
-
-- [ ] [MAJOR] Monetization omits TON/currency ad-revenue entirely; AyuGram's earn section shows BOTH currency (TON) revenue and Stars (credits) revenue with their own overview/balance/charts, but `_MonetizationScreen` only calls `getStarsRevenueStats` (Stars-only); the engine never fetches broadcast revenue stats so TON revenue + revenue charts are absent. No `stats.getBroadcastRevenueStats`/`getBroadcastRevenueTransactions`/`getBroadcastRevenueWithdrawalUrl` exists anywhere in `go/cores/telegram.go` or `go/engine/`, and no TON revenue UI exists in `_MonetizationScreen`. (The `getTonBalance` in engine_service is the user's personal wallet in settings, unrelated to channel ad-revenue.) — `admin_tools.dart:8378` ← `AyuGram/Telegram/SourceFiles/info/channel_statistics/earn/info_channel_earn_list.cpp:611`
+Stage-2 verification (commits d1af1a17 + 10b7d3d4, verified 2026-06-02): all 38 items verified fixed against AyuGram C++ ground truth and closed. Item 29 (TON/currency ad-revenue in `_MonetizationScreen`) was added via the unified `payments.getStarsRevenueStats`/`getStarsTransactions`/`getStarsRevenueWithdrawalUrl` with the `ton` flag — the current Telegram layer has no `stats.getBroadcastRevenue*` (confirmed absent from AyuGram api.tl; matches EarnStatistics f_ton at api_statistics.cpp:699,757 and api_earn.cpp:103-112). Verified end-to-end: live API `GetBroadcastRevenueStats` returns OK (Ton flag accepted), the screen renders a TON section (overview/charts/transactions/withdraw, gated on hasTon, shown above the Stars section) in desktop+mobile with no exceptions, Stars section unchanged.
 
 # advanced_settings_screen — Advanced settings page (§14.7): update, data/storage, auto-download, window title/close, system integration, performance, spellchecker, screen reader, export, proxies, power saving, experimental flags
 
